@@ -418,10 +418,6 @@ const copilotChatGetListItemSchema = z
     id: z.string(),
     title: z.string().nullable(),
     model: z.string().nullable(),
-    messages: z.array(z.unknown()),
-    messageCount: z.number(),
-    planArtifact: z.unknown().nullable(),
-    config: z.unknown().nullable(),
     createdAt: z.string().nullable(),
     updatedAt: z.string().nullable(),
   })

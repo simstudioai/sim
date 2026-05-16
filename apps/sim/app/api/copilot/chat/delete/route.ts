@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { deleteCopilotChatContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
+import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -30,7 +30,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
     if (!validated.success) return validated.response
     const parsed = validated.data.body
 
-    const chat = await getAccessibleCopilotChat(parsed.chatId, session.user.id)
+    const chat = await getAccessibleCopilotChatAuth(parsed.chatId, session.user.id)
     if (!chat) {
       return NextResponse.json({ success: true })
     }

@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateCopilotMessagesContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
-import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
+import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -66,7 +66,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     // Verify that the chat belongs to the user
-    const chat = await getAccessibleCopilotChat(chatId, userId)
+    const chat = await getAccessibleCopilotChatAuth(chatId, userId)
 
     if (!chat) {
       return createNotFoundResponse('Chat not found or unauthorized')
