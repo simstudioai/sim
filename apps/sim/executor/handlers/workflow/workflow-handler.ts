@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
