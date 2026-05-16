@@ -17,6 +17,16 @@ export interface IdempotencyConfig {
   /** When true, failed keys are deleted rather than stored so the operation is retried on the next attempt. */
   retryFailures?: boolean
   /**
+   * When false, the operation's return value is not persisted alongside
+   * the dedupe marker — only `{ success, status, error? }` is stored.
+   * Duplicate calls still short-circuit, but `executeWithIdempotency`
+   * resolves to `undefined` on the dedupe path. Use for webhook/polling
+   * flows where the cached body is large (multi-KB execution results)
+   * and callers don't consume the value of a duplicated delivery.
+   * Defaults to true.
+   */
+  storeResultBody?: boolean
+  /**
    * Force a specific storage backend regardless of the environment's
    * auto-detection. Use `'database'` for correctness-critical flows
    * (money, billing, compliance) where the claim + operation should
@@ -77,6 +87,7 @@ export class IdempotencyService {
       ttlSeconds: config.ttlSeconds ?? DEFAULT_TTL,
       namespace: config.namespace ?? 'default',
       retryFailures: config.retryFailures ?? false,
+      storeResultBody: config.storeResultBody ?? true,
     }
     this.storageMethod = config.forceStorage ?? getStorageMethod()
     logger.info(`IdempotencyService using ${this.storageMethod} storage`, {
@@ -441,7 +452,9 @@ export class IdempotencyService {
 
       await this.storeResult(
         claimResult.normalizedKey,
-        { success: true, result, status: 'completed' },
+        this.config.storeResultBody
+          ? { success: true, result, status: 'completed' }
+          : { success: true, status: 'completed' },
         claimResult.storageMethod
       )
 
@@ -510,15 +523,29 @@ export class IdempotencyService {
   }
 }
 
+/**
+ * Webhook idempotency. We're the receiver of provider-initiated webhooks,
+ * not the originator — duplicate deliveries from the provider's retry
+ * machinery just need a "we saw this" marker, not a replayable response
+ * body. `storeResultBody: false` drops the cached workflow result from
+ * each key, eliminating the long tail of large gmail/outlook payloads
+ * that pushed Redis Cloud into OOM on 2026-05-15.
+ *
+ * TTL stays at 7 days because that's the longest provider retry window
+ * we care about (Gmail / Pub/Sub). With body-stripping the per-key cost
+ * is ~150 bytes, so the long TTL is essentially free.
+ */
 export const webhookIdempotency = new IdempotencyService({
   namespace: 'webhook',
-  ttlSeconds: 60 * 60 * 24 * 7, // 7 days
+  ttlSeconds: 60 * 60 * 24 * 7, // 7 days — must exceed Gmail/Pub-Sub retry window
+  storeResultBody: false,
 })
 
 export const pollingIdempotency = new IdempotencyService({
   namespace: 'polling',
   ttlSeconds: 60 * 60 * 24 * 3, // 3 days
   retryFailures: true,
+  storeResultBody: false,
 })
 
 /**
