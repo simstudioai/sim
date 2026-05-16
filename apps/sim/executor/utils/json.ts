@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { EVALUATOR } from '@/executor/constants'
 
 const logger = createLogger('JSONUtils')

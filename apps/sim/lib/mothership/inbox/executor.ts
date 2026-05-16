@@ -1,5 +1,6 @@
 import { copilotChats, db, mothershipInboxTask, permissions, user, workspace } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'

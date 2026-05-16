@@ -1,5 +1,3 @@
-import { randomFloat } from './random.js'
-
 /** Default retry pacing: 500 ms floor, 30 s ceiling. */
 const DEFAULT_BACKOFF_BASE_MS = 500
 const DEFAULT_BACKOFF_MAX_MS = 30_000
@@ -29,7 +27,9 @@ export function backoffWithJitter(
     return Math.min(Math.max(retryAfterMs, baseMs), maxMs)
   }
   const exponential = Math.min(baseMs * 2 ** (attempt - 1), maxMs)
-  return exponential * (0.8 + randomFloat() * 0.4)
+  // Inline crypto float to avoid cross-file imports within the package (Turbopack limitation)
+  const jitter = crypto.getRandomValues(new Uint32Array(1))[0] / 0x100000000
+  return exponential * (0.8 + jitter * 0.4)
 }
 
 /** Maximum `Retry-After` value honored: 30 s. Prevents a misconfigured upstream from stalling callers. */

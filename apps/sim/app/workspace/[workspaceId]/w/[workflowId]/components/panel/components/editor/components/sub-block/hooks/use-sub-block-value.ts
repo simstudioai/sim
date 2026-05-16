@@ -180,7 +180,7 @@ export function useSubBlockValue<T = any>(
         }
 
         // Emit immediately; the client queue coalesces same-key ops and the server debounces
-        emitValue(valueCopy)
+        emitValue(valueCopy as T)
 
         if (triggerWorkflowUpdate) {
           useWorkflowStore.getState().triggerUpdate()
