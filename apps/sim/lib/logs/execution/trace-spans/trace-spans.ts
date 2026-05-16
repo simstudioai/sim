@@ -8,6 +8,7 @@ import type { BlockLog, ExecutionResult } from '@/executor/types'
  * These are internal fields used for execution tracking that shouldn't be shown to users.
  */
 const HIDDEN_OUTPUT_KEYS = new Set(['childTraceSpans'])
+const SUCCESSFUL_CHILD_ERROR_BOUNDARY_BLOCK_TYPES = new Set(['mothership'])
 
 /**
  * Recursively filters hidden keys from nested objects for cleaner display.
@@ -126,5 +127,8 @@ function addRelativeTimestamps(spans: TraceSpan[], workflowStartMs: number): voi
 /** True if this span (or any descendant) has an unhandled error. */
 function hasUnhandledError(span: TraceSpan): boolean {
   if (span.status === 'error' && !span.errorHandled) return true
+  if (span.status === 'success' && SUCCESSFUL_CHILD_ERROR_BOUNDARY_BLOCK_TYPES.has(span.type)) {
+    return false
+  }
   return span.children?.some(hasUnhandledError) ?? false
 }

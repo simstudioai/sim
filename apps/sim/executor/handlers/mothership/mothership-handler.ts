@@ -436,8 +436,7 @@ export class MothershipBlockHandler implements BlockHandler {
       }
 
       if (isContentSelectedForStreaming(ctx, block)) {
-        cleanupImmediately = false
-        return createMothershipStreamingExecution(response, chatId, block.id, {
+        const streamingExecution = createMothershipStreamingExecution(response, chatId, block.id, {
           onCancel: (reason) => {
             if (!abortController.signal.aborted) {
               abortController.abort(reason ?? 'mothership_stream_cancelled')
@@ -445,6 +444,8 @@ export class MothershipBlockHandler implements BlockHandler {
           },
           onDone: cleanupAbortListeners,
         })
+        cleanupImmediately = false
+        return streamingExecution
       }
 
       const result = await readMothershipExecuteResponse(response)
