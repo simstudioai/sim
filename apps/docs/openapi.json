@@ -6000,7 +6000,7 @@
           "status": {
             "type": "string",
             "enum": ["pending", "running", "paused", "completed", "failed", "cancelled"],
-            "description": "Current normalized lifecycle status. `paused` is set when a row exists in pausedExecutions with status `paused` or `partially_resumed`; otherwise the workflowExecutionLogs row's status field is used.",
+            "description": "Current lifecycle status of the execution.",
             "example": "completed"
           },
           "trigger": {
@@ -6067,7 +6067,7 @@
               },
               "pausedExecutionId": {
                 "type": "string",
-                "description": "ID of the paused-execution row, useful for cross-referencing with the human-in-the-loop endpoints.",
+                "description": "ID for cross-referencing with the human-in-the-loop endpoints.",
                 "example": "438bf05b-bd3c-4011-b78e-b19c112eeb66"
               },
               "pausePointCount": {
@@ -6085,7 +6085,7 @@
           "cost": {
             "type": "object",
             "nullable": true,
-            "description": "Cost summary. Detailed token / model breakdown lives on the /v1/logs detail endpoint.",
+            "description": "Cost summary for the execution.",
             "properties": {
               "total": {
                 "type": "number",
