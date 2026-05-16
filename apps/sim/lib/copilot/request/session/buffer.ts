@@ -144,6 +144,7 @@ export async function appendEvents(
       zaddArgs.push(envelope.seq, JSON.stringify(envelope))
     }
     pipeline.zadd(key, ...(zaddArgs as [number, string, ...Array<number | string>]))
+    pipeline.zremrangebyrank(key, 0, -config.eventLimit - 1)
     pipeline.expire(key, config.ttlSeconds)
     pipeline.set(seqKey, String(envelopes[envelopes.length - 1].seq), 'EX', config.ttlSeconds)
     await pipeline.exec()
