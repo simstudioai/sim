@@ -10,20 +10,22 @@ import {
   defineRouteContract,
 } from '@/lib/api/contracts/types'
 
-const mongoConnectionBodySchema = z
-  .object({
-    host: z.string().min(1, 'Host is required'),
-    port: z.coerce.number().int().positive('Port must be a positive integer'),
-    database: z.string().min(1, 'Database name is required'),
-    username: z.string().min(1, 'Username is required').optional(),
-    password: z.string().min(1, 'Password is required').optional(),
-    authSource: z.string().optional(),
-    ssl: sslModeSchema,
-  })
-  .refine((data) => Boolean(data.username) === Boolean(data.password), {
-    message: 'Username and password must be provided together',
-    path: ['password'],
-  })
+// .refine returns ZodEffects which has no .extend method, so the downstream
+// MongoDB operation schemas have to extend the un-refined base. (Note: the
+// resolved Zod is v3 despite package.json declaring v4 — same root issue as
+// confluence and storage-transfer.) The five downstream extensions previously
+// threw at module-init time in the TD bundle, so no consumer was actually
+// running the username/password pairing constraint; not adding it back here
+// preserves observed behavior.
+const mongoConnectionBaseSchema = z.object({
+  host: z.string().min(1, 'Host is required'),
+  port: z.coerce.number().int().positive('Port must be a positive integer'),
+  database: z.string().min(1, 'Database name is required'),
+  username: z.string().min(1, 'Username is required').optional(),
+  password: z.string().min(1, 'Password is required').optional(),
+  authSource: z.string().optional(),
+  ssl: sslModeSchema,
+})
 
 const mongoJsonStringOrObjectSchema = (message: string) =>
   z
@@ -45,7 +47,7 @@ const booleanStringSchema = z
     return false
   })
 
-export const mongodbQueryBodySchema = mongoConnectionBodySchema.extend({
+export const mongodbQueryBodySchema = mongoConnectionBaseSchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   query: z
     .union([z.string(), z.object({}).passthrough()])
@@ -77,7 +79,7 @@ export const mongodbQueryBodySchema = mongoConnectionBodySchema.extend({
     }),
 })
 
-export const mongodbExecuteBodySchema = mongoConnectionBodySchema.extend({
+export const mongodbExecuteBodySchema = mongoConnectionBaseSchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   pipeline: z
     .union([z.string(), z.array(z.object({}).passthrough())])
@@ -92,7 +94,7 @@ export const mongodbExecuteBodySchema = mongoConnectionBodySchema.extend({
     }),
 })
 
-export const mongodbInsertBodySchema = mongoConnectionBodySchema.extend({
+export const mongodbInsertBodySchema = mongoConnectionBaseSchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   documents: z
     .union([z.array(z.record(z.string(), z.unknown())), z.string()])
@@ -112,7 +114,7 @@ export const mongodbInsertBodySchema = mongoConnectionBodySchema.extend({
     }),
 })
 
-export const mongodbUpdateBodySchema = mongoConnectionBodySchema.extend({
+export const mongodbUpdateBodySchema = mongoConnectionBaseSchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   filter: mongoJsonStringOrObjectSchema('Filter is required for MongoDB Update').refine(
     (val) => val !== '{}',
@@ -123,7 +125,7 @@ export const mongodbUpdateBodySchema = mongoConnectionBodySchema.extend({
   multi: booleanStringSchema,
 })
 
-export const mongodbDeleteBodySchema = mongoConnectionBodySchema.extend({
+export const mongodbDeleteBodySchema = mongoConnectionBaseSchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   filter: mongoJsonStringOrObjectSchema('Filter is required for MongoDB Delete').refine(
     (val) => val !== '{}',
