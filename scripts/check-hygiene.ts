@@ -158,7 +158,7 @@ const VITEST_ANTI_PATTERNS: Array<{ pattern: RegExp; description: string }> = [
       'vi.resetModules() — use vi.hoisted() + vi.mock() + static imports instead (exception: singleton modules that cache state)',
   },
   {
-    pattern: /\bvi\.importActual\s*\(/,
+    pattern: /\bvi\.importActual\s*(?:<[^>]*>)?\s*\(/,
     description: 'vi.importActual() — mock everything explicitly instead',
   },
 ]

@@ -11,8 +11,8 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 
-// hygiene-suppress: session re-exports many real domain functions (eventToStreamEvent, parsePersistedStreamEventEnvelope) used by stream.ts under test — must spread real implementations and override only hasAbortMarker
 vi.mock('@/lib/copilot/request/session', async () => {
+  // hygiene-suppress: session re-exports real domain functions (eventToStreamEvent, parsePersistedStreamEventEnvelope) used by stream.ts under test — must spread real implementations and override only hasAbortMarker
   const actual = await vi.importActual<typeof import('@/lib/copilot/request/session')>(
     '@/lib/copilot/request/session'
   )
