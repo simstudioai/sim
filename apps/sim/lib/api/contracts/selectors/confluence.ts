@@ -100,17 +100,24 @@ function addAlphanumericIdIssue(
   }
 }
 
-export const confluenceCommentScopedSchema = confluenceBaseSchema
-  .extend({
-    commentId: z.string().min(1, 'Comment ID is required'),
-  })
-  .superRefine((data, ctx) => addAlphanumericIdIssue(data, 'commentId', 'comment ID', ctx))
+// Keep the un-superRefined base separate so downstream schemas can .extend it.
+// .superRefine returns a ZodEffects which has no .extend method, so extending
+// the refined schema directly throws at module-init time (caught by bundlers
+// like esbuild/Trigger.dev that eagerly evaluate; Next.js lazy-loads per-route
+// and hides the issue).
+const confluenceCommentScopedBaseSchema = confluenceBaseSchema.extend({
+  commentId: z.string().min(1, 'Comment ID is required'),
+})
+export const confluenceCommentScopedSchema = confluenceCommentScopedBaseSchema.superRefine(
+  (data, ctx) => addAlphanumericIdIssue(data, 'commentId', 'comment ID', ctx)
+)
 
-export const confluenceBlogPostScopedSchema = confluenceBaseSchema
-  .extend({
-    blogPostId: z.string({ error: 'Blog post ID is required' }).min(1, 'Blog post ID is required'),
-  })
-  .superRefine((data, ctx) => addAlphanumericIdIssue(data, 'blogPostId', 'blog post ID', ctx))
+const confluenceBlogPostScopedBaseSchema = confluenceBaseSchema.extend({
+  blogPostId: z.string({ error: 'Blog post ID is required' }).min(1, 'Blog post ID is required'),
+})
+export const confluenceBlogPostScopedSchema = confluenceBlogPostScopedBaseSchema.superRefine(
+  (data, ctx) => addAlphanumericIdIssue(data, 'blogPostId', 'blog post ID', ctx)
+)
 
 export const confluenceDeleteAttachmentBodySchema = confluenceBaseSchema.extend({
   attachmentId: z
@@ -133,9 +140,11 @@ export const confluenceListCommentsQuerySchema = confluencePageScopedSchema.exte
   cursor: z.string().optional(),
 })
 
-export const confluenceUpdateCommentBodySchema = confluenceCommentScopedSchema.extend({
-  comment: z.string().min(1, 'Comment is required'),
-})
+export const confluenceUpdateCommentBodySchema = confluenceCommentScopedBaseSchema
+  .extend({
+    comment: z.string().min(1, 'Comment is required'),
+  })
+  .superRefine((data, ctx) => addAlphanumericIdIssue(data, 'commentId', 'comment ID', ctx))
 
 export const confluenceCreatePageBodySchema = confluenceSpaceScopedSchema.extend({
   title: z.string({ error: 'Title is required' }).min(1, 'Title is required'),
@@ -276,9 +285,11 @@ export const confluenceUserBodySchema = confluenceBaseSchema.extend({
   accountId: z.string({ error: 'Account ID is required' }).min(1, 'Account ID is required'),
 })
 
-export const confluenceGetBlogPostBodySchema = confluenceBlogPostScopedSchema.extend({
-  bodyFormat: z.string().optional(),
-})
+export const confluenceGetBlogPostBodySchema = confluenceBlogPostScopedBaseSchema
+  .extend({
+    bodyFormat: z.string().optional(),
+  })
+  .superRefine((data, ctx) => addAlphanumericIdIssue(data, 'blogPostId', 'blog post ID', ctx))
 
 export const confluenceCreateBlogPostBodySchema = confluenceSpaceScopedSchema.extend({
   title: z.string({ error: 'Title is required' }).min(1, 'Title is required'),
@@ -298,10 +309,12 @@ export const confluenceListBlogPostsQuerySchema = confluenceBaseSchema.extend({
   cursor: z.string().optional(),
 })
 
-export const confluenceUpdateBlogPostBodySchema = confluenceBlogPostScopedSchema.extend({
-  title: z.string().optional(),
-  content: z.string().optional(),
-})
+export const confluenceUpdateBlogPostBodySchema = confluenceBlogPostScopedBaseSchema
+  .extend({
+    title: z.string().optional(),
+    content: z.string().optional(),
+  })
+  .superRefine((data, ctx) => addAlphanumericIdIssue(data, 'blogPostId', 'blog post ID', ctx))
 
 const defineConfluencePostContract = <TBody extends z.ZodType>(path: string, body: TBody) =>
   defineRouteContract({
