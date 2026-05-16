@@ -143,5 +143,5 @@ export async function executeFunctionExecute(
     enforceCredentialAccess: true,
   }
 
-  return executeAppTool('function_execute', enrichedParams, false)
+  return executeAppTool('function_execute', enrichedParams)
 }

@@ -129,7 +129,9 @@ async function executeToolCallsBatch(
 
     try {
       const { toolParams, executionParams } = prepareToolExecution(tool, args, request)
-      const result = await executeTool(toolName, executionParams)
+      const result = await executeTool(toolName, executionParams, {
+        signal: request.abortSignal,
+      })
       const toolCallEndTime = Date.now()
       const duration = toolCallEndTime - toolCallStartTime
 

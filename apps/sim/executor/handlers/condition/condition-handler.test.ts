@@ -180,8 +180,7 @@ describe('ConditionBlockHandler', () => {
           workspaceId: 'test-workspace-id',
         },
       }),
-      false,
-      mockContext
+      { executionContext: mockContext }
     )
   })
 

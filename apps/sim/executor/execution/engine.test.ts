@@ -4,9 +4,27 @@
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+const { mockCancellationSubscribers } = vi.hoisted(() => ({
+  mockCancellationSubscribers: new Set<(event: { executionId: string }) => void>(),
+}))
+
 vi.mock('@/lib/execution/cancellation', () => ({
   isExecutionCancelled: vi.fn(),
   isRedisCancellationEnabled: vi.fn(),
+  getCancellationChannel: () => ({
+    publish: (event: { executionId: string }) => {
+      for (const handler of mockCancellationSubscribers) handler(event)
+    },
+    subscribe: (handler: (event: { executionId: string }) => void) => {
+      mockCancellationSubscribers.add(handler)
+      return () => {
+        mockCancellationSubscribers.delete(handler)
+      }
+    },
+    dispose: () => {
+      mockCancellationSubscribers.clear()
+    },
+  }),
 }))
 
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
@@ -115,6 +133,7 @@ function createMockNodeOrchestrator(executeDelay = 0): MockNodeOrchestrator {
 describe('ExecutionEngine', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCancellationSubscribers.clear()
     ;(isExecutionCancelled as Mock).mockResolvedValue(false)
     ;(isRedisCancellationEnabled as Mock).mockReturnValue(false)
   })
@@ -346,7 +365,93 @@ describe('ExecutionEngine', () => {
       expect(result.status).toBe('cancelled')
     })
 
-    it('should respect cancellation check interval', async () => {
+    it('wakes from a slow in-flight node when a pub/sub cancellation arrives', async () => {
+      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
+      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+
+      const startNode = createMockNode('start', 'starter')
+      const slowNode = createMockNode('slow', 'function')
+      startNode.outgoingEdges.set('edge1', { target: 'slow' })
+
+      const dag = createMockDAG([startNode, slowNode])
+      const context = createMockContext({ executionId: 'pubsub-execution' })
+      const edgeManager = createMockEdgeManager((node) => (node.id === 'start' ? ['slow'] : []))
+      const nodeOrchestrator = createMockNodeOrchestrator(500)
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const executionPromise = engine.run('start')
+
+      setTimeout(() => {
+        for (const handler of mockCancellationSubscribers) {
+          handler({ executionId: 'pubsub-execution' })
+        }
+      }, 5)
+
+      const startTime = Date.now()
+      const result = await executionPromise
+      const duration = Date.now() - startTime
+
+      expect(result.status).toBe('cancelled')
+      expect(duration).toBeLessThan(100)
+    })
+
+    it('ignores pub/sub events targeting other executions', async () => {
+      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
+      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+
+      const startNode = createMockNode('start', 'starter')
+      const dag = createMockDAG([startNode])
+      const context = createMockContext({ executionId: 'execution-a' })
+      const edgeManager = createMockEdgeManager()
+      const nodeOrchestrator = createMockNodeOrchestrator()
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+
+      for (const handler of mockCancellationSubscribers) {
+        handler({ executionId: 'execution-b' })
+      }
+
+      const result = await engine.run('start')
+      expect(result.status).toBeUndefined()
+      expect(result.success).toBe(true)
+    })
+
+    it('unsubscribes from the cancellation channel after run completes', async () => {
+      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
+      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+
+      const startNode = createMockNode('start', 'starter')
+      const dag = createMockDAG([startNode])
+      const context = createMockContext({ executionId: 'cleanup-execution' })
+      const edgeManager = createMockEdgeManager()
+      const nodeOrchestrator = createMockNodeOrchestrator()
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      expect(mockCancellationSubscribers.size).toBe(1)
+
+      await engine.run('start')
+
+      expect(mockCancellationSubscribers.size).toBe(0)
+    })
+
+    it('honours the durable backstop when cancelled before subscribing', async () => {
+      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
+      ;(isExecutionCancelled as Mock).mockResolvedValue(true)
+
+      const startNode = createMockNode('start', 'starter')
+      const dag = createMockDAG([startNode])
+      const context = createMockContext()
+      const edgeManager = createMockEdgeManager()
+      const nodeOrchestrator = createMockNodeOrchestrator()
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const result = await engine.run('start')
+
+      expect(result.status).toBe('cancelled')
+      expect(nodeOrchestrator.executionCount).toBe(0)
+    })
+
+    it('calls isExecutionCancelled once as the startup backstop check', async () => {
       ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
       ;(isExecutionCancelled as Mock).mockResolvedValue(false)
 
@@ -359,7 +464,7 @@ describe('ExecutionEngine', () => {
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
       await engine.run('start')
 
-      expect((isExecutionCancelled as Mock).mock.calls.length).toBeGreaterThanOrEqual(1)
+      expect((isExecutionCancelled as Mock).mock.calls.length).toBe(1)
     })
   })
 
