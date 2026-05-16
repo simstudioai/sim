@@ -28,6 +28,7 @@ const MOTHERSHIP_EXECUTE_STREAM_HEADER = 'x-mothership-execute-stream'
 const MOTHERSHIP_EXECUTE_STREAM_VALUE = 'ndjson'
 const MOTHERSHIP_EXECUTE_STREAM_CONTENT_TYPE = 'application/x-ndjson'
 const MOTHERSHIP_EXECUTE_HEARTBEAT_INTERVAL_MS = 15_000
+const ndjsonEncoder = new TextEncoder()
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
@@ -41,7 +42,7 @@ function wantsStreamedExecuteResponse(req: NextRequest): boolean {
 }
 
 function encodeNdjson(value: unknown): Uint8Array {
-  return new TextEncoder().encode(`${JSON.stringify(value)}\n`)
+  return ndjsonEncoder.encode(`${JSON.stringify(value)}\n`)
 }
 
 function buildExecuteResponsePayload(

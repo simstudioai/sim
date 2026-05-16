@@ -92,14 +92,7 @@ function isContentSelectedForStreaming(ctx: ExecutionContext, block: SerializedB
   return (
     ctx.selectedOutputs?.some((outputId) => {
       if (outputId === block.id) return true
-      if (outputId === `${block.id}.content` || outputId === `${block.id}_content`) return true
-
-      const firstUnderscoreIndex = outputId.indexOf('_')
-      if (firstUnderscoreIndex === -1) return false
-      return (
-        outputId.substring(0, firstUnderscoreIndex) === block.id &&
-        outputId.substring(firstUnderscoreIndex + 1) === 'content'
-      )
+      return outputId === `${block.id}.content` || outputId === `${block.id}_content`
     }) ?? false
   )
 }
@@ -139,26 +132,30 @@ async function readMothershipExecuteResponse(response: Response): Promise<Mother
     throw new Error('Mothership execution stream returned an unknown event')
   }
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
 
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
-    for (const line of lines) {
-      processLine(line)
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) {
+        processLine(line)
+      }
     }
+
+    buffer += decoder.decode()
+    processLine(buffer)
+
+    if (!finalResult) {
+      throw new Error('Mothership execution stream ended without a final result')
+    }
+
+    return finalResult
+  } finally {
+    reader.releaseLock()
   }
-
-  buffer += decoder.decode()
-  processLine(buffer)
-
-  if (!finalResult) {
-    throw new Error('Mothership execution stream ended without a final result')
-  }
-
-  return finalResult
 }
 
 function createMothershipStreamingExecution(
@@ -273,7 +270,7 @@ function createMothershipStreamingExecution(
         startTime: new Date().toISOString(),
       },
       isStreaming: true,
-    },
+    } as StreamingExecution['execution'] & { blockId: string },
   }
 }
 
