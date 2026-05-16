@@ -1292,6 +1292,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         const executions = r.executions ?? {}
         let changed = false
         const next: RowExecutions = { ...executions }
+        const nextData = { ...r.data }
         for (const groupId of targetGroupIds) {
           const exec = executions[groupId] as RowExecutionMetadata | undefined
           if (isOptimisticInFlight(exec)) continue
@@ -1305,10 +1306,21 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
             if (group && areOutputsFilled(group, r)) continue
           }
           next[groupId] = buildPendingExec(exec)
+          // Mirror the server-side bulk clear: wipe output values so the cell
+          // doesn't render the stale completed value behind a pending badge.
+          // Without this the cell-render path's "value wins" branch keeps
+          // showing the previous run's output and the Queued/Running pill
+          // never appears.
+          const group = groupsById.get(groupId)
+          if (group) {
+            for (const o of group.outputs) {
+              if (o.columnName in nextData) nextData[o.columnName] = null
+            }
+          }
           changed = true
         }
         if (!changed) return null
-        return { ...r, executions: next }
+        return { ...r, data: nextData, executions: next }
       })
       return { snapshots }
     },

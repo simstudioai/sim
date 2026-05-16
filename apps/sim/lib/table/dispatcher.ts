@@ -2,9 +2,9 @@ import { db } from '@sim/db'
 import { tableRunDispatches, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
 import { appendTableEvent } from '@/lib/table/events'
-import type { RowData, TableRow } from '@/lib/table/types'
+import type { TableRow } from '@/lib/table/types'
 import {
   isGroupEligible,
   scheduleRunsForRows,
@@ -43,6 +43,50 @@ export interface DispatchRow {
 }
 
 export type DispatcherStepResult = 'continue' | 'done'
+
+/** Eager bulk clear at click time so the user sees every targeted cell go
+ *  blank/Pending instantly — without it, only the rows the dispatcher has
+ *  reached visibly change, and the rest sit on stale data until the cursor
+ *  walks to them. For `mode: 'incomplete'` we skip rows whose outputs are
+ *  already filled, mirroring the eligibility predicate. */
+export async function bulkClearWorkflowGroupCells(input: {
+  tableId: string
+  groups: Array<{ id: string; outputs: Array<{ columnName: string }> }>
+  rowIds?: string[]
+  mode: DispatchMode
+}): Promise<void> {
+  const { tableId, groups, rowIds, mode } = input
+  if (groups.length === 0) return
+
+  const outputCols = Array.from(new Set(groups.flatMap((g) => g.outputs.map((o) => o.columnName))))
+  const groupIds = groups.map((g) => g.id)
+
+  // Build `data - 'col1' - 'col2' - ...` and `executions - 'gid1' - 'gid2' - ...`.
+  let dataExpr: SQL = sql`coalesce(${userTableRows.data}, '{}'::jsonb)`
+  for (const col of outputCols) dataExpr = sql`(${dataExpr}) - ${col}::text`
+  let execExpr: SQL = sql`coalesce(${userTableRows.executions}, '{}'::jsonb)`
+  for (const gid of groupIds) execExpr = sql`(${execExpr}) - ${gid}::text`
+
+  const filters: SQL[] = [eq(userTableRows.tableId, tableId)]
+  if (rowIds && rowIds.length > 0) {
+    filters.push(inArray(userTableRows.id, rowIds))
+  }
+  if (mode === 'incomplete') {
+    // Skip rows where all output columns across all targeted groups already
+    // have a non-empty value — those are "completed-and-filled" and the
+    // eligibility predicate would skip them anyway.
+    const filledChecks = outputCols.map(
+      (col) => sql`coalesce(${userTableRows.data} ->> ${col}, '') != ''`
+    )
+    const allFilled = filledChecks.reduce((acc, expr) => sql`${acc} AND ${expr}`)
+    filters.push(sql`NOT (${allFilled})`)
+  }
+
+  await db
+    .update(userTableRows)
+    .set({ data: dataExpr, executions: execExpr, updatedAt: new Date() })
+    .where(and(...filters))
+}
 
 export async function insertDispatch(input: {
   tableId: string
@@ -95,14 +139,7 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
   }
   if (dispatch.status === 'cancelled' || dispatch.status === 'complete') return 'done'
 
-  if (dispatch.status === 'pending') {
-    await db
-      .update(tableRunDispatches)
-      .set({ status: 'dispatching' })
-      .where(eq(tableRunDispatches.id, dispatchId))
-  }
-
-  const { getTableById, batchUpdateRows } = await import('./service')
+  const { getTableById } = await import('./service')
   const table = await getTableById(dispatch.tableId)
   if (!table) {
     logger.warn(`[${dispatchId}] table ${dispatch.tableId} missing — completing dispatch`)
@@ -115,6 +152,23 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
   if (targetGroups.length === 0) {
     await markDispatchComplete(dispatchId)
     return 'done'
+  }
+
+  // First iteration: wipe every targeted cell across the whole table so the
+  // user sees the column flip to empty/Pending immediately. The cancel
+  // tombstone is preserved because the clear runs before any per-row cancels
+  // could have landed (cancel routes write cells after dispatch insertion).
+  if (dispatch.status === 'pending') {
+    await bulkClearWorkflowGroupCells({
+      tableId: dispatch.tableId,
+      groups: targetGroups.map((g) => ({ id: g.id, outputs: g.outputs })),
+      rowIds: dispatch.scope.rowIds,
+      mode: dispatch.mode,
+    })
+    await db
+      .update(tableRunDispatches)
+      .set({ status: 'dispatching' })
+      .where(eq(tableRunDispatches.id, dispatchId))
   }
 
   const filters = [
@@ -143,19 +197,13 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     return 'done'
   }
 
-  type Update = {
-    rowId: string
-    data: RowData
-    executionsPatch: Record<string, null>
-  }
-  const updates: Update[] = []
-  const clearedRows: TableRow[] = []
+  // Rows were bulk-cleared at click time, so the chunk is ready to enqueue
+  // as-is. We only filter out cells the user cancelled mid-cascade (the
+  // tombstone) and cells whose deps still aren't satisfied.
+  const eligibleRows: TableRow[] = []
   for (const r of chunk) {
     const tableRow = toTableRow(r)
-    const eligibleGroups = targetGroups.filter((g) => {
-      // Skip cells the user explicitly cancelled after this dispatch
-      // started — a per-row cancel mid-cascade must stick even under
-      // isManualRun, otherwise the dispatcher resurrects the row.
+    const anyEligible = targetGroups.some((g) => {
       const exec = tableRow.executions?.[g.id]
       if (exec?.cancelledAt) {
         const cancelledAtMs = Date.parse(exec.cancelledAt)
@@ -165,47 +213,20 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       }
       return isGroupEligible(g, tableRow, { isManualRun: true, mode: dispatch.mode })
     })
-    if (eligibleGroups.length === 0) continue
-
-    const clearedData: RowData = {}
-    const executionsPatch: Record<string, null> = {}
-    for (const g of eligibleGroups) {
-      for (const o of g.outputs) clearedData[o.columnName] = null
-      executionsPatch[g.id] = null
-    }
-    updates.push({ rowId: r.id, data: clearedData, executionsPatch })
-
-    const remainingExec = { ...tableRow.executions }
-    for (const g of eligibleGroups) delete remainingExec[g.id]
-    clearedRows.push({
-      ...tableRow,
-      data: { ...tableRow.data, ...clearedData },
-      executions: remainingExec,
-    })
+    if (anyEligible) eligibleRows.push(tableRow)
   }
 
   // Cursor advances to the last position in this chunk regardless of
-  // eligibility — otherwise a window full of completed cells loops forever.
+  // eligibility — otherwise a window full of skipped cells loops forever.
   const lastPosition = chunk[chunk.length - 1].position
 
-  if (updates.length > 0) {
-    await batchUpdateRows(
-      {
-        tableId: dispatch.tableId,
-        updates,
-        workspaceId: dispatch.workspaceId,
-        skipScheduler: true,
-      },
-      table,
-      dispatch.requestId
-    )
-
+  if (eligibleRows.length > 0) {
     const scheduleOpts: ScheduleOpts = {
       isManualRun: true,
       groupIds: dispatch.scope.groupIds,
       mode: dispatch.mode,
     }
-    await scheduleRunsForRows(table, clearedRows, scheduleOpts)
+    await scheduleRunsForRows(table, eligibleRows, scheduleOpts)
   }
 
   await Promise.all([

@@ -451,10 +451,9 @@ export async function runWorkflowColumn(opts: {
   if (table.workspaceId !== workspaceId) throw new Error('Invalid workspace ID')
 
   const allGroups = table.schema.workflowGroups ?? []
-  const targetGroupIds = groupIds
-    ? allGroups.filter((g) => groupIds.includes(g.id)).map((g) => g.id)
-    : allGroups.map((g) => g.id)
-  if (targetGroupIds.length === 0) throw new Error('No matching workflow groups for run')
+  const targetGroups = groupIds ? allGroups.filter((g) => groupIds.includes(g.id)) : allGroups
+  if (targetGroups.length === 0) throw new Error('No matching workflow groups for run')
+  const targetGroupIds = targetGroups.map((g) => g.id)
 
   const [{ insertDispatch }, { tableRunDispatcherTask }, { tasks }] = await Promise.all([
     import('./dispatcher'),
