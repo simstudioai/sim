@@ -3012,6 +3012,43 @@ export const userTableRows = pgTable(
   })
 )
 
+/**
+ * One row per "Run column / Run row / Run all rows" gesture on a user table.
+ * The dispatcher task walks the table in row-position windows, advancing
+ * `cursor` as it enqueues cells into trigger.dev. Cancel flips `status` to
+ * `'cancelled'` in one write; the dispatcher bails at the next iteration and
+ * a bulk-SQL cell-cancel sweep neuters anything still in trigger.dev's queue
+ * (workers no-op on pickup via the cancel-sticky guard).
+ */
+export const tableRunDispatches = pgTable(
+  'table_run_dispatches',
+  {
+    id: text('id').primaryKey(),
+    tableId: text('table_id')
+      .notNull()
+      .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    requestId: text('request_id').notNull(),
+    /** `'all'` re-runs completed cells; `'incomplete'` skips them. */
+    mode: text('mode').notNull(),
+    /** `{ groupIds: string[], rowIds?: string[] }` — the run's scope. */
+    scope: jsonb('scope').notNull(),
+    /** `pending` → `dispatching` → `complete` | `cancelled`. */
+    status: text('status').notNull().default('pending'),
+    /** Highest `user_table_rows.position` we've already enqueued cells for. */
+    cursor: integer('cursor').notNull().default(0),
+    requestedAt: timestamp('requested_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+    cancelledAt: timestamp('cancelled_at'),
+  },
+  (table) => ({
+    activeIdx: index('table_run_dispatches_active_idx').on(table.tableId, table.status),
+    watchdogIdx: index('table_run_dispatches_watchdog_idx').on(table.status, table.requestedAt),
+  })
+)
+
 export const oauthApplication = pgTable(
   'oauth_application',
   {

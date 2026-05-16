@@ -898,11 +898,11 @@ export const runColumnContract = defineRouteContract({
   response: {
     mode: 'json',
     /**
-     * `triggered` is `null` when the dispatcher runs in the background — the
-     * actual count is only known after a fan-out that may be tens of thousands
-     * of rows, and we don't hold the HTTP response open for that long.
+     * `dispatchId` is the id of the `table_run_dispatches` row created for
+     * this run. The dispatcher task picks it up and crawls the table row by
+     * row; clients receive cell + dispatch events via SSE.
      */
-    schema: successResponseSchema(z.object({ triggered: z.number().nullable() })),
+    schema: successResponseSchema(z.object({ dispatchId: z.string().min(1) })),
   },
 })
 

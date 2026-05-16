@@ -68,30 +68,41 @@ function getMetaKey(tableId: string) {
 
 export type TableCellStatus = 'pending' | 'queued' | 'running' | 'completed' | 'cancelled' | 'error'
 
-export interface TableEvent {
-  kind: 'cell'
-  tableId: string
-  rowId: string
-  groupId: string
-  status: TableCellStatus
-  executionId: string | null
-  jobId: string | null
-  error: string | null
-  /**
-   * Present when this transition wrote new output values; absent on
-   * pure-status transitions (queued, running, cancelled). The publisher
-   * already has these in hand from the same updateRow call that wrote DB.
-   */
-  outputs?: Record<string, unknown>
-  /**
-   * Block-level metadata the renderer reads to distinguish "running" (some
-   * block actively executing) from "pending-upstream" (run started but this
-   * column's block hasn't fired yet). The worker fills these on partial
-   * writes; without them the cell stays on the amber Pending pill.
-   */
-  runningBlockIds?: string[]
-  blockErrors?: Record<string, string>
-}
+export type TableDispatchStatus = 'pending' | 'dispatching' | 'complete' | 'cancelled'
+
+export type TableEvent =
+  | {
+      kind: 'cell'
+      tableId: string
+      rowId: string
+      groupId: string
+      status: TableCellStatus
+      executionId: string | null
+      jobId: string | null
+      error: string | null
+      /**
+       * Present when this transition wrote new output values; absent on
+       * pure-status transitions (queued, running, cancelled). The publisher
+       * already has these in hand from the same updateRow call that wrote DB.
+       */
+      outputs?: Record<string, unknown>
+      /**
+       * Block-level metadata the renderer reads to distinguish "running" (some
+       * block actively executing) from "pending-upstream" (run started but this
+       * column's block hasn't fired yet). The worker fills these on partial
+       * writes; without them the cell stays on the amber Pending pill.
+       */
+      runningBlockIds?: string[]
+      blockErrors?: Record<string, string>
+    }
+  | {
+      /** Dispatcher status signal emitted by `dispatcherStep`. Client hooks
+       *  ignore it for v1; reserved for a future progress indicator. */
+      kind: 'dispatch'
+      tableId: string
+      dispatchId: string
+      status: TableDispatchStatus
+    }
 
 export interface TableEventEntry {
   eventId: number

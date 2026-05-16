@@ -260,7 +260,7 @@ async function fetchRowsByIds(tableId: string, rowIds: string[]): Promise<TableR
   return records.map(toTableRow)
 }
 
-function toTableRow(r: typeof userTableRows.$inferSelect): TableRow {
+export function toTableRow(r: typeof userTableRows.$inferSelect): TableRow {
   return {
     id: r.id,
     data: r.data as RowData,
@@ -282,7 +282,7 @@ interface RunGroupCellOptions {
 }
 
 /** Per-table concurrency cap. Mirrors trigger.dev's `concurrencyLimit: 20`. */
-const TABLE_CONCURRENCY_LIMIT = 20
+export const TABLE_CONCURRENCY_LIMIT = 20
 
 async function stampQueuedOrCancel(
   queue: Awaited<ReturnType<typeof getJobQueue>>,
@@ -326,11 +326,19 @@ async function stampQueuedOrCancel(
 export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): Promise<number> {
   const { getTableById, updateRow } = await import('@/lib/table/service')
   const { getJobQueue } = await import('@/lib/core/async-jobs/config')
+  const { markActiveDispatchesCancelled } = await import('./dispatcher')
 
   const table = await getTableById(tableId)
   if (!table) {
     logger.warn(`cancelWorkflowGroupRuns: table ${tableId} not found`)
     return 0
+  }
+
+  // Per-row cancel leaves the dispatcher alone — other rows in the same
+  // dispatch keep running. Table-wide cancel must stop it, else the cursor
+  // marches on and re-enqueues fresh cells past what we just cancelled.
+  if (!rowId) {
+    await markActiveDispatchesCancelled(tableId)
   }
 
   const groups = table.schema.workflowGroups ?? []
@@ -433,92 +441,49 @@ export async function runWorkflowColumn(opts: {
   requestId: string
   groupIds?: string[]
   rowIds?: string[]
-}): Promise<{ triggered: number }> {
+}): Promise<{ dispatchId: string }> {
   const { tableId, workspaceId, mode, requestId, groupIds, rowIds } = opts
-  const { getTableById, batchUpdateRows } = await import('./service')
+  // Lazy imports: `./service` and `./dispatcher` both close cycles back to
+  // this module; `@trigger.dev/sdk` is heavy and only needed on this op.
+  const { getTableById } = await import('./service')
   const table = await getTableById(tableId)
   if (!table) throw new Error('Table not found')
   if (table.workspaceId !== workspaceId) throw new Error('Invalid workspace ID')
 
   const allGroups = table.schema.workflowGroups ?? []
-  const targetGroups = groupIds ? allGroups.filter((g) => groupIds.includes(g.id)) : allGroups
-  if (targetGroups.length === 0) return { triggered: 0 }
+  const targetGroupIds = groupIds
+    ? allGroups.filter((g) => groupIds.includes(g.id)).map((g) => g.id)
+    : allGroups.map((g) => g.id)
+  if (targetGroupIds.length === 0) throw new Error('No matching workflow groups for run')
+
+  const [{ insertDispatch }, { tableRunDispatcherTask }, { tasks }] = await Promise.all([
+    import('./dispatcher'),
+    import('@/background/table-run-dispatcher'),
+    import('@trigger.dev/sdk'),
+  ])
+
+  const dispatchId = await insertDispatch({
+    tableId,
+    workspaceId,
+    requestId,
+    mode,
+    scope: {
+      groupIds: targetGroupIds,
+      ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
+    },
+  })
 
   logger.info(
-    `[Cascade] [${requestId}] manual run table=${tableId} groups=[${targetGroups.map((g) => g.id).join(',')}] rows=${rowIds ? `[${rowIds.join(',')}]` : 'all'} mode=${mode}`
+    `[Cascade] [${requestId}] dispatch ${dispatchId} table=${tableId} groups=[${targetGroupIds.join(',')}] rows=${rowIds ? `[${rowIds.join(',')}]` : 'all'} mode=${mode}`
   )
 
-  const filters = [eq(userTableRows.tableId, tableId), eq(userTableRows.workspaceId, workspaceId)]
-  if (rowIds && rowIds.length > 0) {
-    filters.push(inArray(userTableRows.id, rowIds))
-  }
-  const candidateRows = await db
-    .select({
-      id: userTableRows.id,
-      position: userTableRows.position,
-      data: userTableRows.data,
-      executions: userTableRows.executions,
-      createdAt: userTableRows.createdAt,
-      updatedAt: userTableRows.updatedAt,
-    })
-    .from(userTableRows)
-    .where(and(...filters))
-    .orderBy(asc(userTableRows.position))
+  await tasks.trigger<typeof tableRunDispatcherTask>(
+    'table-run-dispatcher',
+    { dispatchId },
+    { concurrencyKey: dispatchId }
+  )
 
-  if (candidateRows.length === 0) return { triggered: 0 }
-
-  // Per-row: collect eligible groups, build cleared data + executionsPatch.
-  type Update = {
-    rowId: string
-    data: RowData
-    executionsPatch: Record<string, null>
-  }
-  const updates: Update[] = []
-  const clearedRows: TableRow[] = []
-  for (const r of candidateRows) {
-    const tableRow: TableRow = {
-      id: r.id,
-      data: r.data as RowData,
-      executions: (r.executions as RowExecutions) ?? {},
-      position: r.position,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
-    }
-    const eligibleGroups = targetGroups.filter((g) =>
-      isGroupEligible(g, tableRow, { isManualRun: true, mode })
-    )
-    if (eligibleGroups.length === 0) continue
-
-    const clearedData: RowData = {}
-    const executionsPatch: Record<string, null> = {}
-    for (const g of eligibleGroups) {
-      for (const o of g.outputs) clearedData[o.columnName] = null
-      executionsPatch[g.id] = null
-    }
-    updates.push({ rowId: r.id, data: clearedData, executionsPatch })
-
-    const remainingExec = { ...tableRow.executions }
-    for (const g of eligibleGroups) delete remainingExec[g.id]
-    clearedRows.push({
-      ...tableRow,
-      data: { ...tableRow.data, ...clearedData },
-      executions: remainingExec,
-    })
-  }
-
-  if (updates.length === 0) return { triggered: 0 }
-
-  // `skipScheduler: true` because we fire `scheduleRunsForRows` ourselves
-  // below with `isManualRun: true`. Without the skip, batchUpdateRows runs the
-  // auto-fire reactor first and any autoRun=true sibling group whose deps are
-  // satisfied would race the manual call.
-  await batchUpdateRows({ tableId, updates, workspaceId, skipScheduler: true }, table, requestId)
-
-  return scheduleRunsForRows(table, clearedRows, {
-    isManualRun: true,
-    groupIds: targetGroups.map((g) => g.id),
-    mode,
-  })
+  return { dispatchId }
 }
 
 // ───────────────────────────── Validation ─────────────────────────────

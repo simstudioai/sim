@@ -94,6 +94,10 @@ export interface RowExecutionMetadata {
    * block should render `Error`, not every output column.
    */
   blockErrors?: Record<string, string>
+  /** ISO timestamp set when a cell is cancelled. The dispatcher skips
+   *  re-runs whose `cancelledAt > dispatch.requestedAt` — a user cancel
+   *  mid-dispatch must not be overridden by `isManualRun`. */
+  cancelledAt?: string
 }
 
 /** Map of `WorkflowGroup.id` → execution state. Stored on every row. */
