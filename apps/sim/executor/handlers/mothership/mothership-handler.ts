@@ -63,9 +63,12 @@ function formatMothershipBlockOutput(
 ): NormalizedBlockOutput {
   const formattedList = (result.toolCalls || []).map((tc: Record<string, unknown>) => ({
     name: typeof tc.name === 'string' ? tc.name : String(tc.name ?? ''),
-    arguments: tc.params && typeof tc.params === 'object' ? tc.params : {},
-    result: tc.result,
-    error: tc.error,
+    arguments: (tc.params && typeof tc.params === 'object' ? tc.params : {}) as Record<
+      string,
+      unknown
+    >,
+    result: tc.result as any,
+    error: typeof tc.error === 'string' ? tc.error : undefined,
     duration: typeof tc.durationMs === 'number' ? tc.durationMs : 0,
   }))
   const toolCalls: NormalizedBlockOutput['toolCalls'] = {
