@@ -17,12 +17,10 @@ export interface IdempotencyConfig {
   /** When true, failed keys are deleted rather than stored so the operation is retried on the next attempt. */
   retryFailures?: boolean
   /**
-   * When false, the operation's return value is not persisted alongside
-   * the dedupe marker — only `{ success, status, error? }` is stored.
-   * Duplicate calls still short-circuit, but `executeWithIdempotency`
-   * resolves to `undefined` on the dedupe path. Use for webhook/polling
-   * flows where the cached body is large (multi-KB execution results)
-   * and callers don't consume the value of a duplicated delivery.
+   * When false, only `{ success, status, error? }` is persisted — not the
+   * operation's return value. Duplicate calls still short-circuit but
+   * resolve to `undefined`. Use when callers don't consume the cached
+   * body (e.g. webhook receivers, where the provider just wants a 2xx).
    * Defaults to true.
    */
   storeResultBody?: boolean
@@ -524,20 +522,13 @@ export class IdempotencyService {
 }
 
 /**
- * Webhook idempotency. We're the receiver of provider-initiated webhooks,
- * not the originator — duplicate deliveries from the provider's retry
- * machinery just need a "we saw this" marker, not a replayable response
- * body. `storeResultBody: false` drops the cached workflow result from
- * each key, eliminating the long tail of large gmail/outlook payloads
- * that pushed Redis Cloud into OOM on 2026-05-15.
- *
- * TTL stays at 7 days because that's the longest provider retry window
- * we care about (Gmail / Pub/Sub). With body-stripping the per-key cost
- * is ~150 bytes, so the long TTL is essentially free.
+ * As a webhook receiver we only need a "we saw this delivery" marker —
+ * the provider's retry just needs a 2xx, not our cached response body.
+ * TTL must exceed the longest provider retry window (Gmail / Pub-Sub: 7d).
  */
 export const webhookIdempotency = new IdempotencyService({
   namespace: 'webhook',
-  ttlSeconds: 60 * 60 * 24 * 7, // 7 days — must exceed Gmail/Pub-Sub retry window
+  ttlSeconds: 60 * 60 * 24 * 7, // 7 days
   storeResultBody: false,
 })
 
