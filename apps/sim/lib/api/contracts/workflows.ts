@@ -513,6 +513,61 @@ const pausedWorkflowExecutionDetailSchema = pausedWorkflowExecutionSummarySchema
   queue: z.array(z.record(z.string(), z.unknown())),
 })
 
+const workflowExecutionStatusEnum = z.enum([
+  'pending',
+  'running',
+  'paused',
+  'completed',
+  'failed',
+  'cancelled',
+])
+
+const workflowExecutionPausedDetailSchema = z.object({
+  pausedAt: z.string(),
+  resumeAt: z.string().nullable(),
+  pauseKind: z.enum(['time', 'human']).nullable(),
+  blockedOnBlockId: z.string().nullable(),
+  pausedExecutionId: z.string(),
+  pausePointCount: z.number(),
+  resumedCount: z.number(),
+})
+
+const workflowExecutionStatusResponseSchema = z.object({
+  executionId: z.string(),
+  workflowId: z.string(),
+  status: workflowExecutionStatusEnum,
+  trigger: z.string(),
+  level: z.string(),
+  startedAt: z.string(),
+  endedAt: z.string().nullable(),
+  totalDurationMs: z.number().nullable(),
+  paused: workflowExecutionPausedDetailSchema.nullable(),
+  cost: z.object({ total: z.number() }).nullable(),
+  error: z.string().nullable(),
+  finalOutput: z.unknown().nullable(),
+  blockOutputs: z.record(z.string(), z.unknown()).nullable(),
+})
+
+export type WorkflowExecutionStatusResponse = z.output<typeof workflowExecutionStatusResponseSchema>
+
+const workflowExecutionStatusQuerySchema = z.object({
+  includeOutput: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((value) => value === 'true'),
+  selectedOutputs: z
+    .string()
+    .optional()
+    .transform((value) =>
+      value
+        ? value
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : []
+    ),
+})
+
 const cancelWorkflowExecutionResponseSchema = z.object({
   success: z.boolean(),
   executionId: z.string(),
@@ -794,6 +849,17 @@ export const cancelWorkflowExecutionContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: cancelWorkflowExecutionResponseSchema,
+  },
+})
+
+export const getWorkflowExecutionContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workflows/[id]/executions/[executionId]',
+  params: workflowExecutionParamsSchema,
+  query: workflowExecutionStatusQuerySchema,
+  response: {
+    mode: 'json',
+    schema: workflowExecutionStatusResponseSchema,
   },
 })
 

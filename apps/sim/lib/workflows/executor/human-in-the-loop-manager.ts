@@ -1770,9 +1770,11 @@ export class PauseResumeManager {
   }
 
   /**
-   * Updates `next_resume_at` only when the row is still `status='paused'`.
+   * Updates `next_resume_at` only when the row is still in a poll-eligible state.
    * Guard prevents the cron poller from clobbering a freshly-written value when a
-   * concurrent manual resume has already advanced the row's state.
+   * concurrent manual resume has already advanced the row's state. `partially_resumed`
+   * rows must also be writable so the cron poller can null out their `nextResumeAt`
+   * after dispatch; otherwise the row keeps reappearing in every poll batch.
    */
   static async setNextResumeAt(args: {
     pausedExecutionId: string
@@ -1782,7 +1784,10 @@ export class PauseResumeManager {
       .update(pausedExecutions)
       .set({ nextResumeAt: args.nextResumeAt })
       .where(
-        and(eq(pausedExecutions.id, args.pausedExecutionId), eq(pausedExecutions.status, 'paused'))
+        and(
+          eq(pausedExecutions.id, args.pausedExecutionId),
+          inArray(pausedExecutions.status, ['paused', 'partially_resumed'])
+        )
       )
   }
 

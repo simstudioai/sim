@@ -169,6 +169,158 @@
         }
       }
     },
+    "/api/workflows/{id}/executions/{executionId}": {
+      "get": {
+        "operationId": "getWorkflowExecution",
+        "summary": "Get Execution Status",
+        "description": "Get the current status of a workflow execution. Returns the run's lifecycle state (`running`, `paused`, `completed`, `failed`, etc.), timing, error, and optionally per-block outputs. Designed for polling \u2014 works for any execution, including ones that pause and resume.",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl \\\n  \"https://www.sim.ai/api/workflows/{id}/executions/{executionId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          },
+          {
+            "id": "curl-with-outputs",
+            "label": "cURL (with block outputs)",
+            "lang": "bash",
+            "source": "curl \\\n  \"https://www.sim.ai/api/workflows/{id}/executions/{executionId}?selectedOutputs=blockId,blockId.field&includeOutput=true\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the workflow.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1a2b3c4d5e"
+            }
+          },
+          {
+            "name": "executionId",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the execution.",
+            "schema": {
+              "type": "string",
+              "example": "exec_9f8e7d6c5b"
+            }
+          },
+          {
+            "name": "includeOutput",
+            "in": "query",
+            "required": false,
+            "description": "When `true` and the execution has `status: completed`, include the workflow's final output in the response.",
+            "schema": {
+              "type": "string",
+              "enum": ["true", "false"]
+            }
+          },
+          {
+            "name": "selectedOutputs",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated block-output selectors. A bare `blockId` returns that block's full output; a dot-path like `blockId.field` or `blockId.nested.path` returns just that value. Results are returned in the `blockOutputs` map keyed by the selector string.",
+            "schema": {
+              "type": "string",
+              "example": "c1b90bce-8a82-42a5-b6a5-5762846c2eaf,c1b90bce-8a82-42a5-b6a5-5762846c2eaf.waitDuration"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Execution status returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowExecutionStatus"
+                },
+                "examples": {
+                  "completed": {
+                    "summary": "Completed run",
+                    "value": {
+                      "executionId": "9254f1c9-5a11-4a12-91e3-8065293f3609",
+                      "workflowId": "81f661e1-d704-4861-b5c1-5bb3cf57e6a7",
+                      "status": "completed",
+                      "trigger": "api",
+                      "level": "info",
+                      "startedAt": "2026-05-15T19:43:12.189Z",
+                      "endedAt": "2026-05-15T19:45:45.224Z",
+                      "totalDurationMs": 153035,
+                      "paused": null,
+                      "cost": {
+                        "total": 0.005
+                      },
+                      "error": null,
+                      "finalOutput": null,
+                      "blockOutputs": null
+                    }
+                  },
+                  "paused": {
+                    "summary": "Currently paused run",
+                    "value": {
+                      "executionId": "772749f6-ee81-414c-a2c3-671549dd62b8",
+                      "workflowId": "81f661e1-d704-4861-b5c1-5bb3cf57e6a7",
+                      "status": "paused",
+                      "trigger": "manual",
+                      "level": "info",
+                      "startedAt": "2026-05-15T22:25:57.178Z",
+                      "endedAt": "2026-05-15T22:25:57.215Z",
+                      "totalDurationMs": 1,
+                      "paused": {
+                        "pausedAt": "2026-05-15T22:25:57.216Z",
+                        "resumeAt": "2026-05-16T18:25:57.200Z",
+                        "pauseKind": "time",
+                        "blockedOnBlockId": "c1b90bce-8a82-42a5-b6a5-5762846c2eaf",
+                        "pausedExecutionId": "438bf05b-bd3c-4011-b78e-b19c112eeb66",
+                        "pausePointCount": 1,
+                        "resumedCount": 0
+                      },
+                      "cost": {
+                        "total": 0.005
+                      },
+                      "error": null,
+                      "finalOutput": null,
+                      "blockOutputs": null
+                    }
+                  },
+                  "failed": {
+                    "summary": "Failed run",
+                    "value": {
+                      "executionId": "3ccfdeed-a63c-4e86-98e2-8bec723bca52",
+                      "workflowId": "81f661e1-d704-4861-b5c1-5bb3cf57e6a7",
+                      "status": "failed",
+                      "trigger": "api",
+                      "level": "error",
+                      "startedAt": "2026-05-15T22:24:50.991Z",
+                      "endedAt": "2026-05-15T22:24:50.999Z",
+                      "totalDurationMs": 2,
+                      "paused": null,
+                      "cost": {
+                        "total": 0.005
+                      },
+                      "error": "Wait 1: Wait time exceeds maximum of 5 minutes; enable async mode to wait up to 30 days",
+                      "finalOutput": null,
+                      "blockOutputs": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/api/workflows/{id}/executions/{executionId}/cancel": {
       "post": {
         "operationId": "cancelExecution",
@@ -5828,6 +5980,141 @@
             "type": "integer",
             "description": "Estimated duration in milliseconds. Present only when status is queued or processing.",
             "example": 2000
+          }
+        }
+      },
+      "WorkflowExecutionStatus": {
+        "type": "object",
+        "description": "Current status of a workflow execution.",
+        "properties": {
+          "executionId": {
+            "type": "string",
+            "description": "The unique identifier of the execution.",
+            "example": "9254f1c9-5a11-4a12-91e3-8065293f3609"
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "The unique identifier of the workflow.",
+            "example": "81f661e1-d704-4861-b5c1-5bb3cf57e6a7"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "paused", "completed", "failed", "cancelled"],
+            "description": "Current normalized lifecycle status. `paused` is set when a row exists in pausedExecutions with status `paused` or `partially_resumed`; otherwise the workflowExecutionLogs row's status field is used.",
+            "example": "completed"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": ["api", "manual", "schedule", "webhook", "chat"],
+            "description": "What triggered the execution.",
+            "example": "api"
+          },
+          "level": {
+            "type": "string",
+            "enum": ["info", "warning", "error"],
+            "description": "Log level of the execution.",
+            "example": "info"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when execution started.",
+            "example": "2026-05-15T19:43:12.189Z"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO 8601 timestamp when execution ended. Null while the run is in flight.",
+            "example": "2026-05-15T19:45:45.224Z"
+          },
+          "totalDurationMs": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Total duration of the execution in milliseconds. Null while the run is in flight.",
+            "example": 153035
+          },
+          "paused": {
+            "type": "object",
+            "nullable": true,
+            "description": "Pause-state details. Present only when status is `paused`.",
+            "properties": {
+              "pausedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp when the workflow was paused.",
+                "example": "2026-05-15T22:25:57.216Z"
+              },
+              "resumeAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true,
+                "description": "Earliest scheduled resume time across active pause points. Null for human-only pauses.",
+                "example": "2026-05-16T18:25:57.200Z"
+              },
+              "pauseKind": {
+                "type": "string",
+                "enum": ["time", "human"],
+                "nullable": true,
+                "description": "What kind of pause the workflow is waiting on.",
+                "example": "time"
+              },
+              "blockedOnBlockId": {
+                "type": "string",
+                "nullable": true,
+                "description": "The block currently blocking resume.",
+                "example": "c1b90bce-8a82-42a5-b6a5-5762846c2eaf"
+              },
+              "pausedExecutionId": {
+                "type": "string",
+                "description": "ID of the paused-execution row, useful for cross-referencing with the human-in-the-loop endpoints.",
+                "example": "438bf05b-bd3c-4011-b78e-b19c112eeb66"
+              },
+              "pausePointCount": {
+                "type": "integer",
+                "description": "Total number of pause points recorded for this execution.",
+                "example": 1
+              },
+              "resumedCount": {
+                "type": "integer",
+                "description": "Number of pause points already resumed.",
+                "example": 0
+              }
+            }
+          },
+          "cost": {
+            "type": "object",
+            "nullable": true,
+            "description": "Cost summary. Detailed token / model breakdown lives on the /v1/logs detail endpoint.",
+            "properties": {
+              "total": {
+                "type": "number",
+                "description": "Total cost in USD.",
+                "example": 0.005
+              }
+            }
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Error message. Present only when status is `failed`.",
+            "example": null
+          },
+          "finalOutput": {
+            "type": "object",
+            "nullable": true,
+            "description": "The workflow's final output. Returned only when ?includeOutput=true AND status is `completed`.",
+            "example": null
+          },
+          "blockOutputs": {
+            "type": "object",
+            "nullable": true,
+            "description": "Per-block outputs keyed by the selector string. Returned only when `?selectedOutputs` is set.",
+            "additionalProperties": true,
+            "example": {
+              "c1b90bce-8a82-42a5-b6a5-5762846c2eaf.waitDuration": 60000,
+              "c1b90bce-8a82-42a5-b6a5-5762846c2eaf.status": "completed"
+            }
           }
         }
       },
