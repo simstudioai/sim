@@ -11,7 +11,6 @@ CREATE TABLE "workspace_file_folders" (
 );
 --> statement-breakpoint
 DROP INDEX "workspace_files_workspace_name_active_unique";--> statement-breakpoint
-ALTER TABLE "copilot_chats" ADD COLUMN "pinned" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "workspace_files" ADD COLUMN "folder_id" text;--> statement-breakpoint
 ALTER TABLE "workspace_file_folders" ADD CONSTRAINT "workspace_file_folders_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_file_folders" ADD CONSTRAINT "workspace_file_folders_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
