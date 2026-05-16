@@ -53,7 +53,7 @@ function isPausedOutputForContext(output: unknown, contextId: string): boolean {
   return isRecord(metadata) && metadata.contextId === contextId
 }
 
-function updateResumeOutputInAggregationBuffers(
+export function updateResumeOutputInAggregationBuffers(
   state: SerializableExecutionState,
   stateBlockKey: string,
   pauseBlockId: string,
