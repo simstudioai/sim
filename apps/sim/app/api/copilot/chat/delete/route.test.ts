@@ -143,7 +143,7 @@ describe('Copilot Chat Delete API Route', () => {
     it('should delete chat even if it does not exist (idempotent)', async () => {
       authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      mockGetAccessibleCopilotChat.mockResolvedValueOnce(null)
+      mockGetAccessibleCopilotChatAuth.mockResolvedValueOnce(null)
 
       const req = createMockRequest('DELETE', {
         chatId: 'non-existent-chat',
