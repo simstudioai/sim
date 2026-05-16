@@ -80,6 +80,16 @@ export async function bulkClearWorkflowGroupCells(input: {
     )
     const allFilled = filledChecks.reduce((acc, expr) => sql`${acc} AND ${expr}`)
     filters.push(sql`NOT (${allFilled})`)
+    // Also skip rows where ANY targeted group has an in-flight exec from
+    // another dispatch — clobbering its `executions[gid]` would race with
+    // the in-flight worker. An `incomplete` run by definition shouldn't
+    // touch rows another dispatch is actively working on.
+    const inFlightChecks = groupIds.map(
+      (gid) =>
+        sql`${userTableRows.executions} -> ${gid}::text ->> 'status' IN ('queued', 'running', 'pending')`
+    )
+    const anyInFlight = inFlightChecks.reduce((acc, expr) => sql`${acc} OR ${expr}`)
+    filters.push(sql`NOT (${anyInFlight})`)
   }
 
   await db
