@@ -95,6 +95,52 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
+  it('resolves workflow variable object references through context variables', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+    const issues = [{ key: 'SIM-1', summary: 'Small issue' }]
+    ctx.workflowVariables = {
+      'var-1': { id: 'var-1', name: 'issues', type: 'array', value: issues },
+    }
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'return <variable.issues>' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
+    expect(result.displayInputs.code).toBe('return [{"key":"SIM-1","summary":"Small issue"}]')
+    expect(result.contextVariables).toEqual({ __blockRef_0: issues })
+  })
+
+  it('resolves large workflow variable refs without embedding large literals', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_ABCDEFGHIJKL',
+      kind: 'array',
+      size: 12 * 1024 * 1024,
+      executionId: 'execution-1',
+    }
+    ctx.workflowVariables = {
+      'var-1': { id: 'var-1', name: 'issues', type: 'array', value: ref },
+    }
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'return <variable.issues>' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      'return (await sim.values.read(globalThis["__blockRef_0"]))'
+    )
+    expect(result.contextVariables).toEqual({ __blockRef_0: ref })
+  })
+
   it('resolves named loop result bracket paths in function code', async () => {
     const loopBlock = createBlock('loop-1', 'Loop 1', 'loop')
     const functionBlock = createBlock('function', 'Function', BlockType.FUNCTION, {

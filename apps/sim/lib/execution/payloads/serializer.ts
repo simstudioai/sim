@@ -109,6 +109,13 @@ export async function compactExecutionPayload<T>(
   return (await compactValue(value, options, { seen: new WeakSet<object>() })) as T
 }
 
+export async function compactWorkflowVariableValue<T>(
+  value: T,
+  options: CompactExecutionPayloadOptions = {}
+): Promise<T> {
+  return compactExecutionPayload(value, { ...options, requireDurable: true })
+}
+
 /**
  * Compacts subflow result aggregates while preserving indexable `results`.
  */

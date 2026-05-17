@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { compactWorkflowVariableValue } from '@/lib/execution/payloads/serializer'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
@@ -24,34 +26,45 @@ export class VariablesBlockHandler implements BlockHandler {
 
       const assignments = this.parseAssignments(inputs.variables)
 
+      const output: Record<string, any> = {}
+
       for (const assignment of assignments) {
         const existingEntry = assignment.variableId
           ? [assignment.variableId, ctx.workflowVariables[assignment.variableId]]
           : Object.entries(ctx.workflowVariables).find(
               ([_, v]) => v.name === assignment.variableName
             )
+        const value = await this.compactAssignmentValue(ctx, assignment.value)
 
         if (existingEntry?.[1]) {
           const [id, variable] = existingEntry
           ctx.workflowVariables[id] = {
             ...variable,
-            value: assignment.value,
+            value,
           }
+          output[assignment.variableName] = value
         } else {
           logger.warn(`Variable "${assignment.variableName}" not found in workflow variables`)
         }
       }
 
-      const output: Record<string, any> = {}
-      for (const assignment of assignments) {
-        output[assignment.variableName] = assignment.value
-      }
-
       return output
-    } catch (error: any) {
-      logger.error('Variables block execution failed:', error)
-      throw new Error(`Variables block execution failed: ${error.message}`)
+    } catch (error) {
+      const normalizedError = toError(error)
+      logger.error('Variables block execution failed:', normalizedError)
+      throw new Error(`Variables block execution failed: ${normalizedError.message}`)
     }
+  }
+
+  private async compactAssignmentValue(ctx: ExecutionContext, value: any): Promise<any> {
+    return compactWorkflowVariableValue(value, {
+      workspaceId: ctx.workspaceId,
+      workflowId: ctx.workflowId,
+      executionId: ctx.executionId,
+      userId: ctx.userId,
+      largeValueExecutionIds: ctx.largeValueExecutionIds,
+      allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
+    })
   }
 
   private parseAssignments(

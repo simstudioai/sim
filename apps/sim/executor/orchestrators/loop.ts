@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
-import { compactSubflowResults } from '@/lib/execution/payloads/serializer'
+import { compactExecutionPayload, compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
 import { buildLoopIndexCondition, DEFAULTS, EDGE, PARALLEL } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
@@ -163,6 +163,9 @@ export class LoopOrchestrator {
 
       case 'doWhile': {
         scope.loopType = 'doWhile'
+        if (loopConfig.iterations !== undefined) {
+          scope.maxIterations = loopConfig.iterations
+        }
         if (loopConfig.doWhileCondition) {
           scope.condition = loopConfig.doWhileCondition
         } else {
@@ -249,10 +252,21 @@ export class LoopOrchestrator {
     }
 
     if (iterationResults.length > 0) {
-      scope.allIterationOutputs.push(iterationResults)
+      const compactedIterationResults = (await compactExecutionPayload(iterationResults, {
+        workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
+        executionId: ctx.executionId,
+        userId: ctx.userId,
+        requireDurable: true,
+      })) as NormalizedBlockOutput[]
+      scope.allIterationOutputs.push(compactedIterationResults)
     }
 
     scope.currentIterationOutputs.clear()
+
+    if (this.hasReachedConfiguredIterationLimit(scope, scope.iteration + 1)) {
+      return await this.createExitResult(ctx, loopId, scope)
+    }
 
     if (!(await this.evaluateCondition(ctx, scope, scope.iteration + 1))) {
       return await this.createExitResult(ctx, loopId, scope)
@@ -269,6 +283,13 @@ export class LoopOrchestrator {
       shouldExit: false,
       selectedRoute: EDGE.LOOP_CONTINUE,
     }
+  }
+
+  private hasReachedConfiguredIterationLimit(scope: LoopScope, nextIteration: number): boolean {
+    if (scope.loopType !== 'doWhile' || scope.maxIterations === undefined) {
+      return false
+    }
+    return nextIteration >= scope.maxIterations
   }
 
   private async createExitResult(
@@ -651,14 +672,14 @@ export class LoopOrchestrator {
       logger.info('Evaluating loop condition', {
         originalCondition: condition,
         iteration: scope.iteration,
-        workflowVariables: ctx.workflowVariables,
+        workflowVariableCount: Object.keys(ctx.workflowVariables ?? {}).length,
       })
 
       const evaluatedCondition = await replaceLoopConditionReferences(condition, async (match) => {
         const resolved = await this.resolver.resolveSingleReference(ctx, '', match, scope)
         logger.debug('Resolved variable reference in loop condition', {
           reference: match,
-          resolvedValue: resolved,
+          resolvedType: resolved === null ? 'null' : typeof resolved,
         })
         if (resolved !== undefined) {
           if (typeof resolved === 'boolean' || typeof resolved === 'number') {

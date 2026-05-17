@@ -1,7 +1,15 @@
+import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import type { DAG } from '@/executor/dag/builder'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionContext, SerializedSnapshot } from '@/executor/types'
+
+function assertSnapshotValueIsCompact(value: unknown, label: string): void {
+  const json = JSON.stringify(value)
+  if (json && Buffer.byteLength(json, 'utf8') > LARGE_VALUE_THRESHOLD_BYTES) {
+    throw new Error(`Cannot serialize pause snapshot with oversized ${label}; compact it first.`)
+  }
+}
 
 function mapFromEntries<T>(map?: Map<string, T>): Record<string, T> | undefined {
   if (!map) return undefined
@@ -93,6 +101,9 @@ export function serializePauseSnapshot(
     pendingQueue: triggerBlockIds,
     dagIncomingEdges,
   }
+
+  assertSnapshotValueIsCompact(context.workflowVariables, 'workflow variables')
+  assertSnapshotValueIsCompact(state.loopExecutions, 'loop execution state')
 
   const workspaceId = metadataFromContext?.workspaceId ?? context.workspaceId
   if (!workspaceId) {

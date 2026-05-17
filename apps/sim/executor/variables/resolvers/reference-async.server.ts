@@ -1,5 +1,9 @@
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
+  isLargeArrayManifest,
+  readLargeArrayManifestSlice,
+} from '@/lib/execution/payloads/large-array-manifest'
+import {
   assertNoLargeValueRefs,
   getLargeValueMaterializationError,
   isLargeValueRef,
@@ -78,6 +82,19 @@ export async function navigatePathAsync(
         current = base64
         continue
       }
+    }
+
+    if (isLargeArrayManifest(current) && /^\d+$/.test(part)) {
+      const [item] = await readLargeArrayManifestSlice(current, Number.parseInt(part, 10), 1, {
+        workspaceId: context.executionContext.workspaceId,
+        workflowId: context.executionContext.workflowId,
+        executionId: context.executionContext.executionId,
+        largeValueExecutionIds: context.executionContext.largeValueExecutionIds,
+        allowLargeValueWorkflowScope: context.executionContext.allowLargeValueWorkflowScope,
+        userId: context.executionContext.userId,
+      })
+      current = item
+      continue
     }
 
     const arrayMatch = part.match(/^([^[]+)(\[.+)$/)

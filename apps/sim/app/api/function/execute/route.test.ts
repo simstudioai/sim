@@ -52,6 +52,7 @@ import { POST } from '@/app/api/function/execute/route'
 describe('Function Execute API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    featureFlagsMock.isE2bEnabled = false
 
     hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
       success: true,
@@ -239,6 +240,33 @@ describe('Function Execute API Route', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
+    })
+
+    it('rejects large refs in runtimes without ref-native helpers', async () => {
+      featureFlagsMock.isE2bEnabled = true
+      const req = createMockRequest('POST', {
+        code: 'echo "${__blockRef_0}"',
+        language: 'shell',
+        contextVariables: {
+          __blockRef_0: {
+            __simLargeValueRef: true,
+            version: 1,
+            id: 'lv_ABCDEFGHIJKL',
+            kind: 'array',
+            size: 12 * 1024 * 1024,
+            executionId: 'execution-1',
+          },
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain(
+        'Large execution values require the JavaScript isolated-vm runtime'
+      )
     })
   })
 

@@ -14,7 +14,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInE2B, executeShellInE2B } from '@/lib/execution/e2b'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
-import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import { containsLargeValueRef, isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import {
   MAX_FUNCTION_INLINE_BYTES,
   MAX_INLINE_MATERIALIZATION_BYTES,
@@ -1013,6 +1013,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       contextVariables = { ...codeResolution.contextVariables, ...preResolvedContextVariables }
     }
 
+    if (lang === CodeLanguage.Shell && containsLargeValueRef(contextVariables)) {
+      throw new Error(
+        'Large execution values require the JavaScript isolated-vm runtime. Select a nested field or read the value in a JavaScript function.'
+      )
+    }
+
     let jsImports = ''
     let jsRemainingCode = resolvedCode
     let hasImports = false
@@ -1123,6 +1129,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       isE2bEnabled &&
       !isCustomTool &&
       (lang === CodeLanguage.Python || (lang === CodeLanguage.JavaScript && hasImports))
+
+    if (useE2B && containsLargeValueRef(contextVariables)) {
+      throw new Error(
+        'Large execution values require the JavaScript isolated-vm runtime. Remove imports, select a nested field, or read the value in a JavaScript function without E2B.'
+      )
+    }
 
     if (useE2B) {
       logger.info(`[${requestId}] E2B status`, {

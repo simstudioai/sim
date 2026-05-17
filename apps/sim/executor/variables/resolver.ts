@@ -100,7 +100,7 @@ export class VariableResolver {
     this.resolvers = [
       new LoopResolver(workflow, options.navigatePathAsync),
       new ParallelResolver(workflow, options.navigatePathAsync),
-      new WorkflowResolver(workflowVariables),
+      new WorkflowResolver(workflowVariables, options.navigatePathAsync),
       new EnvResolver(),
       this.blockResolver,
     ]
@@ -436,7 +436,28 @@ export class VariableResolver {
           throw getNestedLargeValueMaterializationError()
         }
 
-        // Non-block reference (loop, parallel, workflow, env): embed as literal
+        if (
+          this.isWorkflowVariableReference(match) &&
+          this.shouldUseContextVariable(effectiveValue)
+        ) {
+          const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
+          contextVarAccumulator[varName] = effectiveValue
+          const replacement = this.formatContextVariableReference(
+            varName,
+            language,
+            template,
+            index,
+            effectiveValue
+          )
+          displayResult += this.formatDisplayValueForCodeContext(
+            effectiveValue,
+            language,
+            template,
+            index
+          )
+          return replacement
+        }
+
         const replacement = this.blockResolver.formatValueForBlock(
           effectiveValue,
           BlockType.FUNCTION,
@@ -520,6 +541,15 @@ export class VariableResolver {
     return this.formatJavaScriptAsyncExpression(expression, template, matchIndex, {
       stringifyInStringContext: true,
     })
+  }
+
+  private isWorkflowVariableReference(reference: string): boolean {
+    const parts = parseReferencePath(reference)
+    return parts[0] === REFERENCE.PREFIX.VARIABLE
+  }
+
+  private shouldUseContextVariable(value: unknown): boolean {
+    return typeof value === 'object' && value !== null
   }
 
   private formatJavaScriptAsyncExpression(

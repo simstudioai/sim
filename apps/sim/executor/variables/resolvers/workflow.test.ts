@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
+import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { ResolutionContext } from './reference'
 import { WorkflowResolver } from './workflow'
 
@@ -15,7 +18,12 @@ vi.mock('@/lib/workflows/variables/variable-manager', () => ({
  */
 function createTestContext(workflowVariables: Record<string, any>): ResolutionContext {
   return {
-    executionContext: { workflowVariables },
+    executionContext: {
+      workflowVariables,
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    },
     executionState: {},
     currentNodeId: 'test-node',
   } as ResolutionContext
@@ -156,6 +164,60 @@ describe('WorkflowResolver', () => {
         const result = resolver.resolve(`<variable.${refName}>`, createTestContext(variables))
         expect(result).toBe(value)
       }
+    })
+
+    it('returns whole large workflow variable refs only when refs are allowed', async () => {
+      const compacted = await compactExecutionPayload(
+        Array.from({ length: 100 }, (_, index) => ({
+          key: `SIM-${index}`,
+          summary: 'Issue summary that keeps each item small',
+        })),
+        {
+          thresholdBytes: 256,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }
+      )
+      const variables = {
+        'var-1': { id: 'var-1', name: 'issues', type: 'array', value: compacted },
+      }
+      const resolver = new WorkflowResolver(variables, navigatePathAsync)
+      const context = createTestContext(variables)
+
+      expect(() => resolver.resolve('<variable.issues>', context)).toThrow('too large to inline')
+      await expect(resolver.resolveAsync('<variable.issues>', context)).rejects.toThrow(
+        'too large to inline'
+      )
+
+      const allowedContext = { ...context, allowLargeValueRefs: true }
+      expect(isLargeValueRef(resolver.resolve('<variable.issues>', allowedContext))).toBe(true)
+      await expect(resolver.resolveAsync('<variable.issues>', allowedContext)).resolves.toEqual(
+        compacted
+      )
+    })
+
+    it('resolves nested paths through async large workflow variable navigation', async () => {
+      const compacted = await compactExecutionPayload(
+        Array.from({ length: 100 }, (_, index) => ({
+          key: `SIM-${index + 1}`,
+          fields: { summary: index === 0 ? 'Large issue' : 'Other issue' },
+        })),
+        {
+          thresholdBytes: 256,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }
+      )
+      const variables = {
+        'var-1': { id: 'var-1', name: 'issues', type: 'array', value: compacted },
+      }
+      const resolver = new WorkflowResolver(variables, navigatePathAsync)
+
+      await expect(
+        resolver.resolveAsync('<variable.issues.0.fields.summary>', createTestContext(variables))
+      ).resolves.toBe('Large issue')
     })
   })
 
