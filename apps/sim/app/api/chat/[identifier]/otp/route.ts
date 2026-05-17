@@ -143,12 +143,9 @@ export const POST = withRouteHandler(
 
       logger.info(`[${requestId}] OTP sent to ${email} for chat ${deployment.id}`)
       return addCorsHeaders(createSuccessResponse({ message: 'Verification code sent' }), request)
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`[${requestId}] Error processing OTP request:`, error)
-      return addCorsHeaders(
-        createErrorResponse(error.message || 'Failed to process request', 500),
-        request
-      )
+      return addCorsHeaders(createErrorResponse('Failed to process request', 500), request)
     }
   }
 )
@@ -239,12 +236,9 @@ export const PUT = withRouteHandler(
       setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
 
       return response
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`[${requestId}] Error verifying OTP:`, error)
-      return addCorsHeaders(
-        createErrorResponse(error.message || 'Failed to process request', 500),
-        request
-      )
+      return addCorsHeaders(createErrorResponse('Failed to process request', 500), request)
     }
   }
 )

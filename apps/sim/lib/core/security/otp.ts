@@ -220,10 +220,14 @@ export async function incrementOTPAttempts(
     value = fresh
   }
 
-  const final = await getOTP(kind, deploymentId, email)
-  if (!final) return 'locked'
-  const { attempts: finalAttempts } = decodeOTPValue(final)
-  return finalAttempts >= MAX_OTP_ATTEMPTS ? 'locked' : 'incremented'
+  /**
+   * Retry exhaustion under heavy DB-path contention: this request did not
+   * succeed in writing its own +1, so the stored count may not reflect it.
+   * Fail closed — invalidate the OTP rather than return `'incremented'` with
+   * a possibly-undercounted attempt total.
+   */
+  await db.delete(verification).where(eq(verification.identifier, identifier))
+  return 'locked'
 }
 
 export async function deleteOTP(
