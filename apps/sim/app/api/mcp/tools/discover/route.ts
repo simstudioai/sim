@@ -1,3 +1,4 @@
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { mcpToolDiscoveryQuerySchema, refreshMcpToolsBodySchema } from '@/lib/api/contracts/mcp'
@@ -5,7 +6,7 @@ import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
-import type { McpToolDiscoveryResponse } from '@/lib/mcp/types'
+import { McpOauthAuthorizationRequiredError, type McpToolDiscoveryResponse } from '@/lib/mcp/types'
 import { categorizeError, createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpToolDiscoveryAPI')
@@ -46,6 +47,12 @@ export const GET = withRouteHandler(
       )
       return createMcpSuccessResponse(responseData)
     } catch (error) {
+      if (
+        error instanceof McpOauthAuthorizationRequiredError ||
+        error instanceof UnauthorizedError
+      ) {
+        return createMcpErrorResponse(error, 'OAuth re-authorization required', 401)
+      }
       logger.error(`[${requestId}] Error discovering MCP tools:`, error)
       const { message, status } = categorizeError(error)
       return createMcpErrorResponse(new Error(message), 'Failed to discover MCP tools', status)
@@ -100,6 +107,12 @@ export const POST = withRouteHandler(
         },
       })
     } catch (error) {
+      if (
+        error instanceof McpOauthAuthorizationRequiredError ||
+        error instanceof UnauthorizedError
+      ) {
+        return createMcpErrorResponse(error, 'OAuth re-authorization required', 401)
+      }
       logger.error(`[${requestId}] Error refreshing tool discovery:`, error)
       const { message, status } = categorizeError(error)
       return createMcpErrorResponse(new Error(message), 'Failed to refresh tool discovery', status)

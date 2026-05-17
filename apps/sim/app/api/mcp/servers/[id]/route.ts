@@ -45,23 +45,25 @@ export const PATCH = withRouteHandler(
           }
         )
 
-        // Remove workspaceId from body to prevent it from being updated
-        const { workspaceId: _, ...updateData } = body
-
         const result = await performUpdateMcpServer({
           workspaceId,
           userId,
           actorName: userName,
           actorEmail: userEmail,
           serverId,
-          name: updateData.name,
-          description: updateData.description,
-          transport: updateData.transport,
-          url: updateData.url,
-          headers: updateData.headers,
-          timeout: updateData.timeout,
-          retries: updateData.retries,
-          enabled: updateData.enabled,
+          name: body.name,
+          description: body.description,
+          transport: body.transport,
+          url: body.url,
+          headers: body.headers,
+          timeout: body.timeout,
+          retries: body.retries,
+          enabled: body.enabled,
+          authType: body.authType,
+          oauthClientId: body.oauthClientId ?? null,
+          oauthClientIdProvided: body.oauthClientId !== undefined,
+          oauthClientSecret: body.oauthClientSecret,
+          oauthClientSecretProvided: body.oauthClientSecret !== undefined,
           request,
         })
         if (!result.success || !result.server) {
@@ -75,7 +77,10 @@ export const PATCH = withRouteHandler(
 
         logger.info(`[${requestId}] Successfully updated MCP server: ${serverId}`)
 
-        return createMcpSuccessResponse({ server: updatedServer })
+        const { oauthClientSecret: _secret, ...rest } = updatedServer
+        return createMcpSuccessResponse({
+          server: { ...rest, hasOauthClientSecret: !!_secret },
+        })
       } catch (error) {
         logger.error(`[${requestId}] Error updating MCP server:`, error)
         return createMcpErrorResponse(toError(error), 'Failed to update MCP server', 500)

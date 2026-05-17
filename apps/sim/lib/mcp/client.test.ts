@@ -39,8 +39,9 @@ vi.mock('@/lib/core/execution-limits', () => ({
   getMaxExecutionTimeout: vi.fn().mockReturnValue(30000),
 }))
 
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { McpClient } from './client'
-import type { McpServerConfig } from './types'
+import type { McpClientOptions, McpServerConfig } from './types'
 
 function createConfig(): McpServerConfig {
   return {
@@ -54,6 +55,7 @@ function createConfig(): McpServerConfig {
 describe('McpClient notification handler', () => {
   beforeEach(() => {
     capturedNotificationHandler = null
+    vi.clearAllMocks()
   })
 
   it('fires onToolsChanged when a notification arrives while connected', async () => {
@@ -102,5 +104,26 @@ describe('McpClient notification handler', () => {
     await client.connect()
 
     expect(capturedNotificationHandler).toBeNull()
+  })
+
+  it('passes configured headers for OAuth transports as well as header auth transports', () => {
+    const authProvider = {} as unknown as NonNullable<McpClientOptions['authProvider']>
+    new McpClient({
+      config: {
+        ...createConfig(),
+        authType: 'oauth',
+        headers: { 'X-Sim-Via': 'workflow' },
+      },
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+      authProvider,
+    })
+
+    expect(StreamableHTTPClientTransport).toHaveBeenCalledWith(
+      new URL('https://test.example.com/mcp'),
+      {
+        authProvider,
+        requestInit: { headers: { 'X-Sim-Via': 'workflow' } },
+      }
+    )
   })
 })

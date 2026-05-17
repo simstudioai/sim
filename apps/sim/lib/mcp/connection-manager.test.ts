@@ -28,13 +28,17 @@ function serverConfig(id: string, name = `Server ${id}`) {
   }
 }
 
-const { MockMcpClientConstructor, mockOnToolsChanged, mockPublishToolsChanged } = vi.hoisted(
-  () => ({
-    MockMcpClientConstructor: vi.fn(),
-    mockOnToolsChanged: vi.fn(() => vi.fn()),
-    mockPublishToolsChanged: vi.fn(),
-  })
-)
+const {
+  MockMcpClientConstructor,
+  mockOnToolsChanged,
+  mockPublishToolsChanged,
+  mockGetOrCreateOauthRow,
+} = vi.hoisted(() => ({
+  MockMcpClientConstructor: vi.fn(),
+  mockOnToolsChanged: vi.fn(() => vi.fn()),
+  mockPublishToolsChanged: vi.fn(),
+  mockGetOrCreateOauthRow: vi.fn(),
+}))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({ isTest: false }))
 vi.mock('@/lib/mcp/pubsub', () => ({
@@ -46,6 +50,11 @@ vi.mock('@/lib/mcp/pubsub', () => ({
 vi.mock('@/lib/mcp/client', () => ({
   McpClient: MockMcpClientConstructor,
 }))
+vi.mock('@/lib/mcp/oauth', () => ({
+  getOrCreateOauthRow: mockGetOrCreateOauthRow,
+  loadPreregisteredClient: vi.fn(),
+  SimMcpOauthProvider: vi.fn().mockImplementation((value) => value),
+}))
 
 import { McpConnectionManager } from '@/lib/mcp/connection-manager'
 
@@ -54,6 +63,17 @@ describe('McpConnectionManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetOrCreateOauthRow.mockResolvedValue({
+      id: 'oauth-row-1',
+      mcpServerId: 'server-oauth',
+      userId: 'authorizer-1',
+      workspaceId: 'ws-1',
+      clientInformation: null,
+      tokens: { access_token: 'workspace-token', token_type: 'Bearer' },
+      codeVerifier: null,
+      state: null,
+      updatedAt: new Date(),
+    })
   })
 
   afterEach(() => {
@@ -96,6 +116,37 @@ describe('McpConnectionManager', () => {
       expect(instances).toHaveLength(1)
       expect(r1.supportsListChanged).toBe(true)
       expect(r2.supportsListChanged).toBe(false)
+    })
+
+    it('shares OAuth managed connections across workspace users for the same server', async () => {
+      const instances: MockMcpClient[] = []
+
+      MockMcpClientConstructor.mockImplementation(() => {
+        const instance: MockMcpClient = {
+          connect: vi.fn().mockResolvedValue(undefined),
+          disconnect: vi.fn().mockResolvedValue(undefined),
+          hasListChangedCapability: vi.fn().mockReturnValue(true),
+          onClose: vi.fn(),
+        }
+        instances.push(instance)
+        return instance
+      })
+
+      const mgr = createFreshManager()
+      const config = { ...serverConfig('server-oauth'), authType: 'oauth' as const }
+
+      const r1 = await mgr.connect(config, 'user-1', 'ws-1')
+      const r2 = await mgr.connect(config, 'user-2', 'ws-1')
+
+      expect(instances).toHaveLength(1)
+      expect(r1.supportsListChanged).toBe(true)
+      expect(r2.supportsListChanged).toBe(true)
+      expect(mockGetOrCreateOauthRow).toHaveBeenCalledTimes(1)
+      expect(mockGetOrCreateOauthRow).toHaveBeenCalledWith({
+        mcpServerId: 'server-oauth',
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+      })
     })
 
     it('allows a new connect() after a previous one completes', async () => {

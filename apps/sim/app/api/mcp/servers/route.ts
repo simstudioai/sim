@@ -27,10 +27,15 @@ export const GET = withRouteHandler(
     try {
       logger.info(`[${requestId}] Listing MCP servers for workspace ${workspaceId}`)
 
-      const servers = await db
+      const rows = await db
         .select()
         .from(mcpServers)
         .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
+
+      const servers = rows.map(({ oauthClientSecret: _secret, ...rest }) => ({
+        ...rest,
+        hasOauthClientSecret: !!_secret,
+      }))
 
       logger.info(
         `[${requestId}] Listed ${servers.length} MCP servers for workspace ${workspaceId}`
@@ -45,13 +50,6 @@ export const GET = withRouteHandler(
 
 /**
  * POST - Register a new MCP server for the workspace (requires write permission)
- *
- * Uses deterministic server IDs based on URL hash to ensure that re-adding
- * the same server produces the same ID. This prevents "server not found" errors
- * when workflows reference the old server ID after delete/re-add cycles.
- *
- * If a server with the same ID already exists (same URL in same workspace),
- * it will be updated instead of creating a duplicate.
  */
 export const POST = withRouteHandler(
   withMcpAuth('write')(
@@ -96,6 +94,11 @@ export const POST = withRouteHandler(
           retries: body.retries,
           enabled: body.enabled,
           source,
+          authType: body.authType,
+          oauthClientId: body.oauthClientId ?? null,
+          oauthClientIdProvided: body.oauthClientId !== undefined,
+          oauthClientSecret: body.oauthClientSecret,
+          oauthClientSecretProvided: body.oauthClientSecret !== undefined,
           request,
         })
         if (!result.success || !result.serverId) {

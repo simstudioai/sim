@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 746,
-  zodRoutes: 746,
+  totalRoutes: 748,
+  zodRoutes: 748,
   nonZodRoutes: 0,
 } as const
 
@@ -79,6 +79,10 @@ const INDIRECT_ZOD_ROUTES = new Set([
   // MCP routes that take only auth context (no client-supplied params/query/body).
   'apps/sim/app/api/mcp/discover/route.ts',
   'apps/sim/app/api/mcp/tools/stored/route.ts',
+  // MCP OAuth callback is the provider redirect target — the response is HTML
+  // that closes the popup, so the JSON-mode contract framework doesn't fit.
+  // Validation is enforced via state lookup + session-vs-row userId match.
+  'apps/sim/app/api/mcp/oauth/callback/route.ts',
 ])
 
 /**

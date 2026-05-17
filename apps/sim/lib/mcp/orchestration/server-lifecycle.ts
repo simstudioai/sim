@@ -1,9 +1,11 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, mcpServers } from '@sim/db'
+import { mcpServerOauth } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   McpDnsResolutionError,
   McpDomainNotAllowedError,
@@ -11,7 +13,9 @@ import {
   validateMcpDomain,
   validateMcpServerSsrf,
 } from '@/lib/mcp/domain-check'
+import { detectMcpAuthType, oauthCredsChanged, revokeMcpOauthTokens } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
+import type { McpAuthType } from '@/lib/mcp/types'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -39,6 +43,11 @@ export interface PerformCreateMcpServerParams extends ActorMetadata {
   retries?: number
   enabled?: boolean
   source?: string
+  authType?: McpAuthType
+  oauthClientId?: string | null
+  oauthClientIdProvided?: boolean
+  oauthClientSecret?: string | null
+  oauthClientSecretProvided?: boolean
 }
 
 export interface PerformUpdateMcpServerParams extends ActorMetadata {
@@ -53,6 +62,11 @@ export interface PerformUpdateMcpServerParams extends ActorMetadata {
   timeout?: number
   retries?: number
   enabled?: boolean
+  authType?: McpAuthType
+  oauthClientId?: string | null
+  oauthClientIdProvided?: boolean
+  oauthClientSecret?: string | null
+  oauthClientSecretProvided?: boolean
 }
 
 export interface PerformDeleteMcpServerParams extends ActorMetadata {
@@ -99,31 +113,89 @@ export async function performCreateMcpServer(
   const enabled = params.enabled !== false
   const serverId = params.url ? generateMcpServerId(params.workspaceId, params.url) : generateId()
 
+  const oauthClientSecretEncrypted = params.oauthClientSecret
+    ? (await encryptSecret(params.oauthClientSecret)).encrypted
+    : null
+  const oauthClientId = params.oauthClientId || null
+  const hasHeaders = params.headers && Object.keys(params.headers).length > 0
+
   try {
     const [existingServer] = await db
-      .select({ id: mcpServers.id, deletedAt: mcpServers.deletedAt })
+      .select({
+        id: mcpServers.id,
+        deletedAt: mcpServers.deletedAt,
+        url: mcpServers.url,
+        authType: mcpServers.authType,
+        oauthClientId: mcpServers.oauthClientId,
+        oauthClientSecret: mcpServers.oauthClientSecret,
+      })
       .from(mcpServers)
       .where(and(eq(mcpServers.id, serverId), eq(mcpServers.workspaceId, params.workspaceId)))
       .limit(1)
 
+    const urlChanged = existingServer ? existingServer.url !== params.url : true
+
+    let resolvedAuthType: McpAuthType = params.authType ?? 'headers'
+    if (!params.authType) {
+      if (existingServer && !urlChanged) {
+        resolvedAuthType = (existingServer.authType ?? 'headers') as McpAuthType
+      } else if (params.url && !hasHeaders) {
+        try {
+          resolvedAuthType = await detectMcpAuthType(params.url)
+        } catch (e) {
+          logger.warn('Probe failed, defaulting to headers', { url: params.url, error: e })
+          resolvedAuthType = 'headers'
+        }
+      }
+    }
+    if (params.oauthClientId) resolvedAuthType = 'oauth'
+
     if (existingServer) {
-      await db
-        .update(mcpServers)
-        .set({
+      const credsChanged = await oauthCredsChanged({
+        incomingClientId: oauthClientId,
+        incomingClientIdProvided: params.oauthClientIdProvided ?? false,
+        incomingClientSecret: params.oauthClientSecret,
+        incomingClientSecretProvided: params.oauthClientSecretProvided ?? false,
+        currentClientId: existingServer.oauthClientId,
+        currentEncryptedClientSecret: existingServer.oauthClientSecret,
+      })
+      const isRevival = existingServer.deletedAt !== null
+      const shouldClearOauth = urlChanged || credsChanged || isRevival
+
+      if (shouldClearOauth) await revokeMcpOauthTokens(serverId)
+
+      await db.transaction(async (tx) => {
+        if (shouldClearOauth) {
+          await tx.delete(mcpServerOauth).where(eq(mcpServerOauth.mcpServerId, serverId))
+        }
+        const updateValues: Record<string, unknown> = {
           name: params.name,
           description: params.description,
           transport,
           url: params.url,
+          authType: resolvedAuthType,
           headers: params.headers || {},
           timeout,
           retries,
           enabled,
-          connectionStatus: 'connected',
-          lastConnected: new Date(),
           updatedAt: new Date(),
           deletedAt: null,
-        })
-        .where(eq(mcpServers.id, serverId))
+        }
+        if (resolvedAuthType === 'oauth') {
+          if (shouldClearOauth) {
+            updateValues.connectionStatus = 'disconnected'
+            updateValues.lastConnected = null
+          }
+        } else {
+          updateValues.connectionStatus = 'connected'
+          updateValues.lastConnected = new Date()
+        }
+        if (params.oauthClientIdProvided) updateValues.oauthClientId = oauthClientId
+        if (params.oauthClientSecretProvided) {
+          updateValues.oauthClientSecret = oauthClientSecretEncrypted
+        }
+        await tx.update(mcpServers).set(updateValues).where(eq(mcpServers.id, serverId))
+      })
 
       await mcpService.clearCache(params.workspaceId)
       return { success: true, serverId, updated: true }
@@ -137,12 +209,15 @@ export async function performCreateMcpServer(
       description: params.description,
       transport,
       url: params.url,
+      authType: resolvedAuthType,
+      oauthClientId,
+      oauthClientSecret: oauthClientSecretEncrypted,
       headers: params.headers || {},
       timeout,
       retries,
       enabled,
-      connectionStatus: 'connected',
-      lastConnected: new Date(),
+      connectionStatus: resolvedAuthType === 'oauth' ? 'disconnected' : 'connected',
+      lastConnected: resolvedAuthType === 'oauth' ? null : new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
     })
@@ -208,6 +283,11 @@ export async function performUpdateMcpServer(
     if (validation) return validation
   }
 
+  const oauthClientSecretEncrypted =
+    params.oauthClientSecretProvided && params.oauthClientSecret
+      ? (await encryptSecret(params.oauthClientSecret)).encrypted
+      : null
+
   const updateData: Partial<typeof mcpServers.$inferInsert> = { updatedAt: new Date() }
   if (params.name !== undefined) updateData.name = params.name
   if (params.description !== undefined) updateData.description = params.description
@@ -217,10 +297,20 @@ export async function performUpdateMcpServer(
   if (params.timeout !== undefined) updateData.timeout = params.timeout
   if (params.retries !== undefined) updateData.retries = params.retries
   if (params.enabled !== undefined) updateData.enabled = params.enabled
+  if (params.authType !== undefined) updateData.authType = params.authType
+  if (params.oauthClientIdProvided) updateData.oauthClientId = params.oauthClientId || null
+  if (params.oauthClientSecretProvided) {
+    updateData.oauthClientSecret = oauthClientSecretEncrypted
+  }
 
   try {
     const [currentServer] = await db
-      .select({ url: mcpServers.url })
+      .select({
+        url: mcpServers.url,
+        authType: mcpServers.authType,
+        oauthClientId: mcpServers.oauthClientId,
+        oauthClientSecret: mcpServers.oauthClientSecret,
+      })
       .from(mcpServers)
       .where(
         and(
@@ -231,22 +321,60 @@ export async function performUpdateMcpServer(
       )
       .limit(1)
 
-    const [server] = await db
-      .update(mcpServers)
-      .set(updateData)
-      .where(
-        and(
-          eq(mcpServers.id, params.serverId),
-          eq(mcpServers.workspaceId, params.workspaceId),
-          isNull(mcpServers.deletedAt)
+    if (!currentServer) return { success: false, error: 'Server not found', errorCode: 'not_found' }
+
+    if (
+      params.oauthClientId &&
+      currentServer.authType !== 'oauth' &&
+      updateData.authType === undefined
+    ) {
+      updateData.authType = 'oauth'
+    }
+
+    const urlChanged = params.url !== undefined && currentServer.url !== params.url
+    const credsChanged = await oauthCredsChanged({
+      incomingClientId: params.oauthClientId,
+      incomingClientIdProvided: params.oauthClientIdProvided ?? false,
+      incomingClientSecret: params.oauthClientSecret,
+      incomingClientSecretProvided: params.oauthClientSecretProvided ?? false,
+      currentClientId: currentServer.oauthClientId,
+      currentEncryptedClientSecret: currentServer.oauthClientSecret,
+    })
+    const shouldClearOauth = urlChanged || credsChanged
+    const resolvedAuthType = (updateData.authType ?? currentServer.authType) as McpAuthType
+    if (shouldClearOauth && resolvedAuthType === 'oauth') {
+      updateData.connectionStatus = 'disconnected'
+      updateData.lastConnected = null
+    }
+
+    if (shouldClearOauth) await revokeMcpOauthTokens(params.serverId)
+
+    const server = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(mcpServers)
+        .set(updateData)
+        .where(
+          and(
+            eq(mcpServers.id, params.serverId),
+            eq(mcpServers.workspaceId, params.workspaceId),
+            isNull(mcpServers.deletedAt)
+          )
         )
-      )
-      .returning()
+        .returning()
+
+      if (!updated) return null
+
+      if (shouldClearOauth) {
+        await tx.delete(mcpServerOauth).where(eq(mcpServerOauth.mcpServerId, params.serverId))
+      }
+      return updated
+    })
 
     if (!server) return { success: false, error: 'Server not found', errorCode: 'not_found' }
 
     const shouldClearCache =
-      (params.url !== undefined && currentServer?.url !== params.url) ||
+      urlChanged ||
+      credsChanged ||
       params.enabled !== undefined ||
       params.headers !== undefined ||
       params.timeout !== undefined ||
@@ -284,6 +412,7 @@ export async function performDeleteMcpServer(
   params: PerformDeleteMcpServerParams
 ): Promise<PerformMcpServerResult> {
   try {
+    await revokeMcpOauthTokens(params.serverId)
     const [server] = await db
       .delete(mcpServers)
       .where(

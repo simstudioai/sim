@@ -34,6 +34,8 @@ const optionalHeadersFromNullableSchema = z.preprocess(
 
 export const mcpTransportSchema = z.enum(['streamable-http'])
 
+export const mcpAuthTypeSchema = z.enum(['none', 'headers', 'oauth'])
+
 export const mcpServerStatusConfigSchema = z
   .object({
     consecutiveFailures: z.number().default(0),
@@ -88,6 +90,7 @@ export const mcpServerSchema = z
     name: z.string(),
     description: optionalStringFromNullableSchema,
     transport: mcpTransportSchema,
+    authType: mcpAuthTypeSchema.optional(),
     url: optionalStringFromNullableSchema,
     timeout: optionalNumberFromNullableSchema,
     retries: optionalNumberFromNullableSchema,
@@ -105,6 +108,8 @@ export const mcpServerSchema = z
     createdAt: dateStringSchema,
     updatedAt: dateStringSchema,
     deletedAt: optionalDateStringFromNullableSchema,
+    oauthClientId: optionalStringFromNullableSchema,
+    hasOauthClientSecret: z.boolean().optional(),
   })
   .passthrough()
 export type McpServer = z.output<typeof mcpServerSchema>
@@ -123,12 +128,15 @@ export const createMcpServerBodySchema = z
     description: z.string().optional(),
     transport: mcpTransportSchema,
     url: z.string().optional(),
+    authType: mcpAuthTypeSchema.optional(),
     headers: z.record(z.string(), z.string()).optional(),
     timeout: z.number().optional(),
     retries: z.number().optional(),
     enabled: z.boolean().optional(),
     source: z.string().optional(),
     workspaceId: z.string().optional(),
+    oauthClientId: z.string().nullable().optional(),
+    oauthClientSecret: z.string().nullable().optional(),
   })
   .passthrough()
 
@@ -177,6 +185,21 @@ export const mcpToolExecutionBodySchema = z
   })
   .passthrough()
 export type McpToolExecutionBody = z.input<typeof mcpToolExecutionBodySchema>
+
+export const mcpToolResultSchema = z
+  .object({
+    content: z.array(z.unknown()).optional(),
+    isError: z.boolean().optional(),
+    structuredContent: z.unknown().optional(),
+  })
+  .passthrough()
+
+export const mcpToolExecutionResultSchema = z.object({
+  success: z.boolean(),
+  output: mcpToolResultSchema.optional(),
+  error: z.string().optional(),
+})
+export type McpToolExecutionResult = z.output<typeof mcpToolExecutionResultSchema>
 
 export const mcpJsonRpcRequestSchema = z
   .object({
@@ -283,6 +306,7 @@ export const createMcpServerContract = defineRouteContract({
       z.object({
         serverId: z.string(),
         updated: z.boolean().optional(),
+        authType: mcpAuthTypeSchema.optional(),
       })
     ),
   },
@@ -388,6 +412,38 @@ export const testMcpServerConnectionContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: mcpSuccessResponseSchema(mcpServerTestResultSchema),
+  },
+})
+
+export const executeMcpToolContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/mcp/tools/execute',
+  body: mcpToolExecutionBodySchema,
+  response: {
+    mode: 'json',
+    schema: mcpSuccessResponseSchema(mcpToolExecutionResultSchema),
+  },
+})
+export type ExecuteMcpToolResponse = ContractJsonResponse<typeof executeMcpToolContract>
+
+export const startMcpOauthQuerySchema = z.object({
+  serverId: z.string().min(1, 'serverId is required'),
+  workspaceId: z.string().min(1, 'workspaceId is required'),
+})
+
+export const startMcpOauthResultSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('redirect'), authorizationUrl: z.string().url() }),
+  z.object({ status: z.literal('already_authorized') }),
+])
+export type StartMcpOauthResult = z.output<typeof startMcpOauthResultSchema>
+
+export const startMcpOauthContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/mcp/oauth/start',
+  query: startMcpOauthQuerySchema,
+  response: {
+    mode: 'json',
+    schema: startMcpOauthResultSchema,
   },
 })
 

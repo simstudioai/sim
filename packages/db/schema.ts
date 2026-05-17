@@ -2210,6 +2210,14 @@ export const mcpServers = pgTable(
     transport: text('transport').notNull(),
     url: text('url'),
 
+    authType: text('auth_type').notNull().default('headers'),
+    /**
+     * Optional pre-registered OAuth credentials for servers that don't
+     * support Dynamic Client Registration (RFC 7591). When set, these
+     * shortcut the SDK's DCR step. `oauthClientSecret` is encrypted.
+     */
+    oauthClientId: text('oauth_client_id'),
+    oauthClientSecret: text('oauth_client_secret'),
     headers: json('headers').default('{}'),
     timeout: integer('timeout').default(30000),
     retries: integer('retries').default(3),
@@ -2242,6 +2250,60 @@ export const mcpServers = pgTable(
     workspaceDeletedIdx: index('mcp_servers_workspace_deleted_partial_idx')
       .on(table.workspaceId, table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+  })
+)
+
+/**
+ * Workspace-scoped OAuth state for an outbound MCP server.
+ *
+ * Holds the SDK-managed OAuth artifacts needed to drive the standard MCP
+ * OAuth 2.1 + PKCE + dynamic-client-registration flow against a remote MCP
+ * server. One row per MCP server; workspace members share the authorized
+ * connection just like they share the MCP server definition.
+ */
+export const mcpServerOauth = pgTable(
+  'mcp_server_oauth',
+  {
+    id: text('id').primaryKey(),
+    mcpServerId: text('mcp_server_id')
+      .notNull()
+      .references(() => mcpServers.id, { onDelete: 'cascade' }),
+    /** Last workspace user who initiated/completed authorization. */
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+
+    /**
+     * Encrypted JSON of the RFC 7591 dynamic client registration result.
+     * Encrypted because some authorization servers may issue a client_secret
+     * even for clients advertising `token_endpoint_auth_method: 'none'`.
+     */
+    clientInformation: text('client_information'),
+
+    /** Encrypted JSON of the OAuth tokens (access + refresh). */
+    tokens: text('tokens'),
+
+    /** PKCE verifier held only between /authorize and /callback. */
+    codeVerifier: text('code_verifier'),
+
+    /** Opaque state mint to correlate the callback. */
+    state: text('state'),
+
+    /**
+     * When `state` was minted. Used to expire the active-flow window and the
+     * state replay window independently of `updatedAt`, which is touched by
+     * token refreshes and other writes.
+     */
+    stateCreatedAt: timestamp('state_created_at'),
+
+    lastRefreshedAt: timestamp('last_refreshed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    serverUnique: uniqueIndex('mcp_server_oauth_server_unique').on(table.mcpServerId),
+    stateIdx: index('mcp_server_oauth_state_idx').on(table.state),
   })
 )
 
