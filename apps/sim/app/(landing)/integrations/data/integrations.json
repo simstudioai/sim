@@ -1883,6 +1883,105 @@
     "tags": ["identity", "microsoft-365"]
   },
   {
+    "type": "azure_devops",
+    "slug": "azure-devops",
+    "name": "Azure DevOps",
+    "description": "Interact with Azure DevOps pipelines, builds, and work items",
+    "longDescription": "Integrate Azure DevOps into your workflow. List and inspect pipelines and builds, query and manage work items, and add or read comments.",
+    "bgColor": "#FFFFFF",
+    "iconName": "AzureDevOpsIcon",
+    "docsUrl": "https://docs.sim.ai/tools/azure_devops",
+    "operations": [
+      {
+        "name": "List Pipelines",
+        "description": "List all pipelines in an Azure DevOps project. Returns pipeline ID, name, folder, revision, and URL."
+      },
+      {
+        "name": "Get Pipeline",
+        "description": "Get details for a specific pipeline in an Azure DevOps project, including configuration and repository info."
+      },
+      {
+        "name": "List Pipeline Runs",
+        "description": "List runs for a specific pipeline in an Azure DevOps project. Returns run ID, name, state, result, and timestamps."
+      },
+      {
+        "name": "Get Pipeline Run",
+        "description": "Get details for a specific pipeline run in an Azure DevOps project. Returns run state, result, timestamps, and the pipeline reference."
+      },
+      {
+        "name": "List Builds",
+        "description": "List builds in an Azure DevOps project. Optionally filter by pipeline definition, status, result, or branch."
+      },
+      {
+        "name": "List Build Logs",
+        "description": "List all log entries for a specific build in Azure DevOps. Returns log IDs, types, and line counts — use the log ID with the Get Build Log tool to fetch actual log text."
+      },
+      {
+        "name": "Get Build Log",
+        "description": "Fetch the text content of a specific build log in Azure DevOps. Use List Build Logs first to get the log ID. Optionally retrieve only a line range with startLine/endLine."
+      },
+      {
+        "name": "Get Build Timeline",
+        "description": "Get the execution timeline for an Azure DevOps build — every stage, job, and task with its result and log ID. Use this to identify which steps failed before fetching their logs with Get Build Log."
+      },
+      {
+        "name": "Get Work Items Between Builds",
+        "description": "Get work item references associated with commits between two builds in Azure DevOps. Returns work item IDs and URLs — use Get Work Items Batch for full field details."
+      },
+      {
+        "name": "Query Work Items",
+        "description": "Execute a WIQL query to search for work items in Azure DevOps and return full field details. Use TOP N in your query to limit results (Azure enforces a 200-item maximum per batch fetch)."
+      },
+      {
+        "name": "Get Work Item",
+        "description": "Fetch full details of a single work item by ID from Azure DevOps, including title, state, type, assignee, and area path."
+      },
+      {
+        "name": "Get Work Items Batch",
+        "description": "Fetch full details for multiple work items by ID from Azure DevOps in a single call. Pass comma-separated IDs (e.g. "
+      },
+      {
+        "name": "Create Work Item",
+        "description": "Create a new Basic-process work item (Issue, Task, or Epic) in Azure DevOps. Returns the created work item with its assigned ID."
+      },
+      {
+        "name": "Update Work Item",
+        "description": "Update one or more fields on an existing work item in Azure DevOps. Provide only the fields you want to change."
+      },
+      {
+        "name": "Add Comment",
+        "description": "Add a comment to a work item in Azure DevOps."
+      },
+      {
+        "name": "Get Comments",
+        "description": "List comments for an Azure DevOps work item."
+      }
+    ],
+    "operationCount": 16,
+    "triggers": [
+      {
+        "id": "azure_devops_build_failed",
+        "name": "Azure DevOps Build Failed",
+        "description": "Trigger workflow when an Azure DevOps build fails, is canceled, or partially succeeds"
+      },
+      {
+        "id": "azure_devops_work_item_created",
+        "name": "Azure DevOps Work Item Created",
+        "description": "Trigger workflow when a work item is created in Azure DevOps"
+      },
+      {
+        "id": "azure_devops_webhook",
+        "name": "Azure DevOps Webhook (All Service Hook Events)",
+        "description": "Trigger on whichever service hook event types you configure in Azure DevOps. Sim does not filter deliveries for this trigger."
+      }
+    ],
+    "triggerCount": 3,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["developer-tools", "productivity"],
+    "tags": ["ci-cd", "project-management", "version-control"]
+  },
+  {
     "type": "box",
     "slug": "box",
     "name": "Box",
@@ -2540,9 +2639,17 @@
       {
         "name": "Describe Alarms",
         "description": "List and filter CloudWatch alarms"
+      },
+      {
+        "name": "Mute Alarm",
+        "description": "Disable notification actions on one or more CloudWatch alarms"
+      },
+      {
+        "name": "Unmute Alarm",
+        "description": "Re-enable notification actions on one or more CloudWatch alarms"
       }
     ],
-    "operationCount": 8,
+    "operationCount": 10,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
@@ -4046,6 +4153,10 @@
         "description": "Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)"
       },
       {
+        "name": "Get",
+        "description": "Get a workspace file object from a selected file or canonical workspace file ID."
+      },
+      {
         "name": "Write",
         "description": "Create a new workspace file. If a file with the same name already exists, a numeric suffix is added (e.g., "
       },
@@ -4054,7 +4165,7 @@
         "description": "Append content to an existing workspace file. The file must already exist. Content is added to the end of the file."
       }
     ],
-    "operationCount": 3,
+    "operationCount": 4,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",

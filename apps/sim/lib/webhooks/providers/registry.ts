@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { airtableHandler } from '@/lib/webhooks/providers/airtable'
 import { ashbyHandler } from '@/lib/webhooks/providers/ashby'
 import { attioHandler } from '@/lib/webhooks/providers/attio'
+import { azureDevOpsHandler } from '@/lib/webhooks/providers/azure-devops'
 import { calcomHandler } from '@/lib/webhooks/providers/calcom'
 import { calendlyHandler } from '@/lib/webhooks/providers/calendly'
 import { circlebackHandler } from '@/lib/webhooks/providers/circleback'
@@ -52,6 +53,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   airtable: airtableHandler,
   ashby: ashbyHandler,
   attio: attioHandler,
+  azure_devops: azureDevOpsHandler,
   calendly: calendlyHandler,
   calcom: calcomHandler,
   circleback: circlebackHandler,
