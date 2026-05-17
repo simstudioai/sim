@@ -1,10 +1,10 @@
 import { db } from '@sim/db'
-import { chat } from '@sim/db/schema'
+import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { renderOTPEmail } from '@/components/emails'
-import { requestChatEmailOtpContract, verifyChatEmailOtpContract } from '@/lib/api/contracts/chats'
+import { requestFormEmailOtpContract, verifyFormEmailOtpContract } from '@/lib/api/contracts/forms'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { addCorsHeaders, isEmailAllowed } from '@/lib/core/security/deployment'
@@ -22,10 +22,10 @@ import {
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
-import { setChatAuthCookie } from '@/app/api/chat/utils'
+import { setFormAuthCookie } from '@/app/api/form/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
-const logger = createLogger('ChatOtpAPI')
+const logger = createLogger('FormOtpAPI')
 
 const rateLimiter = new RateLimiter()
 
@@ -37,7 +37,7 @@ export const POST = withRouteHandler(
     try {
       const ip = getClientIp(request)
       const ipRateLimit = await rateLimiter.checkRateLimitDirect(
-        `chat-otp:ip:${identifier}:${ip}`,
+        `form-otp:ip:${identifier}:${ip}`,
         OTP_IP_RATE_LIMIT
       )
       if (!ipRateLimit.allowed) {
@@ -50,7 +50,7 @@ export const POST = withRouteHandler(
         return addCorsHeaders(response, request)
       }
 
-      const parsed = await parseRequest(requestChatEmailOtpContract, request, context, {
+      const parsed = await parseRequest(requestFormEmailOtpContract, request, context, {
         validationErrorResponse: (error) =>
           addCorsHeaders(
             createErrorResponse(getValidationErrorMessage(error, 'Invalid request'), 400),
@@ -62,49 +62,55 @@ export const POST = withRouteHandler(
 
       const deploymentResult = await db
         .select({
-          id: chat.id,
-          authType: chat.authType,
-          allowedEmails: chat.allowedEmails,
-          title: chat.title,
+          id: form.id,
+          authType: form.authType,
+          allowedEmails: form.allowedEmails,
+          title: form.title,
+          isActive: form.isActive,
         })
-        .from(chat)
-        .where(
-          and(eq(chat.identifier, identifier), eq(chat.isActive, true), isNull(chat.archivedAt))
-        )
+        .from(form)
+        .where(and(eq(form.identifier, identifier), isNull(form.archivedAt)))
         .limit(1)
 
       if (deploymentResult.length === 0) {
-        logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
-        return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
+        logger.warn(`[${requestId}] Form not found for identifier: ${identifier}`)
+        return addCorsHeaders(createErrorResponse('Form not found', 404), request)
       }
 
       const deployment = deploymentResult[0]
 
+      if (!deployment.isActive) {
+        return addCorsHeaders(
+          createErrorResponse('This form is currently unavailable', 403),
+          request
+        )
+      }
+
       if (deployment.authType !== 'email') {
         return addCorsHeaders(
-          createErrorResponse('This chat does not use email authentication', 400),
+          createErrorResponse('This form does not use email authentication', 400),
           request
         )
       }
 
       const allowedEmails: string[] = Array.isArray(deployment.allowedEmails)
-        ? deployment.allowedEmails
+        ? (deployment.allowedEmails as string[])
         : []
 
       if (!isEmailAllowed(email, allowedEmails)) {
         return addCorsHeaders(
-          createErrorResponse('Email not authorized for this chat', 403),
+          createErrorResponse('Email not authorized for this form', 403),
           request
         )
       }
 
       const emailRateLimit = await rateLimiter.checkRateLimitDirect(
-        `chat-otp:email:${deployment.id}:${email.toLowerCase()}`,
+        `form-otp:email:${deployment.id}:${email.toLowerCase()}`,
         OTP_EMAIL_RATE_LIMIT
       )
       if (!emailRateLimit.allowed) {
         logger.warn(
-          `[${requestId}] OTP email rate limit exceeded for ${email} on chat ${deployment.id}`
+          `[${requestId}] OTP email rate limit exceeded for ${email} on form ${deployment.id}`
         )
         const retryAfter = Math.ceil(
           (emailRateLimit.retryAfterMs ?? OTP_EMAIL_RATE_LIMIT.refillIntervalMs) / 1000
@@ -118,18 +124,18 @@ export const POST = withRouteHandler(
       }
 
       const otp = generateOTP()
-      await storeOTP('chat', deployment.id, email, otp)
+      await storeOTP('form', deployment.id, email, otp)
 
       const emailHtml = await renderOTPEmail(
         otp,
         email,
         'email-verification',
-        deployment.title || 'Chat'
+        deployment.title || 'Form'
       )
 
       const emailResult = await sendEmail({
         to: email,
-        subject: `Verification code for ${deployment.title || 'Chat'}`,
+        subject: `Verification code for ${deployment.title || 'Form'}`,
         html: emailHtml,
       })
 
@@ -141,7 +147,7 @@ export const POST = withRouteHandler(
         )
       }
 
-      logger.info(`[${requestId}] OTP sent to ${email} for chat ${deployment.id}`)
+      logger.info(`[${requestId}] OTP sent to ${email} for form ${deployment.id}`)
       return addCorsHeaders(createSuccessResponse({ message: 'Verification code sent' }), request)
     } catch (error) {
       logger.error(`[${requestId}] Error processing OTP request:`, error)
@@ -156,7 +162,7 @@ export const PUT = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
-      const parsed = await parseRequest(verifyChatEmailOtpContract, request, context, {
+      const parsed = await parseRequest(verifyFormEmailOtpContract, request, context, {
         validationErrorResponse: (error) =>
           addCorsHeaders(
             createErrorResponse(getValidationErrorMessage(error, 'Invalid request'), 400),
@@ -168,28 +174,49 @@ export const PUT = withRouteHandler(
 
       const deploymentResult = await db
         .select({
-          id: chat.id,
-          title: chat.title,
-          description: chat.description,
-          customizations: chat.customizations,
-          authType: chat.authType,
-          password: chat.password,
-          outputConfigs: chat.outputConfigs,
+          id: form.id,
+          authType: form.authType,
+          password: form.password,
+          allowedEmails: form.allowedEmails,
+          isActive: form.isActive,
         })
-        .from(chat)
-        .where(
-          and(eq(chat.identifier, identifier), eq(chat.isActive, true), isNull(chat.archivedAt))
-        )
+        .from(form)
+        .where(and(eq(form.identifier, identifier), isNull(form.archivedAt)))
         .limit(1)
 
       if (deploymentResult.length === 0) {
-        logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
-        return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
+        logger.warn(`[${requestId}] Form not found for identifier: ${identifier}`)
+        return addCorsHeaders(createErrorResponse('Form not found', 404), request)
       }
 
       const deployment = deploymentResult[0]
 
-      const storedValue = await getOTP('chat', deployment.id, email)
+      if (!deployment.isActive) {
+        return addCorsHeaders(
+          createErrorResponse('This form is currently unavailable', 403),
+          request
+        )
+      }
+
+      if (deployment.authType !== 'email') {
+        return addCorsHeaders(
+          createErrorResponse('This form does not use email authentication', 400),
+          request
+        )
+      }
+
+      const allowedEmails: string[] = Array.isArray(deployment.allowedEmails)
+        ? (deployment.allowedEmails as string[])
+        : []
+
+      if (!isEmailAllowed(email, allowedEmails)) {
+        return addCorsHeaders(
+          createErrorResponse('Email not authorized for this form', 403),
+          request
+        )
+      }
+
+      const storedValue = await getOTP('form', deployment.id, email)
       if (!storedValue) {
         return addCorsHeaders(
           createErrorResponse('No verification code found, request a new one', 400),
@@ -200,7 +227,7 @@ export const PUT = withRouteHandler(
       const { otp: storedOTP, attempts } = decodeOTPValue(storedValue)
 
       if (attempts >= MAX_OTP_ATTEMPTS) {
-        await deleteOTP('chat', deployment.id, email)
+        await deleteOTP('form', deployment.id, email)
         logger.warn(`[${requestId}] OTP already locked out for ${email}`)
         return addCorsHeaders(
           createErrorResponse('Too many failed attempts. Please request a new code.', 429),
@@ -209,7 +236,7 @@ export const PUT = withRouteHandler(
       }
 
       if (storedOTP !== otp) {
-        const result = await incrementOTPAttempts('chat', deployment.id, email, storedValue)
+        const result = await incrementOTPAttempts('form', deployment.id, email, storedValue)
         if (result === 'locked') {
           logger.warn(`[${requestId}] OTP invalidated after max failed attempts for ${email}`)
           return addCorsHeaders(
@@ -220,20 +247,10 @@ export const PUT = withRouteHandler(
         return addCorsHeaders(createErrorResponse('Invalid verification code', 400), request)
       }
 
-      await deleteOTP('chat', deployment.id, email)
+      await deleteOTP('form', deployment.id, email)
 
-      const response = addCorsHeaders(
-        createSuccessResponse({
-          id: deployment.id,
-          title: deployment.title,
-          description: deployment.description,
-          customizations: deployment.customizations,
-          authType: deployment.authType,
-          outputConfigs: deployment.outputConfigs,
-        }),
-        request
-      )
-      setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
+      const response = addCorsHeaders(createSuccessResponse({ authenticated: true }), request)
+      setFormAuthCookie(response, deployment.id, deployment.authType, deployment.password)
 
       return response
     } catch (error) {

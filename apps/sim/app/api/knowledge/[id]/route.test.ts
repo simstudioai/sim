@@ -31,6 +31,7 @@ vi.mock('@/lib/knowledge/service', async (importOriginal) => {
     getKnowledgeBaseById: vi.fn(),
     updateKnowledgeBase: vi.fn(),
     deleteKnowledgeBase: vi.fn(),
+    KnowledgeBasePermissionError: actual.KnowledgeBasePermissionError,
   }
 })
 
@@ -39,6 +40,7 @@ vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 import {
   deleteKnowledgeBase,
   getKnowledgeBaseById,
+  KnowledgeBasePermissionError,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 import { DELETE, GET, PUT } from '@/app/api/knowledge/[id]/route'
@@ -229,8 +231,57 @@ describe('Knowledge Base By ID API Route', () => {
           workspaceId: undefined,
           chunkingConfig: undefined,
         },
-        expect.any(String)
+        expect.any(String),
+        { actorUserId: 'user-123' }
       )
+    })
+
+    it('returns 403 when service rejects a cross-workspace transfer', async () => {
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'attacker', email: 'a@example.com' },
+      })
+
+      resetMocks()
+
+      vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValueOnce({
+        hasAccess: true,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123', workspaceId: 'ws-current' },
+      })
+
+      vi.mocked(updateKnowledgeBase).mockRejectedValueOnce(
+        new KnowledgeBasePermissionError('User does not have permission on the target workspace')
+      )
+
+      const req = createMockRequest('PUT', { workspaceId: 'ws-target' })
+      const response = await PUT(req, { params: mockParams })
+      const data = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(data.error).toBe('User does not have permission on the target workspace')
+    })
+
+    it('returns 403 when service rejects clearing workspaceId', async () => {
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
+
+      resetMocks()
+
+      vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValueOnce({
+        hasAccess: true,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123', workspaceId: 'ws-current' },
+      })
+
+      vi.mocked(updateKnowledgeBase).mockRejectedValueOnce(
+        new KnowledgeBasePermissionError('Knowledge base workspace cannot be cleared')
+      )
+
+      const req = createMockRequest('PUT', { workspaceId: null })
+      const response = await PUT(req, { params: mockParams })
+      const data = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(data.error).toBe('Knowledge base workspace cannot be cleared')
     })
 
     it('should return unauthorized for unauthenticated user', async () => {

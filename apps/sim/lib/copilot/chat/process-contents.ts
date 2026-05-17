@@ -228,8 +228,8 @@ async function processPastChatFromDb(
   currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
-    const { getAccessibleCopilotChat } = await import('./lifecycle')
-    const chat = await getAccessibleCopilotChat(chatId, userId)
+    const { getAccessibleCopilotChatWithMessages } = await import('./lifecycle')
+    const chat = await getAccessibleCopilotChatWithMessages(chatId, userId)
     if (!chat) {
       return null
     }
