@@ -16,7 +16,9 @@ const redisUrl = env.REDIS_URL
  *
  * For DNS hosts: no override needed, default verification works.
  */
-function resolveTlsOptions(url: string | undefined): { servername: string } | undefined {
+export function resolveRedisTlsOptions(
+  url: string | undefined
+): { servername: string } | undefined {
   if (!url) return undefined
   let parsed: URL
   try {
@@ -117,7 +119,7 @@ export function getRedisClient(): Redis | null {
   if (globalRedisClient) return globalRedisClient
 
   // Outside the try/catch so config errors aren't silently swallowed.
-  const tls = resolveTlsOptions(redisUrl)
+  const tls = resolveRedisTlsOptions(redisUrl)
 
   try {
     logger.info('Initializing Redis client')
