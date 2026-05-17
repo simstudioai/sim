@@ -165,7 +165,7 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   }
 
   const storeProvider = getProviderFromStore(normalizedModel)
-  if (storeProvider === 'ollama' || storeProvider === 'vllm') return false
+  if (storeProvider === 'ollama' || storeProvider === 'vllm' || storeProvider === 'litellm') return false
   if (storeProvider) return true
 
   if (isOllamaConfigured) {
