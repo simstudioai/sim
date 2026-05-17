@@ -257,7 +257,7 @@ export function formatWorkItemCreatedInput(body: Record<string, unknown>): Recor
     createdBy:
       (fields['System.CreatedBy'] as { displayName?: string } | undefined)?.displayName ?? '',
     assignedTo:
-      (fields['System.AssignedTo'] as { displayName?: string } | undefined)?.displayName ?? ''
+      (fields['System.AssignedTo'] as { displayName?: string } | undefined)?.displayName ?? '',
     priority: Number(fields['Microsoft.VSTS.Common.Priority'] ?? 0),
     areaPath: (fields['System.AreaPath'] as string) ?? '',
     iterationPath: (fields['System.IterationPath'] as string) ?? '',
