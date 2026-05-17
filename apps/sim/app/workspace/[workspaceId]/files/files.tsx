@@ -113,11 +113,11 @@ const ACCEPT_ATTR = SUPPORTED_EXTENSIONS.map((ext) => `.${ext}`).join(',')
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
-  { id: 'size', header: 'Size' },
-  { id: 'type', header: 'Type' },
-  { id: 'created', header: 'Created' },
-  { id: 'owner', header: 'Owner' },
-  { id: 'updated', header: 'Last Updated' },
+  { id: 'size', header: 'Size', widthPx: 110 },
+  { id: 'type', header: 'Type', widthPx: 120 },
+  { id: 'created', header: 'Created', widthPx: 150 },
+  { id: 'owner', header: 'Owner', widthPx: 160 },
+  { id: 'updated', header: 'Last Updated', widthPx: 150 },
 ]
 
 const MIME_TYPE_LABELS: Record<string, string> = {

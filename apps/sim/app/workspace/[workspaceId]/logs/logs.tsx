@@ -106,11 +106,11 @@ const REFRESH_SPINNER_DURATION_MS = 1000 as const
 
 const LOG_COLUMNS: ResourceColumn[] = [
   { id: 'workflow', header: 'Workflow' },
-  { id: 'date', header: 'Date' },
-  { id: 'status', header: 'Status' },
-  { id: 'cost', header: 'Cost' },
-  { id: 'trigger', header: 'Trigger' },
-  { id: 'duration', header: 'Duration' },
+  { id: 'date', header: 'Date', widthPx: 160 },
+  { id: 'status', header: 'Status', widthPx: 120 },
+  { id: 'cost', header: 'Cost', widthPx: 100 },
+  { id: 'trigger', header: 'Trigger', widthPx: 140 },
+  { id: 'duration', header: 'Duration', widthPx: 110 },
 ]
 
 interface LogSelectionState {
