@@ -15,7 +15,7 @@ const logger = createLogger('CopilotChatLifecycle')
 
 export interface ChatLoadResult {
   chatId: string
-  chat: typeof copilotChats.$inferSelect | null
+  chat: CopilotChatDetailRow | null
   conversationHistory: unknown[]
   isNew: boolean
 }
@@ -34,9 +34,41 @@ const copilotChatAuthColumns = {
   type: copilotChats.type,
 } as const
 
+/**
+ * Column set for chat-detail callers that need the conversation transcript but
+ * not the copilot-only TOAST-able fields (`previewYaml`, `planArtifact`,
+ * `config`) or unused metadata (`model`, `pinned`, `lastSeenAt`). Selecting
+ * only these columns avoids the Postgres detoast cost on the dropped fields,
+ * which dominates latency for chats with large message histories.
+ */
+const copilotChatDetailColumns = {
+  ...copilotChatAuthColumns,
+  title: copilotChats.title,
+  messages: copilotChats.messages,
+  conversationId: copilotChats.conversationId,
+  resources: copilotChats.resources,
+  createdAt: copilotChats.createdAt,
+  updatedAt: copilotChats.updatedAt,
+} as const
+
 type CopilotChatAuthRow = Pick<
   typeof copilotChats.$inferSelect,
   'id' | 'userId' | 'workflowId' | 'workspaceId' | 'type'
+>
+
+export type CopilotChatDetailRow = Pick<
+  typeof copilotChats.$inferSelect,
+  | 'id'
+  | 'userId'
+  | 'workflowId'
+  | 'workspaceId'
+  | 'type'
+  | 'title'
+  | 'messages'
+  | 'conversationId'
+  | 'resources'
+  | 'createdAt'
+  | 'updatedAt'
 >
 
 async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
@@ -99,12 +131,35 @@ export async function getAccessibleCopilotChatAuth(
 
 /**
  * Load the full copilot chat row after authorization. Use this only when the
- * caller actually consumes the heavy columns (`messages`, `planArtifact`,
- * `config`, etc.) — for example, chat resume or the GET-by-id endpoint.
+ * caller actually consumes copilot-only TOAST-able columns (`previewYaml`,
+ * `planArtifact`, `config`) or other extended metadata — for example the
+ * legacy copilot chat detail endpoint. Mothership chats and other consumers
+ * that only need the transcript should prefer `getAccessibleCopilotChatWithMessages`.
  */
 export async function getAccessibleCopilotChat(chatId: string, userId: string) {
   const [chat] = await db
     .select()
+    .from(copilotChats)
+    .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
+    .limit(1)
+
+  return authorizeCopilotChatRow(chat, chatId, userId)
+}
+
+/**
+ * Load a copilot chat with the conversation transcript and resources after
+ * authorization, omitting copilot-only TOAST-able fields (`previewYaml`,
+ * `planArtifact`, `config`) and unused metadata (`model`, `pinned`,
+ * `lastSeenAt`). Use this for the mothership chat detail endpoint and the
+ * shared `resolveOrCreateChat` path — every column read here is consumed
+ * downstream, and dropping the others avoids per-request detoast overhead.
+ */
+export async function getAccessibleCopilotChatWithMessages(
+  chatId: string,
+  userId: string
+): Promise<CopilotChatDetailRow | null> {
+  const [chat] = await db
+    .select(copilotChatDetailColumns)
     .from(copilotChats)
     .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
     .limit(1)
@@ -132,7 +187,7 @@ export async function resolveOrCreateChat(params: {
   }
 
   if (chatId) {
-    const chat = await getAccessibleCopilotChat(chatId, userId)
+    const chat = await getAccessibleCopilotChatWithMessages(chatId, userId)
 
     if (chat) {
       if (workflowId && chat.workflowId !== workflowId) {
@@ -189,7 +244,7 @@ export async function resolveOrCreateChat(params: {
       messages: [],
       lastSeenAt: now,
     })
-    .returning()
+    .returning(copilotChatDetailColumns)
 
   if (!newChat) {
     logger.warn('Failed to create new copilot chat row', { userId, workflowId, workspaceId })
