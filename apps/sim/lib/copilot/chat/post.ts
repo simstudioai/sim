@@ -14,6 +14,7 @@ import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
+  withStoppedContentBlock,
 } from '@/lib/copilot/chat/persisted-message'
 import {
   processContextsServer,
@@ -23,6 +24,7 @@ import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import {
+  CopilotChatFinalizeOutcome,
   CopilotChatPersistOutcome,
   CopilotTransport,
 } from '@/lib/copilot/generated/trace-attribute-values-v1'
@@ -425,13 +427,31 @@ function buildOnComplete(params: {
 
     if (!chatId) return
 
-    // On cancel, /chat/stop is the sole DB writer — it persists
-    // partial content AND clears conversationId in one UPDATE. If we
-    // finalize here first the filter misses and content vanishes.
-    // Real errors still finalize so the stream marker clears.
-    if (result.cancelled) return
-
     try {
+      if (result.cancelled) {
+        const finalization = await finalizeAssistantTurn({
+          chatId,
+          userMessageId,
+          assistantMessage: withStoppedContentBlock(
+            buildPersistedAssistantMessage(result, requestId)
+          ),
+          streamMarkerPolicy: 'active-or-cleared',
+        })
+        const shouldPublishCompletion =
+          finalization.updated ||
+          finalization.outcome === CopilotChatFinalizeOutcome.AssistantAlreadyPersisted
+
+        if (notifyWorkspaceStatus && workspaceId && shouldPublishCompletion) {
+          taskPubSub?.publishStatusChanged({
+            workspaceId,
+            chatId,
+            type: 'completed',
+            streamId: userMessageId,
+          })
+        }
+        return
+      }
+
       await finalizeAssistantTurn({
         chatId,
         userMessageId,
