@@ -1,5 +1,5 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
-import { Agent } from 'undici'
+import { Agent, type RequestInit as UndiciRequestInit, fetch as undiciFetch } from 'undici'
 import { createPinnedLookup } from '@/lib/core/security/input-validation.server'
 
 /**
@@ -9,6 +9,10 @@ import { createPinnedLookup } from '@/lib/core/security/input-validation.server'
  * fetch then forces every subsequent request (initial POST, SSE GET, redirects)
  * to use that same IP, regardless of what the hostname now resolves to.
  *
+ * Uses undici's `fetch` directly so the `dispatcher` option is part of the
+ * real type contract — not a cast that would silently break if a future
+ * runtime swapped out the implementation.
+ *
  * The original hostname is preserved on the request so TLS SNI and the Host
  * header continue to match the certificate.
  */
@@ -17,9 +21,16 @@ export function createMcpPinnedFetch(resolvedIP: string): FetchLike {
     connect: { lookup: createPinnedLookup(resolvedIP) },
   })
 
-  return (url, init) =>
-    globalThis.fetch(url, {
-      ...(init ?? {}),
+  return (async (url, init) => {
+    // DOM `RequestInit` and undici's `RequestInit` are structurally compatible
+    // at runtime (Node's global fetch IS undici) but differ in TS types.
+    // Cast the init through unknown to bridge the typing without losing the
+    // critical `dispatcher` typing on the call itself.
+    const undiciInit: UndiciRequestInit = {
+      ...(init as unknown as UndiciRequestInit),
       dispatcher,
-    } as RequestInit & { dispatcher: Agent })
+    }
+    const response = await undiciFetch(url as string | URL, undiciInit)
+    return response as unknown as Response
+  }) satisfies FetchLike
 }
