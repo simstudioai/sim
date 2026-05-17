@@ -71,7 +71,8 @@ export class McpConnectionManager {
   async connect(
     config: McpServerConfig,
     userId: string,
-    workspaceId: string
+    workspaceId: string,
+    resolvedIP?: string | null
   ): Promise<{ supportsListChanged: boolean }> {
     if (this.disposed) {
       logger.warn('Connection manager is disposed, ignoring connect request')
@@ -106,6 +107,7 @@ export class McpConnectionManager {
           maxToolExecutionsPerHour: 1000,
         },
         onToolsChanged,
+        resolvedIP: resolvedIP ?? undefined,
       })
 
       try {

@@ -95,6 +95,9 @@ export const POST = withRouteHandler(
       }
 
       try {
+        // Initial pre-resolution check; the authoritative resolved IP is
+        // captured after env-var resolution below and used to pin the
+        // connection against DNS rebinding.
         await validateMcpServerSsrf(body.url)
       } catch (e) {
         if (e instanceof McpDnsResolutionError) {
@@ -140,8 +143,9 @@ export const POST = withRouteHandler(
         throw e
       }
 
+      let resolvedIP: string | null
       try {
-        await validateMcpServerSsrf(testConfig.url)
+        resolvedIP = await validateMcpServerSsrf(testConfig.url)
       } catch (e) {
         if (e instanceof McpDnsResolutionError) {
           return createMcpErrorResponse(e, e.message, 502)
@@ -162,7 +166,11 @@ export const POST = withRouteHandler(
       let client: McpClient | null = null
 
       try {
-        client = new McpClient(testConfig, testSecurityPolicy)
+        client = new McpClient({
+          config: testConfig,
+          securityPolicy: testSecurityPolicy,
+          resolvedIP: resolvedIP ?? undefined,
+        })
         await client.connect()
 
         result.negotiatedVersion = client.getNegotiatedVersion()
