@@ -142,6 +142,12 @@ export const updateWorkItemTool: ToolConfig<UpdateWorkItemParams, UpdateWorkItem
     }),
     body: (params) => {
       const ops: AzureDevOpsJsonPatchOp[] = []
+      if (!params.title && !params.description && !params.assignedTo && !params.areaPath &&
+          params.priority === undefined && !params.state && params.effort === undefined &&
+          !params.startDate && !params.targetDate && !params.activity &&
+          params.remainingWork === undefined && params.completedWork === undefined && !params.tags) {
+        throw new Error('Update Work Item requires at least one field to update.')
+      }
       if (params.title) {
         ops.push({ op: 'replace', path: '/fields/System.Title', value: params.title })
       }
