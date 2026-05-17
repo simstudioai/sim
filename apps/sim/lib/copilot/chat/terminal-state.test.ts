@@ -182,4 +182,33 @@ describe('finalizeAssistantTurn', () => {
     expect(result.updated).toBe(false)
     expect(updateSet).not.toHaveBeenCalled()
   })
+
+  it('reports already persisted when a cleared marker races with a duplicate stop', async () => {
+    selectLimit.mockResolvedValue([
+      {
+        messages: [
+          { id: 'user-1', role: 'user', content: 'hello' },
+          { id: 'assistant-1', role: 'assistant', content: 'partial' },
+        ],
+        conversationId: null,
+        workspaceId: 'ws-1',
+      },
+    ])
+
+    const result = await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userMessageId: 'user-1',
+      streamMarkerPolicy: 'active-or-cleared',
+      assistantMessage: {
+        id: 'assistant-2',
+        role: 'assistant',
+        content: 'partial',
+        timestamp: '2024-01-01T00:00:00.000Z',
+      },
+    })
+
+    expect(result.updated).toBe(false)
+    expect(result.outcome).toBe('assistant_already_persisted')
+    expect(updateSet).not.toHaveBeenCalled()
+  })
 })

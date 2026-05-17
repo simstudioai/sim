@@ -4,9 +4,16 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { copilotChatStopContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import {
+  normalizeMessage,
+  type PersistedMessage,
+  withStoppedContentBlock,
+} from '@/lib/copilot/chat/persisted-message'
 import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
-import { CopilotStopOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
+import {
+  CopilotChatFinalizeOutcome,
+  CopilotStopOutcome,
+} from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
@@ -49,14 +56,16 @@ export const POST = withRouteHandler((req: NextRequest) =>
         : hasContent
           ? [{ type: 'text', channel: 'assistant', content }, { type: 'stopped' }]
           : [{ type: 'stopped' }]
-      const assistantMessage: PersistedMessage = normalizeMessage({
-        id: generateId(),
-        role: 'assistant',
-        content,
-        timestamp: new Date().toISOString(),
-        contentBlocks: synthesizedStoppedBlocks,
-        ...(requestId ? { requestId } : {}),
-      })
+      const assistantMessage: PersistedMessage = withStoppedContentBlock(
+        normalizeMessage({
+          id: generateId(),
+          role: 'assistant',
+          content,
+          timestamp: new Date().toISOString(),
+          contentBlocks: synthesizedStoppedBlocks,
+          ...(requestId ? { requestId } : {}),
+        })
+      )
       const result = await finalizeAssistantTurn({
         chatId,
         userId: session.user.id,
@@ -65,8 +74,15 @@ export const POST = withRouteHandler((req: NextRequest) =>
         streamMarkerPolicy: 'active-or-cleared',
       })
       span.setAttribute(TraceAttr.CopilotStopAppendedAssistant, result.appendedAssistant)
+      const stopOutcome = !result.found
+        ? CopilotStopOutcome.ChatNotFound
+        : result.updated || result.outcome === CopilotChatFinalizeOutcome.AssistantAlreadyPersisted
+          ? CopilotStopOutcome.Persisted
+          : CopilotStopOutcome.NoMatchingRow
+      const shouldPublishCompleted =
+        result.updated || result.outcome === CopilotChatFinalizeOutcome.AssistantAlreadyPersisted
 
-      if (result.updated && result.workspaceId) {
+      if (shouldPublishCompleted && result.workspaceId) {
         taskPubSub?.publishStatusChanged({
           workspaceId: result.workspaceId,
           chatId,
@@ -75,14 +91,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
         })
       }
 
-      span.setAttribute(
-        TraceAttr.CopilotStopOutcome,
-        result.found
-          ? result.updated
-            ? CopilotStopOutcome.Persisted
-            : CopilotStopOutcome.NoMatchingRow
-          : CopilotStopOutcome.ChatNotFound
-      )
+      span.setAttribute(TraceAttr.CopilotStopOutcome, stopOutcome)
       return NextResponse.json({ success: true })
     } catch (error) {
       logger.error('Error stopping chat stream:', error)

@@ -27,6 +27,8 @@ const {
   getPendingChatStreamId,
   releasePendingChatStream,
   resolveOrCreateChat,
+  finalizeAssistantTurn,
+  mockPublishStatusChanged,
 } = vi.hoisted(() => ({
   getEffectiveDecryptedEnv: vi.fn(),
   generateWorkspaceContext: vi.fn(),
@@ -38,6 +40,8 @@ const {
   getPendingChatStreamId: vi.fn(),
   releasePendingChatStream: vi.fn(),
   resolveOrCreateChat: vi.fn(),
+  finalizeAssistantTurn: vi.fn(),
+  mockPublishStatusChanged: vi.fn(),
 }))
 
 const getSession = authMockFns.mockGetSession
@@ -78,9 +82,13 @@ vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   resolveOrCreateChat,
 }))
 
+vi.mock('@/lib/copilot/chat/terminal-state', () => ({
+  finalizeAssistantTurn,
+}))
+
 vi.mock('@/lib/copilot/tasks', () => ({
   taskPubSub: {
-    publishStatusChanged: vi.fn(),
+    publishStatusChanged: mockPublishStatusChanged,
   },
 }))
 
@@ -137,6 +145,13 @@ describe('handleUnifiedChatPost', () => {
       conversationHistory: [],
       isNew: true,
     })
+    finalizeAssistantTurn.mockResolvedValue({
+      found: true,
+      updated: true,
+      appendedAssistant: true,
+      workspaceId: 'ws-1',
+      outcome: 'appended_assistant',
+    })
   })
 
   it('routes workflow-attached chat requests through the copilot backend path', async () => {
@@ -176,6 +191,7 @@ describe('handleUnifiedChatPost', () => {
         body: JSON.stringify({
           message: 'Hello',
           workspaceId: 'ws-1',
+          createNewChat: true,
         }),
       })
     )
@@ -203,6 +219,90 @@ describe('handleUnifiedChatPost', () => {
         }),
       })
     )
+  })
+
+  it('persists cancelled partial responses from the server lifecycle', async () => {
+    await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Hello',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+        }),
+      })
+    )
+
+    const streamArgs = createSSEStream.mock.calls[0]?.[0]
+    const onComplete = streamArgs?.orchestrateOptions?.onComplete
+    expect(onComplete).toBeTypeOf('function')
+
+    await onComplete({
+      success: false,
+      cancelled: true,
+      content: 'partial answer',
+      contentBlocks: [],
+      toolCalls: [],
+      chatId: 'chat-1',
+      requestId: 'request-1',
+    })
+
+    expect(finalizeAssistantTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'chat-1',
+        userMessageId: expect.any(String),
+        streamMarkerPolicy: 'active-or-cleared',
+        assistantMessage: expect.objectContaining({
+          role: 'assistant',
+          content: 'partial answer',
+          contentBlocks: expect.arrayContaining([
+            expect.objectContaining({ type: 'complete', status: 'cancelled' }),
+          ]),
+        }),
+      })
+    )
+  })
+
+  it('republishes completed status when cancelled lifecycle persistence already ran', async () => {
+    await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Hello',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+        }),
+      })
+    )
+
+    const streamArgs = createSSEStream.mock.calls[0]?.[0]
+    const onComplete = streamArgs?.orchestrateOptions?.onComplete
+    expect(onComplete).toBeTypeOf('function')
+
+    finalizeAssistantTurn.mockResolvedValueOnce({
+      found: true,
+      updated: false,
+      appendedAssistant: false,
+      workspaceId: 'ws-1',
+      outcome: 'assistant_already_persisted',
+    })
+
+    await onComplete({
+      success: false,
+      cancelled: true,
+      content: 'partial answer',
+      contentBlocks: [],
+      toolCalls: [],
+      chatId: 'chat-1',
+      requestId: 'request-1',
+    })
+
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith({
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      type: 'completed',
+      streamId: streamArgs?.streamId,
+    })
   })
 
   it('rejects requests that have neither workflow nor workspace attachment', async () => {

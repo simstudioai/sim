@@ -207,5 +207,43 @@ describe('copilot chat stop route', () => {
       role: 'assistant',
       content: 'partial',
     })
+
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith({
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      type: 'completed',
+      streamId: 'stream-1',
+    })
+  })
+
+  it('republishes completed status when the assistant was already persisted', async () => {
+    mockLimit.mockResolvedValueOnce([
+      {
+        workspaceId: 'ws-1',
+        messages: [
+          { id: 'stream-1', role: 'user', content: 'hello' },
+          { id: 'assistant-1', role: 'assistant', content: 'partial' },
+        ],
+        conversationId: null,
+      },
+    ])
+
+    const response = await POST(
+      createRequest({
+        chatId: 'chat-1',
+        streamId: 'stream-1',
+        content: 'partial',
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ success: true })
+    expect(mockUpdate).not.toHaveBeenCalled()
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith({
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      type: 'completed',
+      streamId: 'stream-1',
+    })
   })
 })
