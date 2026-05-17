@@ -161,6 +161,14 @@ export interface McpClientOptions {
   config: McpServerConfig
   securityPolicy?: McpSecurityPolicy
   onToolsChanged?: McpToolsChangedCallback
+  /**
+   * Pre-resolved IP address to pin all transport HTTP connections to. When
+   * set, the SDK transport uses a custom fetch backed by an undici Agent with
+   * a fixed DNS lookup, preventing DNS-rebinding (TOCTOU) attacks between
+   * URL validation and connection. Should be supplied by callers that have
+   * just validated the URL via `validateMcpServerSsrf`.
+   */
+  resolvedIP?: string
 }
 
 /**

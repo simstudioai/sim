@@ -196,6 +196,7 @@
     "three": "0.177.0",
     "tldts": "7.0.30",
     "twilio": "5.9.0",
+    "undici": "7.25.0",
     "unified": "11.0.5",
     "unpdf": "1.4.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",

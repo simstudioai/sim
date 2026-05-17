@@ -1,3 +1,4 @@
+export { EmailAuth } from './email-auth'
 export { FormErrorState } from './error-state'
 export { FormField } from './form-field'
 export { FormLoadingState } from './loading-state'
