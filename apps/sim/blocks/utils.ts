@@ -160,7 +160,7 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   ) {
     return false
   }
-  if (normalizedModel.startsWith('vllm/')) {
+  if (normalizedModel.startsWith('vllm/') || normalizedModel.startsWith('litellm/')) {
     return false
   }
 

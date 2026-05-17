@@ -131,7 +131,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     name: 'LiteLLM',
     icon: LitellmIcon,
     description: 'LiteLLM proxy with an OpenAI-compatible API',
-    defaultModel: 'litellm/generic',
+    defaultModel: '',
     modelPatterns: [/^litellm\//],
     capabilities: {
       temperature: { min: 0, max: 2 },
