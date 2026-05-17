@@ -27,10 +27,12 @@ export function createMcpPinnedFetch(resolvedIP: string): FetchLike {
     // Cast the init through unknown to bridge the typing without losing the
     // critical `dispatcher` typing on the call itself.
     const undiciInit: UndiciRequestInit = {
+      // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime (Node's global fetch IS undici) but the TS types differ
       ...(init as unknown as UndiciRequestInit),
       dispatcher,
     }
     const response = await undiciFetch(url as string | URL, undiciInit)
+    // double-cast-allowed: undici Response and DOM Response are structurally compatible at runtime; bridging the types is required to satisfy the FetchLike contract
     return response as unknown as Response
   }) satisfies FetchLike
 }
