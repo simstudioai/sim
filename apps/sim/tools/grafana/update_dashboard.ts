@@ -1,4 +1,4 @@
-import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import { validateExternalUrl } from '@/lib/core/security/input-validation'
 import type { GrafanaUpdateDashboardParams } from '@/tools/grafana/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -184,15 +184,20 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
       headers['X-Grafana-Org-Id'] = params.organizationId
     }
 
-    const updateResponse = await secureFetchWithValidation(
-      `${params.baseUrl.replace(/\/$/, '')}/api/dashboards/db`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      },
-      'baseUrl'
-    )
+    const urlValidation = validateExternalUrl(params.baseUrl, 'baseUrl')
+    if (!urlValidation.isValid) {
+      return {
+        success: false,
+        output: {},
+        error: `Invalid Grafana baseUrl: ${urlValidation.error}`,
+      }
+    }
+
+    const updateResponse = await fetch(`${params.baseUrl.replace(/\/$/, '')}/api/dashboards/db`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
 
     if (!updateResponse.ok) {
       const errorText = await updateResponse.text()

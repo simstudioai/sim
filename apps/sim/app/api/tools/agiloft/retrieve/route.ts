@@ -7,12 +7,12 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { buildRetrieveAttachmentUrl } from '@/tools/agiloft/utils'
 import {
-  agiloftLogin,
-  agiloftLogout,
-  buildRetrieveAttachmentUrl,
+  agiloftLoginPinned,
+  agiloftLogoutPinned,
   resolveAgiloftInstance,
-} from '@/tools/agiloft/utils'
+} from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,7 +63,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ success: false, error: toError(error).message }, { status: 400 })
     }
 
-    const token = await agiloftLogin(data, resolvedIP)
+    const token = await agiloftLoginPinned(data, resolvedIP)
     const base = data.instanceUrl.replace(/\/$/, '')
 
     try {
@@ -127,7 +127,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         },
       })
     } finally {
-      await agiloftLogout(data.instanceUrl, data.knowledgeBase, token, resolvedIP)
+      await agiloftLogoutPinned(data.instanceUrl, data.knowledgeBase, token, resolvedIP)
     }
   } catch (error) {
     logger.error(`[${requestId}] Error retrieving Agiloft attachment:`, error)

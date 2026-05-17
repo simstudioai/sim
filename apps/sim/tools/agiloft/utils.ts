@@ -1,9 +1,5 @@
 import { createLogger } from '@sim/logger'
-import {
-  type SecureFetchResponse,
-  secureFetchWithPinnedIP,
-  validateUrlWithDNS,
-} from '@/lib/core/security/input-validation.server'
+import { validateExternalUrl } from '@/lib/core/security/input-validation'
 import type {
   AgiloftAttachmentInfoParams,
   AgiloftBaseParams,
@@ -25,37 +21,26 @@ interface AgiloftRequestConfig {
   url: string
   method: HttpMethod
   headers?: Record<string, string>
-  body?: string | Buffer | Uint8Array
-}
-
-/**
- * Validates the Agiloft instance URL and resolves its DNS once, returning the
- * resolved IP so subsequent requests can pin to it. This prevents DNS-rebinding
- * (TOCTOU) SSRF where the hostname could resolve to a private IP on a later
- * lookup.
- */
-export async function resolveAgiloftInstance(instanceUrl: string): Promise<string> {
-  const validation = await validateUrlWithDNS(instanceUrl, 'instanceUrl')
-  if (!validation.isValid || !validation.resolvedIP) {
-    throw new Error(validation.error || 'Invalid Agiloft instance URL')
-  }
-  return validation.resolvedIP
+  body?: BodyInit
 }
 
 /**
  * Exchanges login/password for a short-lived Bearer token via EWLogin.
- * Requires a pre-resolved IP to prevent DNS rebinding between validation and
- * the actual request.
  */
-async function agiloftLogin(params: AgiloftBaseParams, resolvedIP: string): Promise<string> {
+async function agiloftLogin(params: AgiloftBaseParams): Promise<string> {
   const base = params.instanceUrl.replace(/\/$/, '')
+
+  const urlValidation = validateExternalUrl(params.instanceUrl, 'instanceUrl')
+  if (!urlValidation.isValid) {
+    throw new Error(`Invalid Agiloft instance URL: ${urlValidation.error}`)
+  }
 
   const kb = encodeURIComponent(params.knowledgeBase)
   const login = encodeURIComponent(params.login)
   const password = encodeURIComponent(params.password)
 
   const url = `${base}/ewws/EWLogin?$KB=${kb}&$login=${login}&$password=${password}`
-  const response = await secureFetchWithPinnedIP(url, resolvedIP, { method: 'POST' })
+  const response = await fetch(url, { method: 'POST' })
 
   if (!response.ok) {
     const errorText = await response.text()
@@ -74,18 +59,16 @@ async function agiloftLogin(params: AgiloftBaseParams, resolvedIP: string): Prom
 
 /**
  * Cleans up the server session. Best-effort — failures are logged but not thrown.
- * Requires a pre-resolved IP to prevent DNS rebinding.
  */
 async function agiloftLogout(
   instanceUrl: string,
   knowledgeBase: string,
-  token: string,
-  resolvedIP: string
+  token: string
 ): Promise<void> {
   try {
     const base = instanceUrl.replace(/\/$/, '')
     const kb = encodeURIComponent(knowledgeBase)
-    await secureFetchWithPinnedIP(`${base}/ewws/EWLogout?$KB=${kb}`, resolvedIP, {
+    await fetch(`${base}/ewws/EWLogout?$KB=${kb}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -107,15 +90,14 @@ async function agiloftLogout(
 export async function executeAgiloftRequest<R extends ToolResponse>(
   params: AgiloftBaseParams,
   buildRequest: (base: string) => AgiloftRequestConfig,
-  transformResponse: (response: SecureFetchResponse) => Promise<R>
+  transformResponse: (response: Response) => Promise<R>
 ): Promise<R> {
-  const resolvedIP = await resolveAgiloftInstance(params.instanceUrl)
-  const token = await agiloftLogin(params, resolvedIP)
+  const token = await agiloftLogin(params)
   const base = params.instanceUrl.replace(/\/$/, '')
 
   try {
     const req = buildRequest(base)
-    const response = await secureFetchWithPinnedIP(req.url, resolvedIP, {
+    const response = await fetch(req.url, {
       method: req.method,
       headers: {
         ...req.headers,
@@ -125,7 +107,7 @@ export async function executeAgiloftRequest<R extends ToolResponse>(
     })
     return await transformResponse(response)
   } finally {
-    await agiloftLogout(params.instanceUrl, params.knowledgeBase, token, resolvedIP)
+    await agiloftLogout(params.instanceUrl, params.knowledgeBase, token)
   }
 }
 

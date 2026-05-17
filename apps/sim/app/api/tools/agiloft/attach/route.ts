@@ -11,12 +11,12 @@ import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import { buildAttachFileUrl } from '@/tools/agiloft/utils'
 import {
-  agiloftLogin,
-  agiloftLogout,
-  buildAttachFileUrl,
+  agiloftLoginPinned,
+  agiloftLogoutPinned,
   resolveAgiloftInstance,
-} from '@/tools/agiloft/utils'
+} from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -87,7 +87,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ success: false, error: toError(error).message }, { status: 400 })
     }
 
-    const token = await agiloftLogin(data, resolvedIP)
+    const token = await agiloftLoginPinned(data, resolvedIP)
     const base = data.instanceUrl.replace(/\/$/, '')
 
     try {
@@ -139,7 +139,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         },
       })
     } finally {
-      await agiloftLogout(data.instanceUrl, data.knowledgeBase, token, resolvedIP)
+      await agiloftLogoutPinned(data.instanceUrl, data.knowledgeBase, token, resolvedIP)
     }
   } catch (error) {
     logger.error(`[${requestId}] Error attaching file to Agiloft:`, error)
