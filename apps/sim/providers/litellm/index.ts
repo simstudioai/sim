@@ -94,7 +94,7 @@ export const litellmProvider: ProviderConfig = {
       stream: !!request.stream,
     })
 
-    const baseUrl = (request.azureEndpoint || env.LITELLM_BASE_URL || '').replace(/\/$/, '')
+    const baseUrl = (env.LITELLM_BASE_URL || '').replace(/\/$/, '')
     if (!baseUrl) {
       throw new Error('LITELLM_BASE_URL is required for LiteLLM provider')
     }
