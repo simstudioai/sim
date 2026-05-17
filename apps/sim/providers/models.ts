@@ -17,6 +17,7 @@ import {
   FireworksIcon,
   GeminiIcon,
   GroqIcon,
+  LitellmIcon,
   MistralIcon,
   OllamaIcon,
   OpenAIIcon,
@@ -119,6 +120,19 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     description: 'Self-hosted vLLM with an OpenAI-compatible API',
     defaultModel: 'vllm/generic',
     modelPatterns: [/^vllm\//],
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    models: [],
+  },
+  litellm: {
+    id: 'litellm',
+    name: 'LiteLLM',
+    icon: LitellmIcon,
+    description: 'LiteLLM proxy with an OpenAI-compatible API',
+    defaultModel: 'litellm/generic',
+    modelPatterns: [/^litellm\//],
     capabilities: {
       temperature: { min: 0, max: 2 },
       toolUsageControl: true,
@@ -2766,7 +2780,7 @@ export function getProviderModels(providerId: string): string[] {
   return PROVIDER_DEFINITIONS[providerId]?.models.map((m) => m.id) || []
 }
 
-export const DYNAMIC_MODEL_PROVIDERS = ['ollama', 'vllm', 'openrouter', 'fireworks'] as const
+export const DYNAMIC_MODEL_PROVIDERS = ['ollama', 'vllm', 'litellm', 'openrouter', 'fireworks'] as const
 
 function getAllStaticModelIds(): string[] {
   const ids: string[] = []
@@ -2820,7 +2834,7 @@ export function suggestModelIdsForUnknownModel(_modelId: string, limit = 5): str
 
 export function getBaseModelProviders(): Record<string, ProviderId> {
   return Object.entries(PROVIDER_DEFINITIONS)
-    .filter(([providerId]) => !['ollama', 'vllm', 'openrouter'].includes(providerId))
+    .filter(([providerId]) => !['ollama', 'vllm', 'litellm', 'openrouter'].includes(providerId))
     .reduce(
       (map, [providerId, provider]) => {
         provider.models.forEach((model) => {
@@ -2987,6 +3001,18 @@ export function updateOllamaModels(models: string[]): void {
 
 export function updateVLLMModels(models: string[]): void {
   PROVIDER_DEFINITIONS.vllm.models = models.map((modelId) => ({
+    id: modelId,
+    pricing: {
+      input: 0,
+      output: 0,
+      updatedAt: new Date().toISOString().split('T')[0],
+    },
+    capabilities: {},
+  }))
+}
+
+export function updateLiteLLMModels(models: string[]): void {
+  PROVIDER_DEFINITIONS.litellm.models = models.map((modelId) => ({
     id: modelId,
     pricing: {
       input: 0,
