@@ -1,13 +1,11 @@
-import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotChatStopContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { CopilotStopOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
@@ -44,40 +42,6 @@ export const POST = withRouteHandler((req: NextRequest) =>
         ...(requestId ? { [TraceAttr.RequestId]: requestId } : {}),
       })
 
-      const [row] = await db
-        .select({
-          workspaceId: copilotChats.workspaceId,
-          messages: copilotChats.messages,
-        })
-        .from(copilotChats)
-        .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
-        .limit(1)
-
-      if (!row) {
-        span.setAttribute(TraceAttr.CopilotStopOutcome, CopilotStopOutcome.ChatNotFound)
-        return NextResponse.json({ success: true })
-      }
-
-      const messages: Record<string, unknown>[] = Array.isArray(row.messages) ? row.messages : []
-      const userIdx = messages.findIndex((message) => message.id === streamId)
-      const alreadyHasResponse =
-        userIdx >= 0 &&
-        userIdx + 1 < messages.length &&
-        (messages[userIdx + 1] as Record<string, unknown>)?.role === 'assistant'
-      const canAppendAssistant =
-        userIdx >= 0 && userIdx === messages.length - 1 && !alreadyHasResponse
-
-      const updateWhere = and(
-        eq(copilotChats.id, chatId),
-        eq(copilotChats.userId, session.user.id),
-        eq(copilotChats.conversationId, streamId)
-      )
-
-      const setClause: Record<string, unknown> = {
-        conversationId: null,
-        updatedAt: new Date(),
-      }
-
       const hasContent = content.trim().length > 0
       const hasBlocks = Array.isArray(contentBlocks) && contentBlocks.length > 0
       const synthesizedStoppedBlocks = hasBlocks
@@ -85,30 +49,26 @@ export const POST = withRouteHandler((req: NextRequest) =>
         : hasContent
           ? [{ type: 'text', channel: 'assistant', content }, { type: 'stopped' }]
           : [{ type: 'stopped' }]
-      if (canAppendAssistant) {
-        const normalized = normalizeMessage({
-          id: generateId(),
-          role: 'assistant',
-          content,
-          timestamp: new Date().toISOString(),
-          contentBlocks: synthesizedStoppedBlocks,
-          // Persist so the UI copy-request-id button survives refetch.
-          ...(requestId ? { requestId } : {}),
-        })
-        const assistantMessage: PersistedMessage = normalized
-        setClause.messages = sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`
-      }
-      span.setAttribute(TraceAttr.CopilotStopAppendedAssistant, canAppendAssistant)
+      const assistantMessage: PersistedMessage = normalizeMessage({
+        id: generateId(),
+        role: 'assistant',
+        content,
+        timestamp: new Date().toISOString(),
+        contentBlocks: synthesizedStoppedBlocks,
+        ...(requestId ? { requestId } : {}),
+      })
+      const result = await finalizeAssistantTurn({
+        chatId,
+        userId: session.user.id,
+        userMessageId: streamId,
+        assistantMessage,
+        streamMarkerPolicy: 'active-or-cleared',
+      })
+      span.setAttribute(TraceAttr.CopilotStopAppendedAssistant, result.appendedAssistant)
 
-      const [updated] = await db
-        .update(copilotChats)
-        .set(setClause)
-        .where(updateWhere)
-        .returning({ workspaceId: copilotChats.workspaceId })
-
-      if (updated?.workspaceId) {
+      if (result.updated && result.workspaceId) {
         taskPubSub?.publishStatusChanged({
-          workspaceId: updated.workspaceId,
+          workspaceId: result.workspaceId,
           chatId,
           type: 'completed',
           streamId,
@@ -117,7 +77,11 @@ export const POST = withRouteHandler((req: NextRequest) =>
 
       span.setAttribute(
         TraceAttr.CopilotStopOutcome,
-        updated ? CopilotStopOutcome.Persisted : CopilotStopOutcome.NoMatchingRow
+        result.found
+          ? result.updated
+            ? CopilotStopOutcome.Persisted
+            : CopilotStopOutcome.NoMatchingRow
+          : CopilotStopOutcome.ChatNotFound
       )
       return NextResponse.json({ success: true })
     } catch (error) {
