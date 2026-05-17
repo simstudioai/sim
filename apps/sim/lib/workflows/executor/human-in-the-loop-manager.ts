@@ -1364,12 +1364,7 @@ export class PauseResumeManager {
           })
         })
       }
-      void cleanupExecutionBase64Cache(resumeExecutionId).catch((error) => {
-        logger.warn('Failed to cleanup base64 cache for resume execution', {
-          resumeExecutionId,
-          error: toError(error).message,
-        })
-      })
+      void cleanupExecutionBase64Cache(resumeExecutionId)
     }
 
     if (executionError || !result) {

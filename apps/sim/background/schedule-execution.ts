@@ -350,12 +350,7 @@ async function runWorkflowExecution({
 
     throw error
   } finally {
-    void cleanupExecutionBase64Cache(executionId).catch((cleanupError) => {
-      logger.warn(`[${requestId}] Failed to cleanup base64 cache`, {
-        executionId,
-        error: toError(cleanupError).message,
-      })
-    })
+    void cleanupExecutionBase64Cache(executionId)
   }
 }
 
