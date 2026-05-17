@@ -8,6 +8,35 @@ const logger = createLogger('Redis')
 
 const redisUrl = env.REDIS_URL
 
+/**
+ * When REDIS_URL targets a bare IP over `rediss://` (e.g. trigger.dev's
+ * PrivateLink VPCE IP), default TLS hostname verification fails — the cert
+ * is issued for the ElastiCache DNS name, not the IP. Override SNI with
+ * REDIS_TLS_SERVERNAME (set to the DNS the cert was issued for).
+ *
+ * For DNS hosts: no override needed, default verification works.
+ */
+function resolveTlsOptions(url: string | undefined): { servername: string } | undefined {
+  if (!url) return undefined
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return undefined
+  }
+  if (parsed.protocol !== 'rediss:') return undefined
+  const hostIsIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(parsed.hostname)
+  if (!hostIsIp) return undefined
+  if (!env.REDIS_TLS_SERVERNAME) {
+    throw new Error(
+      'REDIS_TLS_SERVERNAME must be set when REDIS_URL targets an IP over rediss://. ' +
+        'TLS cert hostname verification cannot match an IP — set REDIS_TLS_SERVERNAME ' +
+        'to the DNS name the cert was issued for (the ElastiCache primary endpoint).'
+    )
+  }
+  return { servername: env.REDIS_TLS_SERVERNAME }
+}
+
 let globalRedisClient: Redis | null = null
 let pingFailures = 0
 let pingInterval: NodeJS.Timeout | null = null
@@ -87,6 +116,9 @@ export function getRedisClient(): Redis | null {
   if (!redisUrl) return null
   if (globalRedisClient) return globalRedisClient
 
+  // Outside the try/catch so config errors aren't silently swallowed.
+  const tls = resolveTlsOptions(redisUrl)
+
   try {
     logger.info('Initializing Redis client')
 
@@ -96,6 +128,7 @@ export function getRedisClient(): Redis | null {
       commandTimeout: 5000,
       maxRetriesPerRequest: 5,
       enableOfflineQueue: true,
+      ...(tls ? { tls } : {}),
 
       retryStrategy: (times) => {
         if (times > 10) {

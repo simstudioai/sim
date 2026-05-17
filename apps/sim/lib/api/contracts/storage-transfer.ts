@@ -290,6 +290,7 @@ export const fileDownloadBodySchema = z
     isExecutionFile: z.boolean().optional(),
     context: downloadContextSchema.optional(),
     url: z
+      .string()
       .url()
       .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
         message: 'URL must use http or https',
