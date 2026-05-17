@@ -60,7 +60,7 @@ export function isAzureDevOpsEventMatch(
     }
     const resource = body.resource as Record<string, unknown> | undefined
     const result = resource?.result as string | undefined
-    return result !== 'succeeded'
+    return result === 'failed' || result === 'canceled' || result === 'partiallySucceeded'
   }
 
   if (triggerId === 'azure_devops_work_item_created') {
