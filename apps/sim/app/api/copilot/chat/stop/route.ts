@@ -51,18 +51,18 @@ export const POST = withRouteHandler((req: NextRequest) =>
 
       const hasContent = content.trim().length > 0
       const hasBlocks = Array.isArray(contentBlocks) && contentBlocks.length > 0
-      const synthesizedStoppedBlocks = hasBlocks
+      const assistantBlocks = hasBlocks
         ? contentBlocks
         : hasContent
-          ? [{ type: 'text', channel: 'assistant', content }, { type: 'stopped' }]
-          : [{ type: 'stopped' }]
+          ? [{ type: 'text', channel: 'assistant', content }]
+          : []
       const assistantMessage: PersistedMessage = withStoppedContentBlock(
         normalizeMessage({
           id: generateId(),
           role: 'assistant',
           content,
           timestamp: new Date().toISOString(),
-          contentBlocks: synthesizedStoppedBlocks,
+          contentBlocks: assistantBlocks,
           ...(requestId ? { requestId } : {}),
         })
       )

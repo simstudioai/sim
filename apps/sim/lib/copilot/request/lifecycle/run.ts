@@ -167,24 +167,7 @@ export async function runCopilotLifecycle(
     // Return `cancelled: true` so upstream classification stays
     // consistent with the success-path cancel result.
     const wasCancelled = lifecycleOptions.abortSignal?.aborted ?? false
-    if (!wasCancelled) {
-      await lifecycleOptions.onError?.(err)
-    } else if (!onCompleteStarted && lifecycleOptions.onComplete) {
-      await lifecycleOptions.onComplete({
-        success: false,
-        cancelled: true,
-        content: context.accumulatedContent,
-        contentBlocks: context.contentBlocks,
-        toolCalls: buildToolCallSummaries(context),
-        chatId: context.chatId,
-        requestId: context.requestId,
-        error: err.message,
-        errors: context.errors.length ? context.errors : undefined,
-        usage: context.usage,
-        cost: context.cost,
-      })
-    }
-    return {
+    const result: OrchestratorResult = {
       success: false,
       cancelled: wasCancelled,
       content: wasCancelled ? context.accumulatedContent : '',
@@ -197,6 +180,19 @@ export async function runCopilotLifecycle(
       usage: context.usage,
       cost: context.cost,
     }
+
+    if (!wasCancelled) {
+      await lifecycleOptions.onError?.(err)
+    } else if (!onCompleteStarted && lifecycleOptions.onComplete) {
+      try {
+        await lifecycleOptions.onComplete(result)
+      } catch (completeError) {
+        logger.error('Cancelled copilot completion callback failed', {
+          error: toError(completeError).message,
+        })
+      }
+    }
+    return result
   }
 }
 

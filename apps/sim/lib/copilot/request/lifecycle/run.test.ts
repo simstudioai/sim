@@ -165,4 +165,61 @@ describe('runCopilotLifecycle', () => {
       })
     )
   })
+
+  it('returns the cancelled result when cancelled completion persistence fails', async () => {
+    const abortController = new AbortController()
+    abortController.abort('stop')
+    const onComplete = vi.fn().mockRejectedValue(new Error('db unavailable'))
+    const onError = vi.fn()
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'partial answer'
+        throw new Error('publisher closed after stop')
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        abortSignal: abortController.signal,
+        executionContext,
+        onComplete,
+        onError,
+      }
+    )
+
+    expect(onError).not.toHaveBeenCalled()
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        cancelled: true,
+        content: 'partial answer',
+      })
+    )
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        cancelled: true,
+        content: 'partial answer',
+        error: 'publisher closed after stop',
+      })
+    )
+  })
 })
