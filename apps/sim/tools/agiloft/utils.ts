@@ -47,7 +47,7 @@ async function agiloftLogin(params: AgiloftBaseParams): Promise<string> {
     throw new Error(`Agiloft login failed: ${response.status} - ${errorText}`)
   }
 
-  const data = await response.json()
+  const data = (await response.json()) as { access_token?: string }
   const token = data.access_token
 
   if (!token) {

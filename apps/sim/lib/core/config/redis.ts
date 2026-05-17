@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { randomFloat } from '@sim/utils/random'
-import Redis from 'ioredis'
+import Redis, { type RedisOptions } from 'ioredis'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('Redis')
@@ -16,7 +16,7 @@ const redisUrl = env.REDIS_URL
  *
  * For DNS hosts: no override needed, default verification works.
  */
-function resolveTlsOptions(url: string | undefined): { servername: string } | undefined {
+function resolveRedisTlsOptions(url: string | undefined): { servername: string } | undefined {
   if (!url) return undefined
   let parsed: URL
   try {
@@ -35,6 +35,23 @@ function resolveTlsOptions(url: string | undefined): { servername: string } | un
     )
   }
   return { servername: env.REDIS_TLS_SERVERNAME }
+}
+
+/**
+ * Shared connection defaults — keepAlive, connectTimeout, enableOfflineQueue,
+ * and TLS SNI when REDIS_URL targets an IP. Every Redis client we open should
+ * spread this; callers add their own retry / timeout policy on top.
+ */
+export function getRedisConnectionDefaults(
+  url: string | undefined
+): Pick<RedisOptions, 'keepAlive' | 'connectTimeout' | 'enableOfflineQueue' | 'tls'> {
+  const tls = resolveRedisTlsOptions(url)
+  return {
+    keepAlive: 1000,
+    connectTimeout: 10000,
+    enableOfflineQueue: true,
+    ...(tls ? { tls } : {}),
+  }
 }
 
 let globalRedisClient: Redis | null = null
@@ -117,18 +134,15 @@ export function getRedisClient(): Redis | null {
   if (globalRedisClient) return globalRedisClient
 
   // Outside the try/catch so config errors aren't silently swallowed.
-  const tls = resolveTlsOptions(redisUrl)
+  const defaults = getRedisConnectionDefaults(redisUrl)
 
   try {
     logger.info('Initializing Redis client')
 
     globalRedisClient = new Redis(redisUrl, {
-      keepAlive: 1000,
-      connectTimeout: 10000,
+      ...defaults,
       commandTimeout: 5000,
       maxRetriesPerRequest: 5,
-      enableOfflineQueue: true,
-      ...(tls ? { tls } : {}),
 
       retryStrategy: (times) => {
         if (times > 10) {

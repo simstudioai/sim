@@ -11,6 +11,7 @@ import {
   deleteKnowledgeBase,
   getKnowledgeBaseById,
   KnowledgeBaseConflictError,
+  KnowledgeBasePermissionError,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
@@ -101,7 +102,8 @@ export const PUT = withRouteHandler(
           workspaceId: validatedData.workspaceId,
           chunkingConfig: validatedData.chunkingConfig,
         },
-        requestId
+        requestId,
+        { actorUserId: userId }
       )
 
       logger.info(`[${requestId}] Knowledge base updated: ${id} for user ${userId}`)
@@ -140,6 +142,10 @@ export const PUT = withRouteHandler(
     } catch (error) {
       if (error instanceof KnowledgeBaseConflictError) {
         return NextResponse.json({ error: error.message }, { status: 409 })
+      }
+      if (error instanceof KnowledgeBasePermissionError) {
+        logger.warn(`[${requestId}] Forbidden knowledge base update on ${id}: ${error.message}`)
+        return NextResponse.json({ error: error.message }, { status: 403 })
       }
 
       logger.error(`[${requestId}] Error updating knowledge base`, error)

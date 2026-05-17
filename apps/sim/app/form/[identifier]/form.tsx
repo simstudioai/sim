@@ -10,6 +10,7 @@ import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
 import {
+  EmailAuth,
   FormErrorState,
   FormField,
   FormLoadingState,
@@ -239,6 +240,10 @@ export default function Form({ identifier }: { identifier: string }) {
 
   if (authRequired === 'password') {
     return <PasswordAuth onSubmit={handlePasswordAuth} error={error} />
+  }
+
+  if (authRequired === 'email') {
+    return <EmailAuth identifier={identifier} onAuthenticated={() => fetchFormConfig()} />
   }
 
   if (isSubmitted && thankYouData) {

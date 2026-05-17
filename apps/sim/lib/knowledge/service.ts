@@ -21,6 +21,10 @@ export class KnowledgeBaseConflictError extends Error {
   }
 }
 
+export class KnowledgeBasePermissionError extends Error {
+  readonly code = 'KNOWLEDGE_BASE_FORBIDDEN' as const
+}
+
 export type KnowledgeBaseScope = 'active' | 'archived' | 'all'
 
 /**
@@ -148,7 +152,9 @@ export async function createKnowledgeBase(
 
   const hasPermission = await getUserEntityPermissions(data.userId, 'workspace', data.workspaceId)
   if (hasPermission !== 'admin' && hasPermission !== 'write') {
-    throw new Error('User does not have permission to create knowledge bases in this workspace')
+    throw new KnowledgeBasePermissionError(
+      'User does not have permission to create knowledge bases in this workspace'
+    )
   }
 
   const newKnowledgeBase = {
@@ -226,7 +232,8 @@ export async function updateKnowledgeBase(
       overlap: number
     }
   },
-  requestId: string
+  requestId: string,
+  options?: { actorUserId?: string }
 ): Promise<KnowledgeBaseWithCounts> {
   const now = new Date()
   const updateData: {
@@ -252,38 +259,81 @@ export async function updateKnowledgeBase(
     updateData.chunkingConfig = updates.chunkingConfig
   }
 
-  if (updates.name !== undefined) {
-    const existing = await db
-      .select({ id: knowledgeBase.id, workspaceId: knowledgeBase.workspaceId })
-      .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-      .limit(1)
-
-    if (existing.length > 0 && existing[0].workspaceId) {
-      const duplicate = await db
-        .select({ id: knowledgeBase.id })
-        .from(knowledgeBase)
-        .where(
-          and(
-            eq(knowledgeBase.workspaceId, existing[0].workspaceId),
-            eq(knowledgeBase.name, updates.name),
-            isNull(knowledgeBase.deletedAt),
-            ne(knowledgeBase.id, knowledgeBaseId)
-          )
-        )
-        .limit(1)
-
-      if (duplicate.length > 0) {
-        throw new KnowledgeBaseConflictError(updates.name)
-      }
-    }
+  if (updates.workspaceId !== undefined && !options?.actorUserId) {
+    throw new KnowledgeBasePermissionError(
+      'actorUserId is required to change a knowledge base workspace'
+    )
   }
 
   try {
-    await db
-      .update(knowledgeBase)
-      .set(updateData)
-      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    await db.transaction(async (tx) => {
+      const [currentKb] = await tx
+        .select({ workspaceId: knowledgeBase.workspaceId, userId: knowledgeBase.userId })
+        .from(knowledgeBase)
+        .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+        .for('update')
+        .limit(1)
+
+      if (!currentKb) {
+        throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+      }
+
+      if (updates.workspaceId !== undefined) {
+        const actorUserId = options?.actorUserId as string
+        const currentWorkspaceId = currentKb.workspaceId ?? null
+        const targetWorkspaceId = updates.workspaceId ?? null
+
+        if (targetWorkspaceId !== currentWorkspaceId) {
+          if (!targetWorkspaceId) {
+            if (actorUserId !== currentKb.userId) {
+              throw new KnowledgeBasePermissionError(
+                'Only the knowledge base owner can remove it from a workspace'
+              )
+            }
+          } else {
+            const targetPermission = await getUserEntityPermissions(
+              actorUserId,
+              'workspace',
+              targetWorkspaceId
+            )
+            if (targetPermission !== 'write' && targetPermission !== 'admin') {
+              throw new KnowledgeBasePermissionError(
+                'User does not have permission on the target workspace'
+              )
+            }
+          }
+        }
+      }
+
+      if (updates.name !== undefined) {
+        const effectiveWorkspaceId =
+          updates.workspaceId !== undefined ? updates.workspaceId : currentKb.workspaceId
+
+        if (effectiveWorkspaceId) {
+          const duplicate = await tx
+            .select({ id: knowledgeBase.id })
+            .from(knowledgeBase)
+            .where(
+              and(
+                eq(knowledgeBase.workspaceId, effectiveWorkspaceId),
+                eq(knowledgeBase.name, updates.name),
+                isNull(knowledgeBase.deletedAt),
+                ne(knowledgeBase.id, knowledgeBaseId)
+              )
+            )
+            .limit(1)
+
+          if (duplicate.length > 0) {
+            throw new KnowledgeBaseConflictError(updates.name)
+          }
+        }
+      }
+
+      await tx
+        .update(knowledgeBase)
+        .set(updateData)
+        .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    })
   } catch (error: unknown) {
     if (getPostgresErrorCode(error) === '23505' && updates.name !== undefined) {
       throw new KnowledgeBaseConflictError(updates.name)

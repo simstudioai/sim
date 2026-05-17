@@ -148,6 +148,22 @@ export const formMutationResponseSchema = z.object({
   message: z.string(),
 })
 
+export const formEmailOtpRequestBodySchema = z.object({
+  email: z.string().email('Invalid email address'),
+})
+
+export const formEmailOtpVerifyBodySchema = formEmailOtpRequestBodySchema.extend({
+  otp: z.string().length(6, 'OTP must be 6 digits'),
+})
+
+export const formEmailOtpRequestResponseSchema = z.object({
+  message: z.string(),
+})
+
+export const formEmailOtpVerifyResponseSchema = z.object({
+  authenticated: z.literal(true),
+})
+
 export const getFormStatusContract = defineRouteContract({
   method: 'GET',
   path: '/api/workflows/[id]/form/status',
@@ -196,6 +212,28 @@ export const deleteFormContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: formMutationResponseSchema,
+  },
+})
+
+export const requestFormEmailOtpContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/form/[identifier]/otp',
+  params: formIdentifierParamsSchema,
+  body: formEmailOtpRequestBodySchema,
+  response: {
+    mode: 'json',
+    schema: formEmailOtpRequestResponseSchema,
+  },
+})
+
+export const verifyFormEmailOtpContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/form/[identifier]/otp',
+  params: formIdentifierParamsSchema,
+  body: formEmailOtpVerifyBodySchema,
+  response: {
+    mode: 'json',
+    schema: formEmailOtpVerifyResponseSchema,
   },
 })
 

@@ -2,7 +2,7 @@ import dns from 'dns/promises'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
-import { getAllowedMcpDomainsFromEnv } from '@/lib/core/config/feature-flags'
+import { getAllowedMcpDomainsFromEnv, isHosted } from '@/lib/core/config/feature-flags'
 import { isPrivateOrReservedIP } from '@/lib/core/security/input-validation.server'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 
@@ -133,16 +133,25 @@ function isLocalhostHostname(hostname: string): boolean {
  * Does NOT enforce protocol (HTTP is allowed) or block service ports — MCP
  * servers legitimately run on HTTP and on arbitrary ports.
  *
- * Localhost/loopback is always allowed for local dev MCP servers.
+ * Localhost/loopback is allowed for local dev MCP servers in self-hosted
+ * deployments, but blocked on the hosted environment (sim.ai) where users
+ * must not be able to reach the server's own loopback interface.
  * URLs with env var references in the hostname are skipped — they will be
  * validated after resolution at execution time.
  *
+ * Returns the resolved IP address when DNS resolution was performed (so the
+ * caller can pin subsequent connections to that IP and prevent DNS-rebinding
+ * TOCTOU attacks). Returns null in cases where pinning is unnecessary or
+ * impossible: no URL, allowlist-only mode, env-var hostnames (validated later),
+ * IP literals (no DNS to rebind), and localhost on self-hosted (no rebinding
+ * risk against a fixed loopback).
+ *
  * @throws McpSsrfError if the URL resolves to a blocked IP address
  */
-export async function validateMcpServerSsrf(url: string | undefined): Promise<void> {
-  if (!url) return
-  if (getAllowedMcpDomainsFromEnv() !== null) return
-  if (hasEnvVarInHostname(url)) return
+export async function validateMcpServerSsrf(url: string | undefined): Promise<string | null> {
+  if (!url) return null
+  if (getAllowedMcpDomainsFromEnv() !== null) return null
+  if (hasEnvVarInHostname(url)) return null
 
   let hostname: string
   try {
@@ -154,28 +163,47 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<vo
   const cleanHostname =
     hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
 
-  if (isLocalhostHostname(cleanHostname)) return
-
-  if (ipaddr.isValid(cleanHostname) && isPrivateOrReservedIP(cleanHostname)) {
-    throw new McpSsrfError('MCP server URL cannot point to a private or reserved IP address')
+  if (isLocalhostHostname(cleanHostname)) {
+    if (isHosted) {
+      throw new McpSsrfError('MCP server URL cannot point to a loopback address')
+    }
+    return null
   }
 
-  try {
-    const { address } = await dns.lookup(cleanHostname, { verbatim: true })
-
-    if (isPrivateOrReservedIP(address) && !isLoopbackIP(address)) {
-      logger.warn('MCP server URL resolves to blocked IP address', {
-        hostname,
-        resolvedIP: address,
-      })
-      throw new McpSsrfError('MCP server URL resolves to a blocked IP address')
+  if (ipaddr.isValid(cleanHostname)) {
+    if (isPrivateOrReservedIP(cleanHostname)) {
+      throw new McpSsrfError('MCP server URL cannot point to a private or reserved IP address')
     }
+    return null
+  }
+
+  let address: string
+  try {
+    const lookup = await dns.lookup(cleanHostname, { verbatim: true })
+    address = lookup.address
   } catch (error) {
-    if (error instanceof McpSsrfError) throw error
     logger.warn('DNS lookup failed for MCP server URL', {
       hostname,
       error: toError(error).message,
     })
     throw new McpDnsResolutionError(cleanHostname)
   }
+
+  if (isLoopbackIP(address)) {
+    if (isHosted) {
+      logger.warn('MCP server URL resolves to loopback address', {
+        hostname,
+        resolvedIP: address,
+      })
+      throw new McpSsrfError('MCP server URL resolves to a loopback address')
+    }
+  } else if (isPrivateOrReservedIP(address)) {
+    logger.warn('MCP server URL resolves to blocked IP address', {
+      hostname,
+      resolvedIP: address,
+    })
+    throw new McpSsrfError('MCP server URL resolves to a blocked IP address')
+  }
+
+  return address
 }

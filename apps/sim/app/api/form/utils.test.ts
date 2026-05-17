@@ -239,18 +239,20 @@ describe('Form API Utils', () => {
         },
       } as any
 
-      // Exact email match should authorize
+      // Exact email match should require OTP verification, not authorize directly
       mockIsEmailAllowed.mockReturnValue(true)
       const result1 = await validateFormAuth('request-id', deployment, mockRequest, {
         email: 'user@example.com',
       })
-      expect(result1.authorized).toBe(true)
+      expect(result1.authorized).toBe(false)
+      expect(result1.error).toBe('otp_required')
 
-      // Domain match should authorize
+      // Domain match should also require OTP verification
       const result2 = await validateFormAuth('request-id', deployment, mockRequest, {
         email: 'other@company.com',
       })
-      expect(result2.authorized).toBe(true)
+      expect(result2.authorized).toBe(false)
+      expect(result2.error).toBe('otp_required')
 
       // Unknown email should not authorize
       mockIsEmailAllowed.mockReturnValue(false)
