@@ -9,7 +9,7 @@ import { EventEmitter } from 'events'
 import { createLogger } from '@sim/logger'
 import Redis, { type RedisOptions } from 'ioredis'
 import { env } from '@/lib/core/config/env'
-import { resolveRedisTlsOptions } from '@/lib/core/config/redis'
+import { getRedisConnectionDefaults } from '@/lib/core/config/redis'
 
 const logger = createLogger('PubSub')
 
@@ -34,18 +34,13 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
     redisUrl: string,
     private config: PubSubChannelConfig
   ) {
-    const tls = resolveRedisTlsOptions(redisUrl)
-
     const commonOpts = {
-      keepAlive: 1000,
-      connectTimeout: 10000,
+      ...getRedisConnectionDefaults(redisUrl),
       maxRetriesPerRequest: null,
-      enableOfflineQueue: true,
       retryStrategy: (times: number) => {
         if (times > 10) return 30000
         return Math.min(times * 500, 5000)
       },
-      ...(tls ? { tls } : {}),
     } satisfies RedisOptions
 
     this.pub = new Redis(redisUrl, { ...commonOpts, connectionName: `${config.label}-pub` })
