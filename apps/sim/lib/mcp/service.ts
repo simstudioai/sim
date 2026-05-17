@@ -69,13 +69,13 @@ class McpService {
     config: McpServerConfig,
     userId: string,
     workspaceId?: string
-  ): Promise<McpServerConfig> {
+  ): Promise<{ config: McpServerConfig; resolvedIP: string | null }> {
     const { config: resolvedConfig } = await resolveMcpConfigEnvVars(config, userId, workspaceId, {
       strict: true,
     })
     validateMcpDomain(resolvedConfig.url)
-    await validateMcpServerSsrf(resolvedConfig.url)
-    return resolvedConfig
+    const resolvedIP = await validateMcpServerSsrf(resolvedConfig.url)
+    return { config: resolvedConfig, resolvedIP }
   }
 
   /**
@@ -156,7 +156,10 @@ class McpService {
   /**
    * Create and connect to an MCP client
    */
-  private async createClient(config: McpServerConfig): Promise<McpClient> {
+  private async createClient(
+    config: McpServerConfig,
+    resolvedIP: string | null
+  ): Promise<McpClient> {
     const securityPolicy = {
       requireConsent: true,
       auditLevel: 'basic' as const,
@@ -164,7 +167,11 @@ class McpService {
       allowedOrigins: config.url ? [new URL(config.url).origin] : undefined,
     }
 
-    const client = new McpClient(config, securityPolicy)
+    const client = new McpClient({
+      config,
+      securityPolicy,
+      resolvedIP: resolvedIP ?? undefined,
+    })
     await client.connect()
     return client
   }
@@ -194,11 +201,15 @@ class McpService {
           throw new Error(`Server ${serverId} not found or not accessible`)
         }
 
-        const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
+        const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
+          config,
+          userId,
+          workspaceId
+        )
         if (extraHeaders && Object.keys(extraHeaders).length > 0) {
           resolvedConfig.headers = { ...resolvedConfig.headers, ...extraHeaders }
         }
-        const client = await this.createClient(resolvedConfig)
+        const client = await this.createClient(resolvedConfig, resolvedIP)
 
         try {
           const result = await client.callTool(toolCall)
@@ -348,14 +359,18 @@ class McpService {
       const allTools: McpTool[] = []
       const results = await Promise.allSettled(
         servers.map(async (config) => {
-          const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
-          const client = await this.createClient(resolvedConfig)
+          const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
+            config,
+            userId,
+            workspaceId
+          )
+          const client = await this.createClient(resolvedConfig, resolvedIP)
           try {
             const tools = await client.listTools()
             logger.debug(
               `[${requestId}] Discovered ${tools.length} tools from server ${config.name}`
             )
-            return { serverId: config.id, tools, resolvedConfig }
+            return { serverId: config.id, tools, resolvedConfig, resolvedIP }
           } finally {
             await client.disconnect()
           }
@@ -394,13 +409,15 @@ class McpService {
       if (mcpConnectionManager) {
         for (const [index, result] of results.entries()) {
           if (result.status === 'fulfilled') {
-            const { resolvedConfig } = result.value
-            mcpConnectionManager.connect(resolvedConfig, userId, workspaceId).catch((err) => {
-              logger.warn(
-                `[${requestId}] Persistent connection failed for ${servers[index].name}:`,
-                err
-              )
-            })
+            const { resolvedConfig, resolvedIP } = result.value
+            mcpConnectionManager
+              .connect(resolvedConfig, userId, workspaceId, resolvedIP)
+              .catch((err) => {
+                logger.warn(
+                  `[${requestId}] Persistent connection failed for ${servers[index].name}:`,
+                  err
+                )
+              })
           }
         }
       }
@@ -450,8 +467,12 @@ class McpService {
           throw new Error(`Server ${serverId} not found or not accessible`)
         }
 
-        const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
-        const client = await this.createClient(resolvedConfig)
+        const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
+          config,
+          userId,
+          workspaceId
+        )
+        const client = await this.createClient(resolvedConfig, resolvedIP)
 
         try {
           const tools = await client.listTools()
@@ -490,8 +511,12 @@ class McpService {
 
       for (const config of servers) {
         try {
-          const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
-          const client = await this.createClient(resolvedConfig)
+          const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
+            config,
+            userId,
+            workspaceId
+          )
+          const client = await this.createClient(resolvedConfig, resolvedIP)
           const tools = await client.listTools()
           await client.disconnect()
 

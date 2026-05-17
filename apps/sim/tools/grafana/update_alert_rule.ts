@@ -1,3 +1,4 @@
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { ALERT_RULE_OUTPUT_FIELDS, type GrafanaUpdateAlertRuleParams } from '@/tools/grafana/types'
 import { mapAlertRule } from '@/tools/grafana/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
@@ -269,13 +270,14 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       headers['X-Disable-Provenance'] = 'true'
     }
 
-    const updateResponse = await fetch(
+    const updateResponse = await secureFetchWithValidation(
       `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`,
       {
         method: 'PUT',
         headers,
         body: JSON.stringify(updatedRule),
-      }
+      },
+      'baseUrl'
     )
 
     if (!updateResponse.ok) {
@@ -287,7 +289,7 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       }
     }
 
-    const data = await updateResponse.json()
+    const data = (await updateResponse.json()) as Record<string, unknown>
     return { success: true, output: mapAlertRule(data) }
   },
 

@@ -1,3 +1,4 @@
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import type { GrafanaUpdateDashboardParams } from '@/tools/grafana/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -183,11 +184,15 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
       headers['X-Grafana-Org-Id'] = params.organizationId
     }
 
-    const updateResponse = await fetch(`${params.baseUrl.replace(/\/$/, '')}/api/dashboards/db`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    })
+    const updateResponse = await secureFetchWithValidation(
+      `${params.baseUrl.replace(/\/$/, '')}/api/dashboards/db`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      },
+      'baseUrl'
+    )
 
     if (!updateResponse.ok) {
       const errorText = await updateResponse.text()
@@ -198,7 +203,14 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
       }
     }
 
-    const data = await updateResponse.json()
+    const data = (await updateResponse.json()) as {
+      id?: number
+      uid?: string
+      url?: string
+      status?: string
+      version?: number
+      slug?: string
+    }
 
     return {
       success: true,

@@ -15,7 +15,7 @@ import {
 } from '@/lib/chunkers'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { env, envNumber } from '@/lib/core/config/env'
-import { parseBuffer, parseFile } from '@/lib/file-parsers'
+import { parseBuffer } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
 import { resolveParserExtension } from '@/lib/knowledge/documents/parser-extension'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
@@ -395,8 +395,7 @@ async function downloadFileForBase64(fileUrl: string): Promise<Buffer> {
   if (fileUrl.startsWith('http')) {
     return downloadFileWithTimeout(fileUrl)
   }
-  const fs = await import('fs/promises')
-  return fs.readFile(fileUrl)
+  throw new Error('Unsupported fileUrl scheme: only data: URIs and http(s):// URLs are allowed')
 }
 
 function processOCRContent(result: OCRResult, filename: string): string {
@@ -790,9 +789,7 @@ async function parseWithFileParser(fileUrl: string, filename: string, mimeType: 
       content = result.content
       metadata = result.metadata || {}
     } else {
-      const result = await parseFile(fileUrl)
-      content = result.content
-      metadata = result.metadata || {}
+      throw new Error('Unsupported fileUrl scheme: only data: URIs and http(s):// URLs are allowed')
     }
 
     if (!content.trim()) {

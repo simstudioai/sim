@@ -155,6 +155,23 @@ describe('Knowledge Base API Route', () => {
       expect(data.details).toBeDefined()
     })
 
+    it('returns 403 when user lacks permission on target workspace', async () => {
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'attacker', email: 'a@example.com' },
+      })
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce('read')
+
+      const req = createMockRequest('POST', validKnowledgeBaseData)
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(data.error).toBe(
+        'User does not have permission to create knowledge bases in this workspace'
+      )
+      expect(mockDbChain.insert).not.toHaveBeenCalled()
+    })
+
     it('should validate chunking config constraints', async () => {
       authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-123', email: 'test@example.com' },
