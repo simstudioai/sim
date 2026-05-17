@@ -34,7 +34,7 @@ export const knowledgeDocumentFileUrlSchema = z
   .string()
   .min(1, 'File URL is required')
   .refine(
-    (value) => value.startsWith('data:') || /^https?:\/\//i.test(value),
+    (value) => /^data:/i.test(value) || /^https?:\/\//i.test(value),
     'File URL must be a data: URI or an http(s):// URL'
   )
 

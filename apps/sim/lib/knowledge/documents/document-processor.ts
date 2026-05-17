@@ -315,7 +315,7 @@ async function handleFileForOCR(
   userId?: string,
   workspaceId?: string | null
 ) {
-  const isExternalHttps = fileUrl.startsWith('https://') && !isInternalFileUrl(fileUrl)
+  const isExternalHttps = /^https:\/\//i.test(fileUrl) && !isInternalFileUrl(fileUrl)
 
   if (isExternalHttps) {
     if (mimeType === 'application/pdf') {
@@ -385,14 +385,14 @@ async function downloadFileWithTimeout(fileUrl: string): Promise<Buffer> {
 }
 
 async function downloadFileForBase64(fileUrl: string): Promise<Buffer> {
-  if (fileUrl.startsWith('data:')) {
+  if (/^data:/i.test(fileUrl)) {
     const [, base64Data] = fileUrl.split(',')
     if (!base64Data) {
       throw new Error('Invalid data URI format')
     }
     return Buffer.from(base64Data, 'base64')
   }
-  if (fileUrl.startsWith('http')) {
+  if (/^https?:\/\//i.test(fileUrl)) {
     return downloadFileWithTimeout(fileUrl)
   }
   throw new Error('Unsupported fileUrl scheme: only data: URIs and http(s):// URLs are allowed')
@@ -782,9 +782,9 @@ async function parseWithFileParser(fileUrl: string, filename: string, mimeType: 
     let content: string
     let metadata: FileParseMetadata = {}
 
-    if (fileUrl.startsWith('data:')) {
+    if (/^data:/i.test(fileUrl)) {
       content = await parseDataURI(fileUrl, filename, mimeType)
-    } else if (fileUrl.startsWith('http')) {
+    } else if (/^https?:\/\//i.test(fileUrl)) {
       const result = await parseHttpFile(fileUrl, filename, mimeType)
       content = result.content
       metadata = result.metadata || {}
