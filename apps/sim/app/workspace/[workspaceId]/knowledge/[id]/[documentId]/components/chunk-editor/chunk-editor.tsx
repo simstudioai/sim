@@ -172,16 +172,20 @@ export function ChunkEditor({
     [saveRef]
   )
 
+  const hasToggledTokenizerRef = useRef(false)
+
   const handleTokenizerChange = useCallback(
     (value: boolean) => {
       const source = tokenizerOn ? tokenizedScrollRef.current : textareaRef.current
       preservedScrollTopRef.current = source?.scrollTop ?? 0
+      hasToggledTokenizerRef.current = true
       setTokenizerOn(value)
     },
     [tokenizerOn]
   )
 
   useLayoutEffect(() => {
+    if (!hasToggledTokenizerRef.current) return
     const target = tokenizerOn ? tokenizedScrollRef.current : textareaRef.current
     if (target) target.scrollTop = preservedScrollTopRef.current
   }, [tokenizerOn])
