@@ -8,6 +8,11 @@ import {
   ashbyOfferCreateTrigger,
 } from '@/triggers/ashby'
 import {
+  azureDevOpsBuildFailedTrigger,
+  azureDevOpsWebhookTrigger,
+  azureDevOpsWorkItemCreatedTrigger,
+} from '@/triggers/azure_devops'
+import {
   attioCommentCreatedTrigger,
   attioCommentDeletedTrigger,
   attioCommentResolvedTrigger,
@@ -340,6 +345,9 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   ashby_candidate_delete: ashbyCandidateDeleteTrigger,
   ashby_job_create: ashbyJobCreateTrigger,
   ashby_offer_create: ashbyOfferCreateTrigger,
+  azure_devops_build_failed: azureDevOpsBuildFailedTrigger,
+  azure_devops_webhook: azureDevOpsWebhookTrigger,
+  azure_devops_work_item_created: azureDevOpsWorkItemCreatedTrigger,
   attio_webhook: attioWebhookTrigger,
   attio_record_created: attioRecordCreatedTrigger,
   attio_record_updated: attioRecordUpdatedTrigger,
