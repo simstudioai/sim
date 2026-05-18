@@ -447,6 +447,27 @@ export const startMcpOauthContract = defineRouteContract({
   },
 })
 
+/**
+ * Provider can return any subset depending on the outcome:
+ * - success: `state` + `code`
+ * - provider error: `error` + optional `error_description` + optional `state`
+ * - malformed callback: nothing
+ * All fields are optional so the route can render an HTML error page itself.
+ */
+export const mcpOauthCallbackQuerySchema = z.object({
+  state: z.string().optional(),
+  code: z.string().optional(),
+  error: z.string().optional(),
+  error_description: z.string().optional(),
+})
+
+export const mcpOauthCallbackContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/mcp/oauth/callback',
+  query: mcpOauthCallbackQuerySchema,
+  response: { mode: 'text' },
+})
+
 export const getAllowedMcpDomainsContract = defineRouteContract({
   method: 'GET',
   path: '/api/settings/allowed-mcp-domains',

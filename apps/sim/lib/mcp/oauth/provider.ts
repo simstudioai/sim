@@ -64,13 +64,12 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
   }
 
   get clientMetadata(): OAuthClientMetadata {
-    const meta: OAuthClientMetadata & { application_type?: string } = {
+    const meta: OAuthClientMetadata = {
       client_name: 'Sim',
       redirect_uris: [this.redirectUrl],
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
       token_endpoint_auth_method: this.preregistered?.clientSecret ? 'client_secret_post' : 'none',
-      application_type: 'web',
     }
     if (this.scope) meta.scope = this.scope
     return meta

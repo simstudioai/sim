@@ -6,6 +6,8 @@ import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { mcpOauthCallbackContract } from '@/lib/api/contracts/mcp'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -55,10 +57,11 @@ function htmlClose(
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const url = new URL(request.url)
-  const state = url.searchParams.get('state')
-  const code = url.searchParams.get('code')
-  const errorParam = url.searchParams.get('error')
+  const parsed = await parseRequest(mcpOauthCallbackContract, request, {})
+  if (!parsed.success) {
+    return htmlClose('Malformed authorization callback.', false, 'missing_params')
+  }
+  const { state, code, error: errorParam } = parsed.data.query
 
   const initialRow = state ? await loadOauthRowByState(state).catch(() => null) : null
   const stateRowServerId = initialRow?.mcpServerId

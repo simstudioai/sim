@@ -195,20 +195,12 @@ class McpService {
       throw new Error('OAuth MCP server requires both userId and workspaceId')
     }
 
-    const initialRow = await getOrCreateOauthRow({
-      mcpServerId: config.id,
-      userId,
-      workspaceId: config.workspaceId,
-    })
-    if (!initialRow.tokens) {
-      throw new McpOauthAuthorizationRequiredError(config.id, config.name)
-    }
-
-    // Re-read the row inside the lock so concurrent callers observe tokens
-    // written by a predecessor refresh, rather than the stale snapshot loaded
-    // before lock acquisition. Without this, the second caller's provider holds
-    // a rotated-out refresh token and the SDK trips `invalid_grant`.
-    return withMcpOauthRefreshLock(initialRow.id, async () => {
+    // Load the row inside the refresh lock so concurrent callers observe tokens
+    // written by a predecessor refresh, rather than a stale snapshot. Without
+    // this, the second caller's provider would hold a rotated-out refresh token
+    // and the SDK would trip `invalid_grant`. The lock is keyed on serverId
+    // since the row is per-server.
+    return withMcpOauthRefreshLock(config.id, async () => {
       const row = await getOrCreateOauthRow({
         mcpServerId: config.id,
         userId,
