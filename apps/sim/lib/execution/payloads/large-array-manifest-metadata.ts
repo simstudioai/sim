@@ -29,22 +29,8 @@ function isValidByteSize(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
 }
 
-function measureJsonSize(value: unknown): number | undefined {
-  try {
-    const json = JSON.stringify(value)
-    return json === undefined ? undefined : new TextEncoder().encode(json).length
-  } catch {
-    return undefined
-  }
-}
-
 function isValidPreview(value: unknown): value is unknown[] {
-  if (!Array.isArray(value) || value.length > 3) {
-    return false
-  }
-
-  const size = measureJsonSize(value)
-  return size !== undefined && size <= LARGE_ARRAY_MANIFEST_PREVIEW_MAX_BYTES
+  return Array.isArray(value) && value.length <= 3
 }
 
 export function isLargeArrayManifest(value: unknown): value is LargeArrayManifest {

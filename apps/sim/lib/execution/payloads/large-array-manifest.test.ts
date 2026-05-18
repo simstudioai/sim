@@ -167,14 +167,17 @@ describe('large array manifests', () => {
     )
   })
 
-  it('rejects manifests with oversized preview metadata', async () => {
+  it('does not serialize preview metadata during hot type-guard checks', async () => {
     const manifest = await createLargeArrayManifest([{ id: 1 }], TEST_CONTEXT)
+    const stringifySpy = vi.spyOn(JSON, 'stringify')
 
     expect(
       isLargeArrayManifest({
         ...manifest,
         preview: [{ payload: 'x'.repeat(20 * 1024) }],
       })
-    ).toBe(false)
+    ).toBe(true)
+    expect(stringifySpy).not.toHaveBeenCalled()
+    stringifySpy.mockRestore()
   })
 })

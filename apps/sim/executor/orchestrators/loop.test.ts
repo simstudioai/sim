@@ -37,10 +37,10 @@ function createContext(scope: Record<string, unknown>): ExecutionContext {
   } as ExecutionContext
 }
 
-function createOrchestrator() {
+function createOrchestrator(loopConfigs = new Map<string, any>()) {
   const setBlockOutput = vi.fn()
   const orchestrator = new LoopOrchestrator(
-    { loopConfigs: new Map(), parallelConfigs: new Map(), nodes: new Map() } as any,
+    { loopConfigs, parallelConfigs: new Map(), nodes: new Map() } as any,
     { setBlockOutput, unmarkExecuted: vi.fn() } as any,
     { resolveSingleReference: vi.fn() } as any
   )
@@ -73,6 +73,28 @@ describe('LoopOrchestrator', () => {
       selectedRoute: EDGE.LOOP_EXIT,
       totalIterations: 1,
     })
+  })
+
+  it('does not treat doWhile iterations of zero as an immediate configured cap', async () => {
+    const { orchestrator } = createOrchestrator(
+      new Map([
+        [
+          'loop-1',
+          {
+            loopType: 'doWhile',
+            iterations: 0,
+            doWhileCondition: 'true',
+            nodes: ['block-1'],
+          },
+        ],
+      ])
+    )
+    const ctx = createContext({})
+
+    const scope = await orchestrator.initializeLoopScope(ctx, 'loop-1')
+
+    expect(scope.maxIterations).toBeUndefined()
+    expect(scope.condition).toBe('true')
   })
 
   it('compacts current iteration outputs before retaining them', async () => {

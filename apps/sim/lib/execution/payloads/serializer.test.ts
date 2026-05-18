@@ -11,7 +11,7 @@ import {
   getLargeValueMaterializationError,
   isLargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
-import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { compactExecutionPayload, compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import type { UserFile } from '@/executor/types'
 
 const TEST_EXECUTION_CONTEXT = {
@@ -148,6 +148,77 @@ describe('compactExecutionPayload', () => {
     })
 
     expect(isLargeValueRef(compacted)).toBe(true)
+  })
+
+  it('bounds oversized manifest preview metadata during compaction', async () => {
+    const forgedManifest = {
+      __simLargeArrayManifest: true,
+      version: LARGE_ARRAY_MANIFEST_VERSION,
+      kind: 'array',
+      totalCount: 1,
+      chunkCount: 1,
+      byteSize: 1,
+      chunks: [
+        {
+          ref: {
+            __simLargeValueRef: true,
+            version: 1,
+            id: 'lv_ABCDEFGHIJKL',
+            kind: 'array',
+            size: 1,
+            executionId: TEST_EXECUTION_CONTEXT.executionId,
+          },
+          count: 1,
+          byteSize: 1,
+        },
+      ],
+      preview: [{ payload: 'x'.repeat(20 * 1024) }],
+    }
+
+    expect(isLargeArrayManifest(forgedManifest)).toBe(true)
+
+    const compacted = await compactExecutionPayload(forgedManifest, {
+      thresholdBytes: 128,
+      preserveRoot: true,
+      ...TEST_EXECUTION_CONTEXT,
+    })
+
+    expect(isLargeValueRef(compacted)).toBe(true)
+  })
+
+  it('does not re-wrap manifests when forcing oversized subflow result entries', async () => {
+    const manifest = {
+      __simLargeArrayManifest: true,
+      version: LARGE_ARRAY_MANIFEST_VERSION,
+      kind: 'array',
+      totalCount: 1,
+      chunkCount: 1,
+      byteSize: 1,
+      chunks: [
+        {
+          ref: {
+            __simLargeValueRef: true,
+            version: 1,
+            id: 'lv_ABCDEFGHIJKL',
+            kind: 'array',
+            size: 1,
+            executionId: TEST_EXECUTION_CONTEXT.executionId,
+          },
+          count: 1,
+          byteSize: 1,
+        },
+      ],
+      preview: [],
+    }
+    const thresholdBytes = Buffer.byteLength(JSON.stringify(manifest), 'utf8') + 8
+
+    const compacted = await compactSubflowResults([manifest, manifest], {
+      thresholdBytes,
+      ...TEST_EXECUTION_CONTEXT,
+    })
+
+    expect(compacted).toEqual([manifest, manifest])
+    expect(compacted.every(isLargeArrayManifest)).toBe(true)
   })
 
   it('rejects durable compaction when storage context is incomplete', async () => {

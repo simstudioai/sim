@@ -114,7 +114,7 @@ async function forceStoreValue(
   value: unknown,
   options: CompactExecutionPayloadOptions
 ): Promise<unknown> {
-  if (isLargeValueRef(value)) {
+  if (isLargeValueRef(value) || isLargeArrayManifest(value)) {
     return value
   }
   const measured = getJsonAndSize(value)
