@@ -21,6 +21,13 @@ type ToolSchemaCacheEntry = {
 
 const toolSchemaCache = new Map<string, ToolSchemaCacheEntry>()
 
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, entry] of toolSchemaCache) {
+    if (entry.expiresAt <= now) toolSchemaCache.delete(key)
+  }
+}, TOOL_SCHEMA_CACHE_TTL_MS).unref()
+
 interface BuildPayloadParams {
   message: string
   workflowId?: string

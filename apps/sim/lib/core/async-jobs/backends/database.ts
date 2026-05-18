@@ -38,6 +38,7 @@ function rowToJob(row: AsyncJobRow): Job {
 const inlineAbortControllers = new Map<string, AbortController>()
 
 interface Semaphore {
+  limit: number
   available: number
   waiters: Array<() => void>
 }
@@ -46,7 +47,7 @@ const semaphores = new Map<string, Semaphore>()
 async function acquireSlot(key: string, limit: number): Promise<void> {
   let s = semaphores.get(key)
   if (!s) {
-    s = { available: limit, waiters: [] }
+    s = { limit, available: limit, waiters: [] }
     semaphores.set(key, s)
   }
   if (s.available > 0) {
@@ -65,6 +66,9 @@ function releaseSlot(key: string): void {
     return
   }
   s.available += 1
+  if (s.waiters.length === 0 && s.available === s.limit) {
+    semaphores.delete(key)
+  }
 }
 
 export class DatabaseJobQueue implements JobQueueBackend {
