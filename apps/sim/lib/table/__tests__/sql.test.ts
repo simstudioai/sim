@@ -5,9 +5,28 @@
  *
  * Tests for the table SQL query builder utilities including filter and sort clause generation.
  */
+import type { SQL } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { buildFilterClause, buildSortClause } from '../sql'
 import type { Filter } from '../types'
+
+/**
+ * Serializes a drizzle SQL object to a flat string for assertion.
+ * Works with both real SQL instances (queryChunks) and the test-environment mock (strings/values).
+ */
+function getRawSqlString(sqlObj: SQL): string {
+  const obj = sqlObj as unknown as Record<string, unknown>
+  if (Array.isArray(obj['queryChunks'])) {
+    return (obj['queryChunks'] as unknown[])
+      .map((chunk) => {
+        if (typeof chunk === 'string') return chunk
+        const raw = chunk as { value?: string[] }
+        return raw.value?.join('') ?? ''
+      })
+      .join('')
+  }
+  return JSON.stringify(sqlObj)
+}
 
 describe('SQL Builder', () => {
   describe('buildFilterClause', () => {
@@ -170,6 +189,83 @@ describe('SQL Builder', () => {
       const result = buildFilterClause(filter, tableName)
 
       expect(result).toBeDefined()
+    })
+
+    describe('date column type', () => {
+      const dateColumns = [{ name: 'birthDate', type: 'date' as const }]
+
+      it('should use ::timestamp cast for $gt with date column type', () => {
+        const filter: Filter = { birthDate: { $gt: '2024-01-01' } }
+        const result = buildFilterClause(filter, tableName, dateColumns)
+
+        expect(result).toBeDefined()
+        const raw = getRawSqlString(result!)
+        expect(raw).toContain('::timestamp')
+        expect(raw).not.toContain('::numeric')
+      })
+
+      it('should use ::timestamp cast for $gte with date column type', () => {
+        const filter: Filter = { birthDate: { $gte: '2024-01-01' } }
+        const result = buildFilterClause(filter, tableName, dateColumns)
+
+        expect(result).toBeDefined()
+        const raw = getRawSqlString(result!)
+        expect(raw).toContain('::timestamp')
+        expect(raw).not.toContain('::numeric')
+      })
+
+      it('should use ::timestamp cast for $lt with date column type', () => {
+        const filter: Filter = { birthDate: { $lt: '2024-12-31' } }
+        const result = buildFilterClause(filter, tableName, dateColumns)
+
+        expect(result).toBeDefined()
+        const raw = getRawSqlString(result!)
+        expect(raw).toContain('::timestamp')
+        expect(raw).not.toContain('::numeric')
+      })
+
+      it('should use ::timestamp cast for $lte with date column type', () => {
+        const filter: Filter = { birthDate: { $lte: '2024-12-31' } }
+        const result = buildFilterClause(filter, tableName, dateColumns)
+
+        expect(result).toBeDefined()
+        const raw = getRawSqlString(result!)
+        expect(raw).toContain('::timestamp')
+        expect(raw).not.toContain('::numeric')
+      })
+
+      it('should use ::timestamp cast for date range ($gte + $lte)', () => {
+        const filter: Filter = { birthDate: { $gte: '2024-01-01', $lte: '2024-12-31' } }
+        const result = buildFilterClause(filter, tableName, dateColumns)
+
+        expect(result).toBeDefined()
+        const raw = getRawSqlString(result!)
+        expect(raw).toContain('::timestamp')
+        expect(raw).not.toContain('::numeric')
+      })
+
+      it('should use ::timestamp cast inside $and with date column type', () => {
+        const filter: Filter = {
+          $and: [{ birthDate: { $gte: '2024-01-01' } }, { birthDate: { $lte: '2024-12-31' } }],
+        }
+        const result = buildFilterClause(filter, tableName, dateColumns)
+
+        expect(result).toBeDefined()
+        const raw = getRawSqlString(result!)
+        expect(raw).toContain('::timestamp')
+        expect(raw).not.toContain('::numeric')
+      })
+
+      it('should still use ::numeric cast for $gt on a number column', () => {
+        const numberColumns = [{ name: 'age', type: 'number' as const }]
+        const filter: Filter = { age: { $gt: 18 } }
+        const result = buildFilterClause(filter, tableName, numberColumns)
+
+        expect(result).toBeDefined()
+        const raw = getRawSqlString(result!)
+        expect(raw).toContain('::numeric')
+        expect(raw).not.toContain('::timestamp')
+      })
     })
   })
 
