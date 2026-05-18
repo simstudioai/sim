@@ -1670,9 +1670,7 @@ export function Files() {
     ? `No files match "${debouncedSearchTerm}"`
     : hasActiveFilters
       ? 'No files match the active filters'
-      : currentFolderId
-        ? 'This folder is empty'
-        : 'No files yet'
+      : undefined
 
   const filterContent = useMemo(() => {
     const typeDisplayLabel =
