@@ -2248,6 +2248,49 @@ export function ElevenLabsIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function FindymailIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 45.4462 31.2952' fill='none'>
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M27.7788 8.18066C26.628 8.18066 25.479 8.62026 24.6016 9.49766L22.7235 11.0666L20.8454 9.49766C19.968 8.62026 18.8189 8.18066 17.6681 8.18066C16.5191 8.18066 15.3683 8.62026 14.4909 9.49766C12.7361 11.2525 12.7361 14.0991 14.4909 15.8521L20.9722 22.0922C21.9497 23.0339 23.4972 23.0339 24.4747 22.0922L30.9578 15.8521C32.7126 14.0991 32.7126 11.2525 30.9578 9.49766C30.0804 8.62026 28.9296 8.18066 27.7788 8.18066Z'
+        fill='url(#findymail_paint0)'
+      />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M42.3815 27.2995C42.3815 27.8571 41.9312 28.3074 41.3737 28.3074H4.0725C3.51497 28.3074 3.06644 27.8571 3.06644 27.2995V7.29083C3.06644 6.39914 4.1279 5.9381 4.77835 6.54745L9.53884 11.0042C9.95341 11.3937 10.6182 11.1971 10.7718 10.6485C10.8791 10.2715 11.0167 9.90338 11.1846 9.54956C11.4062 9.08138 11.2579 8.51848 10.8791 8.16466L7.1854 4.70509C6.52958 4.09037 6.96382 2.9896 7.86445 2.9896H37.58C38.4806 2.9896 38.9166 4.09216 38.259 4.70688L34.5671 8.16109C34.1901 8.51491 34.04 9.07959 34.2633 9.54777C34.4295 9.90159 34.5671 10.2679 34.6743 10.645C34.828 11.1918 35.4928 11.3884 35.9073 11.0006L40.6678 6.54567C41.3183 5.93631 42.3815 6.39735 42.3815 7.28726V27.2995ZM42.9141 0H2.53213C1.13294 0 0 1.13294 0 2.53213V28.7631C0 30.1622 1.13294 31.2952 2.53213 31.2952H42.9141C44.3132 31.2952 45.4462 30.1622 45.4462 28.7631V2.53213C45.4462 1.13294 44.3132 0 42.9141 0Z'
+        fill='url(#findymail_paint1)'
+      />
+      <defs>
+        <linearGradient
+          id='findymail_paint0'
+          x1='20.5769'
+          y1='8.68821'
+          x2='24.6922'
+          y2='23.0919'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#F04249' />
+          <stop offset='0.289072' stopColor='#DE2337' />
+          <stop offset='1' stopColor='#B91C1C' />
+        </linearGradient>
+        <linearGradient
+          id='findymail_paint1'
+          x1='22.7231'
+          y1='0'
+          x2='22.7231'
+          y2='31.2952'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#18181B' />
+          <stop offset='1' />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
 export function FathomIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 1000' fill='none'>
@@ -6845,6 +6888,29 @@ export function HexIcon(props: SVGProps<SVGSVGElement>) {
         fill='#EDB9B8'
         fillRule='evenodd'
         d='m250.11,0v199.49h-50V0H0v600h200.11v-300.69h50v300.69h200.18V0h-200.18Zm249.9,0v600h450.29v-250.23h-200.2v149h-50v-199.46h250.2V0h-450.29Zm200.09,199.49v-99.49h50v99.49h-50Zm550.02,0V0h200.18v150l-100,100.09,100,100.09v249.82h-200.18v-300.69h-50v300.69h-200.11v-249.82l100.11-100.09-100.11-100.09V0h200.11v199.49h50Z'
+      />
+    </svg>
+  )
+}
+
+export function BigQueryIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <path
+        fill='#4386FA'
+        d='M12 2.5a9.5 9.5 0 1 0 5.81 17.02l3.4 3.4a1 1 0 0 0 1.41-1.42l-3.4-3.4A9.5 9.5 0 0 0 12 2.5Zm0 2a7.5 7.5 0 1 1 0 15 7.5 7.5 0 0 1 0-15Z'
+      />
+      <path fill='#4386FA' d='M8 11h1.6v4H8v-4Zm3 -2h1.6v6H11V9Zm3 1.5h1.6V15H14v-3.5Z' />
+    </svg>
+  )
+}
+
+export function SnowflakeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <path
+        fill='#29B5E8'
+        d='M12 2a1 1 0 0 1 1 1v3.59l2.3-2.3a1 1 0 1 1 1.4 1.42L13 9.41V12h2.6l3.7-3.7a1 1 0 0 1 1.4 1.4L18.42 12H22a1 1 0 1 1 0 2h-3.59l2.3 2.3a1 1 0 0 1-1.4 1.4L15.58 14H13v2.59l3.7 3.7a1 1 0 1 1-1.4 1.4L13 19.42V23a1 1 0 1 1-2 0v-3.58l-2.3 2.3a1 1 0 1 1-1.4-1.4l3.7-3.71V14H8.4l-3.7 3.7a1 1 0 0 1-1.4-1.4L5.58 14H2a1 1 0 0 1 0-2h3.59l-2.3-2.3a1 1 0 0 1 1.4-1.4L8.42 12H11V9.41L7.3 5.71a1 1 0 1 1 1.4-1.42l2.3 2.3V3a1 1 0 0 1 1-1Z'
       />
     </svg>
   )
