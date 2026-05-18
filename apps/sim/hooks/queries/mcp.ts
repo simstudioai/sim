@@ -273,9 +273,7 @@ export function useUpdateMcpServer() {
         const { oauthClientSecret: _omitSecret, oauthClientId, ...rest } = updates
         const safeUpdates: Partial<McpServer> = { ...rest }
         if (oauthClientId !== undefined) {
-          // Server normalizes empty string → null; mirror that to avoid UI flicker
-          // between optimistic apply and server response invalidation.
-          safeUpdates.oauthClientId = oauthClientId || null
+          safeUpdates.oauthClientId = oauthClientId || undefined
         }
         queryClient.setQueryData<McpServer[]>(
           mcpKeys.serversList(workspaceId),
