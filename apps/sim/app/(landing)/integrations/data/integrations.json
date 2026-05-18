@@ -4075,6 +4075,69 @@
     "tags": ["document-processing"]
   },
   {
+    "type": "findymail",
+    "slug": "findymail",
+    "name": "Findymail",
+    "description": "Find and verify B2B emails, phones, employees, and company data",
+    "longDescription": "Integrate Findymail to find verified work emails by name, domain, or LinkedIn URL, verify deliverability, reverse-lookup profiles from emails, enrich company data, find employees by job title, look up phone numbers, search technology stacks, and check credit usage.",
+    "bgColor": "#FFFFFF",
+    "iconName": "FindymailIcon",
+    "docsUrl": "https://docs.sim.ai/tools/findymail",
+    "operations": [
+      {
+        "name": "Find Email From Name",
+        "description": "Find someone"
+      },
+      {
+        "name": "Find Email From LinkedIn",
+        "description": "Find someone"
+      },
+      {
+        "name": "Find Emails By Domain",
+        "description": "Find verified contacts at a given domain matching one or more target roles (max 3 roles). Limited to 5 concurrent synchronous requests."
+      },
+      {
+        "name": "Verify Email",
+        "description": "Verifies the deliverability of an email address. Uses one verifier credit."
+      },
+      {
+        "name": "Reverse Email Lookup",
+        "description": "Find a business profile from an email address. Uses 1 finder credit if a profile is found, 2 credits if returning full profile data."
+      },
+      {
+        "name": "Get Company Info",
+        "description": "Retrieve company information from a LinkedIn URL, domain, or company name. Uses 1 finder credit per successful response."
+      },
+      {
+        "name": "Find Employees",
+        "description": "Find employees at a company by website and target job titles. Uses 1 credit per found contact. Does not return email addresses."
+      },
+      {
+        "name": "Find Phone",
+        "description": "Find someone"
+      },
+      {
+        "name": "Search Technologies",
+        "description": "Search the technology catalog by name. Returns up to 25 technologies. Free endpoint, rate limited to 10 requests per minute."
+      },
+      {
+        "name": "Lookup Technologies By Domain",
+        "description": "Get the technology stack for a company by domain. Optionally filter by technology names. 1 finder credit if technologies are found, free otherwise."
+      },
+      {
+        "name": "Get Remaining Credits",
+        "description": "Retrieve the remaining finder and verifier credits for the authenticated account."
+      }
+    ],
+    "operationCount": 11,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["sales"],
+    "tags": ["enrichment", "sales-engagement"]
+  },
+  {
     "type": "firecrawl",
     "slug": "firecrawl",
     "name": "Firecrawl",

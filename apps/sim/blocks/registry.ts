@@ -56,6 +56,7 @@ import { ExaBlock } from '@/blocks/blocks/exa'
 import { ExtendBlock, ExtendV2Block } from '@/blocks/blocks/extend'
 import { FathomBlock } from '@/blocks/blocks/fathom'
 import { FileBlock, FileV2Block, FileV3Block, FileV4Block } from '@/blocks/blocks/file'
+import { FindymailBlock } from '@/blocks/blocks/findymail'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
 import { FirefliesBlock, FirefliesV2Block } from '@/blocks/blocks/fireflies'
 import { FunctionBlock } from '@/blocks/blocks/function'
@@ -301,6 +302,7 @@ export const registry: Record<string, BlockConfig> = {
   file_v2: FileV2Block,
   file_v3: FileV3Block,
   file_v4: FileV4Block,
+  findymail: FindymailBlock,
   firecrawl: FirecrawlBlock,
   fireflies: FirefliesBlock,
   fireflies_v2: FirefliesV2Block,
