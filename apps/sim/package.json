@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "next dev --port 3000",
+    "dev:clean": "rm -rf .next/dev/cache",
     "dev:webpack": "next dev --webpack",
     "load:workflow": "bun run load:workflow:baseline",
     "load:workflow:baseline": "BASE_URL=${BASE_URL:-http://localhost:3000} WARMUP_DURATION=${WARMUP_DURATION:-10} WARMUP_RATE=${WARMUP_RATE:-2} PEAK_RATE=${PEAK_RATE:-8} HOLD_DURATION=${HOLD_DURATION:-20} bunx artillery run scripts/load/workflow-concurrency.yml",
