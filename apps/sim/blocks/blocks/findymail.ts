@@ -341,95 +341,83 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
   },
   outputs: {
     // Verify Email
-    verified: { type: 'boolean', description: 'Whether the email is deliverable', optional: true },
-    provider: { type: 'string', description: 'Email service provider', optional: true },
+    verified: { type: 'boolean', description: 'Whether the email is deliverable' },
+    provider: { type: 'string', description: 'Email service provider' },
     // Find Email / LinkedIn
     contact: {
       type: 'json',
       description: 'Contact found (name, email, domain)',
-      optional: true,
     },
     contacts: {
       type: 'array',
       description: 'Contacts found at the domain (name, email, domain)',
-      optional: true,
     },
     // Reverse Email Lookup
-    linkedin_url: { type: 'string', description: 'LinkedIn URL', optional: true },
-    fullName: { type: 'string', description: 'Full name from LinkedIn profile', optional: true },
-    username: { type: 'string', description: 'LinkedIn username', optional: true },
-    headline: { type: 'string', description: 'Profile headline', optional: true },
-    jobTitle: { type: 'string', description: 'Job title', optional: true },
-    summary: { type: 'string', description: 'Profile summary', optional: true },
-    city: { type: 'string', description: 'City', optional: true },
-    region: { type: 'string', description: 'Region/state', optional: true },
-    country: { type: 'string', description: 'Country', optional: true },
+    linkedin_url: { type: 'string', description: 'LinkedIn URL' },
+    fullName: { type: 'string', description: 'Full name from LinkedIn profile' },
+    username: { type: 'string', description: 'LinkedIn username' },
+    headline: { type: 'string', description: 'Profile headline' },
+    jobTitle: { type: 'string', description: 'Job title' },
+    summary: { type: 'string', description: 'Profile summary' },
+    city: { type: 'string', description: 'City' },
+    region: { type: 'string', description: 'Region/state' },
+    country: { type: 'string', description: 'Country' },
     companyLinkedinUrl: {
       type: 'string',
       description: 'Current company LinkedIn URL',
-      optional: true,
     },
-    companyName: { type: 'string', description: 'Current company name', optional: true },
-    companyWebsite: { type: 'string', description: 'Current company website', optional: true },
+    companyName: { type: 'string', description: 'Current company name' },
+    companyWebsite: { type: 'string', description: 'Current company website' },
     isPremium: {
       type: 'boolean',
       description: 'Whether the profile has LinkedIn Premium',
-      optional: true,
     },
-    isOpenProfile: { type: 'boolean', description: 'Whether the profile is open', optional: true },
-    skills: { type: 'array', description: 'Profile skills', optional: true },
-    jobs: { type: 'array', description: 'Job history entries', optional: true },
+    isOpenProfile: { type: 'boolean', description: 'Whether the profile is open' },
+    skills: { type: 'array', description: 'Profile skills' },
+    jobs: { type: 'array', description: 'Job history entries' },
     educations: {
       type: 'array',
       description: 'Education history (school, degree, fieldOfStudy, startDate, endDate)',
-      optional: true,
     },
     certificates: {
       type: 'array',
       description: 'Certifications (name, issuingOrganization, issueDate, expirationDate)',
-      optional: true,
     },
     // Get Company
-    name: { type: 'string', description: 'Company name', optional: true },
-    domain: { type: 'string', description: 'Company domain', optional: true },
+    name: { type: 'string', description: 'Company name' },
+    domain: { type: 'string', description: 'Company domain' },
     company_size: {
       type: 'string',
       description: 'Headcount range (e.g., 1001-5000)',
-      optional: true,
     },
-    industry: { type: 'string', description: 'Industry classification', optional: true },
-    description: { type: 'string', description: 'Company description', optional: true },
+    industry: { type: 'string', description: 'Industry classification' },
+    description: { type: 'string', description: 'Company description' },
     // Find Employees
     employees: {
       type: 'array',
       description: 'Employees found (name, linkedinUrl, companyWebsite, companyName, jobTitle)',
-      optional: true,
     },
     // Find Phone
     phone: {
       type: 'string',
       description: 'Phone number in E.164 format (US only)',
-      optional: true,
     },
     line_type: {
       type: 'string',
       description: 'Phone line type (Mobile, Landline)',
-      optional: true,
     },
     // Technologies
     technologies: {
       type: 'array',
       description: 'Technologies (name, category, subcategory, last_detected_at)',
-      optional: true,
     },
     // Get Credits
-    credits: { type: 'number', description: 'Remaining finder credits', optional: true },
+    credits: { type: 'number', description: 'Remaining finder credits' },
     verifier_credits: {
       type: 'number',
       description: 'Remaining verifier credits',
-      optional: true,
     },
     // Verify / Reverse shared
-    email: { type: 'string', description: 'Email address', optional: true },
+    email: { type: 'string', description: 'Email address' },
   },
 }
