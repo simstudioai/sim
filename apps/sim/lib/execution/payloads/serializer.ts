@@ -40,6 +40,10 @@ function stripUserFileBase64<T extends { base64?: unknown }>(value: T): Omit<T, 
   return rest
 }
 
+function canPersistDurably(options: CompactExecutionPayloadOptions): boolean {
+  return Boolean(options.workspaceId && options.workflowId && options.executionId)
+}
+
 async function compactValue(
   value: unknown,
   options: CompactExecutionPayloadOptions,
@@ -61,6 +65,10 @@ async function compactValue(
   }
 
   if (isLargeArrayManifest(value)) {
+    const measured = getJsonAndSize(value)
+    if (measured && measured.size > (options.thresholdBytes ?? LARGE_VALUE_THRESHOLD_BYTES)) {
+      return storeLargeValue(value, measured.json, measured.size, options)
+    }
     return value
   }
 
@@ -88,6 +96,10 @@ async function compactValue(
 
   const measured = getJsonAndSize(compacted)
   if (measured && measured.size > (options.thresholdBytes ?? LARGE_VALUE_THRESHOLD_BYTES)) {
+    if (Array.isArray(compacted) && (canPersistDurably(options) || options.requireDurable)) {
+      return createLargeArrayManifest(compacted, { ...options, requireDurable: true })
+    }
+
     if (options.preserveRoot && depth === 0) {
       return compacted
     }
@@ -123,22 +135,7 @@ export async function compactWorkflowVariableValue<T>(
   value: T,
   options: CompactExecutionPayloadOptions = {}
 ): Promise<T> {
-  const durableOptions = { ...options, requireDurable: true }
-
-  if (!Array.isArray(value)) {
-    return compactExecutionPayload(value, durableOptions)
-  }
-
-  const compacted = (await compactExecutionPayload(value, {
-    ...durableOptions,
-    preserveRoot: true,
-  })) as T
-  const measured = getJsonAndSize(compacted)
-  if (measured && measured.size > (options.thresholdBytes ?? LARGE_VALUE_THRESHOLD_BYTES)) {
-    return createLargeArrayManifest(compacted as unknown[], durableOptions) as T
-  }
-
-  return compacted
+  return compactExecutionPayload(value, { ...options, requireDurable: true })
 }
 
 /**

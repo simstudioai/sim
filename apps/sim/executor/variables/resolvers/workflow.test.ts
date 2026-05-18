@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
-import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import {
+  createLargeArrayManifest,
+  isLargeArrayManifest,
+} from '@/lib/execution/payloads/large-array-manifest'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { ResolutionContext } from './reference'
@@ -167,7 +169,7 @@ describe('WorkflowResolver', () => {
       }
     })
 
-    it('returns whole large workflow variable refs only when refs are allowed', async () => {
+    it('returns whole large workflow variable manifests only when refs are allowed', async () => {
       const compacted = await compactExecutionPayload(
         Array.from({ length: 100 }, (_, index) => ({
           key: `SIM-${index}`,
@@ -192,7 +194,7 @@ describe('WorkflowResolver', () => {
       )
 
       const allowedContext = { ...context, allowLargeValueRefs: true }
-      expect(isLargeValueRef(resolver.resolve('<variable.issues>', allowedContext))).toBe(true)
+      expect(isLargeArrayManifest(resolver.resolve('<variable.issues>', allowedContext))).toBe(true)
       await expect(resolver.resolveAsync('<variable.issues>', allowedContext)).resolves.toEqual(
         compacted
       )

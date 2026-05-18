@@ -12,9 +12,10 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteInE2B, mockExecuteInIsolatedVM } = vi.hoisted(() => ({
+const { mockExecuteInE2B, mockExecuteInIsolatedVM, mockUploadFile } = vi.hoisted(() => ({
   mockExecuteInE2B: vi.fn(),
   mockExecuteInIsolatedVM: vi.fn(),
+  mockUploadFile: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/isolated-vm', () => ({
@@ -42,11 +43,20 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   uploadWorkspaceFile: vi.fn(),
 }))
 
+vi.mock('@/lib/uploads', () => ({
+  StorageService: {
+    uploadFile: mockUploadFile,
+  },
+}))
+
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
+import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
+import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { POST } from '@/app/api/function/execute/route'
 
 describe('Function Execute API Route', () => {
@@ -61,6 +71,8 @@ describe('Function Execute API Route', () => {
     })
 
     mockExecuteInIsolatedVM.mockResolvedValue({ result: 'test', stdout: '' })
+    mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
+    clearLargeValueCacheForTests()
 
     mockExecuteInE2B.mockResolvedValue({
       result: 'e2b success',
@@ -200,6 +212,60 @@ describe('Function Execute API Route', () => {
       expect(data.success).toBe(true)
       expect(data.output).toHaveProperty('result')
       expect(data.output).toHaveProperty('executionTime')
+    })
+
+    it('compacts large array result fields to manifests when execution context is durable', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: {
+          rows: Array.from({ length: 120_000 }, (_, index) => ({
+            key: `SIM-${index}`,
+            payload: 'x'.repeat(100),
+          })),
+        },
+        stdout: '',
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'return rows',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(isLargeArrayManifest(data.output.result.rows)).toBe(true)
+      expect(data.output.result.rows).toMatchObject({
+        __simLargeArrayManifest: true,
+        kind: 'array',
+        totalCount: 120_000,
+      })
+    })
+
+    it('keeps large string result fields as generic large value refs', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: {
+          text: 'x'.repeat(9 * 1024 * 1024),
+        },
+        stdout: '',
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'return text',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(isLargeValueRef(data.output.result.text)).toBe(true)
     })
 
     it('should return computed result for multi-line code', async () => {

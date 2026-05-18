@@ -1,6 +1,7 @@
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
   isLargeArrayManifest,
+  type LargeArrayManifest,
   readLargeArrayManifestSlice,
 } from '@/lib/execution/payloads/large-array-manifest'
 import {
@@ -10,11 +11,11 @@ import {
 } from '@/lib/execution/payloads/large-value-ref'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import { hydrateUserFileWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
-import type { ResolutionContext } from '@/executor/variables/resolvers/reference'
+import type { PathNavigationContext } from '@/executor/variables/resolvers/reference'
 
 async function materializeLargeValueRefOrThrow(
   value: unknown,
-  context: ResolutionContext
+  context: PathNavigationContext
 ): Promise<unknown> {
   if (!isLargeValueRef(value)) {
     return value
@@ -35,13 +36,13 @@ async function materializeLargeValueRefOrThrow(
 
 async function hydrateExplicitBase64(
   file: unknown,
-  context: ResolutionContext
+  context: PathNavigationContext
 ): Promise<string | undefined> {
   if (!isUserFileWithMetadata(file)) {
     return undefined
   }
   const hydrated = await hydrateUserFileWithBase64(file, {
-    requestId: context.executionContext.metadata.requestId,
+    requestId: context.executionContext.metadata?.requestId,
     workspaceId: context.executionContext.workspaceId,
     workflowId: context.executionContext.workflowId,
     executionId: context.executionContext.executionId,
@@ -58,6 +59,42 @@ async function hydrateExplicitBase64(
   return hydrated.base64
 }
 
+async function readManifestIndexAsync(
+  value: LargeArrayManifest,
+  part: string,
+  context: PathNavigationContext
+): Promise<unknown> {
+  const [item] = await readLargeArrayManifestSlice(value, Number.parseInt(part, 10), 1, {
+    workspaceId: context.executionContext.workspaceId,
+    workflowId: context.executionContext.workflowId,
+    executionId: context.executionContext.executionId,
+    largeValueExecutionIds: context.executionContext.largeValueExecutionIds,
+    allowLargeValueWorkflowScope: context.executionContext.allowLargeValueWorkflowScope,
+    userId: context.executionContext.userId,
+  })
+  return item
+}
+
+async function navigateManifestMetadataOrIndexAsync(
+  value: unknown,
+  part: string,
+  context: PathNavigationContext
+): Promise<unknown> {
+  if (!isLargeArrayManifest(value)) {
+    return undefined
+  }
+  if (part === 'length' || part === 'totalCount') {
+    return value.totalCount
+  }
+  if (part === 'chunkCount' || part === 'byteSize' || part === 'preview') {
+    return value[part]
+  }
+  if (/^\d+$/.test(part)) {
+    return readManifestIndexAsync(value, part, context)
+  }
+  return undefined
+}
+
 /**
  * Server-side path navigation used during execution. It can hydrate persisted
  * large values and UserFile.base64 only when the requested path explicitly asks
@@ -66,7 +103,7 @@ async function hydrateExplicitBase64(
 export async function navigatePathAsync(
   obj: any,
   path: string[],
-  context: ResolutionContext
+  context: PathNavigationContext
 ): Promise<any> {
   let current = obj
   for (const part of path) {
@@ -84,21 +121,8 @@ export async function navigatePathAsync(
       }
     }
 
-    if (isLargeArrayManifest(current) && part === 'length') {
-      current = current.totalCount
-      continue
-    }
-
-    if (isLargeArrayManifest(current) && /^\d+$/.test(part)) {
-      const [item] = await readLargeArrayManifestSlice(current, Number.parseInt(part, 10), 1, {
-        workspaceId: context.executionContext.workspaceId,
-        workflowId: context.executionContext.workflowId,
-        executionId: context.executionContext.executionId,
-        largeValueExecutionIds: context.executionContext.largeValueExecutionIds,
-        allowLargeValueWorkflowScope: context.executionContext.allowLargeValueWorkflowScope,
-        userId: context.executionContext.userId,
-      })
-      current = item
+    if (isLargeArrayManifest(current)) {
+      current = await navigateManifestMetadataOrIndexAsync(current, part, context)
       continue
     }
 
@@ -123,15 +147,7 @@ export async function navigatePathAsync(
           }
           const idx = Number.parseInt(indexMatch.slice(1, -1), 10)
           if (isLargeArrayManifest(current)) {
-            const [item] = await readLargeArrayManifestSlice(current, idx, 1, {
-              workspaceId: context.executionContext.workspaceId,
-              workflowId: context.executionContext.workflowId,
-              executionId: context.executionContext.executionId,
-              largeValueExecutionIds: context.executionContext.largeValueExecutionIds,
-              allowLargeValueWorkflowScope: context.executionContext.allowLargeValueWorkflowScope,
-              userId: context.executionContext.userId,
-            })
-            current = item
+            current = await navigateManifestMetadataOrIndexAsync(current, String(idx), context)
           } else {
             current = Array.isArray(current) ? current[idx] : undefined
           }

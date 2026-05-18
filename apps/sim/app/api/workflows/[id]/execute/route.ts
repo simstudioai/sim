@@ -786,7 +786,15 @@ async function handleExecutePost(
           : result.output
 
         if (auth.authType !== AuthType.INTERNAL_JWT && workflowHasResponseBlock(result)) {
-          return createHttpResponseFromBlock({ ...result, output: outputWithBase64 })
+          const compactResponseBlockOutput = await compactRoutePayload(outputWithBase64, {
+            workspaceId,
+            workflowId,
+            executionId,
+            userId: actorUserId,
+            preserveUserFileBase64: true,
+            preserveRoot: true,
+          })
+          return createHttpResponseFromBlock({ ...result, output: compactResponseBlockOutput })
         }
 
         const compactOutput = await compactRoutePayload(outputWithBase64, {

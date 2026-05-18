@@ -1,4 +1,10 @@
-import { isLargeValueRef, type LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import {
+  isLargeArrayManifest,
+  LARGE_ARRAY_MANIFEST_PREVIEW_MAX_BYTES,
+  LARGE_ARRAY_MANIFEST_VERSION,
+  type LargeArrayManifest,
+  type LargeArrayManifestChunk,
+} from '@/lib/execution/payloads/large-array-manifest-metadata'
 import {
   assertInlineMaterializationSize,
   MAX_INLINE_MATERIALIZATION_BYTES,
@@ -6,29 +12,20 @@ import {
 import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
 import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
 
-export const LARGE_ARRAY_MANIFEST_MARKER = '__simLargeArrayManifest'
-export const LARGE_ARRAY_MANIFEST_VERSION = 2
+export {
+  isLargeArrayManifest,
+  LARGE_ARRAY_MANIFEST_MARKER,
+  LARGE_ARRAY_MANIFEST_PREVIEW_MAX_BYTES,
+  LARGE_ARRAY_MANIFEST_VERSION,
+  type LargeArrayManifest,
+  type LargeArrayManifestChunk,
+} from '@/lib/execution/payloads/large-array-manifest-metadata'
+
 export const LARGE_ARRAY_MANIFEST_CHUNK_TARGET_BYTES = Math.floor(
   MAX_INLINE_MATERIALIZATION_BYTES / 2
 )
-export const LARGE_ARRAY_MANIFEST_PREVIEW_MAX_BYTES = 16 * 1024
-
-export interface LargeArrayManifest {
-  [LARGE_ARRAY_MANIFEST_MARKER]: true
-  version: typeof LARGE_ARRAY_MANIFEST_VERSION
-  kind: 'array'
-  totalCount: number
-  chunkCount: number
-  byteSize: number
-  chunks: LargeArrayManifestChunk[]
-  preview: unknown[]
-}
-
-export interface LargeArrayManifestChunk {
-  ref: LargeValueRef
-  count: number
-  byteSize: number
-}
+const LARGE_ARRAY_MANIFEST_JSON_SERIALIZATION_ERROR =
+  'Large array manifest chunks must be JSON-serializable.'
 
 export interface LargeArrayManifestReadOptions extends LargeValueStoreContext {
   maxBytes?: number
@@ -38,18 +35,15 @@ export interface LargeArrayManifestWriteOptions extends LargeValueStoreContext {
   chunkTargetBytes?: number
 }
 
-function isValidCount(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0
-}
-
-function isValidByteSize(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
-}
-
 function measureJson(value: unknown): { json: string; size: number } {
-  const json = JSON.stringify(value)
+  let json: string | undefined
+  try {
+    json = JSON.stringify(value)
+  } catch {
+    throw new Error(LARGE_ARRAY_MANIFEST_JSON_SERIALIZATION_ERROR)
+  }
   if (json === undefined) {
-    throw new Error('Large array manifest chunks must be JSON-serializable.')
+    throw new Error(LARGE_ARRAY_MANIFEST_JSON_SERIALIZATION_ERROR)
   }
   return { json, size: Buffer.byteLength(json, 'utf8') }
 }
@@ -57,6 +51,12 @@ function measureJson(value: unknown): { json: string; size: number } {
 function assertArray(value: unknown): asserts value is unknown[] {
   if (!Array.isArray(value)) {
     throw new Error('Large array manifest chunks must materialize to arrays.')
+  }
+}
+
+function assertChunkCount(chunk: unknown[], expectedCount: number): void {
+  if (chunk.length !== expectedCount) {
+    throw new Error('Large array manifest chunk count does not match materialized data.')
   }
 }
 
@@ -79,18 +79,6 @@ function getPreview(items: unknown[]): unknown[] {
 function measureArrayElementJsonSize(item: unknown): number {
   const measured = measureJson([item])
   return Math.max(0, measured.size - 2)
-}
-
-function isValidPreview(value: unknown): value is unknown[] {
-  if (!Array.isArray(value) || value.length > 3) {
-    return false
-  }
-
-  try {
-    return measureJson(value).size <= LARGE_ARRAY_MANIFEST_PREVIEW_MAX_BYTES
-  } catch {
-    return false
-  }
 }
 
 async function storeArrayChunk(
@@ -147,52 +135,6 @@ async function storeArrayChunks(
     storedChunks.push(await storeArrayChunk(chunk, context))
   }
   return storedChunks
-}
-
-export function isLargeArrayManifest(value: unknown): value is LargeArrayManifest {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-
-  const candidate = value as Record<string, unknown>
-  if (
-    candidate[LARGE_ARRAY_MANIFEST_MARKER] !== true ||
-    candidate.version !== LARGE_ARRAY_MANIFEST_VERSION ||
-    candidate.kind !== 'array' ||
-    !isValidCount(candidate.totalCount) ||
-    !isValidCount(candidate.chunkCount) ||
-    !isValidByteSize(candidate.byteSize) ||
-    !Array.isArray(candidate.chunks) ||
-    !isValidPreview(candidate.preview) ||
-    candidate.chunkCount !== candidate.chunks.length
-  ) {
-    return false
-  }
-
-  let totalCount = 0
-  let byteSize = 0
-  for (const chunk of candidate.chunks) {
-    if (!chunk || typeof chunk !== 'object') {
-      return false
-    }
-
-    const chunkRecord = chunk as Record<string, unknown>
-    if (
-      !isLargeValueRef(chunkRecord.ref) ||
-      !isValidCount(chunkRecord.count) ||
-      chunkRecord.count <= 0 ||
-      !isValidByteSize(chunkRecord.byteSize) ||
-      chunkRecord.byteSize <= 0 ||
-      chunkRecord.byteSize !== chunkRecord.ref.size
-    ) {
-      return false
-    }
-
-    totalCount += chunkRecord.count
-    byteSize += chunkRecord.ref.size
-  }
-
-  return candidate.totalCount === totalCount && candidate.byteSize === byteSize
 }
 
 function assertLargeArrayManifest(value: LargeArrayManifest): void {
@@ -283,6 +225,7 @@ export async function readLargeArrayManifestSlice(
       throw new Error('Large array manifest chunk is unavailable.')
     }
     assertArray(chunk)
+    assertChunkCount(chunk, chunkEntry.count)
 
     const from = Math.max(0, normalizedStart - chunkStart)
     const to = Math.min(chunk.length, end - chunkStart)

@@ -101,9 +101,7 @@ async function extractOutputValue(
       allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
       userId: context.userId,
       metadata: { requestId: context.requestId },
-    } as any,
-    executionState: {} as any,
-    currentNodeId: '',
+    },
     allowLargeValueRefs: true,
   })
 }

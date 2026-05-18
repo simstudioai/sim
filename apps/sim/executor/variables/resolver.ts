@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
-import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import {
   containsLargeValueRef,
   getLargeValueMaterializationError,

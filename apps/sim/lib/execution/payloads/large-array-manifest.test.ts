@@ -106,6 +106,18 @@ describe('large array manifests', () => {
     ])
   })
 
+  it('reports non-serializable chunk values with a manifest-specific error', async () => {
+    const circular: Record<string, unknown> = { id: 1 }
+    circular.self = circular
+
+    await expect(createLargeArrayManifest([circular], TEST_CONTEXT)).rejects.toThrow(
+      'Large array manifest chunks must be JSON-serializable.'
+    )
+    await expect(createLargeArrayManifest([{ id: 1n }], TEST_CONTEXT)).rejects.toThrow(
+      'Large array manifest chunks must be JSON-serializable.'
+    )
+  })
+
   it('skips preceding chunks without materializing them for bounded reads', async () => {
     let manifest = await createLargeArrayManifest([{ id: 1 }, { id: 2 }], TEST_CONTEXT)
     manifest = await appendLargeArrayManifest(manifest, [{ id: 3 }, { id: 4 }], TEST_CONTEXT)
@@ -139,6 +151,20 @@ describe('large array manifests', () => {
     await expect(
       materializeLargeArrayManifest({ ...manifest, byteSize: 1 }, { ...TEST_CONTEXT })
     ).rejects.toThrow('Invalid large array manifest')
+  })
+
+  it('rejects manifests whose chunk count does not match materialized data', async () => {
+    const manifest = await createLargeArrayManifest([{ id: 1 }], TEST_CONTEXT)
+    const forgedManifest = {
+      ...manifest,
+      totalCount: 2,
+      chunks: [{ ...manifest.chunks[0], count: 2 }],
+    }
+
+    expect(isLargeArrayManifest(forgedManifest)).toBe(true)
+    await expect(readLargeArrayManifestSlice(forgedManifest, 1, 1, TEST_CONTEXT)).rejects.toThrow(
+      'Large array manifest chunk count does not match materialized data'
+    )
   })
 
   it('rejects manifests with oversized preview metadata', async () => {

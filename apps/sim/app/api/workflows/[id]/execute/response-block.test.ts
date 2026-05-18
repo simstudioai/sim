@@ -5,10 +5,24 @@
  * @vitest-environment node
  */
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthType } from '@/lib/auth/hybrid'
+import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
+import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import type { ExecutionResult } from '@/lib/workflows/types'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
+
+const { mockUploadFile } = vi.hoisted(() => ({
+  mockUploadFile: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads', () => ({
+  StorageService: {
+    uploadFile: mockUploadFile,
+  },
+}))
 
 function buildExecutionResult(overrides: Partial<ExecutionResult> = {}): ExecutionResult {
   return {
@@ -38,6 +52,9 @@ describe('Response block gating by auth type', () => {
   let resultWithResponseBlock: ExecutionResult
 
   beforeEach(() => {
+    vi.clearAllMocks()
+    clearLargeValueCacheForTests()
+    mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
     resultWithResponseBlock = buildExecutionResult()
   })
 
@@ -111,5 +128,59 @@ describe('Response block gating by auth type', () => {
 
     const response = createHttpResponseFromBlock(result)
     expect(response.status).toBe(404)
+  })
+
+  it('should return manifest metadata directly for Response block data', async () => {
+    const output = await compactExecutionPayload(
+      {
+        data: {
+          rows: Array.from({ length: 120_000 }, (_, index) => ({
+            key: `SIM-${index}`,
+            payload: 'x'.repeat(100),
+          })),
+        },
+        status: 200,
+        headers: {},
+      },
+      {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        requireDurable: true,
+        preserveRoot: true,
+      }
+    )
+    const response = createHttpResponseFromBlock(buildExecutionResult({ output }))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(isLargeArrayManifest(body.rows)).toBe(true)
+    expect(body.success).toBeUndefined()
+  })
+
+  it('should keep large string Response block data bounded as a generic ref', async () => {
+    const output = await compactExecutionPayload(
+      {
+        data: {
+          text: 'x'.repeat(9 * 1024 * 1024),
+        },
+        status: 200,
+        headers: {},
+      },
+      {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        requireDurable: true,
+        preserveRoot: true,
+      }
+    )
+    const response = createHttpResponseFromBlock(buildExecutionResult({ output }))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(isLargeValueRef(body.text)).toBe(true)
   })
 })

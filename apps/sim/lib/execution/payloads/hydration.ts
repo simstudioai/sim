@@ -1,4 +1,4 @@
-import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import {
   type LargeValueStoreContext,

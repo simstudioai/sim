@@ -3,7 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
-import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { BlockType } from '@/executor/constants'
 import { VariablesBlockHandler } from '@/executor/handlers/variables/variables-handler'
 import type { ExecutionContext } from '@/executor/types'
