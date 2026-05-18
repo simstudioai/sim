@@ -127,9 +127,9 @@ function truncateContent(content: string, maxLength = 150, searchQuery = ''): st
 
 const CHUNK_COLUMNS: ResourceColumn[] = [
   { id: 'content', header: 'Content' },
-  { id: 'index', header: 'Index' },
-  { id: 'tokens', header: 'Tokens' },
-  { id: 'status', header: 'Status' },
+  { id: 'index', header: 'Index', widthPx: 100 },
+  { id: 'tokens', header: 'Tokens', widthPx: 100 },
+  { id: 'status', header: 'Status', widthPx: 120 },
 ]
 
 export function Document({

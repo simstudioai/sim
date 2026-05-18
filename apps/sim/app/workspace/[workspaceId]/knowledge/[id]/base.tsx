@@ -86,12 +86,12 @@ const DOCUMENTS_PER_PAGE = 50
 
 const DOCUMENT_COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
-  { id: 'size', header: 'Size' },
-  { id: 'tokens', header: 'Tokens' },
-  { id: 'chunks', header: 'Chunks' },
-  { id: 'uploaded', header: 'Uploaded' },
-  { id: 'status', header: 'Status' },
-  { id: 'tags', header: 'Tags' },
+  { id: 'size', header: 'Size', widthPx: 90 },
+  { id: 'tokens', header: 'Tokens', widthPx: 90 },
+  { id: 'chunks', header: 'Chunks', widthPx: 90 },
+  { id: 'uploaded', header: 'Uploaded', widthPx: 140 },
+  { id: 'status', header: 'Status', widthPx: 110 },
+  { id: 'tags', header: 'Tags', widthPx: 160 },
 ]
 
 interface KnowledgeBaseProps {
