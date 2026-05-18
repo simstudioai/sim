@@ -69,7 +69,11 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table'
-import { areOutputsFilled, optimisticallyScheduleNewlyEligibleGroups } from '@/lib/table/deps'
+import {
+  areOutputsFilled,
+  isExecInFlight,
+  optimisticallyScheduleNewlyEligibleGroups,
+} from '@/lib/table/deps'
 
 const logger = createLogger('TableQueries')
 
@@ -869,7 +873,7 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
         const nextExecutions: RowExecutions = { ...executions }
         for (const gid in executions) {
           const exec = executions[gid]
-          if (!isOptimisticInFlight(exec)) continue
+          if (!isExecInFlight(exec)) continue
           // Preserve blockErrors so cells that already errored keep their
           // Error rendering after the stop — only cells without a value or
           // error should flip to "Cancelled".
@@ -1251,14 +1255,6 @@ function buildPendingExec(
   }
 }
 
-/** Broader sibling of `isExecInFlight` from `lib/table/deps`: treats any
- *  `pending` (with or without a jobId) as in-flight. The optimistic-patch
- *  context uses this to avoid re-marking a cell we just flipped optimistically.
- *  The eligibility predicate uses the stricter version. */
-function isOptimisticInFlight(exec: RowExecutionMetadata | undefined): boolean {
-  return exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending'
-}
-
 /**
  * The single canonical run mutation. Every UI gesture (single cell, per-row
  * Play, action-bar Play/Refresh, column-header menu) maps to a `groupIds` +
@@ -1295,7 +1291,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         const nextData = { ...r.data }
         for (const groupId of targetGroupIds) {
           const exec = executions[groupId] as RowExecutionMetadata | undefined
-          if (isOptimisticInFlight(exec)) continue
+          if (isExecInFlight(exec)) continue
           // Mirror server eligibility for `mode: 'incomplete'`: skip cells whose
           // outputs are filled, regardless of exec status. A cancelled/error
           // cell with a leftover value from a prior run was rendering as filled

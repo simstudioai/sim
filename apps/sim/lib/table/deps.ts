@@ -10,18 +10,18 @@ import type { RowData, RowExecutionMetadata, RowExecutions, TableRow, WorkflowGr
 const logger = createLogger('OptimisticCascade')
 
 /**
- * True when the cell has a worker actively reserved — `queued` / `running`,
- * or `pending` after the scheduler stamped a jobId. Single source of truth
- * for the "is this exec in flight" classification across the eligibility
- * predicate, optimistic patches, status counters, and renderer. `pending`
- * without a jobId is the optimistic-flag-only state, not in-flight.
+ * True when the cell is `pending` / `queued` / `running`. Single source of
+ * truth for the "is this exec in flight" classification across the
+ * eligibility predicate, optimistic patches, status counters, and renderer.
+ * `pending` counts even without a jobId so the row-gutter Stop button is
+ * available the moment the user clicks Play — the cancel path writes
+ * `cancelled` authoritatively whether or not a real trigger.dev run exists
+ * yet, which is correct: cancel means "don't run this."
  */
 export function isExecInFlight(exec: RowExecutionMetadata | undefined): boolean {
   if (!exec) return false
   const s = exec.status
-  if (s === 'queued' || s === 'running') return true
-  if (s === 'pending' && exec.jobId) return true
-  return false
+  return s === 'queued' || s === 'running' || s === 'pending'
 }
 
 /**
