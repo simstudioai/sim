@@ -83,6 +83,7 @@ export interface PerformMcpServerResult {
   serverId?: string
   server?: typeof mcpServers.$inferSelect
   updated?: boolean
+  authType?: McpAuthType
 }
 
 async function validateMcpServerUrl(url: string): Promise<PerformMcpServerResult | null> {
@@ -198,7 +199,7 @@ export async function performCreateMcpServer(
       })
 
       await mcpService.clearCache(params.workspaceId)
-      return { success: true, serverId, updated: true }
+      return { success: true, serverId, updated: true, authType: resolvedAuthType }
     }
 
     await db.insert(mcpServers).values({
@@ -268,7 +269,7 @@ export async function performCreateMcpServer(
       request: params.request,
     })
 
-    return { success: true, serverId, updated: false }
+    return { success: true, serverId, updated: false, authType: resolvedAuthType }
   } catch (error) {
     logger.error('Failed to create MCP server', { error })
     return { success: false, error: 'Failed to register MCP server', errorCode: 'internal' }

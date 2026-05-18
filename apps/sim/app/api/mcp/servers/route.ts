@@ -115,8 +115,8 @@ export const POST = withRouteHandler(
 
         return createMcpSuccessResponse(
           result.updated
-            ? { serverId: result.serverId, updated: true }
-            : { serverId: result.serverId },
+            ? { serverId: result.serverId, updated: true, authType: result.authType }
+            : { serverId: result.serverId, authType: result.authType },
           result.updated ? 200 : 201
         )
       } catch (error) {
