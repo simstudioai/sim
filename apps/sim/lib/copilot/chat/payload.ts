@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
@@ -14,20 +15,10 @@ import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 const logger = createLogger('CopilotChatPayload')
 const TOOL_SCHEMA_CACHE_TTL_MS = 30_000
 
-type ToolSchemaCacheEntry = {
-  expiresAt: number
-  value?: ToolSchema[]
-  promise?: Promise<ToolSchema[]>
-}
-
-const toolSchemaCache = new Map<string, ToolSchemaCacheEntry>()
-
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, entry] of toolSchemaCache) {
-    if (entry.expiresAt <= now) toolSchemaCache.delete(key)
-  }
-}, TOOL_SCHEMA_CACHE_TTL_MS).unref()
+const toolSchemaCache = new LRUCache<string, Promise<ToolSchema[]>>({
+  max: 200,
+  ttl: TOOL_SCHEMA_CACHE_TTL_MS,
+})
 
 registerCache('toolSchemaCache', () => toolSchemaCache.size)
 
@@ -84,13 +75,10 @@ export async function buildIntegrationToolSchemas(
   workspaceId?: string
 ): Promise<ToolSchema[]> {
   const cacheKey = `${userId}:${workspaceId ?? ''}:${options.schemaSurface ?? 'copilot'}`
-  const now = Date.now()
+
   const cached = toolSchemaCache.get(cacheKey)
-  if (cached?.value && cached.expiresAt > now) {
-    return cached.value.map((tool) => ({ ...tool, input_schema: { ...tool.input_schema } }))
-  }
-  if (cached?.promise) {
-    const tools = await cached.promise
+  if (cached) {
+    const tools = await cached
     return tools.map((tool) => ({ ...tool, input_schema: { ...tool.input_schema } }))
   }
 
@@ -197,18 +185,10 @@ export async function buildIntegrationToolSchemas(
       )
     }
 
-    toolSchemaCache.set(cacheKey, {
-      value: integrationTools,
-      expiresAt: Date.now() + TOOL_SCHEMA_CACHE_TTL_MS,
-    })
-
     return integrationTools
   })()
 
-  toolSchemaCache.set(cacheKey, {
-    expiresAt: now + TOOL_SCHEMA_CACHE_TTL_MS,
-    promise,
-  })
+  toolSchemaCache.set(cacheKey, promise)
 
   const integrationTools = await promise
   return integrationTools.map((tool) => ({ ...tool, input_schema: { ...tool.input_schema } }))
