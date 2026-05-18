@@ -3,20 +3,8 @@ import {
   type ProspeoBulkEnrichCompanyParams,
   type ProspeoBulkEnrichCompanyResponse,
 } from '@/tools/prospeo/types'
+import { parseDataArray } from '@/tools/prospeo/utils'
 import type { ToolConfig } from '@/tools/types'
-
-function parseData(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value
-  if (typeof value === 'string' && value.trim().length > 0) {
-    try {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  }
-  return []
-}
 
 export const bulkEnrichCompanyTool: ToolConfig<
   ProspeoBulkEnrichCompanyParams,
@@ -50,7 +38,7 @@ export const bulkEnrichCompanyTool: ToolConfig<
       'X-KEY': params.apiKey,
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({ data: parseData(params.data) }),
+    body: (params) => ({ data: parseDataArray(params.data) }),
   },
 
   transformResponse: async (response: Response) => {

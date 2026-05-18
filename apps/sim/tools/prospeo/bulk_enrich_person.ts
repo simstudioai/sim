@@ -3,20 +3,8 @@ import {
   type ProspeoBulkEnrichPersonParams,
   type ProspeoBulkEnrichPersonResponse,
 } from '@/tools/prospeo/types'
+import { parseDataArray } from '@/tools/prospeo/utils'
 import type { ToolConfig } from '@/tools/types'
-
-function parseData(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value
-  if (typeof value === 'string' && value.trim().length > 0) {
-    try {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  }
-  return []
-}
 
 export const bulkEnrichPersonTool: ToolConfig<
   ProspeoBulkEnrichPersonParams,
@@ -69,7 +57,7 @@ export const bulkEnrichPersonTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: Record<string, unknown> = { data: parseData(params.data) }
+      const body: Record<string, unknown> = { data: parseDataArray(params.data) }
       if (params.only_verified_email !== undefined)
         body.only_verified_email = params.only_verified_email
       if (params.enrich_mobile !== undefined) body.enrich_mobile = params.enrich_mobile

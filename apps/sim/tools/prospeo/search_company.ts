@@ -4,22 +4,8 @@ import {
   type ProspeoSearchCompanyParams,
   type ProspeoSearchCompanyResponse,
 } from '@/tools/prospeo/types'
+import { parseFiltersObject } from '@/tools/prospeo/utils'
 import type { ToolConfig } from '@/tools/types'
-
-function parseFilters(value: unknown): Record<string, unknown> {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>
-  }
-  if (typeof value === 'string' && value.trim().length > 0) {
-    try {
-      const parsed = JSON.parse(value)
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>
-      }
-    } catch {}
-  }
-  return {}
-}
 
 export const searchCompanyTool: ToolConfig<
   ProspeoSearchCompanyParams,
@@ -60,7 +46,7 @@ export const searchCompanyTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: Record<string, unknown> = { filters: parseFilters(params.filters) }
+      const body: Record<string, unknown> = { filters: parseFiltersObject(params.filters) }
       if (params.page !== undefined) body.page = params.page
       return body
     },
