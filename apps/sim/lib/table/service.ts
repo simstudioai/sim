@@ -1453,7 +1453,7 @@ export async function queryRows(
   // Build ORDER BY clause (default to position ASC for stable ordering)
   let orderByClause
   if (sort && Object.keys(sort).length > 0) {
-    orderByClause = buildSortClause(sort, tableName)
+    orderByClause = buildSortClause(sort, tableName, options.columns)
   }
 
   // Execute query
