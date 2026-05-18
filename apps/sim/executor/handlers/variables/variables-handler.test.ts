@@ -81,6 +81,67 @@ describe('VariablesBlockHandler', () => {
     expect(mockUploadFile).not.toHaveBeenCalled()
   })
 
+  it('includes unmatched assignments in block output without mutating workflow variables', async () => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext()
+    const value = [{ key: 'SIM-1', summary: 'Transient issue' }]
+
+    const output = await handler.execute(ctx, createBlock(), {
+      variables: [
+        {
+          variableName: 'transientIssues',
+          type: 'array',
+          value,
+        },
+      ],
+    })
+
+    expect(ctx.workflowVariables).not.toHaveProperty('transientIssues')
+    expect(output).toEqual({ transientIssues: value })
+  })
+
+  it('keeps special unmatched assignment names as own output fields', async () => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext()
+    const value = { polluted: true }
+
+    const output = await handler.execute(ctx, createBlock(), {
+      variables: [
+        {
+          variableName: '__proto__',
+          type: 'object',
+          value,
+        },
+      ],
+    })
+
+    expect(Object.hasOwn(output, '__proto__')).toBe(true)
+    expect(output.__proto__).toEqual(value)
+    expect(Object.getPrototypeOf(output)).toBe(Object.prototype)
+  })
+
+  it('does not treat inherited prototype keys as existing workflow variable IDs', async () => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext()
+    const value = { safe: true }
+    const originalPrototype = Object.getPrototypeOf(ctx.workflowVariables)
+
+    const output = await handler.execute(ctx, createBlock(), {
+      variables: [
+        {
+          variableId: '__proto__',
+          variableName: 'prototypeAssignment',
+          type: 'object',
+          value,
+        },
+      ],
+    })
+
+    expect(Object.getPrototypeOf(ctx.workflowVariables)).toBe(originalPrototype)
+    expect(ctx.workflowVariables).not.toHaveProperty('__proto__')
+    expect(output).toEqual({ prototypeAssignment: value })
+  })
+
   it('stores oversized array assignments as durable manifests in variables and block output', async () => {
     const handler = new VariablesBlockHandler()
     const ctx = createContext()

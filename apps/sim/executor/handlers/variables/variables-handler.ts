@@ -9,6 +9,38 @@ import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('VariablesBlockHandler')
 
+function setOutputValue(output: Record<string, any>, key: string, value: any): void {
+  Object.defineProperty(output, key, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  })
+}
+
+function getWorkflowVariableEntry(
+  workflowVariables: Record<string, any>,
+  variableId: string | undefined
+): [string, any] | undefined {
+  if (!variableId || !Object.hasOwn(workflowVariables, variableId)) {
+    return undefined
+  }
+  return [variableId, workflowVariables[variableId]]
+}
+
+function setWorkflowVariableEntry(
+  workflowVariables: Record<string, any>,
+  id: string,
+  value: any
+): void {
+  Object.defineProperty(workflowVariables, id, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  })
+}
+
 export class VariablesBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
     const canHandle = block.metadata?.id === BlockType.VARIABLES
@@ -30,23 +62,21 @@ export class VariablesBlockHandler implements BlockHandler {
       const output: Record<string, any> = {}
 
       for (const assignment of assignments) {
-        const existingEntry = assignment.variableId
-          ? [assignment.variableId, ctx.workflowVariables[assignment.variableId]]
-          : Object.entries(ctx.workflowVariables).find(
-              ([_, v]) => v.name === assignment.variableName
-            )
+        const existingEntry =
+          getWorkflowVariableEntry(ctx.workflowVariables, assignment.variableId) ??
+          Object.entries(ctx.workflowVariables).find(([_, v]) => v.name === assignment.variableName)
         const value = await this.compactAssignmentValue(ctx, assignment.value)
 
         if (existingEntry?.[1]) {
           const [id, variable] = existingEntry
-          ctx.workflowVariables[id] = {
+          setWorkflowVariableEntry(ctx.workflowVariables, id, {
             ...variable,
             value,
-          }
-          output[assignment.variableName] = value
+          })
         } else {
           logger.warn(`Variable "${assignment.variableName}" not found in workflow variables`)
         }
+        setOutputValue(output, assignment.variableName, value)
       }
 
       return output

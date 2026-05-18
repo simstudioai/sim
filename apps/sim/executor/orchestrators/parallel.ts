@@ -13,8 +13,8 @@ import {
   emitEmptySubflowEvents,
   emitSubflowSuccessEvents,
   extractBranchIndex,
-  resolveArrayInputAsync,
 } from '@/executor/utils/subflow-utils'
+import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedParallel } from '@/serializer/types'
 

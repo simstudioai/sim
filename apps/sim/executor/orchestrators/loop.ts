@@ -22,8 +22,8 @@ import {
   emitEmptySubflowEvents,
   emitSubflowSuccessEvents,
   extractBaseBlockId,
-  resolveArrayInputAsync,
 } from '@/executor/utils/subflow-utils'
+import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedLoop } from '@/serializer/types'
 

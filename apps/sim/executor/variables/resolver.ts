@@ -268,7 +268,8 @@ export class VariableResolver {
     ctx: ExecutionContext,
     currentNodeId: string,
     reference: string,
-    loopScope?: LoopScope
+    loopScope?: LoopScope,
+    options: { allowLargeValueRefs?: boolean } = {}
   ): Promise<any> {
     if (typeof reference === 'string') {
       const trimmed = reference.trim()
@@ -278,6 +279,7 @@ export class VariableResolver {
           executionState: this.state,
           currentNodeId,
           loopScope,
+          allowLargeValueRefs: options.allowLargeValueRefs,
         }
 
         const result = await this.resolveReference(trimmed, resolutionContext)
