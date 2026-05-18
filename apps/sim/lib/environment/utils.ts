@@ -10,6 +10,7 @@ import {
   getAccessibleEnvCredentials,
   syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
+import { registerCache } from '@/lib/monitoring/cache-registry'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('EnvironmentUtils')
@@ -22,6 +23,15 @@ type EffectiveEnvCacheEntry = {
 }
 
 const effectiveEnvCache = new Map<string, EffectiveEnvCacheEntry>()
+
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, entry] of effectiveEnvCache) {
+    if (!entry.promise && entry.expiresAt <= now) effectiveEnvCache.delete(key)
+  }
+}, EFFECTIVE_ENV_CACHE_TTL_MS).unref()
+
+registerCache('effectiveEnvCache', () => effectiveEnvCache.size)
 
 function getEffectiveEnvCacheKey(userId: string, workspaceId?: string) {
   return `${userId}:${workspaceId ?? ''}`

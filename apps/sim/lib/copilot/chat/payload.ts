@@ -5,6 +5,7 @@ import { isPaid } from '@/lib/billing/plan-helpers'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
+import { registerCache } from '@/lib/monitoring/cache-registry'
 import { buildMothershipToolsForRequest } from '@/lib/mothership/settings/runtime'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { tools } from '@/tools/registry'
@@ -27,6 +28,8 @@ setInterval(() => {
     if (entry.expiresAt <= now) toolSchemaCache.delete(key)
   }
 }, TOOL_SCHEMA_CACHE_TTL_MS).unref()
+
+registerCache('toolSchemaCache', () => toolSchemaCache.size)
 
 interface BuildPayloadParams {
   message: string
