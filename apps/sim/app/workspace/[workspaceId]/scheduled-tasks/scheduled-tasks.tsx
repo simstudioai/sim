@@ -50,8 +50,8 @@ function getScheduleDescription(s: WorkspaceScheduleData) {
 const COLUMNS: ResourceColumn[] = [
   { id: 'task', header: 'Task' },
   { id: 'schedule', header: 'Schedule', widthMultiplier: 1.5 },
-  { id: 'nextRun', header: 'Next Run' },
-  { id: 'lastRun', header: 'Last Run' },
+  { id: 'nextRun', header: 'Next Run', widthPx: 160 },
+  { id: 'lastRun', header: 'Last Run', widthPx: 160 },
 ]
 
 export function ScheduledTasks() {

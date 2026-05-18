@@ -43,12 +43,12 @@ interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
-  { id: 'documents', header: 'Documents' },
-  { id: 'tokens', header: 'Tokens' },
-  { id: 'connectors', header: 'Connectors' },
-  { id: 'created', header: 'Created' },
-  { id: 'owner', header: 'Owner' },
-  { id: 'updated', header: 'Last Updated' },
+  { id: 'documents', header: 'Documents', widthPx: 110 },
+  { id: 'tokens', header: 'Tokens', widthPx: 90 },
+  { id: 'connectors', header: 'Connectors', widthPx: 130 },
+  { id: 'created', header: 'Created', widthPx: 140 },
+  { id: 'owner', header: 'Owner', widthPx: 150 },
+  { id: 'updated', header: 'Last Updated', widthPx: 140 },
 ]
 
 const DATABASE_ICON = <Database className='size-[14px]' />
