@@ -78,6 +78,7 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
       placeholder: '["CEO", "Founder"]',
       condition: { field: 'operation', value: 'findymail_find_emails_by_domain' },
       wandConfig: {
+        enabled: true,
         prompt:
           'Generate a JSON array of job roles/titles to target at the company (max 3). Return ONLY the JSON array - no explanations, no extra text.',
         placeholder: 'e.g. CEO, Founder, CTO',
@@ -152,6 +153,7 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
       placeholder: '["Software Engineer", "CEO"]',
       condition: { field: 'operation', value: 'findymail_find_employees' },
       wandConfig: {
+        enabled: true,
         prompt:
           'Generate a JSON array of job titles to search for at the company (max 10). Return ONLY the JSON array - no explanations, no extra text.',
         placeholder: 'e.g. Software Engineer, CEO, Product Manager',
@@ -183,6 +185,7 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
       placeholder: 'React',
       condition: { field: 'operation', value: 'findymail_search_technologies' },
       wandConfig: {
+        enabled: true,
         prompt:
           'Generate a technology search term to look up in the Findymail technology catalog. Return ONLY the search term - no explanations, no extra text.',
         placeholder: 'e.g. React, Stripe, Salesforce',
@@ -205,6 +208,7 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
       condition: { field: 'operation', value: 'findymail_lookup_technologies' },
       mode: 'advanced',
       wandConfig: {
+        enabled: true,
         prompt:
           'Generate a JSON array of technology names to filter by (case-insensitive). Return ONLY the JSON array - no explanations, no extra text.',
         placeholder: 'e.g. React, TypeScript, Node.js',
