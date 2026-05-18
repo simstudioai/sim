@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
-import { compactExecutionPayload, compactSubflowResults } from '@/lib/execution/payloads/serializer'
+import { compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
 import { buildLoopIndexCondition, DEFAULTS, EDGE, PARALLEL } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
@@ -252,13 +252,13 @@ export class LoopOrchestrator {
     }
 
     if (iterationResults.length > 0) {
-      const compactedIterationResults = (await compactExecutionPayload(iterationResults, {
+      const compactedIterationResults = await compactSubflowResults(iterationResults, {
         workspaceId: ctx.workspaceId,
         workflowId: ctx.workflowId,
         executionId: ctx.executionId,
         userId: ctx.userId,
         requireDurable: true,
-      })) as NormalizedBlockOutput[]
+      })
       scope.allIterationOutputs.push(compactedIterationResults)
     }
 

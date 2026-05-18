@@ -3,7 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
-import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { EDGE } from '@/executor/constants'
 import { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import type { ExecutionContext } from '@/executor/types'
@@ -99,6 +99,8 @@ describe('LoopOrchestrator', () => {
     await orchestrator.evaluateLoopContinuation(ctx, 'loop-1')
 
     const output = setBlockOutput.mock.calls[0][1]
-    expect(isLargeValueRef(output.results[0][0].result)).toBe(true)
+    expect(Array.isArray(output.results[0])).toBe(true)
+    expect(isLargeArrayManifest(output.results[0][0].result)).toBe(true)
+    expect(output.results[0][0].result.totalCount).toBe(200_000)
   })
 })
