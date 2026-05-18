@@ -5,6 +5,7 @@
 
 import v8 from 'node:v8'
 import { createLogger } from '@sim/logger'
+import { getCacheSizes } from '@/lib/monitoring/cache-registry'
 
 const logger = createLogger('MemoryTelemetry', { logLevel: 'INFO' })
 
@@ -33,6 +34,7 @@ export function startMemoryTelemetry(intervalMs = 60_000) {
           ? process.getActiveResourcesInfo().length
           : -1,
       uptimeMin: Math.round(process.uptime() / 60),
+      cacheSizes: getCacheSizes(),
     })
   }, intervalMs)
   timer.unref()
