@@ -281,7 +281,7 @@ export const ResourceTable = memo(function ResourceTable({
 
   return (
     <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
-      <div className='min-h-0 flex-1 overflow-auto'>
+      <div className='min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]'>
         <table className='w-full table-fixed text-small'>
           <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
           <thead className='sticky top-0 z-10 bg-[var(--bg)] shadow-[inset_0_-1px_0_var(--border)]'>
