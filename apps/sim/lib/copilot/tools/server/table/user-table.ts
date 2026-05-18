@@ -474,6 +474,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
+          const table = await getTableById(args.tableId)
+          if (!table) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+
           const requestId = generateId().slice(0, 8)
           const result = await queryRows(
             args.tableId,
@@ -483,6 +488,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               sort: args.sort,
               limit: args.limit,
               offset: args.offset,
+              columns: table.schema.columns,
             },
             requestId
           )
@@ -605,6 +611,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
+          const table = await getTableById(args.tableId)
+          if (!table) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const result = await deleteRowsByFilter(
@@ -614,6 +625,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               limit: args.limit,
               workspaceId,
             },
+            table,
             requestId
           )
 

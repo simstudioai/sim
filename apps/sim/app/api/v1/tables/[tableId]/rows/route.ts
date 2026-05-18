@@ -158,8 +158,10 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       eq(userTableRows.workspaceId, validated.workspaceId),
     ]
 
+    const schema = table.schema as TableSchema
+
     if (validated.filter) {
-      const filterClause = buildFilterClause(validated.filter as Filter, USER_TABLE_ROWS_SQL_NAME)
+      const filterClause = buildFilterClause(validated.filter as Filter, USER_TABLE_ROWS_SQL_NAME, schema.columns)
       if (filterClause) {
         baseConditions.push(filterClause)
       }
@@ -177,7 +179,6 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       .where(and(...baseConditions))
 
     if (validated.sort) {
-      const schema = table.schema as TableSchema
       const sortClause = buildSortClause(validated.sort, USER_TABLE_ROWS_SQL_NAME, schema.columns)
       if (sortClause) {
         query = query.orderBy(sortClause) as typeof query
@@ -490,6 +491,7 @@ export const DELETE = withRouteHandler(
           limit: validated.limit,
           workspaceId: validated.workspaceId,
         },
+        table,
         requestId
       )
 

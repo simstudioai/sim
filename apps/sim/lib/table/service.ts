@@ -1435,7 +1435,7 @@ export async function queryRows(
 
   let whereClause = baseConditions
   if (filter && Object.keys(filter).length > 0) {
-    const filterClause = buildFilterClause(filter, tableName)
+    const filterClause = buildFilterClause(filter, tableName, options.columns)
     if (filterClause) {
       whereClause = and(baseConditions, filterClause)
     }
@@ -1818,7 +1818,7 @@ export async function updateRowsByFilter(
 ): Promise<BulkOperationResult> {
   const tableName = USER_TABLE_ROWS_SQL_NAME
 
-  const filterClause = buildFilterClause(data.filter, tableName)
+  const filterClause = buildFilterClause(data.filter, tableName, (table.schema as TableSchema).columns)
   if (!filterClause) {
     throw new Error('Filter is required for bulk update')
   }
@@ -2119,17 +2119,19 @@ async function recompactPositions(tableId: string, trx: DbTransaction, minDelete
  * Deletes multiple rows matching a filter.
  *
  * @param data - Bulk delete data
+ * @param table - Table definition used to emit correct SQL casts in filter expressions
  * @param requestId - Request ID for logging
  * @returns Bulk operation result
  */
 export async function deleteRowsByFilter(
   data: BulkDeleteData,
+  table: TableDefinition,
   requestId: string
 ): Promise<BulkOperationResult> {
   const tableName = USER_TABLE_ROWS_SQL_NAME
 
   // Build filter clause
-  const filterClause = buildFilterClause(data.filter, tableName)
+  const filterClause = buildFilterClause(data.filter, tableName, (table.schema as TableSchema).columns)
   if (!filterClause) {
     throw new Error('Filter is required for bulk delete')
   }

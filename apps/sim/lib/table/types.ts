@@ -227,6 +227,8 @@ export interface QueryOptions {
    * is returned as `null` to signal it was not computed.
    */
   includeTotal?: boolean
+  /** Column definitions used to emit correct SQL casts for date/number fields in filter expressions. */
+  columns?: ColumnDefinition[]
 }
 
 export interface QueryResult {
