@@ -194,6 +194,7 @@ class McpService {
     if (!userId || !config.workspaceId) {
       throw new Error('OAuth MCP server requires both userId and workspaceId')
     }
+    const workspaceId = config.workspaceId
 
     // Load the row inside the refresh lock so concurrent callers observe tokens
     // written by a predecessor refresh, rather than a stale snapshot. Without
@@ -204,7 +205,7 @@ class McpService {
       const row = await getOrCreateOauthRow({
         mcpServerId: config.id,
         userId,
-        workspaceId: config.workspaceId,
+        workspaceId,
       })
       if (!row.tokens) {
         throw new McpOauthAuthorizationRequiredError(config.id, config.name)
