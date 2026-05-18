@@ -66,7 +66,7 @@ function releaseSlot(key: string): void {
     return
   }
   s.available += 1
-  if (s.waiters.length === 0 && s.available === s.limit) {
+  if (s.available === s.limit) {
     semaphores.delete(key)
   }
 }
