@@ -229,8 +229,9 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
         }
       },
       params: (params) => {
+        const { operation: _operation, ...rest } = params
         const result: Record<string, unknown> = {}
-        for (const [key, value] of Object.entries(params)) {
+        for (const [key, value] of Object.entries(rest)) {
           if (value === undefined || value === null || value === '') continue
           if (key === 'count') {
             const n = Number(value)
