@@ -64,8 +64,13 @@ const ALLOWED_OPERATORS = new Set([
  * // Logical operators
  * buildFilterClause({ $or: [{ status: 'active' }, { verified: true }] }, 'user_table_rows')
  */
-export function buildFilterClause(filter: Filter, tableName: string): SQL | undefined {
+export function buildFilterClause(
+  filter: Filter,
+  tableName: string,
+  columns?: ColumnDefinition[]
+): SQL | undefined {
   const conditions: SQL[] = []
+  const columnTypeMap = new Map(columns?.map((col) => [col.name, col.type]))
 
   for (const [field, condition] of Object.entries(filter)) {
     if (condition === undefined) {
@@ -75,7 +80,7 @@ export function buildFilterClause(filter: Filter, tableName: string): SQL | unde
     // This represents a case where the filter is a logical OR of multiple filters
     // e.g. { $or: [{ status: 'active' }, { status: 'pending' }] }
     if (field === '$or' && Array.isArray(condition)) {
-      const orClause = buildLogicalClause(condition as Filter[], tableName, 'OR')
+      const orClause = buildLogicalClause(condition as Filter[], tableName, 'OR', columns)
       if (orClause) {
         conditions.push(orClause)
       }
@@ -85,7 +90,7 @@ export function buildFilterClause(filter: Filter, tableName: string): SQL | unde
     // This represents a case where the filter is a logical AND of multiple filters
     // e.g. { $and: [{ status: 'active' }, { status: 'pending' }] }
     if (field === '$and' && Array.isArray(condition)) {
-      const andClause = buildLogicalClause(condition as Filter[], tableName, 'AND')
+      const andClause = buildLogicalClause(condition as Filter[], tableName, 'AND', columns)
       if (andClause) {
         conditions.push(andClause)
       }
@@ -103,7 +108,8 @@ export function buildFilterClause(filter: Filter, tableName: string): SQL | unde
     const fieldConditions = buildFieldCondition(
       tableName,
       field,
-      condition as JsonValue | ConditionOperators
+      condition as JsonValue | ConditionOperators,
+      columnTypeMap.get(field)
     )
     conditions.push(...fieldConditions)
   }
@@ -208,7 +214,8 @@ function validateOperator(operator: string): void {
 function buildFieldCondition(
   tableName: string,
   field: string,
-  condition: JsonValue | ConditionOperators
+  condition: JsonValue | ConditionOperators,
+  columnType?: string
 ): SQL[] {
   validateFieldName(field)
 
@@ -231,19 +238,19 @@ function buildFieldCondition(
           break
 
         case '$gt':
-          conditions.push(buildComparisonClause(tableName, field, '>', value as number))
+          conditions.push(buildComparisonClause(tableName, field, '>', value as number | string, columnType))
           break
 
         case '$gte':
-          conditions.push(buildComparisonClause(tableName, field, '>=', value as number))
+          conditions.push(buildComparisonClause(tableName, field, '>=', value as number | string, columnType))
           break
 
         case '$lt':
-          conditions.push(buildComparisonClause(tableName, field, '<', value as number))
+          conditions.push(buildComparisonClause(tableName, field, '<', value as number | string, columnType))
           break
 
         case '$lte':
-          conditions.push(buildComparisonClause(tableName, field, '<=', value as number))
+          conditions.push(buildComparisonClause(tableName, field, '<=', value as number | string, columnType))
           break
 
         case '$in':
@@ -312,11 +319,12 @@ function buildFieldCondition(
 function buildLogicalClause(
   subFilters: Filter[],
   tableName: string,
-  operator: 'OR' | 'AND'
+  operator: 'OR' | 'AND',
+  columns?: ColumnDefinition[]
 ): SQL | undefined {
   const clauses: SQL[] = []
   for (const subFilter of subFilters) {
-    const clause = buildFilterClause(subFilter, tableName)
+    const clause = buildFilterClause(subFilter, tableName, columns)
     if (clause) {
       clauses.push(clause)
     }
@@ -334,15 +342,24 @@ function buildContainmentClause(tableName: string, field: string, value: JsonVal
   return sql`${sql.raw(`${tableName}.data`)} @> ${jsonObj}::jsonb`
 }
 
-/** Builds numeric comparison: `(data->>'field')::numeric <op> value` (cannot use GIN index) */
+/**
+ * Builds a range comparison: `(data->>'field')::<type> <op> value` (cannot use GIN index).
+ * Uses `::timestamp` when `columnType === 'date'`, otherwise `::numeric`.
+ */
 function buildComparisonClause(
   tableName: string,
   field: string,
   operator: '>' | '>=' | '<' | '<=',
-  value: number
+  value: number | string,
+  columnType?: string
 ): SQL {
   const escapedField = field.replace(/'/g, "''")
-  return sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric ${sql.raw(operator)} ${value}`
+  const extract = sql.raw(`${tableName}.data->>'${escapedField}'`)
+  const isDate = columnType === 'date'
+  if (isDate) {
+    return sql`(${extract})::timestamp ${sql.raw(operator)} ${value}::timestamp`
+  }
+  return sql`(${extract})::numeric ${sql.raw(operator)} ${value}`
 }
 
 /** Escapes LIKE/ILIKE wildcard characters so they match literally */
