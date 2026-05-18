@@ -3,10 +3,11 @@
  */
 
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
+import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { and, eq, isNull } from 'drizzle-orm'
 import { isTest } from '@/lib/core/config/feature-flags'
@@ -31,7 +32,6 @@ import {
   type McpCacheStorageAdapter,
 } from '@/lib/mcp/storage'
 import {
-  type McpClientOptions,
   McpOauthAuthorizationRequiredError,
   type McpServerConfig,
   type McpServerStatusConfig,
@@ -181,12 +181,34 @@ class McpService {
       allowedOrigins: config.url ? [new URL(config.url).origin] : undefined,
     }
 
-    let authProvider: McpClientOptions['authProvider']
-    let rowId: string | undefined
-    if (config.authType === 'oauth') {
-      if (!userId || !config.workspaceId) {
-        throw new Error('OAuth MCP server requires both userId and workspaceId')
-      }
+    if (config.authType !== 'oauth') {
+      const client = new McpClient({
+        config,
+        securityPolicy,
+        resolvedIP: resolvedIP ?? undefined,
+      })
+      await client.connect()
+      return client
+    }
+
+    if (!userId || !config.workspaceId) {
+      throw new Error('OAuth MCP server requires both userId and workspaceId')
+    }
+
+    const initialRow = await getOrCreateOauthRow({
+      mcpServerId: config.id,
+      userId,
+      workspaceId: config.workspaceId,
+    })
+    if (!initialRow.tokens) {
+      throw new McpOauthAuthorizationRequiredError(config.id, config.name)
+    }
+
+    // Re-read the row inside the lock so concurrent callers observe tokens
+    // written by a predecessor refresh, rather than the stale snapshot loaded
+    // before lock acquisition. Without this, the second caller's provider holds
+    // a rotated-out refresh token and the SDK trips `invalid_grant`.
+    return withMcpOauthRefreshLock(initialRow.id, async () => {
       const row = await getOrCreateOauthRow({
         mcpServerId: config.id,
         userId,
@@ -195,12 +217,8 @@ class McpService {
       if (!row.tokens) {
         throw new McpOauthAuthorizationRequiredError(config.id, config.name)
       }
-      rowId = row.id
       const preregistered = await loadPreregisteredClient(config.id)
-      authProvider = new SimMcpOauthProvider({ row, preregistered })
-    }
-
-    const connect = async () => {
+      const authProvider = new SimMcpOauthProvider({ row, preregistered })
       const client = new McpClient({
         config,
         securityPolicy,
@@ -209,9 +227,7 @@ class McpService {
       })
       await client.connect()
       return client
-    }
-
-    return rowId ? withMcpOauthRefreshLock(rowId, connect) : connect()
+    })
   }
 
   /**
@@ -273,17 +289,16 @@ class McpService {
   }
 
   /**
-   * Check if an error indicates a session-related issue that might be resolved by retry
+   * Detects an expired or unknown `Mcp-Session-Id` so the caller can retry.
+   * Per MCP spec, the server returns HTTP 404 for an unknown session id and
+   * may return 400 when the session header is malformed; the SDK surfaces
+   * both as `StreamableHTTPError` with a typed numeric `code` field.
    */
   private isSessionError(error: unknown): boolean {
-    const message = toError(error).message
-    const lowerMessage = message.toLowerCase()
-    return (
-      lowerMessage.includes('session') ||
-      lowerMessage.includes('400') ||
-      lowerMessage.includes('404') ||
-      lowerMessage.includes('no valid session')
-    )
+    if (error instanceof StreamableHTTPError) {
+      return error.code === 404 || error.code === 400
+    }
+    return false
   }
 
   /**
