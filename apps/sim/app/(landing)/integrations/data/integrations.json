@@ -2540,9 +2540,17 @@
       {
         "name": "Describe Alarms",
         "description": "List and filter CloudWatch alarms"
+      },
+      {
+        "name": "Mute Alarm",
+        "description": "Create a CloudWatch alarm mute rule that suppresses alarms for a fixed duration"
+      },
+      {
+        "name": "Unmute Alarm",
+        "description": "Delete a CloudWatch alarm mute rule, restoring alarm notifications"
       }
     ],
-    "operationCount": 8,
+    "operationCount": 10,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
@@ -4043,11 +4051,11 @@
     "operations": [
       {
         "name": "Read",
-        "description": "Get a workspace file object from a selected file or canonical workspace file ID."
+        "description": "Read workspace file objects from selected files or canonical workspace file IDs."
       },
       {
         "name": "Fetch",
-        "description": "Parse a file from a URL with optional custom headers for authenticated downloads."
+        "description": "Fetch and parse a file from a URL with optional custom headers."
       },
       {
         "name": "Write",
@@ -10386,6 +10394,57 @@
     "category": "tools",
     "integrationTypes": ["analytics", "search"],
     "tags": ["seo", "data-analytics"]
+  },
+  {
+    "type": "prospeo",
+    "slug": "prospeo",
+    "name": "Prospeo",
+    "description": "Enrich and search B2B contacts and companies",
+    "longDescription": "Find verified work emails and mobile numbers, enrich person and company profiles, and search a B2B database of leads and companies using 20+ filters.",
+    "bgColor": "#FF1A26",
+    "iconName": "ProspeoIcon",
+    "docsUrl": "https://docs.sim.ai/tools/prospeo",
+    "operations": [
+      {
+        "name": "Enrich Person",
+        "description": "Enrich a person with complete B2B profile data, email address and mobile."
+      },
+      {
+        "name": "Enrich Company",
+        "description": "Enrich a company with complete B2B data."
+      },
+      {
+        "name": "Bulk Enrich Person",
+        "description": "Enrich up to 50 person records at once."
+      },
+      {
+        "name": "Bulk Enrich Company",
+        "description": "Enrich up to 50 company records at once."
+      },
+      {
+        "name": "Search Person",
+        "description": "Search for leads using 20+ filters to build targeted contact lists."
+      },
+      {
+        "name": "Search Company",
+        "description": "Search for companies using 20+ filters to build account lists."
+      },
+      {
+        "name": "Search Suggestions",
+        "description": "Free endpoint to retrieve valid location or job title values for use in Search filters. Provide exactly one of location_search or job_title_search."
+      },
+      {
+        "name": "Account Information",
+        "description": "Retrieve the current plan, remaining credits, and renewal date of your Prospeo account."
+      }
+    ],
+    "operationCount": 8,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["sales"],
+    "tags": ["enrichment", "sales-engagement"]
   },
   {
     "type": "pulse_v2",

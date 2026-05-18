@@ -2049,6 +2049,16 @@ import {
   profoundSentimentReportTool,
   profoundVisibilityReportTool,
 } from '@/tools/profound'
+import {
+  prospeoAccountInformationTool,
+  prospeoBulkEnrichCompanyTool,
+  prospeoBulkEnrichPersonTool,
+  prospeoEnrichCompanyTool,
+  prospeoEnrichPersonTool,
+  prospeoSearchCompanyTool,
+  prospeoSearchPersonTool,
+  prospeoSearchSuggestionsTool,
+} from '@/tools/prospeo'
 import { pulseParserTool, pulseParserV2Tool } from '@/tools/pulse'
 import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdrant'
 import { quiverImageToSvgTool, quiverListModelsTool, quiverTextToSvgTool } from '@/tools/quiver'
@@ -5273,6 +5283,14 @@ export const tools: Record<string, ToolConfig> = {
   hunter_email_verifier: hunterEmailVerifierTool,
   hunter_companies_find: hunterCompaniesFindTool,
   hunter_email_count: hunterEmailCountTool,
+  prospeo_account_information: prospeoAccountInformationTool,
+  prospeo_enrich_person: prospeoEnrichPersonTool,
+  prospeo_enrich_company: prospeoEnrichCompanyTool,
+  prospeo_bulk_enrich_person: prospeoBulkEnrichPersonTool,
+  prospeo_bulk_enrich_company: prospeoBulkEnrichCompanyTool,
+  prospeo_search_person: prospeoSearchPersonTool,
+  prospeo_search_company: prospeoSearchCompanyTool,
+  prospeo_search_suggestions: prospeoSearchSuggestionsTool,
   iam_list_users: iamListUsersTool,
   iam_get_user: iamGetUserTool,
   iam_create_user: iamCreateUserTool,
