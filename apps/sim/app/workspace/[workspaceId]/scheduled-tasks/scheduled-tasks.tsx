@@ -22,7 +22,11 @@ import type {
   ResourceRow,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
+import {
+  EMPTY_CELL_PLACEHOLDER,
+  Resource,
+  timeCell,
+} from '@/app/workspace/[workspaceId]/components'
 import { ScheduleModal } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/create-schedule-modal'
 import { ScheduleContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-context-menu'
 import { ScheduleListContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-list-context-menu'
@@ -44,14 +48,14 @@ function getScheduleDescription(s: WorkspaceScheduleData) {
     const timing = parseCronToHumanReadable(s.cronExpression, s.timezone)
     return `Recurring, ${timing.charAt(0).toLowerCase()}${timing.slice(1)}`
   }
-  return '-  -  -'
+  return EMPTY_CELL_PLACEHOLDER
 }
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'task', header: 'Task' },
-  { id: 'schedule', header: 'Schedule', widthMultiplier: 1.5 },
-  { id: 'nextRun', header: 'Next Run', widthPx: 160 },
-  { id: 'lastRun', header: 'Last Run', widthPx: 160 },
+  { id: 'schedule', header: 'Schedule' },
+  { id: 'nextRun', header: 'Next Run' },
+  { id: 'lastRun', header: 'Last Run' },
 ]
 
 export function ScheduledTasks() {
