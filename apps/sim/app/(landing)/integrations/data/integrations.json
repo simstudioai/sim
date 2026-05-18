@@ -10459,6 +10459,57 @@
     "tags": ["seo", "data-analytics"]
   },
   {
+    "type": "prospeo",
+    "slug": "prospeo",
+    "name": "Prospeo",
+    "description": "Enrich and search B2B contacts and companies",
+    "longDescription": "Find verified work emails and mobile numbers, enrich person and company profiles, and search a B2B database of leads and companies using 20+ filters.",
+    "bgColor": "#FF1A26",
+    "iconName": "ProspeoIcon",
+    "docsUrl": "https://docs.sim.ai/tools/prospeo",
+    "operations": [
+      {
+        "name": "Enrich Person",
+        "description": "Enrich a person with complete B2B profile data, email address and mobile."
+      },
+      {
+        "name": "Enrich Company",
+        "description": "Enrich a company with complete B2B data."
+      },
+      {
+        "name": "Bulk Enrich Person",
+        "description": "Enrich up to 50 person records at once."
+      },
+      {
+        "name": "Bulk Enrich Company",
+        "description": "Enrich up to 50 company records at once."
+      },
+      {
+        "name": "Search Person",
+        "description": "Search for leads using 20+ filters to build targeted contact lists."
+      },
+      {
+        "name": "Search Company",
+        "description": "Search for companies using 20+ filters to build account lists."
+      },
+      {
+        "name": "Search Suggestions",
+        "description": "Free endpoint to retrieve valid location or job title values for use in Search filters. Provide exactly one of location_search or job_title_search."
+      },
+      {
+        "name": "Account Information",
+        "description": "Retrieve the current plan, remaining credits, and renewal date of your Prospeo account."
+      }
+    ],
+    "operationCount": 8,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["sales"],
+    "tags": ["enrichment", "sales-engagement"]
+  },
+  {
     "type": "pulse_v2",
     "slug": "pulse",
     "name": "Pulse",
