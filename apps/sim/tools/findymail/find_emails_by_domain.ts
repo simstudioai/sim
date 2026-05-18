@@ -49,6 +49,16 @@ export const findEmailsByDomainTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error:
+          (errorData as Record<string, string>).message ||
+          `Findymail API error: ${response.status} ${response.statusText}`,
+        output: { contacts: [] },
+      }
+    }
     const data = await response.json()
     const raw = data.contacts ?? data.payload?.contacts ?? []
     const contacts = Array.isArray(raw)

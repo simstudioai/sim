@@ -44,14 +44,32 @@ export const searchTechnologiesTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error:
+          (errorData as Record<string, string>).message ||
+          `Findymail API error: ${response.status} ${response.statusText}`,
+        output: { technologies: [] },
+      }
+    }
     const data = await response.json()
     const raw = data.data ?? []
     const technologies = Array.isArray(raw)
-      ? raw.map((t: { name?: string; category?: string; subcategory?: string }) => ({
-          name: t.name ?? '',
-          category: t.category ?? null,
-          subcategory: t.subcategory ?? null,
-        }))
+      ? raw.map(
+          (t: {
+            name?: string
+            category?: string
+            subcategory?: string
+            last_detected_at?: string
+          }) => ({
+            name: t.name ?? '',
+            category: t.category ?? null,
+            subcategory: t.subcategory ?? null,
+            last_detected_at: t.last_detected_at ?? null,
+          })
+        )
       : []
     return { success: true, output: { technologies } }
   },

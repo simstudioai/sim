@@ -56,6 +56,23 @@ export const getCompanyTool: ToolConfig<FindymailGetCompanyParams, FindymailGetC
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error:
+          (errorData as Record<string, string>).message ||
+          `Findymail API error: ${response.status} ${response.statusText}`,
+        output: {
+          name: null,
+          domain: null,
+          company_size: null,
+          industry: null,
+          linkedin_url: null,
+          description: null,
+        },
+      }
+    }
     const data = await response.json()
     return {
       success: true,

@@ -36,6 +36,16 @@ export const findPhoneTool: ToolConfig<FindymailFindPhoneParams, FindymailFindPh
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error:
+          (errorData as Record<string, string>).message ||
+          `Findymail API error: ${response.status} ${response.statusText}`,
+        output: { phone: null, line_type: null },
+      }
+    }
     const data = await response.json()
     return {
       success: true,

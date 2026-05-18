@@ -50,6 +50,36 @@ export const reverseEmailLookupTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error:
+          (errorData as Record<string, string>).message ||
+          `Findymail API error: ${response.status} ${response.statusText}`,
+        output: {
+          email: null,
+          linkedin_url: null,
+          fullName: null,
+          username: null,
+          headline: null,
+          jobTitle: null,
+          summary: null,
+          city: null,
+          region: null,
+          country: null,
+          companyLinkedinUrl: null,
+          companyName: null,
+          companyWebsite: null,
+          isPremium: null,
+          isOpenProfile: null,
+          skills: [],
+          jobs: [],
+          educations: [],
+          certificates: [],
+        },
+      }
+    }
     const data = await response.json()
     return {
       success: true,

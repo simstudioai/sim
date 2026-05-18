@@ -38,6 +38,16 @@ export const verifyEmailTool: ToolConfig<FindymailVerifyEmailParams, FindymailVe
     },
 
     transformResponse: async (response: Response) => {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        return {
+          success: false,
+          error:
+            (errorData as Record<string, string>).message ||
+            `Findymail API error: ${response.status} ${response.statusText}`,
+          output: { email: '', verified: false, provider: null },
+        }
+      }
       const data = await response.json()
       return {
         success: true,

@@ -62,6 +62,16 @@ export const findEmployeesTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error:
+          (errorData as Record<string, string>).message ||
+          `Findymail API error: ${response.status} ${response.statusText}`,
+        output: { employees: [] },
+      }
+    }
     const data = await response.json()
     const raw = Array.isArray(data) ? data : (data.data ?? [])
     const employees = Array.isArray(raw)

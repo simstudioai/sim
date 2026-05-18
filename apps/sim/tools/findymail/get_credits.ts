@@ -29,6 +29,16 @@ export const getCreditsTool: ToolConfig<FindymailGetCreditsParams, FindymailGetC
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error:
+          (errorData as Record<string, string>).message ||
+          `Findymail API error: ${response.status} ${response.statusText}`,
+        output: { credits: 0, verifier_credits: 0 },
+      }
+    }
     const data = await response.json()
     return {
       success: true,
