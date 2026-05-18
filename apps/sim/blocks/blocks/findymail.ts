@@ -37,7 +37,7 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
     },
     // Find Email From Name
     {
-      id: 'name',
+      id: 'fn_name',
       title: 'Full Name',
       type: 'short-input',
       required: true,
@@ -45,7 +45,7 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
       condition: { field: 'operation', value: 'findymail_find_email_from_name' },
     },
     {
-      id: 'domain',
+      id: 'fn_domain',
       title: 'Company Domain or Name',
       type: 'short-input',
       required: true,
@@ -54,7 +54,7 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
     },
     // Find Email From LinkedIn
     {
-      id: 'linkedin_url',
+      id: 'fefl_linkedin_url',
       title: 'LinkedIn URL',
       type: 'short-input',
       required: true,
@@ -63,7 +63,7 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
     },
     // Find Emails By Domain
     {
-      id: 'domain',
+      id: 'fed_domain',
       title: 'Domain',
       type: 'short-input',
       required: true,
@@ -77,10 +77,15 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
       required: true,
       placeholder: '["CEO", "Founder"]',
       condition: { field: 'operation', value: 'findymail_find_emails_by_domain' },
+      wandConfig: {
+        prompt:
+          'Generate a JSON array of job roles/titles to target at the company (max 3). Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'e.g. CEO, Founder, CTO',
+      },
     },
     // Verify Email
     {
-      id: 'email',
+      id: 've_email',
       title: 'Email Address',
       type: 'short-input',
       required: true,
@@ -89,7 +94,7 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
     },
     // Reverse Email Lookup
     {
-      id: 'email',
+      id: 'rel_email',
       title: 'Email Address',
       type: 'short-input',
       required: true,
@@ -99,27 +104,32 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
     {
       id: 'with_profile',
       title: 'Return Full Profile',
-      type: 'switch',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
       condition: { field: 'operation', value: 'findymail_reverse_email_lookup' },
       mode: 'advanced',
     },
     // Get Company Info — provide at least one of LinkedIn URL, domain, or name
     {
-      id: 'linkedin_url',
+      id: 'gc_linkedin_url',
       title: 'Company LinkedIn URL',
       type: 'short-input',
       placeholder: 'LinkedIn URL (at least one of URL/domain/name required)',
       condition: { field: 'operation', value: 'findymail_get_company' },
     },
     {
-      id: 'domain',
+      id: 'gc_domain',
       title: 'Company Domain',
       type: 'short-input',
       placeholder: 'stripe.com (at least one of URL/domain/name required)',
       condition: { field: 'operation', value: 'findymail_get_company' },
     },
     {
-      id: 'name',
+      id: 'gc_name',
       title: 'Company Name',
       type: 'short-input',
       placeholder: 'Stripe (at least one of URL/domain/name required)',
@@ -141,6 +151,11 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
       required: true,
       placeholder: '["Software Engineer", "CEO"]',
       condition: { field: 'operation', value: 'findymail_find_employees' },
+      wandConfig: {
+        prompt:
+          'Generate a JSON array of job titles to search for at the company (max 10). Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'e.g. Software Engineer, CEO, Product Manager',
+      },
     },
     {
       id: 'count',
@@ -152,7 +167,7 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
     },
     // Find Phone
     {
-      id: 'linkedin_url',
+      id: 'fp_linkedin_url',
       title: 'LinkedIn URL',
       type: 'short-input',
       required: true,
@@ -167,10 +182,15 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
       required: true,
       placeholder: 'React',
       condition: { field: 'operation', value: 'findymail_search_technologies' },
+      wandConfig: {
+        prompt:
+          'Generate a technology search term to look up in the Findymail technology catalog. Return ONLY the search term - no explanations, no extra text.',
+        placeholder: 'e.g. React, Stripe, Salesforce',
+      },
     },
     // Lookup Technologies By Domain
     {
-      id: 'domain',
+      id: 'lt_domain',
       title: 'Company Domain',
       type: 'short-input',
       required: true,
@@ -184,6 +204,11 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
       placeholder: '["React", "TypeScript"]',
       condition: { field: 'operation', value: 'findymail_lookup_technologies' },
       mode: 'advanced',
+      wandConfig: {
+        prompt:
+          'Generate a JSON array of technology names to filter by (case-insensitive). Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'e.g. React, TypeScript, Node.js',
+      },
     },
     // API Key
     {
@@ -230,35 +255,58 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
       },
       params: (params) => {
         const { operation: _operation, ...rest } = params
+
+        // Map unique subBlock IDs back to tool param names
+        const idToParam: Record<string, string> = {
+          fn_name: 'name',
+          fn_domain: 'domain',
+          fefl_linkedin_url: 'linkedin_url',
+          fed_domain: 'domain',
+          ve_email: 'email',
+          rel_email: 'email',
+          gc_linkedin_url: 'linkedin_url',
+          gc_domain: 'domain',
+          gc_name: 'name',
+          fp_linkedin_url: 'linkedin_url',
+          lt_domain: 'domain',
+        }
+
         const result: Record<string, unknown> = {}
         for (const [key, value] of Object.entries(rest)) {
           if (value === undefined || value === null || value === '') continue
-          if (key === 'count') {
+          const mappedKey = idToParam[key] ?? key
+          if (mappedKey === 'count') {
             const n = Number(value)
-            if (!Number.isNaN(n)) result[key] = n
-          } else if (key === 'roles' || key === 'job_titles' || key === 'technologies') {
+            if (!Number.isNaN(n)) result[mappedKey] = n
+          } else if (mappedKey === 'with_profile') {
+            result[mappedKey] = value === true || value === 'true'
+          } else if (
+            mappedKey === 'roles' ||
+            mappedKey === 'job_titles' ||
+            mappedKey === 'technologies'
+          ) {
             if (Array.isArray(value)) {
-              result[key] = value
+              result[mappedKey] = value
             } else if (typeof value === 'string') {
               const trimmed = value.trim()
               if (trimmed.startsWith('[')) {
                 try {
                   const parsed = JSON.parse(trimmed)
                   if (Array.isArray(parsed)) {
-                    result[key] = parsed
+                    result[mappedKey] = parsed
                     continue
                   }
                 } catch {
                   // fall through to comma-split
                 }
               }
-              result[key] = trimmed
+              result[mappedKey] = trimmed
                 .split(',')
                 .map((s) => s.trim())
                 .filter(Boolean)
             }
           } else {
-            result[key] = value
+            result[mappedKey] = value
           }
         }
         return result
@@ -268,78 +316,116 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Findymail API key' },
-    email: { type: 'string', description: 'Email address' },
-    name: { type: 'string', description: 'Full name or company name' },
-    domain: { type: 'string', description: 'Company domain' },
-    linkedin_url: { type: 'string', description: 'LinkedIn profile or company URL' },
+    fn_name: { type: 'string', description: 'Full name (find email from name)' },
+    fn_domain: { type: 'string', description: 'Company domain or name (find email from name)' },
+    fefl_linkedin_url: { type: 'string', description: 'LinkedIn URL (find email from LinkedIn)' },
+    fed_domain: { type: 'string', description: 'Company domain (find emails by domain)' },
     roles: { type: 'array', description: 'Target roles (max 3)' },
+    ve_email: { type: 'string', description: 'Email address to verify' },
+    rel_email: { type: 'string', description: 'Email address for reverse lookup' },
     with_profile: { type: 'boolean', description: 'Return full profile data on reverse lookup' },
+    gc_linkedin_url: { type: 'string', description: 'Company LinkedIn URL (get company info)' },
+    gc_domain: { type: 'string', description: 'Company domain (get company info)' },
+    gc_name: { type: 'string', description: 'Company name (get company info)' },
     website: { type: 'string', description: 'Company website for employee search' },
     job_titles: { type: 'array', description: 'Target job titles (max 10)' },
     count: { type: 'number', description: 'Number of contacts to return (max 5)' },
+    fp_linkedin_url: { type: 'string', description: 'LinkedIn URL (find phone)' },
     q: { type: 'string', description: 'Technology search query' },
+    lt_domain: { type: 'string', description: 'Company domain (lookup technologies)' },
     technologies: { type: 'array', description: 'Technology names to filter by' },
   },
   outputs: {
     // Verify Email
-    verified: { type: 'boolean', description: 'Whether the email is deliverable' },
-    provider: { type: 'string', description: 'Email service provider' },
-    // Find / Reverse / Company
+    verified: { type: 'boolean', description: 'Whether the email is deliverable', optional: true },
+    provider: { type: 'string', description: 'Email service provider', optional: true },
+    // Find Email / LinkedIn
     contact: {
       type: 'json',
       description: 'Contact found (name, email, domain)',
+      optional: true,
     },
     contacts: {
       type: 'array',
       description: 'Contacts found at the domain (name, email, domain)',
+      optional: true,
     },
-    linkedin_url: { type: 'string', description: 'LinkedIn URL' },
-    fullName: { type: 'string', description: 'Full name from LinkedIn profile' },
-    username: { type: 'string', description: 'LinkedIn username' },
-    headline: { type: 'string', description: 'Profile headline' },
-    jobTitle: { type: 'string', description: 'Job title' },
-    summary: { type: 'string', description: 'Profile summary' },
-    city: { type: 'string', description: 'City' },
-    region: { type: 'string', description: 'Region/state' },
-    country: { type: 'string', description: 'Country' },
-    companyLinkedinUrl: { type: 'string', description: 'Current company LinkedIn URL' },
-    companyName: { type: 'string', description: 'Current company name' },
-    companyWebsite: { type: 'string', description: 'Current company website' },
-    isPremium: { type: 'boolean', description: 'Whether the profile has LinkedIn Premium' },
-    isOpenProfile: { type: 'boolean', description: 'Whether the profile is open' },
-    skills: { type: 'array', description: 'Profile skills' },
-    jobs: { type: 'array', description: 'Job history entries' },
+    // Reverse Email Lookup
+    linkedin_url: { type: 'string', description: 'LinkedIn URL', optional: true },
+    fullName: { type: 'string', description: 'Full name from LinkedIn profile', optional: true },
+    username: { type: 'string', description: 'LinkedIn username', optional: true },
+    headline: { type: 'string', description: 'Profile headline', optional: true },
+    jobTitle: { type: 'string', description: 'Job title', optional: true },
+    summary: { type: 'string', description: 'Profile summary', optional: true },
+    city: { type: 'string', description: 'City', optional: true },
+    region: { type: 'string', description: 'Region/state', optional: true },
+    country: { type: 'string', description: 'Country', optional: true },
+    companyLinkedinUrl: {
+      type: 'string',
+      description: 'Current company LinkedIn URL',
+      optional: true,
+    },
+    companyName: { type: 'string', description: 'Current company name', optional: true },
+    companyWebsite: { type: 'string', description: 'Current company website', optional: true },
+    isPremium: {
+      type: 'boolean',
+      description: 'Whether the profile has LinkedIn Premium',
+      optional: true,
+    },
+    isOpenProfile: { type: 'boolean', description: 'Whether the profile is open', optional: true },
+    skills: { type: 'array', description: 'Profile skills', optional: true },
+    jobs: { type: 'array', description: 'Job history entries', optional: true },
     educations: {
       type: 'array',
       description: 'Education history (school, degree, fieldOfStudy, startDate, endDate)',
+      optional: true,
     },
     certificates: {
       type: 'array',
       description: 'Certifications (name, issuingOrganization, issueDate, expirationDate)',
+      optional: true,
     },
     // Get Company
-    name: { type: 'string', description: 'Company name (get-company)' },
-    domain: { type: 'string', description: 'Company domain' },
-    company_size: { type: 'string', description: 'Headcount range (e.g., 1001-5000)' },
-    industry: { type: 'string', description: 'Industry classification' },
-    description: { type: 'string', description: 'Company description' },
+    name: { type: 'string', description: 'Company name', optional: true },
+    domain: { type: 'string', description: 'Company domain', optional: true },
+    company_size: {
+      type: 'string',
+      description: 'Headcount range (e.g., 1001-5000)',
+      optional: true,
+    },
+    industry: { type: 'string', description: 'Industry classification', optional: true },
+    description: { type: 'string', description: 'Company description', optional: true },
     // Find Employees
     employees: {
       type: 'array',
       description: 'Employees found (name, linkedinUrl, companyWebsite, companyName, jobTitle)',
+      optional: true,
     },
     // Find Phone
-    phone: { type: 'string', description: 'Phone number in E.164 format (US only)' },
-    line_type: { type: 'string', description: 'Phone line type (Mobile, Landline)' },
+    phone: {
+      type: 'string',
+      description: 'Phone number in E.164 format (US only)',
+      optional: true,
+    },
+    line_type: {
+      type: 'string',
+      description: 'Phone line type (Mobile, Landline)',
+      optional: true,
+    },
     // Technologies
     technologies: {
       type: 'array',
       description: 'Technologies (name, category, subcategory, last_detected_at)',
+      optional: true,
     },
     // Get Credits
-    credits: { type: 'number', description: 'Remaining finder credits' },
-    verifier_credits: { type: 'number', description: 'Remaining verifier credits' },
-    // Reverse / Verify shared
-    email: { type: 'string', description: 'Email address' },
+    credits: { type: 'number', description: 'Remaining finder credits', optional: true },
+    verifier_credits: {
+      type: 'number',
+      description: 'Remaining verifier credits',
+      optional: true,
+    },
+    // Verify / Reverse shared
+    email: { type: 'string', description: 'Email address', optional: true },
   },
 }

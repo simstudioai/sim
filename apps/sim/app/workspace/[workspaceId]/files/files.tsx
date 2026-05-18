@@ -114,8 +114,8 @@ const ACCEPT_ATTR = SUPPORTED_EXTENSIONS.map((ext) => `.${ext}`).join(',')
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name', widthMultiplier: 1.15 },
-  { id: 'size', header: 'Size', widthMultiplier: 0.7 },
-  { id: 'type', header: 'Type', widthMultiplier: 0.85 },
+  { id: 'size', header: 'Size', widthMultiplier: 0.85 },
+  { id: 'type', header: 'Type', widthMultiplier: 1.0 },
   { id: 'created', header: 'Created' },
   { id: 'owner', header: 'Owner' },
   { id: 'updated', header: 'Last Updated' },
