@@ -4,24 +4,25 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
   createWorkspaceEnvCredentials,
   getAccessibleEnvCredentials,
   syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
+import { registerCache } from '@/lib/monitoring/cache-registry'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('EnvironmentUtils')
 const EFFECTIVE_ENV_CACHE_TTL_MS = 15_000
 
-type EffectiveEnvCacheEntry = {
-  expiresAt: number
-  value?: Record<string, string>
-  promise?: Promise<Record<string, string>>
-}
+const effectiveEnvCache = new LRUCache<string, Promise<Record<string, string>>>({
+  max: 500,
+  ttl: EFFECTIVE_ENV_CACHE_TTL_MS,
+})
 
-const effectiveEnvCache = new Map<string, EffectiveEnvCacheEntry>()
+registerCache('effectiveEnvCache', () => effectiveEnvCache.size)
 
 function getEffectiveEnvCacheKey(userId: string, workspaceId?: string) {
   return `${userId}:${workspaceId ?? ''}`
@@ -325,37 +326,24 @@ export async function getEffectiveDecryptedEnv(
   workspaceId?: string
 ): Promise<Record<string, string>> {
   const cacheKey = getEffectiveEnvCacheKey(userId, workspaceId)
-  const now = Date.now()
+
   const cached = effectiveEnvCache.get(cacheKey)
-
-  if (cached?.value && cached.expiresAt > now) {
-    return { ...cached.value }
-  }
-
-  if (cached?.promise) {
-    const value = await cached.promise
+  if (cached) {
+    const value = await cached
     return { ...value }
   }
 
   const promise = getPersonalAndWorkspaceEnv(userId, workspaceId)
-    .then(({ personalDecrypted, workspaceDecrypted }) => {
-      const value = { ...personalDecrypted, ...workspaceDecrypted }
-      effectiveEnvCache.set(cacheKey, {
-        value,
-        expiresAt: Date.now() + EFFECTIVE_ENV_CACHE_TTL_MS,
-      })
-      return value
-    })
+    .then(({ personalDecrypted, workspaceDecrypted }) => ({
+      ...personalDecrypted,
+      ...workspaceDecrypted,
+    }))
     .catch((error) => {
       effectiveEnvCache.delete(cacheKey)
       throw error
     })
 
-  effectiveEnvCache.set(cacheKey, {
-    expiresAt: now + EFFECTIVE_ENV_CACHE_TTL_MS,
-    promise,
-  })
-
+  effectiveEnvCache.set(cacheKey, promise)
   const value = await promise
   return { ...value }
 }
