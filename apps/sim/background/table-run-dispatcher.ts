@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { task, tasks } from '@trigger.dev/sdk'
+import { task } from '@trigger.dev/sdk'
 import { dispatcherStep } from '@/lib/table/dispatcher'
 
 const logger = createLogger('TableRunDispatcherTask')
@@ -10,10 +10,12 @@ export interface TableRunDispatcherPayload {
 }
 
 /**
- * Trigger.dev wrapper around `dispatcherStep`. Each task run processes one
- * window of rows and re-enqueues itself with `concurrencyKey: dispatchId` so
- * a single dispatch can't fork. Self-re-enqueue caps each task run's
- * duration; the persisted cursor handles crash recovery.
+ * Trigger.dev wrapper around `dispatcherStep`. One task run holds the
+ * dispatcher loop for the dispatch's entire lifetime — each iteration
+ * processes a window of cells via `batchTriggerAndWait`, which checkpoints
+ * the parent via CRIU during the wait so we don't pay compute while cells
+ * execute. The cursor is persisted in DB; if this run crashes, trigger.dev
+ * retries and the next attempt resumes from the persisted cursor.
  */
 export const tableRunDispatcherTask = task({
   id: 'table-run-dispatcher',
@@ -26,16 +28,12 @@ export const tableRunDispatcherTask = task({
   run: async (payload: TableRunDispatcherPayload) => {
     const { dispatchId } = payload
     try {
-      const result = await dispatcherStep(dispatchId)
-      if (result === 'continue') {
-        await tasks.trigger<typeof tableRunDispatcherTask>(
-          'table-run-dispatcher',
-          { dispatchId },
-          { concurrencyKey: dispatchId }
-        )
+      while (true) {
+        const result = await dispatcherStep(dispatchId)
+        if (result === 'done') return
       }
     } catch (err) {
-      logger.error(`[${dispatchId}] dispatcher step failed`, { error: toError(err).message })
+      logger.error(`[${dispatchId}] dispatcher loop failed`, { error: toError(err).message })
       throw err
     }
   },

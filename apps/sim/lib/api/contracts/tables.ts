@@ -900,9 +900,11 @@ export const runColumnContract = defineRouteContract({
     /**
      * `dispatchId` is the id of the `table_run_dispatches` row created for
      * this run. The dispatcher task picks it up and crawls the table row by
-     * row; clients receive cell + dispatch events via SSE.
+     * row; clients receive cell + dispatch events via SSE. Null when
+     * trigger.dev is disabled — in that mode cells run inline in-process and
+     * no dispatch row is created.
      */
-    schema: successResponseSchema(z.object({ dispatchId: z.string().min(1) })),
+    schema: successResponseSchema(z.object({ dispatchId: z.string().min(1).nullable() })),
   },
 })
 

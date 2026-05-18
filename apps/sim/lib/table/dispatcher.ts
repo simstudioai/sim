@@ -1,14 +1,17 @@
 import { db } from '@sim/db'
 import { tableRunDispatches, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { tasks } from '@trigger.dev/sdk'
 import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
+import { writeWorkflowGroupState } from '@/lib/table/cell-write'
 import { appendTableEvent } from '@/lib/table/events'
 import type { TableRow } from '@/lib/table/types'
 import {
-  isGroupEligible,
-  scheduleRunsForRows,
-  type ScheduleOpts,
+  buildPendingRuns,
+  cellTagsFor,
+  type RunGroupCellOptions,
   TABLE_CONCURRENCY_LIMIT,
   toTableRow,
 } from './workflow-columns'
@@ -207,36 +210,54 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     return 'done'
   }
 
-  // Rows were bulk-cleared at click time, so the chunk is ready to enqueue
-  // as-is. We only filter out cells the user cancelled mid-cascade (the
-  // tombstone) and cells whose deps still aren't satisfied.
-  const eligibleRows: TableRow[] = []
+  // Strip rows the user cancelled mid-cascade (post-dispatch tombstones)
+  // before running the shared eligibility filter — `buildPendingRuns`
+  // doesn't know about the per-dispatch cancel tombstone.
+  const tombstoneFiltered: TableRow[] = []
   for (const r of chunk) {
     const tableRow = toTableRow(r)
-    const anyEligible = targetGroups.some((g) => {
-      const exec = tableRow.executions?.[g.id]
-      if (exec?.cancelledAt) {
-        const cancelledAtMs = Date.parse(exec.cancelledAt)
-        if (Number.isFinite(cancelledAtMs) && cancelledAtMs > dispatch.requestedAt.getTime()) {
-          return false
-        }
-      }
-      return isGroupEligible(g, tableRow, { isManualRun: true, mode: dispatch.mode })
+    const tombstoned = dispatch.scope.groupIds.some((gid) => {
+      const exec = tableRow.executions?.[gid]
+      if (!exec?.cancelledAt) return false
+      const cancelledAtMs = Date.parse(exec.cancelledAt)
+      return Number.isFinite(cancelledAtMs) && cancelledAtMs > dispatch.requestedAt.getTime()
     })
-    if (anyEligible) eligibleRows.push(tableRow)
+    if (!tombstoned) tombstoneFiltered.push(tableRow)
   }
+
+  const pendingRuns = buildPendingRuns(table, tombstoneFiltered, {
+    isManualRun: true,
+    groupIds: dispatch.scope.groupIds,
+    mode: dispatch.mode,
+  })
 
   // Cursor advances to the last position in this chunk regardless of
   // eligibility — otherwise a window full of skipped cells loops forever.
   const lastPosition = chunk[chunk.length - 1].position
 
-  if (eligibleRows.length > 0) {
-    const scheduleOpts: ScheduleOpts = {
-      isManualRun: true,
-      groupIds: dispatch.scope.groupIds,
-      mode: dispatch.mode,
+  if (pendingRuns.length > 0) {
+    await stampQueuedForBatch(pendingRuns)
+
+    // `batchTriggerAndWait` blocks the parent dispatcher until every cell
+    // terminates (success / fail / cancel). Trigger.dev checkpoints the
+    // parent during the wait via CRIU, so we don't pay compute. Bounds the
+    // queue depth at WINDOW_SIZE per dispatch — no flooding trigger.dev.
+    const items = pendingRuns.map((runOpts) => ({
+      payload: runOpts,
+      options: {
+        concurrencyKey: runOpts.tableId,
+        tags: cellTagsFor(runOpts),
+      },
+    }))
+    try {
+      await tasks.batchTriggerAndWait('workflow-group-cell', items)
+    } catch (err) {
+      logger.error(`[${dispatchId}] batchTriggerAndWait failed`, {
+        error: toError(err).message,
+      })
+      // Don't bail the dispatch — terminal states are already in the DB
+      // (workers wrote them) or will be reconciled on the next user click.
     }
-    await scheduleRunsForRows(table, eligibleRows, scheduleOpts)
   }
 
   await Promise.all([
@@ -250,6 +271,26 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
   ])
 
   return 'continue'
+}
+
+/** Pre-batch stamp: write each cell's exec to `queued` before firing the
+ *  batch. We don't know per-cell jobIds (batchTriggerAndWait returns only a
+ *  batch handle), so `jobId` stays null. Workers update to `running` and
+ *  terminal states from inside their own run. */
+async function stampQueuedForBatch(pendingRuns: RunGroupCellOptions[]): Promise<void> {
+  await Promise.allSettled(
+    pendingRuns.map((runOpts) =>
+      writeWorkflowGroupState(runOpts, {
+        executionState: {
+          status: 'queued',
+          executionId: runOpts.executionId,
+          jobId: null,
+          workflowId: runOpts.workflowId,
+          error: null,
+        },
+      })
+    )
+  )
 }
 
 async function advanceCursor(dispatchId: string, newCursor: number): Promise<void> {
