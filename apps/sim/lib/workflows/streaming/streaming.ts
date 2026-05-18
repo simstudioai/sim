@@ -4,7 +4,7 @@ import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core
 import {
   extractBlockIdFromOutputId,
   extractPathFromOutputId,
-  traverseObjectPath,
+  parseOutputContentSafely,
 } from '@/lib/core/utils/response-format'
 import { encodeSSE } from '@/lib/core/utils/sse'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
@@ -15,6 +15,7 @@ import {
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
+import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 
 /**
  * Extended streaming execution type that includes blockId on the execution.
@@ -70,8 +71,41 @@ function resolveStreamedContent(state: StreamingState): Map<string, string> {
   return result
 }
 
-function extractOutputValue(output: unknown, path: string): unknown {
-  return traverseObjectPath(output, path)
+type OutputExtractionContext = Pick<
+  StreamingResponseOptions,
+  | 'requestId'
+  | 'workspaceId'
+  | 'workflowId'
+  | 'executionId'
+  | 'largeValueExecutionIds'
+  | 'allowLargeValueWorkflowScope'
+  | 'userId'
+>
+
+async function extractOutputValue(
+  output: unknown,
+  path: string,
+  context: OutputExtractionContext
+): Promise<unknown> {
+  const parsedOutput = parseOutputContentSafely(output)
+  if (!path) {
+    return parsedOutput
+  }
+
+  return navigatePathAsync(parsedOutput, path.split('.'), {
+    executionContext: {
+      workflowId: context.workflowId ?? '',
+      workspaceId: context.workspaceId,
+      executionId: context.executionId,
+      largeValueExecutionIds: context.largeValueExecutionIds,
+      allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
+      userId: context.userId,
+      metadata: { requestId: context.requestId },
+    } as any,
+    executionState: {} as any,
+    currentNodeId: '',
+    allowLargeValueRefs: true,
+  })
 }
 
 function isDangerousKey(key: string): boolean {
@@ -87,7 +121,7 @@ async function buildMinimalResult(
   includeFileBase64: boolean,
   base64MaxBytes: number | undefined,
   executionId?: string,
-  context: Pick<StreamingResponseOptions, 'workspaceId' | 'workflowId' | 'userId'> = {}
+  context: Omit<OutputExtractionContext, 'executionId'> = { requestId }
 ): Promise<{ success: boolean; error?: string; output: Record<string, unknown> }> {
   const durableContext = {
     workspaceId: context.workspaceId,
@@ -152,7 +186,7 @@ async function buildMinimalResult(
       continue
     }
 
-    const value = extractOutputValue(blockLog.output, path)
+    const value = await extractOutputValue(blockLog.output, path, { ...context, executionId })
     if (value === undefined) {
       continue
     }
@@ -311,7 +345,15 @@ export async function createStreamingResponse(
 
         for (const outputId of matchingOutputs) {
           const path = extractPathFromOutputId(outputId, blockId)
-          const outputValue = extractOutputValue(output, path)
+          const outputValue = await extractOutputValue(output, path, {
+            requestId,
+            workspaceId: options.workspaceId,
+            workflowId: options.workflowId,
+            executionId,
+            largeValueExecutionIds: options.largeValueExecutionIds,
+            allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
+            userId: options.userId,
+          })
 
           if (outputValue !== undefined) {
             const hydratedOutput = includeFileBase64
@@ -384,8 +426,11 @@ export async function createStreamingResponse(
             streamConfig.base64MaxBytes,
             executionId,
             {
+              requestId,
               workspaceId: options.workspaceId,
               workflowId: options.workflowId,
+              largeValueExecutionIds: options.largeValueExecutionIds,
+              allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
               userId: options.userId,
             }
           )

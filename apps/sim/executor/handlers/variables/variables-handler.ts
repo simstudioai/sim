@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
+import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactWorkflowVariableValue } from '@/lib/execution/payloads/serializer'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
@@ -96,6 +98,11 @@ export class VariablesBlockHandler implements BlockHandler {
   }
 
   private parseValueByType(value: any, type: string, variableName?: string): any {
+    const refValue = this.parseLargeExecutionValue(value)
+    if (refValue !== undefined) {
+      return refValue
+    }
+
     if (value === null || value === undefined || value === '') {
       if (type === 'number') return 0
       if (type === 'boolean') return false
@@ -166,5 +173,22 @@ export class VariablesBlockHandler implements BlockHandler {
     }
 
     return value
+  }
+
+  private parseLargeExecutionValue(value: any): any | undefined {
+    if (isLargeValueRef(value) || isLargeArrayManifest(value)) {
+      return value
+    }
+
+    if (typeof value !== 'string' || !value.trim()) {
+      return undefined
+    }
+
+    try {
+      const parsed = JSON.parse(value)
+      return isLargeValueRef(parsed) || isLargeArrayManifest(parsed) ? parsed : undefined
+    } catch {
+      return undefined
+    }
   }
 }

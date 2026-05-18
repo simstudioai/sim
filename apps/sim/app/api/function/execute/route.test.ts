@@ -245,7 +245,7 @@ describe('Function Execute API Route', () => {
     it('rejects large refs in runtimes without ref-native helpers', async () => {
       featureFlagsMock.isE2bEnabled = true
       const req = createMockRequest('POST', {
-        code: 'echo "${__blockRef_0}"',
+        code: 'echo "$__blockRef_0"',
         language: 'shell',
         contextVariables: {
           __blockRef_0: {
@@ -267,6 +267,46 @@ describe('Function Execute API Route', () => {
       expect(data.error).toContain(
         'Large execution values require the JavaScript isolated-vm runtime'
       )
+    })
+
+    it('registers manifest array read broker for isolated-vm execution', async () => {
+      const req = createMockRequest('POST', {
+        code: 'return await sim.values.readArray(__blockRef_0)',
+        language: 'javascript',
+        contextVariables: {
+          __blockRef_0: {
+            __simLargeArrayManifest: true,
+            version: 2,
+            kind: 'array',
+            totalCount: 1,
+            chunkCount: 1,
+            byteSize: 16,
+            chunks: [
+              {
+                ref: {
+                  __simLargeValueRef: true,
+                  version: 1,
+                  id: 'lv_ABCDEFGHIJKL',
+                  kind: 'array',
+                  size: 16,
+                  executionId: 'execution-1',
+                },
+                count: 1,
+                byteSize: 16,
+              },
+            ],
+            preview: [{ id: 1 }],
+          },
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+      const [, options] = mockExecuteInIsolatedVM.mock.calls.at(-1) ?? []
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(options?.brokers).toHaveProperty('sim.values.readArray')
     })
   })
 

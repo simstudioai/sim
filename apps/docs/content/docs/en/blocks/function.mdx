@@ -198,7 +198,7 @@ const file = <readfile.file>;
 const base64 = await sim.files.readBase64(file);
 ```
 
-`sim.files.readBase64(file)`, `sim.files.readText(file)`, `sim.files.readBase64Chunk(file, { offset, length })`, and `sim.files.readTextChunk(file, { offset, length })` read from server-side execution storage under memory caps. `sim.values.read(ref)` can explicitly read a large execution value reference. These helpers are available only in JavaScript functions without imports. JavaScript with imports, Python, and shell do not support these lazy helpers yet.
+`sim.files.readBase64(file)`, `sim.files.readText(file)`, `sim.files.readBase64Chunk(file, { offset, length })`, and `sim.files.readTextChunk(file, { offset, length })` read from server-side execution storage under memory caps. `sim.values.read(ref)` explicitly reads a large execution value reference, and `sim.values.readArray(ref)` reads a manifest-backed large array. These helpers are available only in JavaScript functions without imports. JavaScript with imports, Python, and shell do not support these lazy helpers yet.
 
 Very large full reads can still fail by design; use chunk helpers or return a file when you need to handle more data.
 
@@ -228,7 +228,7 @@ return { name: file.name, chunk: firstMegabyteBase64 };
 
 Chunk `offset` and `length` are byte-based. For Unicode text, a chunk can split a multi-byte character at the boundary; use text chunks for approximate text processing and prefer smaller structured references when exact parsing matters.
 
-Avoid passing a full large object into a Function block when you only need one field. For example, prefer `<api.data.customerId>` over `<api.data>` when the API response is large. If a JavaScript Function without imports references a large execution value, Sim automatically reads it through `sim.values.read(...)` at runtime under memory caps.
+Avoid passing a full large object into a Function block when you only need one field. For example, prefer `<api.data.customerId>` over `<api.data>` when the API response is large. If a JavaScript Function without imports references a whole large execution value, Sim automatically rewrites it to `sim.values.read(...)` at runtime under memory caps. If the value is a manifest-backed array, Sim rewrites it to `sim.values.readArray(...)` so array variables can stay compact between blocks.
 
 For large generated data, write the result to a file or table with `outputPath`, `outputSandboxPath`, or `outputTable` instead of returning the entire payload inline.
 

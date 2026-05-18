@@ -1,5 +1,9 @@
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
+  createLargeArrayManifest,
+  isLargeArrayManifest,
+} from '@/lib/execution/payloads/large-array-manifest'
+import {
   isLargeValueRef,
   LARGE_VALUE_THRESHOLD_BYTES,
 } from '@/lib/execution/payloads/large-value-ref'
@@ -56,6 +60,10 @@ async function compactValue(
     return value
   }
 
+  if (isLargeArrayManifest(value)) {
+    return value
+  }
+
   if (isUserFileWithMetadata(value) && !options.preserveUserFileBase64) {
     return stripUserFileBase64(value)
   }
@@ -80,9 +88,11 @@ async function compactValue(
 
   const measured = getJsonAndSize(compacted)
   if (measured && measured.size > (options.thresholdBytes ?? LARGE_VALUE_THRESHOLD_BYTES)) {
-    return options.preserveRoot && depth === 0
-      ? compacted
-      : storeLargeValue(compacted, measured.json, measured.size, options)
+    if (options.preserveRoot && depth === 0) {
+      return compacted
+    }
+
+    return storeLargeValue(compacted, measured.json, measured.size, options)
   }
 
   return compacted
@@ -113,7 +123,22 @@ export async function compactWorkflowVariableValue<T>(
   value: T,
   options: CompactExecutionPayloadOptions = {}
 ): Promise<T> {
-  return compactExecutionPayload(value, { ...options, requireDurable: true })
+  const durableOptions = { ...options, requireDurable: true }
+
+  if (!Array.isArray(value)) {
+    return compactExecutionPayload(value, durableOptions)
+  }
+
+  const compacted = (await compactExecutionPayload(value, {
+    ...durableOptions,
+    preserveRoot: true,
+  })) as T
+  const measured = getJsonAndSize(compacted)
+  if (measured && measured.size > (options.thresholdBytes ?? LARGE_VALUE_THRESHOLD_BYTES)) {
+    return createLargeArrayManifest(compacted as unknown[], durableOptions) as T
+  }
+
+  return compacted
 }
 
 /**

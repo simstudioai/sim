@@ -84,6 +84,11 @@ export async function navigatePathAsync(
       }
     }
 
+    if (isLargeArrayManifest(current) && part === 'length') {
+      current = current.totalCount
+      continue
+    }
+
     if (isLargeArrayManifest(current) && /^\d+$/.test(part)) {
       const [item] = await readLargeArrayManifestSlice(current, Number.parseInt(part, 10), 1, {
         workspaceId: context.executionContext.workspaceId,
@@ -117,7 +122,19 @@ export async function navigatePathAsync(
             return undefined
           }
           const idx = Number.parseInt(indexMatch.slice(1, -1), 10)
-          current = Array.isArray(current) ? current[idx] : undefined
+          if (isLargeArrayManifest(current)) {
+            const [item] = await readLargeArrayManifestSlice(current, idx, 1, {
+              workspaceId: context.executionContext.workspaceId,
+              workflowId: context.executionContext.workflowId,
+              executionId: context.executionContext.executionId,
+              largeValueExecutionIds: context.executionContext.largeValueExecutionIds,
+              allowLargeValueWorkflowScope: context.executionContext.allowLargeValueWorkflowScope,
+              userId: context.executionContext.userId,
+            })
+            current = item
+          } else {
+            current = Array.isArray(current) ? current[idx] : undefined
+          }
         }
       }
     } else if (/^\d+$/.test(part)) {

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
@@ -218,6 +219,57 @@ describe('WorkflowResolver', () => {
       await expect(
         resolver.resolveAsync('<variable.issues.0.fields.summary>', createTestContext(variables))
       ).resolves.toBe('Large issue')
+    })
+
+    it('preserves large array manifest workflow variables without array coercion', async () => {
+      const manifest = await createLargeArrayManifest([{ key: 'SIM-1' }], {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+      })
+      const variables = {
+        'var-1': { id: 'var-1', name: 'issues', type: 'array', value: manifest },
+      }
+      const resolver = new WorkflowResolver(variables, navigatePathAsync)
+
+      const allowedContext = { ...createTestContext(variables), allowLargeValueRefs: true }
+
+      expect(resolver.resolve('<variable.issues>', allowedContext)).toEqual(manifest)
+      await expect(resolver.resolveAsync('<variable.issues>', allowedContext)).resolves.toEqual(
+        manifest
+      )
+    })
+
+    it('resolves bracket-indexed paths through manifest workflow variables', async () => {
+      const manifest = await createLargeArrayManifest([{ key: 'SIM-1' }], {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+      })
+      const variables = {
+        'var-1': { id: 'var-1', name: 'issues', type: 'array', value: manifest },
+      }
+      const resolver = new WorkflowResolver(variables, navigatePathAsync)
+
+      await expect(
+        resolver.resolveAsync('<variable.issues[0].key>', createTestContext(variables))
+      ).resolves.toBe('SIM-1')
+    })
+
+    it('resolves manifest array length without materializing chunks', async () => {
+      const manifest = await createLargeArrayManifest([{ key: 'SIM-1' }, { key: 'SIM-2' }], {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+      })
+      const variables = {
+        'var-1': { id: 'var-1', name: 'issues', type: 'array', value: manifest },
+      }
+      const resolver = new WorkflowResolver(variables, navigatePathAsync)
+
+      await expect(
+        resolver.resolveAsync('<variable.issues.length>', createTestContext(variables))
+      ).resolves.toBe(2)
     })
   })
 

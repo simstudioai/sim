@@ -384,6 +384,7 @@ async function executeCode(request, executionId) {
           }),
           values: Object.freeze({
             read: (ref, options) => callSimBroker('sim.values.read', { ref, options }),
+            readArray: (ref, options) => callSimBroker('sim.values.readArray', { ref, options }),
           }),
         });
       })();

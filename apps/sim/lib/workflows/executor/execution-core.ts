@@ -12,6 +12,8 @@ import { isPlainRecord } from '@/lib/core/utils/records'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
+import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
@@ -55,6 +57,11 @@ export interface ExecuteWorkflowCoreOptions {
 }
 
 function parseVariableValueByType(value: unknown, type: string): unknown {
+  const refValue = parseLargeExecutionValue(value)
+  if (refValue !== undefined) {
+    return refValue
+  }
+
   if (value === null || value === undefined) {
     switch (type) {
       case 'number':
@@ -113,6 +120,23 @@ function parseVariableValueByType(value: unknown, type: string): unknown {
 
   // string or plain
   return typeof value === 'string' ? value : String(value)
+}
+
+function parseLargeExecutionValue(value: unknown): unknown | undefined {
+  if (isLargeValueRef(value) || isLargeArrayManifest(value)) {
+    return value
+  }
+
+  if (typeof value !== 'string' || !value.trim()) {
+    return undefined
+  }
+
+  try {
+    const parsed = JSON.parse(value)
+    return isLargeValueRef(parsed) || isLargeArrayManifest(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
 }
 
 type ExecutionErrorWithFinalizationFlag = Error & {

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import { assertNoLargeValueRefs, isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { VariableManager } from '@/lib/workflows/variables/variable-manager'
 import { isReference, normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
@@ -7,6 +8,7 @@ import {
   navigatePath,
   type ResolutionContext,
   type Resolver,
+  splitLeadingBracketPath,
 } from '@/executor/variables/resolvers/reference'
 import type { VariableType } from '@/stores/variables/types'
 
@@ -37,7 +39,10 @@ export class WorkflowResolver implements Resolver {
       return undefined
     }
 
-    const [_, variableName, ...pathParts] = parts
+    const [_, rawVariableName, ...rawPathParts] = parts
+    const { property: variableName, pathParts: bracketPathParts } =
+      splitLeadingBracketPath(rawVariableName)
+    const pathParts = [...bracketPathParts, ...rawPathParts]
     const normalizedRefName = normalizeName(variableName)
 
     const workflowVars = context.executionContext.workflowVariables || this.workflowVariables
@@ -77,7 +82,10 @@ export class WorkflowResolver implements Resolver {
       return undefined
     }
 
-    const [_, variableName, ...pathParts] = parts
+    const [_, rawVariableName, ...rawPathParts] = parts
+    const { property: variableName, pathParts: bracketPathParts } =
+      splitLeadingBracketPath(rawVariableName)
+    const pathParts = [...bracketPathParts, ...rawPathParts]
     const normalizedRefName = normalizeName(variableName)
     const workflowVars = context.executionContext.workflowVariables || this.workflowVariables
 
@@ -115,7 +123,7 @@ export class WorkflowResolver implements Resolver {
     normalizedType: VariableType,
     variableName: string
   ): any {
-    if (isLargeValueRef(value)) {
+    if (isLargeValueRef(value) || isLargeArrayManifest(value)) {
       return value
     }
 

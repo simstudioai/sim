@@ -14,6 +14,10 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInE2B, executeShellInE2B } from '@/lib/execution/e2b'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
+import {
+  isLargeArrayManifest,
+  materializeLargeArrayManifest,
+} from '@/lib/execution/payloads/large-array-manifest'
 import { containsLargeValueRef, isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import {
   MAX_FUNCTION_INLINE_BYTES,
@@ -787,6 +791,21 @@ function createFunctionRuntimeBrokers(
         throw unavailableLargeValueError(ref)
       }
       return value
+    },
+    'sim.values.readArray': async (args) => {
+      const record = asRecord(args)
+      const options = asRecord(record.options)
+      const manifest = record.ref
+      if (!isLargeArrayManifest(manifest)) {
+        throw new Error('Expected a large array manifest.')
+      }
+      if (!context.executionId) {
+        throw new Error('Large array manifests require an execution context.')
+      }
+      return materializeLargeArrayManifest(manifest, {
+        ...base,
+        maxBytes: clampInlineBytes(options.maxBytes, MAX_INLINE_MATERIALIZATION_BYTES),
+      })
     },
   }
 }

@@ -3,7 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
-import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import { BlockType } from '@/executor/constants'
 import { VariablesBlockHandler } from '@/executor/handlers/variables/variables-handler'
 import type { ExecutionContext } from '@/executor/types'
@@ -81,7 +81,7 @@ describe('VariablesBlockHandler', () => {
     expect(mockUploadFile).not.toHaveBeenCalled()
   })
 
-  it('stores oversized assignments as durable refs in variables and block output', async () => {
+  it('stores oversized array assignments as durable manifests in variables and block output', async () => {
     const handler = new VariablesBlockHandler()
     const ctx = createContext()
     const value = Array.from({ length: 120_000 }, (_, index) => ({
@@ -101,13 +101,14 @@ describe('VariablesBlockHandler', () => {
     })
 
     const storedValue = ctx.workflowVariables?.['var-1'].value
-    expect(isLargeValueRef(storedValue)).toBe(true)
+    expect(isLargeArrayManifest(storedValue)).toBe(true)
     expect(output.issues).toBe(storedValue)
     expect(storedValue).toMatchObject({
-      __simLargeValueRef: true,
+      __simLargeArrayManifest: true,
       kind: 'array',
-      executionId: 'execution-1',
+      totalCount: value.length,
     })
+    expect(storedValue.chunkCount).toBeGreaterThan(1)
     expect(mockUploadFile).toHaveBeenCalledWith(
       expect.objectContaining({
         context: 'execution',
@@ -141,6 +142,60 @@ describe('VariablesBlockHandler', () => {
     )
 
     expect(mockUploadFile).not.toHaveBeenCalled()
+  })
+
+  it('preserves whole large refs before scalar type coercion', async () => {
+    const handler = new VariablesBlockHandler()
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_ABCDEFGHIJKL',
+      kind: 'object',
+      size: 12 * 1024 * 1024,
+      executionId: 'execution-1',
+    }
+    const ctx = createContext({
+      workflowVariables: {
+        stringVar: { id: 'stringVar', name: 'stringRef', type: 'string', value: '' },
+        plainVar: { id: 'plainVar', name: 'plainRef', type: 'plain', value: '' },
+        numberVar: { id: 'numberVar', name: 'numberRef', type: 'number', value: 0 },
+        booleanVar: { id: 'booleanVar', name: 'booleanRef', type: 'boolean', value: false },
+      },
+    })
+
+    await handler.execute(ctx, createBlock(), {
+      variables: [
+        {
+          variableId: 'stringVar',
+          variableName: 'stringRef',
+          type: 'string',
+          value: JSON.stringify(ref),
+        },
+        {
+          variableId: 'plainVar',
+          variableName: 'plainRef',
+          type: 'plain',
+          value: JSON.stringify(ref),
+        },
+        {
+          variableId: 'numberVar',
+          variableName: 'numberRef',
+          type: 'number',
+          value: JSON.stringify(ref),
+        },
+        {
+          variableId: 'booleanVar',
+          variableName: 'booleanRef',
+          type: 'boolean',
+          value: JSON.stringify(ref),
+        },
+      ],
+    })
+
+    expect(ctx.workflowVariables?.stringVar.value).toEqual(ref)
+    expect(ctx.workflowVariables?.plainVar.value).toEqual(ref)
+    expect(ctx.workflowVariables?.numberVar.value).toEqual(ref)
+    expect(ctx.workflowVariables?.booleanVar.value).toEqual(ref)
   })
 
   it('preserves existing variable metadata when compacting reassignment', async () => {

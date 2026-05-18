@@ -1,3 +1,4 @@
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import {
   type LargeValueStoreContext,
@@ -23,6 +24,10 @@ export async function warmLargeValueRefs(
     return
   }
   seen.add(value)
+
+  if (isLargeArrayManifest(value)) {
+    return
+  }
 
   if (Array.isArray(value)) {
     await Promise.all(value.map((item) => warmLargeValueRefs(item, context, seen)))

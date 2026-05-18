@@ -95,6 +95,106 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
+  it('allows Variables block assignments to receive whole large refs', async () => {
+    const producer = createBlock('producer', 'Producer', BlockType.API)
+    const variablesBlock = createBlock('variables', 'Variables', BlockType.VARIABLES, {
+      variables: [
+        {
+          variableId: 'var-1',
+          variableName: 'issues',
+          type: 'array',
+          value: '<Producer.result>',
+        },
+      ],
+    })
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [producer, variablesBlock],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_ABCDEFGHIJKL',
+      kind: 'array',
+      size: 12 * 1024 * 1024,
+      executionId: 'execution-1',
+    }
+    state.setBlockOutput('producer', { result: ref })
+    const ctx = {
+      blockStates: state.getBlockStates(),
+      blockLogs: [],
+      environmentVariables: {},
+      workflowVariables: {},
+      decisions: { router: new Map(), condition: new Map() },
+      loopExecutions: new Map(),
+      executedBlocks: new Set(),
+      activeExecutionPath: new Set(),
+      completedLoops: new Set(),
+      metadata: {},
+    } as ExecutionContext
+
+    const resolver = new VariableResolver(workflow, {}, state)
+    const result = await resolver.resolveInputs(
+      ctx,
+      'variables',
+      variablesBlock.config.params,
+      variablesBlock
+    )
+
+    expect(JSON.parse(result.variables[0].value)).toEqual(ref)
+  })
+
+  it('allows Response block data to preserve whole large refs', async () => {
+    const producer = createBlock('producer', 'Producer', BlockType.API)
+    const responseBlock = createBlock('response', 'Response', BlockType.RESPONSE, {
+      dataMode: 'json',
+      data: '<Producer.result>',
+    })
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [producer, responseBlock],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_ZYXWVUTSRQPO',
+      kind: 'array',
+      size: 12 * 1024 * 1024,
+      executionId: 'execution-1',
+    }
+    state.setBlockOutput('producer', { result: ref })
+    const ctx = {
+      blockStates: state.getBlockStates(),
+      blockLogs: [],
+      environmentVariables: {},
+      workflowVariables: {},
+      decisions: { router: new Map(), condition: new Map() },
+      loopExecutions: new Map(),
+      executedBlocks: new Set(),
+      activeExecutionPath: new Set(),
+      completedLoops: new Set(),
+      metadata: {},
+    } as ExecutionContext
+
+    const resolver = new VariableResolver(workflow, {}, state)
+    const result = await resolver.resolveInputs(
+      ctx,
+      'response',
+      responseBlock.config.params,
+      responseBlock
+    )
+
+    expect(JSON.parse(result.data)).toEqual(ref)
+  })
+
   it('resolves workflow variable object references through context variables', async () => {
     const { block, ctx, resolver } = createResolver('javascript')
     const issues = [{ key: 'SIM-1', summary: 'Small issue' }]

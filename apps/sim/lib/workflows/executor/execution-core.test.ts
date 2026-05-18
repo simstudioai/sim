@@ -239,6 +239,54 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(findStartBlockMock).toHaveBeenCalledWith(expect.anything(), 'external', false)
   })
 
+  it('preserves manifest-backed workflow variables during execution setup', async () => {
+    const manifest = {
+      __simLargeArrayManifest: true,
+      version: 2,
+      kind: 'array',
+      totalCount: 1,
+      chunkCount: 1,
+      byteSize: 16,
+      chunks: [
+        {
+          ref: {
+            __simLargeValueRef: true,
+            version: 1,
+            id: 'lv_ABCDEFGHIJKL',
+            kind: 'array',
+            size: 16,
+            executionId: 'execution-1',
+          },
+          count: 1,
+          byteSize: 16,
+        },
+      ],
+      preview: [{ id: 1 }],
+    }
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: {
+        ...createSnapshot(),
+        workflowVariables: {
+          'var-1': { id: 'var-1', name: 'issues', type: 'array', value: manifest },
+        },
+      } as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(executorConstructorMock.mock.calls[0]?.[0]?.workflowVariables['var-1'].value).toEqual(
+      manifest
+    )
+  })
+
   it('does not await user block start callback after persistence completes', async () => {
     let releaseCallback: (() => void) | undefined
     const callbackPromise = new Promise<void>((resolve) => {
