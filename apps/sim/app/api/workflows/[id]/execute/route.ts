@@ -794,7 +794,16 @@ async function handleExecutePost(
             preserveUserFileBase64: true,
             preserveRoot: true,
           })
-          return createHttpResponseFromBlock({ ...result, output: compactResponseBlockOutput })
+          return await createHttpResponseFromBlock(
+            { ...result, output: compactResponseBlockOutput },
+            {
+              workspaceId,
+              workflowId,
+              executionId,
+              userId: actorUserId,
+              allowLargeValueWorkflowScope: Boolean(resolvedRunFromBlock?.sourceSnapshot),
+            }
+          )
         }
 
         const compactOutput = await compactRoutePayload(outputWithBase64, {

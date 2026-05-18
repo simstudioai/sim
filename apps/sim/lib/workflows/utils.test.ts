@@ -242,14 +242,25 @@ describe('validateWorkflowPermissions', () => {
 })
 
 describe('createHttpResponseFromBlock', () => {
-  it('returns large refs as response metadata without sync materialization', async () => {
-    const response = createHttpResponseFromBlock({
+  it('rejects large refs that cannot be materialized for HTTP response output', async () => {
+    await expect(
+      createHttpResponseFromBlock({
+        output: {
+          data: { issues: largeValueRef },
+          status: 200,
+        },
+      } as any)
+    ).rejects.toThrow('This execution value is too large to inline')
+  })
+
+  it('returns raw response data when no large execution values are present', async () => {
+    const response = await createHttpResponseFromBlock({
       output: {
-        data: { issues: largeValueRef },
+        data: { issues: [] },
         status: 200,
       },
     } as any)
 
-    await expect(response.json()).resolves.toEqual({ issues: largeValueRef })
+    await expect(response.json()).resolves.toEqual({ issues: [] })
   })
 })

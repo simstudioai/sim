@@ -6,6 +6,19 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, asc, eq, inArray, isNull, max, min, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import {
+  isLargeArrayManifest,
+  materializeLargeArrayManifest,
+} from '@/lib/execution/payloads/large-array-manifest'
+import {
+  getLargeValueMaterializationError,
+  isLargeValueRef,
+} from '@/lib/execution/payloads/large-value-ref'
+import {
+  type ExecutionMaterializationContext,
+  MAX_INLINE_MATERIALIZATION_BYTES,
+} from '@/lib/execution/payloads/materialization.server'
+import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -315,17 +328,65 @@ export const workflowHasResponseBlock = (
   return responseBlock !== undefined
 }
 
-export const createHttpResponseFromBlock = (
-  executionResult: Pick<ExecutionResult, 'output'>
-): NextResponse => {
+async function materializeHttpResponseValue(
+  value: unknown,
+  context: ExecutionMaterializationContext | undefined,
+  seen = new WeakSet<object>()
+): Promise<unknown> {
+  if (isLargeArrayManifest(value)) {
+    return materializeLargeArrayManifest(value, {
+      ...context,
+      maxBytes: MAX_INLINE_MATERIALIZATION_BYTES,
+    })
+  }
+
+  if (isLargeValueRef(value)) {
+    const materialized = await materializeLargeValueRef(value, {
+      ...context,
+      maxBytes: MAX_INLINE_MATERIALIZATION_BYTES,
+    })
+    if (materialized === undefined) {
+      throw getLargeValueMaterializationError(value)
+    }
+    return materializeHttpResponseValue(materialized, context, seen)
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value
+  }
+
+  if (seen.has(value)) {
+    return value
+  }
+  seen.add(value)
+
+  if (Array.isArray(value)) {
+    return Promise.all(value.map((item) => materializeHttpResponseValue(item, context, seen)))
+  }
+
+  return Object.fromEntries(
+    await Promise.all(
+      Object.entries(value as Record<string, unknown>).map(async ([key, entryValue]) => [
+        key,
+        await materializeHttpResponseValue(entryValue, context, seen),
+      ])
+    )
+  )
+}
+
+export const createHttpResponseFromBlock = async (
+  executionResult: Pick<ExecutionResult, 'output'>,
+  context?: ExecutionMaterializationContext
+): Promise<NextResponse> => {
   const { data = {}, status = 200, headers = {} } = executionResult.output
+  const responseData = await materializeHttpResponseValue(data, context)
 
   const responseHeaders = new Headers({
     'Content-Type': 'application/json',
     ...headers,
   })
 
-  return NextResponse.json(data, {
+  return NextResponse.json(responseData, {
     status: status,
     headers: responseHeaders,
   })

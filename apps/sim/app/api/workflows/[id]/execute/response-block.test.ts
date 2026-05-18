@@ -8,15 +8,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthType } from '@/lib/auth/hybrid'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
-import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
-import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { EXECUTION_RESOURCE_LIMIT_CODE } from '@/lib/execution/resource-errors'
 import type { ExecutionResult } from '@/lib/workflows/types'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 
 const { mockUploadFile } = vi.hoisted(() => ({
   mockUploadFile: vi.fn(),
 }))
+
+const MATERIALIZATION_CONTEXT = {
+  workspaceId: 'workspace-1',
+  workflowId: 'workflow-1',
+  executionId: 'execution-1',
+  userId: 'user-1',
+}
 
 vi.mock('@/lib/uploads', () => ({
   StorageService: {
@@ -92,14 +98,14 @@ describe('Response block gating by auth type', () => {
     expect(shouldFormatAsResponseBlock).toBe(false)
   })
 
-  it('should apply Response block formatting for API key callers', () => {
+  it('should apply Response block formatting for API key callers', async () => {
     const authType = AuthType.API_KEY
     const hasResponseBlock = workflowHasResponseBlock(resultWithResponseBlock)
 
     const shouldFormatAsResponseBlock = authType !== AuthType.INTERNAL_JWT && hasResponseBlock
     expect(shouldFormatAsResponseBlock).toBe(true)
 
-    const response = createHttpResponseFromBlock(resultWithResponseBlock)
+    const response = await createHttpResponseFromBlock(resultWithResponseBlock)
     expect(response.status).toBe(200)
   })
 
@@ -112,7 +118,7 @@ describe('Response block gating by auth type', () => {
   })
 
   it('should return raw user data via createHttpResponseFromBlock', async () => {
-    const response = createHttpResponseFromBlock(resultWithResponseBlock)
+    const response = await createHttpResponseFromBlock(resultWithResponseBlock)
     const body = await response.json()
 
     // Response block returns the user-defined data directly (no success/executionId wrapper)
@@ -121,66 +127,88 @@ describe('Response block gating by auth type', () => {
     expect(body.executionId).toBeUndefined()
   })
 
-  it('should respect custom status codes from Response block', () => {
+  it('should respect custom status codes from Response block', async () => {
     const result = buildExecutionResult({
       output: { data: { error: 'Not found' }, status: 404, headers: {} },
     })
 
-    const response = createHttpResponseFromBlock(result)
+    const response = await createHttpResponseFromBlock(result)
     expect(response.status).toBe(404)
   })
 
-  it('should return manifest metadata directly for Response block data', async () => {
+  it('should materialize manifest data for Response block HTTP output', async () => {
+    const rows = Array.from({ length: 100 }, (_, index) => ({
+      key: `SIM-${index}`,
+      payload: 'x'.repeat(100),
+    }))
     const output = await compactExecutionPayload(
       {
-        data: {
-          rows: Array.from({ length: 120_000 }, (_, index) => ({
-            key: `SIM-${index}`,
-            payload: 'x'.repeat(100),
-          })),
-        },
+        data: { rows },
         status: 200,
         headers: {},
       },
       {
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
+        ...MATERIALIZATION_CONTEXT,
         requireDurable: true,
         preserveRoot: true,
+        thresholdBytes: 1024,
       }
     )
-    const response = createHttpResponseFromBlock(buildExecutionResult({ output }))
+    const response = await createHttpResponseFromBlock(
+      buildExecutionResult({ output }),
+      MATERIALIZATION_CONTEXT
+    )
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(isLargeArrayManifest(body.rows)).toBe(true)
+    expect(body.rows).toEqual(rows)
     expect(body.success).toBeUndefined()
   })
 
-  it('should keep large string Response block data bounded as a generic ref', async () => {
+  it('should materialize large string refs for Response block HTTP output', async () => {
+    const text = 'x'.repeat(9 * 1024 * 1024)
+    const output = await compactExecutionPayload(
+      {
+        data: { text },
+        status: 200,
+        headers: {},
+      },
+      {
+        ...MATERIALIZATION_CONTEXT,
+        requireDurable: true,
+        preserveRoot: true,
+      }
+    )
+    const response = await createHttpResponseFromBlock(
+      buildExecutionResult({ output }),
+      MATERIALIZATION_CONTEXT
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.text).toBe(text)
+  })
+
+  it('should reject Response block HTTP output that is too large to inline', async () => {
     const output = await compactExecutionPayload(
       {
         data: {
-          text: 'x'.repeat(9 * 1024 * 1024),
+          text: 'x'.repeat(17 * 1024 * 1024),
         },
         status: 200,
         headers: {},
       },
       {
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
+        ...MATERIALIZATION_CONTEXT,
         requireDurable: true,
         preserveRoot: true,
       }
     )
-    const response = createHttpResponseFromBlock(buildExecutionResult({ output }))
-    const body = await response.json()
 
-    expect(response.status).toBe(200)
-    expect(isLargeValueRef(body.text)).toBe(true)
+    await expect(
+      createHttpResponseFromBlock(buildExecutionResult({ output }), MATERIALIZATION_CONTEXT)
+    ).rejects.toMatchObject({
+      code: EXECUTION_RESOURCE_LIMIT_CODE,
+    })
   })
 })
