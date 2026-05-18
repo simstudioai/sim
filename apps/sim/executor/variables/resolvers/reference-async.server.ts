@@ -155,7 +155,11 @@ export async function navigatePathAsync(
       }
     } else if (/^\d+$/.test(part)) {
       const index = Number.parseInt(part, 10)
-      current = Array.isArray(current) ? current[index] : undefined
+      current = isLargeArrayManifest(current)
+        ? await navigateManifestMetadataOrIndexAsync(current, part, context)
+        : Array.isArray(current)
+          ? current[index]
+          : undefined
     } else {
       current =
         typeof current === 'object' && current !== null
