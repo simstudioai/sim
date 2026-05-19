@@ -30,12 +30,12 @@ type ColumnTypeMap = ReadonlyMap<string, ColumnType>
  * truth for both filter range operators and sort ordering — keeps the two
  * paths from drifting apart.
  */
-function jsonbCastForType(type: ColumnType | undefined): 'numeric' | 'timestamp' | null {
+function jsonbCastForType(type: ColumnType | undefined): 'numeric' | 'timestamptz' | null {
   switch (type) {
     case 'number':
       return 'numeric'
     case 'date':
-      return 'timestamp'
+      return 'timestamptz'
     default:
       return null
   }
@@ -386,7 +386,10 @@ function buildContainmentClause(tableName: string, field: string, value: JsonVal
  * Builds a typed range comparison against a JSONB cell.
  *
  * `number` columns cast both sides to `numeric`; `date` columns cast both sides
- * to `timestamp` so date strings compare chronologically. Unknown/other types
+ * to `timestamptz` so date strings compare chronologically and timezone offsets
+ * in ISO strings (e.g. `2024-01-01T00:00:00Z`) are preserved rather than
+ * silently stripped (which would make results depend on the server's TimeZone
+ * setting). Unknown/other types
  * fall back to `numeric` (legacy default — preserves behavior for ad-hoc fields
  * with no schema entry). The right-hand value is cast explicitly because
  * drizzle parameterizes it as `text`; without the cast, Postgres would compare
@@ -405,8 +408,8 @@ function buildComparisonClause(
   const escapedField = field.replace(/'/g, "''")
   const cast = jsonbCastForType(columnType) ?? 'numeric'
   const cell = sql.raw(`(${tableName}.data->>'${escapedField}')::${cast}`)
-  return cast === 'timestamp'
-    ? sql`${cell} ${sql.raw(operator)} ${value}::timestamp`
+  return cast === 'timestamptz'
+    ? sql`${cell} ${sql.raw(operator)} ${value}::timestamptz`
     : sql`${cell} ${sql.raw(operator)} ${value}`
 }
 

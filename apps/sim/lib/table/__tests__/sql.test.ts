@@ -4,13 +4,13 @@
  * SQL Builder Unit Tests
  *
  * Tests the table SQL query builder. Assertions inspect the generated SQL
- * string so cast selection (numeric vs timestamp) is verified end-to-end.
+ * string so cast selection (numeric vs timestamptz) is verified end-to-end.
  *
  * Rendering: `drizzle-orm` is globally mocked in `vitest.setup.ts`. The mock
  * represents tagged-template fragments as `{ strings, values }`, raw fragments
  * as `{ rawSql }`, and joined fragments as `{ fragments, separator }`. The
  * local `renderSql` helper walks that shape recursively so we can assert real
- * substrings like `::timestamp` against the generated SQL.
+ * substrings like `::timestamptz` against the generated SQL.
  */
 import { describe, expect, it } from 'vitest'
 import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
@@ -205,17 +205,17 @@ describe('SQL Builder', () => {
       ['$gte', '>='],
       ['$lt', '<'],
       ['$lte', '<='],
-    ] as const)('emits ::timestamp on both sides for %s on a date column', (operator, sqlOp) => {
+    ] as const)('emits ::timestamptz on both sides for %s on a date column', (operator, sqlOp) => {
       const filter = { birthDate: { [operator]: '2024-01-01' } } as Filter
       const out = render(buildFilterClause(filter, TABLE, dateCols))
-      expect(out).toContain(`(${TABLE}.data->>'birthDate')::timestamp ${sqlOp} `)
-      expect(out).toContain('::timestamp')
+      expect(out).toContain(`(${TABLE}.data->>'birthDate')::timestamptz ${sqlOp} `)
+      expect(out).toContain('::timestamptz')
       expect(out).not.toContain('::numeric')
       // RHS cast — without it Postgres would compare as text (lexicographic).
-      expect(out.match(/::timestamp/g)?.length).toBe(2)
+      expect(out.match(/::timestamptz/g)?.length).toBe(2)
     })
 
-    it('combined range ($gte + $lte) emits two ::timestamp pairs', () => {
+    it('combined range ($gte + $lte) emits two ::timestamptz pairs', () => {
       const out = render(
         buildFilterClause(
           { birthDate: { $gte: '2024-01-01', $lte: '2024-12-31' } },
@@ -223,7 +223,7 @@ describe('SQL Builder', () => {
           dateCols
         )
       )
-      expect(out.match(/::timestamp/g)?.length).toBe(4)
+      expect(out.match(/::timestamptz/g)?.length).toBe(4)
       expect(out).not.toContain('::numeric')
       expect(out).toContain(' AND ')
     })
@@ -236,7 +236,7 @@ describe('SQL Builder', () => {
           dateCols
         )
       )
-      expect(out).toContain('::timestamp')
+      expect(out).toContain('::timestamptz')
       expect(out).not.toContain('::numeric')
     })
 
@@ -248,7 +248,7 @@ describe('SQL Builder', () => {
           dateCols
         )
       )
-      expect(out).toContain('::timestamp')
+      expect(out).toContain('::timestamptz')
       expect(out).not.toContain('::numeric')
       expect(out).toContain(' OR ')
     })
@@ -261,7 +261,7 @@ describe('SQL Builder', () => {
       const out = render(
         buildFilterClause({ birthDate: { $gte: '2024-01-01' }, age: { $gt: 18 } }, TABLE, cols)
       )
-      expect(out).toContain('::timestamp')
+      expect(out).toContain('::timestamptz')
       expect(out).toContain('::numeric')
     })
   })
@@ -284,10 +284,10 @@ describe('SQL Builder', () => {
       expect(out).toBe(`(${TABLE}.data->>'salary')::numeric DESC NULLS LAST`)
     })
 
-    it('sorts date columns with ::timestamp NULLS LAST', () => {
+    it('sorts date columns with ::timestamptz NULLS LAST', () => {
       const cols: ColumnDefinition[] = [{ name: 'birthDate', type: 'date' }]
       const out = render(buildSortClause({ birthDate: 'asc' }, TABLE, cols))
-      expect(out).toBe(`(${TABLE}.data->>'birthDate')::timestamp ASC NULLS LAST`)
+      expect(out).toBe(`(${TABLE}.data->>'birthDate')::timestamptz ASC NULLS LAST`)
     })
 
     it('sorts createdAt / updatedAt as direct column refs', () => {
