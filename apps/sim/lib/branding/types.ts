@@ -1,4 +1,4 @@
-/** Matches 3- or 6-digit hex colors, e.g. `#abc` or `#701ffc`. */
+/** Matches 3- or 6-digit hex colors, e.g. `#abc` or `#33c482`. */
 export const HEX_COLOR_REGEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i
 
 export interface ThemeColors {

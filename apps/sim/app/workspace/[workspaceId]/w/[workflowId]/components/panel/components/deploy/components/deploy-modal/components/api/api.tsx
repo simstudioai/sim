@@ -38,7 +38,6 @@ type AsyncExampleType = 'execute' | 'status' | 'rate-limits'
 type CodeLanguage = 'curl' | 'python' | 'javascript' | 'typescript'
 
 type CopiedState = {
-  endpoint: boolean // @remark: not used
   sync: boolean
   stream: boolean
   async: boolean
@@ -70,7 +69,6 @@ export function ApiDeploy({
   const [asyncExampleType, setAsyncExampleType] = useState<AsyncExampleType>('execute')
   const [language, setLanguage] = useState<CodeLanguage>('curl')
   const [copied, setCopied] = useState<CopiedState>({
-    endpoint: false, // @remark: not used
     sync: false,
     stream: false,
     async: false,
