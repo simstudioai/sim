@@ -1722,10 +1722,12 @@ export async function updateRow(
         // (NULL) cleanly evaluates as "different" rather than NULL-poisoning.
         sql`(executions->${guard.groupId}->>'status' IS DISTINCT FROM 'cancelled' OR executions->${guard.groupId}->>'executionId' IS DISTINCT FROM ${guard.executionId})`,
         // Reject writes from a stale worker — the cell's active run has moved
-        // on. `OR exec IS NULL` lets the worker land its first `running`
-        // stamp on a row that has no prior exec record (initial stamp from
-        // the scheduler may not have committed yet).
-        sql`(executions->${guard.groupId} IS NULL OR executions->${guard.groupId}->>'executionId' = ${guard.executionId})`
+        // on. Two carve-outs let a fresh worker land its first stamp:
+        //  - `exec IS NULL`: no prior exec at all.
+        //  - `executionId IS NULL`: dispatcher's pre-batch `pending` stamp
+        //    leaves the executionId unset so any cell-task that wins the
+        //    cascade lock can claim the cell.
+        sql`(executions->${guard.groupId} IS NULL OR executions->${guard.groupId}->>'executionId' IS NULL OR executions->${guard.groupId}->>'executionId' = ${guard.executionId})`
       )
     : eq(userTableRows.id, data.rowId)
 
