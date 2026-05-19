@@ -113,6 +113,8 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
           return
         }
         const { popup } = result
+        const existing = popupIntervalsRef.current.get(serverId)
+        if (existing !== undefined) window.clearInterval(existing)
         const interval = window.setInterval(() => {
           if (popup.closed) clear()
         }, 500)

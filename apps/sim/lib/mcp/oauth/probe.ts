@@ -49,7 +49,11 @@ export async function detectMcpAuthType(url: string): Promise<McpAuthType> {
 
     if (res.status === 401) {
       const params = extractWWWAuthenticateParams(res)
-      if (params.resourceMetadataUrl || params.scope || params.error) {
+      // Per RFC 9728, an OAuth-protected resource signals OAuth via
+      // `resource_metadata=...` in WWW-Authenticate. `scope=...` is also an
+      // OAuth-specific hint. A bare `error="invalid_token"` is generic Bearer
+      // and used by plain API-key servers too, so it must not classify as OAuth.
+      if (params.resourceMetadataUrl || params.scope) {
         return 'oauth'
       }
       return 'headers'
