@@ -6749,11 +6749,11 @@
     "tags": ["enrichment", "sales-engagement"]
   },
   {
-    "type": "image_generator",
+    "type": "image_generator_v2",
     "slug": "image-generator",
     "name": "Image Generator",
     "description": "Generate images",
-    "longDescription": "Integrate Image Generator into the workflow. Can generate images using DALL-E 3, GPT Image 1, or GPT Image 2.",
+    "longDescription": "Generate images using OpenAI GPT Image, Google Nano Banana, or Fal.ai image models.",
     "bgColor": "#4D5FFF",
     "iconName": "ImageIcon",
     "docsUrl": "https://docs.sim.ai/tools/image_generator",
@@ -14236,14 +14236,14 @@
     "tags": ["cloud", "ci-cd"]
   },
   {
-    "type": "video_generator_v2",
+    "type": "video_generator_v3",
     "slug": "video-generator",
     "name": "Video Generator",
     "description": "Generate videos from text using AI",
-    "longDescription": "Generate high-quality videos from text prompts using leading AI providers. Supports multiple models, aspect ratios, resolutions, and provider-specific features like world consistency, camera controls, and audio generation.",
+    "longDescription": "Generate high-quality videos from text prompts using leading AI providers. Supports Runway, Google Veo, Luma, MiniMax, and Fal.ai multi-model generation with provider-specific durations, aspect ratios, resolutions, prompt optimization, and native audio controls.",
     "bgColor": "#181C1E",
     "iconName": "VideoIcon",
-    "docsUrl": "https://docs.sim.ai/tools/video-generator",
+    "docsUrl": "https://docs.sim.ai/tools/video_generator",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
