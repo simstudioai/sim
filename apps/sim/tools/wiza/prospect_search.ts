@@ -148,7 +148,12 @@ export const wizaProspectSearchTool: ToolConfig<
         body.size = Math.max(0, Math.min(params.size, 30))
       }
 
-      if (params.filters && typeof params.filters === 'object') {
+      if (
+        params.filters &&
+        typeof params.filters === 'object' &&
+        !Array.isArray(params.filters) &&
+        Object.keys(params.filters).length > 0
+      ) {
         body.filters = params.filters
         return body
       }
@@ -181,7 +186,9 @@ export const wizaProspectSearchTool: ToolConfig<
         }
       }
 
-      body.filters = filters
+      if (Object.keys(filters).length > 0) {
+        body.filters = filters
+      }
       return body
     },
   },

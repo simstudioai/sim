@@ -30,7 +30,7 @@ export const wizaGetIndividualRevealTool: ToolConfig<
 
   request: {
     url: (params: WizaGetIndividualRevealParams) =>
-      `https://wiza.co/api/individual_reveals/${encodeURIComponent(params.id.trim())}`,
+      `https://wiza.co/api/individual_reveals/${encodeURIComponent(String(params.id).trim())}`,
     method: 'GET',
     headers: (params: WizaGetIndividualRevealParams) => ({
       Authorization: `Bearer ${params.apiKey}`,
