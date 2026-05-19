@@ -579,7 +579,7 @@ async function generateWithGemini(
 
   requestBody.generationConfig = {
     responseModalities: ['TEXT', 'IMAGE'],
-    ...(Object.keys(imageConfig).length > 0 && { responseFormat: { image: imageConfig } }),
+    ...(Object.keys(imageConfig).length > 0 && { imageConfig }),
   }
 
   const geminiResponse = await fetch(
@@ -798,11 +798,12 @@ async function generateWithFalAI(
     }
 
     const status = getStringProperty(statusData, 'status')
-    if (status === 'FAILED' || status === 'CANCELLED') {
-      throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusData.error)}`)
-    }
-
     if (status === 'COMPLETED') {
+      const statusError = statusData.error
+      if (statusError) {
+        throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusError)}`)
+      }
+
       const resultResponse = await fetch(
         getStringProperty(statusData, 'response_url') || responseUrl,
         {
@@ -853,6 +854,10 @@ async function generateWithFalAI(
         seed: getNumberProperty(resultData, 'seed'),
         jobId: falRequestId,
       }
+    }
+
+    if (['ERROR', 'FAILED', 'CANCELLED'].includes(status || '')) {
+      throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusData.error)}`)
     }
 
     attempts += 1
