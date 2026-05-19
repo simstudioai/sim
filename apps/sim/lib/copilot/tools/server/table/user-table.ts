@@ -367,7 +367,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const table = await getTableById(args.tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
 
@@ -418,7 +418,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const table = await getTableById(args.tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
 
@@ -474,10 +474,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
+          const table = await getTableById(args.tableId)
+          if (!table || table.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+
           const requestId = generateId().slice(0, 8)
           const result = await queryRows(
-            args.tableId,
-            workspaceId,
+            table,
             {
               filter: args.filter,
               sort: args.sort,
@@ -509,7 +513,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const table = await getTableById(args.tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
 
@@ -569,21 +573,19 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const table = await getTableById(args.tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const result = await updateRowsByFilter(
+            table,
             {
-              tableId: args.tableId,
               filter: args.filter,
               data: args.data,
               limit: args.limit,
-              workspaceId,
             },
-            table,
             requestId
           )
 
@@ -605,14 +607,18 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
+          const table = await getTableById(args.tableId)
+          if (!table || table.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const result = await deleteRowsByFilter(
+            table,
             {
-              tableId: args.tableId,
               filter: args.filter,
               limit: args.limit,
-              workspaceId,
             },
             requestId
           )
@@ -664,7 +670,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const table = await getTableById(args.tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
 
@@ -1089,11 +1095,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const table = await getTableById(args.tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-          if (table.workspaceId !== workspaceId) {
-            return { success: false, message: 'Table not found' }
           }
 
           const requestId = generateId().slice(0, 8)

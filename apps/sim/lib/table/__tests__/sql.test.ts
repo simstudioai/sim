@@ -3,296 +3,393 @@
  *
  * SQL Builder Unit Tests
  *
- * Tests for the table SQL query builder utilities including filter and sort clause generation.
+ * Tests the table SQL query builder. Assertions inspect the generated SQL
+ * string so cast selection (numeric vs timestamptz) is verified end-to-end.
+ *
+ * Rendering: `drizzle-orm` is globally mocked in `vitest.setup.ts`. The mock
+ * represents tagged-template fragments as `{ strings, values }`, raw fragments
+ * as `{ rawSql }`, and joined fragments as `{ fragments, separator }`. The
+ * local `renderSql` helper walks that shape recursively so we can assert real
+ * substrings like `::timestamptz` against the generated SQL.
  */
 import { describe, expect, it } from 'vitest'
-import { buildFilterClause, buildSortClause } from '../sql'
-import type { Filter } from '../types'
+import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
+import type { ColumnDefinition, Filter, Sort } from '@/lib/table/types'
+
+type SqlNode =
+  | { strings: ArrayLike<string>; values: unknown[] }
+  | { rawSql: string }
+  | { fragments: unknown[]; separator: unknown }
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+
+function isTemplateNode(n: unknown): n is { strings: ArrayLike<string>; values: unknown[] } {
+  return (
+    typeof n === 'object' &&
+    n !== null &&
+    'strings' in n &&
+    'values' in n &&
+    Array.isArray((n as { values: unknown[] }).values)
+  )
+}
+
+function isRawNode(n: unknown): n is { rawSql: string } {
+  return typeof n === 'object' && n !== null && 'rawSql' in n
+}
+
+function isJoinNode(n: unknown): n is { fragments: unknown[]; separator: unknown } {
+  return (
+    typeof n === 'object' &&
+    n !== null &&
+    'fragments' in n &&
+    Array.isArray((n as { fragments: unknown[] }).fragments)
+  )
+}
+
+/** Recursively render a mock SQL node into its generated SQL string. */
+function renderSql(node: SqlNode | unknown): string {
+  if (node == null) return String(node)
+  if (isRawNode(node)) return node.rawSql
+  if (isJoinNode(node)) {
+    const sep = isRawNode(node.separator) ? node.separator.rawSql : ', '
+    return node.fragments.map(renderSql).join(sep)
+  }
+  if (isTemplateNode(node)) {
+    const parts: string[] = []
+    for (let i = 0; i < node.strings.length; i++) {
+      parts.push(node.strings[i])
+      if (i < node.values.length) {
+        parts.push(renderSql(node.values[i]))
+      }
+    }
+    return parts.join('')
+  }
+  if (typeof node === 'string') return `'${node}'`
+  return String(node)
+}
+
+function render(node: unknown): string {
+  return renderSql(node)
+}
+
+const TABLE = 'user_table_rows'
+const NO_COLUMNS: ColumnDefinition[] = []
 
 describe('SQL Builder', () => {
   describe('buildFilterClause', () => {
-    const tableName = 'user_table_rows'
-
-    it('should return undefined for empty filter', () => {
-      const result = buildFilterClause({}, tableName)
-      expect(result).toBeUndefined()
+    it('returns undefined for empty filter', () => {
+      expect(buildFilterClause({}, TABLE, NO_COLUMNS)).toBeUndefined()
     })
 
-    it('should handle simple equality filter', () => {
-      const filter: Filter = { name: 'John' }
-      const result = buildFilterClause(filter, tableName)
+    it('handles simple equality via JSONB containment', () => {
+      const out = render(buildFilterClause({ name: 'John' }, TABLE, NO_COLUMNS))
+      expect(out).toContain('user_table_rows.data @>')
+      expect(out).toContain('"name":"John"')
+    })
 
+    it('emits ::numeric cast for $gt on a number column', () => {
+      const cols: ColumnDefinition[] = [{ name: 'age', type: 'number' }]
+      const out = render(buildFilterClause({ age: { $gt: 18 } }, TABLE, cols))
+      expect(out).toContain(`(${TABLE}.data->>'age')::numeric > `)
+      expect(out).not.toContain('::timestamp')
+    })
+
+    it('falls back to ::numeric when column type is unknown', () => {
+      const out = render(buildFilterClause({ score: { $gte: 5 } }, TABLE, NO_COLUMNS))
+      expect(out).toContain(`(${TABLE}.data->>'score')::numeric >= `)
+      expect(out).not.toContain('::timestamp')
+    })
+
+    it('handles $eq operator', () => {
+      const out = render(buildFilterClause({ status: { $eq: 'active' } }, TABLE, NO_COLUMNS))
+      expect(out).toContain('"status":"active"')
+    })
+
+    it('handles $ne operator', () => {
+      const out = render(buildFilterClause({ status: { $ne: 'deleted' } }, TABLE, NO_COLUMNS))
+      expect(out).toContain('NOT (')
+      expect(out).toContain('"status":"deleted"')
+    })
+
+    it('handles $in with multiple values via OR of containments', () => {
+      const out = render(
+        buildFilterClause({ status: { $in: ['active', 'pending'] } }, TABLE, NO_COLUMNS)
+      )
+      expect(out).toContain(' OR ')
+      expect(out).toContain('"status":"active"')
+      expect(out).toContain('"status":"pending"')
+    })
+
+    it('handles $nin', () => {
+      const out = render(
+        buildFilterClause({ status: { $nin: ['deleted', 'archived'] } }, TABLE, NO_COLUMNS)
+      )
+      expect(out).toContain('NOT (')
+      expect(out).toContain(' AND ')
+    })
+
+    it('handles $contains as ILIKE', () => {
+      const out = render(buildFilterClause({ name: { $contains: 'john' } }, TABLE, NO_COLUMNS))
+      expect(out).toContain(`${TABLE}.data->>'name'`)
+      expect(out).toContain('ILIKE')
+    })
+
+    it('joins multiple top-level conditions with AND', () => {
+      const out = render(
+        buildFilterClause({ status: 'active', age: { $gt: 18 } }, TABLE, NO_COLUMNS)
+      )
+      expect(out).toContain(' AND ')
+    })
+
+    it('handles $or logical operator', () => {
+      const out = render(
+        buildFilterClause({ $or: [{ status: 'active' }, { status: 'pending' }] }, TABLE, NO_COLUMNS)
+      )
+      expect(out).toContain(' OR ')
+    })
+
+    it('handles $and logical operator', () => {
+      const out = render(
+        buildFilterClause({ $and: [{ status: 'active' }, { age: { $gt: 18 } }] }, TABLE, NO_COLUMNS)
+      )
+      expect(out).toContain(' AND ')
+    })
+
+    it('handles nested $or and $and', () => {
+      const out = render(
+        buildFilterClause(
+          { $or: [{ $and: [{ status: 'active' }, { verified: true }] }, { role: 'admin' }] },
+          TABLE,
+          NO_COLUMNS
+        )
+      )
+      expect(out).toContain(' OR ')
+      expect(out).toContain(' AND ')
+    })
+
+    it('skips undefined values', () => {
+      const result = buildFilterClause({ name: undefined, status: 'active' }, TABLE, NO_COLUMNS)
       expect(result).toBeDefined()
     })
 
-    it('should handle $eq operator', () => {
-      const filter: Filter = { status: { $eq: 'active' } }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
+    it('handles boolean / null / numeric primitives', () => {
+      expect(render(buildFilterClause({ active: true }, TABLE, NO_COLUMNS))).toContain(
+        '"active":true'
+      )
+      expect(render(buildFilterClause({ deleted_at: null }, TABLE, NO_COLUMNS))).toContain(
+        '"deleted_at":null'
+      )
+      expect(render(buildFilterClause({ count: 42 }, TABLE, NO_COLUMNS))).toContain('"count":42')
     })
 
-    it('should handle $ne operator', () => {
-      const filter: Filter = { status: { $ne: 'deleted' } }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
+    it('throws on invalid field name', () => {
+      expect(() => buildFilterClause({ 'invalid-field': 'v' }, TABLE, NO_COLUMNS)).toThrow(
+        'Invalid field name'
+      )
     })
 
-    it('should handle $gt operator', () => {
-      const filter: Filter = { age: { $gt: 18 } }
-      const result = buildFilterClause(filter, tableName)
+    it('throws on invalid operator', () => {
+      const f = { name: { $invalid: 'value' } } as unknown as Filter
+      expect(() => buildFilterClause(f, TABLE, NO_COLUMNS)).toThrow('Invalid operator')
+    })
+  })
 
-      expect(result).toBeDefined()
+  describe('buildFilterClause > date column type', () => {
+    const dateCols: ColumnDefinition[] = [{ name: 'birthDate', type: 'date' }]
+
+    it.each([
+      ['$gt', '>'],
+      ['$gte', '>='],
+      ['$lt', '<'],
+      ['$lte', '<='],
+    ] as const)('emits ::timestamptz on both sides for %s on a date column', (operator, sqlOp) => {
+      const filter = { birthDate: { [operator]: '2024-01-01' } } as Filter
+      const out = render(buildFilterClause(filter, TABLE, dateCols))
+      expect(out).toContain(`(${TABLE}.data->>'birthDate')::timestamptz ${sqlOp} `)
+      expect(out).toContain('::timestamptz')
+      expect(out).not.toContain('::numeric')
+      // RHS cast — without it Postgres would compare as text (lexicographic).
+      expect(out.match(/::timestamptz/g)?.length).toBe(2)
     })
 
-    it('should handle $gte operator', () => {
-      const filter: Filter = { age: { $gte: 18 } }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
+    it('combined range ($gte + $lte) emits two ::timestamptz pairs', () => {
+      const out = render(
+        buildFilterClause(
+          { birthDate: { $gte: '2024-01-01', $lte: '2024-12-31' } },
+          TABLE,
+          dateCols
+        )
+      )
+      expect(out.match(/::timestamptz/g)?.length).toBe(4)
+      expect(out).not.toContain('::numeric')
+      expect(out).toContain(' AND ')
     })
 
-    it('should handle $lt operator', () => {
-      const filter: Filter = { age: { $lt: 65 } }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
+    it('propagates date cast through nested $and', () => {
+      const out = render(
+        buildFilterClause(
+          { $and: [{ birthDate: { $gte: '2024-01-01' } }, { birthDate: { $lt: '2025-01-01' } }] },
+          TABLE,
+          dateCols
+        )
+      )
+      expect(out).toContain('::timestamptz')
+      expect(out).not.toContain('::numeric')
     })
 
-    it('should handle $lte operator', () => {
-      const filter: Filter = { age: { $lte: 65 } }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
+    it('propagates date cast through nested $or', () => {
+      const out = render(
+        buildFilterClause(
+          { $or: [{ birthDate: { $lt: '2000-01-01' } }, { birthDate: { $gt: '2024-01-01' } }] },
+          TABLE,
+          dateCols
+        )
+      )
+      expect(out).toContain('::timestamptz')
+      expect(out).not.toContain('::numeric')
+      expect(out).toContain(' OR ')
     })
 
-    it('should handle $in operator with single value', () => {
-      const filter: Filter = { status: { $in: ['active'] } }
-      const result = buildFilterClause(filter, tableName)
+    it('a number column in the same query keeps ::numeric (no cross-contamination)', () => {
+      const cols: ColumnDefinition[] = [
+        { name: 'birthDate', type: 'date' },
+        { name: 'age', type: 'number' },
+      ]
+      const out = render(
+        buildFilterClause({ birthDate: { $gte: '2024-01-01' }, age: { $gt: 18 } }, TABLE, cols)
+      )
+      expect(out).toContain('::timestamptz')
+      expect(out).toContain('::numeric')
+    })
+  })
 
-      expect(result).toBeDefined()
+  describe('buildFilterClause > range operator value type validation', () => {
+    it('throws when $gt on a number column receives a string', () => {
+      const cols: ColumnDefinition[] = [{ name: 'age', type: 'number' }]
+      expect(() => buildFilterClause({ age: { $gt: 'eighteen' } } as Filter, TABLE, cols)).toThrow(
+        /column "age" \(number\) requires a number, got string/
+      )
     })
 
-    it('should handle $in operator with multiple values', () => {
-      const filter: Filter = { status: { $in: ['active', 'pending'] } }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
+    it('throws when $gte on a date column receives a number', () => {
+      const cols: ColumnDefinition[] = [{ name: 'birthDate', type: 'date' }]
+      expect(() =>
+        buildFilterClause({ birthDate: { $gte: 1704067200000 } } as Filter, TABLE, cols)
+      ).toThrow(/column "birthDate" \(date\) requires a date string, got number/)
     })
 
-    it('should handle $nin operator', () => {
-      const filter: Filter = { status: { $nin: ['deleted', 'archived'] } }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
+    it('throws when $lt on an unknown column (numeric fallback) receives a string', () => {
+      expect(() =>
+        buildFilterClause({ score: { $lt: 'high' } } as Filter, TABLE, NO_COLUMNS)
+      ).toThrow(/column "score" \(number\) requires a number, got string/)
     })
 
-    it('should handle $contains operator', () => {
-      const filter: Filter = { name: { $contains: 'john' } }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
+    it('accepts valid number on number column', () => {
+      const cols: ColumnDefinition[] = [{ name: 'age', type: 'number' }]
+      expect(() => buildFilterClause({ age: { $gt: 18 } }, TABLE, cols)).not.toThrow()
     })
 
-    it('should handle $or logical operator', () => {
-      const filter: Filter = {
-        $or: [{ status: 'active' }, { status: 'pending' }],
-      }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
-    })
-
-    it('should handle $and logical operator', () => {
-      const filter: Filter = {
-        $and: [{ status: 'active' }, { age: { $gt: 18 } }],
-      }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
-    })
-
-    it('should handle multiple conditions combined with AND', () => {
-      const filter: Filter = {
-        status: 'active',
-        age: { $gt: 18 },
-      }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
-    })
-
-    it('should handle nested $or and $and', () => {
-      const filter: Filter = {
-        $or: [{ $and: [{ status: 'active' }, { verified: true }] }, { role: 'admin' }],
-      }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
-    })
-
-    it('should throw error for invalid field name', () => {
-      const filter: Filter = { 'invalid-field': 'value' }
-
-      expect(() => buildFilterClause(filter, tableName)).toThrow('Invalid field name')
-    })
-
-    it('should throw error for invalid operator', () => {
-      const filter = { name: { $invalid: 'value' } } as unknown as Filter
-
-      expect(() => buildFilterClause(filter, tableName)).toThrow('Invalid operator')
-    })
-
-    it('should skip undefined values', () => {
-      const filter: Filter = { name: undefined, status: 'active' }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
-    })
-
-    it('should handle boolean values', () => {
-      const filter: Filter = { active: true }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
-    })
-
-    it('should handle null values', () => {
-      const filter: Filter = { deleted_at: null }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
-    })
-
-    it('should handle numeric values', () => {
-      const filter: Filter = { count: 42 }
-      const result = buildFilterClause(filter, tableName)
-
-      expect(result).toBeDefined()
+    it('accepts valid ISO string on date column', () => {
+      const cols: ColumnDefinition[] = [{ name: 'birthDate', type: 'date' }]
+      expect(() =>
+        buildFilterClause({ birthDate: { $gte: '2024-01-01' } }, TABLE, cols)
+      ).not.toThrow()
     })
   })
 
   describe('buildSortClause', () => {
-    const tableName = 'user_table_rows'
-
-    it('should return undefined for empty sort', () => {
-      const result = buildSortClause({}, tableName)
-      expect(result).toBeUndefined()
+    it('returns undefined for empty sort', () => {
+      expect(buildSortClause({}, TABLE, NO_COLUMNS)).toBeUndefined()
     })
 
-    it('should handle single field ascending sort', () => {
-      const sort = { name: 'asc' as const }
-      const result = buildSortClause(sort, tableName)
-
-      expect(result).toBeDefined()
+    it('sorts string columns as text (no cast)', () => {
+      const cols: ColumnDefinition[] = [{ name: 'name', type: 'string' }]
+      const out = render(buildSortClause({ name: 'asc' }, TABLE, cols))
+      expect(out).toBe(`${TABLE}.data->>'name' ASC`)
+      expect(out).not.toContain('::')
     })
 
-    it('should handle single field descending sort', () => {
-      const sort = { name: 'desc' as const }
-      const result = buildSortClause(sort, tableName)
-
-      expect(result).toBeDefined()
+    it('sorts number columns with ::numeric NULLS LAST', () => {
+      const cols: ColumnDefinition[] = [{ name: 'salary', type: 'number' }]
+      const out = render(buildSortClause({ salary: 'desc' }, TABLE, cols))
+      expect(out).toBe(`(${TABLE}.data->>'salary')::numeric DESC NULLS LAST`)
     })
 
-    it('should handle multiple fields sort', () => {
-      const sort = { name: 'asc' as const, created_at: 'desc' as const }
-      const result = buildSortClause(sort, tableName)
-
-      expect(result).toBeDefined()
+    it('sorts date columns with ::timestamptz NULLS LAST', () => {
+      const cols: ColumnDefinition[] = [{ name: 'birthDate', type: 'date' }]
+      const out = render(buildSortClause({ birthDate: 'asc' }, TABLE, cols))
+      expect(out).toBe(`(${TABLE}.data->>'birthDate')::timestamptz ASC NULLS LAST`)
     })
 
-    it('should handle createdAt field directly', () => {
-      const sort = { createdAt: 'desc' as const }
-      const result = buildSortClause(sort, tableName)
-
-      expect(result).toBeDefined()
+    it('sorts createdAt / updatedAt as direct column refs', () => {
+      expect(render(buildSortClause({ createdAt: 'desc' }, TABLE, NO_COLUMNS))).toBe(
+        `${TABLE}.createdAt DESC`
+      )
+      expect(render(buildSortClause({ updatedAt: 'asc' }, TABLE, NO_COLUMNS))).toBe(
+        `${TABLE}.updatedAt ASC`
+      )
     })
 
-    it('should handle updatedAt field directly', () => {
-      const sort = { updatedAt: 'asc' as const }
-      const result = buildSortClause(sort, tableName)
-
-      expect(result).toBeDefined()
+    it('combines multiple sort fields with commas', () => {
+      const cols: ColumnDefinition[] = [
+        { name: 'name', type: 'string' },
+        { name: 'salary', type: 'number' },
+      ]
+      const out = render(buildSortClause({ name: 'asc', salary: 'desc' }, TABLE, cols))
+      expect(out).toBe(
+        `${TABLE}.data->>'name' ASC, (${TABLE}.data->>'salary')::numeric DESC NULLS LAST`
+      )
     })
 
-    it('should throw error for invalid field name', () => {
-      const sort = { 'invalid-field': 'asc' as const }
-
-      expect(() => buildSortClause(sort, tableName)).toThrow('Invalid field name')
+    it('falls back to text sort for unknown column types', () => {
+      const sort: Sort = { unknownField: 'asc' }
+      const out = render(buildSortClause(sort, TABLE, NO_COLUMNS))
+      expect(out).toBe(`${TABLE}.data->>'unknownField' ASC`)
     })
 
-    it('should throw error for invalid direction', () => {
+    it('throws on invalid field name', () => {
+      const sort: Sort = { 'invalid-field': 'asc' }
+      expect(() => buildSortClause(sort, TABLE, NO_COLUMNS)).toThrow('Invalid field name')
+    })
+
+    it('throws on invalid direction', () => {
       const sort = { name: 'invalid' as 'asc' | 'desc' }
-
-      expect(() => buildSortClause(sort, tableName)).toThrow('Invalid sort direction')
-    })
-
-    it('should handle numeric column type for proper numeric sorting', () => {
-      const sort = { salary: 'desc' as const }
-      const columns = [{ name: 'salary', type: 'number' as const }]
-      const result = buildSortClause(sort, tableName, columns)
-
-      expect(result).toBeDefined()
-    })
-
-    it('should handle date column type for chronological sorting', () => {
-      const sort = { birthDate: 'asc' as const }
-      const columns = [{ name: 'birthDate', type: 'date' as const }]
-      const result = buildSortClause(sort, tableName, columns)
-
-      expect(result).toBeDefined()
-    })
-
-    it('should use text sorting for string columns', () => {
-      const sort = { name: 'asc' as const }
-      const columns = [{ name: 'name', type: 'string' as const }]
-      const result = buildSortClause(sort, tableName, columns)
-
-      expect(result).toBeDefined()
-    })
-
-    it('should fall back to text sorting when column type is unknown', () => {
-      const sort = { unknownField: 'asc' as const }
-      // No columns provided
-      const result = buildSortClause(sort, tableName)
-
-      expect(result).toBeDefined()
+      expect(() => buildSortClause(sort, TABLE, NO_COLUMNS)).toThrow('Invalid sort direction')
     })
   })
 
-  describe('Field Name Validation', () => {
-    const tableName = 'user_table_rows'
-
-    it('should accept valid field names', () => {
-      const validNames = ['name', 'user_id', '_private', 'Count123', 'a']
-
-      for (const name of validNames) {
-        const filter: Filter = { [name]: 'value' }
-        expect(() => buildFilterClause(filter, tableName)).not.toThrow()
+  describe('Field name validation', () => {
+    it('accepts valid identifiers', () => {
+      const valid = ['name', 'user_id', '_private', 'Count123', 'a']
+      for (const name of valid) {
+        expect(() => buildFilterClause({ [name]: 'v' }, TABLE, NO_COLUMNS)).not.toThrow()
       }
     })
 
-    it('should reject field names starting with number', () => {
-      const filter: Filter = { '123name': 'value' }
-      expect(() => buildFilterClause(filter, tableName)).toThrow('Invalid field name')
+    it('rejects identifiers starting with a digit', () => {
+      expect(() => buildFilterClause({ '123name': 'v' }, TABLE, NO_COLUMNS)).toThrow(
+        'Invalid field name'
+      )
     })
 
-    it('should reject field names with special characters', () => {
-      const invalidNames = ['field-name', 'field.name', 'field name', 'field@name']
-
-      for (const name of invalidNames) {
-        const filter: Filter = { [name]: 'value' }
-        expect(() => buildFilterClause(filter, tableName)).toThrow('Invalid field name')
+    it('rejects identifiers with special characters', () => {
+      const invalid = ['field-name', 'field.name', 'field name', 'field@name']
+      for (const name of invalid) {
+        expect(() => buildFilterClause({ [name]: 'v' }, TABLE, NO_COLUMNS)).toThrow(
+          'Invalid field name'
+        )
       }
     })
 
-    it('should reject SQL injection attempts', () => {
-      const sqlInjectionAttempts = ["'; DROP TABLE users; --", 'name OR 1=1', 'name; DELETE FROM']
-
-      for (const attempt of sqlInjectionAttempts) {
-        const filter: Filter = { [attempt]: 'value' }
-        expect(() => buildFilterClause(filter, tableName)).toThrow('Invalid field name')
+    it('rejects SQL injection attempts in field names', () => {
+      const attempts = ["'; DROP TABLE users; --", 'name OR 1=1', 'name; DELETE FROM']
+      for (const a of attempts) {
+        expect(() => buildFilterClause({ [a]: 'v' }, TABLE, NO_COLUMNS)).toThrow(
+          'Invalid field name'
+        )
       }
     })
   })

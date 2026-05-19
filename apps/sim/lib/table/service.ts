@@ -1405,15 +1405,13 @@ export async function upsertRow(
  * (bounded only by the btree on `table_id`). Prefer equality on hot paths; set
  * `includeTotal: false` when the caller does not need the `COUNT(*)`.
  *
- * @param tableId - Table ID to query
- * @param workspaceId - Workspace ID for access control
+ * @param table - Table definition (provides id, workspaceId, and column schema for type-aware filter/sort casts)
  * @param options - Query options (filter, sort, limit, offset)
  * @param requestId - Request ID for logging
  * @returns Query result with rows and pagination info
  */
 export async function queryRows(
-  tableId: string,
-  workspaceId: string,
+  table: TableDefinition,
   options: QueryOptions,
   requestId: string
 ): Promise<QueryResult> {
@@ -1426,16 +1424,17 @@ export async function queryRows(
   } = options
 
   const tableName = USER_TABLE_ROWS_SQL_NAME
+  const columns = table.schema.columns
 
   // Build WHERE clause
   const baseConditions = and(
-    eq(userTableRows.tableId, tableId),
-    eq(userTableRows.workspaceId, workspaceId)
+    eq(userTableRows.tableId, table.id),
+    eq(userTableRows.workspaceId, table.workspaceId)
   )
 
   let whereClause = baseConditions
   if (filter && Object.keys(filter).length > 0) {
-    const filterClause = buildFilterClause(filter, tableName)
+    const filterClause = buildFilterClause(filter, tableName, columns)
     if (filterClause) {
       whereClause = and(baseConditions, filterClause)
     }
@@ -1453,7 +1452,7 @@ export async function queryRows(
   // Build ORDER BY clause (default to position ASC for stable ordering)
   let orderByClause
   if (sort && Object.keys(sort).length > 0) {
-    orderByClause = buildSortClause(sort, tableName)
+    orderByClause = buildSortClause(sort, tableName, columns)
   }
 
   // Execute query
@@ -1471,7 +1470,7 @@ export async function queryRows(
   const rows = await query.limit(limit).offset(offset)
 
   logger.info(
-    `[${requestId}] Queried ${rows.length} rows from table ${tableId} (total: ${totalCount})`
+    `[${requestId}] Queried ${rows.length} rows from table ${table.id} (total: ${totalCount})`
   )
 
   return {
@@ -1806,26 +1805,26 @@ export async function deleteRow(
 /**
  * Updates multiple rows matching a filter.
  *
+ * @param table - Table definition (provides column schema for type-aware filter casts)
  * @param data - Bulk update data
- * @param table - Table definition
  * @param requestId - Request ID for logging
  * @returns Bulk operation result
  */
 export async function updateRowsByFilter(
-  data: BulkUpdateData,
   table: TableDefinition,
+  data: BulkUpdateData,
   requestId: string
 ): Promise<BulkOperationResult> {
   const tableName = USER_TABLE_ROWS_SQL_NAME
 
-  const filterClause = buildFilterClause(data.filter, tableName)
+  const filterClause = buildFilterClause(data.filter, tableName, table.schema.columns)
   if (!filterClause) {
     throw new Error('Filter is required for bulk update')
   }
 
   const baseConditions = and(
-    eq(userTableRows.tableId, data.tableId),
-    eq(userTableRows.workspaceId, data.workspaceId)
+    eq(userTableRows.tableId, table.id),
+    eq(userTableRows.workspaceId, table.workspaceId)
   )
 
   let query = db
@@ -1873,7 +1872,7 @@ export async function updateRowsByFilter(
     const row = matchingRows[0]
     const mergedData = { ...(row.data as RowData), ...data.data }
     const uniqueValidation = await checkUniqueConstraintsDb(
-      data.tableId,
+      table.id,
       mergedData,
       table.schema,
       row.id
@@ -1901,7 +1900,7 @@ export async function updateRowsByFilter(
     }
   })
 
-  logger.info(`[${requestId}] Updated ${matchingRows.length} rows in table ${data.tableId}`)
+  logger.info(`[${requestId}] Updated ${matchingRows.length} rows in table ${table.id}`)
 
   const oldRows = new Map(matchingRows.map((r) => [r.id, r.data as RowData]))
   const updatedRows: TableRow[] = matchingRows.map((r) => ({
@@ -1913,7 +1912,7 @@ export async function updateRowsByFilter(
     updatedAt: now,
   }))
   void fireTableTrigger(
-    data.tableId,
+    table.id,
     table.name,
     'update',
     updatedRows,
@@ -2118,26 +2117,28 @@ async function recompactPositions(tableId: string, trx: DbTransaction, minDelete
 /**
  * Deletes multiple rows matching a filter.
  *
+ * @param table - Table definition (provides column schema for type-aware filter casts)
  * @param data - Bulk delete data
  * @param requestId - Request ID for logging
  * @returns Bulk operation result
  */
 export async function deleteRowsByFilter(
+  table: TableDefinition,
   data: BulkDeleteData,
   requestId: string
 ): Promise<BulkOperationResult> {
   const tableName = USER_TABLE_ROWS_SQL_NAME
 
   // Build filter clause
-  const filterClause = buildFilterClause(data.filter, tableName)
+  const filterClause = buildFilterClause(data.filter, tableName, table.schema.columns)
   if (!filterClause) {
     throw new Error('Filter is required for bulk delete')
   }
 
   // Find matching rows
   const baseConditions = and(
-    eq(userTableRows.tableId, data.tableId),
-    eq(userTableRows.workspaceId, data.workspaceId)
+    eq(userTableRows.tableId, table.id),
+    eq(userTableRows.workspaceId, table.workspaceId)
   )
 
   let query = db
@@ -2167,8 +2168,8 @@ export async function deleteRowsByFilter(
       const batch = rowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
       await trx.delete(userTableRows).where(
         and(
-          eq(userTableRows.tableId, data.tableId),
-          eq(userTableRows.workspaceId, data.workspaceId),
+          eq(userTableRows.tableId, table.id),
+          eq(userTableRows.workspaceId, table.workspaceId),
           sql`${userTableRows.id} = ANY(ARRAY[${sql.join(
             batch.map((id) => sql`${id}`),
             sql`, `
@@ -2177,10 +2178,10 @@ export async function deleteRowsByFilter(
       )
     }
 
-    await recompactPositions(data.tableId, trx, minDeletedPos)
+    await recompactPositions(table.id, trx, minDeletedPos)
   })
 
-  logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${data.tableId}`)
+  logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${table.id}`)
 
   return {
     affectedCount: matchingRows.length,
