@@ -224,6 +224,45 @@ export function buildPersistedAssistantMessage(
   return message
 }
 
+export function withStoppedContentBlock(message: PersistedMessage): PersistedMessage {
+  const contentBlocks = message.contentBlocks ?? []
+  const hasAssistantText = contentBlocks.some(
+    (block) =>
+      block.type === MothershipStreamV1EventType.text &&
+      block.channel !== MothershipStreamV1TextChannel.thinking &&
+      block.content?.trim()
+  )
+  if (
+    contentBlocks.some(
+      (block) =>
+        block.type === MothershipStreamV1EventType.complete &&
+        block.status === MothershipStreamV1CompletionStatus.cancelled
+    )
+  ) {
+    return message
+  }
+
+  return normalizeMessage({
+    ...message,
+    contentBlocks: [
+      ...(hasAssistantText || !message.content.trim()
+        ? []
+        : [
+            {
+              type: MothershipStreamV1EventType.text,
+              channel: MothershipStreamV1TextChannel.assistant,
+              content: message.content,
+            },
+          ]),
+      ...contentBlocks,
+      {
+        type: MothershipStreamV1EventType.complete,
+        status: MothershipStreamV1CompletionStatus.cancelled,
+      },
+    ],
+  })
+}
+
 export interface UserMessageParams {
   id: string
   content: string

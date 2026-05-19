@@ -118,11 +118,11 @@ async function collectSandboxFiles(
   if (inputTables?.length) {
     for (const tableId of inputTables) {
       const table = await getTableById(tableId)
-      if (!table) {
+      if (!table || table.workspaceId !== workspaceId) {
         logger.warn('Sandbox input table not found', { tableId })
         continue
       }
-      const { rows } = await queryRows(tableId, workspaceId, { limit: 10000 }, 'sandbox-input')
+      const { rows } = await queryRows(table, { limit: 10000 }, 'sandbox-input')
       const schema = table.schema as { columns: Array<{ name: string; type?: string }> }
       const cols = schema.columns.map((c) => c.name)
       const typeComment = `# types: ${schema.columns.map((c) => `${c.name}=${c.type || 'string'}`).join(', ')}`

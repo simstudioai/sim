@@ -10,24 +10,49 @@ const {
   mockFrom,
   mockWhereSelect,
   mockLimit,
+  mockForUpdate,
   mockUpdate,
   mockSet,
   mockWhereUpdate,
   mockReturning,
   mockPublishStatusChanged,
   mockSql,
-} = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockFrom: vi.fn(),
-  mockWhereSelect: vi.fn(),
-  mockLimit: vi.fn(),
-  mockUpdate: vi.fn(),
-  mockSet: vi.fn(),
-  mockWhereUpdate: vi.fn(),
-  mockReturning: vi.fn(),
-  mockPublishStatusChanged: vi.fn(),
-  mockSql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
-}))
+  mockTransaction,
+} = vi.hoisted(() => {
+  const mockSelect = vi.fn()
+  const mockFrom = vi.fn()
+  const mockWhereSelect = vi.fn()
+  const mockLimit = vi.fn()
+  const mockForUpdate = vi.fn()
+  const mockUpdate = vi.fn()
+  const mockSet = vi.fn()
+  const mockWhereUpdate = vi.fn()
+  const mockReturning = vi.fn()
+  const mockPublishStatusChanged = vi.fn()
+  const mockSql = vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
+    strings,
+    values,
+  }))
+  const mockTransaction = vi.fn(
+    (callback: (tx: { select: typeof mockSelect; update: typeof mockUpdate }) => unknown) =>
+      callback({ select: mockSelect, update: mockUpdate })
+  )
+
+  return {
+    mockSelect,
+    mockFrom,
+    mockWhereSelect,
+    mockLimit,
+    mockForUpdate,
+    mockUpdate,
+    mockSet,
+    mockWhereUpdate,
+    mockReturning,
+    mockPublishStatusChanged,
+    mockSql,
+    mockTransaction,
+  }
+})
 
 vi.mock('@sim/db/schema', () => ({
   copilotChats: {
@@ -41,8 +66,7 @@ vi.mock('@sim/db/schema', () => ({
 
 vi.mock('@sim/db', () => ({
   db: {
-    select: mockSelect,
-    update: mockUpdate,
+    transaction: mockTransaction,
   },
 }))
 
@@ -78,9 +102,11 @@ describe('copilot chat stop route', () => {
       {
         workspaceId: 'ws-1',
         messages: [{ id: 'stream-1', role: 'user', content: 'hello' }],
+        conversationId: 'stream-1',
       },
     ])
-    mockWhereSelect.mockReturnValue({ limit: mockLimit })
+    mockForUpdate.mockReturnValue({ limit: mockLimit })
+    mockWhereSelect.mockReturnValue({ for: mockForUpdate })
     mockFrom.mockReturnValue({ where: mockWhereSelect })
     mockSelect.mockReturnValue({ from: mockFrom })
 
@@ -146,6 +172,73 @@ describe('copilot chat stop route', () => {
       contentBlocks: [{ type: 'complete', status: 'cancelled' }],
     })
 
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith({
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      type: 'completed',
+      streamId: 'stream-1',
+    })
+  })
+
+  it('appends a stopped assistant message if the stream marker was already cleared', async () => {
+    mockLimit.mockResolvedValueOnce([
+      {
+        workspaceId: 'ws-1',
+        messages: [{ id: 'stream-1', role: 'user', content: 'hello' }],
+        conversationId: null,
+      },
+    ])
+
+    const response = await POST(
+      createRequest({
+        chatId: 'chat-1',
+        streamId: 'stream-1',
+        content: 'partial',
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ success: true })
+
+    const setArg = mockSet.mock.calls[0]?.[0]
+    expect(setArg.messages).toBeTruthy()
+    const appendedPayload = JSON.parse(setArg.messages.values[1] as string)
+    expect(appendedPayload[0]).toMatchObject({
+      role: 'assistant',
+      content: 'partial',
+    })
+
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith({
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      type: 'completed',
+      streamId: 'stream-1',
+    })
+  })
+
+  it('republishes completed status when the assistant was already persisted', async () => {
+    mockLimit.mockResolvedValueOnce([
+      {
+        workspaceId: 'ws-1',
+        messages: [
+          { id: 'stream-1', role: 'user', content: 'hello' },
+          { id: 'assistant-1', role: 'assistant', content: 'partial' },
+        ],
+        conversationId: null,
+      },
+    ])
+
+    const response = await POST(
+      createRequest({
+        chatId: 'chat-1',
+        streamId: 'stream-1',
+        content: 'partial',
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ success: true })
+    expect(mockUpdate).not.toHaveBeenCalled()
     expect(mockPublishStatusChanged).toHaveBeenCalledWith({
       workspaceId: 'ws-1',
       chatId: 'chat-1',
