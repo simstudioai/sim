@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
+import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { RowData, RowExecutionMetadata, RowExecutions } from '@/lib/table'
 import type { TableEvent, TableEventEntry } from '@/lib/table/events'
 import { snapshotAndMutateRows, tableKeys } from '@/hooks/queries/tables'
@@ -110,6 +111,41 @@ export function useTableEventStream({
       )
     }
 
+    const applyDispatch = (event: Extract<TableEvent, { kind: 'dispatch' }>): void => {
+      const { dispatchId, status, scope, cursor, mode } = event
+      queryClient.setQueryData<ActiveDispatch[]>(
+        tableKeys.activeDispatches(tableId),
+        (prev) => {
+          const list = prev ?? []
+          // Terminal states drop the dispatch from the overlay; client renders
+          // the row's authoritative DB exec state from here.
+          if (status === 'complete' || status === 'cancelled') {
+            const filtered = list.filter((d) => d.id !== dispatchId)
+            return filtered.length === list.length ? list : filtered
+          }
+          if (scope === undefined || cursor === undefined || mode === undefined) {
+            // Defensive: a legacy emit without the new fields can't drive the
+            // overlay. Leave existing cache alone.
+            return list
+          }
+          const next: ActiveDispatch = {
+            id: dispatchId,
+            status,
+            mode,
+            isManualRun: false,
+            cursor,
+            scope,
+          }
+          const idx = list.findIndex((d) => d.id === dispatchId)
+          if (idx === -1) return [...list, next]
+          const merged = list.slice()
+          // Preserve isManualRun from the initial fetch — SSE doesn't carry it.
+          merged[idx] = { ...next, isManualRun: list[idx].isManualRun }
+          return merged
+        }
+      )
+    }
+
     const handlePrune = (payload: PrunedEvent): void => {
       logger.info('Table event buffer pruned — full refetch', { tableId, ...payload })
       void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
@@ -152,11 +188,11 @@ export function useTableEventStream({
       eventSource.onmessage = (msg: MessageEvent<string>) => {
         try {
           const entry = JSON.parse(msg.data) as TableEventEntry
-          if (entry.event?.kind !== 'cell') return
           if (entry.eventId <= lastEventId) return
           lastEventId = entry.eventId
           savePointer(tableId, lastEventId)
-          applyCell(entry.event)
+          if (entry.event?.kind === 'cell') applyCell(entry.event)
+          else if (entry.event?.kind === 'dispatch') applyDispatch(entry.event)
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })
         }

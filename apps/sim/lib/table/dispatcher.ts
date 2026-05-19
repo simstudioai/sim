@@ -26,7 +26,7 @@ const WINDOW_SIZE = TABLE_CONCURRENCY_LIMIT
 const ACTIVE_DISPATCH_STATUSES = ['pending', 'dispatching'] as const
 
 export type DispatchStatus = 'pending' | 'dispatching' | 'complete' | 'cancelled'
-export type DispatchMode = 'all' | 'incomplete'
+export type DispatchMode = 'all' | 'incomplete' | 'new'
 
 export interface DispatchScope {
   groupIds: string[]
@@ -61,6 +61,9 @@ export async function bulkClearWorkflowGroupCells(input: {
 }): Promise<void> {
   const { tableId, groups, rowIds, mode } = input
   if (groups.length === 0) return
+  // `'new'` mode targets only rows with no prior attempt — nothing to clear.
+  // Pre-existing outputs on any other row must not be wiped by an auto-fire.
+  if (mode === 'new') return
 
   const outputCols = Array.from(new Set(groups.flatMap((g) => g.outputs.map((o) => o.columnName))))
   const groupIds = groups.map((g) => g.id)
@@ -128,6 +131,35 @@ export async function insertDispatch(input: {
   return id
 }
 
+/** Read every dispatch on a table whose status is still `pending` or
+ *  `dispatching`. Drives the client-side "about to run" overlay: rows in an
+ *  active dispatch's scope ahead of its cursor are rendered as queued even
+ *  before the dispatcher has reached them, so refresh during a long Run-all
+ *  doesn't lose the queued indicators. */
+export async function listActiveDispatches(tableId: string): Promise<DispatchRow[]> {
+  const rows = await db
+    .select()
+    .from(tableRunDispatches)
+    .where(
+      and(
+        eq(tableRunDispatches.tableId, tableId),
+        inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES])
+      )
+    )
+  return rows.map((row) => ({
+    id: row.id,
+    tableId: row.tableId,
+    workspaceId: row.workspaceId,
+    requestId: row.requestId,
+    mode: row.mode as DispatchMode,
+    scope: row.scope as DispatchScope,
+    status: row.status as DispatchStatus,
+    cursor: row.cursor,
+    isManualRun: row.isManualRun,
+    requestedAt: row.requestedAt,
+  }))
+}
+
 export async function readDispatch(dispatchId: string): Promise<DispatchRow | null> {
   const [row] = await db
     .select()
@@ -192,6 +224,18 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
   if (dispatch.scope.rowIds && dispatch.scope.rowIds.length > 0) {
     filters.push(inArray(userTableRows.id, dispatch.scope.rowIds))
   }
+  // `'new'` mode targets only rows with no prior attempt on any targeted
+  // group. Push to SQL so a CSV import into a mostly-attempted table doesn't
+  // pay a per-window load+filter on rows the JS predicate would reject anyway.
+  // `jsonb_exists_any` is the function form of `?|` — safer than the operator,
+  // which collides with prepared-statement placeholder parsing in some
+  // drivers. Excludes rows whose `executions` has any of the targeted gids
+  // as a top-level key.
+  if (dispatch.mode === 'new' && dispatch.scope.groupIds.length > 0) {
+    filters.push(
+      sql`NOT jsonb_exists_any(coalesce(${userTableRows.executions}, '{}'::jsonb), ${dispatch.scope.groupIds}::text[])`
+    )
+  }
 
   const chunk = await db
     .select()
@@ -207,6 +251,9 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       tableId: dispatch.tableId,
       dispatchId,
       status: 'complete',
+      scope: dispatch.scope,
+      cursor: dispatch.cursor,
+      mode: dispatch.mode,
     })
     return 'done'
   }
@@ -268,6 +315,9 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       tableId: dispatch.tableId,
       dispatchId,
       status: 'dispatching',
+      scope: dispatch.scope,
+      cursor: lastPosition,
+      mode: dispatch.mode,
     }),
   ])
 
@@ -323,9 +373,12 @@ export async function markDispatchCancelled(dispatchId: string): Promise<void> {
 }
 
 /** Mark every active dispatch on this table as cancelled. Single atomic
- *  UPDATE so the dispatcher's next iteration observes the cancel. */
-export async function markActiveDispatchesCancelled(tableId: string): Promise<void> {
-  await db
+ *  UPDATE so the dispatcher's next iteration observes the cancel. Returns the
+ *  dispatches that were cancelled so the caller can emit per-dispatch SSE
+ *  events — without those the client's overlay would hang on "queued" until
+ *  the next refresh. */
+export async function markActiveDispatchesCancelled(tableId: string): Promise<DispatchRow[]> {
+  const cancelled = await db
     .update(tableRunDispatches)
     .set({ status: 'cancelled', cancelledAt: new Date() })
     .where(
@@ -334,4 +387,31 @@ export async function markActiveDispatchesCancelled(tableId: string): Promise<vo
         inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES])
       )
     )
+    .returning()
+  const dispatches = cancelled.map((row) => ({
+    id: row.id,
+    tableId: row.tableId,
+    workspaceId: row.workspaceId,
+    requestId: row.requestId,
+    mode: row.mode as DispatchMode,
+    scope: row.scope as DispatchScope,
+    status: 'cancelled' as DispatchStatus,
+    cursor: row.cursor,
+    isManualRun: row.isManualRun,
+    requestedAt: row.requestedAt,
+  }))
+  await Promise.all(
+    dispatches.map((d) =>
+      appendTableEvent({
+        kind: 'dispatch',
+        tableId: d.tableId,
+        dispatchId: d.id,
+        status: 'cancelled',
+        scope: d.scope,
+        cursor: d.cursor,
+        mode: d.mode,
+      })
+    )
+  )
+  return dispatches
 }

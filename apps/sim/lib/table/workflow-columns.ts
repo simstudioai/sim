@@ -28,6 +28,7 @@ import type {
 const logger = createLogger('WorkflowGroupScheduler')
 
 import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from './deps'
+import type { DispatchMode } from './dispatcher'
 
 export {
   getUnmetGroupDeps,
@@ -55,14 +56,16 @@ export type EligibilityReason =
   | 'in-flight'
   | 'completed-on-auto'
   | 'error-on-auto'
+  | 'cancelled-on-auto'
   | 'completed-on-incomplete'
+  | 'has-prior-attempt'
   | 'manual-bypass'
   | 'deps-unmet'
 
 export function classifyEligibility(
   group: WorkflowGroup,
   row: TableRow,
-  opts?: { isManualRun?: boolean; mode?: 'all' | 'incomplete' }
+  opts?: { isManualRun?: boolean; mode?: DispatchMode }
 ): EligibilityReason {
   const isManualRun = opts?.isManualRun ?? false
   const mode = opts?.mode ?? 'all'
@@ -73,11 +76,16 @@ export function classifyEligibility(
   if (isExecInFlight(exec)) return 'in-flight'
   const status = exec?.status
 
+  // `mode: 'new'` is the auto-fire scope: only rows that have never been
+  // attempted on this group run. Any pre-existing exec entry — completed,
+  // cancelled, or error — keeps the cell sticky until the user manually
+  // re-runs via "Run column" / "Run all rows" / "Run this row".
+  if (mode === 'new' && exec) return 'has-prior-attempt'
+
   const completedAndFilled = status === 'completed' && areOutputsFilled(group, row)
   if (!isManualRun && completedAndFilled) return 'completed-on-auto'
-  // Auto-fire skips `error` to avoid infinite-retry loops on a deterministic
-  // failure. `cancelled` is left runnable — cancellation is user-initiated.
   if (!isManualRun && status === 'error') return 'error-on-auto'
+  if (!isManualRun && status === 'cancelled') return 'cancelled-on-auto'
   if (mode === 'incomplete' && completedAndFilled) return 'completed-on-incomplete'
 
   if (isManualRun && group.autoRun === false) return 'manual-bypass'
@@ -122,7 +130,7 @@ export interface ScheduleOpts {
   groupId?: string
   groupIds?: string[]
   isManualRun?: boolean
-  mode?: 'all' | 'incomplete'
+  mode?: DispatchMode
 }
 
 /**
@@ -492,7 +500,7 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
 export async function runWorkflowColumn(opts: {
   tableId: string
   workspaceId: string
-  mode: 'all' | 'incomplete'
+  mode: DispatchMode
   requestId: string
   groupIds?: string[]
   rowIds?: string[]

@@ -19,6 +19,7 @@ import { isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
+  type ActiveDispatch,
   type AddWorkflowGroupBodyInput,
   addTableColumnContract,
   addWorkflowGroupContract,
@@ -38,6 +39,7 @@ import {
   deleteWorkflowGroupContract,
   getTableContract,
   type InsertTableRowBodyInput,
+  listActiveDispatchesContract,
   listTableRowsContract,
   listTablesContract,
   type RunMode,
@@ -90,6 +92,8 @@ export const tableKeys = {
   infiniteRows: (tableId: string, paramsKey: string) =>
     [...tableKeys.rowsRoot(tableId), 'infinite', paramsKey] as const,
   rowWrites: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'write'] as const,
+  activeDispatches: (tableId: string) =>
+    [...tableKeys.detail(tableId), 'active-dispatches'] as const,
 }
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
@@ -157,10 +161,6 @@ async function fetchTableRows({
   return { rows, totalCount }
 }
 
-function invalidateRowData(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
-  queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-}
-
 function invalidateRowCount(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
@@ -202,6 +202,32 @@ export function useTable(workspaceId: string | undefined, tableId: string | unde
     queryKey: tableKeys.detail(tableId ?? ''),
     queryFn: ({ signal }) => fetchTable(workspaceId as string, tableId as string, signal),
     enabled: Boolean(workspaceId && tableId),
+    staleTime: 30 * 1000,
+  })
+}
+
+async function fetchActiveDispatches(
+  tableId: string,
+  signal?: AbortSignal
+): Promise<ActiveDispatch[]> {
+  const response = await requestJson(listActiveDispatchesContract, {
+    params: { tableId },
+    signal,
+  })
+  return response.data.dispatches
+}
+
+/**
+ * Active dispatches for the "about to run" overlay. The cell renderer checks
+ * this list to render `pending` for rows in a dispatch's scope ahead of its
+ * cursor — preserves queued indicators across page refreshes during a long
+ * Run-all. SSE `kind: 'dispatch'` events keep the cache fresh between fetches.
+ */
+export function useActiveDispatches(tableId: string | undefined) {
+  return useQuery({
+    queryKey: tableKeys.activeDispatches(tableId ?? ''),
+    queryFn: ({ signal }) => fetchActiveDispatches(tableId as string, signal),
+    enabled: Boolean(tableId),
     staleTime: 30 * 1000,
   })
 }
@@ -413,7 +439,11 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       const row = response.data.row
       if (!row) return
 
-      reconcileCreatedRow(queryClient, tableId, row)
+      const groups =
+        queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
+          .workflowGroups ?? []
+      const stamped = withOptimisticAutoFireExec(groups, row)
+      reconcileCreatedRow(queryClient, tableId, stamped)
     },
     onError: (error) => {
       if (isValidationError(error)) return
@@ -423,6 +453,19 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       invalidateRowCount(queryClient, tableId)
     },
   })
+}
+
+/**
+ * Pre-stamp `pending` for any auto-fire-eligible workflow groups on a row that
+ * was just inserted server-side. Mirrors the server's `mode: 'new'` dispatch:
+ * the server will fire these groups in the background; the optimistic stamp
+ * shows the user a `queued` badge immediately rather than waiting ~1s for the
+ * first SSE event.
+ */
+function withOptimisticAutoFireExec(groups: WorkflowGroup[], row: TableRow): TableRow {
+  const nextExecutions = optimisticallyScheduleNewlyEligibleGroups(groups, row, {})
+  if (!nextExecutions) return row
+  return { ...row, executions: nextExecutions }
 }
 
 /**
@@ -606,11 +649,6 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
-    onSettled: () => {
-      if (queryClient.isMutating({ mutationKey: tableKeys.rowWrites(tableId) }) === 1) {
-        invalidateRowData(queryClient, tableId)
-      }
-    },
   })
 }
 
@@ -669,11 +707,6 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
       }
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
-    },
-    onSettled: () => {
-      if (queryClient.isMutating({ mutationKey: tableKeys.rowWrites(tableId) }) === 1) {
-        invalidateRowData(queryClient, tableId)
-      }
     },
   })
 }
@@ -874,12 +907,18 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
         for (const gid in executions) {
           const exec = executions[gid]
           if (!isExecInFlight(exec)) continue
-          // Preserve blockErrors so cells that already errored keep their
-          // Error rendering after the stop — only cells without a value or
-          // error should flip to "Cancelled".
+          if (exec.executionId == null) {
+            // Optimistic-only or dispatcher-pre-stamp pending — server has not
+            // claimed the cell yet, so no SSE will arrive to reconcile a
+            // `cancelled` stamp. Strip the entry instead and let the renderer
+            // fall through to the cell's prior state (value / empty / etc.).
+            delete nextExecutions[gid]
+            rowTouched = true
+            continue
+          }
           nextExecutions[gid] = {
             status: 'cancelled',
-            executionId: exec.executionId ?? null,
+            executionId: exec.executionId,
             jobId: null,
             workflowId: exec.workflowId,
             error: 'Cancelled',

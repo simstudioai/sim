@@ -17,6 +17,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
+  useActiveDispatches,
   useBatchUpdateTableRows,
   useCreateTableRow,
   useDeleteColumn,
@@ -299,6 +300,8 @@ export function TableGrid({
     columnSourceInfo,
     ensureAllRowsLoaded,
   } = useTable({ workspaceId, tableId, queryOptions })
+
+  const { data: activeDispatches } = useActiveDispatches(tableId)
 
   const fetchNextPageRef = useRef(fetchNextPage)
   fetchNextPageRef.current = fetchNextPage
@@ -3155,6 +3158,7 @@ export function TableGrid({
                         onStopRow={onStopRow}
                         onRunRow={onRunRow}
                         workflowGroups={tableWorkflowGroups}
+                        activeDispatches={activeDispatches}
                       />
                     ))}
                   </>

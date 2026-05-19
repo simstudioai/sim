@@ -929,7 +929,7 @@ export async function insertRow(
     tableId: table.id,
     workspaceId: table.workspaceId,
     rowIds: [insertedRow.id],
-    mode: 'incomplete',
+    mode: 'new',
     isManualRun: false,
     requestId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (insertRow) failed:`, err))
@@ -1053,8 +1053,7 @@ export async function batchInsertRowsWithTx(
   void runWorkflowColumn({
     tableId: table.id,
     workspaceId: table.workspaceId,
-    rowIds: result.map((r) => r.id),
-    mode: 'incomplete',
+    mode: 'new',
     isManualRun: false,
     requestId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (batchInsertRows) failed:`, err))
@@ -1402,7 +1401,7 @@ export async function upsertRow(
     tableId: table.id,
     workspaceId: table.workspaceId,
     rowIds: [result.row.id],
-    mode: 'incomplete',
+    mode: 'new',
     isManualRun: false,
     requestId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (upsertRow) failed:`, err))
@@ -1939,7 +1938,7 @@ export async function updateRowsByFilter(
     tableId: table.id,
     workspaceId: table.workspaceId,
     rowIds: updatedRows.map((r) => r.id),
-    mode: 'incomplete',
+    mode: 'new',
     isManualRun: false,
     requestId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (updateRowsByFilter) failed:`, err))
@@ -2095,7 +2094,7 @@ export async function batchUpdateRows(
     tableId: table.id,
     workspaceId: table.workspaceId,
     rowIds: updatedRowsForTrigger.map((r) => r.id),
-    mode: 'incomplete',
+    mode: 'new',
     isManualRun: false,
     requestId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (batchUpdateRows) failed:`, err))
@@ -2825,7 +2824,7 @@ export async function addWorkflowGroup(
     void runWorkflowColumn({
       tableId: updatedTable.id,
       workspaceId: updatedTable.workspaceId,
-      mode: 'incomplete',
+      mode: 'new',
       isManualRun: false,
       groupIds: [data.group.id],
       requestId,
@@ -3124,7 +3123,7 @@ export async function updateWorkflowGroup(
     void runWorkflowColumn({
       tableId: updatedTable.id,
       workspaceId: updatedTable.workspaceId,
-      mode: 'incomplete',
+      mode: 'new',
       isManualRun: false,
       groupIds: [data.groupId],
       requestId,

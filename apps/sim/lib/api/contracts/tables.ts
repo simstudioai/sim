@@ -917,6 +917,36 @@ export type RunColumnBodyInput = z.input<typeof runColumnBodySchema>
  *  builds a run-column payload. Single source of truth for the literal pair. */
 export type RunMode = NonNullable<RunColumnBodyInput['runMode']>
 
+/**
+ * Active dispatch overlay: rows in the scope ahead of `cursor` render as
+ * `pending` on refresh, so a long Run-all doesn't lose its queued indicators.
+ * Returned by `GET /api/table/[tableId]/dispatches`; mirrored client-side via
+ * `kind: 'dispatch'` SSE events.
+ */
+export const activeDispatchSchema = z.object({
+  id: z.string(),
+  status: z.enum(['pending', 'dispatching']),
+  mode: z.enum(['all', 'incomplete', 'new']),
+  isManualRun: z.boolean(),
+  cursor: z.number().int(),
+  scope: z.object({
+    groupIds: z.array(z.string()),
+    rowIds: z.array(z.string()).optional(),
+  }),
+})
+
+export const listActiveDispatchesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/dispatches',
+  params: tableIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ dispatches: z.array(activeDispatchSchema) })),
+  },
+})
+
+export type ActiveDispatch = z.output<typeof activeDispatchSchema>
+
 export const tableEventStreamQuerySchema = z.object({
   from: z.preprocess((value) => {
     if (typeof value !== 'string') return 0
