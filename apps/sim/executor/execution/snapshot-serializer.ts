@@ -115,10 +115,7 @@ function getBoundedJsonByteLength(
     if (hasEntries) bytes += JSON_SYNTAX_BYTES.COMMA
     bytes += getEscapedJsonStringByteLength(key) + JSON_SYNTAX_BYTES.COLON
     const entrySize = getBoundedJsonByteLength(entryValue, maxBytes - bytes, seen)
-    if (entrySize === undefined) {
-      continue
-    }
-    bytes += entrySize
+    bytes += entrySize ?? JSON_SYNTAX_BYTES.NULL
     hasEntries = true
     if (bytes > maxBytes) return bytes
   }

@@ -20,24 +20,28 @@ interface InlineMaterializationOptions {
 
 type InlineMaterializationMemo = WeakMap<object, Promise<unknown>>
 
+interface MaterializedInlineValue {
+  value: unknown
+  byteLength: number | undefined
+}
+
 export function getInlineJsonByteLength(value: unknown): number | undefined {
   const json = JSON.stringify(value)
   return json === undefined ? undefined : Buffer.byteLength(json, 'utf8')
 }
 
-function getArrayItemByteLength(value: unknown): number {
-  return getInlineJsonByteLength(value) ?? Buffer.byteLength('null', 'utf8')
+function getArrayItemByteLength(value: MaterializedInlineValue): number {
+  return value.byteLength ?? Buffer.byteLength('null', 'utf8')
 }
 
-function getObjectEntryByteLength(key: string, value: unknown): number | undefined {
-  const valueBytes = getInlineJsonByteLength(value)
-  if (valueBytes === undefined) {
+function getObjectEntryByteLength(key: string, value: MaterializedInlineValue): number | undefined {
+  if (value.byteLength === undefined) {
     return undefined
   }
-  return Buffer.byteLength(JSON.stringify(key), 'utf8') + 1 + valueBytes
+  return Buffer.byteLength(JSON.stringify(key), 'utf8') + 1 + value.byteLength
 }
 
-function withLocalLargeValueExecutionIds(
+function withMaterializedAccessKeys(
   context: ExecutionMaterializationContext | undefined,
   materializedValue: unknown
 ): ExecutionMaterializationContext | undefined {
@@ -57,12 +61,13 @@ export async function materializeInlineExecutionValue(
   context: ExecutionMaterializationContext | undefined,
   options: InlineMaterializationOptions = {}
 ): Promise<unknown> {
-  return materializeInlineExecutionValueWithinBudget(
+  const materialized = await materializeInlineExecutionValueWithinBudget(
     value,
     context,
     options.maxBytes ?? MAX_INLINE_MATERIALIZATION_BYTES,
     new WeakMap<object, Promise<unknown>>()
   )
+  return materialized.value
 }
 
 async function materializeInlineExecutionValueWithinBudget(
@@ -70,7 +75,7 @@ async function materializeInlineExecutionValueWithinBudget(
   context: ExecutionMaterializationContext | undefined,
   maxBytes: number,
   memo: InlineMaterializationMemo
-): Promise<unknown> {
+): Promise<MaterializedInlineValue> {
   if (isLargeArrayManifest(value)) {
     assertInlineMaterializationSize(value.byteSize, maxBytes)
     const materialized = await materializeLargeArrayManifest(value, {
@@ -79,7 +84,7 @@ async function materializeInlineExecutionValueWithinBudget(
     })
     return materializeInlineExecutionValueWithinBudget(
       materialized,
-      withLocalLargeValueExecutionIds(context, materialized),
+      withMaterializedAccessKeys(context, materialized),
       maxBytes,
       memo
     )
@@ -96,7 +101,7 @@ async function materializeInlineExecutionValueWithinBudget(
     }
     return materializeInlineExecutionValueWithinBudget(
       materialized,
-      withLocalLargeValueExecutionIds(context, materialized),
+      withMaterializedAccessKeys(context, materialized),
       maxBytes,
       memo
     )
@@ -107,12 +112,12 @@ async function materializeInlineExecutionValueWithinBudget(
     if (valueBytes !== undefined) {
       assertInlineMaterializationSize(valueBytes, maxBytes)
     }
-    return value
+    return { value, byteLength: valueBytes }
   }
 
   const cached = memo.get(value)
   if (cached) {
-    return cached
+    return { value: await cached, byteLength: 0 }
   }
 
   if (Array.isArray(value)) {
@@ -132,9 +137,9 @@ async function materializeInlineExecutionValueWithinBudget(
       const itemBytes = getArrayItemByteLength(materializedItem)
       usedBytes += commaBytes + itemBytes
       assertInlineMaterializationSize(usedBytes, maxBytes)
-      result.push(materializedItem)
+      result.push(materializedItem.value)
     }
-    return result
+    return { value: result, byteLength: usedBytes }
   }
 
   const result: Record<string, unknown> = {}
@@ -156,7 +161,7 @@ async function materializeInlineExecutionValueWithinBudget(
       usedBytes += commaBytes + entryBytes
       assertInlineMaterializationSize(usedBytes, maxBytes)
     }
-    result[key] = materializedEntryValue
+    result[key] = materializedEntryValue.value
   }
-  return result
+  return { value: result, byteLength: usedBytes }
 }
