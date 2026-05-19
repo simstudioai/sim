@@ -48,7 +48,14 @@ export const azureDevOpsHandler: WebhookProviderHandler = {
   extractIdempotencyId(body: unknown): string | null {
     const obj = body as Record<string, unknown> | null
     if (!obj) return null
-    return `azure_devops:${obj.subscriptionId}:${obj.notificationId}`
+    const subscriptionId =
+      typeof obj.subscriptionId === 'string' && obj.subscriptionId ? obj.subscriptionId : null
+    const notificationId =
+      typeof obj.notificationId === 'number' || typeof obj.notificationId === 'string'
+        ? String(obj.notificationId)
+        : null
+    if (!subscriptionId || !notificationId) return null
+    return `azure_devops:${subscriptionId}:${notificationId}`
   },
 
   async formatInput({ body, webhook, requestId }: FormatInputContext): Promise<FormatInputResult> {

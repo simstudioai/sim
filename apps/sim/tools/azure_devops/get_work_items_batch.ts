@@ -49,6 +49,9 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
           .split(',')
           .map((id) => id.trim())
           .filter(Boolean)
+        if (allIds.length === 0) {
+          throw new Error('Get Work Items Batch requires at least one work item ID.')
+        }
         const firstChunk = allIds.slice(0, 200)
         const url = new URL(
           `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/wit/workitems`

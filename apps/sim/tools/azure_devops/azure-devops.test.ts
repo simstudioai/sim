@@ -606,6 +606,15 @@ describe('Azure DevOps response transforms', () => {
     expect(result.output.metadata.workItems).toHaveLength(2)
   })
 
+  it('throws when Get Work Items Batch is invoked with no valid IDs', () => {
+    expect(() =>
+      buildUrl(getWorkItemsBatchTool, {
+        ...baseParams,
+        ids: ' , , ',
+      } satisfies GetWorkItemsBatchParams)
+    ).toThrow(/requires at least one work item ID/)
+  })
+
   it('chunks Get Work Items Batch requests larger than 200 IDs', async () => {
     const fetchMock = vi
       .fn()
@@ -764,5 +773,16 @@ describe('Azure DevOps trigger event matching', () => {
     expect(isAzureDevOpsEventMatch('azure_devops_work_item_created', baseWorkItem)).toBe(true)
     expect(isAzureDevOpsEventMatch('azure_devops_work_item_created', baseBuild)).toBe(false)
     expect(isAzureDevOpsEventMatch('azure_devops_webhook', { eventType: 'anything' })).toBe(true)
+  })
+
+  it('extractIdempotencyId returns null when subscriptionId or notificationId is missing', async () => {
+    const { azureDevOpsHandler } = await import('@/lib/webhooks/providers/azure-devops')
+    expect(azureDevOpsHandler.extractIdempotencyId!({})).toBeNull()
+    expect(azureDevOpsHandler.extractIdempotencyId!({ subscriptionId: 'sub-1' })).toBeNull()
+    expect(azureDevOpsHandler.extractIdempotencyId!({ notificationId: 42 })).toBeNull()
+    expect(
+      azureDevOpsHandler.extractIdempotencyId!({ subscriptionId: 'sub-1', notificationId: 42 })
+    ).toBe('azure_devops:sub-1:42')
+    expect(azureDevOpsHandler.extractIdempotencyId!(null)).toBeNull()
   })
 })
