@@ -266,8 +266,14 @@ export const GET = withRouteHandler(
         eq(userTableRows.workspaceId, validated.workspaceId),
       ]
 
+      const schema = table.schema as TableSchema
+
       if (validated.filter) {
-        const filterClause = buildFilterClause(validated.filter as Filter, USER_TABLE_ROWS_SQL_NAME)
+        const filterClause = buildFilterClause(
+          validated.filter as Filter,
+          USER_TABLE_ROWS_SQL_NAME,
+          schema.columns
+        )
         if (filterClause) {
           baseConditions.push(filterClause)
         }
@@ -286,7 +292,6 @@ export const GET = withRouteHandler(
         .where(and(...baseConditions))
 
       if (validated.sort) {
-        const schema = table.schema as TableSchema
         const sortClause = buildSortClause(validated.sort, USER_TABLE_ROWS_SQL_NAME, schema.columns)
         if (sortClause) {
           query = query.orderBy(sortClause) as typeof query
@@ -388,14 +393,12 @@ export const PUT = withRouteHandler(
       }
 
       const result = await updateRowsByFilter(
+        table,
         {
-          tableId,
           filter: validated.filter as Filter,
           data: validated.data as RowData,
           limit: validated.limit,
-          workspaceId: validated.workspaceId,
         },
-        table,
         requestId
       )
 
@@ -503,11 +506,10 @@ export const DELETE = withRouteHandler(
       }
 
       const result = await deleteRowsByFilter(
+        table,
         {
-          tableId,
           filter: validated.filter as Filter,
           limit: validated.limit,
-          workspaceId: validated.workspaceId,
         },
         requestId
       )

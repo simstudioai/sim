@@ -62,8 +62,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
         let firstJsonRow = true
         while (true) {
           const result = await queryRows(
-            tableId,
-            table.workspaceId,
+            table,
             { limit: EXPORT_BATCH_SIZE, offset, includeTotal: false },
             requestId
           )

@@ -163,10 +163,10 @@ export interface TableRow {
 export interface ConditionOperators {
   $eq?: ColumnValue
   $ne?: ColumnValue
-  $gt?: number
-  $gte?: number
-  $lt?: number
-  $lte?: number
+  $gt?: number | string
+  $gte?: number | string
+  $lt?: number | string
+  $lte?: number | string
   $in?: ColumnValue[]
   $nin?: ColumnValue[]
   $contains?: string
@@ -319,11 +319,9 @@ export interface UpdateRowData {
 }
 
 export interface BulkUpdateData {
-  tableId: string
   filter: Filter
   data: RowData
   limit?: number
-  workspaceId: string
 }
 
 export interface BatchUpdateByIdData {
@@ -339,10 +337,8 @@ export interface BatchUpdateByIdData {
 }
 
 export interface BulkDeleteData {
-  tableId: string
   filter: Filter
   limit?: number
-  workspaceId: string
 }
 
 export interface BulkDeleteByIdsData {
