@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
 import type { ExecutionContext } from '@/executor/types'
 
@@ -66,5 +66,27 @@ describe('serializePauseSnapshot', () => {
         1: [{ output: 'batch-1' }],
       },
     })
+  })
+
+  it('rejects oversized snapshot values without full JSON serialization', () => {
+    const stringifySpy = vi.spyOn(JSON, 'stringify').mockImplementation(() => {
+      throw new Error('full stringify should not be used for compactness checks')
+    })
+    const context = createContext({
+      workflowVariables: {
+        oversized: {
+          type: 'string',
+          value: 'x'.repeat(9 * 1024 * 1024),
+        },
+      },
+    })
+
+    try {
+      expect(() => serializePauseSnapshot(context, ['next-block'])).toThrow(
+        'Cannot serialize pause snapshot with oversized workflow variables'
+      )
+    } finally {
+      stringifySpy.mockRestore()
+    }
   })
 })

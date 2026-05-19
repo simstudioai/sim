@@ -3,17 +3,22 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  isLargeArrayManifest,
+  LARGE_ARRAY_MANIFEST_VERSION,
+  readLargeArrayManifestSlice,
+} from '@/lib/execution/payloads/large-array-manifest'
+import {
   getLargeValueMaterializationError,
   isLargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
-import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { compactExecutionPayload, compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import type { UserFile } from '@/executor/types'
-import { navigatePath } from '@/executor/variables/resolvers/reference'
 
 const TEST_EXECUTION_CONTEXT = {
   workspaceId: 'workspace-1',
   workflowId: 'workflow-1',
   executionId: 'execution-1',
+  userId: 'user-1',
 }
 
 describe('compactExecutionPayload', () => {
@@ -57,19 +62,33 @@ describe('compactExecutionPayload', () => {
     })
   })
 
-  it('stores oversized arrays as refs and allows nested path navigation in-process', async () => {
+  it('stores oversized arrays as manifests and allows bounded slice reads', async () => {
     const results = Array.from({ length: 100 }, (_, index) => [{ event: { id: `event-${index}` } }])
     const compacted = await compactExecutionPayload(
       { results },
-      { thresholdBytes: 256, ...TEST_EXECUTION_CONTEXT }
+      { thresholdBytes: 1024, ...TEST_EXECUTION_CONTEXT }
     )
 
-    expect(isLargeValueRef(compacted.results)).toBe(true)
-    expect(
-      navigatePath(compacted, ['results', '1', '0', 'event', 'id'], {
-        executionContext: TEST_EXECUTION_CONTEXT,
-      })
-    ).toBe('event-1')
+    expect(isLargeArrayManifest(compacted.results)).toBe(true)
+    expect(compacted.results.totalCount).toBe(100)
+    await expect(
+      readLargeArrayManifestSlice(compacted.results, 1, 1, TEST_EXECUTION_CONTEXT)
+    ).resolves.toEqual([[{ event: { id: 'event-1' } }]])
+  })
+
+  it('keeps oversized strings and objects as large value refs', async () => {
+    const compacted = await compactExecutionPayload(
+      {
+        text: 'x'.repeat(2048),
+        metadata: Object.fromEntries(
+          Array.from({ length: 100 }, (_, index) => [`key-${index}`, `value-${index}`])
+        ),
+      },
+      { thresholdBytes: 1024, ...TEST_EXECUTION_CONTEXT }
+    )
+
+    expect(isLargeValueRef(compacted.text)).toBe(true)
+    expect(isLargeValueRef(compacted.metadata)).toBe(true)
   })
 
   it('does not double-spill existing refs', async () => {
@@ -81,6 +100,125 @@ describe('compactExecutionPayload', () => {
     const compactedAgain = await compactExecutionPayload(compacted, { thresholdBytes: 256 })
 
     expect(compactedAgain).toEqual(compacted)
+  })
+
+  it('bounds user-supplied manifest-shaped metadata during compaction', async () => {
+    const forgedManifest = {
+      __simLargeArrayManifest: true,
+      version: LARGE_ARRAY_MANIFEST_VERSION,
+      kind: 'array',
+      totalCount: 2,
+      chunkCount: 2,
+      byteSize: 2,
+      chunks: [
+        {
+          ref: {
+            __simLargeValueRef: true,
+            version: 1,
+            id: 'lv_ABCDEFGHIJKL',
+            kind: 'array',
+            size: 1,
+            executionId: TEST_EXECUTION_CONTEXT.executionId,
+          },
+          count: 1,
+          byteSize: 1,
+        },
+        {
+          ref: {
+            __simLargeValueRef: true,
+            version: 1,
+            id: 'lv_MNOPQRSTUVWX',
+            kind: 'array',
+            size: 1,
+            executionId: TEST_EXECUTION_CONTEXT.executionId,
+          },
+          count: 1,
+          byteSize: 1,
+        },
+      ],
+      preview: [],
+    }
+
+    expect(isLargeArrayManifest(forgedManifest)).toBe(true)
+
+    const compacted = await compactExecutionPayload(forgedManifest, {
+      thresholdBytes: 128,
+      preserveRoot: true,
+      ...TEST_EXECUTION_CONTEXT,
+    })
+
+    expect(isLargeValueRef(compacted)).toBe(true)
+  })
+
+  it('bounds oversized manifest preview metadata during compaction', async () => {
+    const forgedManifest = {
+      __simLargeArrayManifest: true,
+      version: LARGE_ARRAY_MANIFEST_VERSION,
+      kind: 'array',
+      totalCount: 1,
+      chunkCount: 1,
+      byteSize: 1,
+      chunks: [
+        {
+          ref: {
+            __simLargeValueRef: true,
+            version: 1,
+            id: 'lv_ABCDEFGHIJKL',
+            kind: 'array',
+            size: 1,
+            executionId: TEST_EXECUTION_CONTEXT.executionId,
+          },
+          count: 1,
+          byteSize: 1,
+        },
+      ],
+      preview: [{ payload: 'x'.repeat(20 * 1024) }],
+    }
+
+    expect(isLargeArrayManifest(forgedManifest)).toBe(true)
+
+    const compacted = await compactExecutionPayload(forgedManifest, {
+      thresholdBytes: 128,
+      preserveRoot: true,
+      ...TEST_EXECUTION_CONTEXT,
+    })
+
+    expect(isLargeValueRef(compacted)).toBe(true)
+  })
+
+  it('does not re-wrap manifests when forcing oversized subflow result entries', async () => {
+    const manifest = {
+      __simLargeArrayManifest: true,
+      version: LARGE_ARRAY_MANIFEST_VERSION,
+      kind: 'array',
+      totalCount: 1,
+      chunkCount: 1,
+      byteSize: 1,
+      chunks: [
+        {
+          ref: {
+            __simLargeValueRef: true,
+            version: 1,
+            id: 'lv_ABCDEFGHIJKL',
+            kind: 'array',
+            size: 1,
+            executionId: TEST_EXECUTION_CONTEXT.executionId,
+          },
+          count: 1,
+          byteSize: 1,
+        },
+      ],
+      preview: [],
+    }
+    const thresholdBytes = Buffer.byteLength(JSON.stringify(manifest), 'utf8') + 8
+
+    const compacted = await compactSubflowResults([manifest, manifest], {
+      thresholdBytes,
+      ...TEST_EXECUTION_CONTEXT,
+    })
+
+    expect(compacted).toEqual([manifest, manifest])
+    expect(compacted.every(isLargeArrayManifest)).toBe(true)
   })
 
   it('rejects durable compaction when storage context is incomplete', async () => {

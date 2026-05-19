@@ -13,8 +13,8 @@ import {
   emitEmptySubflowEvents,
   emitSubflowSuccessEvents,
   extractBranchIndex,
-  resolveArrayInputAsync,
 } from '@/executor/utils/subflow-utils'
+import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedParallel } from '@/serializer/types'
 
@@ -350,6 +350,9 @@ export class ParallelOrchestrator {
           workspaceId: ctx.workspaceId,
           workflowId: ctx.workflowId,
           executionId: ctx.executionId,
+          largeValueExecutionIds: ctx.largeValueExecutionIds,
+          largeValueKeys: ctx.largeValueKeys,
+          allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
           userId: ctx.userId,
           requireDurable: true,
         })
@@ -377,6 +380,9 @@ export class ParallelOrchestrator {
       workspaceId: ctx.workspaceId,
       workflowId: ctx.workflowId,
       executionId: ctx.executionId,
+      largeValueExecutionIds: ctx.largeValueExecutionIds,
+      largeValueKeys: ctx.largeValueKeys,
+      allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
       userId: ctx.userId,
       requireDurable: true,
     })

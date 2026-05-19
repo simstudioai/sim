@@ -202,9 +202,12 @@ export class BlockExecutor {
           workflowId: ctx.workflowId,
           executionId: ctx.executionId,
           largeValueExecutionIds: ctx.largeValueExecutionIds,
+          largeValueKeys: ctx.largeValueKeys,
+          fileKeys: ctx.fileKeys,
           allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
           userId: ctx.userId,
           maxBytes: ctx.base64MaxBytes,
+          preserveLargeValueMetadata: true,
         })) as NormalizedBlockOutput
       }
 

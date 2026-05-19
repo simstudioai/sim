@@ -1,8 +1,22 @@
+import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import {
   type LargeValueStoreContext,
   materializeLargeValueRef,
 } from '@/lib/execution/payloads/store'
+
+function withLocalMaterializedKeys(
+  context: LargeValueStoreContext,
+  materializedValue: unknown
+): LargeValueStoreContext {
+  recordMaterializedAccessKeys(context, materializedValue)
+  return {
+    ...context,
+    largeValueKeys: context.largeValueKeys,
+    fileKeys: context.fileKeys,
+  }
+}
 
 export async function warmLargeValueRefs(
   value: unknown,
@@ -15,7 +29,7 @@ export async function warmLargeValueRefs(
 
   if (isLargeValueRef(value)) {
     const materialized = await materializeLargeValueRef(value, context)
-    await warmLargeValueRefs(materialized, context, seen)
+    await warmLargeValueRefs(materialized, withLocalMaterializedKeys(context, materialized), seen)
     return
   }
 
@@ -24,12 +38,19 @@ export async function warmLargeValueRefs(
   }
   seen.add(value)
 
-  if (Array.isArray(value)) {
-    await Promise.all(value.map((item) => warmLargeValueRefs(item, context, seen)))
+  if (isLargeArrayManifest(value)) {
+    await warmLargeValueRefs(value.preview, context, seen)
     return
   }
 
-  await Promise.all(
-    Object.values(value).map((entryValue) => warmLargeValueRefs(entryValue, context, seen))
-  )
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      await warmLargeValueRefs(item, context, seen)
+    }
+    return
+  }
+
+  for (const entryValue of Object.values(value)) {
+    await warmLargeValueRefs(entryValue, context, seen)
+  }
 }
