@@ -30,7 +30,7 @@ export const incidentsShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/incidents/${params.id}`,
+    url: (params) => `https://api.incident.io/v2/incidents/${params.id.trim()}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
