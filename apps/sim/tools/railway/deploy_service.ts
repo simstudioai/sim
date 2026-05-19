@@ -3,7 +3,6 @@ import type {
   RailwayDeployServiceResponse,
 } from '@/tools/railway/types'
 import {
-  compactVariables,
   optionalString,
   parseRailwayGraphqlResponse,
   RAILWAY_GRAPHQL_URL,
@@ -61,22 +60,40 @@ export const railwayDeployServiceTool: ToolConfig<
     url: RAILWAY_GRAPHQL_URL,
     method: 'POST',
     headers: (params) => railwayHeaders(params.apiKey, params.tokenType),
-    body: (params) => ({
-      query: `
-        mutation DeployService($serviceId: String!, $environmentId: String!, $commitSha: String) {
-          serviceInstanceDeployV2(
-            serviceId: $serviceId
-            environmentId: $environmentId
-            commitSha: $commitSha
-          )
+    body: (params) => {
+      const commitSha = optionalString(params.commitSha)
+
+      if (commitSha) {
+        return {
+          query: `
+            mutation DeployService($serviceId: String!, $environmentId: String!, $commitSha: String!) {
+              serviceInstanceDeployV2(
+                serviceId: $serviceId
+                environmentId: $environmentId
+                commitSha: $commitSha
+              )
+            }
+          `,
+          variables: {
+            serviceId: params.serviceId.trim(),
+            environmentId: params.environmentId.trim(),
+            commitSha,
+          },
         }
-      `,
-      variables: compactVariables({
-        serviceId: params.serviceId.trim(),
-        environmentId: params.environmentId.trim(),
-        commitSha: optionalString(params.commitSha),
-      }),
-    }),
+      }
+
+      return {
+        query: `
+          mutation DeployService($serviceId: String!, $environmentId: String!) {
+            serviceInstanceDeployV2(serviceId: $serviceId, environmentId: $environmentId)
+          }
+        `,
+        variables: {
+          serviceId: params.serviceId.trim(),
+          environmentId: params.environmentId.trim(),
+        },
+      }
+    },
   },
 
   transformResponse: async (response: Response) => {
