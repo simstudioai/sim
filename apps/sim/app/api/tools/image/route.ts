@@ -221,8 +221,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
 })
 
-const OPENAI_IMAGE_MODELS = ['gpt-image-1.5', 'gpt-image-1', 'gpt-image-1-mini'] as const
+const OPENAI_IMAGE_MODELS = [
+  'gpt-image-2',
+  'gpt-image-1.5',
+  'gpt-image-1',
+  'gpt-image-1-mini',
+] as const
 const OPENAI_IMAGE_SIZES = ['auto', '1024x1024', '1536x1024', '1024x1536'] as const
+const OPENAI_IMAGE_2_SIZES = [...OPENAI_IMAGE_SIZES, '2560x1440', '3840x2160'] as const
 const OPENAI_IMAGE_QUALITIES = ['auto', 'low', 'medium', 'high'] as const
 const OPENAI_IMAGE_BACKGROUNDS = ['auto', 'transparent', 'opaque'] as const
 const IMAGE_OUTPUT_FORMATS = ['png', 'jpeg', 'webp'] as const
@@ -483,13 +489,16 @@ async function generateWithOpenAI(
   logger: ReturnType<typeof createLogger>
 ): Promise<GeneratedImageResult> {
   const model = pickAllowed(body.model, OPENAI_IMAGE_MODELS, 'gpt-image-1.5')
-  const size = pickAllowed(body.size, OPENAI_IMAGE_SIZES, 'auto')
+  const size =
+    model === 'gpt-image-2'
+      ? pickAllowed(body.size, OPENAI_IMAGE_2_SIZES, 'auto')
+      : pickAllowed(body.size, OPENAI_IMAGE_SIZES, 'auto')
   const outputFormat = pickAllowed(body.outputFormat, IMAGE_OUTPUT_FORMATS, 'png')
   const requestBody: Record<string, string | number> = {
     model,
     prompt: body.prompt,
     size,
-    n: clampInteger(body.numImages, 1, 10, 1),
+    n: 1,
   }
 
   if (body.quality) {

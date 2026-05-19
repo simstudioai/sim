@@ -5,11 +5,14 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ImageTool')
 
-const OPENAI_IMAGE_MODEL_ALIASES: Record<string, string> = {
-  'gpt-image-2': 'gpt-image-1.5',
-}
 const GPT_IMAGE_SIZES = ['auto', '1024x1024', '1536x1024', '1024x1536'] as const
-const GPT_IMAGE_MODELS = ['gpt-image-1.5', 'gpt-image-1', 'gpt-image-1-mini'] as const
+const GPT_IMAGE_2_SIZES = [...GPT_IMAGE_SIZES, '2560x1440', '3840x2160'] as const
+const GPT_IMAGE_MODELS = [
+  'gpt-image-2',
+  'gpt-image-1.5',
+  'gpt-image-1',
+  'gpt-image-1-mini',
+] as const
 
 export const imageTool: ToolConfig = {
   id: 'openai_image',
@@ -23,7 +26,7 @@ export const imageTool: ToolConfig = {
       required: true,
       visibility: 'user-only',
       description:
-        'The model to use. Supports dall-e-3, gpt-image-1, gpt-image-1.5, gpt-image-1-mini, and the previous gpt-image-2 compatibility alias.',
+        'The model to use. Supports dall-e-3, gpt-image-2, gpt-image-1.5, gpt-image-1, and gpt-image-1-mini.',
     },
     prompt: {
       type: 'string',
@@ -36,7 +39,7 @@ export const imageTool: ToolConfig = {
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Image size. dall-e-3: 1024x1024, 1024x1792, or 1792x1024. GPT Image models: auto, 1024x1024, 1536x1024, or 1024x1536.',
+        'Image size. dall-e-3: 1024x1024, 1024x1792, or 1792x1024. GPT Image models: auto, 1024x1024, 1536x1024, or 1024x1536. gpt-image-2 also supports 2560x1440 and 3840x2160.',
     },
     quality: {
       type: 'string',
@@ -72,7 +75,7 @@ export const imageTool: ToolConfig = {
       type: 'number',
       required: false,
       visibility: 'hidden',
-      description: 'The number of images to generate (1-10)',
+      description: 'Reserved for legacy callers. This tool returns a single generated image.',
     },
     apiKey: {
       type: 'string',
@@ -91,28 +94,30 @@ export const imageTool: ToolConfig = {
     }),
     body: (params) => {
       const requestedModel = String(params.model || 'dall-e-3')
-      const model = OPENAI_IMAGE_MODEL_ALIASES[requestedModel] || requestedModel
       const requestedSize = String(params.size || '')
       const size =
-        model === 'dall-e-3'
+        requestedModel === 'dall-e-3'
           ? ['1024x1024', '1024x1792', '1792x1024'].includes(requestedSize)
             ? requestedSize
             : '1024x1024'
-          : GPT_IMAGE_MODELS.includes(model as (typeof GPT_IMAGE_MODELS)[number]) &&
-              GPT_IMAGE_SIZES.includes(requestedSize as (typeof GPT_IMAGE_SIZES)[number])
+          : requestedModel === 'gpt-image-2' &&
+              GPT_IMAGE_2_SIZES.includes(requestedSize as (typeof GPT_IMAGE_2_SIZES)[number])
             ? requestedSize
-            : 'auto'
+            : GPT_IMAGE_MODELS.includes(requestedModel as (typeof GPT_IMAGE_MODELS)[number]) &&
+                GPT_IMAGE_SIZES.includes(requestedSize as (typeof GPT_IMAGE_SIZES)[number])
+              ? requestedSize
+              : 'auto'
       const body: BaseImageRequestBody = {
-        model,
+        model: requestedModel,
         prompt: params.prompt,
         size,
-        n: params.n ? Number(params.n) : 1,
+        n: 1,
       }
 
-      if (model === 'dall-e-3') {
+      if (requestedModel === 'dall-e-3') {
         if (params.quality) body.quality = params.quality
         if (params.style) body.style = params.style
-      } else if (GPT_IMAGE_MODELS.includes(model as (typeof GPT_IMAGE_MODELS)[number])) {
+      } else if (GPT_IMAGE_MODELS.includes(requestedModel as (typeof GPT_IMAGE_MODELS)[number])) {
         if (params.quality) body.quality = params.quality
         if (params.background) body.background = params.background
         if (params.outputFormat) body.output_format = params.outputFormat
@@ -136,8 +141,7 @@ export const imageTool: ToolConfig = {
         })
       }
 
-      const requestedModel = String(params?.model || 'dall-e-3')
-      const modelName = OPENAI_IMAGE_MODEL_ALIASES[requestedModel] || requestedModel
+      const modelName = String(params?.model || 'dall-e-3')
       let imageUrl = null
       let base64Image = null
 
