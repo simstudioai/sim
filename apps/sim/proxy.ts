@@ -22,6 +22,14 @@ const DEFAULT_API_ALLOWED_HEADERS =
 const WORKFLOW_EXECUTE_HEADERS =
   'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key'
 
+/**
+ * Matches embed endpoints: /api/{chat,form}/{identifier} and subroutes
+ * (/otp, /sso). The identifier segment explicitly excludes the
+ * workspace-internal subpaths `manage` and `validate` so those continue
+ * to use the default credentialed policy.
+ */
+const EMBED_PATH = /^\/api\/(chat|form)\/(?!manage(\/|$)|validate(\/|$))[^/]+(\/(otp|sso))?$/
+
 interface CorsRule {
   match: (pathname: string) => boolean
   policy: (request: NextRequest) => CorsPolicy
@@ -56,9 +64,13 @@ const CORS_RULES: readonly CorsRule[] = [
     }),
   },
   {
-    // Chat and form embeds run on customer domains; reflect the request
-    // origin and omit credentials (auth uses signed tokens, not cookies).
-    match: (p) => p === '/api/form' || p.startsWith('/api/form/') || p.startsWith('/api/chat/'),
+    // Embed endpoints: /api/chat/[identifier] and /api/form/[identifier]
+    // (plus their /otp and /sso subroutes). These run on customer domains —
+    // reflect the request origin and omit credentials (auth uses signed
+    // tokens, not cookies). Workspace-internal subpaths (`manage`, `validate`,
+    // and the bare collection routes) are deliberately excluded so they
+    // continue to receive the default credentialed policy.
+    match: (p) => EMBED_PATH.test(p),
     policy: (request) => ({
       origin: request.headers.get('origin') || '*',
       credentials: false,

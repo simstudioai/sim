@@ -45,7 +45,14 @@ describe('resolveApiCorsPolicy', () => {
   })
 
   it('reflects origin for chat and form embeds, never sets credentials', () => {
-    for (const path of ['/api/chat/abc', '/api/form', '/api/form/xyz']) {
+    const paths = [
+      '/api/chat/abc',
+      '/api/chat/abc/otp',
+      '/api/chat/abc/sso',
+      '/api/form/xyz',
+      '/api/form/xyz/otp',
+    ]
+    for (const path of paths) {
       const policy = resolveApiCorsPolicy(makeRequest(path, 'https://customer.example'))
       expect(policy).toEqual({
         origin: 'https://customer.example',
@@ -56,8 +63,24 @@ describe('resolveApiCorsPolicy', () => {
     }
   })
 
-  it('falls back to wildcard for chat/form when no origin header is present', () => {
+  it('falls back to wildcard for chat/form embeds when no origin header is present', () => {
     expect(resolveApiCorsPolicy(makeRequest('/api/chat/abc')).origin).toBe('*')
+  })
+
+  it('uses the default credentialed policy for workspace-internal chat/form routes', () => {
+    const paths = [
+      '/api/chat',
+      '/api/chat/manage/abc',
+      '/api/chat/validate',
+      '/api/form',
+      '/api/form/manage/abc',
+      '/api/form/validate',
+    ]
+    for (const path of paths) {
+      const policy = resolveApiCorsPolicy(makeRequest(path, 'https://customer.example'))
+      expect(policy.origin).toBe('https://app.sim.test')
+      expect(policy.credentials).toBe(true)
+    }
   })
 
   it('serves workflow execute with wildcard origin and PUT method', () => {
