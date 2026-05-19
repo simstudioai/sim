@@ -1,8 +1,6 @@
-import { createLogger } from '@sim/logger'
 import type { WorkflowsCreateParams, WorkflowsCreateResponse } from '@/tools/incidentio/types'
+import { parseIncidentioJsonParam } from '@/tools/incidentio/utils'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('IncidentIOCreate')
 
 export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCreateResponse> = {
   id: 'incidentio_workflows_create',
@@ -122,25 +120,19 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      const parseJsonParam = (jsonString: string | undefined, defaultValue: unknown) => {
-        if (!jsonString) return defaultValue
-        try {
-          return JSON.parse(jsonString)
-        } catch (error) {
-          logger.warn(`Failed to parse JSON parameter: ${jsonString}`, error)
-          return defaultValue
-        }
-      }
-
       const body: Record<string, unknown> = {
         name: params.name,
         trigger: params.trigger || 'incident.updated',
-        once_for: parseJsonParam(params.once_for, []),
-        condition_groups: parseJsonParam(params.condition_groups, []),
-        steps: parseJsonParam(params.steps, []),
-        expressions: parseJsonParam(params.expressions, []),
+        once_for: parseIncidentioJsonParam(params.once_for, 'once_for', []),
+        condition_groups: parseIncidentioJsonParam(params.condition_groups, 'condition_groups', []),
+        steps: parseIncidentioJsonParam(params.steps, 'steps', []),
+        expressions: parseIncidentioJsonParam(params.expressions, 'expressions', []),
         include_private_incidents: params.include_private_incidents ?? true,
-        runs_on_incident_modes: parseJsonParam(params.runs_on_incident_modes, ['standard']),
+        runs_on_incident_modes: parseIncidentioJsonParam(
+          params.runs_on_incident_modes,
+          'runs_on_incident_modes',
+          ['standard']
+        ),
         continue_on_step_error: params.continue_on_step_error ?? false,
         runs_on_incidents: params.runs_on_incidents || 'newly_created',
         state: params.state || 'draft',
@@ -151,7 +143,7 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
       }
 
       if (params.delay) {
-        body.delay = parseJsonParam(params.delay, undefined)
+        body.delay = parseIncidentioJsonParam(params.delay, 'delay', undefined)
       }
 
       return body

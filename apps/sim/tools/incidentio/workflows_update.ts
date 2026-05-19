@@ -1,8 +1,9 @@
-import { createLogger } from '@sim/logger'
 import type { WorkflowsUpdateParams, WorkflowsUpdateResponse } from '@/tools/incidentio/types'
+import {
+  parseIncidentioJsonParam,
+  parseRequiredIncidentioJsonParam,
+} from '@/tools/incidentio/utils'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('IncidentIOUpdate')
 
 export const workflowsUpdateTool: ToolConfig<WorkflowsUpdateParams, WorkflowsUpdateResponse> = {
   id: 'incidentio_workflows_update',
@@ -106,33 +107,27 @@ export const workflowsUpdateTool: ToolConfig<WorkflowsUpdateParams, WorkflowsUpd
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      const parseJsonParam = (jsonString: string | undefined, defaultValue: unknown) => {
-        if (!jsonString) return defaultValue
-        try {
-          return JSON.parse(jsonString)
-        } catch (error) {
-          logger.warn(`Failed to parse JSON parameter: ${jsonString}`, {
-            error: error instanceof Error ? error.message : String(error),
-          })
-          return defaultValue
-        }
-      }
-
       const body: Record<string, unknown> = {
         name: params.name,
-        once_for: parseJsonParam(params.once_for, []),
-        condition_groups: parseJsonParam(params.condition_groups, []),
-        steps: parseJsonParam(params.steps, []),
-        expressions: parseJsonParam(params.expressions, []),
+        once_for: parseRequiredIncidentioJsonParam(params.once_for, 'once_for'),
+        condition_groups: parseRequiredIncidentioJsonParam(
+          params.condition_groups,
+          'condition_groups'
+        ),
+        steps: parseRequiredIncidentioJsonParam(params.steps, 'steps'),
+        expressions: parseRequiredIncidentioJsonParam(params.expressions, 'expressions'),
         include_private_incidents: params.include_private_incidents,
-        runs_on_incident_modes: parseJsonParam(params.runs_on_incident_modes, ['standard']),
+        runs_on_incident_modes: parseRequiredIncidentioJsonParam(
+          params.runs_on_incident_modes,
+          'runs_on_incident_modes'
+        ),
         continue_on_step_error: params.continue_on_step_error,
         runs_on_incidents: params.runs_on_incidents,
       }
 
       if (params.state) body.state = params.state
       if (params.folder) body.folder = params.folder
-      if (params.delay) body.delay = parseJsonParam(params.delay, undefined)
+      if (params.delay) body.delay = parseIncidentioJsonParam(params.delay, 'delay', undefined)
 
       return body
     },
