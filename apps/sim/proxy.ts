@@ -23,12 +23,27 @@ const WORKFLOW_EXECUTE_HEADERS =
   'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key'
 
 /**
- * Matches embed endpoints: /api/{chat,form}/{identifier} and subroutes
- * (/otp, /sso). The identifier segment explicitly excludes the
- * workspace-internal subpaths `manage` and `validate` so those continue
- * to use the default credentialed policy.
+ * Workspace-internal segments under /api/{chat,form}/* that must NOT
+ * receive the embed policy. They serve the workspace UI with session
+ * cookies and need the default credentialed policy.
  */
-const EMBED_PATH = /^\/api\/(chat|form)\/(?!manage(\/|$)|validate(\/|$))[^/]+(\/(otp|sso))?$/
+const EMBED_RESERVED_SEGMENTS = new Set(['manage', 'validate'])
+
+/**
+ * True for /api/{chat,form}/[identifier] and any deeper subroute
+ * (e.g. /otp, /sso). The identifier segment is explicitly checked
+ * against EMBED_RESERVED_SEGMENTS so workspace-internal routes fall
+ * through to the default credentialed policy.
+ */
+function isEmbedPath(pathname: string): boolean {
+  const segments = pathname.split('/')
+  if (segments.length < 4) return false
+  if (segments[1] !== 'api') return false
+  if (segments[2] !== 'chat' && segments[2] !== 'form') return false
+  const identifier = segments[3]
+  if (!identifier || EMBED_RESERVED_SEGMENTS.has(identifier)) return false
+  return true
+}
 
 interface CorsRule {
   match: (pathname: string) => boolean
@@ -70,7 +85,7 @@ const CORS_RULES: readonly CorsRule[] = [
     // tokens, not cookies). Workspace-internal subpaths (`manage`, `validate`,
     // and the bare collection routes) are deliberately excluded so they
     // continue to receive the default credentialed policy.
-    match: (p) => EMBED_PATH.test(p),
+    match: (p) => isEmbedPath(p),
     policy: (request) => ({
       origin: request.headers.get('origin') || '*',
       credentials: false,

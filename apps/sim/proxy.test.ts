@@ -67,6 +67,14 @@ describe('resolveApiCorsPolicy', () => {
     expect(resolveApiCorsPolicy(makeRequest('/api/chat/abc')).origin).toBe('*')
   })
 
+  it('applies the embed policy to future identifier subroutes (not just /otp, /sso)', () => {
+    const policy = resolveApiCorsPolicy(
+      makeRequest('/api/chat/abc/transcript', 'https://customer.example')
+    )
+    expect(policy.origin).toBe('https://customer.example')
+    expect(policy.credentials).toBe(false)
+  })
+
   it('uses the default credentialed policy for workspace-internal chat/form routes', () => {
     const paths = [
       '/api/chat',
