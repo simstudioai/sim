@@ -60,7 +60,7 @@ export const PATCH = withRouteHandler(
           retries: body.retries,
           enabled: body.enabled,
           authType: body.authType,
-          oauthClientId: body.oauthClientId ?? null,
+          oauthClientId: body.oauthClientId || null,
           oauthClientIdProvided: body.oauthClientId !== undefined,
           oauthClientSecret: body.oauthClientSecret,
           oauthClientSecretProvided: body.oauthClientSecret !== undefined,

@@ -95,7 +95,7 @@ export const POST = withRouteHandler(
           enabled: body.enabled,
           source,
           authType: body.authType,
-          oauthClientId: body.oauthClientId ?? null,
+          oauthClientId: body.oauthClientId || null,
           oauthClientIdProvided: body.oauthClientId !== undefined,
           oauthClientSecret: body.oauthClientSecret,
           oauthClientSecretProvided: body.oauthClientSecret !== undefined,
