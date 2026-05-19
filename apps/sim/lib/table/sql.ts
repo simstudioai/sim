@@ -75,18 +75,27 @@ const ALLOWED_OPERATORS = new Set([
  *
  * @param filter - Filter object with field conditions and logical operators
  * @param tableName - Table name for the query (e.g., 'user_table_rows')
+ * @param columns - Column definitions; drives type-aware JSONB casts (numeric for numbers, timestamptz for dates)
  * @returns SQL WHERE clause or undefined if no filter specified
  * @throws {TableQueryValidationError} if field name is invalid or operator is not allowed
  *
  * @example
  * // Simple equality
- * buildFilterClause({ name: 'John' }, 'user_table_rows')
+ * buildFilterClause({ name: 'John' }, 'user_table_rows', [{ name: 'name', type: 'string' }])
  *
- * // Complex filter with operators
- * buildFilterClause({ age: { $gte: 18 }, status: { $in: ['active', 'pending'] } }, 'user_table_rows')
+ * // Range on a date column — emits `::timestamptz` on both sides
+ * buildFilterClause(
+ *   { birthDate: { $gte: '2024-01-01' } },
+ *   'user_table_rows',
+ *   [{ name: 'birthDate', type: 'date' }],
+ * )
  *
  * // Logical operators
- * buildFilterClause({ $or: [{ status: 'active' }, { verified: true }] }, 'user_table_rows')
+ * buildFilterClause(
+ *   { $or: [{ status: 'active' }, { verified: true }] },
+ *   'user_table_rows',
+ *   [{ name: 'status', type: 'string' }, { name: 'verified', type: 'boolean' }],
+ * )
  */
 export function buildFilterClause(
   filter: Filter,
@@ -157,18 +166,25 @@ function buildFilterClauseInternal(
  *
  * @param sort - Sort object with field names and directions
  * @param tableName - Table name for the query (e.g., 'user_table_rows')
- * @param columns - Optional column definitions for type-aware sorting
+ * @param columns - Column definitions; drives type-aware casts (numeric for numbers, timestamptz for dates)
  * @returns SQL ORDER BY clause or undefined if no sort specified
  * @throws {TableQueryValidationError} if field name or sort direction is invalid
  *
  * @example
- * buildSortClause({ name: 'asc', age: 'desc' }, 'user_table_rows')
- * // Returns: ORDER BY data->>'name' ASC, data->>'age' DESC
+ * buildSortClause(
+ *   { name: 'asc' },
+ *   'user_table_rows',
+ *   [{ name: 'name', type: 'string' }],
+ * )
+ * // Returns: ORDER BY user_table_rows.data->>'name' ASC
  *
  * @example
- * // With column types for proper numeric sorting
- * buildSortClause({ salary: 'desc' }, 'user_table_rows', [{ name: 'salary', type: 'number' }])
- * // Returns: ORDER BY (data->>'salary')::numeric DESC NULLS LAST
+ * buildSortClause(
+ *   { salary: 'desc' },
+ *   'user_table_rows',
+ *   [{ name: 'salary', type: 'number' }],
+ * )
+ * // Returns: ORDER BY (user_table_rows.data->>'salary')::numeric DESC NULLS LAST
  */
 export function buildSortClause(
   sort: Sort,
