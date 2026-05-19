@@ -81,6 +81,34 @@ describe('copilot tool executor fallback', () => {
         timeout: 7000,
         _context: expect.objectContaining({
           copilotToolExecution: true,
+          useMothershipSandbox: undefined,
+        }),
+      })
+    )
+  })
+
+  it('marks fallback function_execute calls to use the Mothership sandbox only for Mothership execution', async () => {
+    isKnownTool.mockReturnValue(false)
+    isSimExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
+
+    await executeTool(
+      'function_execute',
+      { code: 'return 1' },
+      {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        copilotToolExecution: true,
+        mothershipToolExecution: true,
+      }
+    )
+
+    expect(executeAppTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({
+        _context: expect.objectContaining({
+          useMothershipSandbox: true,
         }),
       })
     )

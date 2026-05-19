@@ -135,6 +135,7 @@ function buildAppToolParams(
     executionId: context.executionId,
     runId: context.runId,
     copilotToolExecution: context.copilotToolExecution,
+    useMothershipSandbox: context.mothershipToolExecution,
     requestMode: context.requestMode,
     currentAgentId: context.currentAgentId,
     enforceCredentialAccess: true,

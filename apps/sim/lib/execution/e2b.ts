@@ -15,6 +15,7 @@ export interface E2BExecutionRequest {
   timeoutMs: number
   sandboxFiles?: SandboxFile[]
   outputSandboxPath?: string
+  useMothershipSandbox?: boolean
 }
 
 export interface E2BShellExecutionRequest {
@@ -45,7 +46,13 @@ export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecuti
     throw new Error('E2B_API_KEY is required when E2B is enabled')
   }
 
-  const sandbox = await Sandbox.create({ apiKey })
+  const templateName = req.useMothershipSandbox ? env.MOTHERSHIP_E2B_TEMPLATE_ID : undefined
+  logger.info('Creating E2B code sandbox', {
+    template: templateName || '(default)',
+  })
+  const sandbox = templateName
+    ? await Sandbox.create(templateName, { apiKey })
+    : await Sandbox.create({ apiKey })
   const sandboxId = sandbox.sandboxId
 
   if (req.sandboxFiles?.length) {

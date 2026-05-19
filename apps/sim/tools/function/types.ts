@@ -33,6 +33,7 @@ export interface CodeExecutionInput {
     userId?: string
     workspaceId?: string
     copilotToolExecution?: boolean
+    useMothershipSandbox?: boolean
   }
   isCustomTool?: boolean
   _sandboxFiles?: Array<{ path: string; content: string }>

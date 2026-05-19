@@ -199,6 +199,7 @@ export const generateVisualizationServerTool: BaseServerTool<
         language: CodeLanguage.Python,
         timeoutMs: 60_000,
         sandboxFiles,
+        useMothershipSandbox: context?.mothershipToolExecution,
       })
 
       if (result.error) {

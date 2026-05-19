@@ -127,6 +127,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description:
             'Workspace filename or slash-separated file path including extension, e.g. "main.py", "report.md", or "Reports/2026/report.md".',
         },
+        overwriteFile: {
+          type: 'boolean',
+          description:
+            'When true, overwrite the existing workspace file at fileName if it exists. Defaults to false, which creates a non-colliding copy like "summary (1).md". Only set true when the user explicitly asks to replace/update that file.',
+        },
       },
       required: ['fileName'],
     },
@@ -767,7 +772,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         fileName: {
           type: 'string',
           description:
-            'Optional workspace file name to save as. If omitted, the name is inferred from the response or URL.',
+            'Optional workspace file name to save as. If omitted, the name is inferred from the response or URL. Existing names are saved as copies unless overwriteFile=true.',
+        },
+        overwriteFile: {
+          type: 'boolean',
+          description:
+            'When true, overwrite the existing workspace file named by fileName if it exists. Defaults to false, which saves a non-colliding copy like "asset (1).png". Only set true when the user explicitly asks to replace/update that file.',
         },
         url: {
           type: 'string',
@@ -900,7 +910,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         outputPath: {
           type: 'string',
           description:
-            'Pipe output directly to a NEW workspace file instead of returning in context. ALWAYS use this instead of a separate workspace_file write call. Use a root path like "files/result.json" — nested output paths are not supported.',
+            'Pipe output directly to a workspace file instead of returning in context. If a file with the same name exists, the default is to save a copy like "result (1).json". Use a root path like "files/result.json" — nested output paths are not supported.',
         },
         outputSandboxPath: {
           type: 'string',
@@ -911,6 +921,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           description:
             'Table ID to overwrite with the code\'s return value. Code MUST return an array of objects where keys match column names. All existing rows are replaced. Example: "tbl_abc123"',
+        },
+        overwriteFile: {
+          type: 'boolean',
+          description:
+            'When true, overwrite the existing workspace file named by outputPath if it exists. Defaults to false, which saves a non-colliding copy like "result (1).json". Only set true when the user explicitly asks to replace/update that file.',
         },
       },
       required: ['code'],
@@ -947,7 +962,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         fileName: {
           type: 'string',
           description:
-            'Output file name. Defaults to "generated-image.png". New generated images currently create root workspace files, so pass a plain file name, not a nested path.',
+            'Output file name. Defaults to "generated-image.png". New generated images currently create root workspace files, so pass a plain file name, not a nested path. Existing names are saved as copies unless overwriteFile=true.',
+        },
+        overwriteFile: {
+          type: 'boolean',
+          description:
+            'When true, overwrite the existing workspace file named by fileName if it exists. Defaults to false, which saves a non-colliding copy like "generated-image (1).png". Only set true when the user explicitly asks to replace/update that file.',
         },
         overwriteFileId: {
           type: 'string',
@@ -962,7 +982,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         referenceFileIds: {
           type: 'array',
           description:
-            'File IDs of workspace images to include as context for the generation. All images are sent alongside the prompt. Use for: editing a single image (1 file), compositing multiple images together (2+ files), style transfer, face swapping, etc. Order matters — list the primary/base image first. When revising an existing image in place, pair the primary file ID here with overwriteFileId set to that same ID.',
+            'File IDs of workspace images to include as context for the generation. All images are sent alongside the prompt. Use for: editing a single image (1 file), compositing multiple images together (2+ files), style transfer, face swapping, etc. Order matters — list the primary/base image first. When revising an existing image in place, set overwriteFileId to that same ID only if the user explicitly wants to update it.',
           items: {
             type: 'string',
           },
@@ -984,7 +1004,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         fileName: {
           type: 'string',
           description:
-            'Output file name. Defaults to "chart.png". New visualization outputs currently create root workspace files, so pass a plain file name, not a nested path.',
+            'Output file name. Defaults to "chart.png". New visualization outputs currently create root workspace files, so pass a plain file name, not a nested path. Existing names are saved as copies unless overwriteFile=true.',
         },
         inputFiles: {
           type: 'array',
@@ -1001,6 +1021,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           items: {
             type: 'string',
           },
+        },
+        overwriteFile: {
+          type: 'boolean',
+          description:
+            'When true, overwrite the existing workspace file named by fileName if it exists. Defaults to false, which saves a non-colliding copy like "chart (1).png". Only set true when the user explicitly asks to replace/update that file.',
         },
         overwriteFileId: {
           type: 'string',
@@ -2858,7 +2883,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             outputPath: {
               type: 'string',
               description:
-                'Pipe query_rows results directly to a NEW workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use a root output path like "files/export.csv" — nested output paths are not supported.',
+                'Pipe query_rows results directly to a workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use a root output path like "files/export.csv" — nested output paths are not supported. If the name exists, the default is to save a copy like "export (1).csv".',
             },
             outputs: {
               type: 'array',
@@ -2888,6 +2913,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 },
                 required: ['blockId', 'path'],
               },
+            },
+            overwriteFile: {
+              type: 'boolean',
+              description:
+                'When true, overwrite the existing workspace file named by outputPath if it exists. Defaults to false, which saves a non-colliding copy like "export (1).csv". Only set true when the user explicitly asks to replace/update that file.',
             },
             path: {
               type: 'string',

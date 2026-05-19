@@ -52,6 +52,7 @@ import { POST } from '@/app/api/function/execute/route'
 describe('Function Execute API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    featureFlagsMock.isE2bEnabled = false
 
     hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
       success: true,
@@ -66,6 +67,47 @@ describe('Function Execute API Route', () => {
       stdout: 'e2b output',
       sandboxId: 'test-sandbox-id',
     })
+  })
+
+  it('passes the Mothership sandbox flag to Python E2B execution', async () => {
+    featureFlagsMock.isE2bEnabled = true
+
+    const req = createMockRequest('POST', {
+      code: 'return "test"',
+      language: 'python',
+      useMothershipSandbox: true,
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(mockExecuteInE2B).toHaveBeenCalledWith(
+      expect.objectContaining({
+        language: 'python',
+        useMothershipSandbox: true,
+      })
+    )
+  })
+
+  it('does not use the Mothership sandbox for regular Python E2B execution', async () => {
+    featureFlagsMock.isE2bEnabled = true
+
+    const req = createMockRequest('POST', {
+      code: 'return "test"',
+      language: 'python',
+    })
+
+    const response = await POST(req)
+
+    expect(response.status).toBe(200)
+    expect(mockExecuteInE2B).toHaveBeenCalledWith(
+      expect.objectContaining({
+        language: 'python',
+        useMothershipSandbox: false,
+      })
+    )
   })
 
   describe('Security Tests', () => {

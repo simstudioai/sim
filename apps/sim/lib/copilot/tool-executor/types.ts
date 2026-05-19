@@ -9,6 +9,7 @@ export interface ToolExecutionContext {
   executionId?: string
   runId?: string
   copilotToolExecution?: boolean
+  mothershipToolExecution?: boolean
   requestMode?: string
   currentAgentId?: string
   abortSignal?: AbortSignal

@@ -4,6 +4,7 @@ export interface ServerToolContext {
   userId: string
   workspaceId?: string
   userPermission?: string
+  mothershipToolExecution?: boolean
   chatId?: string
   messageId?: string
   abortSignal?: AbortSignal

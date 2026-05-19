@@ -140,6 +140,8 @@ export async function executeFunctionExecute(
     chatId: context.chatId,
     executionId: context.executionId,
     runId: context.runId,
+    copilotToolExecution: context.copilotToolExecution,
+    useMothershipSandbox: context.mothershipToolExecution,
     enforceCredentialAccess: true,
   }
 

@@ -108,6 +108,7 @@ export const functionExecuteContract = defineRouteContract({
     workspaceId: z.string().optional(),
     userId: z.string().optional(),
     isCustomTool: z.boolean().optional().default(false),
+    useMothershipSandbox: z.boolean().optional().default(false),
     _sandboxFiles: z
       .array(
         z.object({

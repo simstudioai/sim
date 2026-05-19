@@ -958,6 +958,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       allowLargeValueWorkflowScope = false,
       workspaceId,
       isCustomTool = false,
+      useMothershipSandbox = false,
       _sandboxFiles,
     } = body
     sourceCodeForErrors = sourceCode
@@ -1183,6 +1184,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           timeoutMs: timeout,
           sandboxFiles: _sandboxFiles,
           outputSandboxPath,
+          useMothershipSandbox,
         })
         const executionTime = Date.now() - execStart
         stdout += e2bStdout
@@ -1270,6 +1272,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         timeoutMs: timeout,
         sandboxFiles: _sandboxFiles,
         outputSandboxPath,
+        useMothershipSandbox,
       })
       const executionTime = Date.now() - execStart
       stdout += e2bStdout

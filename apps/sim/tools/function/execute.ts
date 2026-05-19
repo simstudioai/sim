@@ -143,6 +143,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         userId: params._context?.userId,
         workspaceId: params._context?.workspaceId,
         isCustomTool: params.isCustomTool || false,
+        useMothershipSandbox: params._context?.useMothershipSandbox,
       }
 
       if (params._sandboxFiles) {
