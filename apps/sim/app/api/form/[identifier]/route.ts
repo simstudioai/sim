@@ -401,7 +401,3 @@ export const GET = withRouteHandler(
     }
   }
 )
-
-export const OPTIONS = withRouteHandler(async (request: NextRequest) => {
-  return addCorsHeaders(new NextResponse(null, { status: 204 }), request)
-})

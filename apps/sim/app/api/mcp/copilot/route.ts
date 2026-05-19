@@ -386,19 +386,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 })
 
-export const OPTIONS = withRouteHandler(async () => {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, DELETE',
-      'Access-Control-Allow-Headers':
-        'Content-Type, Authorization, X-API-Key, X-Requested-With, Accept',
-      'Access-Control-Max-Age': '86400',
-    },
-  })
-})
-
 export const DELETE = withRouteHandler(async (request: NextRequest) => {
   void request
   return NextResponse.json(createError(0, -32000, 'Method not allowed.'), { status: 405 })

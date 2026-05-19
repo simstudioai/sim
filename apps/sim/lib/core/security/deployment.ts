@@ -106,6 +106,7 @@ export function addCorsHeaders(response: NextResponse, request: NextRequest): Ne
     response.headers.set('Access-Control-Allow-Origin', origin)
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With')
+    response.headers.set('Vary', 'Origin')
   }
 
   return response
