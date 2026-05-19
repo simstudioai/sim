@@ -51,7 +51,7 @@ export const getWorkItemsBetweenBuildsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization}/${params.project}/_apis/build/workitems`
+        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/build/workitems`
       )
       url.searchParams.set('fromBuildId', Number(params.fromBuildId).toString())
       url.searchParams.set('toBuildId', Number(params.toBuildId).toString())

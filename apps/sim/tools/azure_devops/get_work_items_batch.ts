@@ -46,7 +46,7 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
     request: {
       url: (params) => {
         const url = new URL(
-          `https://dev.azure.com/${params.organization}/${params.project}/_apis/wit/workitems`
+          `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/wit/workitems`
         )
         url.searchParams.set('ids', params.ids)
         url.searchParams.set('$expand', 'all')

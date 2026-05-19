@@ -45,7 +45,31 @@ export const azureDevOpsHandler: WebhookProviderHandler = {
     return true
   },
 
-  async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
+  extractIdempotencyId(body: unknown): string | null {
+    const obj = body as Record<string, unknown> | null
+    if (!obj) return null
+    const notificationId = obj.notificationId
+    const subscriptionId = obj.subscriptionId
+    if (
+      (typeof notificationId === 'number' || typeof notificationId === 'string') &&
+      typeof subscriptionId === 'string' &&
+      subscriptionId
+    ) {
+      return `azure_devops:${subscriptionId}:${notificationId}`
+    }
+    const eventType = obj.eventType
+    const resource = obj.resource as Record<string, unknown> | undefined
+    const resourceId = resource?.id
+    if (
+      typeof eventType === 'string' &&
+      (typeof resourceId === 'number' || typeof resourceId === 'string')
+    ) {
+      return `azure_devops:${eventType}:${resourceId}`
+    }
+    return null
+  },
+
+  async formatInput({ body, webhook, requestId }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
     const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
     const triggerId = providerConfig.triggerId as string | undefined
@@ -63,7 +87,7 @@ export const azureDevOpsHandler: WebhookProviderHandler = {
       return { input: formatWorkItemCreatedInput(b) }
     }
 
-    logger.warn('Azure DevOps: unknown eventType for specialized trigger', {
+    logger.warn(`[${requestId}] Azure DevOps: unknown eventType for specialized trigger`, {
       triggerId,
       eventType,
     })

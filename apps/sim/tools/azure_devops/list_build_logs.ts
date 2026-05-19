@@ -37,7 +37,7 @@ export const listBuildLogsTool: ToolConfig<ListBuildLogsParams, ListBuildLogsRes
 
   request: {
     url: (params) =>
-      `https://dev.azure.com/${params.organization}/${params.project}/_apis/build/builds/${params.buildId}/logs?api-version=7.2-preview.2`,
+      `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/build/builds/${params.buildId}/logs?api-version=7.2-preview.2`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

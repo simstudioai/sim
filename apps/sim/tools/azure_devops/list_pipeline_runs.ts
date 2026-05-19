@@ -38,7 +38,7 @@ export const listPipelineRunsTool: ToolConfig<ListPipelineRunsParams, ListPipeli
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization}/${params.project}/_apis/pipelines/${params.pipelineId}/runs`
+        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/pipelines/${params.pipelineId}/runs`
       )
       url.searchParams.set('api-version', '7.2-preview.1')
       return url.toString()
@@ -67,7 +67,7 @@ export const listPipelineRunsTool: ToolConfig<ListPipelineRunsParams, ListPipeli
     const content =
       runs.length === 0
         ? 'No pipeline runs found.'
-        : `Found ${data.count} run(s):\n\n${runs
+        : `Found ${data.count ?? runs.length} run(s):\n\n${runs
             .map(
               (r) =>
                 `- Run ${r.name} (ID: ${r.id})\n` +

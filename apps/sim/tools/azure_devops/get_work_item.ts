@@ -40,7 +40,7 @@ export const getWorkItemTool: ToolConfig<GetWorkItemParams, GetWorkItemResponse>
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization}/${params.project}/_apis/wit/workitems/${Number(params.workItemId)}`
+        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/wit/workitems/${Number(params.workItemId)}`
       )
       url.searchParams.set('$expand', 'all')
       url.searchParams.set('api-version', '7.2-preview.3')

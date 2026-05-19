@@ -63,7 +63,7 @@ export const listBuildsTool: ToolConfig<ListBuildsParams, ListBuildsResponse> = 
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization}/${params.project}/_apis/build/builds`
+        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/build/builds`
       )
       url.searchParams.set('api-version', '7.2-preview.8')
       if (params.definitionIds) url.searchParams.set('definitions', params.definitionIds)
@@ -100,7 +100,7 @@ export const listBuildsTool: ToolConfig<ListBuildsParams, ListBuildsResponse> = 
     const content =
       builds.length === 0
         ? 'No builds found.'
-        : `Found ${data.count} build(s):\n\n${builds
+        : `Found ${data.count ?? builds.length} build(s):\n\n${builds
             .map(
               (b) =>
                 `- Build ${b.buildNumber} (ID: ${b.id})\n` +

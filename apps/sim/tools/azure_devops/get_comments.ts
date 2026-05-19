@@ -74,7 +74,7 @@ export const getCommentsTool: ToolConfig<GetCommentsParams, GetCommentsResponse>
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization}/${params.project}/_apis/wit/workitems/${Number(params.workItemId)}/comments`
+        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/wit/workitems/${Number(params.workItemId)}/comments`
       )
       url.searchParams.set('api-version', '7.2-preview.4')
       if (params.top) url.searchParams.set('$top', Number(params.top).toString())

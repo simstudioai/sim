@@ -105,7 +105,7 @@ export function buildBuildFailedOutputs(): Record<string, TriggerOutput> {
     },
     triggeredByEmail: {
       type: 'string',
-      description: 'Email/unique name of the person who triggered the build',
+      description: 'Email/unique name of the person who triggered the build, or null if not set',
     },
     startTime: {
       type: 'string',
@@ -142,11 +142,11 @@ export function buildWorkItemCreatedOutputs(): Record<string, TriggerOutput> {
     },
     createdBy: {
       type: 'string',
-      description: 'Display name of the creator',
+      description: 'Display name of the creator, or null if not set',
     },
     assignedTo: {
       type: 'string',
-      description: 'Assignee display name, or empty string if unassigned',
+      description: 'Assignee display name, or null if unassigned',
     },
     priority: {
       type: 'number',
@@ -162,7 +162,7 @@ export function buildWorkItemCreatedOutputs(): Record<string, TriggerOutput> {
     },
     description: {
       type: 'string',
-      description: 'Work item description (HTML), or empty string if not set',
+      description: 'Work item description (HTML), or null if not set',
     },
     projectName: {
       type: 'string',
@@ -232,8 +232,8 @@ export function formatBuildCompleteInput(body: Record<string, unknown>): Record<
     projectName: (project.name as string) ?? '',
     branch: sourceBranch.replace(/^refs\/heads\//, ''),
     commitSha: (resource.sourceVersion as string) ?? '',
-    triggeredBy: (requestedFor.displayName as string) ?? '',
-    triggeredByEmail: (requestedFor.uniqueName as string) ?? '',
+    triggeredBy: (requestedFor.displayName as string) ?? null,
+    triggeredByEmail: (requestedFor.uniqueName as string) ?? null,
     startTime: (resource.startTime as string) ?? '',
     finishTime: (resource.finishTime as string) ?? '',
     buildUrl: (resource.url as string) ?? '',
@@ -250,13 +250,13 @@ export function formatWorkItemCreatedInput(body: Record<string, unknown>): Recor
     title: (fields['System.Title'] as string) ?? '',
     state: (fields['System.State'] as string) ?? '',
     createdBy:
-      (fields['System.CreatedBy'] as { displayName?: string } | undefined)?.displayName ?? '',
+      (fields['System.CreatedBy'] as { displayName?: string } | undefined)?.displayName ?? null,
     assignedTo:
-      (fields['System.AssignedTo'] as { displayName?: string } | undefined)?.displayName ?? '',
+      (fields['System.AssignedTo'] as { displayName?: string } | undefined)?.displayName ?? null,
     priority: Number(fields['Microsoft.VSTS.Common.Priority'] ?? 0),
     areaPath: (fields['System.AreaPath'] as string) ?? '',
     iterationPath: (fields['System.IterationPath'] as string) ?? '',
-    description: (fields['System.Description'] as string) ?? '',
+    description: (fields['System.Description'] as string) ?? null,
     projectName: (fields['System.TeamProject'] as string) ?? '',
     workItemUrl: (resource.url as string) ?? '',
   }

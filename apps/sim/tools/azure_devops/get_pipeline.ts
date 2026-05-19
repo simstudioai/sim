@@ -44,7 +44,7 @@ export const getPipelineTool: ToolConfig<GetPipelineParams, GetPipelineResponse>
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization}/${params.project}/_apis/pipelines/${params.pipelineId}`
+        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/pipelines/${params.pipelineId}`
       )
       url.searchParams.set('api-version', '7.2-preview.1')
       if (params.pipelineVersion)

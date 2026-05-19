@@ -1888,7 +1888,7 @@
     "name": "Azure DevOps",
     "description": "Interact with Azure DevOps pipelines, builds, and work items",
     "longDescription": "Integrate Azure DevOps into your workflow. List and inspect pipelines and builds, query and manage work items, and add or read comments.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#0078D4",
     "iconName": "AzureDevOpsIcon",
     "docsUrl": "https://docs.sim.ai/tools/azure_devops",
     "operations": [
@@ -4169,7 +4169,7 @@
         "description": "Append content to an existing workspace file. The file must already exist. Content is added to the end of the file."
       }
     ],
-    "operationCount": 4,
+    "operationCount": 5,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",

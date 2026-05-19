@@ -56,7 +56,7 @@ export const getBuildLogTool: ToolConfig<GetBuildLogParams, GetBuildLogResponse>
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization}/${params.project}/_apis/build/builds/${params.buildId}/logs/${params.logId}`
+        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/build/builds/${params.buildId}/logs/${params.logId}`
       )
       url.searchParams.set('api-version', '7.2-preview.2')
       if (params.startLine !== undefined)

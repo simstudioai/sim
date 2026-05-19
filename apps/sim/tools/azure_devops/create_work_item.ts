@@ -132,7 +132,7 @@ export const createWorkItemTool: ToolConfig<CreateWorkItemParams, CreateWorkItem
 
   request: {
     url: (params) =>
-      `https://dev.azure.com/${params.organization}/${params.project}/_apis/wit/workitems/$${encodeURIComponent(params.workItemType)}?api-version=7.2-preview.3`,
+      `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/wit/workitems/$${encodeURIComponent(params.workItemType)}?api-version=7.2-preview.3`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json-patch+json',

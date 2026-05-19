@@ -50,7 +50,7 @@ export const listPipelinesTool: ToolConfig<ListPipelinesParams, ListPipelinesRes
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization}/${params.project}/_apis/pipelines`
+        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/pipelines`
       )
       url.searchParams.set('api-version', '7.2-preview.1')
       if (params.orderBy) url.searchParams.set('orderBy', params.orderBy)
@@ -82,7 +82,7 @@ export const listPipelinesTool: ToolConfig<ListPipelinesParams, ListPipelinesRes
     const content =
       pipelines.length === 0
         ? 'No pipelines found.'
-        : `Found ${data.count} pipeline(s):\n\n${pipelines
+        : `Found ${data.count ?? pipelines.length} pipeline(s):\n\n${pipelines
             .map((p) => `- ${p.name} (ID: ${p.id})\n  Folder: ${p.folder}\n  URL: ${p.url}`)
             .join('\n')}`
 
