@@ -48,7 +48,7 @@ export const schedulesUpdateTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/schedules/${params.id}`,
+    url: (params) => `https://api.incident.io/v2/schedules/${params.id.trim()}`,
     method: 'PUT',
     headers: (params) => ({
       'Content-Type': 'application/json',

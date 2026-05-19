@@ -1,4 +1,6 @@
 import type { WorkflowsShowParams, WorkflowsShowResponse } from '@/tools/incidentio/types'
+import { INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/incidentio/types'
+import { mapIncidentioWorkflow } from '@/tools/incidentio/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowResponse> = {
@@ -20,10 +22,22 @@ export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowRes
       visibility: 'user-or-llm',
       description: 'The ID of the workflow to retrieve (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
+    skip_step_upgrades: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Skip workflow step upgrades when existing workflow step parameters changed',
+    },
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/workflows/${params.id}`,
+    url: (params) => {
+      const url = new URL(`https://api.incident.io/v2/workflows/${params.id.trim()}`)
+      if (params.skip_step_upgrades !== undefined) {
+        url.searchParams.set('skip_step_upgrades', String(params.skip_step_upgrades))
+      }
+      return url.toString()
+    },
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -37,14 +51,8 @@ export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowRes
     return {
       success: true,
       output: {
-        workflow: {
-          id: data.workflow.id,
-          name: data.workflow.name,
-          state: data.workflow.state,
-          folder: data.workflow.folder,
-          created_at: data.workflow.created_at,
-          updated_at: data.workflow.updated_at,
-        },
+        management_meta: data.management_meta,
+        workflow: mapIncidentioWorkflow(data.workflow),
       },
     }
   },
@@ -53,25 +61,12 @@ export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowRes
     workflow: {
       type: 'object',
       description: 'The workflow details',
-      properties: {
-        id: { type: 'string', description: 'Unique identifier for the workflow' },
-        name: { type: 'string', description: 'Name of the workflow' },
-        state: {
-          type: 'string',
-          description: 'State of the workflow (active, draft, or disabled)',
-        },
-        folder: { type: 'string', description: 'Folder the workflow belongs to', optional: true },
-        created_at: {
-          type: 'string',
-          description: 'When the workflow was created',
-          optional: true,
-        },
-        updated_at: {
-          type: 'string',
-          description: 'When the workflow was last updated',
-          optional: true,
-        },
-      },
+      properties: INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES,
+    },
+    management_meta: {
+      type: 'json',
+      description: 'Workflow management metadata',
+      optional: true,
     },
   },
 }

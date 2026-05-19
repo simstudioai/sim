@@ -1,4 +1,5 @@
 import type { GongListCallsParams, GongListCallsResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCallsTool: ToolConfig<GongListCallsParams, GongListCallsResponse> = {
@@ -31,7 +32,7 @@ export const listCallsTool: ToolConfig<GongListCallsParams, GongListCallsRespons
       required: false,
       visibility: 'user-or-llm',
       description:
-        'End date/time in ISO-8601 format (e.g., 2024-01-31T23:59:59Z). If omitted, lists calls up to the most recent.',
+        'End date/time in ISO-8601 format (e.g., 2024-01-31T23:59:59Z). Defaults to the current execution time when omitted.',
     },
     cursor: {
       type: 'string',
@@ -50,10 +51,10 @@ export const listCallsTool: ToolConfig<GongListCallsParams, GongListCallsRespons
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/calls')
-      url.searchParams.set('fromDateTime', params.fromDateTime)
-      if (params.toDateTime) url.searchParams.set('toDateTime', params.toDateTime)
-      if (params.cursor) url.searchParams.set('cursor', params.cursor)
-      if (params.workspaceId) url.searchParams.set('workspaceId', params.workspaceId)
+      url.searchParams.set('fromDateTime', params.fromDateTime.trim())
+      url.searchParams.set('toDateTime', params.toDateTime?.trim() || new Date().toISOString())
+      if (params.cursor?.trim()) url.searchParams.set('cursor', params.cursor.trim())
+      if (params.workspaceId?.trim()) url.searchParams.set('workspaceId', params.workspaceId.trim())
       return url.toString()
     },
     method: 'GET',
@@ -66,7 +67,7 @@ export const listCallsTool: ToolConfig<GongListCallsParams, GongListCallsRespons
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to list calls')
+      throw new Error(getGongErrorMessage(data, 'Failed to list calls'))
     }
     const calls = (data.calls ?? []).map((call: Record<string, unknown>) => ({
       id: call.id ?? '',
@@ -93,14 +94,22 @@ export const listCallsTool: ToolConfig<GongListCallsParams, GongListCallsRespons
     return {
       success: true,
       output: {
+        requestId: data.requestId ?? null,
         calls,
         cursor: data.records?.cursor ?? null,
         totalRecords: data.records?.totalRecords ?? calls.length,
+        currentPageSize: data.records?.currentPageSize ?? null,
+        currentPageNumber: data.records?.currentPageNumber ?? null,
       },
     }
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     calls: {
       type: 'array',
       description: 'List of calls matching the date range',
@@ -144,6 +153,16 @@ export const listCallsTool: ToolConfig<GongListCallsParams, GongListCallsRespons
     totalRecords: {
       type: 'number',
       description: 'Total number of records matching the filter',
+    },
+    currentPageSize: {
+      type: 'number',
+      description: 'Number of records in the current page',
+      optional: true,
+    },
+    currentPageNumber: {
+      type: 'number',
+      description: 'Current page number',
+      optional: true,
     },
   },
 }

@@ -1,4 +1,5 @@
 import type { GongListUsersParams, GongListUsersResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listUsersTool: ToolConfig<GongListUsersParams, GongListUsersResponse> = {
@@ -37,7 +38,7 @@ export const listUsersTool: ToolConfig<GongListUsersParams, GongListUsersRespons
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/users')
-      if (params.cursor) url.searchParams.set('cursor', params.cursor)
+      if (params.cursor?.trim()) url.searchParams.set('cursor', params.cursor.trim())
       if (params.includeAvatars) url.searchParams.set('includeAvatars', params.includeAvatars)
       return url.toString()
     },
@@ -51,7 +52,7 @@ export const listUsersTool: ToolConfig<GongListUsersParams, GongListUsersRespons
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to list users')
+      throw new Error(getGongErrorMessage(data, 'Failed to list users'))
     }
     const users = (data.users ?? []).map((user: Record<string, unknown>) => ({
       id: user.id ?? '',
@@ -74,6 +75,7 @@ export const listUsersTool: ToolConfig<GongListUsersParams, GongListUsersRespons
     return {
       success: true,
       output: {
+        requestId: data.requestId ?? null,
         users,
         cursor: data.records?.cursor ?? null,
         totalRecords: data.records?.totalRecords ?? null,
@@ -84,6 +86,11 @@ export const listUsersTool: ToolConfig<GongListUsersParams, GongListUsersRespons
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     users: {
       type: 'array',
       description: 'List of Gong users',
