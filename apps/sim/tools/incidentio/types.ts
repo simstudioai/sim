@@ -175,10 +175,31 @@ export const INCIDENTIO_FOLLOW_UP_OUTPUT: OutputProperty = {
 export const INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Workflow ID' },
   name: { type: 'string', description: 'Workflow name' },
+  trigger: { type: 'string', description: 'Workflow trigger' },
+  once_for: { type: 'array', description: 'Fields that make the workflow run once' },
+  version: { type: 'number', description: 'Workflow version' },
+  expressions: { type: 'array', description: 'Workflow expressions' },
+  condition_groups: { type: 'array', description: 'Workflow condition groups' },
+  steps: { type: 'array', description: 'Workflow steps' },
+  include_private_incidents: {
+    type: 'boolean',
+    description: 'Whether the workflow includes private incidents',
+  },
+  include_private_escalations: {
+    type: 'boolean',
+    description: 'Whether the workflow includes private escalations',
+  },
+  runs_on_incident_modes: { type: 'array', description: 'Incident modes the workflow runs on' },
+  continue_on_step_error: {
+    type: 'boolean',
+    description: 'Whether execution continues after a step error',
+  },
+  runs_on_incidents: { type: 'string', description: 'Incident lifecycle filter' },
   state: { type: 'string', description: 'Workflow state (active, draft, disabled)' },
+  delay: { type: 'object', description: 'Workflow delay configuration', optional: true },
   folder: { type: 'string', description: 'Workflow folder', optional: true },
-  created_at: { type: 'string', description: 'When the workflow was created', optional: true },
-  updated_at: { type: 'string', description: 'When the workflow was last updated', optional: true },
+  runs_from: { type: 'string', description: 'When the workflow runs from', optional: true },
+  shortform: { type: 'string', description: 'Workflow shortform identifier', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -499,13 +520,25 @@ export interface IncidentioFollowUpsShowResponse extends ToolResponse {
 }
 
 // Workflow types
-interface Workflow {
+export interface Workflow {
   id: string
   name: string
+  trigger: string
+  once_for: unknown[]
+  version: number
+  expressions: unknown[]
+  condition_groups: unknown[]
+  steps: unknown[]
+  include_private_incidents: boolean
+  include_private_escalations: boolean
+  runs_on_incident_modes: string[]
+  continue_on_step_error: boolean
+  runs_on_incidents: 'newly_created' | 'newly_created_and_active' | 'active' | 'all'
   state: 'active' | 'draft' | 'disabled'
+  delay?: unknown
   folder?: string
-  created_at?: string
-  updated_at?: string
+  runs_from?: string
+  shortform?: string
 }
 
 // Workflows List tool types

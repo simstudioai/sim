@@ -1,5 +1,7 @@
 import type { WorkflowsUpdateParams, WorkflowsUpdateResponse } from '@/tools/incidentio/types'
+import { INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/incidentio/types'
 import {
+  mapIncidentioWorkflow,
   parseIncidentioJsonParam,
   parseRequiredIncidentioJsonParam,
 } from '@/tools/incidentio/utils'
@@ -140,14 +142,7 @@ export const workflowsUpdateTool: ToolConfig<WorkflowsUpdateParams, WorkflowsUpd
       success: true,
       output: {
         management_meta: data.management_meta,
-        workflow: {
-          id: data.workflow.id,
-          name: data.workflow.name,
-          state: data.workflow.state,
-          folder: data.workflow.folder,
-          created_at: data.workflow.created_at,
-          updated_at: data.workflow.updated_at,
-        },
+        workflow: mapIncidentioWorkflow(data.workflow),
       },
     }
   },
@@ -156,25 +151,7 @@ export const workflowsUpdateTool: ToolConfig<WorkflowsUpdateParams, WorkflowsUpd
     workflow: {
       type: 'object',
       description: 'The updated workflow',
-      properties: {
-        id: { type: 'string', description: 'Unique identifier for the workflow' },
-        name: { type: 'string', description: 'Name of the workflow' },
-        state: {
-          type: 'string',
-          description: 'State of the workflow (active, draft, or disabled)',
-        },
-        folder: { type: 'string', description: 'Folder the workflow belongs to', optional: true },
-        created_at: {
-          type: 'string',
-          description: 'When the workflow was created',
-          optional: true,
-        },
-        updated_at: {
-          type: 'string',
-          description: 'When the workflow was last updated',
-          optional: true,
-        },
-      },
+      properties: INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES,
     },
     management_meta: {
       type: 'json',

@@ -44,20 +44,19 @@ export const scheduleEntriesListTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const queryParams: string[] = []
+      const url = new URL('https://api.incident.io/v2/schedule_entries')
 
-      queryParams.push(`schedule_id=${params.schedule_id}`)
+      url.searchParams.set('schedule_id', params.schedule_id.trim())
 
       if (params.entry_window_start) {
-        queryParams.push(`entry_window_start=${encodeURIComponent(params.entry_window_start)}`)
+        url.searchParams.set('entry_window_start', params.entry_window_start)
       }
 
       if (params.entry_window_end) {
-        queryParams.push(`entry_window_end=${encodeURIComponent(params.entry_window_end)}`)
+        url.searchParams.set('entry_window_end', params.entry_window_end)
       }
 
-      const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : ''
-      return `https://api.incident.io/v2/schedule_entries${queryString}`
+      return url.toString()
     },
     method: 'GET',
     headers: (params) => ({

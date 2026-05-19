@@ -1,4 +1,6 @@
 import type { WorkflowsListParams, WorkflowsListResponse } from '@/tools/incidentio/types'
+import { INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/incidentio/types'
+import { mapIncidentioWorkflow } from '@/tools/incidentio/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListResponse> = {
@@ -31,14 +33,10 @@ export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListRes
     return {
       success: true,
       output: {
-        workflows: data.workflows.map((workflow: any) => ({
-          id: workflow.id,
-          name: workflow.name,
-          state: workflow.state,
-          folder: workflow.folder,
-          created_at: workflow.created_at,
-          updated_at: workflow.updated_at,
-        })),
+        workflows:
+          data.workflows?.map((workflow: Record<string, unknown>) =>
+            mapIncidentioWorkflow(workflow)
+          ) ?? [],
       },
     }
   },
@@ -49,25 +47,7 @@ export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListRes
       description: 'List of workflows',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Unique identifier for the workflow' },
-          name: { type: 'string', description: 'Name of the workflow' },
-          state: {
-            type: 'string',
-            description: 'State of the workflow (active, draft, or disabled)',
-          },
-          folder: { type: 'string', description: 'Folder the workflow belongs to', optional: true },
-          created_at: {
-            type: 'string',
-            description: 'When the workflow was created',
-            optional: true,
-          },
-          updated_at: {
-            type: 'string',
-            description: 'When the workflow was last updated',
-            optional: true,
-          },
-        },
+        properties: INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES,
       },
     },
   },
