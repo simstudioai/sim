@@ -525,6 +525,16 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             // doesn't, so the guard never trips here. Defensive narrowing.
             return { success: false, message: 'Row update was skipped' }
           }
+          void runWorkflowColumn({
+            tableId: args.tableId,
+            workspaceId,
+            rowIds: [updatedRow.id],
+            mode: 'incomplete',
+            isManualRun: false,
+            requestId,
+          }).catch((err) =>
+            logger.error(`[${requestId}] auto-dispatch (Mothership update_row) failed:`, err)
+          )
 
           return {
             success: true,

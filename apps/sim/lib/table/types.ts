@@ -312,14 +312,6 @@ export interface UpdateRowData {
    * state. `updateRow` returns `null` when the guard rejects the write.
    */
   cancellationGuard?: { groupId: string; executionId: string }
-  /**
-   * When true, the post-write `scheduleRunsForRows` call is skipped. Used by
-   * the cancel path (which is tearing rows down, not waking them up) and by
-   * the manual-run path (which fires its own `scheduleRunsForRows` with
-   * `isManualRun: true` and doesn't want a duplicate auto-fire pass on the
-   * cleared cells). Default false: every other write fires the reactor.
-   */
-  skipScheduler?: boolean
 }
 
 export interface BulkUpdateData {
@@ -338,8 +330,6 @@ export interface BatchUpdateByIdData {
     executionsPatch?: Record<string, RowExecutionMetadata | null>
   }>
   workspaceId: string
-  /** Same semantics as `UpdateRowData.skipScheduler`. */
-  skipScheduler?: boolean
 }
 
 export interface BulkDeleteData {

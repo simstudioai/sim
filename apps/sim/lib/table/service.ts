@@ -62,12 +62,7 @@ import {
   validateTableName,
   validateTableSchema,
 } from './validation'
-import {
-  assertValidSchema,
-  scheduleRunsForRows,
-  scheduleRunsForTable,
-  stripGroupDeps,
-} from './workflow-columns'
+import { assertValidSchema, runWorkflowColumn, stripGroupDeps } from './workflow-columns'
 
 const logger = createLogger('TableService')
 
@@ -930,7 +925,14 @@ export async function insertRow(
     table.schema,
     requestId
   )
-  void scheduleRunsForRows(table, [insertedRow])
+  void runWorkflowColumn({
+    tableId: table.id,
+    workspaceId: table.workspaceId,
+    rowIds: [insertedRow.id],
+    mode: 'incomplete',
+    isManualRun: false,
+    requestId,
+  }).catch((err) => logger.error(`[${requestId}] auto-dispatch (insertRow) failed:`, err))
 
   return insertedRow
 }
@@ -1048,7 +1050,14 @@ export async function batchInsertRowsWithTx(
   }))
 
   void fireTableTrigger(data.tableId, table.name, 'insert', result, null, table.schema, requestId)
-  void scheduleRunsForRows(table, result)
+  void runWorkflowColumn({
+    tableId: table.id,
+    workspaceId: table.workspaceId,
+    rowIds: result.map((r) => r.id),
+    mode: 'incomplete',
+    isManualRun: false,
+    requestId,
+  }).catch((err) => logger.error(`[${requestId}] auto-dispatch (batchInsertRows) failed:`, err))
 
   return result
 }
@@ -1389,7 +1398,14 @@ export async function upsertRow(
       requestId
     )
   }
-  void scheduleRunsForRows(table, [result.row])
+  void runWorkflowColumn({
+    tableId: table.id,
+    workspaceId: table.workspaceId,
+    rowIds: [result.row.id],
+    mode: 'incomplete',
+    isManualRun: false,
+    requestId,
+  }).catch((err) => logger.error(`[${requestId}] auto-dispatch (upsertRow) failed:`, err))
 
   return result
 }
@@ -1757,10 +1773,6 @@ export async function updateRow(
     table.schema,
     requestId
   )
-  // Awaited (not `void`) so cell tasks dispatch their cascade before the
-  // trigger.dev worker tears down on `run()` resolve.
-  if (!data.skipScheduler) await scheduleRunsForRows(table, [updatedRow])
-
   return updatedRow
 }
 
@@ -1921,7 +1933,14 @@ export async function updateRowsByFilter(
     table.schema,
     requestId
   )
-  void scheduleRunsForRows(table, updatedRows)
+  void runWorkflowColumn({
+    tableId: table.id,
+    workspaceId: table.workspaceId,
+    rowIds: updatedRows.map((r) => r.id),
+    mode: 'incomplete',
+    isManualRun: false,
+    requestId,
+  }).catch((err) => logger.error(`[${requestId}] auto-dispatch (updateRowsByFilter) failed:`, err))
 
   return {
     affectedCount: matchingRows.length,
@@ -2070,7 +2089,14 @@ export async function batchUpdateRows(
     table.schema,
     requestId
   )
-  if (!data.skipScheduler) void scheduleRunsForRows(table, updatedRowsForTrigger)
+  void runWorkflowColumn({
+    tableId: table.id,
+    workspaceId: table.workspaceId,
+    rowIds: updatedRowsForTrigger.map((r) => r.id),
+    mode: 'incomplete',
+    isManualRun: false,
+    requestId,
+  }).catch((err) => logger.error(`[${requestId}] auto-dispatch (batchUpdateRows) failed:`, err))
 
   return {
     affectedCount: mergedUpdates.length,
@@ -2788,18 +2814,22 @@ export async function addWorkflowGroup(
     updatedAt: now,
   }
 
-  // Schedule existing rows so already-filled deps trigger immediately. Skipped
-  // when the caller opted out (Mothership stages groups silently — `autoRun:
-  // false` — so the AI can compose multiple changes without firing rows mid-edit).
-  // Awaited (not `void`) so the response includes the queued exec state — the
-  // client's post-mutation refetch otherwise lands before the stamps commit
-  // and the rows query polling never starts.
+  // Auto-fire existing rows whose deps are already met for the new group.
+  // Fire-and-forget — the dispatcher bounds queue depth (window of 20) and
+  // walks the table in the background. HTTP returns instantly; cells fill
+  // in over the next minutes as the dispatcher walks. Mothership opts out
+  // by setting `autoRun: false`.
   if (data.autoRun !== false) {
-    try {
-      await scheduleRunsForTable(updatedTable)
-    } catch (err) {
-      logger.error(`[${requestId}] Failed to schedule runs after group add:`, err)
-    }
+    void runWorkflowColumn({
+      tableId: updatedTable.id,
+      workspaceId: updatedTable.workspaceId,
+      mode: 'incomplete',
+      isManualRun: false,
+      groupIds: [data.group.id],
+      requestId,
+    }).catch((err) =>
+      logger.error(`[${requestId}] auto-dispatch (addWorkflowGroup) failed:`, err)
+    )
   }
 
   return updatedTable
@@ -3085,16 +3115,20 @@ export async function updateWorkflowGroup(
     }
   }
 
-  // autoRun toggled false → true: fire deps-satisfied rows now. Mirrors the
-  // post-add scheduling path so re-enabling auto-fire doesn't require manual
-  // run clicks for rows that are already eligible. Awaited so the post-
-  // mutation refetch sees the queued exec stamps.
+  // autoRun toggled false → true: fire deps-satisfied rows now via the
+  // dispatcher. Mirrors the post-add path so re-enabling auto-fire doesn't
+  // require manual run clicks for rows that are already eligible.
   if (group.autoRun === false && data.autoRun === true) {
-    try {
-      await scheduleRunsForTable(updatedTable, { groupId: data.groupId })
-    } catch (err) {
-      logger.error(`[${requestId}] Failed to schedule runs after autoRun toggled on:`, err)
-    }
+    void runWorkflowColumn({
+      tableId: updatedTable.id,
+      workspaceId: updatedTable.workspaceId,
+      mode: 'incomplete',
+      isManualRun: false,
+      groupIds: [data.groupId],
+      requestId,
+    }).catch((err) =>
+      logger.error(`[${requestId}] auto-dispatch (updateWorkflowGroup autoRun=true) failed:`, err)
+    )
   }
 
   return updatedTable

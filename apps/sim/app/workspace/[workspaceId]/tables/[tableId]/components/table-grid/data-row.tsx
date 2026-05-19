@@ -178,8 +178,8 @@ export const DataRow = React.memo(function DataRow({
       <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
         <div
           className={cn(
-            'flex items-center gap-1',
-            hasWorkflowColumns ? 'justify-between' : 'justify-center'
+            'flex items-center',
+            hasWorkflowColumns ? 'justify-end gap-1.5 pr-1' : 'justify-center'
           )}
         >
           <div
@@ -221,10 +221,7 @@ export const DataRow = React.memo(function DataRow({
               size='sm'
               aria-label={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
               title={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
-              // mr-px keeps the hover bg off the cell's right border — without
-              // it the rounded-rect background paints over the divider line
-              // while the button is hovered.
-              className='mr-px size-[20px] shrink-0 p-0 text-[var(--text-primary)] hover-hover:bg-[var(--surface-2)]'
+              className='size-[20px] shrink-0 p-0 text-[var(--text-primary)] hover-hover:bg-[var(--surface-2)]'
               onClick={() => {
                 if (runningCount > 0) {
                   onStopRow(row.id)

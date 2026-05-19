@@ -11,7 +11,7 @@ import type { TableRow } from '@/lib/table/types'
 import {
   buildPendingRuns,
   cellTagsFor,
-  type RunGroupCellOptions,
+  type WorkflowGroupCellPayload,
   TABLE_CONCURRENCY_LIMIT,
   toTableRow,
 } from './workflow-columns'
@@ -42,6 +42,7 @@ export interface DispatchRow {
   scope: DispatchScope
   status: DispatchStatus
   cursor: number
+  isManualRun: boolean
   requestedAt: Date
 }
 
@@ -107,6 +108,7 @@ export async function insertDispatch(input: {
   requestId: string
   mode: DispatchMode
   scope: DispatchScope
+  isManualRun: boolean
 }): Promise<string> {
   const id = `tdsp_${generateId().replace(/-/g, '')}`
   await db.insert(tableRunDispatches).values({
@@ -118,6 +120,7 @@ export async function insertDispatch(input: {
     scope: input.scope,
     status: 'pending',
     cursor: 0,
+    isManualRun: input.isManualRun,
   })
   return id
 }
@@ -138,6 +141,7 @@ export async function readDispatch(dispatchId: string): Promise<DispatchRow | nu
     scope: row.scope as DispatchScope,
     status: row.status as DispatchStatus,
     cursor: row.cursor,
+    isManualRun: row.isManualRun,
     requestedAt: row.requestedAt,
   }
 }
@@ -167,17 +171,11 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     return 'done'
   }
 
-  // First iteration: wipe every targeted cell across the whole table so the
-  // user sees the column flip to empty/Pending immediately. The cancel
-  // tombstone is preserved because the clear runs before any per-row cancels
-  // could have landed (cancel routes write cells after dispatch insertion).
+  // First iteration: just transition pending → dispatching. The bulk clear
+  // ran synchronously in `runWorkflowColumn` before this task fired, so the
+  // user already saw the column flip to empty/Pending before any cell
+  // started enqueueing.
   if (dispatch.status === 'pending') {
-    await bulkClearWorkflowGroupCells({
-      tableId: dispatch.tableId,
-      groups: targetGroups.map((g) => ({ id: g.id, outputs: g.outputs })),
-      rowIds: dispatch.scope.rowIds,
-      mode: dispatch.mode,
-    })
     await db
       .update(tableRunDispatches)
       .set({ status: 'dispatching' })
@@ -226,7 +224,7 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
   }
 
   const pendingRuns = buildPendingRuns(table, tombstoneFiltered, {
-    isManualRun: true,
+    isManualRun: dispatch.isManualRun,
     groupIds: dispatch.scope.groupIds,
     mode: dispatch.mode,
   })
@@ -273,17 +271,19 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
   return 'continue'
 }
 
-/** Pre-batch stamp: write each cell's exec to `queued` before firing the
- *  batch. We don't know per-cell jobIds (batchTriggerAndWait returns only a
- *  batch handle), so `jobId` stays null. Workers update to `running` and
- *  terminal states from inside their own run. */
-async function stampQueuedForBatch(pendingRuns: RunGroupCellOptions[]): Promise<void> {
+/** Pre-batch stamp: write each targeted cell as `pending` (no executionId)
+ *  before firing the batch so the renderer shows the cell as in-flight
+ *  immediately. The cell-task overwrites with `running` (and its own
+ *  executionId) once it acquires the row's cascade lock — if another
+ *  cell-task already holds the lock, this task bails and the pending stamp
+ *  is later reconciled by whoever owns the cascade. */
+async function stampQueuedForBatch(pendingRuns: WorkflowGroupCellPayload[]): Promise<void> {
   await Promise.allSettled(
     pendingRuns.map((runOpts) =>
       writeWorkflowGroupState(runOpts, {
         executionState: {
-          status: 'queued',
-          executionId: runOpts.executionId,
+          status: 'pending',
+          executionId: null,
           jobId: null,
           workflowId: runOpts.workflowId,
           error: null,

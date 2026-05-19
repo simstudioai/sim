@@ -93,6 +93,26 @@ export function isGroupEligible(
   return reason === 'eligible' || reason === 'manual-bypass'
 }
 
+/** Walks a row's workflow groups (in `workflowGroups` order) and returns the
+ *  first one whose deps are met and that isn't already in-flight. Skips
+ *  `excludeGroupId` (the group we just finished in the cascade loop, to
+ *  prevent self-retrigger when its post-run state somehow still looks
+ *  eligible). Auto-fire semantics — `isManualRun: false`. */
+export function pickNextEligibleGroupForRow(
+  table: TableDefinition,
+  row: TableRow,
+  excludeGroupId?: string
+): WorkflowGroup | null {
+  const groups = table.schema.workflowGroups ?? []
+  for (const group of groups) {
+    if (group.id === excludeGroupId) continue
+    if (isGroupEligible(group, row, { isManualRun: false, mode: 'incomplete' })) {
+      return group
+    }
+  }
+  return null
+}
+
 /**
  * Shared options for the three `scheduleRuns*` entry points. `isManualRun`
  * flips two gates in the eligibility predicate so a manual click can re-run
@@ -110,7 +130,10 @@ export interface ScheduleOpts {
  * The hot path: every row write (insert / update / cascade) calls this with the
  * just-written row(s).
  */
-export async function scheduleRunsForRows(
+/** Private — only used by `runWorkflowColumn`'s `TRIGGER_DEV_ENABLED=false`
+ *  fallback for local dev / testing. Production paths route through the
+ *  dispatcher via `runWorkflowColumn`. */
+async function scheduleRunsForRows(
   table: TableDefinition,
   rows: TableRow[],
   opts?: ScheduleOpts
@@ -167,7 +190,7 @@ export function buildPendingRuns(
   table: TableDefinition,
   rows: TableRow[],
   opts?: ScheduleOpts
-): RunGroupCellOptions[] {
+): WorkflowGroupCellPayload[] {
   const allGroups = table.schema.workflowGroups ?? []
   if (allGroups.length === 0) return []
   if (rows.length === 0) return []
@@ -182,7 +205,7 @@ export function buildPendingRuns(
 
   const orderedRows = rows.length <= 1 ? rows : [...rows].sort((a, b) => a.position - b.position)
 
-  const pendingRuns: RunGroupCellOptions[] = []
+  const pendingRuns: WorkflowGroupCellPayload[] = []
   const reasonCounts: Partial<Record<EligibilityReason, number>> = {}
 
   for (const row of orderedRows) {
@@ -216,8 +239,8 @@ export function buildPendingRuns(
  *  Hydrates trigger.dev tags, concurrency keys, and the inline runner so the
  *  database backend can run cells in-process when trigger.dev is disabled. */
 export async function buildEnqueueItems(
-  pendingRuns: RunGroupCellOptions[]
-): Promise<Array<{ payload: RunGroupCellOptions; options: EnqueueOptions }>> {
+  pendingRuns: WorkflowGroupCellPayload[]
+): Promise<Array<{ payload: WorkflowGroupCellPayload; options: EnqueueOptions }>> {
   const { executeWorkflowGroupCellJob } = await import('@/background/workflow-column-execution')
   return pendingRuns.map((runOpts) => ({
     payload: runOpts,
@@ -244,7 +267,7 @@ export async function buildEnqueueItems(
 /** Trigger.dev tags stamped on every `workflow-group-cell` run so tag-based
  *  cancel (`runs.list({ tag })` + `runs.cancel(id)`) can target a specific
  *  cell or table without needing per-cell jobIds. */
-export function cellTagsFor(runOpts: RunGroupCellOptions): string[] {
+export function cellTagsFor(runOpts: WorkflowGroupCellPayload): string[] {
   return [
     `tableId:${runOpts.tableId}`,
     `rowId:${runOpts.rowId}`,
@@ -286,45 +309,6 @@ export async function cancelCellRunsByTags(tags: string[]): Promise<void> {
   }
 }
 
-/**
- * Re-evaluate eligibility on every row of the table. Used after schema changes
- * (workflow group added, autoRun toggled on) where we don't have a list of
- * just-written rows but need to fire any newly-eligible (row × group) pair.
- */
-export async function scheduleRunsForTable(
-  table: TableDefinition,
-  opts?: ScheduleOpts
-): Promise<{ triggered: number }> {
-  const rows = await fetchAllRows(table.id)
-  return scheduleRunsForRows(table, rows, opts)
-}
-
-/**
- * Re-evaluate eligibility on the rows with these ids. Sugar for callers that
- * have row ids but not materialized rows.
- */
-async function scheduleRunsForRowIds(
-  table: TableDefinition,
-  rowIds: string[],
-  opts?: ScheduleOpts
-): Promise<{ triggered: number }> {
-  if (rowIds.length === 0) return { triggered: 0 }
-  const rows = await fetchRowsByIds(table.id, rowIds)
-  return scheduleRunsForRows(table, rows, opts)
-}
-
-async function fetchAllRows(tableId: string): Promise<TableRow[]> {
-  const records = await db.select().from(userTableRows).where(eq(userTableRows.tableId, tableId))
-  return records.map(toTableRow)
-}
-
-async function fetchRowsByIds(tableId: string, rowIds: string[]): Promise<TableRow[]> {
-  const records = await db
-    .select()
-    .from(userTableRows)
-    .where(and(eq(userTableRows.tableId, tableId), inArray(userTableRows.id, rowIds)))
-  return records.map(toTableRow)
-}
 
 export function toTableRow(r: typeof userTableRows.$inferSelect): TableRow {
   return {
@@ -337,7 +321,7 @@ export function toTableRow(r: typeof userTableRows.$inferSelect): TableRow {
   }
 }
 
-export interface RunGroupCellOptions {
+export interface WorkflowGroupCellPayload {
   tableId: string
   tableName: string
   rowId: string
@@ -352,7 +336,7 @@ export const TABLE_CONCURRENCY_LIMIT = 20
 
 async function stampQueuedOrCancel(
   queue: Awaited<ReturnType<typeof getJobQueue>>,
-  opts: RunGroupCellOptions,
+  opts: WorkflowGroupCellPayload,
   jobId: string
 ): Promise<void> {
   let stampResult: 'wrote' | 'skipped' = 'wrote'
@@ -474,11 +458,9 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
     ),
     tagSweepPromise,
   ])
-  // `skipScheduler: true` — we're tearing rows down, not waking them up. The
-  // auto-fire reactor would otherwise see independent (row, group) pairs whose
-  // deps are now satisfied (because the upstream group already wrote its
-  // output before the cancel) and re-enqueue them, which is exactly what the
-  // user clicked Stop to prevent.
+  // `updateRow` no longer auto-fires the dispatcher post-write — the reactor
+  // was removed. Cancel-writes only touch executions[gid] state; no risk of
+  // re-enqueueing what we just cancelled.
   await Promise.allSettled(
     mutations.map((m) =>
       updateRow(
@@ -488,7 +470,6 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
           data: {},
           workspaceId: table.workspaceId,
           executionsPatch: m.executionsPatch,
-          skipScheduler: true,
         },
         table,
         `wfgrp-cancel-${m.rowId}`
@@ -515,8 +496,17 @@ export async function runWorkflowColumn(opts: {
   requestId: string
   groupIds?: string[]
   rowIds?: string[]
+  /** When false, eligibility honors `autoRun: false` and treats completed
+   *  cells as terminal — appropriate for auto-fire after row writes or
+   *  schema changes. Defaults to true (user-initiated "Run column"). */
+  isManualRun?: boolean
 }): Promise<{ dispatchId: string | null }> {
   const { tableId, workspaceId, mode, requestId, groupIds, rowIds } = opts
+  const isManualRun = opts.isManualRun ?? true
+  // Empty `rowIds` array means "scope explicitly empty" — auto-fire callers
+  // (CSV import on zero matches, etc.) end up here. Skip the dispatch entirely
+  // rather than walk the table with a no-match filter.
+  if (rowIds && rowIds.length === 0) return { dispatchId: null }
   // Lazy imports: `./service` and `./dispatcher` both close cycles back to
   // this module; `@trigger.dev/sdk` is heavy and only needed on this op.
   const { getTableById } = await import('./service')
@@ -529,11 +519,22 @@ export async function runWorkflowColumn(opts: {
   if (targetGroups.length === 0) throw new Error('No matching workflow groups for run')
   const targetGroupIds = targetGroups.map((g) => g.id)
 
+  // Wipe targeted output cols + executions[gid] before any cells fire. Runs
+  // for both the dispatcher and the inline path so the user sees the column
+  // flip to empty/Pending instantly, regardless of trigger.dev availability.
+  const { bulkClearWorkflowGroupCells } = await import('./dispatcher')
+  await bulkClearWorkflowGroupCells({
+    tableId,
+    groups: targetGroups.map((g) => ({ id: g.id, outputs: g.outputs })),
+    rowIds,
+    mode,
+  })
+
   // No trigger.dev: skip the dispatcher entirely and run cells inline via
-  // `DatabaseJobQueue`. The dispatch row + bulk clear + windowed crawl all
-  // depend on the async fan-out, which doesn't exist without trigger.dev.
-  // This path is intended for dev/test only — memory characteristics revert
-  // to "load all rows" so it's not safe for large tables.
+  // `DatabaseJobQueue`. The dispatch row + windowed crawl depend on the
+  // async fan-out, which doesn't exist without trigger.dev. This path is
+  // intended for dev/test only — memory characteristics revert to "load all
+  // rows" so it's not safe for large tables.
   if (!isTriggerDevEnabled) {
     const filters = [eq(userTableRows.tableId, tableId)]
     if (rowIds && rowIds.length > 0) {
@@ -549,7 +550,7 @@ export async function runWorkflowColumn(opts: {
       `[Cascade] [${requestId}] inline run (trigger.dev disabled) table=${tableId} rows=${rows.length} groups=[${targetGroupIds.join(',')}] mode=${mode}`
     )
     await scheduleRunsForRows(table, rows, {
-      isManualRun: true,
+      isManualRun,
       groupIds: targetGroupIds,
       mode,
     })
@@ -571,6 +572,7 @@ export async function runWorkflowColumn(opts: {
       groupIds: targetGroupIds,
       ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
     },
+    isManualRun,
   })
 
   logger.info(

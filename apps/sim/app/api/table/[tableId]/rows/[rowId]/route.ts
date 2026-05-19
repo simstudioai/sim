@@ -15,6 +15,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData } from '@/lib/table'
 import { deleteRow, updateRow } from '@/lib/table'
+import { runWorkflowColumn } from '@/lib/table/workflow-columns'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowAPI')
@@ -136,6 +137,15 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     // Only `null` when a `cancellationGuard` is supplied and the SQL guard
     // rejects the write — this route doesn't pass one, so reaching null is a bug.
     if (!updatedRow) throw new Error('updateRow returned null without a cancellationGuard')
+    // Auto-fire any newly-eligible workflow groups (deps just became met).
+    void runWorkflowColumn({
+      tableId,
+      workspaceId: validated.workspaceId,
+      rowIds: [updatedRow.id],
+      mode: 'incomplete',
+      isManualRun: false,
+      requestId,
+    }).catch((err) => logger.error(`[${requestId}] auto-dispatch (row PATCH) failed:`, err))
 
     return NextResponse.json({
       success: true,

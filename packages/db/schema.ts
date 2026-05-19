@@ -3039,6 +3039,11 @@ export const tableRunDispatches = pgTable(
     status: text('status').notNull().default('pending'),
     /** Highest `user_table_rows.position` we've already enqueued cells for. */
     cursor: integer('cursor').notNull().default(0),
+    /** When true, eligibility bypasses `autoRun: false` skip and treats
+     *  terminal states as re-runnable. Auto-fire paths (row inserts,
+     *  CSV import, addWorkflowGroup) set this to false so the dispatch
+     *  honors the autoRun toggle. */
+    isManualRun: boolean('is_manual_run').notNull().default(true),
     requestedAt: timestamp('requested_at').notNull().defaultNow(),
     completedAt: timestamp('completed_at'),
     cancelledAt: timestamp('cancelled_at'),
