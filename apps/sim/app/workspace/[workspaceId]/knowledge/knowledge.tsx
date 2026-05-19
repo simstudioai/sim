@@ -16,7 +16,12 @@ import type {
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
+import {
+  EMPTY_CELL_PLACEHOLDER,
+  ownerCell,
+  Resource,
+  timeCell,
+} from '@/app/workspace/[workspaceId]/components'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import {
   CreateBaseModal,
@@ -43,9 +48,9 @@ interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
-  { id: 'documents', header: 'Documents' },
-  { id: 'tokens', header: 'Tokens' },
-  { id: 'connectors', header: 'Connectors' },
+  { id: 'documents', header: 'Documents', widthMultiplier: 0.6 },
+  { id: 'tokens', header: 'Tokens', widthMultiplier: 0.6 },
+  { id: 'connectors', header: 'Connectors', widthMultiplier: 0.7 },
   { id: 'created', header: 'Created' },
   { id: 'owner', header: 'Owner' },
   { id: 'updated', header: 'Last Updated' },
@@ -55,7 +60,7 @@ const DATABASE_ICON = <Database className='size-[14px]' />
 
 function connectorCell(connectorTypes?: string[]): ResourceCell {
   if (!connectorTypes || connectorTypes.length === 0) {
-    return { label: '—' }
+    return { label: EMPTY_CELL_PLACEHOLDER }
   }
 
   const entries = connectorTypes
@@ -64,7 +69,7 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
       Boolean(e.def?.icon)
     )
 
-  if (entries.length === 0) return { label: '—' }
+  if (entries.length === 0) return { label: EMPTY_CELL_PLACEHOLDER }
 
   return {
     content: (

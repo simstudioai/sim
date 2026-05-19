@@ -85,12 +85,12 @@ const logger = createLogger('KnowledgeBase')
 const DOCUMENTS_PER_PAGE = 50
 
 const DOCUMENT_COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name' },
-  { id: 'size', header: 'Size' },
-  { id: 'tokens', header: 'Tokens' },
-  { id: 'chunks', header: 'Chunks' },
+  { id: 'name', header: 'Name', widthMultiplier: 0.8 },
+  { id: 'size', header: 'Size', widthMultiplier: 0.75 },
+  { id: 'tokens', header: 'Tokens', widthMultiplier: 0.75 },
+  { id: 'chunks', header: 'Chunks', widthMultiplier: 0.75 },
   { id: 'uploaded', header: 'Uploaded' },
-  { id: 'status', header: 'Status' },
+  { id: 'status', header: 'Status', widthMultiplier: 0.75 },
   { id: 'tags', header: 'Tags' },
 ]
 

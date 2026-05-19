@@ -654,6 +654,19 @@ import {
   fileWriteTool,
 } from '@/tools/file'
 import {
+  findymailFindEmailFromLinkedInTool,
+  findymailFindEmailFromNameTool,
+  findymailFindEmailsByDomainTool,
+  findymailFindEmployeesTool,
+  findymailFindPhoneTool,
+  findymailGetCompanyTool,
+  findymailGetCreditsTool,
+  findymailLookupTechnologiesTool,
+  findymailReverseEmailLookupTool,
+  findymailSearchTechnologiesTool,
+  findymailVerifyEmailTool,
+} from '@/tools/findymail'
+import {
   firecrawlAgentTool,
   firecrawlCrawlTool,
   firecrawlExtractTool,
@@ -2049,6 +2062,16 @@ import {
   profoundSentimentReportTool,
   profoundVisibilityReportTool,
 } from '@/tools/profound'
+import {
+  prospeoAccountInformationTool,
+  prospeoBulkEnrichCompanyTool,
+  prospeoBulkEnrichPersonTool,
+  prospeoEnrichCompanyTool,
+  prospeoEnrichPersonTool,
+  prospeoSearchCompanyTool,
+  prospeoSearchPersonTool,
+  prospeoSearchSuggestionsTool,
+} from '@/tools/prospeo'
 import { pulseParserTool, pulseParserV2Tool } from '@/tools/pulse'
 import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdrant'
 import { quiverImageToSvgTool, quiverListModelsTool, quiverTextToSvgTool } from '@/tools/quiver'
@@ -4813,6 +4836,17 @@ export const tools: Record<string, ToolConfig> = {
   fathom_get_transcript: fathomGetTranscriptTool,
   fathom_list_team_members: fathomListTeamMembersTool,
   fathom_list_teams: fathomListTeamsTool,
+  findymail_verify_email: findymailVerifyEmailTool,
+  findymail_find_email_from_name: findymailFindEmailFromNameTool,
+  findymail_find_emails_by_domain: findymailFindEmailsByDomainTool,
+  findymail_find_email_from_linkedin: findymailFindEmailFromLinkedInTool,
+  findymail_reverse_email_lookup: findymailReverseEmailLookupTool,
+  findymail_get_company: findymailGetCompanyTool,
+  findymail_find_employees: findymailFindEmployeesTool,
+  findymail_find_phone: findymailFindPhoneTool,
+  findymail_search_technologies: findymailSearchTechnologiesTool,
+  findymail_lookup_technologies: findymailLookupTechnologiesTool,
+  findymail_get_credits: findymailGetCreditsTool,
   stt_whisper: whisperSttTool,
   stt_whisper_v2: whisperSttV2Tool,
   stt_deepgram: deepgramSttTool,
@@ -5273,6 +5307,14 @@ export const tools: Record<string, ToolConfig> = {
   hunter_email_verifier: hunterEmailVerifierTool,
   hunter_companies_find: hunterCompaniesFindTool,
   hunter_email_count: hunterEmailCountTool,
+  prospeo_account_information: prospeoAccountInformationTool,
+  prospeo_enrich_person: prospeoEnrichPersonTool,
+  prospeo_enrich_company: prospeoEnrichCompanyTool,
+  prospeo_bulk_enrich_person: prospeoBulkEnrichPersonTool,
+  prospeo_bulk_enrich_company: prospeoBulkEnrichCompanyTool,
+  prospeo_search_person: prospeoSearchPersonTool,
+  prospeo_search_company: prospeoSearchCompanyTool,
+  prospeo_search_suggestions: prospeoSearchSuggestionsTool,
   iam_list_users: iamListUsersTool,
   iam_get_user: iamGetUserTool,
   iam_create_user: iamCreateUserTool,

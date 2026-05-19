@@ -122,6 +122,7 @@ export async function runCopilotLifecycle(
     messageId: payloadMsgId,
     ...(lifecycleOptions.trace ? { trace: lifecycleOptions.trace } : {}),
   })
+  let onCompleteStarted = false
 
   try {
     await runCheckpointLoop(requestPayload, context, execContext, lifecycleOptions, goRoute)
@@ -129,9 +130,10 @@ export async function runCopilotLifecycle(
     const result: OrchestratorResult = {
       success: context.errors.length === 0 && !context.wasAborted,
       // `cancelled` is an explicit discriminator so callers can tell
-      // "user hit Stop" (don't clear the chat row; /chat/stop owns it)
-      // from "backend errored" (do clear the row so the chat isn't
-      // stuck with a non-null `conversationId`). An error that also
+      // "user hit Stop" (persist partial assistant content through the
+      // cancelled completion path) from "backend errored" (do clear the
+      // row so the chat isn't stuck with a non-null `conversationId`).
+      // An error that also
       // happens to fire the abort signal still counts as an error
       // path, but practically that doesn't happen in the success
       // branch here — if there are errors we never reach a
@@ -146,34 +148,51 @@ export async function runCopilotLifecycle(
       usage: context.usage,
       cost: context.cost,
     }
-    await lifecycleOptions.onComplete?.(result)
+    if (lifecycleOptions.onComplete) {
+      onCompleteStarted = true
+      await lifecycleOptions.onComplete(result)
+    }
     return result
   } catch (error) {
-    const err = error instanceof Error ? error : new Error('Copilot orchestration failed')
+    const err = toError(error)
     logger.error('Copilot orchestration failed', { error: err.message })
     // If the abort signal fired, this throw is a consequence of the
     // cancel (publisher.publish fails once the client disconnects, a
     // downstream Go read throws on ctx cancel, etc.) — NOT a real
     // backend error. Don't invoke `onError`, because on the cancel
-    // path `/api/copilot/chat/stop` is the single DB writer and
-    // `onError` would race with it via `finalizeAssistantTurn`,
-    // clearing `conversationId` before stop's UPDATE can match (see
-    // `buildOnComplete` in chat/post.ts for the full rationale).
+    // path `onComplete(cancelled)` persists partial content with an
+    // idempotent row-locked finalizer. `onError` would race with it via
+    // `finalizeAssistantTurn`, clearing `conversationId` before the
+    // partial content can be appended.
     // Return `cancelled: true` so upstream classification stays
     // consistent with the success-path cancel result.
     const wasCancelled = lifecycleOptions.abortSignal?.aborted ?? false
-    if (!wasCancelled) {
-      await lifecycleOptions.onError?.(err)
-    }
-    return {
+    const result: OrchestratorResult = {
       success: false,
       cancelled: wasCancelled,
-      content: '',
-      contentBlocks: [],
-      toolCalls: [],
+      content: wasCancelled ? context.accumulatedContent : '',
+      contentBlocks: wasCancelled ? context.contentBlocks : [],
+      toolCalls: wasCancelled ? buildToolCallSummaries(context) : [],
       chatId: context.chatId,
+      requestId: context.requestId,
       error: err.message,
+      errors: context.errors.length ? context.errors : undefined,
+      usage: context.usage,
+      cost: context.cost,
     }
+
+    if (!wasCancelled) {
+      await lifecycleOptions.onError?.(err)
+    } else if (!onCompleteStarted && lifecycleOptions.onComplete) {
+      try {
+        await lifecycleOptions.onComplete(result)
+      } catch (completeError) {
+        logger.error('Cancelled copilot completion callback failed', {
+          error: toError(completeError).message,
+        })
+      }
+    }
+    return result
   }
 }
 
