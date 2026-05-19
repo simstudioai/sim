@@ -125,9 +125,16 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
       }
 
       if (shouldUseMarkdownUpload(params)) {
-        const boundary =
-          (params as GoogleDocsToolParams & { _boundary?: string })._boundary ??
-          `sim_gdocs_md_${generateShortId(24)}`
+        const boundary = (params as GoogleDocsToolParams & { _boundary?: string })._boundary
+        if (!boundary) {
+          // headers() runs before body() in formatRequestParams and stashes the boundary
+          // on the same params reference. Missing _boundary means that contract was broken,
+          // which would silently produce a Content-Type / body boundary mismatch (HTTP 400).
+          // Throw loudly instead of fabricating a mismatched boundary.
+          throw new Error(
+            'Multipart boundary missing on params — headers() must run before body() for markdown upload'
+          )
+        }
         return buildMarkdownMultipartBody(metadata, params.content ?? '', boundary)
       }
 
@@ -142,9 +149,9 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
 
     const documentId = result.output.metadata.documentId
 
-    // When markdown=true, content was already inserted via Drive's text/markdown
-    // import conversion during files.create — no follow-up write needed.
-    if (params.markdown) {
+    // When the markdown upload path ran, content was already inserted via Drive's
+    // text/markdown import conversion during files.create — no follow-up write needed.
+    if (shouldUseMarkdownUpload(params)) {
       return result
     }
 
