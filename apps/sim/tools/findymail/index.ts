@@ -1,3 +1,5 @@
+export * from './types'
+
 import { findEmailFromLinkedInTool } from '@/tools/findymail/find_email_from_linkedin'
 import { findEmailFromNameTool } from '@/tools/findymail/find_email_from_name'
 import { findEmailsByDomainTool } from '@/tools/findymail/find_emails_by_domain'

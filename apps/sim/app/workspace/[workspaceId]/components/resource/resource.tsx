@@ -23,8 +23,6 @@ export interface ResourceColumn {
   id: string
   header: string
   widthMultiplier?: number
-  /** Fixed pixel width. When set, the column is excluded from proportional sizing. */
-  widthPx?: number
 }
 
 export interface ResourceCell {
@@ -94,7 +92,7 @@ interface ResourceProps {
   overlay?: ReactNode
 }
 
-const EMPTY_CELL_PLACEHOLDER = '-  -  -'
+export const EMPTY_CELL_PLACEHOLDER = '—'
 const SKELETON_ROW_COUNT = 5
 
 /**
@@ -214,19 +212,12 @@ export const ResourceTable = memo(function ResourceTable({
   emptyMessage,
   overlay,
 }: ResourceTableProps) {
-  const headerRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const sortEnabled = defaultSort != null
   const [internalSort, setInternalSort] = useState<{ column: string; direction: 'asc' | 'desc' }>({
     column: defaultSort ?? '',
     direction: 'desc',
   })
-
-  const handleBodyScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    if (headerRef.current) {
-      headerRef.current.scrollLeft = e.currentTarget.scrollLeft
-    }
-  }, [])
 
   const handleSort = useCallback((column: string, direction: 'asc' | 'desc') => {
     setInternalSort({ column, direction })
@@ -290,10 +281,10 @@ export const ResourceTable = memo(function ResourceTable({
 
   return (
     <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
-      <div ref={headerRef} className='overflow-hidden'>
+      <div className='min-h-0 flex-1 overflow-auto'>
         <table className='w-full table-fixed text-small'>
           <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
-          <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
+          <thead className='sticky top-0 z-10 bg-[var(--bg)] shadow-[inset_0_-1px_0_var(--border)]'>
             <tr>
               {hasCheckbox && (
                 <th className='h-10 w-[52px] py-1.5 pr-0 pl-5 text-left align-middle'>
@@ -341,14 +332,6 @@ export const ResourceTable = memo(function ResourceTable({
               })}
             </tr>
           </thead>
-        </table>
-      </div>
-      <div
-        className='min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]'
-        onScroll={handleBodyScroll}
-      >
-        <table className='w-full table-fixed text-small'>
-          <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
           <tbody>
             {displayRows.map((row) => (
               <DataRow
@@ -644,43 +627,22 @@ interface ResourceColGroupProps {
   hasCheckbox?: boolean
 }
 
-const CHECKBOX_COLUMN_WIDTH_PX = 52
-const CHECKBOX_COLUMN_WIDTH = `${CHECKBOX_COLUMN_WIDTH_PX}px`
+const CHECKBOX_COLUMN_WIDTH = '52px'
 
 const ResourceColGroup = memo(function ResourceColGroup({
   columns,
   hasCheckbox,
 }: ResourceColGroupProps) {
-  const fixedPxTotal = columns.reduce((sum, col) => sum + (col.widthPx ?? 0), 0)
-  const flexibleWeights = columns.map((col, colIdx) =>
-    col.widthPx ? 0 : (colIdx === 0 ? 2.5 : 1.0) * (col.widthMultiplier ?? 1)
+  const weights = columns.map(
+    (col, colIdx) => (colIdx === 0 ? 2.5 : 1.0) * (col.widthMultiplier ?? 1)
   )
-  const flexibleTotal = flexibleWeights.reduce((s, w) => s + w, 0)
-  const reservedPx = fixedPxTotal + (hasCheckbox ? CHECKBOX_COLUMN_WIDTH_PX : 0)
-
+  const total = weights.reduce((s, w) => s + w, 0)
   return (
     <colgroup>
       {hasCheckbox && <col style={{ width: CHECKBOX_COLUMN_WIDTH }} />}
-      {columns.map((col, colIdx) => {
-        if (col.widthPx) {
-          return <col key={col.id} style={{ width: `${col.widthPx}px` }} />
-        }
-        const columnRatio = flexibleTotal > 0 ? flexibleWeights[colIdx] / flexibleTotal : 0
-        const columnPercent = columnRatio * 100
-        const reservedOffset = reservedPx * columnRatio
-
-        return (
-          <col
-            key={col.id}
-            style={{
-              width:
-                reservedOffset > 0
-                  ? `calc(${columnPercent}% - ${reservedOffset}px)`
-                  : `${columnPercent}%`,
-            }}
-          />
-        )
-      })}
+      {columns.map((col, colIdx) => (
+        <col key={col.id} style={{ width: `${((weights[colIdx] / total) * 100).toFixed(3)}%` }} />
+      ))}
     </colgroup>
   )
 })
@@ -697,55 +659,48 @@ const DataTableSkeleton = memo(function DataTableSkeleton({
   hasCheckbox,
 }: DataTableSkeletonProps) {
   return (
-    <>
-      <div className='overflow-hidden'>
-        <table className='w-full table-fixed text-small'>
-          <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
-          <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
-            <tr>
+    <div className='min-h-0 flex-1 overflow-auto'>
+      <table className='w-full table-fixed text-small'>
+        <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
+        <thead className='sticky top-0 z-10 bg-[var(--bg)] shadow-[inset_0_-1px_0_var(--border)]'>
+          <tr>
+            {hasCheckbox && (
+              <th className='h-10 w-[52px] py-2.5 pr-0 pl-5 text-left align-middle'>
+                <Skeleton className='size-[14px] rounded-xs' />
+              </th>
+            )}
+            {columns.map((col) => (
+              <th
+                key={col.id}
+                className='h-10 px-6 py-2.5 text-left align-middle font-base text-[var(--text-muted)]'
+              >
+                <div className='flex min-h-[20px] items-center'>
+                  <Skeleton className='h-[12px] w-[56px]' />
+                </div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: rowCount }, (_, i) => (
+            <tr key={i}>
               {hasCheckbox && (
-                <th className='h-10 w-[52px] py-2.5 pr-0 pl-5 text-left align-middle'>
+                <td className='w-[52px] py-2.5 pr-0 pl-5 align-middle'>
                   <Skeleton className='size-[14px] rounded-xs' />
-                </th>
+                </td>
               )}
-              {columns.map((col) => (
-                <th
-                  key={col.id}
-                  className='h-10 px-6 py-2.5 text-left align-middle font-base text-[var(--text-muted)]'
-                >
-                  <div className='flex min-h-[20px] items-center'>
-                    <Skeleton className='h-[12px] w-[56px]' />
-                  </div>
-                </th>
+              {columns.map((col, colIdx) => (
+                <td key={col.id} className='px-6 py-2.5 align-middle'>
+                  <span className='flex min-h-[21px] items-center gap-3'>
+                    {colIdx === 0 && <Skeleton className='size-[14px] rounded-xs' />}
+                    <Skeleton className='h-[14px] w-[128px]' />
+                  </span>
+                </td>
               ))}
             </tr>
-          </thead>
-        </table>
-      </div>
-      <div className='min-h-0 flex-1 overflow-auto'>
-        <table className='w-full table-fixed text-small'>
-          <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
-          <tbody>
-            {Array.from({ length: rowCount }, (_, i) => (
-              <tr key={i}>
-                {hasCheckbox && (
-                  <td className='w-[52px] py-2.5 pr-0 pl-5 align-middle'>
-                    <Skeleton className='size-[14px] rounded-xs' />
-                  </td>
-                )}
-                {columns.map((col, colIdx) => (
-                  <td key={col.id} className='px-6 py-2.5 align-middle'>
-                    <span className='flex min-h-[21px] items-center gap-3'>
-                      {colIdx === 0 && <Skeleton className='size-[14px] rounded-xs' />}
-                      <Skeleton className='h-[14px] w-[128px]' />
-                    </span>
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 })

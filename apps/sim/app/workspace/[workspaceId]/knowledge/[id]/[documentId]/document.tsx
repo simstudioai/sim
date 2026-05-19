@@ -30,7 +30,11 @@ import type {
   SelectableConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { Resource, ResourceHeader } from '@/app/workspace/[workspaceId]/components'
+import {
+  EMPTY_CELL_PLACEHOLDER,
+  Resource,
+  ResourceHeader,
+} from '@/app/workspace/[workspaceId]/components'
 import {
   ChunkContextMenu,
   ChunkEditor,
@@ -127,9 +131,9 @@ function truncateContent(content: string, maxLength = 150, searchQuery = ''): st
 
 const CHUNK_COLUMNS: ResourceColumn[] = [
   { id: 'content', header: 'Content' },
-  { id: 'index', header: 'Index', widthPx: 100 },
-  { id: 'tokens', header: 'Tokens', widthPx: 100 },
-  { id: 'status', header: 'Status', widthPx: 120 },
+  { id: 'index', header: 'Index', widthMultiplier: 0.6 },
+  { id: 'tokens', header: 'Tokens', widthMultiplier: 0.6 },
+  { id: 'status', header: 'Status', widthMultiplier: 0.75 },
 ]
 
 export function Document({
@@ -874,9 +878,9 @@ export function Document({
                 </div>
               ),
             },
-            index: { label: '—' },
-            tokens: { label: '—' },
-            status: { label: '—' },
+            index: { label: EMPTY_CELL_PLACEHOLDER },
+            tokens: { label: EMPTY_CELL_PLACEHOLDER },
+            status: { label: EMPTY_CELL_PLACEHOLDER },
           },
         },
       ]
