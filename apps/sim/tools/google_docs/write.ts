@@ -4,7 +4,8 @@ import type { ToolConfig } from '@/tools/types'
 export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse> = {
   id: 'google_docs_write',
   name: 'Write to Google Docs Document',
-  description: 'Write or update content in a Google Docs document',
+  description:
+    'Append content to a Google Docs document. Content is inserted literally; Markdown is not interpreted. For formatted output from Markdown, use the Create operation with the markdown toggle enabled.',
   version: '1.0',
   oauth: {
     required: true,
