@@ -6,20 +6,8 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, asc, eq, inArray, isNull, max, min, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
-import {
-  isLargeArrayManifest,
-  materializeLargeArrayManifest,
-} from '@/lib/execution/payloads/large-array-manifest'
-import {
-  getLargeValueMaterializationError,
-  isLargeValueRef,
-} from '@/lib/execution/payloads/large-value-ref'
-import {
-  type ExecutionMaterializationContext,
-  MAX_INLINE_MATERIALIZATION_BYTES,
-} from '@/lib/execution/payloads/materialization.server'
-import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
+import { materializeInlineExecutionValue } from '@/lib/execution/payloads/inline-materialization.server'
+import type { ExecutionMaterializationContext } from '@/lib/execution/payloads/materialization.server'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -329,92 +317,12 @@ export const workflowHasResponseBlock = (
   return responseBlock !== undefined
 }
 
-function withLocalLargeValueExecutionIds(
-  context: ExecutionMaterializationContext | undefined,
-  materializedValue: unknown
-): ExecutionMaterializationContext | undefined {
-  if (!context) {
-    return context
-  }
-  recordMaterializedAccessKeys(context, materializedValue)
-  return {
-    ...context,
-    largeValueKeys: context.largeValueKeys,
-    fileKeys: context.fileKeys,
-  }
-}
-
-async function materializeHttpResponseValue(
-  value: unknown,
-  context: ExecutionMaterializationContext | undefined,
-  memo = new WeakMap<object, Promise<unknown>>()
-): Promise<unknown> {
-  if (isLargeArrayManifest(value)) {
-    const materialized = await materializeLargeArrayManifest(value, {
-      ...context,
-      maxBytes: MAX_INLINE_MATERIALIZATION_BYTES,
-    })
-    return materializeHttpResponseValue(
-      materialized,
-      withLocalLargeValueExecutionIds(context, materialized),
-      memo
-    )
-  }
-
-  if (isLargeValueRef(value)) {
-    const materialized = await materializeLargeValueRef(value, {
-      ...context,
-      maxBytes: MAX_INLINE_MATERIALIZATION_BYTES,
-    })
-    if (materialized === undefined) {
-      throw getLargeValueMaterializationError(value)
-    }
-    return materializeHttpResponseValue(
-      materialized,
-      withLocalLargeValueExecutionIds(context, materialized),
-      memo
-    )
-  }
-
-  if (!value || typeof value !== 'object') {
-    return value
-  }
-
-  const cached = memo.get(value)
-  if (cached) {
-    return cached
-  }
-
-  if (Array.isArray(value)) {
-    const result: unknown[] = []
-    memo.set(value, Promise.resolve(result))
-    const materializedItems = await Promise.all(
-      value.map((item) => materializeHttpResponseValue(item, context, memo))
-    )
-    result.push(...materializedItems)
-    return result
-  }
-
-  const result: Record<string, unknown> = {}
-  memo.set(value, Promise.resolve(result))
-  const entries = await Promise.all(
-    Object.entries(value as Record<string, unknown>).map(
-      async ([key, entryValue]) =>
-        [key, await materializeHttpResponseValue(entryValue, context, memo)] as const
-    )
-  )
-  for (const [key, entryValue] of entries) {
-    result[key] = entryValue
-  }
-  return result
-}
-
 export const createHttpResponseFromBlock = async (
   executionResult: Pick<ExecutionResult, 'output'>,
   context?: ExecutionMaterializationContext
 ): Promise<NextResponse> => {
   const { data = {}, status = 200, headers = {} } = executionResult.output
-  const responseData = await materializeHttpResponseValue(data, context)
+  const responseData = await materializeInlineExecutionValue(data, context)
 
   const responseHeaders = new Headers({
     'Content-Type': 'application/json',
