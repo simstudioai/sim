@@ -14,35 +14,10 @@ export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListRes
       visibility: 'user-only',
       description: 'incident.io API Key',
     },
-    page_size: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Number of workflows to return per page (e.g., 10, 25, 50)',
-    },
-    after: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Pagination cursor to fetch the next page of results (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
-    },
   },
 
   request: {
-    url: (params) => {
-      const url = new URL('https://api.incident.io/v2/workflows')
-
-      if (params.page_size) {
-        url.searchParams.set('page_size', Number(params.page_size).toString())
-      }
-
-      if (params.after) {
-        url.searchParams.set('after', params.after)
-      }
-
-      return url.toString()
-    },
+    url: 'https://api.incident.io/v2/workflows',
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -64,12 +39,6 @@ export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListRes
           created_at: workflow.created_at,
           updated_at: workflow.updated_at,
         })),
-        pagination_meta: data.pagination_meta
-          ? {
-              after: data.pagination_meta.after,
-              page_size: data.pagination_meta.page_size,
-            }
-          : undefined,
       },
     }
   },
@@ -99,15 +68,6 @@ export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListRes
             optional: true,
           },
         },
-      },
-    },
-    pagination_meta: {
-      type: 'object',
-      description: 'Pagination metadata',
-      optional: true,
-      properties: {
-        after: { type: 'string', description: 'Cursor for next page', optional: true },
-        page_size: { type: 'number', description: 'Number of results per page' },
       },
     },
   },

@@ -509,18 +509,11 @@ interface Workflow {
 }
 
 // Workflows List tool types
-export interface WorkflowsListParams extends IncidentioBaseParams {
-  page_size?: number
-  after?: string
-}
+export interface WorkflowsListParams extends IncidentioBaseParams {}
 
 export interface WorkflowsListResponse extends ToolResponse {
   output: {
     workflows: Workflow[]
-    pagination_meta?: {
-      after?: string
-      page_size: number
-    }
   }
 }
 
@@ -543,6 +536,7 @@ export interface WorkflowsCreateParams extends IncidentioBaseParams {
 
 export interface WorkflowsCreateResponse extends ToolResponse {
   output: {
+    management_meta?: Record<string, unknown>
     workflow: Workflow
   }
 }
@@ -554,6 +548,7 @@ export interface WorkflowsShowParams extends IncidentioBaseParams {
 
 export interface WorkflowsShowResponse extends ToolResponse {
   output: {
+    management_meta?: Record<string, unknown>
     workflow: Workflow
   }
 }
@@ -561,13 +556,23 @@ export interface WorkflowsShowResponse extends ToolResponse {
 // Workflows Update tool types
 export interface WorkflowsUpdateParams extends IncidentioBaseParams {
   id: string
-  name?: string
+  name: string
+  steps: string
+  condition_groups: string
+  runs_on_incidents: 'newly_created' | 'newly_created_and_active' | 'active' | 'all'
+  runs_on_incident_modes: string
+  include_private_incidents: boolean
+  continue_on_step_error: boolean
+  once_for: string
+  expressions: string
   state?: 'active' | 'draft' | 'disabled'
   folder?: string
+  delay?: string
 }
 
 export interface WorkflowsUpdateResponse extends ToolResponse {
   output: {
+    management_meta?: Record<string, unknown>
     workflow: Workflow
   }
 }
@@ -784,13 +789,17 @@ export type IncidentioResponse =
   | IncidentioIncidentUpdatesListResponse
   | IncidentioScheduleEntriesListResponse
   | IncidentioScheduleOverridesCreateResponse
+  | IncidentioEscalationPathsListResponse
   | IncidentioEscalationPathsCreateResponse
   | IncidentioEscalationPathsShowResponse
   | IncidentioEscalationPathsUpdateResponse
   | IncidentioEscalationPathsDeleteResponse
 
 // Escalations types
-export interface IncidentioEscalationsListParams extends IncidentioBaseParams {}
+export interface IncidentioEscalationsListParams extends IncidentioBaseParams {
+  page_size?: number
+  after?: string
+}
 
 interface IncidentioEscalation {
   id: string
@@ -802,6 +811,10 @@ interface IncidentioEscalation {
 export interface IncidentioEscalationsListResponse extends ToolResponse {
   output: {
     escalations: IncidentioEscalation[]
+    pagination_meta?: {
+      after?: string
+      page_size: number
+    }
   }
 }
 
@@ -1034,8 +1047,10 @@ export interface IncidentioIncidentUpdatesListResponse extends ToolResponse {
 
 // Schedule Entries types
 interface IncidentioScheduleEntry {
-  id: string
-  schedule_id: string
+  entry_id: string
+  fingerprint: string
+  rotation_id: string
+  layer_id: string
   user: {
     id: string
     name: string
@@ -1043,26 +1058,24 @@ interface IncidentioScheduleEntry {
   }
   start_at: string
   end_at: string
-  layer_id: string
-  created_at: string
-  updated_at: string
 }
 
 export interface IncidentioScheduleEntriesListParams extends IncidentioBaseParams {
   schedule_id: string
   entry_window_start?: string
   entry_window_end?: string
-  page_size?: number
-  after?: string
 }
 
 export interface IncidentioScheduleEntriesListResponse extends ToolResponse {
   output: {
-    schedule_entries: IncidentioScheduleEntry[]
+    schedule_entries: {
+      final: IncidentioScheduleEntry[]
+      overrides: IncidentioScheduleEntry[]
+      scheduled: IncidentioScheduleEntry[]
+    }
     pagination_meta?: {
       after?: string
       after_url?: string
-      page_size: number
     }
   }
 }
@@ -1070,6 +1083,7 @@ export interface IncidentioScheduleEntriesListResponse extends ToolResponse {
 // Schedule Overrides types
 interface IncidentioScheduleOverride {
   id: string
+  layer_id: string
   rotation_id: string
   schedule_id: string
   user: {
@@ -1084,6 +1098,7 @@ interface IncidentioScheduleOverride {
 }
 
 export interface IncidentioScheduleOverridesCreateParams extends IncidentioBaseParams {
+  layer_id: string
   rotation_id: string
   schedule_id: string
   user_id?: string
@@ -1122,8 +1137,21 @@ interface IncidentioEscalationPath {
     start_time: string
     end_time: string
   }>
-  created_at: string
-  updated_at: string
+}
+
+export interface IncidentioEscalationPathsListParams extends IncidentioBaseParams {
+  page_size?: number
+  after?: string
+}
+
+export interface IncidentioEscalationPathsListResponse extends ToolResponse {
+  output: {
+    escalation_paths: IncidentioEscalationPath[]
+    pagination_meta?: {
+      after?: string
+      page_size: number
+    }
+  }
 }
 
 export interface IncidentioEscalationPathsCreateParams extends IncidentioBaseParams {
@@ -1163,8 +1191,8 @@ export interface IncidentioEscalationPathsShowResponse extends ToolResponse {
 
 export interface IncidentioEscalationPathsUpdateParams extends IncidentioBaseParams {
   id: string
-  name?: string
-  path?: Array<{
+  name: string
+  path: Array<{
     targets: Array<{
       id: string
       type: string

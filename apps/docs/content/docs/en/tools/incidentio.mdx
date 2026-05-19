@@ -440,8 +440,6 @@ List all workflows in your incident.io workspace.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `page_size` | number | No | Number of workflows to return per page \(e.g., 10, 25, 50\) |
-| `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -454,9 +452,42 @@ List all workflows in your incident.io workspace.
 |   ↳ `folder` | string | Folder the workflow belongs to |
 |   ↳ `created_at` | string | When the workflow was created |
 |   ↳ `updated_at` | string | When the workflow was last updated |
-| `pagination_meta` | object | Pagination metadata |
-|   ↳ `after` | string | Cursor for next page |
-|   ↳ `page_size` | number | Number of results per page |
+
+### `incidentio_workflows_create`
+
+Create a new workflow in incident.io.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `name` | string | Yes | Name of the workflow \(e.g., "Notify on Critical Incidents"\) |
+| `folder` | string | No | Folder to organize the workflow in |
+| `state` | string | No | State of the workflow \(active, draft, or disabled\) |
+| `trigger` | string | No | Trigger type for the workflow \(e.g., "incident.updated", "incident.created"\) |
+| `steps` | string | No | Array of workflow steps as JSON string. Example: \[\{"label": "Notify team", "name": "slack.post_message"\}\] |
+| `condition_groups` | string | No | Array of condition groups as JSON string to control when the workflow runs. Example: \[\{"conditions": \[\{"operation": "one_of", "param_bindings": \[\], "subject": "incident.severity"\}\]\}\] |
+| `runs_on_incidents` | string | No | When to run the workflow: "newly_created" \(only new incidents\), "newly_created_and_active" \(new and active incidents\), "active" \(only active incidents\), or "all" \(all incidents\) |
+| `runs_on_incident_modes` | string | No | Array of incident modes to run on as JSON string. Example: \["standard", "retrospective"\] |
+| `include_private_incidents` | boolean | No | Whether to include private incidents |
+| `continue_on_step_error` | boolean | No | Whether to continue executing subsequent steps if a step fails |
+| `once_for` | string | No | Array of fields to ensure the workflow runs only once per unique combination of these fields, as JSON string. Example: \["incident.id"\] |
+| `expressions` | string | No | Array of workflow expressions as JSON string for advanced workflow logic. Example: \[\{"label": "My expression", "operations": \[\]\}\] |
+| `delay` | string | No | Delay configuration as JSON string. Example: \{"for_seconds": 60, "conditions_apply_over_delay": false\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workflow` | object | The created workflow |
+|   ↳ `id` | string | Unique identifier for the workflow |
+|   ↳ `name` | string | Name of the workflow |
+|   ↳ `state` | string | State of the workflow \(active, draft, or disabled\) |
+|   ↳ `folder` | string | Folder the workflow belongs to |
+|   ↳ `created_at` | string | When the workflow was created |
+|   ↳ `updated_at` | string | When the workflow was last updated |
+| `management_meta` | json | Workflow management metadata |
 
 ### `incidentio_workflows_show`
 
@@ -480,6 +511,7 @@ Get details of a specific workflow in incident.io.
 |   ↳ `folder` | string | Folder the workflow belongs to |
 |   ↳ `created_at` | string | When the workflow was created |
 |   ↳ `updated_at` | string | When the workflow was last updated |
+| `management_meta` | json | Workflow management metadata |
 
 ### `incidentio_workflows_update`
 
@@ -491,9 +523,18 @@ Update an existing workflow in incident.io.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the workflow to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
-| `name` | string | No | New name for the workflow \(e.g., "Notify on Critical Incidents"\) |
+| `name` | string | Yes | New name for the workflow \(e.g., "Notify on Critical Incidents"\) |
+| `steps` | string | Yes | Complete array of workflow steps as a JSON string |
+| `condition_groups` | string | Yes | Complete array of workflow condition groups as a JSON string |
+| `runs_on_incidents` | string | Yes | When to run the workflow: newly_created, newly_created_and_active, active, or all |
+| `runs_on_incident_modes` | string | Yes | Complete array of incident modes to run on as a JSON string |
+| `include_private_incidents` | boolean | Yes | Whether to include private incidents |
+| `continue_on_step_error` | boolean | Yes | Whether to continue executing subsequent steps if a step fails |
+| `once_for` | string | Yes | Complete array of fields that make the workflow run once as a JSON string |
+| `expressions` | string | Yes | Complete array of workflow expressions as a JSON string |
 | `state` | string | No | New state for the workflow \(active, draft, or disabled\) |
 | `folder` | string | No | New folder for the workflow |
+| `delay` | string | No | Delay configuration as a JSON string |
 
 #### Output
 
@@ -506,6 +547,7 @@ Update an existing workflow in incident.io.
 |   ↳ `folder` | string | Folder the workflow belongs to |
 |   ↳ `created_at` | string | When the workflow was created |
 |   ↳ `updated_at` | string | When the workflow was last updated |
+| `management_meta` | json | Workflow management metadata |
 
 ### `incidentio_workflows_delete`
 
@@ -647,6 +689,8 @@ List all escalation policies in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
+| `page_size` | number | No | Number of escalations to return per page |
+| `after` | string | No | Pagination cursor to fetch the next page of results |
 
 #### Output
 
@@ -657,6 +701,9 @@ List all escalation policies in incident.io
 |   ↳ `name` | string | The escalation policy name |
 |   ↳ `created_at` | string | When the escalation policy was created |
 |   ↳ `updated_at` | string | When the escalation policy was last updated |
+| `pagination_meta` | object | Pagination metadata |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of results per page |
 
 ### `incidentio_escalations_create`
 
@@ -1096,29 +1143,18 @@ List all entries for a specific schedule in incident.io
 | `schedule_id` | string | Yes | The ID of the schedule to get entries for \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `entry_window_start` | string | No | Start date/time to filter entries in ISO 8601 format \(e.g., "2024-01-15T09:00:00Z"\) |
 | `entry_window_end` | string | No | End date/time to filter entries in ISO 8601 format \(e.g., "2024-01-22T09:00:00Z"\) |
-| `page_size` | number | No | Number of results to return per page \(e.g., 10, 25, 50\) |
-| `after` | string | No | Cursor for pagination \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `schedule_entries` | array | List of schedule entries |
-|   ↳ `id` | string | The entry ID |
-|   ↳ `schedule_id` | string | The schedule ID |
-|   ↳ `user` | object | User assigned to this entry |
-|     ↳ `id` | string | User ID |
-|     ↳ `name` | string | User name |
-|     ↳ `email` | string | User email |
-|   ↳ `start_at` | string | When the entry starts |
-|   ↳ `end_at` | string | When the entry ends |
-|   ↳ `layer_id` | string | The schedule layer ID |
-|   ↳ `created_at` | string | When the entry was created |
-|   ↳ `updated_at` | string | When the entry was last updated |
+| `schedule_entries` | object | Schedule entries grouped by final, overrides, and scheduled entries |
+|   ↳ `final` | array | Final computed schedule entries |
+|   ↳ `overrides` | array | Override schedule entries |
+|   ↳ `scheduled` | array | Scheduled entries before overrides are applied |
 | `pagination_meta` | object | Pagination information |
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `after_url` | string | URL for next page |
-|   ↳ `page_size` | number | Number of results per page |
 
 ### `incidentio_schedule_overrides_create`
 
@@ -1130,6 +1166,7 @@ Create a new schedule override in incident.io
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
 | `rotation_id` | string | Yes | The ID of the rotation to override \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `layer_id` | string | Yes | The ID of the layer this override applies to |
 | `schedule_id` | string | Yes | The ID of the schedule \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `user_id` | string | No | The ID of the user to assign \(provide one of: user_id, user_email, or user_slack_id\) |
 | `user_email` | string | No | The email of the user to assign \(provide one of: user_id, user_email, or user_slack_id\) |
@@ -1143,6 +1180,7 @@ Create a new schedule override in incident.io
 | --------- | ---- | ----------- |
 | `override` | object | The created schedule override |
 |   ↳ `id` | string | The override ID |
+|   ↳ `layer_id` | string | The schedule layer ID |
 |   ↳ `rotation_id` | string | The rotation ID |
 |   ↳ `schedule_id` | string | The schedule ID |
 |   ↳ `user` | object | User assigned to this override |
@@ -1153,6 +1191,31 @@ Create a new schedule override in incident.io
 |   ↳ `end_at` | string | When the override ends |
 |   ↳ `created_at` | string | When the override was created |
 |   ↳ `updated_at` | string | When the override was last updated |
+
+### `incidentio_escalation_paths_list`
+
+List escalation paths in incident.io
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | incident.io API Key |
+| `page_size` | number | No | Number of escalation paths to return per page |
+| `after` | string | No | Pagination cursor to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `escalation_paths` | array | List of escalation paths |
+|   ↳ `id` | string | The escalation path ID |
+|   ↳ `name` | string | The escalation path name |
+|   ↳ `path` | array | Array of escalation levels |
+|   ↳ `working_hours` | array | Working hours configuration |
+| `pagination_meta` | object | Pagination metadata |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of results per page |
 
 ### `incidentio_escalation_paths_create`
 
@@ -1186,8 +1249,6 @@ Create a new escalation path in incident.io
 |     ↳ `weekday` | string | Day of week |
 |     ↳ `start_time` | string | Start time |
 |     ↳ `end_time` | string | End time |
-|   ↳ `created_at` | string | When the path was created |
-|   ↳ `updated_at` | string | When the path was last updated |
 
 ### `incidentio_escalation_paths_show`
 
@@ -1219,8 +1280,6 @@ Get details of a specific escalation path in incident.io
 |     ↳ `weekday` | string | Day of week |
 |     ↳ `start_time` | string | Start time |
 |     ↳ `end_time` | string | End time |
-|   ↳ `created_at` | string | When the path was created |
-|   ↳ `updated_at` | string | When the path was last updated |
 
 ### `incidentio_escalation_paths_update`
 
@@ -1232,8 +1291,8 @@ Update an existing escalation path in incident.io
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the escalation path to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
-| `name` | string | No | New name for the escalation path \(e.g., "Critical Incident Path"\) |
-| `path` | json | No | New escalation path configuration. Array of escalation levels with targets and time_to_ack_seconds |
+| `name` | string | Yes | New name for the escalation path \(e.g., "Critical Incident Path"\) |
+| `path` | json | Yes | New escalation path configuration. Array of escalation levels with targets and time_to_ack_seconds |
 | `working_hours` | json | No | New working hours configuration. Array of \{weekday, start_time, end_time\} |
 
 #### Output
@@ -1255,8 +1314,6 @@ Update an existing escalation path in incident.io
 |     ↳ `weekday` | string | Day of week |
 |     ↳ `start_time` | string | Start time |
 |     ↳ `end_time` | string | End time |
-|   ↳ `created_at` | string | When the path was created |
-|   ↳ `updated_at` | string | When the path was last updated |
 
 ### `incidentio_escalation_paths_delete`
 

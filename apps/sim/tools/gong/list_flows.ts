@@ -1,4 +1,5 @@
 import type { GongListFlowsParams, GongListFlowsResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listFlowsTool: ToolConfig<GongListFlowsParams, GongListFlowsResponse> = {
@@ -45,8 +46,8 @@ export const listFlowsTool: ToolConfig<GongListFlowsParams, GongListFlowsRespons
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/flows')
-      url.searchParams.set('flowOwnerEmail', params.flowOwnerEmail)
-      if (params.workspaceId) url.searchParams.set('workspaceId', params.workspaceId)
+      url.searchParams.set('flowEmailOwner', params.flowOwnerEmail.trim())
+      if (params.workspaceId) url.searchParams.set('workspaceId', params.workspaceId.trim())
       if (params.cursor) url.searchParams.set('cursor', params.cursor)
       return url.toString()
     },
@@ -60,7 +61,7 @@ export const listFlowsTool: ToolConfig<GongListFlowsParams, GongListFlowsRespons
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to list flows')
+      throw new Error(getGongErrorMessage(data, 'Failed to list flows'))
     }
     const flows = (data.flows ?? []).map((f: Record<string, unknown>) => ({
       id: f.id ?? '',

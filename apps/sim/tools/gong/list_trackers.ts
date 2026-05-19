@@ -1,4 +1,5 @@
 import type { GongListTrackersParams, GongListTrackersResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTrackersTool: ToolConfig<GongListTrackersParams, GongListTrackersResponse> = {
@@ -45,7 +46,7 @@ export const listTrackersTool: ToolConfig<GongListTrackersParams, GongListTracke
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to list trackers')
+      throw new Error(getGongErrorMessage(data, 'Failed to list trackers'))
     }
     const trackers = (data.keywordTrackers ?? []).map((t: Record<string, unknown>) => ({
       trackerId: t.trackerId ?? '',

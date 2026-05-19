@@ -1,4 +1,5 @@
 import type { GongGetUserParams, GongGetUserResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getUserTool: ToolConfig<GongGetUserParams, GongGetUserResponse> = {
@@ -40,7 +41,7 @@ export const getUserTool: ToolConfig<GongGetUserParams, GongGetUserResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to get user')
+      throw new Error(getGongErrorMessage(data, 'Failed to get user'))
     }
     const user = data.user ?? data
     return {

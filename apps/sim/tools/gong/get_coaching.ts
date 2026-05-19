@@ -5,6 +5,7 @@ import type {
   GongGetCoachingParams,
   GongGetCoachingResponse,
 } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getCoachingTool: ToolConfig<GongGetCoachingParams, GongGetCoachingResponse> = {
@@ -71,7 +72,7 @@ export const getCoachingTool: ToolConfig<GongGetCoachingParams, GongGetCoachingR
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to get coaching metrics')
+      throw new Error(getGongErrorMessage(data, 'Failed to get coaching metrics'))
     }
 
     const mapUser = (u: Record<string, unknown> | null | undefined): GongCoachingUser | null => {

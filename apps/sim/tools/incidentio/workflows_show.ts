@@ -23,7 +23,7 @@ export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowRes
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/workflows/${params.id}`,
+    url: (params) => `https://api.incident.io/v2/workflows/${params.id.trim()}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -37,6 +37,7 @@ export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowRes
     return {
       success: true,
       output: {
+        management_meta: data.management_meta,
         workflow: {
           id: data.workflow.id,
           name: data.workflow.name,
@@ -72,6 +73,11 @@ export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowRes
           optional: true,
         },
       },
+    },
+    management_meta: {
+      type: 'json',
+      description: 'Workflow management metadata',
+      optional: true,
     },
   },
 }

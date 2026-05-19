@@ -1,4 +1,5 @@
 import type { GongGetCallParams, GongGetCallResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getCallTool: ToolConfig<GongGetCallParams, GongGetCallResponse> = {
@@ -40,7 +41,7 @@ export const getCallTool: ToolConfig<GongGetCallParams, GongGetCallResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to get call')
+      throw new Error(getGongErrorMessage(data, 'Failed to get call'))
     }
     const call = data.call ?? data
     return {

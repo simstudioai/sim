@@ -1,4 +1,5 @@
 import type { GongGetExtensiveCallsParams, GongGetExtensiveCallsResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getExtensiveCallsTool: ToolConfig<
@@ -110,9 +111,7 @@ export const getExtensiveCallsTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(
-        data.errors?.[0]?.message || data.message || 'Failed to get extensive call data'
-      )
+      throw new Error(getGongErrorMessage(data, 'Failed to get extensive call data'))
     }
     return {
       success: true,

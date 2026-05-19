@@ -9,9 +9,33 @@ interface GongBaseParams {
 /** List Calls */
 export interface GongListCallsParams extends GongBaseParams {
   fromDateTime: string
-  toDateTime?: string
+  toDateTime: string
   cursor?: string
   workspaceId?: string
+}
+
+/** Create Call */
+export interface GongCreateCallParams extends GongBaseParams {
+  clientUniqueId: string
+  actualStart: string
+  primaryUser: string
+  parties: unknown
+  direction: string
+  downloadMediaUrl: string
+  title?: string
+  workspaceId?: string
+  disposition?: string
+  purpose?: string
+  context?: unknown
+  callProviderCode?: string
+}
+
+export interface GongCreateCallResponse extends ToolResponse {
+  output: {
+    callId: string
+    requestId: string
+    url: string | null
+  }
 }
 
 interface GongCallBasic {
@@ -585,6 +609,7 @@ export interface GongLookupPhoneResponse extends ToolResponse {
 /** Union type for all Gong responses */
 export type GongResponse =
   | GongListCallsResponse
+  | GongCreateCallResponse
   | GongGetCallResponse
   | GongGetCallTranscriptResponse
   | GongGetExtensiveCallsResponse

@@ -1,4 +1,5 @@
 import type { GongLookupEmailParams, GongLookupEmailResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const lookupEmailTool: ToolConfig<GongLookupEmailParams, GongLookupEmailResponse> = {
@@ -45,7 +46,7 @@ export const lookupEmailTool: ToolConfig<GongLookupEmailParams, GongLookupEmailR
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to lookup email address')
+      throw new Error(getGongErrorMessage(data, 'Failed to lookup email address'))
     }
     return {
       success: true,

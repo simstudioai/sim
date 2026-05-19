@@ -1,4 +1,5 @@
 import type { GongInteractionStatsParams, GongInteractionStatsResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const interactionStatsTool: ToolConfig<
@@ -75,9 +76,7 @@ export const interactionStatsTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(
-        data.errors?.[0]?.message || data.message || 'Failed to get interaction stats'
-      )
+      throw new Error(getGongErrorMessage(data, 'Failed to get interaction stats'))
     }
     const peopleInteractionStats = (data.peopleInteractionStats ?? []).map(
       (entry: Record<string, unknown>) => ({

@@ -1,4 +1,5 @@
 import type { GongAggregateActivityParams, GongAggregateActivityResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const aggregateActivityTool: ToolConfig<
@@ -74,9 +75,7 @@ export const aggregateActivityTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(
-        data.errors?.[0]?.message || data.message || 'Failed to get aggregate activity'
-      )
+      throw new Error(getGongErrorMessage(data, 'Failed to get aggregate activity'))
     }
     const usersActivity = (data.usersAggregateActivityStats ?? []).map(
       (ua: Record<string, unknown>) => {

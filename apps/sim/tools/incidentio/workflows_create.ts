@@ -122,8 +122,7 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      // Helper function to safely parse JSON strings
-      const parseJsonParam = (jsonString: string | undefined, defaultValue: any) => {
+      const parseJsonParam = (jsonString: string | undefined, defaultValue: unknown) => {
         if (!jsonString) return defaultValue
         try {
           return JSON.parse(jsonString)
@@ -133,8 +132,7 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
         }
       }
 
-      // incident.io requires all these fields to create a workflow
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         name: params.name,
         trigger: params.trigger || 'incident.updated',
         once_for: parseJsonParam(params.once_for, []),
@@ -166,6 +164,7 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
     return {
       success: true,
       output: {
+        management_meta: data.management_meta,
         workflow: {
           id: data.workflow.id,
           name: data.workflow.name,
@@ -201,6 +200,11 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
           optional: true,
         },
       },
+    },
+    management_meta: {
+      type: 'json',
+      description: 'Workflow management metadata',
+      optional: true,
     },
   },
 }

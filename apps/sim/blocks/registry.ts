@@ -139,6 +139,7 @@ import { MongoDBBlock } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
 import { Neo4jBlock } from '@/blocks/blocks/neo4j'
+import { NewRelicBlock } from '@/blocks/blocks/new_relic'
 import { NoteBlock } from '@/blocks/blocks/note'
 import { NotionBlock, NotionV2Block } from '@/blocks/blocks/notion'
 import { ObsidianBlock } from '@/blocks/blocks/obsidian'
@@ -161,6 +162,7 @@ import { ProspeoBlock } from '@/blocks/blocks/prospeo'
 import { PulseBlock, PulseV2Block } from '@/blocks/blocks/pulse'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { QuiverBlock } from '@/blocks/blocks/quiver'
+import { RailwayBlock } from '@/blocks/blocks/railway'
 import { RDSBlock } from '@/blocks/blocks/rds'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { RedisBlock } from '@/blocks/blocks/redis'
@@ -393,6 +395,7 @@ export const registry: Record<string, BlockConfig> = {
   mothership: MothershipBlock,
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
+  new_relic: NewRelicBlock,
   note: NoteBlock,
   notion: NotionBlock,
   notion_v2: NotionV2Block,
@@ -417,6 +420,7 @@ export const registry: Record<string, BlockConfig> = {
   pulse_v2: PulseV2Block,
   qdrant: QdrantBlock,
   quiver: QuiverBlock,
+  railway: RailwayBlock,
   rds: RDSBlock,
   reddit: RedditBlock,
   redis: RedisBlock,

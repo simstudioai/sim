@@ -1,4 +1,5 @@
 import type { GongListUsersParams, GongListUsersResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listUsersTool: ToolConfig<GongListUsersParams, GongListUsersResponse> = {
@@ -51,7 +52,7 @@ export const listUsersTool: ToolConfig<GongListUsersParams, GongListUsersRespons
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to list users')
+      throw new Error(getGongErrorMessage(data, 'Failed to list users'))
     }
     const users = (data.users ?? []).map((user: Record<string, unknown>) => ({
       id: user.id ?? '',
