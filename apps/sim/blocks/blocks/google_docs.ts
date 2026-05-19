@@ -155,6 +155,15 @@ Return ONLY the document content - no explanations, no extra text.`,
         placeholder: 'Describe the document content you want to create...',
       },
     },
+    // Markdown formatting toggle for create operation
+    {
+      id: 'markdown',
+      title: 'Interpret content as Markdown',
+      type: 'switch',
+      condition: { field: 'operation', value: 'create' },
+      description:
+        'Convert headings, bold/italic, lists, tables, links, code, and blockquotes into formatted Google Docs content. When off, content is inserted as plain text.',
+    },
   ],
   tools: {
     access: ['google_docs_read', 'google_docs_write', 'google_docs_create'],
@@ -193,6 +202,10 @@ Return ONLY the document content - no explanations, no extra text.`,
     title: { type: 'string', description: 'Document title' },
     folderId: { type: 'string', description: 'Parent folder identifier (canonical param)' },
     content: { type: 'string', description: 'Document content' },
+    markdown: {
+      type: 'boolean',
+      description: 'Interpret content as Markdown when creating a document',
+    },
   },
   outputs: {
     content: { type: 'string', description: 'Document content' },
