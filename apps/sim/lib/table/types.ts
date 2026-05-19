@@ -319,11 +319,9 @@ export interface UpdateRowData {
 }
 
 export interface BulkUpdateData {
-  tableId: string
   filter: Filter
   data: RowData
   limit?: number
-  workspaceId: string
 }
 
 export interface BatchUpdateByIdData {
@@ -339,10 +337,8 @@ export interface BatchUpdateByIdData {
 }
 
 export interface BulkDeleteData {
-  tableId: string
   filter: Filter
   limit?: number
-  workspaceId: string
 }
 
 export interface BulkDeleteByIdsData {

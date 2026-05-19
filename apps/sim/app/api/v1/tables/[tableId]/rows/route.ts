@@ -385,11 +385,9 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     const result = await updateRowsByFilter(
       table,
       {
-        tableId,
         filter: validated.filter as Filter,
         data: validated.data as RowData,
         limit: validated.limit,
-        workspaceId: validated.workspaceId,
       },
       requestId
     )
@@ -491,10 +489,8 @@ export const DELETE = withRouteHandler(
       const result = await deleteRowsByFilter(
         table,
         {
-          tableId,
           filter: validated.filter as Filter,
           limit: validated.limit,
-          workspaceId: validated.workspaceId,
         },
         requestId
       )

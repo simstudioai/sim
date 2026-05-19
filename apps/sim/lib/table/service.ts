@@ -1823,8 +1823,8 @@ export async function updateRowsByFilter(
   }
 
   const baseConditions = and(
-    eq(userTableRows.tableId, data.tableId),
-    eq(userTableRows.workspaceId, data.workspaceId)
+    eq(userTableRows.tableId, table.id),
+    eq(userTableRows.workspaceId, table.workspaceId)
   )
 
   let query = db
@@ -1872,7 +1872,7 @@ export async function updateRowsByFilter(
     const row = matchingRows[0]
     const mergedData = { ...(row.data as RowData), ...data.data }
     const uniqueValidation = await checkUniqueConstraintsDb(
-      data.tableId,
+      table.id,
       mergedData,
       table.schema,
       row.id
@@ -1900,7 +1900,7 @@ export async function updateRowsByFilter(
     }
   })
 
-  logger.info(`[${requestId}] Updated ${matchingRows.length} rows in table ${data.tableId}`)
+  logger.info(`[${requestId}] Updated ${matchingRows.length} rows in table ${table.id}`)
 
   const oldRows = new Map(matchingRows.map((r) => [r.id, r.data as RowData]))
   const updatedRows: TableRow[] = matchingRows.map((r) => ({
@@ -1912,7 +1912,7 @@ export async function updateRowsByFilter(
     updatedAt: now,
   }))
   void fireTableTrigger(
-    data.tableId,
+    table.id,
     table.name,
     'update',
     updatedRows,
@@ -2137,8 +2137,8 @@ export async function deleteRowsByFilter(
 
   // Find matching rows
   const baseConditions = and(
-    eq(userTableRows.tableId, data.tableId),
-    eq(userTableRows.workspaceId, data.workspaceId)
+    eq(userTableRows.tableId, table.id),
+    eq(userTableRows.workspaceId, table.workspaceId)
   )
 
   let query = db
@@ -2168,8 +2168,8 @@ export async function deleteRowsByFilter(
       const batch = rowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
       await trx.delete(userTableRows).where(
         and(
-          eq(userTableRows.tableId, data.tableId),
-          eq(userTableRows.workspaceId, data.workspaceId),
+          eq(userTableRows.tableId, table.id),
+          eq(userTableRows.workspaceId, table.workspaceId),
           sql`${userTableRows.id} = ANY(ARRAY[${sql.join(
             batch.map((id) => sql`${id}`),
             sql`, `
@@ -2178,10 +2178,10 @@ export async function deleteRowsByFilter(
       )
     }
 
-    await recompactPositions(data.tableId, trx, minDeletedPos)
+    await recompactPositions(table.id, trx, minDeletedPos)
   })
 
-  logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${data.tableId}`)
+  logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${table.id}`)
 
   return {
     affectedCount: matchingRows.length,
