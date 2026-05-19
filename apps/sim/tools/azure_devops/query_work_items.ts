@@ -44,7 +44,7 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
 
   request: {
     url: (params) =>
-      `https://dev.azure.com/${params.organization}/${params.project}/_apis/wit/wiql?api-version=7.2-preview.2`,
+      `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/wit/wiql?api-version=7.2-preview.2`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -67,41 +67,53 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
       }
     }
 
-    const ids = workItemRefs
-      .slice(0, 200)
-      .map((wi) => wi.id)
-      .join(',')
+    const allIds = workItemRefs.map((wi) => wi.id)
+    const BATCH_SIZE = 200
+    const organization = params!.organization.trim()
+    const project = params!.project.trim()
+    const authHeader = `Basic ${btoa(`:${params!.accessToken}`)}`
 
-    const detailsUrl = new URL(
-      `https://dev.azure.com/${params!.organization}/${params!.project}/_apis/wit/workitems`
-    )
-    detailsUrl.searchParams.set('ids', ids)
-    detailsUrl.searchParams.set('$expand', 'all')
-    detailsUrl.searchParams.set('api-version', '7.2-preview.3')
+    const workItems: AzureDevOpsWorkItem[] = []
+    for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
+      const chunk = allIds.slice(i, i + BATCH_SIZE)
+      const detailsUrl = new URL(
+        `https://dev.azure.com/${organization}/${project}/_apis/wit/workitems`
+      )
+      detailsUrl.searchParams.set('ids', chunk.join(','))
+      detailsUrl.searchParams.set('$expand', 'all')
+      detailsUrl.searchParams.set('api-version', '7.2-preview.3')
 
-    const detailsResponse = await fetch(detailsUrl.toString(), {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${btoa(`:${params!.accessToken}`)}`,
-      },
-    })
+      const detailsResponse = await fetch(detailsUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        },
+      })
 
-    const detailsData = await detailsResponse.json()
-    const workItems: AzureDevOpsWorkItem[] = (detailsData.value ?? []).map(
-      (raw: AzureDevOpsRawWorkItem) => mapWorkItem(raw)
-    )
+      if (!detailsResponse.ok) {
+        const errorBody = await detailsResponse.text().catch(() => '')
+        throw new Error(
+          `Failed to hydrate work item details (${detailsResponse.status}): ${errorBody || detailsResponse.statusText}`
+        )
+      }
+
+      const detailsData = await detailsResponse.json()
+      for (const raw of detailsData.value ?? []) {
+        workItems.push(mapWorkItem(raw as AzureDevOpsRawWorkItem))
+      }
+    }
 
     const content =
       workItems.length === 0
         ? 'No work item details found.'
-        : `Found ${workItems.length} work item(s):\n\n${workItems.map(formatWorkItem).join('\n\n')}`
+        : `Found ${workItems.length} work item(s) (of ${allIds.length} matched):\n\n${workItems.map(formatWorkItem).join('\n\n')}`
 
     return {
       success: true,
       output: {
         content,
-        metadata: { count: workItems.length, workItems },
+        metadata: { count: workItems.length, totalMatched: allIds.length, workItems },
       },
     }
   },
@@ -115,7 +127,12 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
       type: 'object',
       description: 'Work items metadata',
       properties: {
-        count: { type: 'number', description: 'Number of work items returned' },
+        count: { type: 'number', description: 'Number of work items returned (after hydration)' },
+        totalMatched: {
+          type: 'number',
+          description: 'Total number of work items matched by the WIQL query before hydration',
+          optional: true,
+        },
         workItems: {
           type: 'array',
           description: 'Array of work item details',

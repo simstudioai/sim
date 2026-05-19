@@ -22,7 +22,7 @@ export const AzureDevOpsBlock: BlockConfig<AzureDevOpsResponse> = {
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
   tags: ['ci-cd', 'project-management', 'version-control'],
-  bgColor: '#FFFFFF',
+  bgColor: '#0078D4',
   icon: AzureDevOpsIcon,
   authMode: AuthMode.ApiKey,
   triggerAllowed: true,
@@ -136,7 +136,11 @@ export const AzureDevOpsBlock: BlockConfig<AzureDevOpsResponse> = {
       required: true,
       condition: {
         field: 'operation',
-        value: ['azure_devops_list_build_logs', 'azure_devops_get_build_log', 'azure_devops_get_build_timeline'],
+        value: [
+          'azure_devops_list_build_logs',
+          'azure_devops_get_build_log',
+          'azure_devops_get_build_timeline',
+        ],
       },
     },
     {

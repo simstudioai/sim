@@ -274,6 +274,7 @@ export interface QueryWorkItemsResponse extends ToolResponse {
     content: string
     metadata: {
       count: number
+      totalMatched?: number
       workItems: AzureDevOpsWorkItem[]
     }
   }

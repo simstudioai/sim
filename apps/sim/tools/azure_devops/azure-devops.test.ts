@@ -317,7 +317,9 @@ describe('Azure DevOps request builders', () => {
       { op: 'replace', path: '/fields/System.State', value: 'Doing' },
       { op: 'replace', path: '/fields/Microsoft.VSTS.Scheduling.Effort', value: 5 },
     ])
-    expect(buildBody(updateWorkItemTool, { ...baseParams, workItemId: 101 })).toEqual([])
+    expect(() => buildBody(updateWorkItemTool, { ...baseParams, workItemId: 101 })).toThrow(
+      /requires at least one field/
+    )
 
     const createWithEffortParams = {
       ...createParams,
@@ -575,8 +577,10 @@ describe('Azure DevOps response transforms', () => {
     expect(batch.output.metadata.count).toBe(1)
   })
 
-  it('hydrates WIQL query results with a second fetch and caps IDs at 200', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(responseJson({ value: [rawWorkItem] }))
+  it('hydrates WIQL query results in chunks of 200 IDs', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(responseJson({ value: [rawWorkItem] })))
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
     const workItems = Array.from({ length: 201 }, (_, index) => ({
@@ -589,9 +593,27 @@ describe('Azure DevOps response transforms', () => {
       wiqlQuery: 'SELECT [System.Id] FROM workitems',
     } satisfies QueryWorkItemsParams)
 
-    const detailsUrl = new URL(String(fetchMock.mock.calls[0][0]))
-    expect(detailsUrl.searchParams.get('ids')?.split(',')).toHaveLength(200)
-    expect(result.output.metadata.workItems).toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const firstChunk = new URL(String(fetchMock.mock.calls[0][0]))
+    const secondChunk = new URL(String(fetchMock.mock.calls[1][0]))
+    expect(firstChunk.searchParams.get('ids')?.split(',')).toHaveLength(200)
+    expect(secondChunk.searchParams.get('ids')?.split(',')).toHaveLength(1)
+    expect(result.output.metadata.totalMatched).toBe(201)
+    expect(result.output.metadata.workItems).toHaveLength(2)
+  })
+
+  it('throws when WIQL hydration fetch returns a non-OK status', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('forbidden', { status: 403, statusText: 'Forbidden' }))
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    await expect(
+      queryWorkItemsTool.transformResponse!(responseJson({ workItems: [{ id: 1, url: 'x' }] }), {
+        ...baseParams,
+        wiqlQuery: 'SELECT [System.Id] FROM workitems',
+      } satisfies QueryWorkItemsParams)
+    ).rejects.toThrow(/Failed to hydrate work item details/)
   })
 
   it('does not hydrate WIQL empty results', async () => {
