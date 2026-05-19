@@ -443,7 +443,7 @@ export function Files() {
       },
       sortValues: {
         name: folder.name,
-        size: -1,
+        size: folderSizeMap.get(folder.id) ?? -1,
         type: 'Folder',
         created: new Date(folder.createdAt).getTime(),
         updated: new Date(folder.updatedAt).getTime(),
