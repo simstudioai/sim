@@ -1,12 +1,12 @@
 import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { collectUserFileKeys, isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import {
   isLargeArrayManifest,
   materializeLargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest'
-import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import {
   getLargeValueMaterializationError,
   isLargeValueRef,
@@ -168,6 +168,7 @@ export interface Base64HydrationOptions {
   allowUnknownSize?: boolean
   timeoutMs?: number
   cacheTtlSeconds?: number
+  preserveLargeValueMetadata?: boolean
 }
 
 class InMemoryBase64Cache implements Base64Cache {
@@ -479,6 +480,13 @@ async function hydrateValue(
     return value
   }
 
+  if (
+    options.preserveLargeValueMetadata &&
+    (isLargeArrayManifest(value) || isLargeValueRef(value))
+  ) {
+    return value
+  }
+
   if (isLargeArrayManifest(value)) {
     const materialized = await materializeLargeArrayManifest(value, options)
     return hydrateValue(
@@ -532,31 +540,7 @@ function withLocalLargeValueExecutionIds(
   options: Base64HydrationOptions,
   materializedValue: unknown
 ): Base64HydrationOptions {
-  const sourceKeys = collectLargeValueKeys(materializedValue)
-  const fileKeys = collectUserFileKeys(materializedValue)
-  if (sourceKeys.length === 0 && fileKeys.length === 0) {
-    return options
-  }
-  if (!options.largeValueKeys) {
-    options.largeValueKeys = []
-  }
-  if (!options.fileKeys) {
-    options.fileKeys = []
-  }
-  const existingKeys = new Set(options.largeValueKeys)
-  for (const key of sourceKeys) {
-    if (!existingKeys.has(key)) {
-      existingKeys.add(key)
-      options.largeValueKeys.push(key)
-    }
-  }
-  const existingFileKeys = new Set(options.fileKeys)
-  for (const key of fileKeys) {
-    if (!existingFileKeys.has(key)) {
-      existingFileKeys.add(key)
-      options.fileKeys.push(key)
-    }
-  }
+  recordMaterializedAccessKeys(options, materializedValue)
   return {
     ...options,
     largeValueKeys: options.largeValueKeys,

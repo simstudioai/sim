@@ -187,6 +187,61 @@ describe('hydrateUserFilesWithBase64', () => {
     )
   })
 
+  it('preserves large-value metadata while hydrating visible files when requested', async () => {
+    mockDownloadFile.mockResolvedValueOnce(Buffer.from('hello', 'utf8'))
+    const file: UserFile = {
+      id: 'file-1',
+      name: 'visible.txt',
+      key: 'execution/workspace/workflow/execution-1/visible.txt',
+      url: '/api/files/serve/execution/workspace/workflow/execution-1/visible.txt?context=execution',
+      size: 5,
+      type: 'text/plain',
+      context: 'execution',
+    }
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_PRESERVEREF1',
+      kind: 'object',
+      size: 256,
+      key: 'execution/workspace/workflow/source-execution/large-value-lv_PRESERVEREF1.json',
+      executionId: 'source-execution',
+    }
+    const manifest = {
+      __simLargeArrayManifest: true,
+      version: 2,
+      kind: 'array',
+      totalCount: 1,
+      chunkCount: 1,
+      byteSize: 256,
+      chunks: [
+        {
+          ref,
+          count: 1,
+          byteSize: 256,
+        },
+      ],
+      preview: [{ id: 1 }],
+    }
+
+    const hydrated = await hydrateUserFilesWithBase64(
+      { file, ref, manifest },
+      {
+        workspaceId: 'workspace',
+        workflowId: 'workflow',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        maxBytes: 1024,
+        preserveLargeValueMetadata: true,
+      }
+    )
+
+    expect(hydrated.file.base64).toBe(Buffer.from('hello').toString('base64'))
+    expect(hydrated.ref).toBe(ref)
+    expect(hydrated.manifest).toBe(manifest)
+    expect(mockDownloadFile).toHaveBeenCalledOnce()
+  })
+
   it('hydrates nested prior-execution files discovered from exact-key large refs', async () => {
     const file: UserFile = {
       id: 'file-1',

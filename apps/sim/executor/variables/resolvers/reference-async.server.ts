@@ -1,10 +1,10 @@
-import { collectUserFileKeys, isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import {
   isLargeArrayManifest,
   type LargeArrayManifest,
   readLargeArrayManifestSlice,
 } from '@/lib/execution/payloads/large-array-manifest'
-import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import {
   assertNoLargeValueRefs,
   getLargeValueMaterializationError,
@@ -23,31 +23,10 @@ function withLocalLargeValueExecutionIds(
   context: PathNavigationContext,
   materializedValue: unknown
 ): PathNavigationContext {
-  const sourceKeys = collectLargeValueKeys(materializedValue)
-  const fileKeys = collectUserFileKeys(materializedValue)
-  if (sourceKeys.length === 0 && fileKeys.length === 0) {
+  if (!context.executionContext) {
     return context
   }
-  if (!context.executionContext.largeValueKeys) {
-    context.executionContext.largeValueKeys = []
-  }
-  const existingKeys = new Set(context.executionContext.largeValueKeys)
-  for (const key of sourceKeys) {
-    if (!existingKeys.has(key)) {
-      existingKeys.add(key)
-      context.executionContext.largeValueKeys.push(key)
-    }
-  }
-  if (!context.executionContext.fileKeys) {
-    context.executionContext.fileKeys = []
-  }
-  const existingFileKeys = new Set(context.executionContext.fileKeys)
-  for (const key of fileKeys) {
-    if (!existingFileKeys.has(key)) {
-      existingFileKeys.add(key)
-      context.executionContext.fileKeys.push(key)
-    }
-  }
+  recordMaterializedAccessKeys(context.executionContext, materializedValue)
   return {
     ...context,
     executionContext: {

@@ -806,6 +806,7 @@ async function handleExecutePost(
               allowLargeValueWorkflowScope,
               userId: actorUserId,
               maxBytes: base64MaxBytes,
+              preserveLargeValueMetadata: true,
             })) as NormalizedBlockOutput)
           : result.output
 
@@ -1377,6 +1378,7 @@ async function handleExecutePost(
                 allowLargeValueWorkflowScope,
                 userId: actorUserId,
                 maxBytes: base64MaxBytes,
+                preserveLargeValueMetadata: true,
               })
             : result.output
           const compactSseOutput = await compactRoutePayload(sseOutput, {

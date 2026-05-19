@@ -10,16 +10,15 @@ import {
 } from '@/lib/copilot/request/tools/files'
 import { isE2bEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { collectUserFileKeys } from '@/lib/core/utils/user-file'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInE2B, executeShellInE2B } from '@/lib/execution/e2b'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
+import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import {
   isLargeArrayManifest,
   materializeLargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest'
-import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import { containsLargeValueRef, isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import {
   MAX_FUNCTION_INLINE_BYTES,
@@ -766,24 +765,8 @@ function createFunctionRuntimeBrokers(
     logger,
   }
 
-  const recordMaterializedKeys = (value: unknown) => {
-    const keys = collectLargeValueKeys(value)
-    const existingKeys = new Set(largeValueKeys)
-    for (const key of keys) {
-      if (!existingKeys.has(key)) {
-        existingKeys.add(key)
-        largeValueKeys.push(key)
-      }
-    }
-    const keysForFiles = collectUserFileKeys(value)
-    const existingFileKeys = new Set(fileKeys)
-    for (const key of keysForFiles) {
-      if (!existingFileKeys.has(key)) {
-        existingFileKeys.add(key)
-        fileKeys.push(key)
-      }
-    }
-  }
+  const recordMaterializedKeys = (value: unknown) =>
+    recordMaterializedAccessKeys({ largeValueKeys, fileKeys }, value)
 
   const readFile = async (args: unknown, encoding: 'base64' | 'text', chunked = false) => {
     const fileArgs = getBrokerFileArgs(args)

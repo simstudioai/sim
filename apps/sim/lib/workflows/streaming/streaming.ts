@@ -7,8 +7,6 @@ import {
   parseOutputContentSafely,
 } from '@/lib/core/utils/response-format'
 import { encodeSSE } from '@/lib/core/utils/sse'
-import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
-import { assertNoLargeValueRefs, isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
@@ -111,15 +109,7 @@ async function extractOutputValue(
       })
     : parsedOutput
 
-  assertNoNestedLargeValueRefs(outputValue)
   return outputValue
-}
-
-function assertNoNestedLargeValueRefs(value: unknown): void {
-  if (isLargeValueRef(value) || isLargeArrayManifest(value)) {
-    return
-  }
-  assertNoLargeValueRefs(value)
 }
 
 function isDangerousKey(key: string): boolean {
@@ -372,10 +362,7 @@ export async function createStreamingResponse(
           })
 
           if (outputValue !== undefined) {
-            const shouldHydrateOutput =
-              includeFileBase64 &&
-              !isLargeValueRef(outputValue) &&
-              !isLargeArrayManifest(outputValue)
+            const shouldHydrateOutput = includeFileBase64
             const hydratedOutput = shouldHydrateOutput
               ? await hydrateUserFilesWithBase64(outputValue, {
                   requestId,
@@ -388,6 +375,7 @@ export async function createStreamingResponse(
                   allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
                   userId: options.userId,
                   maxBytes: base64MaxBytes,
+                  preserveLargeValueMetadata: true,
                 })
               : outputValue
             const compactHydratedOutput = await compactExecutionPayload(hydratedOutput, {

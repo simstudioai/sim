@@ -2,6 +2,7 @@ import { createLogger, type Logger } from '@sim/logger'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import { collectUserFileKeys } from '@/lib/core/utils/user-file'
+import { mergeFileKeys, mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
 import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import type { DAG } from '@/executor/dag/builder'
@@ -217,33 +218,13 @@ export class DAGExecutor {
       loopExecutions: filteredLoopExecutions,
       parallelExecutions: filteredParallelExecutions,
     })
-    if (context.largeValueKeys) {
-      const existingKeys = new Set(context.largeValueKeys)
-      for (const key of filteredLargeValueKeys) {
-        if (!existingKeys.has(key)) {
-          existingKeys.add(key)
-          context.largeValueKeys.push(key)
-        }
-      }
-    } else {
-      context.largeValueKeys = filteredLargeValueKeys
-    }
+    mergeLargeValueKeys(context, filteredLargeValueKeys)
     const filteredFileKeys = collectUserFileKeys({
       blockStates: filteredBlockStates,
       loopExecutions: filteredLoopExecutions,
       parallelExecutions: filteredParallelExecutions,
     })
-    if (context.fileKeys) {
-      const existingKeys = new Set(context.fileKeys)
-      for (const key of filteredFileKeys) {
-        if (!existingKeys.has(key)) {
-          existingKeys.add(key)
-          context.fileKeys.push(key)
-        }
-      }
-    } else {
-      context.fileKeys = filteredFileKeys
-    }
+    mergeFileKeys(context, filteredFileKeys)
     context.subflowParentMap = this.buildSubflowParentMap(dag)
 
     const engine = this.buildExecutionPipeline(context, dag, state)

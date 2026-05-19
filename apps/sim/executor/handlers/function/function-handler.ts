@@ -5,6 +5,7 @@ import {
 } from '@/lib/core/utils/records'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
+import { mergeFileKeys, mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
@@ -84,27 +85,8 @@ export class FunctionBlockHandler implements BlockHandler {
       throw new Error(result.error || 'Function execution failed')
     }
 
-    if (result.largeValueKeys?.length) {
-      ctx.largeValueKeys ??= []
-      const existingKeys = new Set(ctx.largeValueKeys)
-      for (const key of result.largeValueKeys) {
-        if (!existingKeys.has(key)) {
-          existingKeys.add(key)
-          ctx.largeValueKeys.push(key)
-        }
-      }
-    }
-
-    if (result.fileKeys?.length) {
-      ctx.fileKeys ??= []
-      const existingKeys = new Set(ctx.fileKeys)
-      for (const key of result.fileKeys) {
-        if (!existingKeys.has(key)) {
-          existingKeys.add(key)
-          ctx.fileKeys.push(key)
-        }
-      }
-    }
+    mergeLargeValueKeys(ctx, result.largeValueKeys ?? [])
+    mergeFileKeys(ctx, result.fileKeys ?? [])
 
     return result.output
   }

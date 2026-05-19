@@ -6,11 +6,11 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, asc, eq, inArray, isNull, max, min, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import {
   isLargeArrayManifest,
   materializeLargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest'
-import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import {
   getLargeValueMaterializationError,
   isLargeValueRef,
@@ -333,23 +333,14 @@ function withLocalLargeValueExecutionIds(
   context: ExecutionMaterializationContext | undefined,
   materializedValue: unknown
 ): ExecutionMaterializationContext | undefined {
-  const sourceKeys = collectLargeValueKeys(materializedValue)
-  if (!context || sourceKeys.length === 0) {
+  if (!context) {
     return context
   }
-  if (!context.largeValueKeys) {
-    context.largeValueKeys = []
-  }
-  const existingKeys = new Set(context.largeValueKeys)
-  for (const key of sourceKeys) {
-    if (!existingKeys.has(key)) {
-      existingKeys.add(key)
-      context.largeValueKeys.push(key)
-    }
-  }
+  recordMaterializedAccessKeys(context, materializedValue)
   return {
     ...context,
     largeValueKeys: context.largeValueKeys,
+    fileKeys: context.fileKeys,
   }
 }
 

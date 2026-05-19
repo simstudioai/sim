@@ -137,6 +137,38 @@ describe('createStreamingResponse', () => {
     await expect(readSSEStream(stream)).resolves.toBe(JSON.stringify(manifest, null, 2))
   })
 
+  it('streams whole-block selected outputs containing manifests as compact metadata', async () => {
+    const output = { issues: manifest }
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      executionId: 'execution-1',
+      streamConfig: {
+        selectedOutputs: ['block'],
+        includeFileBase64: true,
+      },
+      executeFn: async ({ onBlockComplete }) => {
+        await onBlockComplete('block', output)
+        return {
+          success: true,
+          output: {},
+          logs: [
+            {
+              blockId: 'block',
+              output,
+              startedAt: new Date().toISOString(),
+              endedAt: new Date().toISOString(),
+              durationMs: 1,
+              success: true,
+            },
+          ],
+        } as any
+      },
+    })
+
+    await expect(readSSEStream(stream)).resolves.toBe(JSON.stringify(output, null, 2))
+    expect(mockDownloadFile).not.toHaveBeenCalled()
+  })
+
   it('uses live large-value keys for selected-output materialization', async () => {
     const largeValueKeys: string[] = []
     const ref = {

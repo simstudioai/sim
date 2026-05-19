@@ -1,32 +1,20 @@
+import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
-import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import {
   type LargeValueStoreContext,
   materializeLargeValueRef,
 } from '@/lib/execution/payloads/store'
 
-function withLocalLargeValueKeys(
+function withLocalMaterializedKeys(
   context: LargeValueStoreContext,
   materializedValue: unknown
 ): LargeValueStoreContext {
-  const sourceKeys = collectLargeValueKeys(materializedValue)
-  if (sourceKeys.length === 0) {
-    return context
-  }
-  if (!context.largeValueKeys) {
-    context.largeValueKeys = []
-  }
-  const existingKeys = new Set(context.largeValueKeys)
-  for (const key of sourceKeys) {
-    if (!existingKeys.has(key)) {
-      existingKeys.add(key)
-      context.largeValueKeys.push(key)
-    }
-  }
+  recordMaterializedAccessKeys(context, materializedValue)
   return {
     ...context,
     largeValueKeys: context.largeValueKeys,
+    fileKeys: context.fileKeys,
   }
 }
 
@@ -41,7 +29,7 @@ export async function warmLargeValueRefs(
 
   if (isLargeValueRef(value)) {
     const materialized = await materializeLargeValueRef(value, context)
-    await warmLargeValueRefs(materialized, withLocalLargeValueKeys(context, materialized), seen)
+    await warmLargeValueRefs(materialized, withLocalMaterializedKeys(context, materialized), seen)
     return
   }
 
@@ -51,15 +39,18 @@ export async function warmLargeValueRefs(
   seen.add(value)
 
   if (isLargeArrayManifest(value)) {
+    await warmLargeValueRefs(value.preview, context, seen)
     return
   }
 
   if (Array.isArray(value)) {
-    await Promise.all(value.map((item) => warmLargeValueRefs(item, context, seen)))
+    for (const item of value) {
+      await warmLargeValueRefs(item, context, seen)
+    }
     return
   }
 
-  await Promise.all(
-    Object.values(value).map((entryValue) => warmLargeValueRefs(entryValue, context, seen))
-  )
+  for (const entryValue of Object.values(value)) {
+    await warmLargeValueRefs(entryValue, context, seen)
+  }
 }

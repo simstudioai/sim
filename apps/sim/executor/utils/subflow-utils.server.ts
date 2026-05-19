@@ -1,43 +1,16 @@
 import { toError } from '@sim/utils/errors'
-import { collectUserFileKeys } from '@/lib/core/utils/user-file'
+import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import {
   isLargeArrayManifest,
   LARGE_ARRAY_MANIFEST_MARKER,
   materializeLargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest'
-import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import { isLargeValueRef, LARGE_VALUE_REF_MARKER } from '@/lib/execution/payloads/large-value-ref'
 import { MAX_DURABLE_LARGE_VALUE_BYTES } from '@/lib/execution/payloads/materialization.server'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import { REFERENCE } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'
 import type { VariableResolver } from '@/executor/variables/resolver'
-
-function recordMaterializedKeys(ctx: ExecutionContext, value: unknown): void {
-  const largeValueKeys = collectLargeValueKeys(value)
-  if (largeValueKeys.length > 0) {
-    ctx.largeValueKeys ??= []
-    const existingKeys = new Set(ctx.largeValueKeys)
-    for (const key of largeValueKeys) {
-      if (!existingKeys.has(key)) {
-        existingKeys.add(key)
-        ctx.largeValueKeys.push(key)
-      }
-    }
-  }
-
-  const fileKeys = collectUserFileKeys(value)
-  if (fileKeys.length > 0) {
-    ctx.fileKeys ??= []
-    const existingKeys = new Set(ctx.fileKeys)
-    for (const key of fileKeys) {
-      if (!existingKeys.has(key)) {
-        existingKeys.add(key)
-        ctx.fileKeys.push(key)
-      }
-    }
-  }
-}
 
 async function normalizeCollectionValue(ctx: ExecutionContext, value: unknown): Promise<any[]> {
   if (Array.isArray(value)) {
@@ -56,7 +29,7 @@ async function normalizeCollectionValue(ctx: ExecutionContext, value: unknown): 
       userId: ctx.userId,
       maxBytes: MAX_DURABLE_LARGE_VALUE_BYTES,
     })
-    recordMaterializedKeys(ctx, materialized)
+    recordMaterializedAccessKeys(ctx, materialized)
     return materialized
   }
 
@@ -75,7 +48,7 @@ async function normalizeCollectionValue(ctx: ExecutionContext, value: unknown): 
     if (materialized === undefined) {
       throw new Error('Large execution value is unavailable.')
     }
-    recordMaterializedKeys(ctx, materialized)
+    recordMaterializedAccessKeys(ctx, materialized)
     return normalizeCollectionValue(ctx, materialized)
   }
 
