@@ -6973,8 +6973,7 @@ export function NewRelicIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
-  
-        
+
 export function WizaIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 51 49' fill='none' xmlns='http://www.w3.org/2000/svg'>
