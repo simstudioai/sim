@@ -34,6 +34,8 @@ export interface ExecuteWorkflowOptions {
   skipLoggingComplete?: boolean
   includeFileBase64?: boolean
   base64MaxBytes?: number
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   abortSignal?: AbortSignal
   /** Use the live/draft workflow state instead of the deployed state. Used by copilot. */
   useDraftState?: boolean
@@ -43,6 +45,7 @@ export interface ExecuteWorkflowOptions {
   runFromBlock?: {
     startBlockId: string
     sourceSnapshot: SerializableExecutionState
+    sourceExecutionId?: string
   }
   executionMode?: 'sync' | 'stream' | 'async'
 }
@@ -86,6 +89,9 @@ export async function executeWorkflow(
       useDraftState: streamConfig?.useDraftState ?? false,
       startTime: new Date().toISOString(),
       isClientSession: false,
+      largeValueExecutionIds: Array.from(new Set([executionId])),
+      largeValueKeys: streamConfig?.largeValueKeys,
+      fileKeys: streamConfig?.fileKeys,
       executionMode: streamConfig?.executionMode,
     }
 

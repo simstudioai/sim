@@ -94,6 +94,7 @@ export class VariablesBlockHandler implements BlockHandler {
       executionId: ctx.executionId,
       userId: ctx.userId,
       largeValueExecutionIds: ctx.largeValueExecutionIds,
+      largeValueKeys: ctx.largeValueKeys,
       allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
     })
   }

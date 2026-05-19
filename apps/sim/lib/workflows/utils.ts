@@ -10,6 +10,7 @@ import {
   isLargeArrayManifest,
   materializeLargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest'
+import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import {
   getLargeValueMaterializationError,
   isLargeValueRef,
@@ -328,16 +329,45 @@ export const workflowHasResponseBlock = (
   return responseBlock !== undefined
 }
 
+function withLocalLargeValueExecutionIds(
+  context: ExecutionMaterializationContext | undefined,
+  materializedValue: unknown
+): ExecutionMaterializationContext | undefined {
+  const sourceKeys = collectLargeValueKeys(materializedValue)
+  if (!context || sourceKeys.length === 0) {
+    return context
+  }
+  if (!context.largeValueKeys) {
+    context.largeValueKeys = []
+  }
+  const existingKeys = new Set(context.largeValueKeys)
+  for (const key of sourceKeys) {
+    if (!existingKeys.has(key)) {
+      existingKeys.add(key)
+      context.largeValueKeys.push(key)
+    }
+  }
+  return {
+    ...context,
+    largeValueKeys: context.largeValueKeys,
+  }
+}
+
 async function materializeHttpResponseValue(
   value: unknown,
   context: ExecutionMaterializationContext | undefined,
-  seen = new WeakSet<object>()
+  memo = new WeakMap<object, Promise<unknown>>()
 ): Promise<unknown> {
   if (isLargeArrayManifest(value)) {
-    return materializeLargeArrayManifest(value, {
+    const materialized = await materializeLargeArrayManifest(value, {
       ...context,
       maxBytes: MAX_INLINE_MATERIALIZATION_BYTES,
     })
+    return materializeHttpResponseValue(
+      materialized,
+      withLocalLargeValueExecutionIds(context, materialized),
+      memo
+    )
   }
 
   if (isLargeValueRef(value)) {
@@ -348,30 +378,44 @@ async function materializeHttpResponseValue(
     if (materialized === undefined) {
       throw getLargeValueMaterializationError(value)
     }
-    return materializeHttpResponseValue(materialized, context, seen)
+    return materializeHttpResponseValue(
+      materialized,
+      withLocalLargeValueExecutionIds(context, materialized),
+      memo
+    )
   }
 
   if (!value || typeof value !== 'object') {
     return value
   }
 
-  if (seen.has(value)) {
-    return value
+  const cached = memo.get(value)
+  if (cached) {
+    return cached
   }
-  seen.add(value)
 
   if (Array.isArray(value)) {
-    return Promise.all(value.map((item) => materializeHttpResponseValue(item, context, seen)))
+    const result: unknown[] = []
+    memo.set(value, Promise.resolve(result))
+    const materializedItems = await Promise.all(
+      value.map((item) => materializeHttpResponseValue(item, context, memo))
+    )
+    result.push(...materializedItems)
+    return result
   }
 
-  return Object.fromEntries(
-    await Promise.all(
-      Object.entries(value as Record<string, unknown>).map(async ([key, entryValue]) => [
-        key,
-        await materializeHttpResponseValue(entryValue, context, seen),
-      ])
+  const result: Record<string, unknown> = {}
+  memo.set(value, Promise.resolve(result))
+  const entries = await Promise.all(
+    Object.entries(value as Record<string, unknown>).map(
+      async ([key, entryValue]) =>
+        [key, await materializeHttpResponseValue(entryValue, context, memo)] as const
     )
   )
+  for (const [key, entryValue] of entries) {
+    result[key] = entryValue
+  }
+  return result
 }
 
 export const createHttpResponseFromBlock = async (

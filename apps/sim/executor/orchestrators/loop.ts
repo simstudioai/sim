@@ -256,6 +256,9 @@ export class LoopOrchestrator {
         workspaceId: ctx.workspaceId,
         workflowId: ctx.workflowId,
         executionId: ctx.executionId,
+        largeValueExecutionIds: ctx.largeValueExecutionIds,
+        largeValueKeys: ctx.largeValueKeys,
+        allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
         userId: ctx.userId,
         requireDurable: true,
       })
@@ -303,6 +306,9 @@ export class LoopOrchestrator {
       workspaceId: ctx.workspaceId,
       workflowId: ctx.workflowId,
       executionId: ctx.executionId,
+      largeValueExecutionIds: ctx.largeValueExecutionIds,
+      largeValueKeys: ctx.largeValueKeys,
+      allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
       userId: ctx.userId,
       requireDurable: true,
     })

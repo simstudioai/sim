@@ -1,9 +1,10 @@
-import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import { collectUserFileKeys, isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
   isLargeArrayManifest,
   type LargeArrayManifest,
   readLargeArrayManifestSlice,
 } from '@/lib/execution/payloads/large-array-manifest'
+import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import {
   assertNoLargeValueRefs,
   getLargeValueMaterializationError,
@@ -13,25 +14,74 @@ import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import { hydrateUserFileWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import type { PathNavigationContext } from '@/executor/variables/resolvers/reference'
 
+interface MaterializedNavigationValue {
+  value: unknown
+  context: PathNavigationContext
+}
+
+function withLocalLargeValueExecutionIds(
+  context: PathNavigationContext,
+  materializedValue: unknown
+): PathNavigationContext {
+  const sourceKeys = collectLargeValueKeys(materializedValue)
+  const fileKeys = collectUserFileKeys(materializedValue)
+  if (sourceKeys.length === 0 && fileKeys.length === 0) {
+    return context
+  }
+  if (!context.executionContext.largeValueKeys) {
+    context.executionContext.largeValueKeys = []
+  }
+  const existingKeys = new Set(context.executionContext.largeValueKeys)
+  for (const key of sourceKeys) {
+    if (!existingKeys.has(key)) {
+      existingKeys.add(key)
+      context.executionContext.largeValueKeys.push(key)
+    }
+  }
+  if (!context.executionContext.fileKeys) {
+    context.executionContext.fileKeys = []
+  }
+  const existingFileKeys = new Set(context.executionContext.fileKeys)
+  for (const key of fileKeys) {
+    if (!existingFileKeys.has(key)) {
+      existingFileKeys.add(key)
+      context.executionContext.fileKeys.push(key)
+    }
+  }
+  return {
+    ...context,
+    executionContext: {
+      ...context.executionContext,
+      largeValueKeys: context.executionContext.largeValueKeys,
+      fileKeys: context.executionContext.fileKeys,
+    },
+  }
+}
+
 async function materializeLargeValueRefOrThrow(
   value: unknown,
   context: PathNavigationContext
-): Promise<unknown> {
+): Promise<MaterializedNavigationValue> {
   if (!isLargeValueRef(value)) {
-    return value
+    return { value, context }
   }
   const materialized = await materializeLargeValueRef(value, {
     workspaceId: context.executionContext.workspaceId,
     workflowId: context.executionContext.workflowId,
     executionId: context.executionContext.executionId,
     largeValueExecutionIds: context.executionContext.largeValueExecutionIds,
+    largeValueKeys: context.executionContext.largeValueKeys,
+    fileKeys: context.executionContext.fileKeys,
     allowLargeValueWorkflowScope: context.executionContext.allowLargeValueWorkflowScope,
     userId: context.executionContext.userId,
   })
   if (materialized === undefined) {
     throw getLargeValueMaterializationError(value)
   }
-  return materialized
+  return {
+    value: materialized,
+    context: withLocalLargeValueExecutionIds(context, materialized),
+  }
 }
 
 async function hydrateExplicitBase64(
@@ -47,6 +97,8 @@ async function hydrateExplicitBase64(
     workflowId: context.executionContext.workflowId,
     executionId: context.executionContext.executionId,
     largeValueExecutionIds: context.executionContext.largeValueExecutionIds,
+    largeValueKeys: context.executionContext.largeValueKeys,
+    fileKeys: context.executionContext.fileKeys,
     allowLargeValueWorkflowScope: context.executionContext.allowLargeValueWorkflowScope,
     userId: context.executionContext.userId,
     maxBytes: context.executionContext.base64MaxBytes,
@@ -69,6 +121,7 @@ async function readManifestIndexAsync(
     workflowId: context.executionContext.workflowId,
     executionId: context.executionContext.executionId,
     largeValueExecutionIds: context.executionContext.largeValueExecutionIds,
+    largeValueKeys: context.executionContext.largeValueKeys,
     allowLargeValueWorkflowScope: context.executionContext.allowLargeValueWorkflowScope,
     userId: context.executionContext.userId,
   })
@@ -79,20 +132,24 @@ async function navigateManifestMetadataOrIndexAsync(
   value: unknown,
   part: string,
   context: PathNavigationContext
-): Promise<unknown> {
+): Promise<MaterializedNavigationValue> {
   if (!isLargeArrayManifest(value)) {
-    return undefined
+    return { value: undefined, context }
   }
   if (part === 'length' || part === 'totalCount') {
-    return value.totalCount
+    return { value: value.totalCount, context }
   }
   if (part === 'chunkCount' || part === 'byteSize' || part === 'preview') {
-    return value[part]
+    return { value: value[part], context: withLocalLargeValueExecutionIds(context, value[part]) }
   }
   if (/^\d+$/.test(part)) {
-    return readManifestIndexAsync(value, part, context)
+    const item = await readManifestIndexAsync(value, part, context)
+    return {
+      value: item,
+      context: withLocalLargeValueExecutionIds(context, item),
+    }
   }
-  return undefined
+  return { value: undefined, context }
 }
 
 /**
@@ -106,15 +163,19 @@ export async function navigatePathAsync(
   context: PathNavigationContext
 ): Promise<any> {
   let current = obj
+  let currentContext = context
   for (const part of path) {
-    current = await materializeLargeValueRefOrThrow(current, context)
+    ;({ value: current, context: currentContext } = await materializeLargeValueRefOrThrow(
+      current,
+      currentContext
+    ))
 
     if (current === null || current === undefined) {
       return undefined
     }
 
     if (part === 'base64') {
-      const base64 = await hydrateExplicitBase64(current, context)
+      const base64 = await hydrateExplicitBase64(current, currentContext)
       if (base64 !== undefined) {
         current = base64
         continue
@@ -122,7 +183,11 @@ export async function navigatePathAsync(
     }
 
     if (isLargeArrayManifest(current)) {
-      current = await navigateManifestMetadataOrIndexAsync(current, part, context)
+      ;({ value: current, context: currentContext } = await navigateManifestMetadataOrIndexAsync(
+        current,
+        part,
+        currentContext
+      ))
       continue
     }
 
@@ -133,7 +198,10 @@ export async function navigatePathAsync(
         typeof current === 'object' && current !== null
           ? (current as Record<string, unknown>)[prop]
           : undefined
-      current = await materializeLargeValueRefOrThrow(current, context)
+      ;({ value: current, context: currentContext } = await materializeLargeValueRefOrThrow(
+        current,
+        currentContext
+      ))
       if (current === undefined || current === null) {
         return undefined
       }
@@ -141,13 +209,17 @@ export async function navigatePathAsync(
       const indices = bracketsPart.match(/\[(\d+)\]/g)
       if (indices) {
         for (const indexMatch of indices) {
-          current = await materializeLargeValueRefOrThrow(current, context)
+          ;({ value: current, context: currentContext } = await materializeLargeValueRefOrThrow(
+            current,
+            currentContext
+          ))
           if (current === null || current === undefined) {
             return undefined
           }
           const idx = Number.parseInt(indexMatch.slice(1, -1), 10)
           if (isLargeArrayManifest(current)) {
-            current = await navigateManifestMetadataOrIndexAsync(current, String(idx), context)
+            ;({ value: current, context: currentContext } =
+              await navigateManifestMetadataOrIndexAsync(current, String(idx), currentContext))
           } else {
             current = Array.isArray(current) ? current[idx] : undefined
           }
@@ -155,11 +227,15 @@ export async function navigatePathAsync(
       }
     } else if (/^\d+$/.test(part)) {
       const index = Number.parseInt(part, 10)
-      current = isLargeArrayManifest(current)
-        ? await navigateManifestMetadataOrIndexAsync(current, part, context)
-        : Array.isArray(current)
-          ? current[index]
-          : undefined
+      if (isLargeArrayManifest(current)) {
+        ;({ value: current, context: currentContext } = await navigateManifestMetadataOrIndexAsync(
+          current,
+          part,
+          currentContext
+        ))
+      } else {
+        current = Array.isArray(current) ? current[index] : undefined
+      }
     } else {
       current =
         typeof current === 'object' && current !== null

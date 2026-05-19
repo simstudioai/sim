@@ -1,12 +1,22 @@
 import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
-import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
+import { collectUserFileKeys, isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import {
+  isLargeArrayManifest,
+  materializeLargeArrayManifest,
+} from '@/lib/execution/payloads/large-array-manifest'
+import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
+import {
+  getLargeValueMaterializationError,
+  isLargeValueRef,
+  LARGE_VALUE_THRESHOLD_BYTES,
+} from '@/lib/execution/payloads/large-value-ref'
 import {
   assertUserFileContentAccess,
   readUserFileContent,
 } from '@/lib/execution/payloads/materialization.server'
+import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import {
   type ExecutionRedisBudgetReservation,
   getExecutionRedisBudgetKeys,
@@ -149,6 +159,8 @@ export interface Base64HydrationOptions {
   workflowId?: string
   executionId?: string
   largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
   logger?: Logger
@@ -401,6 +413,7 @@ async function resolveBase64(
       workflowId: options.workflowId,
       executionId: options.executionId,
       largeValueExecutionIds: options.largeValueExecutionIds,
+      fileKeys: options.fileKeys,
       allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
       userId: options.userId,
       encoding: 'base64',
@@ -427,6 +440,7 @@ async function hydrateUserFile(
         workflowId: options.workflowId,
         executionId: options.executionId,
         largeValueExecutionIds: options.largeValueExecutionIds,
+        fileKeys: options.fileKeys,
         allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
         userId: options.userId,
         logger,
@@ -465,6 +479,29 @@ async function hydrateValue(
     return value
   }
 
+  if (isLargeArrayManifest(value)) {
+    const materialized = await materializeLargeArrayManifest(value, options)
+    return hydrateValue(
+      materialized,
+      withLocalLargeValueExecutionIds(options, materialized),
+      state,
+      logger
+    )
+  }
+
+  if (isLargeValueRef(value)) {
+    const materialized = await materializeLargeValueRef(value, options)
+    if (materialized === undefined) {
+      throw getLargeValueMaterializationError(value)
+    }
+    return hydrateValue(
+      materialized,
+      withLocalLargeValueExecutionIds(options, materialized),
+      state,
+      logger
+    )
+  }
+
   if (isUserFileWithMetadata(value)) {
     return hydrateUserFile(value, options, state, logger)
   }
@@ -489,6 +526,42 @@ async function hydrateValue(
   )
 
   return Object.fromEntries(entries)
+}
+
+function withLocalLargeValueExecutionIds(
+  options: Base64HydrationOptions,
+  materializedValue: unknown
+): Base64HydrationOptions {
+  const sourceKeys = collectLargeValueKeys(materializedValue)
+  const fileKeys = collectUserFileKeys(materializedValue)
+  if (sourceKeys.length === 0 && fileKeys.length === 0) {
+    return options
+  }
+  if (!options.largeValueKeys) {
+    options.largeValueKeys = []
+  }
+  if (!options.fileKeys) {
+    options.fileKeys = []
+  }
+  const existingKeys = new Set(options.largeValueKeys)
+  for (const key of sourceKeys) {
+    if (!existingKeys.has(key)) {
+      existingKeys.add(key)
+      options.largeValueKeys.push(key)
+    }
+  }
+  const existingFileKeys = new Set(options.fileKeys)
+  for (const key of fileKeys) {
+    if (!existingFileKeys.has(key)) {
+      existingFileKeys.add(key)
+      options.fileKeys.push(key)
+    }
+  }
+  return {
+    ...options,
+    largeValueKeys: options.largeValueKeys,
+    fileKeys: options.fileKeys,
+  }
 }
 
 /**

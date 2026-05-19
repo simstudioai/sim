@@ -69,6 +69,8 @@ export class FunctionBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
         executionId: ctx.executionId,
         largeValueExecutionIds: ctx.largeValueExecutionIds,
+        largeValueKeys: ctx.largeValueKeys,
+        fileKeys: ctx.fileKeys,
         allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
         userId: ctx.userId,
         isDeployedContext: ctx.isDeployedContext,
@@ -80,6 +82,28 @@ export class FunctionBlockHandler implements BlockHandler {
 
     if (!result.success) {
       throw new Error(result.error || 'Function execution failed')
+    }
+
+    if (result.largeValueKeys?.length) {
+      ctx.largeValueKeys ??= []
+      const existingKeys = new Set(ctx.largeValueKeys)
+      for (const key of result.largeValueKeys) {
+        if (!existingKeys.has(key)) {
+          existingKeys.add(key)
+          ctx.largeValueKeys.push(key)
+        }
+      }
+    }
+
+    if (result.fileKeys?.length) {
+      ctx.fileKeys ??= []
+      const existingKeys = new Set(ctx.fileKeys)
+      for (const key of result.fileKeys) {
+        if (!existingKeys.has(key)) {
+          existingKeys.add(key)
+          ctx.fileKeys.push(key)
+        }
+      }
     }
 
     return result.output

@@ -52,6 +52,7 @@ export interface ExecuteWorkflowCoreOptions {
   runFromBlock?: {
     startBlockId: string
     sourceSnapshot: SerializableExecutionState
+    sourceExecutionId?: string
   }
 }
 
@@ -561,18 +562,26 @@ export async function executeWorkflowCore(
     }
 
     const largeValueExecutionIds = Array.from(
-      new Set([executionId, ...(metadata.largeValueExecutionIds ?? [])].filter(Boolean))
+      new Set(
+        [executionId, ...(metadata.largeValueExecutionIds ?? [])].filter((id): id is string =>
+          Boolean(id)
+        )
+      )
     )
+    const largeValueKeys = metadata.largeValueKeys
+    const fileKeys = metadata.fileKeys
     const allowLargeValueWorkflowScope =
       metadata.allowLargeValueWorkflowScope === true ||
       metadata.resumeFromSnapshot === true ||
-      Boolean(runFromBlock?.sourceSnapshot)
+      Boolean(runFromBlock?.sourceSnapshot && !runFromBlock.sourceExecutionId)
 
     const contextExtensions: ContextExtensions = {
       stream: !!onStream,
       selectedOutputs,
       executionId,
       largeValueExecutionIds,
+      largeValueKeys,
+      fileKeys,
       allowLargeValueWorkflowScope,
       workspaceId: providedWorkspaceId,
       userId,
@@ -606,21 +615,12 @@ export async function executeWorkflowCore(
         workflowId,
         executionId,
         largeValueExecutionIds,
+        largeValueKeys,
+        fileKeys,
         allowLargeValueWorkflowScope,
         userId,
       })
     }
-    if (runFromBlock?.sourceSnapshot) {
-      await warmLargeValueRefs(runFromBlock.sourceSnapshot, {
-        workspaceId: providedWorkspaceId,
-        workflowId,
-        executionId,
-        largeValueExecutionIds,
-        allowLargeValueWorkflowScope,
-        userId,
-      })
-    }
-
     for (const variable of Object.values(workflowVariables)) {
       if (
         isPlainRecord(variable) &&

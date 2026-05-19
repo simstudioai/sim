@@ -12,6 +12,8 @@ export interface PathNavigationExecutionContext {
   workspaceId?: string
   executionId?: string
   largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
   metadata?: { requestId?: string }

@@ -1,9 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { readSSEStream } from '@/lib/core/utils/sse'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
+
+const { mockDownloadFile } = vi.hoisted(() => ({
+  mockDownloadFile: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads', () => ({
+  StorageService: {
+    downloadFile: mockDownloadFile,
+  },
+}))
 
 const manifest = {
   __simLargeArrayManifest: true,
@@ -30,6 +40,10 @@ const manifest = {
 }
 
 describe('createStreamingResponse', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('extracts block-level selected outputs from JSON content payloads', async () => {
     const output = { content: JSON.stringify({ answer: 'ok' }) }
     const stream = await createStreamingResponse({
@@ -121,5 +135,50 @@ describe('createStreamingResponse', () => {
     })
 
     await expect(readSSEStream(stream)).resolves.toBe(JSON.stringify(manifest, null, 2))
+  })
+
+  it('uses live large-value keys for selected-output materialization', async () => {
+    const largeValueKeys: string[] = []
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_MNOPQRSTUVWX',
+      kind: 'object',
+      size: 15,
+      key: 'execution/workspace-1/workflow-1/source-execution/large-value-lv_MNOPQRSTUVWX.json',
+      executionId: 'source-execution',
+    }
+    mockDownloadFile.mockResolvedValue(Buffer.from(JSON.stringify({ nested: 'ok' }), 'utf8'))
+
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      executionId: 'execution-1',
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      largeValueKeys,
+      streamConfig: {
+        selectedOutputs: ['block.value.nested'],
+      },
+      executeFn: async ({ onBlockComplete }) => {
+        largeValueKeys.push(ref.key)
+        await onBlockComplete('block', { value: ref })
+        return {
+          success: true,
+          output: {},
+          logs: [
+            {
+              blockId: 'block',
+              output: { value: ref },
+              startedAt: new Date().toISOString(),
+              endedAt: new Date().toISOString(),
+              durationMs: 1,
+              success: true,
+            },
+          ],
+        } as any
+      },
+    })
+
+    await expect(readSSEStream(stream)).resolves.toBe('ok')
   })
 })

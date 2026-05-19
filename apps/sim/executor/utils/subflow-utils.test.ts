@@ -74,6 +74,39 @@ describe('resolveArrayInputAsync', () => {
     await expect(resolveArrayInputAsync(fakeCtx, manifest, null)).resolves.toEqual(items)
   })
 
+  it('records exact nested keys discovered while materializing collection values', async () => {
+    const ctx = {
+      ...fakeCtx,
+      largeValueKeys: [] as string[],
+      fileKeys: [] as string[],
+    } as ExecutionContext
+    const nestedRef = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_MNOPQRSTUVWX',
+      kind: 'object',
+      size: 12,
+      key: 'execution/workspace-1/workflow-1/source-execution/large-value-lv_MNOPQRSTUVWX.json',
+      executionId: 'source-execution',
+    }
+    const file = {
+      id: 'file-1',
+      name: 'nested.txt',
+      key: 'execution/workspace-1/workflow-1/source-execution/nested.txt',
+      url: '/api/files/serve/execution/workspace-1/workflow-1/source-execution/nested.txt?context=execution',
+      size: 5,
+      type: 'text/plain',
+      context: 'execution',
+    }
+    const items = [{ nestedRef, file }]
+    const manifest = createManifest(items)
+
+    await expect(resolveArrayInputAsync(ctx, manifest, null)).resolves.toEqual(items)
+
+    expect(ctx.largeValueKeys).toEqual([nestedRef.key])
+    expect(ctx.fileKeys).toEqual([file.key])
+  })
+
   it('rejects invalid manifest-shaped collection inputs instead of iterating metadata', async () => {
     await expect(
       resolveArrayInputAsync(

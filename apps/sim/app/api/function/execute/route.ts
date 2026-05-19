@@ -10,6 +10,7 @@ import {
 } from '@/lib/copilot/request/tools/files'
 import { isE2bEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { collectUserFileKeys } from '@/lib/core/utils/user-file'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInE2B, executeShellInE2B } from '@/lib/execution/e2b'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
@@ -18,6 +19,7 @@ import {
   isLargeArrayManifest,
   materializeLargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest'
+import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import { containsLargeValueRef, isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import {
   MAX_FUNCTION_INLINE_BYTES,
@@ -703,6 +705,8 @@ interface FunctionRouteExecutionContext {
   workspaceId?: string
   executionId?: string
   largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
   requestId: string
@@ -745,15 +749,40 @@ function getBrokerFileArgs(args: unknown): {
 function createFunctionRuntimeBrokers(
   context: FunctionRouteExecutionContext
 ): Record<string, IsolatedVMBrokerHandler> {
+  context.largeValueKeys ??= []
+  context.fileKeys ??= []
+  const largeValueKeys = context.largeValueKeys
+  const fileKeys = context.fileKeys
   const base = {
     requestId: context.requestId,
     workflowId: context.workflowId,
     workspaceId: context.workspaceId,
     executionId: context.executionId,
     largeValueExecutionIds: context.largeValueExecutionIds,
+    largeValueKeys,
+    fileKeys,
     allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
     userId: context.userId,
     logger,
+  }
+
+  const recordMaterializedKeys = (value: unknown) => {
+    const keys = collectLargeValueKeys(value)
+    const existingKeys = new Set(largeValueKeys)
+    for (const key of keys) {
+      if (!existingKeys.has(key)) {
+        existingKeys.add(key)
+        largeValueKeys.push(key)
+      }
+    }
+    const keysForFiles = collectUserFileKeys(value)
+    const existingFileKeys = new Set(fileKeys)
+    for (const key of keysForFiles) {
+      if (!existingFileKeys.has(key)) {
+        existingFileKeys.add(key)
+        fileKeys.push(key)
+      }
+    }
   }
 
   const readFile = async (args: unknown, encoding: 'base64' | 'text', chunked = false) => {
@@ -790,6 +819,7 @@ function createFunctionRuntimeBrokers(
       if (value === undefined) {
         throw unavailableLargeValueError(ref)
       }
+      recordMaterializedKeys(value)
       return value
     },
     'sim.values.readArray': async (args) => {
@@ -802,10 +832,12 @@ function createFunctionRuntimeBrokers(
       if (!context.executionId) {
         throw new Error('Large array manifests require an execution context.')
       }
-      return materializeLargeArrayManifest(manifest, {
+      const value = await materializeLargeArrayManifest(manifest, {
         ...base,
         maxBytes: clampInlineBytes(options.maxBytes, MAX_INLINE_MATERIALIZATION_BYTES),
       })
+      recordMaterializedKeys(value)
+      return value
     },
   }
 }
@@ -829,7 +861,17 @@ async function functionJsonResponse<T>(
   context: FunctionRouteExecutionContext,
   init?: ResponseInit
 ) {
-  return NextResponse.json(await compactFunctionRouteBody(body, context), init)
+  return NextResponse.json(
+    await compactFunctionRouteBody(
+      {
+        ...body,
+        largeValueKeys: context.largeValueKeys,
+        fileKeys: context.fileKeys,
+      },
+      context
+    ),
+    init
+  )
 }
 
 async function maybeExportSandboxFileToWorkspace(args: {
@@ -974,6 +1016,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workflowId,
       executionId,
       largeValueExecutionIds,
+      largeValueKeys,
+      fileKeys,
       allowLargeValueWorkflowScope = false,
       workspaceId,
       isCustomTool = false,
@@ -998,6 +1042,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workspaceId,
       executionId,
       largeValueExecutionIds,
+      largeValueKeys,
+      fileKeys,
       allowLargeValueWorkflowScope,
       userId: auth.userId,
       requestId,

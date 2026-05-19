@@ -7,6 +7,8 @@ import {
   parseOutputContentSafely,
 } from '@/lib/core/utils/response-format'
 import { encodeSSE } from '@/lib/core/utils/sse'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
+import { assertNoLargeValueRefs, isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
@@ -49,6 +51,8 @@ export interface StreamingResponseOptions {
   streamConfig: StreamingConfig
   executionId?: string
   largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   workspaceId?: string
   workflowId?: string
@@ -78,6 +82,8 @@ type OutputExtractionContext = Pick<
   | 'workflowId'
   | 'executionId'
   | 'largeValueExecutionIds'
+  | 'largeValueKeys'
+  | 'fileKeys'
   | 'allowLargeValueWorkflowScope'
   | 'userId'
 >
@@ -88,22 +94,32 @@ async function extractOutputValue(
   context: OutputExtractionContext
 ): Promise<unknown> {
   const parsedOutput = parseOutputContentSafely(output)
-  if (!path) {
-    return parsedOutput
-  }
+  const outputValue = path
+    ? await navigatePathAsync(parsedOutput, path.split('.'), {
+        executionContext: {
+          workflowId: context.workflowId ?? '',
+          workspaceId: context.workspaceId,
+          executionId: context.executionId,
+          largeValueExecutionIds: context.largeValueExecutionIds,
+          largeValueKeys: context.largeValueKeys,
+          fileKeys: context.fileKeys,
+          allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
+          userId: context.userId,
+          metadata: { requestId: context.requestId },
+        },
+        allowLargeValueRefs: true,
+      })
+    : parsedOutput
 
-  return navigatePathAsync(parsedOutput, path.split('.'), {
-    executionContext: {
-      workflowId: context.workflowId ?? '',
-      workspaceId: context.workspaceId,
-      executionId: context.executionId,
-      largeValueExecutionIds: context.largeValueExecutionIds,
-      allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
-      userId: context.userId,
-      metadata: { requestId: context.requestId },
-    },
-    allowLargeValueRefs: true,
-  })
+  assertNoNestedLargeValueRefs(outputValue)
+  return outputValue
+}
+
+function assertNoNestedLargeValueRefs(value: unknown): void {
+  if (isLargeValueRef(value) || isLargeArrayManifest(value)) {
+    return
+  }
+  assertNoLargeValueRefs(value)
 }
 
 function isDangerousKey(key: string): boolean {
@@ -349,18 +365,26 @@ export async function createStreamingResponse(
             workflowId: options.workflowId,
             executionId,
             largeValueExecutionIds: options.largeValueExecutionIds,
+            largeValueKeys: options.largeValueKeys,
+            fileKeys: options.fileKeys,
             allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
             userId: options.userId,
           })
 
           if (outputValue !== undefined) {
-            const hydratedOutput = includeFileBase64
+            const shouldHydrateOutput =
+              includeFileBase64 &&
+              !isLargeValueRef(outputValue) &&
+              !isLargeArrayManifest(outputValue)
+            const hydratedOutput = shouldHydrateOutput
               ? await hydrateUserFilesWithBase64(outputValue, {
                   requestId,
                   workspaceId: options.workspaceId,
                   workflowId: options.workflowId,
                   executionId,
                   largeValueExecutionIds: options.largeValueExecutionIds,
+                  largeValueKeys: options.largeValueKeys,
+                  fileKeys: options.fileKeys,
                   allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
                   userId: options.userId,
                   maxBytes: base64MaxBytes,
@@ -368,7 +392,7 @@ export async function createStreamingResponse(
               : outputValue
             const compactHydratedOutput = await compactExecutionPayload(hydratedOutput, {
               ...durableContext,
-              preserveUserFileBase64: includeFileBase64,
+              preserveUserFileBase64: shouldHydrateOutput,
             })
             const formattedOutput =
               typeof compactHydratedOutput === 'string'
@@ -428,6 +452,8 @@ export async function createStreamingResponse(
               workspaceId: options.workspaceId,
               workflowId: options.workflowId,
               largeValueExecutionIds: options.largeValueExecutionIds,
+              largeValueKeys: result.metadata?.largeValueKeys ?? options.largeValueKeys,
+              fileKeys: result.metadata?.fileKeys ?? options.fileKeys,
               allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
               userId: options.userId,
             }

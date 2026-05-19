@@ -8,13 +8,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthType } from '@/lib/auth/hybrid'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
+import { createLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { storeLargeValue } from '@/lib/execution/payloads/store'
 import { EXECUTION_RESOURCE_LIMIT_CODE } from '@/lib/execution/resource-errors'
 import type { ExecutionResult } from '@/lib/workflows/types'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 
-const { mockUploadFile } = vi.hoisted(() => ({
+const { mockDownloadFile, mockUploadFile, uploadedFiles } = vi.hoisted(() => ({
+  mockDownloadFile: vi.fn(),
   mockUploadFile: vi.fn(),
+  uploadedFiles: new Map<string, Buffer>(),
 }))
 
 const MATERIALIZATION_CONTEXT = {
@@ -26,6 +30,7 @@ const MATERIALIZATION_CONTEXT = {
 
 vi.mock('@/lib/uploads', () => ({
   StorageService: {
+    downloadFile: mockDownloadFile,
     uploadFile: mockUploadFile,
   },
 }))
@@ -60,7 +65,14 @@ describe('Response block gating by auth type', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearLargeValueCacheForTests()
-    mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
+    uploadedFiles.clear()
+    mockUploadFile.mockImplementation(async ({ customKey, file }) => {
+      uploadedFiles.set(customKey, file)
+      return { key: customKey }
+    })
+    mockDownloadFile.mockImplementation(
+      async ({ key }) => uploadedFiles.get(key) ?? Buffer.from('{}')
+    )
     resultWithResponseBlock = buildExecutionResult()
   })
 
@@ -163,6 +175,211 @@ describe('Response block gating by auth type', () => {
     expect(response.status).toBe(200)
     expect(body.rows).toEqual(rows)
     expect(body.success).toBeUndefined()
+  })
+
+  it('should materialize Response block manifests from an allowed source execution', async () => {
+    const rows = [{ key: 'SIM-1' }, { key: 'SIM-2' }]
+    const manifest = await createLargeArrayManifest(rows, {
+      ...MATERIALIZATION_CONTEXT,
+      executionId: 'source-execution-1',
+    })
+
+    const response = await createHttpResponseFromBlock(
+      buildExecutionResult({
+        output: {
+          data: { rows: manifest },
+          status: 200,
+          headers: {},
+        },
+      }),
+      {
+        ...MATERIALIZATION_CONTEXT,
+        largeValueExecutionIds: ['source-execution-1'],
+      }
+    )
+    const body = await response.json()
+
+    expect(body.rows).toEqual(rows)
+  })
+
+  it('should reject Response block manifests from non-source same-workflow executions', async () => {
+    const manifest = await createLargeArrayManifest([{ key: 'SIM-stale' }], {
+      ...MATERIALIZATION_CONTEXT,
+      executionId: 'stale-execution-1',
+    })
+
+    await expect(
+      createHttpResponseFromBlock(
+        buildExecutionResult({
+          output: {
+            data: { rows: manifest },
+            status: 200,
+            headers: {},
+          },
+        }),
+        {
+          ...MATERIALIZATION_CONTEXT,
+          largeValueExecutionIds: ['source-execution-1'],
+        }
+      )
+    ).rejects.toThrow('Large execution value is not available in this execution')
+  })
+
+  it('should materialize Response block manifests inherited by the source snapshot', async () => {
+    const rows = [{ key: 'SIM-inherited' }]
+    const manifest = await createLargeArrayManifest(rows, {
+      ...MATERIALIZATION_CONTEXT,
+      executionId: 'original-execution-1',
+    })
+
+    const response = await createHttpResponseFromBlock(
+      buildExecutionResult({
+        output: {
+          data: { rows: manifest },
+          status: 200,
+          headers: {},
+        },
+      }),
+      {
+        ...MATERIALIZATION_CONTEXT,
+        largeValueExecutionIds: ['source-execution-1', 'original-execution-1'],
+      }
+    )
+
+    const body = await response.json()
+
+    expect(body.rows).toEqual(rows)
+  })
+
+  it('should recursively materialize refs inside Response block manifest rows', async () => {
+    const text = 'nested'.repeat(2 * 1024 * 1024)
+    const nestedOutput = await compactExecutionPayload(
+      { text },
+      {
+        ...MATERIALIZATION_CONTEXT,
+        executionId: 'original-execution-1',
+        requireDurable: true,
+        preserveRoot: true,
+      }
+    )
+    const nestedRef = (nestedOutput as unknown as { text: unknown }).text
+    const manifest = await createLargeArrayManifest([{ nested: nestedRef }], {
+      ...MATERIALIZATION_CONTEXT,
+      executionId: 'source-execution-1',
+    })
+    const response = await createHttpResponseFromBlock(
+      buildExecutionResult({
+        output: {
+          data: { rows: manifest },
+          status: 200,
+          headers: {},
+        },
+      }),
+      {
+        ...MATERIALIZATION_CONTEXT,
+        largeValueExecutionIds: ['source-execution-1'],
+      }
+    )
+
+    const body = await response.json()
+
+    expect(body.rows).toEqual([{ nested: text }])
+  })
+
+  it('should recursively materialize refs inside stored Response block objects', async () => {
+    const text = 'nested'.repeat(2 * 1024 * 1024)
+    const nestedOutput = await compactExecutionPayload(
+      { text },
+      {
+        ...MATERIALIZATION_CONTEXT,
+        executionId: 'original-execution-1',
+        requireDurable: true,
+        preserveRoot: true,
+      }
+    )
+    const nestedRef = (nestedOutput as unknown as { text: unknown }).text
+    const storedValue = {
+      wrapper: {
+        nested: nestedRef,
+        padding: 'x'.repeat(2048),
+      },
+    }
+    const storedJson = JSON.stringify(storedValue)
+    const storedOutput = await storeLargeValue(
+      storedValue,
+      storedJson,
+      Buffer.byteLength(storedJson),
+      {
+        ...MATERIALIZATION_CONTEXT,
+        executionId: 'source-execution-1',
+        requireDurable: true,
+      }
+    )
+
+    const response = await createHttpResponseFromBlock(
+      buildExecutionResult({
+        output: {
+          data: storedOutput,
+          status: 200,
+          headers: {},
+        },
+      }),
+      {
+        ...MATERIALIZATION_CONTEXT,
+        largeValueExecutionIds: ['source-execution-1'],
+      }
+    )
+
+    const body = await response.json()
+
+    expect(body.wrapper.nested).toEqual(text)
+  })
+
+  it('should memoize repeated materialized objects while resolving nested refs', async () => {
+    const text = 'nested'.repeat(2 * 1024 * 1024)
+    const nestedOutput = await compactExecutionPayload(
+      { text },
+      {
+        ...MATERIALIZATION_CONTEXT,
+        executionId: 'original-execution-1',
+        requireDurable: true,
+        preserveRoot: true,
+      }
+    )
+    const nestedRef = (nestedOutput as unknown as { text: unknown }).text
+    const sourceValue = { nested: nestedRef }
+    const sourceJson = JSON.stringify(sourceValue)
+    const sourceRef = await storeLargeValue(
+      sourceValue,
+      sourceJson,
+      Buffer.byteLength(sourceJson),
+      {
+        ...MATERIALIZATION_CONTEXT,
+        executionId: 'source-execution-1',
+        requireDurable: true,
+      }
+    )
+
+    const response = await createHttpResponseFromBlock(
+      buildExecutionResult({
+        output: {
+          data: { first: sourceRef, second: sourceRef },
+          status: 200,
+          headers: {},
+        },
+      }),
+      {
+        ...MATERIALIZATION_CONTEXT,
+        largeValueKeys: sourceRef.key ? [sourceRef.key] : [],
+      }
+    )
+
+    const body = await response.json()
+
+    expect(body).toEqual({
+      first: { nested: text },
+      second: { nested: text },
+    })
   })
 
   it('should materialize large string refs for Response block HTTP output', async () => {
