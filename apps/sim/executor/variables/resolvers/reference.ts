@@ -1,4 +1,7 @@
-import { materializeLargeValueRefSyncOrThrow } from '@/lib/execution/payloads/cache'
+import {
+  materializeLargeValueRefSync,
+  materializeLargeValueRefSyncOrThrow,
+} from '@/lib/execution/payloads/cache'
 import {
   isLargeArrayManifest,
   type LargeArrayManifest,
@@ -79,7 +82,10 @@ function readManifestIndexSync(
   for (const chunk of manifest.chunks) {
     const nextOffset = offset + chunk.count
     if (index < nextOffset) {
-      const materialized = materializeLargeValueRefSyncOrThrow(chunk.ref, executionContext)
+      const materialized = materializeLargeValueRefSync(chunk.ref, executionContext)
+      if (materialized === undefined) {
+        return undefined
+      }
       if (!Array.isArray(materialized)) {
         throw new Error('Large array manifest chunk must materialize to an array.')
       }
