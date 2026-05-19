@@ -5202,7 +5202,7 @@
       },
       {
         "name": "Write to Document",
-        "description": "Write or update content in a Google Docs document"
+        "description": "Append content to a Google Docs document. Content is inserted literally; Markdown is not interpreted. For formatted output from Markdown, use the Create operation with the markdown toggle enabled."
       },
       {
         "name": "Create Document",
@@ -14211,6 +14211,45 @@
     "category": "tools",
     "integrationTypes": ["search", "documents"],
     "tags": ["knowledge-base", "web-scraping"]
+  },
+  {
+    "type": "wiza",
+    "slug": "wiza",
+    "name": "Wiza",
+    "description": "Find, enrich, and verify B2B contact data with Wiza",
+    "longDescription": "Integrates Wiza into the workflow. Search prospects, enrich companies, reveal verified emails and phone numbers for individuals, and check your account credit balance.",
+    "bgColor": "#9284BC",
+    "iconName": "WizaIcon",
+    "docsUrl": "https://docs.sim.ai/tools/wiza",
+    "operations": [
+      {
+        "name": "Prospect Search",
+        "description": "Search Wiza"
+      },
+      {
+        "name": "Company Enrichment",
+        "description": "Enrich a company by name, domain, LinkedIn ID, or LinkedIn slug with detailed firmographic data"
+      },
+      {
+        "name": "Start Individual Reveal",
+        "description": "Start an individual reveal to enrich a contact via LinkedIn URL, name+company, or email"
+      },
+      {
+        "name": "Get Individual Reveal",
+        "description": "Retrieve the status and enriched data for an individual reveal by ID"
+      },
+      {
+        "name": "Get Credits",
+        "description": "Retrieve the remaining credits on your Wiza account"
+      }
+    ],
+    "operationCount": 5,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["sales"],
+    "tags": ["enrichment", "sales-engagement"]
   },
   {
     "type": "wordpress",
