@@ -1232,7 +1232,7 @@ async function generateWithFalAI(
       }
     }
 
-    if (['ERROR', 'FAILED'].includes(getStringProperty(statusData, 'status') || '')) {
+    if (['ERROR', 'FAILED', 'CANCELLED'].includes(getStringProperty(statusData, 'status') || '')) {
       throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusData.error)}`)
     }
 

@@ -458,7 +458,14 @@ async function bufferFromImageUrl(url: string): Promise<{ buffer: Buffer; conten
     }
   }
 
-  const imageResponse = await fetch(url)
+  const urlValidation = await validateUrlWithDNS(url, 'imageUrl')
+  if (!urlValidation.isValid || !urlValidation.resolvedIP) {
+    throw new Error(urlValidation.error || 'Generated image URL failed validation')
+  }
+
+  const imageResponse = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
+    method: 'GET',
+  })
   if (!imageResponse.ok) {
     await imageResponse.text().catch(() => {})
     throw new Error(`Failed to download generated image: ${imageResponse.status}`)
