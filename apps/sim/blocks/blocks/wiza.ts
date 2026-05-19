@@ -341,8 +341,10 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
           if (typeof value === 'string' && value.trim() !== '') {
             try {
               parsed[field] = JSON.parse(value)
-            } catch {
-              // Leave as-is if not valid JSON; tool may still accept the string
+            } catch (err) {
+              throw new Error(
+                `Invalid JSON in Wiza "${field}" filter: ${err instanceof Error ? err.message : String(err)}`
+              )
             }
           }
         }
