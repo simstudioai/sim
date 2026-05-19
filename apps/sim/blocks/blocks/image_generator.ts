@@ -1,5 +1,6 @@
 import { ImageIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { parseOptionalBooleanInput } from '@/blocks/utils'
 import type { ImageGenerationResponse } from '@/tools/image/types'
 import type { DalleResponse } from '@/tools/openai/types'
 
@@ -847,9 +848,11 @@ export const ImageGeneratorV2Block: BlockConfig<ImageGenerationResponse> = {
           ...(params.moderation && { moderation: params.moderation }),
           ...(params.safetyTolerance && { safetyTolerance: params.safetyTolerance }),
           ...(params.thinkingLevel && { thinkingLevel: params.thinkingLevel }),
-          ...(params.enableWebSearch !== undefined && { enableWebSearch: params.enableWebSearch }),
+          ...(params.enableWebSearch !== undefined && {
+            enableWebSearch: parseOptionalBooleanInput(params.enableWebSearch),
+          }),
           ...(params.enableSafetyChecker !== undefined && {
-            enableSafetyChecker: params.enableSafetyChecker,
+            enableSafetyChecker: parseOptionalBooleanInput(params.enableSafetyChecker),
           }),
         }
       },

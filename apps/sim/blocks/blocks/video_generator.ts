@@ -1,6 +1,6 @@
 import { VideoIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType, type SubBlockConfig } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, parseOptionalBooleanInput } from '@/blocks/utils'
 import type { VideoBlockResponse } from '@/tools/video/types'
 
 const FALAI_PREVIOUS_MODEL_OPTIONS = [
@@ -811,8 +811,8 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         visualReference: params.visualReference,
         consistencyMode: params.consistencyMode,
         stylePreset: params.stylePreset,
-        promptOptimizer: params.promptOptimizer,
-        generateAudio: params.generateAudio,
+        promptOptimizer: parseOptionalBooleanInput(params.promptOptimizer),
+        generateAudio: parseOptionalBooleanInput(params.generateAudio),
         cameraControl: params.cameraControl
           ? typeof params.cameraControl === 'string'
             ? JSON.parse(params.cameraControl)
@@ -1570,8 +1570,8 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         visualReference: normalizeFileInput(params.visualReference, { single: true }),
         consistencyMode: params.consistencyMode,
         stylePreset: params.stylePreset,
-        promptOptimizer: params.promptOptimizer,
-        generateAudio: params.generateAudio,
+        promptOptimizer: parseOptionalBooleanInput(params.promptOptimizer),
+        generateAudio: parseOptionalBooleanInput(params.generateAudio),
         cameraControl: params.cameraControl
           ? typeof params.cameraControl === 'string'
             ? JSON.parse(params.cameraControl)

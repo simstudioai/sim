@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
+import { toolBooleanSchema, toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const imageProviders = ['openai', 'gemini', 'falai'] as const
@@ -30,8 +30,8 @@ export const imageToolBodySchema = z
     safetyTolerance: z.string().optional(),
     numImages: z.coerce.number().int().optional(),
     seed: z.coerce.number().int().optional(),
-    enableSafetyChecker: z.boolean().optional(),
-    enableWebSearch: z.boolean().optional(),
+    enableSafetyChecker: toolBooleanSchema.optional(),
+    enableWebSearch: toolBooleanSchema.optional(),
     thinkingLevel: z.string().optional(),
     workspaceId: z.string().optional(),
     workflowId: z.string().optional(),

@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { VideoParams, VideoResponse } from '@/tools/video/types'
+import { parseBooleanParam, parseBooleanParamWithDefault } from '@/tools/video/utils'
 
 export const falaiVideoTool: ToolConfig<VideoParams, VideoResponse> = {
   id: 'video_falai',
@@ -85,8 +86,8 @@ export const falaiVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       duration: params.duration,
       aspectRatio: params.aspectRatio,
       resolution: params.resolution,
-      promptOptimizer: params.promptOptimizer !== false,
-      generateAudio: params.generateAudio,
+      promptOptimizer: parseBooleanParamWithDefault(params.promptOptimizer, true),
+      generateAudio: parseBooleanParam(params.generateAudio),
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,

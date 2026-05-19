@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { VideoParams, VideoResponse } from '@/tools/video/types'
+import { parseBooleanParamWithDefault } from '@/tools/video/utils'
 
 export const minimaxVideoTool: ToolConfig<VideoParams, VideoResponse> = {
   id: 'video_minimax',
@@ -70,7 +71,7 @@ export const minimaxVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       prompt: params.prompt,
       duration: params.duration || 6,
       endpoint: params.endpoint || 'standard',
-      promptOptimizer: params.promptOptimizer !== false,
+      promptOptimizer: parseBooleanParamWithDefault(params.promptOptimizer, true),
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,
