@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { VideoParams, VideoResponse } from '@/tools/video/types'
+import { parseBooleanParamWithDefault } from '@/tools/video/utils'
 
 export const minimaxVideoTool: ToolConfig<VideoParams, VideoResponse> = {
   id: 'video_minimax',
@@ -25,7 +26,7 @@ export const minimaxVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'MiniMax model: hailuo-02 (default)',
+      description: 'MiniMax model: hailuo-2.3 (default) or hailuo-02',
     },
     prompt: {
       type: 'string',
@@ -38,6 +39,12 @@ export const minimaxVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       required: false,
       visibility: 'user-or-llm',
       description: 'Video duration in seconds (6 or 10, default: 6)',
+    },
+    endpoint: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Quality endpoint: standard (768P) or pro (1080P for 6s videos)',
     },
     promptOptimizer: {
       type: 'boolean',
@@ -60,10 +67,11 @@ export const minimaxVideoTool: ToolConfig<VideoParams, VideoResponse> = {
     ) => ({
       provider: 'minimax',
       apiKey: params.apiKey,
-      model: params.model || 'hailuo-02',
+      model: params.model || 'hailuo-2.3',
       prompt: params.prompt,
       duration: params.duration || 6,
-      promptOptimizer: params.promptOptimizer !== false, // Default true
+      endpoint: params.endpoint || 'standard',
+      promptOptimizer: parseBooleanParamWithDefault(params.promptOptimizer, true),
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,

@@ -1296,6 +1296,7 @@ import {
   identityCenterListInstancesTool,
   identityCenterListPermissionSetsTool,
 } from '@/tools/identity_center'
+import { imageGenerateTool } from '@/tools/image'
 import {
   incidentioActionsListTool,
   incidentioActionsShowTool,
@@ -5032,6 +5033,7 @@ export const tools: Record<string, ToolConfig> = {
   datadog_create_downtime: datadogCreateDowntimeTool,
   datadog_list_downtimes: datadogListDowntimesTool,
   datadog_cancel_downtime: datadogCancelDowntimeTool,
+  image_generate: imageGenerateTool,
   openai_image: openAIImageTool,
   microsoft_ad_list_users: microsoftAdListUsersTool,
   microsoft_ad_get_user: microsoftAdGetUserTool,
