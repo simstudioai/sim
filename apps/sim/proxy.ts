@@ -89,7 +89,8 @@ const CORS_RULES: readonly CorsRule[] = [
     policy: (request) => ({
       origin: request.headers.get('origin') || '*',
       credentials: false,
-      methods: 'GET, POST, OPTIONS',
+      // PUT is required for OTP verification on /[identifier]/otp.
+      methods: 'GET, POST, PUT, OPTIONS',
       headers: 'Content-Type, X-Requested-With',
     }),
   },

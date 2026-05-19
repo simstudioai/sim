@@ -57,10 +57,17 @@ describe('resolveApiCorsPolicy', () => {
       expect(policy).toEqual({
         origin: 'https://customer.example',
         credentials: false,
-        methods: 'GET, POST, OPTIONS',
+        methods: 'GET, POST, PUT, OPTIONS',
         headers: 'Content-Type, X-Requested-With',
       })
     }
+  })
+
+  it('allows PUT on the embed policy (used by OTP verification on /[identifier]/otp)', () => {
+    const policy = resolveApiCorsPolicy(
+      makeRequest('/api/chat/abc/otp', 'https://customer.example')
+    )
+    expect(policy.methods).toContain('PUT')
   })
 
   it('falls back to wildcard for chat/form embeds when no origin header is present', () => {
