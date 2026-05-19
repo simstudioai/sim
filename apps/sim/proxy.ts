@@ -9,7 +9,7 @@ import { getClientIp } from './lib/core/utils/request'
 
 const logger = createLogger('Proxy')
 
-interface CorsPolicy {
+export interface CorsPolicy {
   origin: string
   credentials: boolean
   methods: string
@@ -19,60 +19,72 @@ interface CorsPolicy {
 const DEFAULT_API_ALLOWED_HEADERS =
   'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization'
 
-const WORKFLOW_EXECUTE_PATH = /^\/api\/workflows\/[^/]+\/execute$/
+const WORKFLOW_EXECUTE_HEADERS =
+  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key'
+
+interface CorsRule {
+  match: (pathname: string) => boolean
+  policy: (request: NextRequest) => CorsPolicy
+}
+
+const CORS_RULES: readonly CorsRule[] = [
+  {
+    match: (p) => p.startsWith('/api/auth/oauth2/'),
+    policy: () => ({
+      origin: '*',
+      credentials: false,
+      methods: 'GET, POST, OPTIONS',
+      headers: 'Content-Type, Authorization, Accept',
+    }),
+  },
+  {
+    match: (p) => p === '/api/auth/jwks' || p.startsWith('/api/auth/.well-known/'),
+    policy: () => ({
+      origin: '*',
+      credentials: false,
+      methods: 'GET, OPTIONS',
+      headers: 'Content-Type, Accept',
+    }),
+  },
+  {
+    match: (p) => p === '/api/mcp/copilot',
+    policy: () => ({
+      origin: '*',
+      credentials: false,
+      methods: 'GET, POST, OPTIONS, DELETE',
+      headers: 'Content-Type, Authorization, X-API-Key, X-Requested-With, Accept',
+    }),
+  },
+  {
+    // Chat and form embeds run on customer domains; reflect the request
+    // origin and omit credentials (auth uses signed tokens, not cookies).
+    match: (p) => p === '/api/form' || p.startsWith('/api/form/') || p.startsWith('/api/chat/'),
+    policy: (request) => ({
+      origin: request.headers.get('origin') || '*',
+      credentials: false,
+      methods: 'GET, POST, OPTIONS',
+      headers: 'Content-Type, X-Requested-With',
+    }),
+  },
+  {
+    match: (p) => /^\/api\/workflows\/[^/]+\/execute$/.test(p),
+    policy: () => ({
+      origin: '*',
+      credentials: false,
+      methods: 'GET,POST,OPTIONS,PUT',
+      headers: WORKFLOW_EXECUTE_HEADERS,
+    }),
+  },
+]
 
 /**
  * Single source of truth for CORS on /api/* — next.config.ts headers are
  * baked at build time and would freeze NEXT_PUBLIC_APP_URL into the image.
  */
-function resolveApiCorsPolicy(request: NextRequest): CorsPolicy {
+export function resolveApiCorsPolicy(request: NextRequest): CorsPolicy {
   const { pathname } = request.nextUrl
-  if (pathname.startsWith('/api/auth/oauth2/')) {
-    return {
-      origin: '*',
-      credentials: false,
-      methods: 'GET, POST, OPTIONS',
-      headers: 'Content-Type, Authorization, Accept',
-    }
-  }
-  if (pathname === '/api/auth/jwks' || pathname.startsWith('/api/auth/.well-known/')) {
-    return {
-      origin: '*',
-      credentials: false,
-      methods: 'GET, OPTIONS',
-      headers: 'Content-Type, Accept',
-    }
-  }
-  if (pathname === '/api/mcp/copilot') {
-    return {
-      origin: '*',
-      credentials: false,
-      methods: 'GET, POST, OPTIONS, DELETE',
-      headers: 'Content-Type, Authorization, X-API-Key, X-Requested-With, Accept',
-    }
-  }
-  if (
-    pathname === '/api/form' ||
-    pathname.startsWith('/api/form/') ||
-    pathname.startsWith('/api/chat/')
-  ) {
-    // Chat and form embeds run on customer domains; reflect the request
-    // origin and omit credentials (auth uses signed tokens, not cookies).
-    return {
-      origin: request.headers.get('origin') || '*',
-      credentials: false,
-      methods: 'GET, POST, OPTIONS',
-      headers: 'Content-Type, X-Requested-With',
-    }
-  }
-  if (WORKFLOW_EXECUTE_PATH.test(pathname)) {
-    return {
-      origin: '*',
-      credentials: false,
-      methods: 'GET,POST,OPTIONS,PUT',
-      headers:
-        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key',
-    }
+  for (const rule of CORS_RULES) {
+    if (rule.match(pathname)) return rule.policy(request)
   }
   return {
     origin: getEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:3001',
