@@ -1,6 +1,9 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
+import { collectUserFileKeys } from '@/lib/core/utils/user-file'
+import { mergeFileKeys, mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
+import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import type { DAG } from '@/executor/dag/builder'
 import { DAGBuilder } from '@/executor/dag/builder'
@@ -210,10 +213,27 @@ export class DAGExecutor {
       snapshotState: filteredSnapshot,
       runFromBlockContext,
     })
+    const filteredLargeValueKeys = collectLargeValueKeys({
+      blockStates: filteredBlockStates,
+      loopExecutions: filteredLoopExecutions,
+      parallelExecutions: filteredParallelExecutions,
+    })
+    mergeLargeValueKeys(context, filteredLargeValueKeys)
+    const filteredFileKeys = collectUserFileKeys({
+      blockStates: filteredBlockStates,
+      loopExecutions: filteredLoopExecutions,
+      parallelExecutions: filteredParallelExecutions,
+    })
+    mergeFileKeys(context, filteredFileKeys)
     context.subflowParentMap = this.buildSubflowParentMap(dag)
 
     const engine = this.buildExecutionPipeline(context, dag, state)
-    return await engine.run()
+    const result = await engine.run()
+    if (result.metadata) {
+      result.metadata.largeValueKeys = context.largeValueKeys
+      result.metadata.fileKeys = context.fileKeys
+    }
+    return result
   }
 
   private restoreSavedIncomingEdges(dag: DAG, savedIncomingEdges?: Record<string, string[]>): void {
@@ -313,6 +333,8 @@ export class DAGExecutor {
       workspaceId: this.contextExtensions.workspaceId,
       executionId: this.contextExtensions.executionId,
       largeValueExecutionIds: this.contextExtensions.largeValueExecutionIds,
+      largeValueKeys: this.contextExtensions.largeValueKeys,
+      fileKeys: this.contextExtensions.fileKeys,
       allowLargeValueWorkflowScope: this.contextExtensions.allowLargeValueWorkflowScope,
       userId: this.contextExtensions.userId,
       isDeployedContext: this.contextExtensions.isDeployedContext,

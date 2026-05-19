@@ -28,6 +28,10 @@ import { createLogger } from '@sim/logger'
 
 const logger = createLogger('Billing')
 
+interface GetOrganizationSubscriptionOptions {
+  onError?: 'return-null' | 'throw'
+}
+
 /**
  * Get the organization's subscription row when its status is one of
  * `ENTITLED_SUBSCRIPTION_STATUSES` (includes `past_due`). Use this
@@ -37,7 +41,11 @@ const logger = createLogger('Billing')
  * (from `core/subscription.ts`), which excludes `past_due`.
  * Returns `null` when there is no entitled sub.
  */
-export async function getOrganizationSubscription(organizationId: string) {
+export async function getOrganizationSubscription(
+  organizationId: string,
+  options: GetOrganizationSubscriptionOptions = {}
+) {
+  const { onError = 'return-null' } = options
   try {
     const orgSubs = await db
       .select()
@@ -54,6 +62,9 @@ export async function getOrganizationSubscription(organizationId: string) {
     return orgSubs.length > 0 ? orgSubs[0] : null
   } catch (error) {
     logger.error('Error getting organization subscription', { error, organizationId })
+    if (onError === 'throw') {
+      throw error
+    }
     return null
   }
 }

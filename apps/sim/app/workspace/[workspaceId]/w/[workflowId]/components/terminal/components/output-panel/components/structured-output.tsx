@@ -15,6 +15,10 @@ import { List, type RowComponentProps, useListRef } from 'react-window'
 import { Badge, ChevronDown } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
+import {
+  isLargeArrayManifest,
+  type LargeArrayManifest,
+} from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef, type LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 
 type ValueType = 'null' | 'undefined' | 'array' | 'string' | 'number' | 'boolean' | 'object'
@@ -86,8 +90,27 @@ function getLargeValueDisplayValue(ref: LargeValueRef): unknown {
   return ref.preview ?? `[Large value: ${formatLargeValueSize(ref.size)}]`
 }
 
+function getLargeArrayManifestDisplayValue(manifest: LargeArrayManifest): unknown[] {
+  const preview = manifest.preview
+  if (manifest.totalCount <= preview.length) {
+    return preview
+  }
+
+  const remainingCount = manifest.totalCount - preview.length
+  return [
+    ...preview,
+    `[... ${remainingCount.toLocaleString()} more item${remainingCount === 1 ? '' : 's'}]`,
+  ]
+}
+
 function getDisplayValue(value: unknown): unknown {
-  return isLargeValueRef(value) ? getLargeValueDisplayValue(value) : value
+  if (isLargeValueRef(value)) {
+    return getLargeValueDisplayValue(value)
+  }
+  if (isLargeArrayManifest(value)) {
+    return getLargeArrayManifestDisplayValue(value)
+  }
+  return value
 }
 
 function getTypeLabel(value: unknown): ValueType {

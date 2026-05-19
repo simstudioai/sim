@@ -227,6 +227,7 @@ import { WebflowBlock } from '@/blocks/blocks/webflow'
 import { WebhookRequestBlock } from '@/blocks/blocks/webhook_request'
 import { WhatsAppBlock } from '@/blocks/blocks/whatsapp'
 import { WikipediaBlock } from '@/blocks/blocks/wikipedia'
+import { WizaBlock } from '@/blocks/blocks/wiza'
 import { WordPressBlock } from '@/blocks/blocks/wordpress'
 import { WorkdayBlock } from '@/blocks/blocks/workday'
 import { WorkflowBlock } from '@/blocks/blocks/workflow'
@@ -492,6 +493,7 @@ export const registry: Record<string, BlockConfig> = {
   webhook_request: WebhookRequestBlock,
   whatsapp: WhatsAppBlock,
   wikipedia: WikipediaBlock,
+  wiza: WizaBlock,
   wordpress: WordPressBlock,
   workday: WorkdayBlock,
   workflow: WorkflowBlock,

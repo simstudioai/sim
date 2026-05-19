@@ -7,7 +7,7 @@ import { renderOTPEmail } from '@/components/emails'
 import { requestChatEmailOtpContract, verifyChatEmailOtpContract } from '@/lib/api/contracts/chats'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { RateLimiter } from '@/lib/core/rate-limiter'
-import { addCorsHeaders, isEmailAllowed } from '@/lib/core/security/deployment'
+import { isEmailAllowed } from '@/lib/core/security/deployment'
 import {
   decodeOTPValue,
   deleteOTP,
@@ -47,15 +47,12 @@ export const POST = withRouteHandler(
         )
         const response = createErrorResponse('Too many requests. Please try again later.', 429)
         response.headers.set('Retry-After', String(retryAfter))
-        return addCorsHeaders(response, request)
+        return response
       }
 
       const parsed = await parseRequest(requestChatEmailOtpContract, request, context, {
         validationErrorResponse: (error) =>
-          addCorsHeaders(
-            createErrorResponse(getValidationErrorMessage(error, 'Invalid request'), 400),
-            request
-          ),
+          createErrorResponse(getValidationErrorMessage(error, 'Invalid request'), 400),
       })
       if (!parsed.success) return parsed.response
       const { email } = parsed.data.body
@@ -75,16 +72,13 @@ export const POST = withRouteHandler(
 
       if (deploymentResult.length === 0) {
         logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
-        return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
+        return createErrorResponse('Chat not found', 404)
       }
 
       const deployment = deploymentResult[0]
 
       if (deployment.authType !== 'email') {
-        return addCorsHeaders(
-          createErrorResponse('This chat does not use email authentication', 400),
-          request
-        )
+        return createErrorResponse('This chat does not use email authentication', 400)
       }
 
       const allowedEmails: string[] = Array.isArray(deployment.allowedEmails)
@@ -92,10 +86,7 @@ export const POST = withRouteHandler(
         : []
 
       if (!isEmailAllowed(email, allowedEmails)) {
-        return addCorsHeaders(
-          createErrorResponse('Email not authorized for this chat', 403),
-          request
-        )
+        return createErrorResponse('Email not authorized for this chat', 403)
       }
 
       const emailRateLimit = await rateLimiter.checkRateLimitDirect(
@@ -114,7 +105,7 @@ export const POST = withRouteHandler(
           429
         )
         response.headers.set('Retry-After', String(retryAfter))
-        return addCorsHeaders(response, request)
+        return response
       }
 
       const otp = generateOTP()
@@ -135,17 +126,14 @@ export const POST = withRouteHandler(
 
       if (!emailResult.success) {
         logger.error(`[${requestId}] Failed to send OTP email:`, emailResult.message)
-        return addCorsHeaders(
-          createErrorResponse('Failed to send verification email', 500),
-          request
-        )
+        return createErrorResponse('Failed to send verification email', 500)
       }
 
       logger.info(`[${requestId}] OTP sent to ${email} for chat ${deployment.id}`)
-      return addCorsHeaders(createSuccessResponse({ message: 'Verification code sent' }), request)
+      return createSuccessResponse({ message: 'Verification code sent' })
     } catch (error) {
       logger.error(`[${requestId}] Error processing OTP request:`, error)
-      return addCorsHeaders(createErrorResponse('Failed to process request', 500), request)
+      return createErrorResponse('Failed to process request', 500)
     }
   }
 )
@@ -158,10 +146,7 @@ export const PUT = withRouteHandler(
     try {
       const parsed = await parseRequest(verifyChatEmailOtpContract, request, context, {
         validationErrorResponse: (error) =>
-          addCorsHeaders(
-            createErrorResponse(getValidationErrorMessage(error, 'Invalid request'), 400),
-            request
-          ),
+          createErrorResponse(getValidationErrorMessage(error, 'Invalid request'), 400),
       })
       if (!parsed.success) return parsed.response
       const { email, otp } = parsed.data.body
@@ -184,17 +169,14 @@ export const PUT = withRouteHandler(
 
       if (deploymentResult.length === 0) {
         logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
-        return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
+        return createErrorResponse('Chat not found', 404)
       }
 
       const deployment = deploymentResult[0]
 
       const storedValue = await getOTP('chat', deployment.id, email)
       if (!storedValue) {
-        return addCorsHeaders(
-          createErrorResponse('No verification code found, request a new one', 400),
-          request
-        )
+        return createErrorResponse('No verification code found, request a new one', 400)
       }
 
       const { otp: storedOTP, attempts } = decodeOTPValue(storedValue)
@@ -202,43 +184,34 @@ export const PUT = withRouteHandler(
       if (attempts >= MAX_OTP_ATTEMPTS) {
         await deleteOTP('chat', deployment.id, email)
         logger.warn(`[${requestId}] OTP already locked out for ${email}`)
-        return addCorsHeaders(
-          createErrorResponse('Too many failed attempts. Please request a new code.', 429),
-          request
-        )
+        return createErrorResponse('Too many failed attempts. Please request a new code.', 429)
       }
 
       if (storedOTP !== otp) {
         const result = await incrementOTPAttempts('chat', deployment.id, email, storedValue)
         if (result === 'locked') {
           logger.warn(`[${requestId}] OTP invalidated after max failed attempts for ${email}`)
-          return addCorsHeaders(
-            createErrorResponse('Too many failed attempts. Please request a new code.', 429),
-            request
-          )
+          return createErrorResponse('Too many failed attempts. Please request a new code.', 429)
         }
-        return addCorsHeaders(createErrorResponse('Invalid verification code', 400), request)
+        return createErrorResponse('Invalid verification code', 400)
       }
 
       await deleteOTP('chat', deployment.id, email)
 
-      const response = addCorsHeaders(
-        createSuccessResponse({
-          id: deployment.id,
-          title: deployment.title,
-          description: deployment.description,
-          customizations: deployment.customizations,
-          authType: deployment.authType,
-          outputConfigs: deployment.outputConfigs,
-        }),
-        request
-      )
+      const response = createSuccessResponse({
+        id: deployment.id,
+        title: deployment.title,
+        description: deployment.description,
+        customizations: deployment.customizations,
+        authType: deployment.authType,
+        outputConfigs: deployment.outputConfigs,
+      })
       setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
 
       return response
     } catch (error) {
       logger.error(`[${requestId}] Error verifying OTP:`, error)
-      return addCorsHeaders(createErrorResponse('Failed to process request', 500), request)
+      return createErrorResponse('Failed to process request', 500)
     }
   }
 )

@@ -12,6 +12,7 @@ interface LargeValueCacheScope {
   workflowId?: string
   executionId?: string
   largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
 }
 
@@ -108,6 +109,9 @@ function scopeMatchesRef(
     callerScope.executionId,
     ...(callerScope.largeValueExecutionIds ?? []),
   ])
+  if (ref.key && callerScope.largeValueKeys?.includes(ref.key)) {
+    return true
+  }
   const workflowScopeAllowed =
     callerScope.allowLargeValueWorkflowScope &&
     callerScope.workspaceId === cachedScope.workspaceId &&

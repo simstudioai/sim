@@ -26,7 +26,6 @@ const {
   mockDbUpdate,
   mockSendEmail,
   mockRenderOTPEmail,
-  mockAddCorsHeaders,
   mockSetFormAuthCookie,
   mockGetStorageMethod,
   mockZodParse,
@@ -57,7 +56,6 @@ const {
     mockDbUpdate: vi.fn(),
     mockSendEmail: vi.fn(),
     mockRenderOTPEmail: vi.fn(),
-    mockAddCorsHeaders: vi.fn(),
     mockSetFormAuthCookie: vi.fn(),
     mockGetStorageMethod: vi.fn(),
     mockZodParse: vi.fn(),
@@ -119,7 +117,6 @@ vi.mock('@/components/emails', () => ({
 }))
 
 vi.mock('@/lib/core/security/deployment', () => ({
-  addCorsHeaders: mockAddCorsHeaders,
   isEmailAllowed: (email: string, allowedEmails: string[]) => {
     if (allowedEmails.includes(email)) return true
     const atIndex = email.indexOf('@')
@@ -253,7 +250,6 @@ describe('Form OTP API Route', () => {
     mockSendEmail.mockResolvedValue({ success: true })
     mockRenderOTPEmail.mockResolvedValue('<html>OTP Email</html>')
 
-    mockAddCorsHeaders.mockImplementation((response: unknown) => response)
     mockCreateSuccessResponse.mockImplementation((data: unknown) => ({
       json: () => Promise.resolve(data),
       status: 200,

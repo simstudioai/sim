@@ -91,7 +91,7 @@ vi.mock('fs/promises', () => ({
 }))
 
 import { createMockRequest } from '@sim/testing'
-import { OPTIONS, POST } from '@/app/api/files/delete/route'
+import { POST } from '@/app/api/files/delete/route'
 
 describe('File Delete API Route', () => {
   beforeEach(() => {
@@ -197,13 +197,5 @@ describe('File Delete API Route', () => {
     expect(response.status).toBe(400)
     expect(data).toHaveProperty('error', 'InvalidRequestError')
     expect(data).toHaveProperty('message', 'No file path provided')
-  })
-
-  it('should handle CORS preflight requests', async () => {
-    const response = await OPTIONS()
-
-    expect(response.status).toBe(204)
-    expect(response.headers.get('Access-Control-Allow-Methods')).toBe('GET, POST, DELETE, OPTIONS')
-    expect(response.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type')
   })
 })

@@ -176,6 +176,38 @@ describe('navigatePath', () => {
     })
   })
 
+  describe('large array manifests', () => {
+    it('returns undefined for sync index access when the chunk is not cached', () => {
+      const manifest = {
+        __simLargeArrayManifest: true,
+        version: 2,
+        kind: 'array',
+        totalCount: 1,
+        chunkCount: 1,
+        byteSize: 16,
+        chunks: [
+          {
+            ref: {
+              __simLargeValueRef: true,
+              version: 1,
+              id: 'lv_ABCDEFGHIJKL',
+              kind: 'array',
+              size: 16,
+              executionId: 'execution-1',
+            },
+            count: 1,
+            byteSize: 16,
+          },
+        ],
+        preview: [{ id: 1 }],
+      }
+
+      expect(navigatePath(manifest, ['0'])).toBeUndefined()
+      expect(navigatePath(manifest, ['length'])).toBe(1)
+      expect(navigatePath(manifest, ['preview'])).toEqual([{ id: 1 }])
+    })
+  })
+
   describe('bracket notation edge cases', () => {
     it.concurrent('should handle bracket notation with property access', () => {
       const obj = { data: [{ value: 100 }, { value: 200 }] }

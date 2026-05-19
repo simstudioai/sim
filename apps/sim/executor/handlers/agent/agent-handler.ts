@@ -755,6 +755,8 @@ export class AgentBlockHandler implements BlockHandler {
         workflowId: ctx.workflowId,
         executionId: ctx.executionId,
         largeValueExecutionIds: ctx.largeValueExecutionIds,
+        largeValueKeys: ctx.largeValueKeys,
+        fileKeys: ctx.fileKeys,
         allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
         userId: ctx.userId,
         logger,

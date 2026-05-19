@@ -177,7 +177,10 @@ export class ParallelResolver implements Resolver {
     if (pathParts.length > 0) {
       return useAsyncPath && this.navigatePathAsync
         ? this.navigatePathAsync(value, pathParts, context)
-        : navigatePath(value, pathParts, { executionContext: context.executionContext })
+        : navigatePath(value, pathParts, {
+            allowLargeValueRefs: context.allowLargeValueRefs,
+            executionContext: context.executionContext,
+          })
     }
 
     return value
@@ -281,9 +284,15 @@ export class ParallelResolver implements Resolver {
     if (!output || typeof output !== 'object') {
       return undefined
     }
-    const value = (output as Record<string, unknown>).results
+    const value = navigatePath(output, ['results'], {
+      allowLargeValueRefs: true,
+      executionContext: context.executionContext,
+    })
     if (pathParts.length > 0) {
-      return navigatePath(value, pathParts, { executionContext: context.executionContext })
+      return navigatePath(value, pathParts, {
+        allowLargeValueRefs: context.allowLargeValueRefs,
+        executionContext: context.executionContext,
+      })
     }
     if (!context.allowLargeValueRefs) {
       assertNoLargeValueRefs(value)
@@ -300,11 +309,19 @@ export class ParallelResolver implements Resolver {
     if (!output || typeof output !== 'object') {
       return undefined
     }
-    const value = (output as Record<string, unknown>).results
+    const value = this.navigatePathAsync
+      ? await this.navigatePathAsync(output, ['results'], { ...context, allowLargeValueRefs: true })
+      : navigatePath(output, ['results'], {
+          allowLargeValueRefs: true,
+          executionContext: context.executionContext,
+        })
     if (pathParts.length > 0) {
       return this.navigatePathAsync
         ? this.navigatePathAsync(value, pathParts, context)
-        : navigatePath(value, pathParts, { executionContext: context.executionContext })
+        : navigatePath(value, pathParts, {
+            allowLargeValueRefs: context.allowLargeValueRefs,
+            executionContext: context.executionContext,
+          })
     }
     if (!context.allowLargeValueRefs) {
       assertNoLargeValueRefs(value)
