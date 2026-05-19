@@ -13,6 +13,10 @@ const logger = createLogger('PlanLookup')
 
 export type HighestPrioritySubscription = Awaited<ReturnType<typeof getHighestPrioritySubscription>>
 
+interface GetHighestPrioritySubscriptionOptions {
+  onError?: 'return-null' | 'throw'
+}
+
 /**
  * Get the highest priority paid subscription for a user.
  *
@@ -27,7 +31,11 @@ export type HighestPrioritySubscription = Awaited<ReturnType<typeof getHighestPr
  * the runoff personal sub; otherwise usage, credits, and rate limits would
  * leak onto the user's row until the next billing cycle.
  */
-export async function getHighestPrioritySubscription(userId: string) {
+export async function getHighestPrioritySubscription(
+  userId: string,
+  options: GetHighestPrioritySubscriptionOptions = {}
+) {
+  const { onError = 'return-null' } = options
   try {
     const personalSubs = await db
       .select()
@@ -87,6 +95,9 @@ export async function getHighestPrioritySubscription(userId: string) {
     return null
   } catch (error) {
     logger.error('Error getting highest priority subscription', { error, userId })
+    if (onError === 'throw') {
+      throw error
+    }
     return null
   }
 }

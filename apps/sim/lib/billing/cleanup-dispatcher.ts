@@ -1,10 +1,10 @@
 import { db } from '@sim/db'
-import { organization, subscription, workspace } from '@sim/db/schema'
+import { organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
-import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
-import { type PlanCategory, sqlIsPaid, sqlIsPro, sqlIsTeam } from '@/lib/billing/plan-helpers'
-import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { eq, isNull } from 'drizzle-orm'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { getPlanType, type PlanCategory } from '@/lib/billing/plan-helpers'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
@@ -38,6 +38,12 @@ interface CleanupJobConfig {
   defaults: Record<PlanCategory, number | null>
 }
 
+interface WorkspaceCleanupScopeRow {
+  id: string
+  billedAccountUserId: string
+  organizationSettings: OrganizationRetentionSettings | null
+}
+
 const DAY = 24
 
 /**
@@ -61,44 +67,50 @@ export const CLEANUP_CONFIG = {
   },
 } as const satisfies Record<CleanupJobType, CleanupJobConfig>
 
+async function listActiveWorkspaceCleanupScopeRows(): Promise<WorkspaceCleanupScopeRow[]> {
+  const rows = await db
+    .select({
+      id: workspace.id,
+      billedAccountUserId: workspace.billedAccountUserId,
+      organizationSettings: organization.dataRetentionSettings,
+    })
+    .from(workspace)
+    .leftJoin(organization, eq(organization.id, workspace.organizationId))
+    .where(isNull(workspace.archivedAt))
+
+  return rows.map((row) => ({
+    ...row,
+    organizationSettings:
+      (row.organizationSettings as OrganizationRetentionSettings | null) ?? null,
+  }))
+}
+
+async function resolvePlanTypesByBilledUserId(
+  rows: WorkspaceCleanupScopeRow[]
+): Promise<Map<string, PlanCategory>> {
+  const billedUserIds = Array.from(new Set(rows.map((row) => row.billedAccountUserId)))
+  const entries = await Promise.all(
+    billedUserIds.map(async (userId) => {
+      const subscription = await getHighestPrioritySubscription(userId, { onError: 'throw' })
+      return [userId, getPlanType(subscription?.plan)] as const
+    })
+  )
+
+  return new Map(entries)
+}
+
 /**
- * Bulk-lookup workspace IDs for a non-enterprise plan category. Enterprise is
- * per-workspace (routed through the owning organization's retention config).
+ * Bulk-lookup workspace IDs for a non-enterprise plan category using the same
+ * effective-plan lookup used by execution, limits, and workspace policy.
+ * Enterprise is per-workspace (routed through the owning organization's
+ * retention config).
  */
 async function resolveWorkspaceIdsForPlan(plan: NonEnterprisePlan): Promise<string[]> {
-  if (plan === 'free') {
-    const rows = await db
-      .select({ id: workspace.id })
-      .from(workspace)
-      .leftJoin(
-        subscription,
-        and(
-          eq(subscription.referenceId, workspace.billedAccountUserId),
-          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
-          sqlIsPaid(subscription.plan)
-        )
-      )
-      .where(and(isNull(subscription.id), isNull(workspace.archivedAt)))
-
-    return rows.map((r) => r.id)
-  }
-
-  const planPredicate = plan === 'pro' ? sqlIsPro(subscription.plan) : sqlIsTeam(subscription.plan)
-  const rows = await db
-    .select({ id: workspace.id })
-    .from(workspace)
-    .innerJoin(
-      subscription,
-      and(
-        eq(subscription.referenceId, workspace.billedAccountUserId),
-        inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
-        planPredicate!
-      )
-    )
-    .where(isNull(workspace.archivedAt))
-    .groupBy(workspace.id)
-
-  return rows.map((r) => r.id)
+  const rows = await listActiveWorkspaceCleanupScopeRows()
+  const planByBilledUserId = await resolvePlanTypesByBilledUserId(rows)
+  return rows
+    .filter((row) => planByBilledUserId.get(row.billedAccountUserId) === plan)
+    .map((row) => row.id)
 }
 
 export interface ResolvedCleanupScope {
@@ -185,28 +197,13 @@ export async function dispatchCleanupJobs(
     jobIds.push(jobId)
   }
 
-  // Enterprise: workspaces whose owning org is on an active enterprise sub and
-  // has a non-NULL value for this job's retention key. groupBy dedupes in case
-  // multiple entitled subscription rows exist for the same org.
-  const enterpriseRows = await db
-    .select({ id: workspace.id })
-    .from(workspace)
-    .innerJoin(organization, eq(organization.id, workspace.organizationId))
-    .innerJoin(
-      subscription,
-      and(
-        eq(subscription.referenceId, organization.id),
-        inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
-        eq(subscription.plan, 'enterprise')
-      )
-    )
-    .where(
-      and(
-        isNull(workspace.archivedAt),
-        isNotNull(sql`${organization.dataRetentionSettings}->>${config.key}`)
-      )
-    )
-    .groupBy(workspace.id)
+  const activeWorkspaceRows = await listActiveWorkspaceCleanupScopeRows()
+  const planByBilledUserId = await resolvePlanTypesByBilledUserId(activeWorkspaceRows)
+  const enterpriseRows = activeWorkspaceRows.filter(
+    (row) =>
+      planByBilledUserId.get(row.billedAccountUserId) === 'enterprise' &&
+      row.organizationSettings?.[config.key] != null
+  )
 
   const enterpriseCount = enterpriseRows.length
 
