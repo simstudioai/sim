@@ -266,6 +266,40 @@ describe('SQL Builder', () => {
     })
   })
 
+  describe('buildFilterClause > range operator value type validation', () => {
+    it('throws when $gt on a number column receives a string', () => {
+      const cols: ColumnDefinition[] = [{ name: 'age', type: 'number' }]
+      expect(() => buildFilterClause({ age: { $gt: 'eighteen' } } as Filter, TABLE, cols)).toThrow(
+        /column "age" \(number\) requires a number, got string/
+      )
+    })
+
+    it('throws when $gte on a date column receives a number', () => {
+      const cols: ColumnDefinition[] = [{ name: 'birthDate', type: 'date' }]
+      expect(() =>
+        buildFilterClause({ birthDate: { $gte: 1704067200000 } } as Filter, TABLE, cols)
+      ).toThrow(/column "birthDate" \(date\) requires a date string, got number/)
+    })
+
+    it('throws when $lt on an unknown column (numeric fallback) receives a string', () => {
+      expect(() =>
+        buildFilterClause({ score: { $lt: 'high' } } as Filter, TABLE, NO_COLUMNS)
+      ).toThrow(/column "score" \(number\) requires a number, got string/)
+    })
+
+    it('accepts valid number on number column', () => {
+      const cols: ColumnDefinition[] = [{ name: 'age', type: 'number' }]
+      expect(() => buildFilterClause({ age: { $gt: 18 } }, TABLE, cols)).not.toThrow()
+    })
+
+    it('accepts valid ISO string on date column', () => {
+      const cols: ColumnDefinition[] = [{ name: 'birthDate', type: 'date' }]
+      expect(() =>
+        buildFilterClause({ birthDate: { $gte: '2024-01-01' } }, TABLE, cols)
+      ).not.toThrow()
+    })
+  })
+
   describe('buildSortClause', () => {
     it('returns undefined for empty sort', () => {
       expect(buildSortClause({}, TABLE, NO_COLUMNS)).toBeUndefined()

@@ -244,6 +244,31 @@ function validateOperator(operator: string): void {
 }
 
 /**
+ * Validates that a range-operator value matches its column's expected JS type
+ * before it reaches Postgres. Surfaces an actionable, column-named error at the
+ * SQL builder layer instead of a generic `invalid input syntax for type numeric`
+ * from the database.
+ */
+function validateComparisonValue(
+  field: string,
+  columnType: ColumnType | undefined,
+  cast: 'numeric' | 'timestamptz',
+  value: number | string
+): void {
+  if (cast === 'numeric' && typeof value !== 'number') {
+    const label = columnType ?? 'number'
+    throw new TableQueryValidationError(
+      `Range operator on column "${field}" (${label}) requires a number, got ${typeof value}`
+    )
+  }
+  if (cast === 'timestamptz' && typeof value !== 'string') {
+    throw new TableQueryValidationError(
+      `Range operator on column "${field}" (date) requires a date string, got ${typeof value}`
+    )
+  }
+}
+
+/**
  * Builds SQL conditions for a single field based on the provided condition.
  *
  * Supports both simple equality checks (using JSONB containment) and complex
@@ -423,6 +448,7 @@ function buildComparisonClause(
 ): SQL {
   const escapedField = field.replace(/'/g, "''")
   const cast = jsonbCastForType(columnType) ?? 'numeric'
+  validateComparisonValue(field, columnType, cast, value)
   const cell = sql.raw(`(${tableName}.data->>'${escapedField}')::${cast}`)
   return cast === 'timestamptz'
     ? sql`${cell} ${sql.raw(operator)} ${value}::timestamptz`
