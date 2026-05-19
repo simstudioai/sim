@@ -124,6 +124,30 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
       },
       mode: 'advanced',
     },
+    {
+      id: 'sort_by',
+      title: 'Sort By',
+      type: 'dropdown',
+      options: [
+        { label: 'Created At: Newest First', id: 'created_at_newest_first' },
+        { label: 'Created At: Oldest First', id: 'created_at_oldest_first' },
+      ],
+      value: () => 'created_at_newest_first',
+      condition: { field: 'operation', value: 'incidentio_incidents_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'filter_mode',
+      title: 'Filter Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: 'all' },
+        { label: 'Any', id: 'any' },
+      ],
+      value: () => 'all',
+      condition: { field: 'operation', value: 'incidentio_incidents_list' },
+      mode: 'advanced',
+    },
     // Incidents Create operation inputs
     {
       id: 'summary',
@@ -343,6 +367,23 @@ Return ONLY the title - no explanations.`,
         ],
       },
     },
+    {
+      id: 'incident_mode',
+      title: 'Incident Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'Standard', id: 'standard' },
+        { label: 'Retrospective', id: 'retrospective' },
+        { label: 'Test', id: 'test' },
+        { label: 'Tutorial', id: 'tutorial' },
+        { label: 'Stream', id: 'stream' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['incidentio_actions_list', 'incidentio_follow_ups_list'],
+      },
+      mode: 'advanced',
+    },
     // Workflows inputs
     {
       id: 'folder',
@@ -353,6 +394,14 @@ Return ONLY the title - no explanations.`,
         field: 'operation',
         value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
       },
+    },
+    {
+      id: 'skip_step_upgrades',
+      title: 'Skip Step Upgrades',
+      type: 'switch',
+      value: () => 'false',
+      condition: { field: 'operation', value: 'incidentio_workflows_show' },
+      mode: 'advanced',
     },
     {
       id: 'state',
@@ -758,16 +807,22 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'user_email',
       title: 'User Email',
       type: 'short-input',
-      placeholder: 'Enter user email (provide one of: user_id, user_email, or user_slack_id)...',
-      condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
+      placeholder: 'Enter user email...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_schedule_overrides_create', 'incidentio_users_list'],
+      },
       required: false,
     },
     {
       id: 'user_slack_id',
       title: 'User Slack ID',
       type: 'short-input',
-      placeholder: 'Enter user Slack ID (provide one of: user_id, user_email, or user_slack_id)...',
-      condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
+      placeholder: 'Enter user Slack ID...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_schedule_overrides_create', 'incidentio_users_list'],
+      },
       required: false,
     },
     {
@@ -1037,6 +1092,13 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
         if (params.continue_on_step_error !== undefined) {
           result.continue_on_step_error = toBoolean(params.continue_on_step_error)
         }
+        if (params.skip_step_upgrades !== undefined) {
+          result.skip_step_upgrades = toBoolean(params.skip_step_upgrades)
+        }
+        if (params.operation === 'incidentio_users_list') {
+          if (params.user_email) result.email = params.user_email
+          if (params.user_slack_id) result.slack_user_id = params.user_slack_id
+        }
         return result
       },
     },
@@ -1049,6 +1111,8 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
     name: { type: 'string', description: 'Resource name' },
     page_size: { type: 'number', description: 'Number of results per page' },
     after: { type: 'string', description: 'Pagination cursor' },
+    sort_by: { type: 'string', description: 'Incident sort order' },
+    filter_mode: { type: 'string', description: 'Incident filter combination mode' },
     // Incident fields
     summary: { type: 'string', description: 'Incident summary' },
     severity_id: { type: 'string', description: 'Severity ID' },
@@ -1056,6 +1120,7 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
     incident_status_id: { type: 'string', description: 'Incident status ID' },
     visibility: { type: 'string', description: 'Incident visibility' },
     incident_id: { type: 'string', description: 'Incident ID for filtering' },
+    incident_mode: { type: 'string', description: 'Incident mode filter' },
     notify_incident_channel: {
       type: 'boolean',
       description: 'Whether to notify the incident channel',
@@ -1064,6 +1129,7 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
     folder: { type: 'string', description: 'Workflow folder' },
     state: { type: 'string', description: 'Workflow state' },
     trigger: { type: 'string', description: 'Workflow trigger type' },
+    skip_step_upgrades: { type: 'boolean', description: 'Whether to skip workflow step upgrades' },
     steps: { type: 'string', description: 'Workflow steps JSON' },
     condition_groups: { type: 'string', description: 'Workflow condition groups JSON' },
     runs_on_incidents: {

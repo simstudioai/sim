@@ -22,10 +22,22 @@ export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowRes
       visibility: 'user-or-llm',
       description: 'The ID of the workflow to retrieve (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
+    skip_step_upgrades: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Skip workflow step upgrades when existing workflow step parameters changed',
+    },
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/workflows/${params.id.trim()}`,
+    url: (params) => {
+      const url = new URL(`https://api.incident.io/v2/workflows/${params.id.trim()}`)
+      if (params.skip_step_upgrades !== undefined) {
+        url.searchParams.set('skip_step_upgrades', String(params.skip_step_upgrades))
+      }
+      return url.toString()
+    },
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

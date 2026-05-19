@@ -30,7 +30,7 @@ export const getCallTool: ToolConfig<GongGetCallParams, GongGetCallResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.gong.io/v2/calls/${params.callId}`,
+    url: (params) => `https://api.gong.io/v2/calls/${params.callId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

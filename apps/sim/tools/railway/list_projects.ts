@@ -44,6 +44,12 @@ export const railwayListProjectsTool: ToolConfig<
       visibility: 'user-only',
       description: 'Railway token type: account, workspace, project, or oauth',
     },
+    workspaceId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Workspace ID to list projects from',
+    },
     first: {
       type: 'number',
       required: false,
@@ -64,14 +70,15 @@ export const railwayListProjectsTool: ToolConfig<
     headers: (params) => railwayHeaders(params.apiKey, params.tokenType),
     body: (params) => ({
       query: `
-        query ListProjects($first: Int, $after: String) {
-          projects(first: $first, after: $after) {
+        query ListProjects($workspaceId: String, $first: Int, $after: String) {
+          projects(workspaceId: $workspaceId, first: $first, after: $after) {
             edges {
               node {
                 id
                 name
                 description
                 createdAt
+                updatedAt
               }
             }
             pageInfo {
@@ -82,6 +89,7 @@ export const railwayListProjectsTool: ToolConfig<
         }
       `,
       variables: compactVariables({
+        workspaceId: optionalString(params.workspaceId),
         first: params.first ? Number(params.first) : undefined,
         after: optionalString(params.after),
       }),
@@ -101,6 +109,7 @@ export const railwayListProjectsTool: ToolConfig<
         name: project.name,
         description: project.description ?? null,
         createdAt: project.createdAt,
+        updatedAt: project.updatedAt ?? null,
       }))
 
     return {
@@ -127,6 +136,7 @@ export const railwayListProjectsTool: ToolConfig<
           name: { type: 'string', description: 'Project name' },
           description: { type: 'string', description: 'Project description', optional: true },
           createdAt: { type: 'string', description: 'Project creation timestamp' },
+          updatedAt: { type: 'string', description: 'Project update timestamp', optional: true },
         },
       },
     },

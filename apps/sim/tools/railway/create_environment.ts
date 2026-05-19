@@ -68,6 +68,12 @@ export const railwayCreateEnvironmentTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Whether to skip initial deploys for the environment',
     },
+    stageInitialChanges: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to stage initial changes instead of applying them immediately',
+    },
   },
 
   request: {
@@ -90,6 +96,7 @@ export const railwayCreateEnvironmentTool: ToolConfig<
           sourceEnvironmentId: optionalString(params.sourceEnvironmentId),
           ephemeral: params.ephemeral,
           skipInitialDeploys: params.skipInitialDeploys,
+          stageInitialChanges: params.stageInitialChanges,
         }),
       },
     }),

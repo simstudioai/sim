@@ -38,7 +38,7 @@ export const listLibraryFoldersTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/library/folders')
-      if (params.workspaceId) url.searchParams.set('workspaceId', params.workspaceId)
+      if (params.workspaceId?.trim()) url.searchParams.set('workspaceId', params.workspaceId.trim())
       return url.toString()
     },
     method: 'GET',

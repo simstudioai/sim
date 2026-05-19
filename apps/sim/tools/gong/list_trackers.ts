@@ -33,7 +33,7 @@ export const listTrackersTool: ToolConfig<GongListTrackersParams, GongListTracke
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/settings/trackers')
-      if (params.workspaceId) url.searchParams.set('workspaceId', params.workspaceId)
+      if (params.workspaceId?.trim()) url.searchParams.set('workspaceId', params.workspaceId.trim())
       return url.toString()
     },
     method: 'GET',

@@ -76,9 +76,12 @@ interface GongParty {
 
 export interface GongListCallsResponse extends ToolResponse {
   output: {
+    requestId: string | null
     calls: GongCallBasic[]
     cursor: string | null
     totalRecords: number
+    currentPageSize: number | null
+    currentPageNumber: number | null
   }
 }
 
@@ -192,6 +195,7 @@ interface GongUser {
 
 export interface GongListUsersResponse extends ToolResponse {
   output: {
+    requestId: string | null
     users: GongUser[]
     cursor: string | null
     totalRecords: number | null

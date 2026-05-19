@@ -33,7 +33,7 @@ export const lookupPhoneTool: ToolConfig<GongLookupPhoneParams, GongLookupPhoneR
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/data-privacy/data-for-phone-number')
-      url.searchParams.set('phoneNumber', params.phoneNumber)
+      url.searchParams.set('phoneNumber', params.phoneNumber.trim())
       return url.toString()
     },
     method: 'GET',

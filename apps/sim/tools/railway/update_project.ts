@@ -56,6 +56,18 @@ export const railwayUpdateProjectTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Updated project description',
     },
+    isPublic: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether the project should be publicly visible',
+    },
+    prDeploys: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to enable pull request deploy environments',
+    },
   },
 
   request: {
@@ -77,6 +89,8 @@ export const railwayUpdateProjectTool: ToolConfig<
         input: compactVariables({
           name: optionalString(params.name),
           description: optionalString(params.description),
+          isPublic: params.isPublic,
+          prDeploys: params.prDeploys,
         }),
       },
     }),

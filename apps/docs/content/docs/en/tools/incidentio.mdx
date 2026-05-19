@@ -51,6 +51,8 @@ List incidents from incident.io. Returns a list of incidents with their details 
 | `apiKey` | string | Yes | incident.io API Key |
 | `page_size` | number | No | Number of incidents to return per page \(e.g., 10, 25, 50\). Default: 25 |
 | `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `sort_by` | string | No | Sort order for incidents: created_at_newest_first or created_at_oldest_first |
+| `filter_mode` | string | No | How to combine filters: all or any |
 
 #### Output
 
@@ -234,6 +236,7 @@ List actions from incident.io. Optionally filter by incident ID.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
 | `incident_id` | string | No | Filter actions by incident ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `incident_mode` | string | No | Filter actions by incident mode \(standard, retrospective, test, tutorial, or stream\) |
 
 #### Output
 
@@ -308,6 +311,7 @@ List follow-ups from incident.io. Optionally filter by incident ID.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
 | `incident_id` | string | No | Filter follow-ups by incident ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `incident_mode` | string | No | Filter follow-ups by incident mode \(standard, retrospective, test, tutorial, or stream\) |
 
 #### Output
 
@@ -395,6 +399,8 @@ List all users in your Incident.io workspace. Returns user details including id,
 | `apiKey` | string | Yes | Incident.io API Key |
 | `page_size` | number | No | Number of results to return per page \(e.g., 10, 25, 50\). Default: 25 |
 | `after` | string | No | Pagination cursor to fetch the next page of results |
+| `email` | string | No | Filter users by email address |
+| `slack_user_id` | string | No | Filter users by Slack user ID |
 
 #### Output
 
@@ -446,12 +452,24 @@ List all workflows in your incident.io workspace.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `workflows` | array | List of workflows |
-|   ↳ `id` | string | Unique identifier for the workflow |
-|   ↳ `name` | string | Name of the workflow |
-|   ↳ `state` | string | State of the workflow \(active, draft, or disabled\) |
-|   ↳ `folder` | string | Folder the workflow belongs to |
-|   ↳ `created_at` | string | When the workflow was created |
-|   ↳ `updated_at` | string | When the workflow was last updated |
+|   ↳ `id` | string | Workflow ID |
+|   ↳ `name` | string | Workflow name |
+|   ↳ `trigger` | string | Workflow trigger |
+|   ↳ `once_for` | array | Fields that make the workflow run once |
+|   ↳ `version` | number | Workflow version |
+|   ↳ `expressions` | array | Workflow expressions |
+|   ↳ `condition_groups` | array | Workflow condition groups |
+|   ↳ `steps` | array | Workflow steps |
+|   ↳ `include_private_incidents` | boolean | Whether the workflow includes private incidents |
+|   ↳ `include_private_escalations` | boolean | Whether the workflow includes private escalations |
+|   ↳ `runs_on_incident_modes` | array | Incident modes the workflow runs on |
+|   ↳ `continue_on_step_error` | boolean | Whether execution continues after a step error |
+|   ↳ `runs_on_incidents` | string | Incident lifecycle filter |
+|   ↳ `state` | string | Workflow state \(active, draft, disabled\) |
+|   ↳ `delay` | object | Workflow delay configuration |
+|   ↳ `folder` | string | Workflow folder |
+|   ↳ `runs_from` | string | When the workflow runs from |
+|   ↳ `shortform` | string | Workflow shortform identifier |
 
 ### `incidentio_workflows_create`
 
@@ -481,12 +499,24 @@ Create a new workflow in incident.io.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `workflow` | object | The created workflow |
-|   ↳ `id` | string | Unique identifier for the workflow |
-|   ↳ `name` | string | Name of the workflow |
-|   ↳ `state` | string | State of the workflow \(active, draft, or disabled\) |
-|   ↳ `folder` | string | Folder the workflow belongs to |
-|   ↳ `created_at` | string | When the workflow was created |
-|   ↳ `updated_at` | string | When the workflow was last updated |
+|   ↳ `id` | string | Workflow ID |
+|   ↳ `name` | string | Workflow name |
+|   ↳ `trigger` | string | Workflow trigger |
+|   ↳ `once_for` | array | Fields that make the workflow run once |
+|   ↳ `version` | number | Workflow version |
+|   ↳ `expressions` | array | Workflow expressions |
+|   ↳ `condition_groups` | array | Workflow condition groups |
+|   ↳ `steps` | array | Workflow steps |
+|   ↳ `include_private_incidents` | boolean | Whether the workflow includes private incidents |
+|   ↳ `include_private_escalations` | boolean | Whether the workflow includes private escalations |
+|   ↳ `runs_on_incident_modes` | array | Incident modes the workflow runs on |
+|   ↳ `continue_on_step_error` | boolean | Whether execution continues after a step error |
+|   ↳ `runs_on_incidents` | string | Incident lifecycle filter |
+|   ↳ `state` | string | Workflow state \(active, draft, disabled\) |
+|   ↳ `delay` | object | Workflow delay configuration |
+|   ↳ `folder` | string | Workflow folder |
+|   ↳ `runs_from` | string | When the workflow runs from |
+|   ↳ `shortform` | string | Workflow shortform identifier |
 | `management_meta` | json | Workflow management metadata |
 
 ### `incidentio_workflows_show`
@@ -499,18 +529,31 @@ Get details of a specific workflow in incident.io.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the workflow to retrieve \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `skip_step_upgrades` | boolean | No | Skip workflow step upgrades when existing workflow step parameters changed |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `workflow` | object | The workflow details |
-|   ↳ `id` | string | Unique identifier for the workflow |
-|   ↳ `name` | string | Name of the workflow |
-|   ↳ `state` | string | State of the workflow \(active, draft, or disabled\) |
-|   ↳ `folder` | string | Folder the workflow belongs to |
-|   ↳ `created_at` | string | When the workflow was created |
-|   ↳ `updated_at` | string | When the workflow was last updated |
+|   ↳ `id` | string | Workflow ID |
+|   ↳ `name` | string | Workflow name |
+|   ↳ `trigger` | string | Workflow trigger |
+|   ↳ `once_for` | array | Fields that make the workflow run once |
+|   ↳ `version` | number | Workflow version |
+|   ↳ `expressions` | array | Workflow expressions |
+|   ↳ `condition_groups` | array | Workflow condition groups |
+|   ↳ `steps` | array | Workflow steps |
+|   ↳ `include_private_incidents` | boolean | Whether the workflow includes private incidents |
+|   ↳ `include_private_escalations` | boolean | Whether the workflow includes private escalations |
+|   ↳ `runs_on_incident_modes` | array | Incident modes the workflow runs on |
+|   ↳ `continue_on_step_error` | boolean | Whether execution continues after a step error |
+|   ↳ `runs_on_incidents` | string | Incident lifecycle filter |
+|   ↳ `state` | string | Workflow state \(active, draft, disabled\) |
+|   ↳ `delay` | object | Workflow delay configuration |
+|   ↳ `folder` | string | Workflow folder |
+|   ↳ `runs_from` | string | When the workflow runs from |
+|   ↳ `shortform` | string | Workflow shortform identifier |
 | `management_meta` | json | Workflow management metadata |
 
 ### `incidentio_workflows_update`
@@ -541,12 +584,24 @@ Update an existing workflow in incident.io.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `workflow` | object | The updated workflow |
-|   ↳ `id` | string | Unique identifier for the workflow |
-|   ↳ `name` | string | Name of the workflow |
-|   ↳ `state` | string | State of the workflow \(active, draft, or disabled\) |
-|   ↳ `folder` | string | Folder the workflow belongs to |
-|   ↳ `created_at` | string | When the workflow was created |
-|   ↳ `updated_at` | string | When the workflow was last updated |
+|   ↳ `id` | string | Workflow ID |
+|   ↳ `name` | string | Workflow name |
+|   ↳ `trigger` | string | Workflow trigger |
+|   ↳ `once_for` | array | Fields that make the workflow run once |
+|   ↳ `version` | number | Workflow version |
+|   ↳ `expressions` | array | Workflow expressions |
+|   ↳ `condition_groups` | array | Workflow condition groups |
+|   ↳ `steps` | array | Workflow steps |
+|   ↳ `include_private_incidents` | boolean | Whether the workflow includes private incidents |
+|   ↳ `include_private_escalations` | boolean | Whether the workflow includes private escalations |
+|   ↳ `runs_on_incident_modes` | array | Incident modes the workflow runs on |
+|   ↳ `continue_on_step_error` | boolean | Whether execution continues after a step error |
+|   ↳ `runs_on_incidents` | string | Incident lifecycle filter |
+|   ↳ `state` | string | Workflow state \(active, draft, disabled\) |
+|   ↳ `delay` | object | Workflow delay configuration |
+|   ↳ `folder` | string | Workflow folder |
+|   ↳ `runs_from` | string | When the workflow runs from |
+|   ↳ `shortform` | string | Workflow shortform identifier |
 | `management_meta` | json | Workflow management metadata |
 
 ### `incidentio_workflows_delete`

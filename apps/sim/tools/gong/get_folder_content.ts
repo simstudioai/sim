@@ -35,7 +35,7 @@ export const getFolderContentTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/library/folder-content')
-      url.searchParams.set('folderId', params.folderId)
+      url.searchParams.set('folderId', params.folderId.trim())
       return url.toString()
     },
     method: 'GET',

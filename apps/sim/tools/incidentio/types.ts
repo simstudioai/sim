@@ -300,6 +300,8 @@ interface IncidentioBaseParams {
 export interface IncidentioIncidentsListParams extends IncidentioBaseParams {
   page_size?: number
   after?: string
+  sort_by?: 'created_at_newest_first' | 'created_at_oldest_first'
+  filter_mode?: 'all' | 'any'
 }
 
 interface IncidentioIncident {
@@ -417,6 +419,7 @@ export interface IncidentioIncidentsUpdateResponse extends ToolResponse {
 // Action types
 export interface IncidentioActionsListParams extends IncidentioBaseParams {
   incident_id?: string
+  incident_mode?: 'standard' | 'retrospective' | 'test' | 'tutorial' | 'stream'
 }
 
 interface IncidentioAction {
@@ -466,6 +469,7 @@ export interface IncidentioActionsShowResponse extends ToolResponse {
 // Follow-up types
 export interface IncidentioFollowUpsListParams extends IncidentioBaseParams {
   incident_id?: string
+  incident_mode?: 'standard' | 'retrospective' | 'test' | 'tutorial' | 'stream'
 }
 
 interface IncidentioFollowUp {
@@ -577,6 +581,7 @@ export interface WorkflowsCreateResponse extends ToolResponse {
 // Workflows Show tool types
 export interface WorkflowsShowParams extends IncidentioBaseParams {
   id: string
+  skip_step_upgrades?: boolean
 }
 
 export interface WorkflowsShowResponse extends ToolResponse {
@@ -701,6 +706,8 @@ export interface CustomFieldsDeleteResponse extends ToolResponse {
 export interface IncidentioUsersListParams extends IncidentioBaseParams {
   page_size?: number
   after?: string
+  email?: string
+  slack_user_id?: string
 }
 
 interface IncidentioUser {

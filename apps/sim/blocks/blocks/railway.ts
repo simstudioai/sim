@@ -59,6 +59,14 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'listProjectsWorkspaceId',
+      title: 'Workspace ID',
+      type: 'short-input',
+      placeholder: 'Workspace ID',
+      condition: { field: 'operation', value: 'list_projects' },
+      mode: 'advanced',
+    },
+    {
       id: 'first',
       title: 'Limit',
       type: 'short-input',
@@ -89,6 +97,35 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
       placeholder: 'my-app',
       condition: { field: 'operation', value: 'create_project' },
       required: { field: 'operation', value: 'create_project' },
+    },
+    {
+      id: 'createProjectDescription',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Project description',
+      condition: { field: 'operation', value: 'create_project' },
+      mode: 'advanced',
+    },
+    {
+      id: 'createProjectWorkspaceId',
+      title: 'Workspace ID',
+      type: 'short-input',
+      placeholder: 'Workspace ID',
+      condition: { field: 'operation', value: 'create_project' },
+      mode: 'advanced',
+    },
+    {
+      id: 'createProjectIsPublic',
+      title: 'Public Project',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'create_project' },
+      mode: 'advanced',
     },
     {
       id: 'defaultEnvironmentName',
@@ -132,6 +169,32 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
       type: 'long-input',
       placeholder: 'Updated project description',
       condition: { field: 'operation', value: 'update_project' },
+    },
+    {
+      id: 'updateProjectIsPublic',
+      title: 'Public Project',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'update_project' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateProjectPrDeploys',
+      title: 'PR Deploys',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'update_project' },
+      mode: 'advanced',
     },
     {
       id: 'deleteProjectId',
@@ -216,6 +279,19 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'stageInitialChanges',
+      title: 'Stage Initial Changes',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'create_environment' },
+      mode: 'advanced',
+    },
+    {
       id: 'deleteEnvironmentId',
       title: 'Environment ID',
       type: 'short-input',
@@ -278,6 +354,14 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
       placeholder: 'Railway environment ID',
       condition: { field: 'operation', value: 'deploy_service' },
       required: { field: 'operation', value: 'deploy_service' },
+    },
+    {
+      id: 'deployCommitSha',
+      title: 'Commit SHA',
+      type: 'short-input',
+      placeholder: 'abc123...',
+      condition: { field: 'operation', value: 'deploy_service' },
+      mode: 'advanced',
     },
     {
       id: 'variablesProjectId',
@@ -386,6 +470,7 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
           case 'list_projects':
             return {
               ...baseParams,
+              workspaceId: params.listProjectsWorkspaceId,
               first: params.first ? Number(params.first) : undefined,
               after: params.after,
             }
@@ -393,6 +478,11 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
             return {
               ...baseParams,
               name: params.createProjectName,
+              description: params.createProjectDescription,
+              workspaceId: params.createProjectWorkspaceId,
+              isPublic: params.createProjectIsPublic
+                ? params.createProjectIsPublic === 'true'
+                : undefined,
               defaultEnvironmentName: params.defaultEnvironmentName,
               prDeploys: params.prDeploys ? params.prDeploys === 'true' : undefined,
             }
@@ -402,6 +492,12 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
               projectId: params.updateProjectId,
               name: params.updateProjectName,
               description: params.updateProjectDescription,
+              isPublic: params.updateProjectIsPublic
+                ? params.updateProjectIsPublic === 'true'
+                : undefined,
+              prDeploys: params.updateProjectPrDeploys
+                ? params.updateProjectPrDeploys === 'true'
+                : undefined,
             }
           case 'delete_project':
             return {
@@ -429,6 +525,9 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
               skipInitialDeploys: params.skipInitialDeploys
                 ? params.skipInitialDeploys === 'true'
                 : undefined,
+              stageInitialChanges: params.stageInitialChanges
+                ? params.stageInitialChanges === 'true'
+                : undefined,
             }
           case 'delete_environment':
             return {
@@ -454,6 +553,7 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
               ...baseParams,
               serviceId: params.deployServiceId,
               environmentId: params.deployEnvironmentId,
+              commitSha: params.deployCommitSha,
             }
           case 'list_variables':
             return {
@@ -482,15 +582,21 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
   inputs: {
     apiKey: { type: 'string', description: 'Railway API token' },
     tokenType: { type: 'string', description: 'Railway token type' },
+    listProjectsWorkspaceId: { type: 'string', description: 'Workspace ID for project listing' },
     first: { type: 'number', description: 'List projects limit' },
     after: { type: 'string', description: 'List projects pagination cursor' },
     detailProjectId: { type: 'string', description: 'Project ID for project lookup' },
     createProjectName: { type: 'string', description: 'Project name to create' },
+    createProjectDescription: { type: 'string', description: 'Project description to create' },
+    createProjectWorkspaceId: { type: 'string', description: 'Workspace ID for created project' },
+    createProjectIsPublic: { type: 'string', description: 'Whether the created project is public' },
     defaultEnvironmentName: { type: 'string', description: 'Default environment name' },
     prDeploys: { type: 'string', description: 'Whether to enable PR deploys' },
     updateProjectId: { type: 'string', description: 'Project ID to update' },
     updateProjectName: { type: 'string', description: 'Updated project name' },
     updateProjectDescription: { type: 'string', description: 'Updated project description' },
+    updateProjectIsPublic: { type: 'string', description: 'Whether the project is public' },
+    updateProjectPrDeploys: { type: 'string', description: 'Whether to enable PR deploys' },
     deleteProjectId: { type: 'string', description: 'Project ID to delete' },
     transferProjectId: { type: 'string', description: 'Project ID to transfer' },
     workspaceId: { type: 'string', description: 'Destination workspace ID' },
@@ -500,6 +606,7 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
     sourceEnvironmentId: { type: 'string', description: 'Environment ID to clone from' },
     ephemeral: { type: 'string', description: 'Whether the environment is ephemeral' },
     skipInitialDeploys: { type: 'string', description: 'Whether to skip initial deploys' },
+    stageInitialChanges: { type: 'string', description: 'Whether to stage initial changes' },
     deleteEnvironmentId: { type: 'string', description: 'Environment ID to delete' },
     deploymentProjectId: { type: 'string', description: 'Project ID for deployments' },
     deploymentServiceId: { type: 'string', description: 'Service ID for deployments' },
@@ -508,6 +615,7 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
     deploymentAfter: { type: 'string', description: 'List deployments pagination cursor' },
     deployServiceId: { type: 'string', description: 'Service ID to deploy' },
     deployEnvironmentId: { type: 'string', description: 'Environment ID to deploy' },
+    deployCommitSha: { type: 'string', description: 'Specific Git commit SHA to deploy' },
     variablesProjectId: { type: 'string', description: 'Project ID for variables' },
     variablesEnvironmentId: { type: 'string', description: 'Environment ID for variables' },
     variablesServiceId: { type: 'string', description: 'Optional service ID for variables' },

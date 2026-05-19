@@ -1,5 +1,5 @@
 import type { GongInteractionStatsParams, GongInteractionStatsResponse } from '@/tools/gong/types'
-import { getGongErrorMessage } from '@/tools/gong/utils'
+import { getGongErrorMessage, parseGongIdList } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const interactionStatsTool: ToolConfig<
@@ -61,14 +61,13 @@ export const interactionStatsTool: ToolConfig<
     }),
     body: (params) => {
       const filter: Record<string, unknown> = {
-        fromDate: params.fromDate,
-        toDate: params.toDate,
+        fromDate: params.fromDate.trim(),
+        toDate: params.toDate.trim(),
       }
-      if (params.userIds) {
-        filter.userIds = params.userIds.split(',').map((id) => id.trim())
-      }
+      const userIds = parseGongIdList(params.userIds)
+      if (userIds) filter.userIds = userIds
       const body: Record<string, unknown> = { filter }
-      if (params.cursor) body.cursor = params.cursor
+      if (params.cursor?.trim()) body.cursor = params.cursor.trim()
       return body
     },
   },

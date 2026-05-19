@@ -44,6 +44,24 @@ export const railwayCreateProjectTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Project name',
     },
+    description: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Project description',
+    },
+    workspaceId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Workspace ID to create the project in',
+    },
+    isPublic: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether the project should be publicly visible',
+    },
     defaultEnvironmentName: {
       type: 'string',
       required: false,
@@ -74,6 +92,9 @@ export const railwayCreateProjectTool: ToolConfig<
       variables: {
         input: compactVariables({
           name: params.name.trim(),
+          description: optionalString(params.description),
+          workspaceId: optionalString(params.workspaceId),
+          isPublic: params.isPublic,
           defaultEnvironmentName: optionalString(params.defaultEnvironmentName),
           prDeploys: params.prDeploys,
         }),

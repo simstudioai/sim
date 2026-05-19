@@ -30,7 +30,7 @@ export const getUserTool: ToolConfig<GongGetUserParams, GongGetUserResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.gong.io/v2/users/${params.userId}`,
+    url: (params) => `https://api.gong.io/v2/users/${params.userId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

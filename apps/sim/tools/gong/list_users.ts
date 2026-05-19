@@ -38,7 +38,7 @@ export const listUsersTool: ToolConfig<GongListUsersParams, GongListUsersRespons
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/users')
-      if (params.cursor) url.searchParams.set('cursor', params.cursor)
+      if (params.cursor?.trim()) url.searchParams.set('cursor', params.cursor.trim())
       if (params.includeAvatars) url.searchParams.set('includeAvatars', params.includeAvatars)
       return url.toString()
     },
@@ -75,6 +75,7 @@ export const listUsersTool: ToolConfig<GongListUsersParams, GongListUsersRespons
     return {
       success: true,
       output: {
+        requestId: data.requestId ?? null,
         users,
         cursor: data.records?.cursor ?? null,
         totalRecords: data.records?.totalRecords ?? null,
@@ -85,6 +86,11 @@ export const listUsersTool: ToolConfig<GongListUsersParams, GongListUsersRespons
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     users: {
       type: 'array',
       description: 'List of Gong users',

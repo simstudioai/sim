@@ -1,5 +1,5 @@
 import type { GongGetExtensiveCallsParams, GongGetExtensiveCallsResponse } from '@/tools/gong/types'
-import { getGongErrorMessage } from '@/tools/gong/utils'
+import { getGongErrorMessage, parseGongIdList } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getExtensiveCallsTool: ToolConfig<
@@ -71,15 +71,13 @@ export const getExtensiveCallsTool: ToolConfig<
     }),
     body: (params) => {
       const filter: Record<string, unknown> = {}
-      if (params.callIds) {
-        filter.callIds = params.callIds.split(',').map((id) => id.trim())
-      }
-      if (params.fromDateTime) filter.fromDateTime = params.fromDateTime
-      if (params.toDateTime) filter.toDateTime = params.toDateTime
-      if (params.workspaceId) filter.workspaceId = params.workspaceId
-      if (params.primaryUserIds) {
-        filter.primaryUserIds = params.primaryUserIds.split(',').map((id) => id.trim())
-      }
+      const callIds = parseGongIdList(params.callIds)
+      const primaryUserIds = parseGongIdList(params.primaryUserIds)
+      if (callIds) filter.callIds = callIds
+      if (params.fromDateTime?.trim()) filter.fromDateTime = params.fromDateTime.trim()
+      if (params.toDateTime?.trim()) filter.toDateTime = params.toDateTime.trim()
+      if (params.workspaceId?.trim()) filter.workspaceId = params.workspaceId.trim()
+      if (primaryUserIds) filter.primaryUserIds = primaryUserIds
       const body: Record<string, unknown> = {
         filter,
         contentSelector: {
@@ -103,7 +101,7 @@ export const getExtensiveCallsTool: ToolConfig<
           },
         },
       }
-      if (params.cursor) body.cursor = params.cursor
+      if (params.cursor?.trim()) body.cursor = params.cursor.trim()
       return body
     },
   },

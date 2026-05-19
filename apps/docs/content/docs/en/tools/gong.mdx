@@ -56,6 +56,7 @@ Retrieve call data by date range from Gong.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `calls` | array | List of calls matching the date range |
 |   ↳ `id` | string | Gong's unique numeric identifier for the call |
 |   ↳ `title` | string | Call title |
@@ -79,6 +80,8 @@ Retrieve call data by date range from Gong.
 |   ↳ `calendarEventId` | string | Calendar event identifier |
 | `cursor` | string | Pagination cursor for the next page |
 | `totalRecords` | number | Total number of records matching the filter |
+| `currentPageSize` | number | Number of records in the current page |
+| `currentPageNumber` | number | Current page number |
 
 ### `gong_create_call`
 
@@ -306,6 +309,7 @@ List all users in your Gong account.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `users` | array | List of Gong users |
 |   ↳ `id` | string | Unique numeric user ID \(up to 20 digits\) |
 |   ↳ `emailAddress` | string | User email address |

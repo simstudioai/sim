@@ -2,7 +2,7 @@ import type {
   GongAnsweredScorecardsParams,
   GongAnsweredScorecardsResponse,
 } from '@/tools/gong/types'
-import { getGongErrorMessage } from '@/tools/gong/utils'
+import { getGongErrorMessage, parseGongIdList } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const answeredScorecardsTool: ToolConfig<
@@ -84,18 +84,16 @@ export const answeredScorecardsTool: ToolConfig<
     }),
     body: (params) => {
       const filter: Record<string, unknown> = {}
-      if (params.callFromDate) filter.callFromDate = params.callFromDate
-      if (params.callToDate) filter.callToDate = params.callToDate
-      if (params.reviewFromDate) filter.reviewFromDate = params.reviewFromDate
-      if (params.reviewToDate) filter.reviewToDate = params.reviewToDate
-      if (params.scorecardIds) {
-        filter.scorecardIds = params.scorecardIds.split(',').map((id) => id.trim())
-      }
-      if (params.reviewedUserIds) {
-        filter.reviewedUserIds = params.reviewedUserIds.split(',').map((id) => id.trim())
-      }
+      if (params.callFromDate?.trim()) filter.callFromDate = params.callFromDate.trim()
+      if (params.callToDate?.trim()) filter.callToDate = params.callToDate.trim()
+      if (params.reviewFromDate?.trim()) filter.reviewFromDate = params.reviewFromDate.trim()
+      if (params.reviewToDate?.trim()) filter.reviewToDate = params.reviewToDate.trim()
+      const scorecardIds = parseGongIdList(params.scorecardIds)
+      const reviewedUserIds = parseGongIdList(params.reviewedUserIds)
+      if (scorecardIds) filter.scorecardIds = scorecardIds
+      if (reviewedUserIds) filter.reviewedUserIds = reviewedUserIds
       const body: Record<string, unknown> = { filter }
-      if (params.cursor) body.cursor = params.cursor
+      if (params.cursor?.trim()) body.cursor = params.cursor.trim()
       return body
     },
   },

@@ -17,6 +17,7 @@ export interface RailwayProjectSummary {
   name: string
   description: string | null
   createdAt: string
+  updatedAt?: string | null
 }
 
 export interface RailwayUpdatedProject {
@@ -60,6 +61,7 @@ export interface RailwayDeploymentSummary {
 }
 
 export interface RailwayListProjectsParams extends RailwayAuthParams {
+  workspaceId?: string
   first?: number
   after?: string
 }
@@ -70,6 +72,9 @@ export interface RailwayGetProjectParams extends RailwayAuthParams {
 
 export interface RailwayCreateProjectParams extends RailwayAuthParams {
   name: string
+  description?: string
+  workspaceId?: string
+  isPublic?: boolean
   defaultEnvironmentName?: string
   prDeploys?: boolean
 }
@@ -78,6 +83,8 @@ export interface RailwayUpdateProjectParams extends RailwayAuthParams {
   projectId: string
   name?: string
   description?: string
+  isPublic?: boolean
+  prDeploys?: boolean
 }
 
 export interface RailwayDeleteProjectParams extends RailwayAuthParams {
@@ -99,6 +106,7 @@ export interface RailwayCreateEnvironmentParams extends RailwayAuthParams {
   sourceEnvironmentId?: string
   ephemeral?: boolean
   skipInitialDeploys?: boolean
+  stageInitialChanges?: boolean
 }
 
 export interface RailwayDeleteEnvironmentParams extends RailwayAuthParams {
@@ -116,6 +124,7 @@ export interface RailwayListDeploymentsParams extends RailwayAuthParams {
 export interface RailwayDeployServiceParams extends RailwayAuthParams {
   serviceId: string
   environmentId: string
+  commitSha?: string
 }
 
 export interface RailwayListVariablesParams extends RailwayAuthParams {

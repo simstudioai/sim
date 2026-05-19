@@ -105,19 +105,19 @@ export const createCallTool: ToolConfig<GongCreateCallParams, GongCreateCallResp
     body: (params) => {
       const body: Record<string, unknown> = {
         clientUniqueId: params.clientUniqueId.trim(),
-        actualStart: params.actualStart,
+        actualStart: params.actualStart.trim(),
         primaryUser: params.primaryUser.trim(),
         parties: parseGongJsonArray(params.parties, 'parties'),
         direction: params.direction,
         downloadMediaUrl: params.downloadMediaUrl.trim(),
       }
 
-      if (params.title) body.title = params.title
-      if (params.workspaceId) body.workspaceId = params.workspaceId.trim()
-      if (params.disposition) body.disposition = params.disposition
-      if (params.purpose) body.purpose = params.purpose
+      if (params.title?.trim()) body.title = params.title.trim()
+      if (params.workspaceId?.trim()) body.workspaceId = params.workspaceId.trim()
+      if (params.disposition?.trim()) body.disposition = params.disposition.trim()
+      if (params.purpose?.trim()) body.purpose = params.purpose.trim()
       if (params.context) body.context = parseGongJsonArray(params.context, 'context')
-      if (params.callProviderCode) body.callProviderCode = params.callProviderCode.trim()
+      if (params.callProviderCode?.trim()) body.callProviderCode = params.callProviderCode.trim()
 
       return body
     },

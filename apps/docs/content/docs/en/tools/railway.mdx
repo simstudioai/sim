@@ -5,7 +5,7 @@ description: Manage Railway projects, deployments, and variables
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="railway"
   color="#FFFFFF"
 />
@@ -42,6 +42,7 @@ List Railway projects visible to the provided token
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Railway API token |
 | `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `workspaceId` | string | No | Workspace ID to list projects from |
 | `first` | number | No | Maximum number of projects to return |
 | `after` | string | No | Cursor for pagination |
 
@@ -54,6 +55,7 @@ List Railway projects visible to the provided token
 |   ↳ `name` | string | Project name |
 |   ↳ `description` | string | Project description |
 |   ↳ `createdAt` | string | Project creation timestamp |
+|   ↳ `updatedAt` | string | Project update timestamp |
 | `pageInfo` | object | Pagination information |
 |   ↳ `hasNextPage` | boolean | Whether more projects are available |
 |   ↳ `endCursor` | string | Cursor for the next page |
@@ -99,6 +101,9 @@ Create a Railway project
 | `apiKey` | string | Yes | Railway API token |
 | `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
 | `name` | string | Yes | Project name |
+| `description` | string | No | Project description |
+| `workspaceId` | string | No | Workspace ID to create the project in |
+| `isPublic` | boolean | No | Whether the project should be publicly visible |
 | `defaultEnvironmentName` | string | No | Name for the default environment |
 | `prDeploys` | boolean | No | Whether to enable pull request deploys |
 
@@ -123,6 +128,8 @@ Update a Railway project name or description
 | `projectId` | string | Yes | Railway project ID |
 | `name` | string | No | Updated project name |
 | `description` | string | No | Updated project description |
+| `isPublic` | boolean | No | Whether the project should be publicly visible |
+| `prDeploys` | boolean | No | Whether to enable pull request deploy environments |
 
 #### Output
 
@@ -210,6 +217,7 @@ Create a Railway project environment
 | `sourceEnvironmentId` | string | No | Environment ID to clone from |
 | `ephemeral` | boolean | No | Whether the environment is ephemeral |
 | `skipInitialDeploys` | boolean | No | Whether to skip initial deploys for the environment |
+| `stageInitialChanges` | boolean | No | Whether to stage initial changes instead of applying them immediately |
 
 #### Output
 
@@ -280,6 +288,7 @@ Trigger a deployment for a Railway service in an environment
 | `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
 | `serviceId` | string | Yes | Railway service ID |
 | `environmentId` | string | Yes | Railway environment ID |
+| `commitSha` | string | No | Specific Git commit SHA to deploy |
 
 #### Output
 
@@ -330,3 +339,5 @@ Create or update a Railway environment variable
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the variable was created or updated |
+
+

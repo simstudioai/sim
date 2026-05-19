@@ -33,7 +33,7 @@ export const lookupEmailTool: ToolConfig<GongLookupEmailParams, GongLookupEmailR
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/data-privacy/data-for-email-address')
-      url.searchParams.set('emailAddress', params.emailAddress)
+      url.searchParams.set('emailAddress', params.emailAddress.trim())
       return url.toString()
     },
     method: 'GET',

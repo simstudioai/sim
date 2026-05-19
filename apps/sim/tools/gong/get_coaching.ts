@@ -56,10 +56,10 @@ export const getCoachingTool: ToolConfig<GongGetCoachingParams, GongGetCoachingR
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/coaching')
-      url.searchParams.set('manager-id', params.managerId)
-      url.searchParams.set('workspace-id', params.workspaceId)
-      url.searchParams.set('from', params.fromDate)
-      url.searchParams.set('to', params.toDate)
+      url.searchParams.set('manager-id', params.managerId.trim())
+      url.searchParams.set('workspace-id', params.workspaceId.trim())
+      url.searchParams.set('from', params.fromDate.trim())
+      url.searchParams.set('to', params.toDate.trim())
       return url.toString()
     },
     method: 'GET',

@@ -3,6 +3,8 @@ import type {
   RailwayDeployServiceResponse,
 } from '@/tools/railway/types'
 import {
+  compactVariables,
+  optionalString,
   parseRailwayGraphqlResponse,
   RAILWAY_GRAPHQL_URL,
   railwayHeaders,
@@ -47,6 +49,12 @@ export const railwayDeployServiceTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Railway environment ID',
     },
+    commitSha: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Specific Git commit SHA to deploy',
+    },
   },
 
   request: {
@@ -55,14 +63,19 @@ export const railwayDeployServiceTool: ToolConfig<
     headers: (params) => railwayHeaders(params.apiKey, params.tokenType),
     body: (params) => ({
       query: `
-        mutation DeployService($serviceId: String!, $environmentId: String!) {
-          serviceInstanceDeployV2(serviceId: $serviceId, environmentId: $environmentId)
+        mutation DeployService($serviceId: String!, $environmentId: String!, $commitSha: String) {
+          serviceInstanceDeployV2(
+            serviceId: $serviceId
+            environmentId: $environmentId
+            commitSha: $commitSha
+          )
         }
       `,
-      variables: {
+      variables: compactVariables({
         serviceId: params.serviceId.trim(),
         environmentId: params.environmentId.trim(),
-      },
+        commitSha: optionalString(params.commitSha),
+      }),
     }),
   },
 
