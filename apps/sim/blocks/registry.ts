@@ -17,6 +17,7 @@ import { AsanaBlock } from '@/blocks/blocks/asana'
 import { AshbyBlock } from '@/blocks/blocks/ashby'
 import { AthenaBlock } from '@/blocks/blocks/athena'
 import { AttioBlock } from '@/blocks/blocks/attio'
+import { AzureDevOpsBlock } from '@/blocks/blocks/azure_devops'
 import { BoxBlock } from '@/blocks/blocks/box'
 import { BrandfetchBlock } from '@/blocks/blocks/brandfetch'
 import { BrightDataBlock } from '@/blocks/blocks/brightdata'
@@ -258,6 +259,7 @@ export const registry: Record<string, BlockConfig> = {
   ashby: AshbyBlock,
   athena: AthenaBlock,
   attio: AttioBlock,
+  azure_devops: AzureDevOpsBlock,
   box: BoxBlock,
   brandfetch: BrandfetchBlock,
   brightdata: BrightDataBlock,
