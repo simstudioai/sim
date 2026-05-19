@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { isAzureDevOpsEventMatch } from '@/triggers/azure_devops/utils'
 import { tools } from '../registry'
 import type { ToolConfig } from '../types'
 import { addCommentTool } from './add_comment'
@@ -572,9 +573,11 @@ describe('Azure DevOps response transforms', () => {
     })
 
     const batch = await getWorkItemsBatchTool.transformResponse!(
-      responseJson({ value: [rawWorkItem] })
+      responseJson({ value: [rawWorkItem] }),
+      { ...baseParams, ids: '101' } satisfies GetWorkItemsBatchParams
     )
     expect(batch.output.metadata.count).toBe(1)
+    expect(batch.output.metadata.totalRequested).toBe(1)
   })
 
   it('hydrates WIQL query results in chunks of 200 IDs', async () => {
@@ -599,6 +602,26 @@ describe('Azure DevOps response transforms', () => {
     expect(firstChunk.searchParams.get('ids')?.split(',')).toHaveLength(200)
     expect(secondChunk.searchParams.get('ids')?.split(',')).toHaveLength(1)
     expect(result.output.metadata.totalMatched).toBe(201)
+    expect(result.output.metadata.workItems).toHaveLength(2)
+  })
+
+  it('chunks Get Work Items Batch requests larger than 200 IDs', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(responseJson({ value: [rawWorkItem] })))
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const ids = Array.from({ length: 350 }, (_, i) => String(i + 1)).join(',')
+
+    const result = await getWorkItemsBatchTool.transformResponse!(
+      responseJson({ value: [rawWorkItem] }),
+      { ...baseParams, ids } satisfies GetWorkItemsBatchParams
+    )
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const followupChunk = new URL(String(fetchMock.mock.calls[0][0]))
+    expect(followupChunk.searchParams.get('ids')?.split(',')).toHaveLength(150)
+    expect(result.output.metadata.totalRequested).toBe(350)
     expect(result.output.metadata.workItems).toHaveLength(2)
   })
 
@@ -670,5 +693,59 @@ describe('Azure DevOps response transforms', () => {
       content: 'No comments found for this work item.',
       metadata: { count: 0, totalCount: 0, comments: [] },
     })
+  })
+})
+
+describe('Azure DevOps trigger event matching', () => {
+  const baseBuild = { eventType: 'build.complete' }
+  const baseWorkItem = { eventType: 'workitem.created' }
+
+  it('matches build.complete results case-insensitively including stopped/Failed/Canceled', () => {
+    for (const result of [
+      'failed',
+      'Failed',
+      'FAILED',
+      'canceled',
+      'Canceled',
+      'cancelled',
+      'Cancelled',
+      'stopped',
+      'Stopped',
+      'partiallySucceeded',
+      'PartiallySucceeded',
+    ]) {
+      expect(
+        isAzureDevOpsEventMatch('azure_devops_build_failed', {
+          ...baseBuild,
+          resource: { result },
+        })
+      ).toBe(true)
+    }
+  })
+
+  it('does not match successful build.complete payloads', () => {
+    for (const result of ['succeeded', 'Succeeded', 'inProgress']) {
+      expect(
+        isAzureDevOpsEventMatch('azure_devops_build_failed', {
+          ...baseBuild,
+          resource: { result },
+        })
+      ).toBe(false)
+    }
+  })
+
+  it('ignores non-build event types when expecting build.complete', () => {
+    expect(
+      isAzureDevOpsEventMatch('azure_devops_build_failed', {
+        eventType: 'workitem.created',
+        resource: { result: 'failed' },
+      })
+    ).toBe(false)
+  })
+
+  it('matches workitem.created and passes through generic webhook', () => {
+    expect(isAzureDevOpsEventMatch('azure_devops_work_item_created', baseWorkItem)).toBe(true)
+    expect(isAzureDevOpsEventMatch('azure_devops_work_item_created', baseBuild)).toBe(false)
+    expect(isAzureDevOpsEventMatch('azure_devops_webhook', { eventType: 'anything' })).toBe(true)
   })
 })

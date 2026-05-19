@@ -12,7 +12,7 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
     id: 'azure_devops_get_work_items_batch',
     name: 'Azure DevOps Get Work Items Batch',
     description:
-      'Fetch full details for multiple work items by ID from Azure DevOps in a single call. Pass comma-separated IDs (e.g. "123,456,789"). Maximum 200 IDs per request.',
+      'Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-separated IDs (e.g. "123,456,789"). Requests with more than 200 IDs are automatically split into chunks.',
     version: '1.0.0',
 
     params: {
@@ -33,7 +33,7 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
         required: true,
         visibility: 'user-or-llm',
         description:
-          'Comma-separated work item IDs to fetch (e.g. "123,456,789"). Maximum 200 IDs.',
+          'Comma-separated work item IDs to fetch (e.g. "123,456,789"). Lists longer than 200 IDs are chunked automatically.',
       },
       accessToken: {
         type: 'string',
@@ -45,10 +45,15 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
 
     request: {
       url: (params) => {
+        const allIds = params.ids
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean)
+        const firstChunk = allIds.slice(0, 200)
         const url = new URL(
           `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/wit/workitems`
         )
-        url.searchParams.set('ids', params.ids)
+        url.searchParams.set('ids', firstChunk.join(','))
         url.searchParams.set('$expand', 'all')
         url.searchParams.set('api-version', '7.2-preview.3')
         return url.toString()
@@ -60,22 +65,61 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
       }),
     },
 
-    transformResponse: async (response) => {
-      const data = await response.json()
-      const workItems: AzureDevOpsWorkItem[] = (data.value ?? []).map(
+    transformResponse: async (response, params) => {
+      const firstData = await response.json()
+      const workItems: AzureDevOpsWorkItem[] = (firstData.value ?? []).map(
         (raw: AzureDevOpsRawWorkItem) => mapWorkItem(raw)
       )
+
+      const allIds = params!.ids
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean)
+
+      if (allIds.length > 200) {
+        const BATCH_SIZE = 200
+        const organization = params!.organization.trim()
+        const project = params!.project.trim()
+        const authHeader = `Basic ${btoa(`:${params!.accessToken}`)}`
+
+        for (let i = BATCH_SIZE; i < allIds.length; i += BATCH_SIZE) {
+          const chunk = allIds.slice(i, i + BATCH_SIZE)
+          const detailsUrl = new URL(
+            `https://dev.azure.com/${organization}/${project}/_apis/wit/workitems`
+          )
+          detailsUrl.searchParams.set('ids', chunk.join(','))
+          detailsUrl.searchParams.set('$expand', 'all')
+          detailsUrl.searchParams.set('api-version', '7.2-preview.3')
+
+          const chunkResponse = await fetch(detailsUrl.toString(), {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+          })
+
+          if (!chunkResponse.ok) {
+            const errorBody = await chunkResponse.text().catch(() => '')
+            throw new Error(
+              `Failed to fetch work item batch chunk (${chunkResponse.status}): ${errorBody || chunkResponse.statusText}`
+            )
+          }
+
+          const chunkData = await chunkResponse.json()
+          for (const raw of chunkData.value ?? []) {
+            workItems.push(mapWorkItem(raw as AzureDevOpsRawWorkItem))
+          }
+        }
+      }
 
       const content =
         workItems.length === 0
           ? 'No work items found for the provided IDs.'
-          : `Found ${workItems.length} work item(s):\n\n${workItems.map(formatWorkItem).join('\n\n')}`
+          : `Found ${workItems.length} work item(s) (of ${allIds.length} requested):\n\n${workItems.map(formatWorkItem).join('\n\n')}`
 
       return {
         success: true,
         output: {
           content,
-          metadata: { count: workItems.length, workItems },
+          metadata: { count: workItems.length, totalRequested: allIds.length, workItems },
         },
       }
     },
@@ -90,6 +134,11 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
         description: 'Work items metadata',
         properties: {
           count: { type: 'number', description: 'Number of work items returned' },
+          totalRequested: {
+            type: 'number',
+            description: 'Total number of IDs requested (across all chunks)',
+            optional: true,
+          },
           workItems: {
             type: 'array',
             description: 'Array of work item details',

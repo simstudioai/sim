@@ -306,6 +306,7 @@ export interface GetWorkItemsBatchResponse extends ToolResponse {
     content: string
     metadata: {
       count: number
+      totalRequested?: number
       workItems: AzureDevOpsWorkItem[]
     }
   }

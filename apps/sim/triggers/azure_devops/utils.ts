@@ -54,8 +54,14 @@ export function isAzureDevOpsEventMatch(triggerId: string, body: Record<string, 
       return false
     }
     const resource = body.resource as Record<string, unknown> | undefined
-    const result = resource?.result as string | undefined
-    return result === 'failed' || result === 'canceled' || result === 'partiallySucceeded'
+    const result = (resource?.result as string | undefined)?.toLowerCase()
+    return (
+      result === 'failed' ||
+      result === 'canceled' ||
+      result === 'cancelled' ||
+      result === 'stopped' ||
+      result === 'partiallysucceeded'
+    )
   }
 
   if (triggerId === 'azure_devops_work_item_created') {
