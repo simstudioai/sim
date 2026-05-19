@@ -45,6 +45,7 @@ export interface WorkflowSearchResourceMeta {
 export type WorkflowSearchTarget =
   | { kind: 'subblock' }
   | { kind: 'subflow'; fieldId: WorkflowSearchSubflowFieldId }
+  | { kind: 'block-name' }
 
 export interface WorkflowSearchMatch {
   id: string
