@@ -7,6 +7,8 @@ import { usePanelStore } from '../store'
 
 let renameCallback: (() => void) | null = null
 
+export type ActiveSearchTargetKind = 'subblock' | 'subflow' | 'block-name'
+
 export interface ActiveSearchTarget {
   matchId: string
   blockId: string
@@ -14,6 +16,7 @@ export interface ActiveSearchTarget {
   canonicalSubBlockId: string
   valuePath: Array<string | number>
   kind: string
+  targetKind: ActiveSearchTargetKind
   resourceGroupKey?: string
 }
 
