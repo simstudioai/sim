@@ -97,7 +97,7 @@ import { HumanInTheLoopBlock } from '@/blocks/blocks/human_in_the_loop'
 import { HunterBlock } from '@/blocks/blocks/hunter'
 import { IAMBlock } from '@/blocks/blocks/iam'
 import { IdentityCenterBlock } from '@/blocks/blocks/identity_center'
-import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
+import { ImageGeneratorBlock, ImageGeneratorV2Block } from '@/blocks/blocks/image_generator'
 import { ImapBlock } from '@/blocks/blocks/imap'
 import { IncidentioBlock } from '@/blocks/blocks/incidentio'
 import { InfisicalBlock } from '@/blocks/blocks/infisical'
@@ -217,7 +217,11 @@ import { TypeformBlock } from '@/blocks/blocks/typeform'
 import { UpstashBlock } from '@/blocks/blocks/upstash'
 import { VariablesBlock } from '@/blocks/blocks/variables'
 import { VercelBlock } from '@/blocks/blocks/vercel'
-import { VideoGeneratorBlock, VideoGeneratorV2Block } from '@/blocks/blocks/video_generator'
+import {
+  VideoGeneratorBlock,
+  VideoGeneratorV2Block,
+  VideoGeneratorV3Block,
+} from '@/blocks/blocks/video_generator'
 import { VisionBlock, VisionV2Block } from '@/blocks/blocks/vision'
 import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
@@ -351,6 +355,7 @@ export const registry: Record<string, BlockConfig> = {
   iam: IAMBlock,
   identity_center: IdentityCenterBlock,
   image_generator: ImageGeneratorBlock,
+  image_generator_v2: ImageGeneratorV2Block,
   imap: ImapBlock,
   incidentio: IncidentioBlock,
   infisical: InfisicalBlock,
@@ -481,6 +486,7 @@ export const registry: Record<string, BlockConfig> = {
   variables: VariablesBlock,
   video_generator: VideoGeneratorBlock,
   video_generator_v2: VideoGeneratorV2Block,
+  video_generator_v3: VideoGeneratorV3Block,
   vision: VisionBlock,
   vision_v2: VisionV2Block,
   wait: WaitBlock,

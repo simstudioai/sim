@@ -24,6 +24,7 @@ export const videoToolBodySchema = z
     cameraControl: z.unknown().optional(),
     endpoint: z.string().optional(),
     promptOptimizer: z.boolean().optional(),
+    generateAudio: z.boolean().optional(),
     workspaceId: z.string().optional(),
     workflowId: z.string().optional(),
     executionId: z.string().optional(),

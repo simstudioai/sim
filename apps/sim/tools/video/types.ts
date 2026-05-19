@@ -9,18 +9,18 @@ export interface VideoParams {
   duration?: number
   aspectRatio?: string
   resolution?: string
-  // Provider-specific features
-  visualReference?: UserFile // Runway only (required for Runway)
+  /** Runway only, required for Runway generation */
+  visualReference?: UserFile
   cameraControl?: {
-    // Luma only
     pan?: number
     zoom?: number
     tilt?: number
     truck?: number
     tracking?: boolean
   }
-  endpoint?: string // MiniMax: 'pro' | 'standard'
-  promptOptimizer?: boolean // MiniMax and Fal.ai MiniMax models
+  endpoint?: string
+  promptOptimizer?: boolean
+  generateAudio?: boolean
 }
 
 export interface VideoResponse extends ToolResponse {
@@ -49,9 +49,12 @@ export interface VideoBlockResponse extends ToolResponse {
 }
 
 interface RunwayParams extends Omit<VideoParams, 'provider'> {
-  model?: 'gen-4-turbo' // Only gen4_turbo supports image-to-video
-  visualReference: UserFile // REQUIRED for Gen-4
-  resolution?: '720p' // Gen-4 Turbo outputs at 720p
+  /** Only gen4_turbo supports image-to-video */
+  model?: 'gen-4-turbo'
+  /** Required for Gen-4 */
+  visualReference: UserFile
+  /** Gen-4 Turbo outputs at 720p */
+  resolution?: '720p'
   duration?: 5 | 10
 }
 
@@ -77,7 +80,7 @@ interface LumaParams extends Omit<VideoParams, 'provider'> {
 }
 
 interface MinimaxParams extends Omit<VideoParams, 'provider'> {
-  model?: 'hailuo-02'
+  model?: 'hailuo-2.3' | 'hailuo-02'
   endpoint?: 'pro' | 'standard'
   promptOptimizer?: boolean
   duration?: 6 | 10

@@ -5,6 +5,12 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ImageTool')
 
+const OPENAI_IMAGE_MODEL_ALIASES: Record<string, string> = {
+  'gpt-image-2': 'gpt-image-1.5',
+}
+const GPT_IMAGE_SIZES = ['auto', '1024x1024', '1536x1024', '1024x1536'] as const
+const GPT_IMAGE_MODELS = ['gpt-image-1.5', 'gpt-image-1', 'gpt-image-1-mini'] as const
+
 export const imageTool: ToolConfig = {
   id: 'openai_image',
   name: 'Image Generator',
@@ -16,7 +22,8 @@ export const imageTool: ToolConfig = {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'The model to use (dall-e-3, gpt-image-1, or gpt-image-2)',
+      description:
+        'The model to use. Supports dall-e-3, gpt-image-1, gpt-image-1.5, gpt-image-1-mini, and the previous gpt-image-2 compatibility alias.',
     },
     prompt: {
       type: 'string',
@@ -29,13 +36,13 @@ export const imageTool: ToolConfig = {
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Image size. dall-e-3: 1024x1024, 1024x1792, or 1792x1024. gpt-image-1: auto, 1024x1024, 1536x1024, or 1024x1536. gpt-image-2: auto or any size with edges ≤3840px and multiples of 16 (e.g. 1024x1024, 1536x1024, 1024x1536, 2560x1440, 3840x2160).',
+        'Image size. dall-e-3: 1024x1024, 1024x1792, or 1792x1024. GPT Image models: auto, 1024x1024, 1536x1024, or 1024x1536.',
     },
     quality: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Quality. dall-e-3: standard|hd. gpt-image-1/gpt-image-2: auto|low|medium|high',
+      description: 'Quality. dall-e-3: standard|hd. GPT Image models: auto|low|medium|high',
     },
     style: {
       type: 'string',
@@ -47,20 +54,19 @@ export const imageTool: ToolConfig = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Background. gpt-image-1: auto|transparent|opaque. gpt-image-2: auto|opaque (transparent not supported)',
+      description: 'Background for GPT Image models: auto|transparent|opaque',
     },
     outputFormat: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Output image format (png, jpeg, webp), only for gpt-image-1 and gpt-image-2',
+      description: 'Output image format (png, jpeg, webp), only for GPT Image models',
     },
     moderation: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Moderation level (auto or low), only for gpt-image-1 and gpt-image-2',
+      description: 'Moderation level (auto or low), only for GPT Image models',
     },
     n: {
       type: 'number',
@@ -84,17 +90,29 @@ export const imageTool: ToolConfig = {
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
+      const requestedModel = String(params.model || 'dall-e-3')
+      const model = OPENAI_IMAGE_MODEL_ALIASES[requestedModel] || requestedModel
+      const requestedSize = String(params.size || '')
+      const size =
+        model === 'dall-e-3'
+          ? ['1024x1024', '1024x1792', '1792x1024'].includes(requestedSize)
+            ? requestedSize
+            : '1024x1024'
+          : GPT_IMAGE_MODELS.includes(model as (typeof GPT_IMAGE_MODELS)[number]) &&
+              GPT_IMAGE_SIZES.includes(requestedSize as (typeof GPT_IMAGE_SIZES)[number])
+            ? requestedSize
+            : 'auto'
       const body: BaseImageRequestBody = {
-        model: params.model,
+        model,
         prompt: params.prompt,
-        size: params.size || (params.model === 'dall-e-3' ? '1024x1024' : 'auto'),
+        size,
         n: params.n ? Number(params.n) : 1,
       }
 
-      if (params.model === 'dall-e-3') {
+      if (model === 'dall-e-3') {
         if (params.quality) body.quality = params.quality
         if (params.style) body.style = params.style
-      } else if (params.model === 'gpt-image-1' || params.model === 'gpt-image-2') {
+      } else if (GPT_IMAGE_MODELS.includes(model as (typeof GPT_IMAGE_MODELS)[number])) {
         if (params.quality) body.quality = params.quality
         if (params.background) body.background = params.background
         if (params.outputFormat) body.output_format = params.outputFormat
@@ -118,7 +136,8 @@ export const imageTool: ToolConfig = {
         })
       }
 
-      const modelName = params?.model || 'dall-e-3'
+      const requestedModel = String(params?.model || 'dall-e-3')
+      const modelName = OPENAI_IMAGE_MODEL_ALIASES[requestedModel] || requestedModel
       let imageUrl = null
       let base64Image = null
 
