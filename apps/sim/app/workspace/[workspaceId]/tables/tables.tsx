@@ -49,11 +49,11 @@ const logger = createLogger('Tables')
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
-  { id: 'columns', header: 'Columns', widthPx: 110 },
-  { id: 'rows', header: 'Rows', widthPx: 100 },
-  { id: 'created', header: 'Created', widthPx: 150 },
-  { id: 'owner', header: 'Owner', widthPx: 160 },
-  { id: 'updated', header: 'Last Updated', widthPx: 150 },
+  { id: 'columns', header: 'Columns' },
+  { id: 'rows', header: 'Rows' },
+  { id: 'created', header: 'Created' },
+  { id: 'owner', header: 'Owner' },
+  { id: 'updated', header: 'Last Updated' },
 ]
 
 export function Tables() {

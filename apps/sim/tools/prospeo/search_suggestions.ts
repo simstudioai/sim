@@ -46,6 +46,16 @@ export const searchSuggestionsTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
+      if (!params.location_search && !params.job_title_search) {
+        throw new Error(
+          'Provide exactly one of location_search or job_title_search (minimum 2 characters).'
+        )
+      }
+      if (params.location_search && params.job_title_search) {
+        throw new Error(
+          'location_search and job_title_search are mutually exclusive — provide only one.'
+        )
+      }
       const body: Record<string, unknown> = {}
       if (params.location_search) body.location_search = params.location_search
       if (params.job_title_search) body.job_title_search = params.job_title_search
@@ -61,8 +71,8 @@ export const searchSuggestionsTool: ToolConfig<
     return {
       success: true,
       output: {
-        location_suggestions: data.location_suggestions ?? null,
-        job_title_suggestions: data.job_title_suggestions ?? null,
+        location_suggestions: data.location_suggestions ?? [],
+        job_title_suggestions: data.job_title_suggestions ?? [],
       },
     }
   },
@@ -71,7 +81,7 @@ export const searchSuggestionsTool: ToolConfig<
     location_suggestions: {
       type: 'array',
       description:
-        'Location suggestions when using location_search (null when searching job titles)',
+        'Location suggestions when using location_search (empty when searching job titles)',
       optional: true,
       items: {
         type: 'object',
@@ -87,7 +97,7 @@ export const searchSuggestionsTool: ToolConfig<
     job_title_suggestions: {
       type: 'array',
       description:
-        'Up to 25 job title suggestions ordered by popularity when using job_title_search (null when searching locations)',
+        'Up to 25 job title suggestions ordered by popularity when using job_title_search (empty when searching locations)',
       optional: true,
       items: { type: 'string' },
     },

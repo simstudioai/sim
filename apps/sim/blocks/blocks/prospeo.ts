@@ -70,21 +70,21 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
       condition: { field: 'operation', value: 'prospeo_enrich_person' },
     },
     {
-      id: 'company_name',
+      id: 'ep_company_name',
       title: 'Company Name',
       type: 'short-input',
       placeholder: 'Intercom',
       condition: { field: 'operation', value: 'prospeo_enrich_person' },
     },
     {
-      id: 'company_website',
+      id: 'ep_company_website',
       title: 'Company Website',
       type: 'short-input',
       placeholder: 'intercom.com',
       condition: { field: 'operation', value: 'prospeo_enrich_person' },
     },
     {
-      id: 'company_linkedin_url',
+      id: 'ep_company_linkedin_url',
       title: 'Company LinkedIn URL',
       type: 'short-input',
       placeholder: 'https://www.linkedin.com/company/intercom',
@@ -100,44 +100,56 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'only_verified_email',
+      id: 'ep_only_verified_email',
       title: 'Only Verified Email',
-      type: 'switch',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
       condition: { field: 'operation', value: 'prospeo_enrich_person' },
       mode: 'advanced',
     },
     {
-      id: 'enrich_mobile',
+      id: 'ep_enrich_mobile',
       title: 'Enrich Mobile',
-      type: 'switch',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
       condition: { field: 'operation', value: 'prospeo_enrich_person' },
       mode: 'advanced',
     },
     {
-      id: 'only_verified_mobile',
+      id: 'ep_only_verified_mobile',
       title: 'Only Verified Mobile',
-      type: 'switch',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
       condition: { field: 'operation', value: 'prospeo_enrich_person' },
       mode: 'advanced',
     },
 
     // Enrich Company
     {
-      id: 'company_website',
+      id: 'ec_company_website',
       title: 'Company Website',
       type: 'short-input',
       placeholder: 'intercom.com',
       condition: { field: 'operation', value: 'prospeo_enrich_company' },
     },
     {
-      id: 'company_linkedin_url',
+      id: 'ec_company_linkedin_url',
       title: 'Company LinkedIn URL',
       type: 'short-input',
       placeholder: 'https://www.linkedin.com/company/intercom',
       condition: { field: 'operation', value: 'prospeo_enrich_company' },
     },
     {
-      id: 'company_name',
+      id: 'ec_company_name',
       title: 'Company Name',
       type: 'short-input',
       placeholder: 'Intercom',
@@ -155,7 +167,7 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
 
     // Bulk Enrich Person
     {
-      id: 'data',
+      id: 'bep_data',
       title: 'Records',
       type: 'code',
       language: 'json',
@@ -171,30 +183,42 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
       },
     },
     {
-      id: 'only_verified_email',
+      id: 'bep_only_verified_email',
       title: 'Only Verified Email',
-      type: 'switch',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
       condition: { field: 'operation', value: 'prospeo_bulk_enrich_person' },
       mode: 'advanced',
     },
     {
-      id: 'enrich_mobile',
+      id: 'bep_enrich_mobile',
       title: 'Enrich Mobile',
-      type: 'switch',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
       condition: { field: 'operation', value: 'prospeo_bulk_enrich_person' },
       mode: 'advanced',
     },
     {
-      id: 'only_verified_mobile',
+      id: 'bep_only_verified_mobile',
       title: 'Only Verified Mobile',
-      type: 'switch',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
       condition: { field: 'operation', value: 'prospeo_bulk_enrich_person' },
       mode: 'advanced',
     },
 
     // Bulk Enrich Company
     {
-      id: 'data',
+      id: 'bec_data',
       title: 'Records',
       type: 'code',
       language: 'json',
@@ -212,7 +236,7 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
 
     // Search Person
     {
-      id: 'filters',
+      id: 'sp_filters',
       title: 'Filters',
       type: 'code',
       language: 'json',
@@ -228,7 +252,7 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
       },
     },
     {
-      id: 'page',
+      id: 'sp_page',
       title: 'Page',
       type: 'short-input',
       placeholder: '1',
@@ -238,7 +262,7 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
 
     // Search Company
     {
-      id: 'filters',
+      id: 'sc_filters',
       title: 'Filters',
       type: 'code',
       language: 'json',
@@ -254,7 +278,7 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
       },
     },
     {
-      id: 'page',
+      id: 'sc_page',
       title: 'Page',
       type: 'short-input',
       placeholder: '1',
@@ -323,23 +347,45 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
         }
       },
       params: (params) => {
+        const renames: Record<string, string> = {
+          ep_company_name: 'company_name',
+          ep_company_website: 'company_website',
+          ep_company_linkedin_url: 'company_linkedin_url',
+          ep_only_verified_email: 'only_verified_email',
+          ep_enrich_mobile: 'enrich_mobile',
+          ep_only_verified_mobile: 'only_verified_mobile',
+          ec_company_website: 'company_website',
+          ec_company_linkedin_url: 'company_linkedin_url',
+          ec_company_name: 'company_name',
+          bep_data: 'data',
+          bep_only_verified_email: 'only_verified_email',
+          bep_enrich_mobile: 'enrich_mobile',
+          bep_only_verified_mobile: 'only_verified_mobile',
+          bec_data: 'data',
+          sp_filters: 'filters',
+          sp_page: 'page',
+          sc_filters: 'filters',
+          sc_page: 'page',
+        }
         const result: Record<string, unknown> = {}
         for (const [key, value] of Object.entries(params)) {
           if (value === undefined || value === null || value === '') continue
-          if (key === 'page') {
+          if (key === 'operation') continue
+          const targetKey = renames[key] ?? key
+          if (targetKey === 'page') {
             const n = Number(value)
-            if (Number.isFinite(n)) result[key] = n
+            if (Number.isFinite(n)) result[targetKey] = n
             continue
           }
           if (
-            key === 'only_verified_email' ||
-            key === 'enrich_mobile' ||
-            key === 'only_verified_mobile'
+            targetKey === 'only_verified_email' ||
+            targetKey === 'enrich_mobile' ||
+            targetKey === 'only_verified_mobile'
           ) {
-            result[key] = typeof value === 'string' ? value === 'true' : Boolean(value)
+            result[targetKey] = typeof value === 'string' ? value === 'true' : Boolean(value)
             continue
           }
-          result[key] = value
+          result[targetKey] = value
         }
         return result
       },
@@ -348,25 +394,55 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Prospeo API key' },
-    // Enrich Person / Company match keys
+    // Enrich Person match keys
     first_name: { type: 'string', description: 'First name' },
     last_name: { type: 'string', description: 'Last name' },
     full_name: { type: 'string', description: 'Full name' },
     linkedin_url: { type: 'string', description: 'Person LinkedIn URL' },
     email: { type: 'string', description: 'Work email' },
-    company_name: { type: 'string', description: 'Company name' },
-    company_website: { type: 'string', description: 'Company website' },
-    company_linkedin_url: { type: 'string', description: 'Company LinkedIn URL' },
-    company_id: { type: 'string', description: 'Prospeo company_id' },
+    ep_company_name: { type: 'string', description: 'Company name (enrich person)' },
+    ep_company_website: { type: 'string', description: 'Company website (enrich person)' },
+    ep_company_linkedin_url: {
+      type: 'string',
+      description: 'Company LinkedIn URL (enrich person)',
+    },
     person_id: { type: 'string', description: 'Prospeo person_id' },
-    only_verified_email: { type: 'boolean', description: 'Only verified emails' },
-    enrich_mobile: { type: 'boolean', description: 'Reveal mobile numbers' },
-    only_verified_mobile: { type: 'boolean', description: 'Only records with a mobile' },
-    // Bulk
-    data: { type: 'json', description: 'Array of records to enrich' },
-    // Search
-    filters: { type: 'json', description: 'Search filters configuration' },
-    page: { type: 'number', description: 'Page number (defaults to 1)' },
+    ep_only_verified_email: { type: 'string', description: 'Only verified emails (enrich person)' },
+    ep_enrich_mobile: { type: 'string', description: 'Reveal mobile numbers (enrich person)' },
+    ep_only_verified_mobile: {
+      type: 'string',
+      description: 'Only records with a mobile (enrich person)',
+    },
+    // Enrich Company match keys
+    ec_company_website: { type: 'string', description: 'Company website (enrich company)' },
+    ec_company_linkedin_url: {
+      type: 'string',
+      description: 'Company LinkedIn URL (enrich company)',
+    },
+    ec_company_name: { type: 'string', description: 'Company name (enrich company)' },
+    company_id: { type: 'string', description: 'Prospeo company_id' },
+    // Bulk Person
+    bep_data: { type: 'json', description: 'Array of person records to enrich (bulk)' },
+    bep_only_verified_email: {
+      type: 'string',
+      description: 'Only verified emails (bulk enrich person)',
+    },
+    bep_enrich_mobile: {
+      type: 'string',
+      description: 'Reveal mobile numbers (bulk enrich person)',
+    },
+    bep_only_verified_mobile: {
+      type: 'string',
+      description: 'Only records with a mobile (bulk enrich person)',
+    },
+    // Bulk Company
+    bec_data: { type: 'json', description: 'Array of company records to enrich (bulk)' },
+    // Search Person
+    sp_filters: { type: 'json', description: 'Search person filters configuration' },
+    sp_page: { type: 'string', description: 'Search person page number (defaults to 1)' },
+    // Search Company
+    sc_filters: { type: 'json', description: 'Search company filters configuration' },
+    sc_page: { type: 'string', description: 'Search company page number (defaults to 1)' },
     // Suggestions
     location_search: { type: 'string', description: 'Location search query' },
     job_title_search: { type: 'string', description: 'Job title search query' },

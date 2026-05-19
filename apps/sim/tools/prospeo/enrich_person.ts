@@ -76,19 +76,19 @@ export const enrichPersonTool: ToolConfig<ProspeoEnrichPersonParams, ProspeoEnri
       only_verified_email: {
         type: 'boolean',
         required: false,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'Only return records with a verified email',
       },
       enrich_mobile: {
         type: 'boolean',
         required: false,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'Reveal mobile number (10 credits per match; email included)',
       },
       only_verified_mobile: {
         type: 'boolean',
         required: false,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'Only return records that have a mobile (implies enrich_mobile)',
       },
     },

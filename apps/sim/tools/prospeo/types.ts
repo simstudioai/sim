@@ -5,7 +5,6 @@ export interface ProspeoBaseParams {
 }
 
 export interface ProspeoPersonData {
-  identifier?: string
   first_name?: string
   last_name?: string
   full_name?: string
@@ -18,7 +17,6 @@ export interface ProspeoPersonData {
 }
 
 export interface ProspeoCompanyData {
-  identifier?: string
   company_name?: string
   company_website?: string
   company_linkedin_url?: string
@@ -35,6 +33,7 @@ export interface ProspeoPaginationOutput {
 export const PROSPEO_PAGINATION_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pagination details',
+  optional: true,
   properties: {
     current_page: { type: 'number', description: 'Current page number' },
     per_page: { type: 'number', description: 'Results per page' },
@@ -84,7 +83,7 @@ export interface ProspeoEnrichCompanyResponse extends ToolResponse {
 
 /** Bulk Enrich Person */
 export interface ProspeoBulkEnrichPersonParams extends ProspeoBaseParams {
-  data: ProspeoPersonData[]
+  data: Array<ProspeoPersonData & { identifier: string }>
   only_verified_email?: boolean
   enrich_mobile?: boolean
   only_verified_mobile?: boolean
@@ -105,7 +104,7 @@ export interface ProspeoBulkEnrichPersonResponse extends ToolResponse {
 
 /** Bulk Enrich Company */
 export interface ProspeoBulkEnrichCompanyParams extends ProspeoBaseParams {
-  data: ProspeoCompanyData[]
+  data: Array<ProspeoCompanyData & { identifier: string }>
 }
 
 export interface ProspeoBulkEnrichCompanyResponse extends ToolResponse {
@@ -161,8 +160,8 @@ export interface ProspeoSearchSuggestionsParams extends ProspeoBaseParams {
 
 export interface ProspeoSearchSuggestionsResponse extends ToolResponse {
   output: {
-    location_suggestions: Array<{ name: string; type: string }> | null
-    job_title_suggestions: string[] | null
+    location_suggestions: Array<{ name: string; type: string }>
+    job_title_suggestions: string[]
   }
 }
 

@@ -85,13 +85,13 @@ const logger = createLogger('KnowledgeBase')
 const DOCUMENTS_PER_PAGE = 50
 
 const DOCUMENT_COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name' },
-  { id: 'size', header: 'Size', widthPx: 90 },
-  { id: 'tokens', header: 'Tokens', widthPx: 90 },
-  { id: 'chunks', header: 'Chunks', widthPx: 90 },
-  { id: 'uploaded', header: 'Uploaded', widthPx: 140 },
-  { id: 'status', header: 'Status', widthPx: 110 },
-  { id: 'tags', header: 'Tags', widthPx: 160 },
+  { id: 'name', header: 'Name', widthMultiplier: 0.8 },
+  { id: 'size', header: 'Size', widthMultiplier: 0.75 },
+  { id: 'tokens', header: 'Tokens', widthMultiplier: 0.75 },
+  { id: 'chunks', header: 'Chunks', widthMultiplier: 0.75 },
+  { id: 'uploaded', header: 'Uploaded' },
+  { id: 'status', header: 'Status', widthMultiplier: 0.75 },
+  { id: 'tags', header: 'Tags' },
 ]
 
 interface KnowledgeBaseProps {
