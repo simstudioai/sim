@@ -119,7 +119,10 @@ export async function insertDispatch(input: {
     mode: input.mode,
     scope: input.scope,
     status: 'pending',
-    cursor: 0,
+    // -1 = "haven't started." First window's filter `position > -1` matches
+    // position 0; subsequent iterations advance to `lastPosition` which then
+    // correctly excludes already-processed rows.
+    cursor: -1,
     isManualRun: input.isManualRun,
   })
   return id
