@@ -139,6 +139,8 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         workflowId: params._context?.workflowId,
         executionId: params._context?.executionId,
         largeValueExecutionIds: params._context?.largeValueExecutionIds,
+        largeValueKeys: params._context?.largeValueKeys,
+        fileKeys: params._context?.fileKeys,
         allowLargeValueWorkflowScope: params._context?.allowLargeValueWorkflowScope,
         userId: params._context?.userId,
         workspaceId: params._context?.workspaceId,
@@ -165,6 +167,8 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         },
         error: result.error,
         resources: result.resources,
+        largeValueKeys: result.largeValueKeys,
+        fileKeys: result.fileKeys,
       }
     }
 
@@ -175,6 +179,8 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         stdout: result.output.stdout,
       },
       resources: result.resources,
+      largeValueKeys: result.largeValueKeys,
+      fileKeys: result.fileKeys,
     }
   },
 

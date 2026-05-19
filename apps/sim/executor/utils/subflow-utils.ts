@@ -1,10 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { DEFAULTS, LOOP, PARALLEL, REFERENCE } from '@/executor/constants'
+import { DEFAULTS, LOOP, PARALLEL } from '@/executor/constants'
 import type { ContextExtensions } from '@/executor/execution/types'
 import { type BlockLog, type ExecutionContext, getNextExecutionOrder } from '@/executor/types'
 import { buildContainerIterationContext } from '@/executor/utils/iteration-context'
-import type { VariableResolver } from '@/executor/variables/resolver'
 
 const logger = createLogger('SubflowUtils')
 
@@ -196,81 +195,6 @@ export function normalizeNodeId(nodeId: string): string {
     return extractParallelIdFromSentinel(nodeId) || nodeId
   }
   return nodeId
-}
-
-/**
- * Async variant used by execution paths that may need durable large-value or
- * explicit UserFile.base64 materialization while resolving collection inputs.
- */
-export async function resolveArrayInputAsync(
-  ctx: ExecutionContext,
-  items: any,
-  resolver: VariableResolver | null
-): Promise<any[]> {
-  if (Array.isArray(items)) {
-    return items
-  }
-
-  if (typeof items === 'object' && items !== null) {
-    return Object.entries(items)
-  }
-
-  if (typeof items === 'string') {
-    if (items.startsWith(REFERENCE.START) && items.endsWith(REFERENCE.END) && resolver) {
-      try {
-        const resolved = await resolver.resolveSingleReference(ctx, '', items)
-        if (Array.isArray(resolved)) {
-          return resolved
-        }
-        if (typeof resolved === 'object' && resolved !== null) {
-          return Object.entries(resolved)
-        }
-        if (resolved === null) {
-          return []
-        }
-        throw new Error(`Reference "${items}" did not resolve to an array or object`)
-      } catch (error) {
-        if (error instanceof Error && error.message.startsWith('Reference "')) {
-          throw error
-        }
-        throw new Error(`Failed to resolve reference "${items}": ${toError(error).message}`)
-      }
-    }
-
-    try {
-      const normalized = items.replace(/'/g, '"')
-      const parsed = JSON.parse(normalized)
-      if (Array.isArray(parsed)) {
-        return parsed
-      }
-      if (typeof parsed === 'object' && parsed !== null) {
-        return Object.entries(parsed)
-      }
-      throw new Error(`Parsed value is not an array or object`)
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith('Parsed value')) {
-        throw error
-      }
-      throw new Error(`Failed to parse items as JSON: "${items}"`)
-    }
-  }
-
-  if (resolver) {
-    try {
-      const resolved = (await resolver.resolveInputs(ctx, 'subflow_items', { items })).items
-      if (Array.isArray(resolved)) {
-        return resolved
-      }
-      throw new Error(`Resolved items is not an array`)
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith('Resolved items')) {
-        throw error
-      }
-      throw new Error(`Failed to resolve items: ${toError(error).message}`)
-    }
-  }
-
-  return []
 }
 
 /**

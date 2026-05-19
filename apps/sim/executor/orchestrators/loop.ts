@@ -22,8 +22,8 @@ import {
   emitEmptySubflowEvents,
   emitSubflowSuccessEvents,
   extractBaseBlockId,
-  resolveArrayInputAsync,
 } from '@/executor/utils/subflow-utils'
+import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedLoop } from '@/serializer/types'
 
@@ -249,10 +249,24 @@ export class LoopOrchestrator {
     }
 
     if (iterationResults.length > 0) {
-      scope.allIterationOutputs.push(iterationResults)
+      const compactedIterationResults = await compactSubflowResults(iterationResults, {
+        workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
+        executionId: ctx.executionId,
+        largeValueExecutionIds: ctx.largeValueExecutionIds,
+        largeValueKeys: ctx.largeValueKeys,
+        allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
+        userId: ctx.userId,
+        requireDurable: true,
+      })
+      scope.allIterationOutputs.push(compactedIterationResults)
     }
 
     scope.currentIterationOutputs.clear()
+
+    if (this.hasReachedConfiguredIterationLimit(scope, scope.iteration + 1)) {
+      return await this.createExitResult(ctx, loopId, scope)
+    }
 
     if (!(await this.evaluateCondition(ctx, scope, scope.iteration + 1))) {
       return await this.createExitResult(ctx, loopId, scope)
@@ -271,6 +285,13 @@ export class LoopOrchestrator {
     }
   }
 
+  private hasReachedConfiguredIterationLimit(scope: LoopScope, nextIteration: number): boolean {
+    if (scope.loopType !== 'doWhile' || scope.maxIterations === undefined) {
+      return false
+    }
+    return nextIteration >= scope.maxIterations
+  }
+
   private async createExitResult(
     ctx: ExecutionContext,
     loopId: string,
@@ -282,6 +303,9 @@ export class LoopOrchestrator {
       workspaceId: ctx.workspaceId,
       workflowId: ctx.workflowId,
       executionId: ctx.executionId,
+      largeValueExecutionIds: ctx.largeValueExecutionIds,
+      largeValueKeys: ctx.largeValueKeys,
+      allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
       userId: ctx.userId,
       requireDurable: true,
     })
@@ -651,14 +675,14 @@ export class LoopOrchestrator {
       logger.info('Evaluating loop condition', {
         originalCondition: condition,
         iteration: scope.iteration,
-        workflowVariables: ctx.workflowVariables,
+        workflowVariableCount: Object.keys(ctx.workflowVariables ?? {}).length,
       })
 
       const evaluatedCondition = await replaceLoopConditionReferences(condition, async (match) => {
         const resolved = await this.resolver.resolveSingleReference(ctx, '', match, scope)
         logger.debug('Resolved variable reference in loop condition', {
           reference: match,
-          resolvedValue: resolved,
+          resolvedType: resolved === null ? 'null' : typeof resolved,
         })
         if (resolved !== undefined) {
           if (typeof resolved === 'boolean' || typeof resolved === 'number') {

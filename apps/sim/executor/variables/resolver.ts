@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import {
   containsLargeValueRef,
   getLargeValueMaterializationError,
@@ -100,7 +101,7 @@ export class VariableResolver {
     this.resolvers = [
       new LoopResolver(workflow, options.navigatePathAsync),
       new ParallelResolver(workflow, options.navigatePathAsync),
-      new WorkflowResolver(workflowVariables),
+      new WorkflowResolver(workflowVariables, options.navigatePathAsync),
       new EnvResolver(),
       this.blockResolver,
     ]
@@ -244,16 +245,31 @@ export class VariableResolver {
       if (isConditionBlock && key === 'conditions') {
         continue
       }
-      resolved[key] = await this.resolveValue(ctx, currentNodeId, value, undefined, block)
+      resolved[key] = await this.resolveValue(ctx, currentNodeId, value, undefined, block, {
+        allowLargeValueRefs: this.canResolveInputToLargeValueRef(block, key),
+      })
     }
     return resolved
+  }
+
+  private canResolveInputToLargeValueRef(block: SerializedBlock | undefined, key: string): boolean {
+    if (block?.metadata?.id === BlockType.VARIABLES) {
+      return key === 'variables'
+    }
+
+    if (block?.metadata?.id === BlockType.RESPONSE) {
+      return key === 'data' || key === 'builderData'
+    }
+
+    return false
   }
 
   async resolveSingleReference(
     ctx: ExecutionContext,
     currentNodeId: string,
     reference: string,
-    loopScope?: LoopScope
+    loopScope?: LoopScope,
+    options: { allowLargeValueRefs?: boolean } = {}
   ): Promise<any> {
     if (typeof reference === 'string') {
       const trimmed = reference.trim()
@@ -263,6 +279,7 @@ export class VariableResolver {
           executionState: this.state,
           currentNodeId,
           loopScope,
+          allowLargeValueRefs: options.allowLargeValueRefs,
         }
 
         const result = await this.resolveReference(trimmed, resolutionContext)
@@ -281,7 +298,8 @@ export class VariableResolver {
     currentNodeId: string,
     value: any,
     loopScope?: LoopScope,
-    block?: SerializedBlock
+    block?: SerializedBlock,
+    options: { allowLargeValueRefs?: boolean } = {}
   ): Promise<any> {
     if (value === null || value === undefined) {
       return value
@@ -289,7 +307,7 @@ export class VariableResolver {
 
     if (Array.isArray(value)) {
       return Promise.all(
-        value.map((v) => this.resolveValue(ctx, currentNodeId, v, loopScope, block))
+        value.map((v) => this.resolveValue(ctx, currentNodeId, v, loopScope, block, options))
       )
     }
 
@@ -297,14 +315,14 @@ export class VariableResolver {
       const entries = await Promise.all(
         Object.entries(value).map(async ([key, val]) => [
           key,
-          await this.resolveValue(ctx, currentNodeId, val, loopScope, block),
+          await this.resolveValue(ctx, currentNodeId, val, loopScope, block, options),
         ])
       )
       return Object.fromEntries(entries)
     }
 
     if (typeof value === 'string') {
-      return this.resolveTemplate(ctx, currentNodeId, value, loopScope, block)
+      return this.resolveTemplate(ctx, currentNodeId, value, loopScope, block, options)
     }
     return value
   }
@@ -383,6 +401,17 @@ export class VariableResolver {
               throw getLargeValueMaterializationError(effectiveValue)
             }
             replacement = lazyReplacement
+          } else if (isLargeArrayManifest(effectiveValue)) {
+            const lazyReplacement = this.formatLazyLargeArrayManifestReference(
+              varName,
+              language,
+              template,
+              index
+            )
+            if (!lazyReplacement) {
+              throw getNestedLargeValueMaterializationError()
+            }
+            replacement = lazyReplacement
           } else if (containsLargeValueRef(effectiveValue)) {
             throw getNestedLargeValueMaterializationError()
           } else {
@@ -432,11 +461,53 @@ export class VariableResolver {
           throw getLargeValueMaterializationError(effectiveValue)
         }
 
+        if (isLargeArrayManifest(effectiveValue)) {
+          const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
+          contextVarAccumulator[varName] = effectiveValue
+          const lazyReplacement = this.formatLazyLargeArrayManifestReference(
+            varName,
+            language,
+            template,
+            index
+          )
+          if (lazyReplacement) {
+            displayResult += this.formatDisplayValueForCodeContext(
+              effectiveValue,
+              language,
+              template,
+              index
+            )
+            return lazyReplacement
+          }
+          throw getNestedLargeValueMaterializationError()
+        }
+
         if (containsLargeValueRef(effectiveValue)) {
           throw getNestedLargeValueMaterializationError()
         }
 
-        // Non-block reference (loop, parallel, workflow, env): embed as literal
+        if (
+          this.isWorkflowVariableReference(match) &&
+          this.shouldUseContextVariable(effectiveValue)
+        ) {
+          const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
+          contextVarAccumulator[varName] = effectiveValue
+          const replacement = this.formatContextVariableReference(
+            varName,
+            language,
+            template,
+            index,
+            effectiveValue
+          )
+          displayResult += this.formatDisplayValueForCodeContext(
+            effectiveValue,
+            language,
+            template,
+            index
+          )
+          return replacement
+        }
+
         const replacement = this.blockResolver.formatValueForBlock(
           effectiveValue,
           BlockType.FUNCTION,
@@ -520,6 +591,31 @@ export class VariableResolver {
     return this.formatJavaScriptAsyncExpression(expression, template, matchIndex, {
       stringifyInStringContext: true,
     })
+  }
+
+  private formatLazyLargeArrayManifestReference(
+    varName: string,
+    language: string | undefined,
+    template: string,
+    matchIndex: number
+  ): string | null {
+    if (!this.canUseJavaScriptRuntimeHelpers(language, template)) {
+      return null
+    }
+
+    const expression = `(await sim.values.readArray(globalThis[${JSON.stringify(varName)}]))`
+    return this.formatJavaScriptAsyncExpression(expression, template, matchIndex, {
+      stringifyInStringContext: true,
+    })
+  }
+
+  private isWorkflowVariableReference(reference: string): boolean {
+    const parts = parseReferencePath(reference)
+    return parts[0] === REFERENCE.PREFIX.VARIABLE
+  }
+
+  private shouldUseContextVariable(value: unknown): boolean {
+    return typeof value === 'object' && value !== null
   }
 
   private formatJavaScriptAsyncExpression(
@@ -1011,13 +1107,15 @@ export class VariableResolver {
     currentNodeId: string,
     template: string,
     loopScope?: LoopScope,
-    block?: SerializedBlock
+    block?: SerializedBlock,
+    options: { allowLargeValueRefs?: boolean } = {}
   ): Promise<string> {
     const resolutionContext: ResolutionContext = {
       executionContext: ctx,
       executionState: this.state,
       currentNodeId,
       loopScope,
+      allowLargeValueRefs: options.allowLargeValueRefs,
     }
 
     let replacementError: Error | null = null
