@@ -420,7 +420,7 @@ describe('Azure DevOps request builders', () => {
     } satisfies AddCommentParams
 
     expect(buildUrl(addCommentTool, addParams)).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/wit/workitems/101/comments?api-version=7.2-preview.4'
+      'https://dev.azure.com/contoso/Fabrikam/_apis/wit/workitems/101/comments?api-version=7.0-preview.3'
     )
     expect(buildBody(addCommentTool, addParams)).toEqual({
       text: 'SimIntegrationTest markdown comment',

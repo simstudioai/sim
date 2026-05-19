@@ -51,7 +51,7 @@ export const addCommentTool: ToolConfig<AddCommentParams, AddCommentResponse> = 
       const url = new URL(
         `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/wit/workitems/${Number(params.workItemId)}/comments`
       )
-      url.searchParams.set('api-version', '7.2-preview.4')
+      url.searchParams.set('api-version', '7.0-preview.3')
       return url.toString()
     },
     method: 'POST',
