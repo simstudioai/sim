@@ -1,7 +1,23 @@
 import { NewRelicIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { NewRelicResponse } from '@/tools/new_relic/types'
+import type { NewRelicCustomAttributes, NewRelicResponse } from '@/tools/new_relic/types'
+
+function parseCustomAttributes(value: unknown): NewRelicCustomAttributes | undefined {
+  if (!value) return undefined
+  if (typeof value !== 'string') return value as NewRelicCustomAttributes
+
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+
+  try {
+    return JSON.parse(trimmed) as NewRelicCustomAttributes
+  } catch (error) {
+    throw new Error(
+      `Invalid JSON for customAttributes: ${error instanceof Error ? error.message : String(error)}`
+    )
+  }
+}
 
 export const NewRelicBlock: BlockConfig<NewRelicResponse> = {
   type: 'new_relic',
@@ -291,11 +307,7 @@ Return ONLY the numeric timestamp - no explanations, no extra text.`,
               deepLink: params.deepLink,
               user: params.user,
               groupId: params.groupId,
-              customAttributes: params.customAttributes
-                ? typeof params.customAttributes === 'string'
-                  ? JSON.parse(params.customAttributes)
-                  : params.customAttributes
-                : undefined,
+              customAttributes: parseCustomAttributes(params.customAttributes),
               deploymentType: params.deploymentType,
               timestamp: params.timestamp ? Number(params.timestamp) : undefined,
             }
