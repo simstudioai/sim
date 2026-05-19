@@ -4,6 +4,7 @@ import type {
 } from '@/tools/railway/types'
 import {
   compactVariables,
+  optionalString,
   parseRailwayGraphqlResponse,
   RAILWAY_GRAPHQL_URL,
   railwayHeaders,
@@ -69,7 +70,7 @@ export const railwayListVariablesTool: ToolConfig<
       variables: compactVariables({
         projectId: params.projectId.trim(),
         environmentId: params.environmentId.trim(),
-        serviceId: params.serviceId?.trim(),
+        serviceId: optionalString(params.serviceId),
       }),
     }),
   },

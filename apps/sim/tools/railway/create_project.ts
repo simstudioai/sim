@@ -5,6 +5,7 @@ import type {
 } from '@/tools/railway/types'
 import {
   compactVariables,
+  optionalString,
   parseRailwayGraphqlResponse,
   RAILWAY_GRAPHQL_URL,
   railwayHeaders,
@@ -73,7 +74,7 @@ export const railwayCreateProjectTool: ToolConfig<
       variables: {
         input: compactVariables({
           name: params.name.trim(),
-          defaultEnvironmentName: params.defaultEnvironmentName?.trim(),
+          defaultEnvironmentName: optionalString(params.defaultEnvironmentName),
           prDeploys: params.prDeploys,
         }),
       },

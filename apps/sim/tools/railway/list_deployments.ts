@@ -5,6 +5,7 @@ import type {
   RailwayPageInfo,
 } from '@/tools/railway/types'
 import {
+  optionalString,
   parseRailwayGraphqlResponse,
   RAILWAY_GRAPHQL_URL,
   railwayHeaders,
@@ -105,7 +106,7 @@ export const railwayListDeploymentsTool: ToolConfig<
           environmentId: params.environmentId.trim(),
         },
         first: params.first ? Number(params.first) : 10,
-        after: params.after?.trim(),
+        after: optionalString(params.after),
       },
     }),
   },

@@ -5,6 +5,7 @@ import type {
 } from '@/tools/railway/types'
 import {
   compactVariables,
+  optionalString,
   parseRailwayGraphqlResponse,
   RAILWAY_GRAPHQL_URL,
   railwayHeaders,
@@ -86,7 +87,7 @@ export const railwayCreateEnvironmentTool: ToolConfig<
         input: compactVariables({
           projectId: params.projectId.trim(),
           name: params.name.trim(),
-          sourceEnvironmentId: params.sourceEnvironmentId?.trim(),
+          sourceEnvironmentId: optionalString(params.sourceEnvironmentId),
           ephemeral: params.ephemeral,
           skipInitialDeploys: params.skipInitialDeploys,
         }),
