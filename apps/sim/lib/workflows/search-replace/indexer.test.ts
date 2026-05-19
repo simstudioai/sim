@@ -31,6 +31,39 @@ describe('indexWorkflowSearchMatches', () => {
     expect(matches.at(-1)?.reason).toBe('Block is locked')
   })
 
+  it('finds matches in block names', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'agent',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
+
+    const blockNameMatches = matches.filter((match) => match.target.kind === 'block-name')
+    expect(blockNameMatches.map((match) => [match.blockId, match.rawValue])).toEqual([
+      ['agent-1', 'Agent'],
+      ['locked-1', 'Agent'],
+    ])
+    expect(blockNameMatches.every((match) => match.editable === false)).toBe(true)
+    expect(blockNameMatches.every((match) => match.navigable === true)).toBe(true)
+    expect(blockNameMatches[0]?.fieldTitle).toBe('Block name')
+  })
+
+  it('does not include block-name matches in resource-only mode', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'agent',
+      mode: 'resource',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
+
+    expect(matches.some((match) => match.target.kind === 'block-name')).toBe(false)
+  })
+
   it('does not index internal row metadata in structured subblock values', () => {
     const workflow = createSearchReplaceWorkflowFixture()
 
