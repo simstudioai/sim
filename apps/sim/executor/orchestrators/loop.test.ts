@@ -97,6 +97,28 @@ describe('LoopOrchestrator', () => {
     expect(scope.condition).toBe('true')
   })
 
+  it('keeps doWhile condition semantics when iterations are also configured', async () => {
+    const { orchestrator } = createOrchestrator(
+      new Map([
+        [
+          'loop-1',
+          {
+            loopType: 'doWhile',
+            iterations: 2,
+            doWhileCondition: 'true',
+            nodes: ['block-1'],
+          },
+        ],
+      ])
+    )
+    const ctx = createContext({})
+
+    const scope = await orchestrator.initializeLoopScope(ctx, 'loop-1')
+
+    expect(scope.maxIterations).toBeUndefined()
+    expect(scope.condition).toBe('true')
+  })
+
   it('compacts current iteration outputs before retaining them', async () => {
     const { orchestrator, setBlockOutput } = createOrchestrator()
     const ctx = createContext({

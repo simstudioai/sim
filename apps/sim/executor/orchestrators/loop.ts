@@ -163,9 +163,6 @@ export class LoopOrchestrator {
 
       case 'doWhile': {
         scope.loopType = 'doWhile'
-        if (loopConfig.iterations) {
-          scope.maxIterations = loopConfig.iterations
-        }
         if (loopConfig.doWhileCondition) {
           scope.condition = loopConfig.doWhileCondition
         } else {
