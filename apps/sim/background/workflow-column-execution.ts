@@ -43,6 +43,7 @@ export async function runRowCascadeLoop(
   const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
 
   let currentGroupId = payload.groupId
+  let currentWorkflowId = payload.workflowId
   // Fresh executionId per iteration: SQL guard rejects writes whose id ≠
   // row.executions[gid].executionId, so we need a new claim per group.
   let currentExecutionId = payload.executionId
@@ -62,7 +63,12 @@ export async function runRowCascadeLoop(
     }
 
     const result = await runWorkflowAndWriteTerminal(
-      { ...payload, groupId: currentGroupId, executionId: currentExecutionId },
+      {
+        ...payload,
+        groupId: currentGroupId,
+        workflowId: currentWorkflowId,
+        executionId: currentExecutionId,
+      },
       signal,
       freshTable,
       currentGroup
@@ -75,6 +81,7 @@ export async function runRowCascadeLoop(
     const next = pickNextEligibleGroupForRow(freshTable, freshRow, currentGroupId)
     if (!next) break
     currentGroupId = next.id
+    currentWorkflowId = next.workflowId
     currentExecutionId = generateId()
   }
 }

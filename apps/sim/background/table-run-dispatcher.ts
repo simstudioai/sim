@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { task } from '@trigger.dev/sdk'
-import { dispatcherStep } from '@/lib/table/dispatcher'
+import { runDispatcherToCompletion } from '@/lib/table/dispatcher'
 
 const logger = createLogger('TableRunDispatcherTask')
 
@@ -28,10 +28,7 @@ export const tableRunDispatcherTask = task({
   run: async (payload: TableRunDispatcherPayload) => {
     const { dispatchId } = payload
     try {
-      while (true) {
-        const result = await dispatcherStep(dispatchId)
-        if (result === 'done') return
-      }
+      await runDispatcherToCompletion(dispatchId)
     } catch (err) {
       logger.error(`[${dispatchId}] dispatcher loop failed`, { error: toError(err).message })
       throw err

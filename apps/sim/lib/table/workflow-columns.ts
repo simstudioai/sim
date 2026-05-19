@@ -10,8 +10,7 @@ import { pausedExecutions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
-import { getJobQueue } from '@/lib/core/async-jobs/config'
+import { and, eq, sql } from 'drizzle-orm'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { buildCancelledExecution, writeWorkflowGroupState } from '@/lib/table/cell-write'
@@ -133,65 +132,6 @@ export interface ScheduleOpts {
   mode?: DispatchMode
 }
 
-/**
- * Re-evaluate eligibility on these specific rows and enqueue runnable cells.
- * The hot path: every row write (insert / update / cascade) calls this with the
- * just-written row(s).
- */
-/** Private — only used by `runWorkflowColumn`'s `TRIGGER_DEV_ENABLED=false`
- *  fallback for local dev / testing. Production paths route through the
- *  dispatcher via `runWorkflowColumn`. */
-async function scheduleRunsForRows(
-  table: TableDefinition,
-  rows: TableRow[],
-  opts?: ScheduleOpts
-): Promise<{ triggered: number }> {
-  try {
-    const pendingRuns = buildPendingRuns(table, rows, opts)
-    if (pendingRuns.length === 0) return { triggered: 0 }
-
-    logger.info(`Scheduling ${pendingRuns.length} workflow group cell run(s) for table=${table.id}`)
-
-    const queue = await getJobQueue()
-    const items = await buildEnqueueItems(pendingRuns)
-
-    let jobIds: string[]
-    try {
-      jobIds = await queue.batchEnqueue('workflow-group-cell', items)
-    } catch (err) {
-      logger.error(`Batch enqueue failed for table=${table.id}:`, err)
-      await Promise.allSettled(
-        pendingRuns.map((runOpts) =>
-          writeWorkflowGroupState(runOpts, {
-            executionState: {
-              status: 'error',
-              executionId: runOpts.executionId,
-              jobId: null,
-              workflowId: runOpts.workflowId,
-              error: toError(err).message,
-            },
-          })
-        )
-      )
-      return { triggered: 0 }
-    }
-
-    // Stamp `queued` in chunks of `TABLE_CONCURRENCY_LIMIT`. Within a chunk we
-    // parallelize the writes (no ordering constraint); across chunks we await
-    // serially so trigger.dev still picks rows up in submission order — the
-    // concurrency cap means at most one chunk is in flight per table anyway.
-    for (let i = 0; i < pendingRuns.length; i += TABLE_CONCURRENCY_LIMIT) {
-      const chunk = pendingRuns.slice(i, i + TABLE_CONCURRENCY_LIMIT)
-      const ids = jobIds.slice(i, i + TABLE_CONCURRENCY_LIMIT)
-      await Promise.all(chunk.map((run, j) => stampQueuedOrCancel(queue, run, ids[j])))
-    }
-    return { triggered: pendingRuns.length }
-  } catch (err) {
-    logger.error('scheduleRunsForRows failed:', err)
-    return { triggered: 0 }
-  }
-}
-
 /** Pure eligibility filter + payload building. Shared by the auto-fire path
  *  (`scheduleRunsForRows`) and the dispatcher's per-window batch path. */
 export function buildPendingRuns(
@@ -243,9 +183,10 @@ export function buildPendingRuns(
   return pendingRuns
 }
 
-/** Build the per-cell `{payload, options}` items for `queue.batchEnqueue`.
- *  Hydrates trigger.dev tags, concurrency keys, and the inline runner so the
- *  database backend can run cells in-process when trigger.dev is disabled. */
+/** Build the per-cell `{payload, options}` items for `queue.batchEnqueue` /
+ *  `queue.batchEnqueueAndWait`. Hydrates trigger.dev tags, concurrency keys,
+ *  the inline runner, and the cancel key the inline backend uses to map a
+ *  Stop click to the in-flight cell's AbortController. */
 export async function buildEnqueueItems(
   pendingRuns: WorkflowGroupCellPayload[]
 ): Promise<Array<{ payload: WorkflowGroupCellPayload; options: EnqueueOptions }>> {
@@ -268,8 +209,15 @@ export async function buildEnqueueItems(
       concurrencyLimit: TABLE_CONCURRENCY_LIMIT,
       tags: cellTagsFor(runOpts),
       runner: executeWorkflowGroupCellJob as EnqueueOptions['runner'],
+      cancelKey: cellCancelKey(runOpts.tableId, runOpts.rowId, runOpts.groupId),
     },
   }))
+}
+
+/** Stable key for `cancelInlineRun` lookups. Stamped on every enqueue item by
+ *  `buildEnqueueItems`; the cancel path computes the same key per cell. */
+export function cellCancelKey(tableId: string, rowId: string, groupId: string): string {
+  return `${tableId}:${rowId}:${groupId}`
 }
 
 /** Trigger.dev tags stamped on every `workflow-group-cell` run so tag-based
@@ -341,38 +289,6 @@ export interface WorkflowGroupCellPayload {
 
 /** Per-table concurrency cap. Mirrors trigger.dev's `concurrencyLimit: 20`. */
 export const TABLE_CONCURRENCY_LIMIT = 20
-
-async function stampQueuedOrCancel(
-  queue: Awaited<ReturnType<typeof getJobQueue>>,
-  opts: WorkflowGroupCellPayload,
-  jobId: string
-): Promise<void> {
-  let stampResult: 'wrote' | 'skipped' = 'wrote'
-  try {
-    stampResult = await writeWorkflowGroupState(opts, {
-      executionState: {
-        status: 'queued',
-        executionId: opts.executionId,
-        jobId,
-        workflowId: opts.workflowId,
-        error: null,
-      },
-    })
-  } catch (err) {
-    logger.error(
-      `Failed to stamp queued state (table=${opts.tableId} row=${opts.rowId} group=${opts.groupId}):`,
-      err
-    )
-  }
-
-  if (stampResult === 'skipped') {
-    try {
-      await queue.cancelJob(jobId)
-    } catch (cancelErr) {
-      logger.error(`Failed to cancel orphaned workflow-group-cell job (jobId=${jobId}):`, cancelErr)
-    }
-  }
-}
 
 /**
  * Cancels in-flight workflow-group runs for a table or single row. Writes
@@ -447,15 +363,19 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
     }
   }
 
-  // Cancel in-flight trigger.dev runs. Per-cell jobIds are stamped on
-  // auto-fire enqueues (which use single `tasks.trigger`) but not on
-  // dispatcher batches (which use `batchTriggerAndWait` and only get a batch
-  // handle). Fall back to a tag-based sweep so both paths get cancelled.
-  // Fire-and-forget — the cell-write SQL guard makes workers no-op on
-  // cancelled rows whether or not trigger.dev acks the cancel.
-  const tagSweepPromise = cancelCellRunsByTags(
-    rowId ? [`rowId:${rowId}`] : [`tableId:${tableId}`]
-  )
+  // Abort in-flight cell runs. The interface method `cancelByKey` is a no-op
+  // on the trigger.dev backend (no in-process AbortControllers) and aborts
+  // the matching AbortController on the database backend. Trigger.dev's tag
+  // sweep covers the SaaS path; the cell-write SQL guard is the
+  // authoritative stop signal regardless of backend.
+  for (const m of mutations) {
+    for (const gid of Object.keys(m.executionsPatch)) {
+      queue.cancelByKey(cellCancelKey(tableId, m.rowId, gid))
+    }
+  }
+  const tagSweepPromise = isTriggerDevEnabled
+    ? cancelCellRunsByTags(rowId ? [`rowId:${rowId}`] : [`tableId:${tableId}`])
+    : Promise.resolve()
   await Promise.allSettled([
     ...mutations.flatMap((m) =>
       m.jobIds.map((jobId) =>
@@ -527,10 +447,11 @@ export async function runWorkflowColumn(opts: {
   if (targetGroups.length === 0) throw new Error('No matching workflow groups for run')
   const targetGroupIds = targetGroups.map((g) => g.id)
 
-  // Wipe targeted output cols + executions[gid] before any cells fire. Runs
-  // for both the dispatcher and the inline path so the user sees the column
-  // flip to empty/Pending instantly, regardless of trigger.dev availability.
-  const { bulkClearWorkflowGroupCells } = await import('./dispatcher')
+  // Wipe targeted output cols + executions[gid] before any cells fire so the
+  // user sees the column flip to empty/Pending instantly.
+  const { bulkClearWorkflowGroupCells, insertDispatch, runDispatcherToCompletion } = await import(
+    './dispatcher'
+  )
   await bulkClearWorkflowGroupCells({
     tableId,
     groups: targetGroups.map((g) => ({ id: g.id, outputs: g.outputs })),
@@ -538,39 +459,10 @@ export async function runWorkflowColumn(opts: {
     mode,
   })
 
-  // No trigger.dev: skip the dispatcher entirely and run cells inline via
-  // `DatabaseJobQueue`. The dispatch row + windowed crawl depend on the
-  // async fan-out, which doesn't exist without trigger.dev. This path is
-  // intended for dev/test only — memory characteristics revert to "load all
-  // rows" so it's not safe for large tables.
-  if (!isTriggerDevEnabled) {
-    const filters = [eq(userTableRows.tableId, tableId)]
-    if (rowIds && rowIds.length > 0) {
-      filters.push(inArray(userTableRows.id, rowIds))
-    }
-    const records = await db
-      .select()
-      .from(userTableRows)
-      .where(and(...filters))
-      .orderBy(asc(userTableRows.position))
-    const rows = records.map(toTableRow)
-    logger.info(
-      `[Cascade] [${requestId}] inline run (trigger.dev disabled) table=${tableId} rows=${rows.length} groups=[${targetGroupIds.join(',')}] mode=${mode}`
-    )
-    await scheduleRunsForRows(table, rows, {
-      isManualRun,
-      groupIds: targetGroupIds,
-      mode,
-    })
-    return { dispatchId: null }
-  }
-
-  const [{ insertDispatch }, { tableRunDispatcherTask }, { tasks }] = await Promise.all([
-    import('./dispatcher'),
-    import('@/background/table-run-dispatcher'),
-    import('@trigger.dev/sdk'),
-  ])
-
+  // Always insert a `table_run_dispatches` row. The dispatcher state machine
+  // is the single source of truth for cursor advancement, SSE emission, and
+  // cancel — backend (trigger.dev SaaS vs in-process) only affects how each
+  // window's cells get executed.
   const dispatchId = await insertDispatch({
     tableId,
     workspaceId,
@@ -587,11 +479,29 @@ export async function runWorkflowColumn(opts: {
     `[Cascade] [${requestId}] dispatch ${dispatchId} table=${tableId} groups=[${targetGroupIds.join(',')}] rows=${rowIds ? `[${rowIds.join(',')}]` : 'all'} mode=${mode}`
   )
 
-  await tasks.trigger<typeof tableRunDispatcherTask>(
-    'table-run-dispatcher',
-    { dispatchId },
-    { concurrencyKey: dispatchId }
-  )
+  if (isTriggerDevEnabled) {
+    // Trigger.dev runs `tableRunDispatcherTask`, which loops `dispatcherStep`
+    // until done with CRIU-checkpointed waits between windows.
+    const [{ tableRunDispatcherTask }, { tasks }] = await Promise.all([
+      import('@/background/table-run-dispatcher'),
+      import('@trigger.dev/sdk'),
+    ])
+    await tasks.trigger<typeof tableRunDispatcherTask>(
+      'table-run-dispatcher',
+      { dispatchId },
+      { concurrencyKey: dispatchId }
+    )
+  } else {
+    // Local / no-trigger.dev: drive the same loop in-process, fire-and-forget
+    // so the HTTP request returns instantly (mirrors the trigger.dev path's
+    // async fan-out).
+    void runDispatcherToCompletion(dispatchId).catch((err) =>
+      logger.error(`[${requestId}] dispatcher loop failed`, {
+        dispatchId,
+        error: toError(err).message,
+      })
+    )
+  }
 
   return { dispatchId }
 }

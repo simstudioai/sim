@@ -3,14 +3,14 @@ import { tableRunDispatches, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { tasks } from '@trigger.dev/sdk'
 import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
+import { getJobQueue } from '@/lib/core/async-jobs/config'
 import { writeWorkflowGroupState } from '@/lib/table/cell-write'
 import { appendTableEvent } from '@/lib/table/events'
 import type { TableRow } from '@/lib/table/types'
 import {
+  buildEnqueueItems,
   buildPendingRuns,
-  cellTagsFor,
   type WorkflowGroupCellPayload,
   TABLE_CONCURRENCY_LIMIT,
   toTableRow,
@@ -181,6 +181,13 @@ export async function readDispatch(dispatchId: string): Promise<DispatchRow | nu
   }
 }
 
+/** Drive `dispatcherStep` to completion. Shared between the trigger.dev task
+ *  wrapper (`tableRunDispatcherTask`) and the in-process inline path so both
+ *  runtimes use identical loop semantics + error logging. */
+export async function runDispatcherToCompletion(dispatchId: string): Promise<void> {
+  while ((await dispatcherStep(dispatchId)) === 'continue') {}
+}
+
 /** Run one window of the dispatcher state machine. Caller re-invokes (via the
  *  trigger.dev task wrapper) until the returned status is `'done'`. */
 export async function dispatcherStep(dispatchId: string): Promise<DispatcherStepResult> {
@@ -224,16 +231,20 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
   if (dispatch.scope.rowIds && dispatch.scope.rowIds.length > 0) {
     filters.push(inArray(userTableRows.id, dispatch.scope.rowIds))
   }
-  // `'new'` mode targets only rows with no prior attempt on any targeted
-  // group. Push to SQL so a CSV import into a mostly-attempted table doesn't
-  // pay a per-window load+filter on rows the JS predicate would reject anyway.
-  // `jsonb_exists_any` is the function form of `?|` — safer than the operator,
-  // which collides with prepared-statement placeholder parsing in some
-  // drivers. Excludes rows whose `executions` has any of the targeted gids
-  // as a top-level key.
+  // `'new'` mode targets only rows whose targeted groups haven't been
+  // attempted. Exclude a row only when EVERY targeted group already has an
+  // `executions[gid]` entry — if any one is missing, the row still has work
+  // to do and per-group JS filtering in `classifyEligibility` handles the
+  // rest. `jsonb_exists_all` is the function form of `?&` — safer than the
+  // operator, which collides with prepared-statement placeholder parsing in
+  // some drivers. Drizzle interpolates a JS array as a tuple of placeholders,
+  // not a Postgres array — emit `ARRAY[...]` literally.
   if (dispatch.mode === 'new' && dispatch.scope.groupIds.length > 0) {
     filters.push(
-      sql`NOT jsonb_exists_any(coalesce(${userTableRows.executions}, '{}'::jsonb), ${dispatch.scope.groupIds}::text[])`
+      sql`NOT jsonb_exists_all(coalesce(${userTableRows.executions}, '{}'::jsonb), ARRAY[${sql.join(
+        dispatch.scope.groupIds.map((gid) => sql`${gid}`),
+        sql`, `
+      )}]::text[])`
     )
   }
 
@@ -286,21 +297,17 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
   if (pendingRuns.length > 0) {
     await stampQueuedForBatch(pendingRuns)
 
-    // `batchTriggerAndWait` blocks the parent dispatcher until every cell
-    // terminates (success / fail / cancel). Trigger.dev checkpoints the
-    // parent during the wait via CRIU, so we don't pay compute. Bounds the
-    // queue depth at WINDOW_SIZE per dispatch — no flooding trigger.dev.
-    const items = pendingRuns.map((runOpts) => ({
-      payload: runOpts,
-      options: {
-        concurrencyKey: runOpts.tableId,
-        tags: cellTagsFor(runOpts),
-      },
-    }))
+    // Backend-agnostic batch dispatch: trigger.dev wraps `batchTriggerAndWait`
+    // (CRIU-checkpointed wait); database backend calls the cell-task runner
+    // directly via Promise.all (skips async_jobs since we're awaiting in-
+    // process anyway). Either way the parent dispatcher blocks until every
+    // cell in the window terminates — bounds queue depth at WINDOW_SIZE.
+    const items = await buildEnqueueItems(pendingRuns)
+    const queue = await getJobQueue()
     try {
-      await tasks.batchTriggerAndWait('workflow-group-cell', items)
+      await queue.batchEnqueueAndWait('workflow-group-cell', items)
     } catch (err) {
-      logger.error(`[${dispatchId}] batchTriggerAndWait failed`, {
+      logger.error(`[${dispatchId}] batch dispatch failed`, {
         error: toError(err).message,
       })
       // Don't bail the dispatch — terminal states are already in the DB

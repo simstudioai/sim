@@ -6,7 +6,7 @@ import type {
   TableRow as TableRowType,
   WorkflowGroup,
 } from '@/lib/table'
-import { areOutputsFilled } from '@/lib/table/deps'
+import { areGroupDepsSatisfied, areOutputsFilled } from '@/lib/table/deps'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import type { DisplayColumn } from './types'
 
@@ -170,10 +170,12 @@ export function readExecution(
 
 /**
  * Resolves a cell's execution state with the "about to run" overlay applied:
- * for cells in an active dispatch's scope ahead of its cursor, returns a
- * synthetic `pending` exec so the renderer shows `Queued`. Cells with a real
- * DB exec always win — the overlay only fills the gap between dispatch start
- * and the dispatcher's per-row pending stamp.
+ * for cells in an active dispatch's scope ahead of its cursor whose deps are
+ * already satisfied, returns a synthetic `pending` exec so the renderer
+ * shows `Queued`. Cells with a real DB exec always win — the overlay only
+ * fills the gap between dispatch start and the dispatcher's per-row pending
+ * stamp. Cells with unmet deps still render as `Waiting` (the renderer
+ * computes that from `waitingOnLabels`).
  */
 export function resolveCellExec(
   row: TableRowType,
@@ -185,6 +187,7 @@ export function resolveCellExec(
   if (real) return real
   if (!activeDispatches || activeDispatches.length === 0) return undefined
   if (areOutputsFilled(group, row)) return undefined
+  if (!areGroupDepsSatisfied(group, row)) return undefined
   for (const d of activeDispatches) {
     if (!d.scope.groupIds.includes(group.id)) continue
     if (d.scope.rowIds && !d.scope.rowIds.includes(row.id)) continue

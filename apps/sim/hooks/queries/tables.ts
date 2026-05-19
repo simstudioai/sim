@@ -72,6 +72,7 @@ import type {
   WorkflowGroupOutput,
 } from '@/lib/table'
 import {
+  areGroupDepsSatisfied,
   areOutputsFilled,
   isExecInFlight,
   optimisticallyScheduleNewlyEligibleGroups,
@@ -1331,22 +1332,23 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         for (const groupId of targetGroupIds) {
           const exec = executions[groupId] as RowExecutionMetadata | undefined
           if (isExecInFlight(exec)) continue
+          const group = groupsById.get(groupId)
+          // Mirror server eligibility: rows with unmet deps are skipped by the
+          // dispatcher regardless of mode. Stamping pending here would leave
+          // the cell flashing Queued indefinitely (no SSE event will arrive).
+          if (group && !areGroupDepsSatisfied(group, r)) continue
           // Mirror server eligibility for `mode: 'incomplete'`: skip cells whose
           // outputs are filled, regardless of exec status. A cancelled/error
           // cell with a leftover value from a prior run was rendering as filled
           // but flipping to "queued" optimistically here even though the server
           // would skip it.
-          if (runMode === 'incomplete') {
-            const group = groupsById.get(groupId)
-            if (group && areOutputsFilled(group, r)) continue
-          }
+          if (runMode === 'incomplete' && group && areOutputsFilled(group, r)) continue
           next[groupId] = buildPendingExec(exec)
           // Mirror the server-side bulk clear: wipe output values so the cell
           // doesn't render the stale completed value behind a pending badge.
           // Without this the cell-render path's "value wins" branch keeps
           // showing the previous run's output and the Queued/Running pill
           // never appears.
-          const group = groupsById.get(groupId)
           if (group) {
             for (const o of group.outputs) {
               if (o.columnName in nextData) nextData[o.columnName] = null
