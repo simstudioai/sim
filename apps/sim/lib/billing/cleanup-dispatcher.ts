@@ -1,14 +1,17 @@
 import { db } from '@sim/db'
+import type { WorkspaceMode } from '@sim/db/schema'
 import { organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
 import { eq, isNull } from 'drizzle-orm'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getPlanType, type PlanCategory } from '@/lib/billing/plan-helpers'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
+import { isOrganizationWorkspace } from '@/lib/workspaces/policy'
 
 const logger = createLogger('RetentionDispatcher')
 
@@ -41,10 +44,14 @@ interface CleanupJobConfig {
 interface WorkspaceCleanupScopeRow {
   id: string
   billedAccountUserId: string
+  organizationId: string | null
+  workspaceMode: WorkspaceMode
   organizationSettings: OrganizationRetentionSettings | null
 }
 
 const DAY = 24
+
+type PlanResolutionEntry = readonly [string, PlanCategory]
 
 /**
  * Single source of truth for cleanup retention: which key each job type reads
@@ -72,6 +79,8 @@ async function listActiveWorkspaceCleanupScopeRows(): Promise<WorkspaceCleanupSc
     .select({
       id: workspace.id,
       billedAccountUserId: workspace.billedAccountUserId,
+      organizationId: workspace.organizationId,
+      workspaceMode: workspace.workspaceMode,
       organizationSettings: organization.dataRetentionSettings,
     })
     .from(workspace)
@@ -91,12 +100,56 @@ async function resolvePlanTypesByBilledUserId(
   const billedUserIds = Array.from(new Set(rows.map((row) => row.billedAccountUserId)))
   const entries = await Promise.all(
     billedUserIds.map(async (userId) => {
-      const subscription = await getHighestPrioritySubscription(userId, { onError: 'throw' })
-      return [userId, getPlanType(subscription?.plan)] as const
+      try {
+        const subscription = await getHighestPrioritySubscription(userId, { onError: 'throw' })
+        return [userId, getPlanType(subscription?.plan)] as const
+      } catch (error) {
+        logger.error('Skipping cleanup for billed user after plan lookup failed', {
+          userId,
+          error,
+        })
+        return null
+      }
     })
   )
 
-  return new Map(entries)
+  return new Map(entries.filter((entry): entry is PlanResolutionEntry => entry !== null))
+}
+
+async function resolvePlanTypesByWorkspaceId(
+  rows: WorkspaceCleanupScopeRow[]
+): Promise<Map<string, PlanCategory>> {
+  const userScopedRows = rows.filter((row) => !isOrganizationWorkspace(row))
+  const userPlanByBilledUserId = await resolvePlanTypesByBilledUserId(userScopedRows)
+  const entries = await Promise.all(
+    rows.map(async (row) => {
+      const organizationId = isOrganizationWorkspace(row) ? row.organizationId : null
+      if (organizationId) {
+        try {
+          const subscription = await getOrganizationSubscription(organizationId, {
+            onError: 'throw',
+          })
+          return [row.id, getPlanType(subscription?.plan)] as const
+        } catch (error) {
+          logger.error('Skipping cleanup for organization workspace after plan lookup failed', {
+            workspaceId: row.id,
+            organizationId,
+            error,
+          })
+          return null
+        }
+      }
+
+      const plan = userPlanByBilledUserId.get(row.billedAccountUserId)
+      if (plan === undefined) {
+        return null
+      }
+
+      return [row.id, plan] as const
+    })
+  )
+
+  return new Map(entries.filter((entry): entry is PlanResolutionEntry => entry !== null))
 }
 
 /**
@@ -107,10 +160,8 @@ async function resolvePlanTypesByBilledUserId(
  */
 async function resolveWorkspaceIdsForPlan(plan: NonEnterprisePlan): Promise<string[]> {
   const rows = await listActiveWorkspaceCleanupScopeRows()
-  const planByBilledUserId = await resolvePlanTypesByBilledUserId(rows)
-  return rows
-    .filter((row) => planByBilledUserId.get(row.billedAccountUserId) === plan)
-    .map((row) => row.id)
+  const planByWorkspaceId = await resolvePlanTypesByWorkspaceId(rows)
+  return rows.filter((row) => planByWorkspaceId.get(row.id) === plan).map((row) => row.id)
 }
 
 export interface ResolvedCleanupScope {
@@ -198,10 +249,10 @@ export async function dispatchCleanupJobs(
   }
 
   const activeWorkspaceRows = await listActiveWorkspaceCleanupScopeRows()
-  const planByBilledUserId = await resolvePlanTypesByBilledUserId(activeWorkspaceRows)
+  const planByWorkspaceId = await resolvePlanTypesByWorkspaceId(activeWorkspaceRows)
   const enterpriseRows = activeWorkspaceRows.filter(
     (row) =>
-      planByBilledUserId.get(row.billedAccountUserId) === 'enterprise' &&
+      planByWorkspaceId.get(row.id) === 'enterprise' &&
       row.organizationSettings?.[config.key] != null
   )
 
