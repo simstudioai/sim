@@ -69,10 +69,18 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
     VERCEL_TELEMETRY_DISABLED=1 \
     DOCKER_BUILD=1
 
-# Provide dummy database URLs during image build so server code that imports @sim/db
-# can be evaluated without crashing. Runtime environments should override these.
+# Provide dummy values during image build so module-eval-time validators
+# (e.g. @sim/db connection init, getBaseUrl() in lib/core/utils/urls) don't
+# crash next build during page-data collection. Runtime environments must
+# override both. NEXT_PUBLIC_APP_URL is intentionally NOT read by
+# next.config.ts at build time — response CORS is computed at request time
+# in proxy.ts via getEnv(), so the localhost fallback below cannot leak
+# into production CORS response headers.
 ARG DATABASE_URL="postgresql://user:pass@localhost:5432/dummy"
 ENV DATABASE_URL=${DATABASE_URL}
+
+ARG NEXT_PUBLIC_APP_URL="http://localhost:3000"
+ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
 # Per-platform cache id keeps arm64/amd64 SWC artifacts isolated.
 RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
