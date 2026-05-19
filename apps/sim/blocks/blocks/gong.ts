@@ -179,7 +179,6 @@ Return ONLY the JSON array - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['list_calls'],
       },
-      required: { field: 'operation', value: 'list_calls' },
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.

@@ -9,7 +9,7 @@ interface GongBaseParams {
 /** List Calls */
 export interface GongListCallsParams extends GongBaseParams {
   fromDateTime: string
-  toDateTime: string
+  toDateTime?: string
   cursor?: string
   workspaceId?: string
 }

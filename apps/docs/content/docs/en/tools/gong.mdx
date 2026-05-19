@@ -48,7 +48,7 @@ Retrieve call data by date range from Gong.
 | `accessKey` | string | Yes | Gong API Access Key |
 | `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `fromDateTime` | string | Yes | Start date/time in ISO-8601 format \(e.g., 2024-01-01T00:00:00Z\) |
-| `toDateTime` | string | Yes | End date/time in ISO-8601 format \(e.g., 2024-01-31T23:59:59Z\) |
+| `toDateTime` | string | No | End date/time in ISO-8601 format \(e.g., 2024-01-31T23:59:59Z\). Defaults to the current execution time when omitted. |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `workspaceId` | string | No | Gong workspace ID to filter calls |
 

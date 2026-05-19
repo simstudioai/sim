@@ -29,9 +29,10 @@ export const listCallsTool: ToolConfig<GongListCallsParams, GongListCallsRespons
     },
     toDateTime: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'End date/time in ISO-8601 format (e.g., 2024-01-31T23:59:59Z)',
+      description:
+        'End date/time in ISO-8601 format (e.g., 2024-01-31T23:59:59Z). Defaults to the current execution time when omitted.',
     },
     cursor: {
       type: 'string',
@@ -51,7 +52,7 @@ export const listCallsTool: ToolConfig<GongListCallsParams, GongListCallsRespons
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/calls')
       url.searchParams.set('fromDateTime', params.fromDateTime.trim())
-      url.searchParams.set('toDateTime', params.toDateTime.trim())
+      url.searchParams.set('toDateTime', params.toDateTime?.trim() || new Date().toISOString())
       if (params.cursor?.trim()) url.searchParams.set('cursor', params.cursor.trim())
       if (params.workspaceId?.trim()) url.searchParams.set('workspaceId', params.workspaceId.trim())
       return url.toString()

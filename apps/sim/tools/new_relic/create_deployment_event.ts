@@ -134,6 +134,9 @@ const buildCustomAttributes = (
 const buildDeploymentMutation = (params: NewRelicCreateDeploymentEventParams): string => {
   const deploymentType = getDeploymentType(params.deploymentType)
   const entityGuid = params.entityGuid.trim()
+  if (!entityGuid || entityGuid.includes("'")) {
+    throw new Error('Invalid entity GUID: value must not be empty or contain single quotes')
+  }
   const version = params.version.trim()
   const shortDescription = cleanOptionalString(params.shortDescription)
   const description = cleanOptionalString(params.description)
