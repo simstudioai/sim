@@ -44,11 +44,11 @@ export function generateThemeCSS(): string {
   }
 
   if (process.env.NEXT_PUBLIC_BRAND_ACCENT_COLOR) {
-    cssVars.push(`--brand-link: ${process.env.NEXT_PUBLIC_BRAND_ACCENT_COLOR};`)
+    cssVars.push(`--brand-accent: ${process.env.NEXT_PUBLIC_BRAND_ACCENT_COLOR};`)
   }
 
   if (process.env.NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR) {
-    cssVars.push(`--brand-link-hover: ${process.env.NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR};`)
+    cssVars.push(`--brand-accent-hover: ${process.env.NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR};`)
   }
 
   if (process.env.NEXT_PUBLIC_BRAND_BACKGROUND_COLOR) {
