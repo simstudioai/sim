@@ -5,13 +5,13 @@ import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
 import { eq, isNull } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
 import { getPlanType, type PlanCategory } from '@/lib/billing/plan-helpers'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
-import { isOrganizationWorkspace } from '@/lib/workspaces/policy'
+import { isOrganizationWorkspace, WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('RetentionDispatcher')
 
@@ -94,14 +94,16 @@ async function listActiveWorkspaceCleanupScopeRows(): Promise<WorkspaceCleanupSc
   }))
 }
 
-async function resolvePlanTypesByBilledUserId(
+async function resolvePersonalPlanTypesByBilledUserId(
   rows: WorkspaceCleanupScopeRow[]
 ): Promise<Map<string, PlanCategory>> {
   const billedUserIds = Array.from(new Set(rows.map((row) => row.billedAccountUserId)))
   const entries = await Promise.all(
     billedUserIds.map(async (userId) => {
       try {
-        const subscription = await getHighestPrioritySubscription(userId, { onError: 'throw' })
+        const subscription = await getHighestPriorityPersonalSubscription(userId, {
+          onError: 'throw',
+        })
         return [userId, getPlanType(subscription?.plan)] as const
       } catch (error) {
         logger.error('Skipping cleanup for billed user after plan lookup failed', {
@@ -119,16 +121,32 @@ async function resolvePlanTypesByBilledUserId(
 async function resolvePlanTypesByWorkspaceId(
   rows: WorkspaceCleanupScopeRow[]
 ): Promise<Map<string, PlanCategory>> {
-  const userScopedRows = rows.filter((row) => !isOrganizationWorkspace(row))
-  const userPlanByBilledUserId = await resolvePlanTypesByBilledUserId(userScopedRows)
+  const userScopedRows = rows.filter((row) => row.workspaceMode !== WORKSPACE_MODE.ORGANIZATION)
+  const userPlanByBilledUserId = await resolvePersonalPlanTypesByBilledUserId(userScopedRows)
   const entries = await Promise.all(
     rows.map(async (row) => {
-      const organizationId = isOrganizationWorkspace(row) ? row.organizationId : null
-      if (organizationId) {
+      if (row.workspaceMode === WORKSPACE_MODE.ORGANIZATION) {
+        const organizationId = isOrganizationWorkspace(row) ? row.organizationId : null
+        if (!organizationId) {
+          logger.error('Skipping cleanup for malformed organization workspace', {
+            workspaceId: row.id,
+            organizationId: row.organizationId,
+          })
+          return null
+        }
+
         try {
           const subscription = await getOrganizationSubscription(organizationId, {
             onError: 'throw',
           })
+          if (!subscription) {
+            logger.warn('Skipping cleanup for organization workspace without an org subscription', {
+              workspaceId: row.id,
+              organizationId,
+            })
+            return null
+          }
+
           return [row.id, getPlanType(subscription?.plan)] as const
         } catch (error) {
           logger.error('Skipping cleanup for organization workspace after plan lookup failed', {
@@ -190,11 +208,25 @@ export async function resolveCleanupScope(
   }
 
   const [row] = await db
-    .select({ settings: organization.dataRetentionSettings })
+    .select({
+      id: workspace.id,
+      organizationId: workspace.organizationId,
+      workspaceMode: workspace.workspaceMode,
+      billedAccountUserId: workspace.billedAccountUserId,
+      settings: organization.dataRetentionSettings,
+    })
     .from(workspace)
     .innerJoin(organization, eq(organization.id, workspace.organizationId))
     .where(eq(workspace.id, payload.workspaceId))
     .limit(1)
+
+  if (!row || !isOrganizationWorkspace(row)) return null
+
+  const organizationId = row.organizationId
+  if (!organizationId) return null
+
+  const subscription = await getOrganizationSubscription(organizationId, { onError: 'throw' })
+  if (getPlanType(subscription?.plan) !== 'enterprise') return null
 
   const hours = row?.settings?.[config.key]
   if (hours == null) return null

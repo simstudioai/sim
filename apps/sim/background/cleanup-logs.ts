@@ -2,14 +2,14 @@ import { db } from '@sim/db'
 import { jobExecutionLogs, pausedExecutions, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
-import { and, eq, inArray, isNull, lt, notInArray, or } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 import { type CleanupJobPayload, resolveCleanupScope } from '@/lib/billing/cleanup-dispatcher'
 import {
   batchDeleteByWorkspaceAndTimestamp,
   chunkedBatchDelete,
   type TableCleanupResult,
 } from '@/lib/cleanup/batch-delete'
-import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
@@ -27,53 +27,31 @@ interface FileDeleteStats {
 
 const RESUMABLE_PAUSED_STATUSES = ['paused', 'partially_resumed', 'cancelling']
 
-export function collectExecutionLargeValueKeys(value: unknown, executionId: string): string[] {
-  const keys = new Set<string>()
-  collectExecutionLargeValueKeysInto(value, executionId, new WeakSet<object>(), keys)
-  return Array.from(keys)
-}
+async function filterLargeValueKeysWithoutRetainedReferences(
+  keys: string[],
+  deletedLogIds: string[]
+): Promise<string[]> {
+  if (keys.length === 0 || deletedLogIds.length === 0) return []
 
-function getExecutionIdFromStorageKey(key: string): string | undefined {
-  const parts = key.split('/')
-  if (parts[0] !== 'execution' || parts.length < 5) {
-    return undefined
-  }
-  return parts[3]
-}
+  const unreferencedKeys: string[] = []
+  for (const key of Array.from(new Set(keys))) {
+    const [referencingLog] = await db
+      .select({ id: workflowExecutionLogs.id })
+      .from(workflowExecutionLogs)
+      .where(
+        and(
+          notInArray(workflowExecutionLogs.id, deletedLogIds),
+          sql`position(${key} in ${workflowExecutionLogs.executionData}::text) > 0`
+        )
+      )
+      .limit(1)
 
-function collectExecutionLargeValueKeysInto(
-  value: unknown,
-  executionId: string,
-  seen: WeakSet<object>,
-  keys: Set<string>
-): void {
-  if (!value || typeof value !== 'object') {
-    return
-  }
-
-  if (seen.has(value)) {
-    return
-  }
-
-  if (isLargeValueRef(value)) {
-    if (value.key && getExecutionIdFromStorageKey(value.key) === executionId) {
-      keys.add(value.key)
+    if (!referencingLog) {
+      unreferencedKeys.push(key)
     }
-    return
   }
 
-  seen.add(value)
-
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      collectExecutionLargeValueKeysInto(item, executionId, seen, keys)
-    }
-    return
-  }
-
-  for (const entryValue of Object.values(value)) {
-    collectExecutionLargeValueKeysInto(entryValue, executionId, seen, keys)
-  }
+  return unreferencedKeys
 }
 
 async function deleteExecutionFiles(files: unknown, stats: FileDeleteStats): Promise<void> {
@@ -159,13 +137,17 @@ async function cleanupWorkflowExecutionLogs(
         )
         .limit(limit),
     onBatch: async (rows) => {
+      const deletedLogIds = rows.map((row) => row.id)
+      const largeValueKeys = rows.flatMap((row) => collectLargeValueKeys(row.executionData))
+      const unreferencedLargeValueKeys = await filterLargeValueKeysWithoutRetainedReferences(
+        largeValueKeys,
+        deletedLogIds
+      )
+
       for (const row of rows) {
         await deleteExecutionFiles(row.files, fileStats)
-        await deleteLargeValueStorageKeys(
-          collectExecutionLargeValueKeys(row.executionData, row.executionId),
-          fileStats
-        )
       }
+      await deleteLargeValueStorageKeys(unreferencedLargeValueKeys, fileStats)
     },
   })
 
