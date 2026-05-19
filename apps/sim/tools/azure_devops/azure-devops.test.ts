@@ -102,7 +102,7 @@ const rawComment = {
   modifiedBy: { displayName: 'Ada Lovelace' },
   modifiedDate: '2026-05-15T10:00:00Z',
   isDeleted: false,
-  url: 'https://dev.azure.com/contoso/Fabrikam/_apis/wit/workItems/101/comments/9',
+  url: 'https://dev.azure.com/contoso/Fabrikam/_apis/wit/workitems/101/comments/9',
   id: 9,
 }
 
@@ -418,7 +418,7 @@ describe('Azure DevOps request builders', () => {
     } satisfies AddCommentParams
 
     expect(buildUrl(addCommentTool, addParams)).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/wit/workItems/101/comments?api-version=7.2-preview.4'
+      'https://dev.azure.com/contoso/Fabrikam/_apis/wit/workitems/101/comments?api-version=7.2-preview.4'
     )
     expect(buildBody(addCommentTool, addParams)).toEqual({
       text: 'SimIntegrationTest markdown comment',
@@ -435,7 +435,7 @@ describe('Azure DevOps request builders', () => {
         order: 'desc',
       } satisfies GetCommentsParams)
     ).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/wit/workItems/101/comments?api-version=7.2-preview.4&%24top=2&continuationToken=next&includeDeleted=true&%24expand=renderedText&order=desc'
+      'https://dev.azure.com/contoso/Fabrikam/_apis/wit/workitems/101/comments?api-version=7.2-preview.4&%24top=2&continuationToken=next&includeDeleted=true&%24expand=renderedText&order=desc'
     )
   })
 })
@@ -650,7 +650,7 @@ describe('Azure DevOps response transforms', () => {
       modifiedBy: 'Ada Lovelace',
       modifiedDate: '2026-05-15T10:00:00Z',
       isDeleted: false,
-      url: 'https://dev.azure.com/contoso/Fabrikam/_apis/wit/workItems/101/comments/9',
+      url: 'https://dev.azure.com/contoso/Fabrikam/_apis/wit/workitems/101/comments/9',
     })
 
     const comments = await getCommentsTool.transformResponse!(

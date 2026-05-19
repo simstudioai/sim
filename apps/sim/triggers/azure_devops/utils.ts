@@ -10,9 +10,7 @@ export const AZURE_DEVOPS_BUILD_FAILED_EVENT = 'build.complete'
 export const AZURE_DEVOPS_WORK_ITEM_CREATED_EVENT = 'workitem.created'
 
 function instructions(steps: string[]): string {
-  return steps
-    .map((s, i) => `<div class="mb-3"><strong>${i + 1}.</strong> ${s}</div>`)
-    .join('')
+  return steps.map((s, i) => `<div class="mb-3"><strong>${i + 1}.</strong> ${s}</div>`).join('')
 }
 
 export const buildFailedSetupInstructions = instructions([
@@ -44,10 +42,7 @@ export const webhookSetupInstructions = instructions([
 /**
  * Returns whether an Azure DevOps service hook payload matches the configured trigger.
  */
-export function isAzureDevOpsEventMatch(
-  triggerId: string,
-  body: Record<string, unknown>
-): boolean {
+export function isAzureDevOpsEventMatch(triggerId: string, body: Record<string, unknown>): boolean {
   if (triggerId === 'azure_devops_webhook') {
     return true
   }

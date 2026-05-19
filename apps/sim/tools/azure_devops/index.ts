@@ -15,6 +15,8 @@ import { listPipelinesTool } from '@/tools/azure_devops/list_pipelines'
 import { queryWorkItemsTool } from '@/tools/azure_devops/query_work_items'
 import { updateWorkItemTool } from '@/tools/azure_devops/update_work_item'
 
+export * from '@/tools/azure_devops/types'
+
 export {
   listPipelinesTool,
   getPipelineTool,

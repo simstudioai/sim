@@ -49,7 +49,7 @@ export const addCommentTool: ToolConfig<AddCommentParams, AddCommentResponse> = 
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization}/${params.project}/_apis/wit/workItems/${Number(params.workItemId)}/comments`
+        `https://dev.azure.com/${params.organization}/${params.project}/_apis/wit/workitems/${Number(params.workItemId)}/comments`
       )
       url.searchParams.set('api-version', '7.2-preview.4')
       return url.toString()

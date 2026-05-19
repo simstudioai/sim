@@ -8,11 +8,6 @@ import {
   ashbyOfferCreateTrigger,
 } from '@/triggers/ashby'
 import {
-  azureDevOpsBuildFailedTrigger,
-  azureDevOpsWebhookTrigger,
-  azureDevOpsWorkItemCreatedTrigger,
-} from '@/triggers/azure_devops'
-import {
   attioCommentCreatedTrigger,
   attioCommentDeletedTrigger,
   attioCommentResolvedTrigger,
@@ -36,6 +31,11 @@ import {
   attioWebhookTrigger,
   attioWorkspaceMemberCreatedTrigger,
 } from '@/triggers/attio'
+import {
+  azureDevOpsBuildFailedTrigger,
+  azureDevOpsWebhookTrigger,
+  azureDevOpsWorkItemCreatedTrigger,
+} from '@/triggers/azure_devops'
 import {
   calcomBookingCancelledTrigger,
   calcomBookingCreatedTrigger,

@@ -67,8 +67,7 @@ export const createWorkItemTool: ToolConfig<CreateWorkItemParams, CreateWorkItem
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Effort (Microsoft.VSTS.Scheduling.Effort). Basic process: Issue only.',
+      description: 'Effort (Microsoft.VSTS.Scheduling.Effort). Basic process: Issue only.',
     },
     startDate: {
       type: 'string',
@@ -157,8 +156,20 @@ export const createWorkItemTool: ToolConfig<CreateWorkItemParams, CreateWorkItem
         })
       }
       appendEffortPatchOp(ops, params.effort, 'add')
-      appendFieldPatchOp(ops, 'Microsoft.VSTS.Scheduling.StartDate', params.startDate, 'add', 'string')
-      appendFieldPatchOp(ops, 'Microsoft.VSTS.Scheduling.TargetDate', params.targetDate, 'add', 'string')
+      appendFieldPatchOp(
+        ops,
+        'Microsoft.VSTS.Scheduling.StartDate',
+        params.startDate,
+        'add',
+        'string'
+      )
+      appendFieldPatchOp(
+        ops,
+        'Microsoft.VSTS.Scheduling.TargetDate',
+        params.targetDate,
+        'add',
+        'string'
+      )
       appendFieldPatchOp(ops, 'Microsoft.VSTS.Common.Activity', params.activity, 'add', 'string')
       appendFieldPatchOp(
         ops,

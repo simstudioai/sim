@@ -1,11 +1,11 @@
 import { AzureDevOpsIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
-import type { TriggerConfig } from '@/triggers/types'
 import {
   azureDevOpsTriggerOptions,
   buildBuildFailedOutputs,
   buildFailedSetupInstructions,
 } from '@/triggers/azure_devops/utils'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const azureDevOpsBuildFailedTrigger: TriggerConfig = {
   id: 'azure_devops_build_failed',

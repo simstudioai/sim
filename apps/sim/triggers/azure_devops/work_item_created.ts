@@ -1,11 +1,11 @@
 import { AzureDevOpsIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
-import type { TriggerConfig } from '@/triggers/types'
 import {
   azureDevOpsTriggerOptions,
   buildWorkItemCreatedOutputs,
   workItemCreatedSetupInstructions,
 } from '@/triggers/azure_devops/utils'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const azureDevOpsWorkItemCreatedTrigger: TriggerConfig = {
   id: 'azure_devops_work_item_created',

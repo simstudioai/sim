@@ -73,15 +73,13 @@ export const updateWorkItemTool: ToolConfig<UpdateWorkItemParams, UpdateWorkItem
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'New state for Basic-process work items: "To Do", "Doing", or "Done" (optional)',
+      description: 'New state for Basic-process work items: "To Do", "Doing", or "Done" (optional)',
     },
     effort: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Effort (Microsoft.VSTS.Scheduling.Effort). Basic process: Issue only.',
+      description: 'Effort (Microsoft.VSTS.Scheduling.Effort). Basic process: Issue only.',
     },
     startDate: {
       type: 'string',
@@ -142,10 +140,21 @@ export const updateWorkItemTool: ToolConfig<UpdateWorkItemParams, UpdateWorkItem
     }),
     body: (params) => {
       const ops: AzureDevOpsJsonPatchOp[] = []
-      if (!params.title && !params.description && !params.assignedTo && !params.areaPath &&
-          params.priority === undefined && !params.state && params.effort === undefined &&
-          !params.startDate && !params.targetDate && !params.activity &&
-          params.remainingWork === undefined && params.completedWork === undefined && !params.tags) {
+      if (
+        !params.title &&
+        !params.description &&
+        !params.assignedTo &&
+        !params.areaPath &&
+        params.priority === undefined &&
+        !params.state &&
+        params.effort === undefined &&
+        !params.startDate &&
+        !params.targetDate &&
+        !params.activity &&
+        params.remainingWork === undefined &&
+        params.completedWork === undefined &&
+        !params.tags
+      ) {
         throw new Error('Update Work Item requires at least one field to update.')
       }
       if (params.title) {
@@ -185,7 +194,13 @@ export const updateWorkItemTool: ToolConfig<UpdateWorkItemParams, UpdateWorkItem
         'replace',
         'string'
       )
-      appendFieldPatchOp(ops, 'Microsoft.VSTS.Common.Activity', params.activity, 'replace', 'string')
+      appendFieldPatchOp(
+        ops,
+        'Microsoft.VSTS.Common.Activity',
+        params.activity,
+        'replace',
+        'string'
+      )
       appendFieldPatchOp(
         ops,
         'Microsoft.VSTS.Scheduling.RemainingWork',
