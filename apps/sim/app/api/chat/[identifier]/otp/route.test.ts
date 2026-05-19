@@ -26,7 +26,6 @@ const {
   mockDbUpdate,
   mockSendEmail,
   mockRenderOTPEmail,
-  mockAddCorsHeaders,
   mockSetChatAuthCookie,
   mockGetStorageMethod,
   mockZodParse,
@@ -50,7 +49,6 @@ const {
   const mockDbUpdate = vi.fn()
   const mockSendEmail = vi.fn()
   const mockRenderOTPEmail = vi.fn()
-  const mockAddCorsHeaders = vi.fn()
   const mockSetChatAuthCookie = vi.fn()
   const mockGetStorageMethod = vi.fn()
   const mockZodParse = vi.fn()
@@ -69,7 +67,6 @@ const {
     mockDbUpdate,
     mockSendEmail,
     mockRenderOTPEmail,
-    mockAddCorsHeaders,
     mockSetChatAuthCookie,
     mockGetStorageMethod,
     mockZodParse,
@@ -131,7 +128,6 @@ vi.mock('@/components/emails', () => ({
 }))
 
 vi.mock('@/lib/core/security/deployment', () => ({
-  addCorsHeaders: mockAddCorsHeaders,
   isEmailAllowed: (email: string, allowedEmails: string[]) => {
     if (allowedEmails.includes(email)) return true
     const atIndex = email.indexOf('@')
@@ -248,7 +244,6 @@ describe('Chat OTP API Route', () => {
     mockSendEmail.mockResolvedValue({ success: true })
     mockRenderOTPEmail.mockResolvedValue('<html>OTP Email</html>')
 
-    mockAddCorsHeaders.mockImplementation((response: unknown) => response)
     mockCreateSuccessResponse.mockImplementation((data: unknown) => ({
       json: () => Promise.resolve(data),
       status: 200,

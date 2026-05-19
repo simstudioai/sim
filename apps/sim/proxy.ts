@@ -51,9 +51,13 @@ function resolveApiCorsPolicy(request: NextRequest): CorsPolicy {
       headers: 'Content-Type, Authorization, X-API-Key, X-Requested-With, Accept',
     }
   }
-  if (pathname === '/api/form' || pathname.startsWith('/api/form/')) {
-    // Form embeds run on customer domains; reflect origin to match
-    // addCorsHeaders in lib/core/security/deployment.ts.
+  if (
+    pathname === '/api/form' ||
+    pathname.startsWith('/api/form/') ||
+    pathname.startsWith('/api/chat/')
+  ) {
+    // Chat and form embeds run on customer domains; reflect the request
+    // origin and omit credentials (auth uses signed tokens, not cookies).
     return {
       origin: request.headers.get('origin') || '*',
       credentials: false,
@@ -219,9 +223,6 @@ export async function proxy(request: NextRequest) {
     const policy = resolveApiCorsPolicy(request)
     if (request.method === 'OPTIONS') {
       return buildPreflightResponse(policy)
-    }
-    if (url.pathname === '/api/form' || url.pathname.startsWith('/api/form/')) {
-      return NextResponse.next()
     }
     const response = NextResponse.next()
     applyCorsHeaders(response, policy)

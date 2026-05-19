@@ -7,17 +7,13 @@ import { encryptionMock, encryptionMockFns, workflowsUtilsMock } from '@sim/test
 import type { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockValidateAuthToken,
-  mockSetDeploymentAuthCookie,
-  mockAddCorsHeaders,
-  mockIsEmailAllowed,
-} = vi.hoisted(() => ({
-  mockValidateAuthToken: vi.fn().mockReturnValue(false),
-  mockSetDeploymentAuthCookie: vi.fn(),
-  mockAddCorsHeaders: vi.fn((response: unknown) => response),
-  mockIsEmailAllowed: vi.fn(),
-}))
+const { mockValidateAuthToken, mockSetDeploymentAuthCookie, mockIsEmailAllowed } = vi.hoisted(
+  () => ({
+    mockValidateAuthToken: vi.fn().mockReturnValue(false),
+    mockSetDeploymentAuthCookie: vi.fn(),
+    mockIsEmailAllowed: vi.fn(),
+  })
+)
 
 const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
 
@@ -26,7 +22,6 @@ vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/core/security/deployment', () => ({
   validateAuthToken: mockValidateAuthToken,
   setDeploymentAuthCookie: mockSetDeploymentAuthCookie,
-  addCorsHeaders: mockAddCorsHeaders,
   isEmailAllowed: mockIsEmailAllowed,
 }))
 
