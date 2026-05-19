@@ -75,7 +75,12 @@ export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTi
       })
     )
 
-    const failedRecords = records.filter((r) => r.result === 'failed')
+    const failedRecords = records.filter((r) => {
+      const result = r.result?.toLowerCase()
+      return (
+        result === 'failed' || result === 'partiallysucceeded' || result === 'succeededwithissues'
+      )
+    })
 
     const content =
       failedRecords.length === 0
@@ -136,7 +141,8 @@ export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTi
         },
         failedRecords: {
           type: 'array',
-          description: 'Subset of records where result === "failed" — use logId to fetch logs',
+          description:
+            'Subset of records where result is failed, partiallySucceeded, or succeededWithIssues — use logId to fetch logs',
           items: {
             type: 'object',
             properties: {

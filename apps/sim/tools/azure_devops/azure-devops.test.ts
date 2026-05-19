@@ -8,6 +8,7 @@ import type { ToolConfig } from '../types'
 import { addCommentTool } from './add_comment'
 import { createWorkItemTool } from './create_work_item'
 import { getBuildLogTool } from './get_build_log'
+import { getBuildTimelineTool } from './get_build_timeline'
 import { getCommentsTool } from './get_comments'
 import { getPipelineTool } from './get_pipeline'
 import { getPipelineRunTool } from './get_pipeline_run'
@@ -741,6 +742,22 @@ describe('Azure DevOps trigger event matching', () => {
         resource: { result: 'failed' },
       })
     ).toBe(false)
+  })
+
+  it('build timeline includes partiallySucceeded and succeededWithIssues in failedRecords', async () => {
+    const records = [
+      { id: 'a', name: 'Step A', type: 'Task', result: 'succeeded', log: { id: 1 } },
+      { id: 'b', name: 'Step B', type: 'Task', result: 'failed', log: { id: 2 } },
+      { id: 'c', name: 'Step C', type: 'Task', result: 'partiallySucceeded', log: { id: 3 } },
+      { id: 'd', name: 'Step D', type: 'Task', result: 'succeededWithIssues', log: { id: 4 } },
+      { id: 'e', name: 'Step E', type: 'Task', result: 'skipped', log: null },
+    ]
+    const result = await getBuildTimelineTool.transformResponse!(
+      new Response(JSON.stringify({ records }))
+    )
+    const failedIds = result.output.metadata.failedRecords.map((r) => r.id)
+    expect(failedIds).toEqual(['b', 'c', 'd'])
+    expect(result.output.metadata.failedCount).toBe(3)
   })
 
   it('matches workitem.created and passes through generic webhook', () => {

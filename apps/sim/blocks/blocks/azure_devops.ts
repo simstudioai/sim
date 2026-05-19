@@ -396,7 +396,10 @@ export const AzureDevOpsBlock: BlockConfig<AzureDevOpsResponse> = {
       title: 'Area Path',
       type: 'short-input',
       placeholder: 'e.g. MyProject\\Team',
-      condition: { field: 'operation', value: 'azure_devops_create_work_item' },
+      condition: {
+        field: 'operation',
+        value: ['azure_devops_create_work_item', 'azure_devops_update_work_item'],
+      },
       mode: 'advanced',
     },
     {
@@ -533,6 +536,7 @@ export const AzureDevOpsBlock: BlockConfig<AzureDevOpsResponse> = {
               remainingWork: params.remainingWork ? Number(params.remainingWork) : undefined,
               completedWork: params.completedWork ? Number(params.completedWork) : undefined,
               description: (params.description as string) || undefined,
+              areaPath: (params.areaPath as string) || undefined,
               tags: (params.tags as string) || undefined,
             }
           case 'azure_devops_add_comment':
