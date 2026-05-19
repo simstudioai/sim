@@ -3,7 +3,10 @@ import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import {
+  getHighestPriorityPersonalSubscription,
+  getHighestPrioritySubscription,
+} from '@/lib/billing/core/plan'
 import {
   getPlanTierCredits,
   isPro as isPlanPro,
@@ -29,7 +32,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('SubscriptionCore')
 
-export { getHighestPrioritySubscription }
+export { getHighestPriorityPersonalSubscription, getHighestPrioritySubscription }
 
 export interface SubscriptionMetadata {
   billingInterval?: 'month' | 'year'
