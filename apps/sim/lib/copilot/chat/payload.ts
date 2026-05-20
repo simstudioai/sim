@@ -267,8 +267,6 @@ export async function buildCopilotRequestPayload(
 
   let integrationTools: ToolSchema[] = []
   let mothershipTools: ToolSchema[] = []
-  let workspaceContext = params.workspaceContext
-
   const payloadLogger = logger.withMetadata({ messageId: userMessageId })
 
   if (effectiveMode === 'build') {
@@ -286,11 +284,6 @@ export async function buildCopilotRequestPayload(
           userId,
         })
         mothershipTools = runtimeTools.tools
-        if (runtimeTools.catalogContext) {
-          workspaceContext = [workspaceContext, runtimeTools.catalogContext]
-            .filter(Boolean)
-            .join('\n\n')
-        }
       } catch (error) {
         logger.warn(
           userMessageId
@@ -321,7 +314,7 @@ export async function buildCopilotRequestPayload(
     ...(integrationTools.length > 0 ? { integrationTools } : {}),
     ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
     ...(commands && commands.length > 0 ? { commands } : {}),
-    ...(workspaceContext ? { workspaceContext } : {}),
+    ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),
     ...(params.userPermission ? { userPermission: params.userPermission } : {}),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     isHosted,

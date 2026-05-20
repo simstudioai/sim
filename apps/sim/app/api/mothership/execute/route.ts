@@ -122,13 +122,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         buildMothershipToolsForRequest({ workspaceId, userId }),
         getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
       ])
-    const workspaceContextWithMothershipTools = [
-      workspaceContext,
-      mothershipToolRuntime.catalogContext,
-    ]
-      .filter(Boolean)
-      .join('\n\n')
-
     const requestPayload: Record<string, unknown> = {
       messages,
       responseFormat,
@@ -137,7 +130,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       mode: 'agent',
       messageId,
       isHosted: true,
-      workspaceContext: workspaceContextWithMothershipTools,
+      workspaceContext,
       ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(mothershipToolRuntime.tools.length > 0

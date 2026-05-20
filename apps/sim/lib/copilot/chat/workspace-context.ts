@@ -267,10 +267,20 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   return sections.join('\n\n')
 }
 
+export function buildWorkspaceContextMd(
+  data: WorkspaceMdData,
+  mothershipToolCatalog?: string
+): string {
+  return ['# Workspace Context', '', buildWorkspaceMd(data), mothershipToolCatalog]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
 /**
  * Generate WORKSPACE.md content from actual database state.
- * Auto-injected into the system prompt and served as a top-level VFS file.
- * The LLM never writes it directly.
+ * Served as a top-level VFS file. The Go system prompt keeps only stable
+ * discovery rules; the LLM reads dynamic workspace state from VFS files.
+ * The LLM never writes this file directly.
  */
 export async function generateWorkspaceContext(
   workspaceId: string,

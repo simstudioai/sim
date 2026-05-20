@@ -80,7 +80,16 @@ export class TraceCollector {
     // the moment it's first written instead of waiting on the late
     // analytics UPDATE.
     userMessage?: string
-    usage?: { prompt: number; completion: number }
+    usage?: {
+      prompt: number
+      completion: number
+      cacheAttemptedRequests?: number
+      cacheHitRequests?: number
+      cacheWriteRequests?: number
+      cacheReadTokens?: number
+      cacheWriteTokens?: number
+      cacheSavingsRate?: number
+    }
     cost?: { input: number; output: number; total: number }
   }): RequestTraceV1SimReport {
     const endMs = Date.now()
@@ -88,6 +97,12 @@ export class TraceCollector {
       ? {
           inputTokens: params.usage.prompt,
           outputTokens: params.usage.completion,
+          cacheAttemptedRequests: params.usage.cacheAttemptedRequests ?? 0,
+          cacheHitRequests: params.usage.cacheHitRequests ?? 0,
+          cacheWriteRequests: params.usage.cacheWriteRequests ?? 0,
+          cacheReadTokens: params.usage.cacheReadTokens ?? 0,
+          cacheWriteTokens: params.usage.cacheWriteTokens ?? 0,
+          cacheSavingsRate: params.usage.cacheSavingsRate ?? 0,
         }
       : undefined
 

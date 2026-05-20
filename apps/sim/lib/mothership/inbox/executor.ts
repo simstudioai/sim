@@ -182,12 +182,6 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
     ])
     const { attachments, fileAttachments, storedAttachments } = attachmentResult
-    const workspaceContextWithMothershipTools = [
-      workspaceContext,
-      mothershipToolRuntime.catalogContext,
-    ]
-      .filter(Boolean)
-      .join('\n\n')
 
     const truncatedTask = {
       ...inboxTask,
@@ -203,7 +197,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       mode: 'agent',
       messageId: userMessageId,
       isHosted,
-      workspaceContext: workspaceContextWithMothershipTools,
+      workspaceContext,
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(mothershipToolRuntime.tools.length > 0
         ? { mothershipTools: mothershipToolRuntime.tools }

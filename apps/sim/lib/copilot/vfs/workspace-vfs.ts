@@ -19,7 +19,11 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, desc, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
-import { buildWorkspaceMd, type WorkspaceMdData } from '@/lib/copilot/chat/workspace-context'
+import {
+  buildWorkspaceContextMd,
+  buildWorkspaceMd,
+  type WorkspaceMdData,
+} from '@/lib/copilot/chat/workspace-context'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
@@ -62,6 +66,7 @@ import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/executi
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
+import { buildMothershipToolsForRequest } from '@/lib/mothership/settings/runtime'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -305,7 +310,8 @@ function getStaticComponentFiles(): Map<string, string> {
  * Virtual Filesystem that materializes workspace data into an in-memory Map.
  *
  * Structure:
- *   WORKSPACE.md                         — workspace identity, members, inventory (auto-generated)
+ *   WORKSPACE_CONTEXT.md                 — full dynamic workspace/user context (auto-generated)
+ *   WORKSPACE.md                         — workspace inventory summary (auto-generated)
  *   workflows/{name}/meta.json            (root-level workflows)
  *   workflows/{name}/state.json          (sanitized blocks with embedded connections)
  *   workflows/{name}/executions.json
@@ -367,6 +373,7 @@ export class WorkspaceVFS {
       jobsSummary,
       wsRow,
       members,
+      mothershipToolRuntime,
     ] = await Promise.all([
       this.materializeWorkflows(workspaceId, userId),
       this.materializeKnowledgeBases(workspaceId, userId),
@@ -380,25 +387,35 @@ export class WorkspaceVFS {
       this.materializeJobs(workspaceId),
       getWorkspaceWithOwner(workspaceId),
       getUsersWithPermissions(workspaceId),
+      buildMothershipToolsForRequest({ workspaceId, userId }).catch((error) => {
+        logger.warn('Failed to materialize Mothership tool catalog in VFS', {
+          workspaceId,
+          error: toError(error).message,
+        })
+        return { tools: [] }
+      }),
     ])
 
+    const workspaceMdData = {
+      workspace: wsRow,
+      members,
+      workflows: wfSummary,
+      knowledgeBases: kbSummary,
+      tables: tblSummary,
+      files: fileSummary,
+      oauthIntegrations: envSummary.oauthIntegrations,
+      envVariables: envSummary.envVariables,
+      tasks: taskSummary,
+      customTools: toolsSummary,
+      mcpServers: mcpServersSummary,
+      skills: skillsSummary,
+      jobs: jobsSummary,
+    }
+
+    this.files.set('WORKSPACE.md', buildWorkspaceMd(workspaceMdData))
     this.files.set(
-      'WORKSPACE.md',
-      buildWorkspaceMd({
-        workspace: wsRow,
-        members,
-        workflows: wfSummary,
-        knowledgeBases: kbSummary,
-        tables: tblSummary,
-        files: fileSummary,
-        oauthIntegrations: envSummary.oauthIntegrations,
-        envVariables: envSummary.envVariables,
-        tasks: taskSummary,
-        customTools: toolsSummary,
-        mcpServers: mcpServersSummary,
-        skills: skillsSummary,
-        jobs: jobsSummary,
-      })
+      'WORKSPACE_CONTEXT.md',
+      buildWorkspaceContextMd(workspaceMdData, mothershipToolRuntime.catalogContext)
     )
 
     await this.materializeRecentlyDeleted(workspaceId, userId)
