@@ -80,19 +80,25 @@ const CORS_RULES: readonly CorsRule[] = [
   },
   {
     // Embed endpoints: /api/chat/[identifier] and /api/form/[identifier]
-    // (plus their /otp and /sso subroutes). These run on customer domains —
-    // reflect the request origin and omit credentials (auth uses signed
-    // tokens, not cookies). Workspace-internal subpaths (`manage`, `validate`,
-    // and the bare collection routes) are deliberately excluded so they
+    // (plus their /otp and /sso subroutes). These run on customer domains
+    // and authenticate via the `chat_auth_<id>` / form auth cookie set by
+    // setDeploymentAuthCookie, so we must reflect the request origin AND
+    // allow credentials. Workspace-internal subpaths (`manage`, `validate`,
+    // and the bare collection routes) are excluded by isEmbedPath and
     // continue to receive the default credentialed policy.
     match: (p) => isEmbedPath(p),
-    policy: (request) => ({
-      origin: request.headers.get('origin') || '*',
-      credentials: false,
-      // PUT is required for OTP verification on /[identifier]/otp.
-      methods: 'GET, POST, PUT, OPTIONS',
-      headers: 'Content-Type, X-Requested-With',
-    }),
+    policy: (request) => {
+      const requestOrigin = request.headers.get('origin')
+      return {
+        // Without an Origin header, fall back to '*' and drop credentials —
+        // the CORS spec rejects '*' paired with Allow-Credentials: true.
+        origin: requestOrigin || '*',
+        credentials: !!requestOrigin,
+        // PUT is required for OTP verification on /[identifier]/otp.
+        methods: 'GET, POST, PUT, OPTIONS',
+        headers: 'Content-Type, X-Requested-With',
+      }
+    },
   },
   {
     match: (p) => /^\/api\/workflows\/[^/]+\/execute$/.test(p),
