@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { parse } from 'tldts'
 import { Badge, Checkbox, Tooltip } from '@/components/emcn'
@@ -125,6 +126,9 @@ interface CellRenderProps {
 }
 
 export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactElement | null {
+  const valueText = kind.kind === 'value' ? kind.text : null
+  const revealedValueText = useTypewriter(valueText)
+
   switch (kind.kind) {
     case 'value':
       return (
@@ -134,7 +138,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
             isEditing && 'invisible'
           )}
         >
-          {kind.text}
+          {revealedValueText ?? kind.text}
         </span>
       )
 
@@ -280,4 +284,46 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
 function Wrap({ isEditing, children }: { isEditing: boolean; children: React.ReactNode }) {
   if (!isEditing) return <>{children}</>
   return <div className='invisible'>{children}</div>
+}
+
+const TYPEWRITER_MS_PER_CHAR = 15
+
+/**
+ * Reveals `text` character-by-character whenever it changes after the first
+ * render. Initial render (page hydration or virtualization remount) shows the
+ * value statically — animation fires only for subsequent updates, which in
+ * practice means SSE-driven workflow completions arriving via
+ * `useTableEventStream → applyCell()`.
+ */
+function useTypewriter(text: string | null): string | null {
+  const [revealed, setRevealed] = useState<string | null>(text)
+  const isFirstRunRef = useRef(true)
+  const prevTextRef = useRef<string | null>(text)
+
+  useEffect(() => {
+    if (isFirstRunRef.current) {
+      isFirstRunRef.current = false
+      prevTextRef.current = text
+      setRevealed(text)
+      return
+    }
+    if (prevTextRef.current === text) return
+    prevTextRef.current = text
+
+    if (text === null || text.length === 0) {
+      setRevealed(text)
+      return
+    }
+
+    setRevealed('')
+    let i = 0
+    const id = window.setInterval(() => {
+      i++
+      setRevealed(text.slice(0, i))
+      if (i >= text.length) window.clearInterval(id)
+    }, TYPEWRITER_MS_PER_CHAR)
+    return () => window.clearInterval(id)
+  }, [text])
+
+  return revealed
 }
