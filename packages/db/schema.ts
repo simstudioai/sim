@@ -13,6 +13,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -2989,13 +2990,6 @@ export const userTableRows = pgTable(
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
     data: jsonb('data').notNull(),
-    /**
-     * Per-row workflow-group execution state, keyed by `WorkflowGroup.id`.
-     * Each entry holds status / executionId / jobId / blockErrors /
-     * runningBlockIds for one group's run on this row. Empty `{}` means no
-     * group has run for this row yet.
-     */
-    executions: jsonb('executions').notNull().default({}),
     position: integer('position').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -3009,6 +3003,91 @@ export const userTableRows = pgTable(
       table.tableId
     ),
     tablePositionIdx: index('user_table_rows_table_position_idx').on(table.tableId, table.position),
+  })
+)
+
+/**
+ * Per-row workflow-group execution state. One row per (rowId, groupId) — the
+ * group's run metadata (status, executionId, jobId, blockErrors, etc.) for
+ * one row of one user-defined table.
+ *
+ * Lives in a sidecar table (not a JSONB column on `user_table_rows`) so the
+ * dispatcher and "X running" counter can hit `(table_id, status)` and
+ * `(table_id, group_id)` indexes directly instead of walking JSONB blobs, and
+ * so each cell-write rewrites only its own row instead of the whole
+ * executions object on the parent row tuple.
+ */
+export const tableRowExecutions = pgTable(
+  'table_row_executions',
+  {
+    tableId: text('table_id')
+      .notNull()
+      .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),
+    rowId: text('row_id')
+      .notNull()
+      .references(() => userTableRows.id, { onDelete: 'cascade' }),
+    groupId: text('group_id').notNull(),
+    status: text('status').notNull(),
+    executionId: text('execution_id'),
+    jobId: text('job_id'),
+    workflowId: text('workflow_id').notNull(),
+    error: text('error'),
+    runningBlockIds: text('running_block_ids').array().notNull().default(sql`'{}'::text[]`),
+    blockErrors: jsonb('block_errors').notNull().default({}),
+    cancelledAt: timestamp('cancelled_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.rowId, table.groupId] }),
+    tableStatusInFlightIdx: index('table_row_executions_table_status_idx')
+      .on(table.tableId, table.status)
+      .where(sql`${table.status} IN ('queued', 'running', 'pending')`),
+    executionIdIdx: index('table_row_executions_execution_id_idx')
+      .on(table.executionId)
+      .where(sql`${table.executionId} IS NOT NULL`),
+    tableGroupIdx: index('table_row_executions_table_group_idx').on(table.tableId, table.groupId),
+  })
+)
+
+/**
+ * One row per "Run column / Run row / Run all rows" gesture on a user table.
+ * The dispatcher task walks the table in row-position windows, advancing
+ * `cursor` as it enqueues cells into trigger.dev. Cancel flips `status` to
+ * `'cancelled'` in one write; the dispatcher bails at the next iteration and
+ * a bulk-SQL cell-cancel sweep neuters anything still in trigger.dev's queue
+ * (workers no-op on pickup via the cancel-sticky guard).
+ */
+export const tableRunDispatches = pgTable(
+  'table_run_dispatches',
+  {
+    id: text('id').primaryKey(),
+    tableId: text('table_id')
+      .notNull()
+      .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    requestId: text('request_id').notNull(),
+    /** `'all'` re-runs completed cells; `'incomplete'` skips them. */
+    mode: text('mode').notNull(),
+    /** `{ groupIds: string[], rowIds?: string[] }` — the run's scope. */
+    scope: jsonb('scope').notNull(),
+    /** `pending` → `dispatching` → `complete` | `cancelled`. */
+    status: text('status').notNull().default('pending'),
+    /** Highest `user_table_rows.position` we've already enqueued cells for. */
+    cursor: integer('cursor').notNull().default(0),
+    /** When true, eligibility bypasses `autoRun: false` skip and treats
+     *  terminal states as re-runnable. Auto-fire paths (row inserts,
+     *  CSV import, addWorkflowGroup) set this to false so the dispatch
+     *  honors the autoRun toggle. */
+    isManualRun: boolean('is_manual_run').notNull().default(true),
+    requestedAt: timestamp('requested_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+    cancelledAt: timestamp('cancelled_at'),
+  },
+  (table) => ({
+    activeIdx: index('table_run_dispatches_active_idx').on(table.tableId, table.status),
+    watchdogIdx: index('table_run_dispatches_watchdog_idx').on(table.status, table.requestedAt),
   })
 )
 
