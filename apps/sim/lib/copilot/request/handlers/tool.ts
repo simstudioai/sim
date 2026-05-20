@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
+import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
+import { markAsyncToolDelivered, upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
 import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1AsyncToolRecordStatus,
@@ -457,6 +458,15 @@ async function dispatchToolExecution(
             span.setAttribute(TraceAttr.ToolOutcome, completion.status)
           }
           handleClientCompletion(toolCall, toolCallId, completion)
+          if (completion?.status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
+            await markAsyncToolDelivered(toolCallId).catch((err) => {
+              logger.warn(`Failed to mark background ${scopeLabel}tool delivered`, {
+                toolCallId,
+                toolName,
+                error: toError(err).message,
+              })
+            })
+          }
           await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
           return (
             completion ?? {

@@ -12,10 +12,16 @@ const { isSimExecuted, executeTool, ensureHandlersRegistered } = vi.hoisted(() =
   ensureHandlersRegistered: vi.fn(),
 }))
 
-const { upsertAsyncToolCall, markAsyncToolRunning, completeAsyncToolCall } = vi.hoisted(() => ({
-  upsertAsyncToolCall: vi.fn(),
-  markAsyncToolRunning: vi.fn(),
-  completeAsyncToolCall: vi.fn(),
+const { upsertAsyncToolCall, markAsyncToolRunning, completeAsyncToolCall, markAsyncToolDelivered } =
+  vi.hoisted(() => ({
+    upsertAsyncToolCall: vi.fn(),
+    markAsyncToolRunning: vi.fn(),
+    completeAsyncToolCall: vi.fn(),
+    markAsyncToolDelivered: vi.fn(),
+  }))
+
+const { waitForToolCompletion } = vi.hoisted(() => ({
+  waitForToolCompletion: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/tool-executor', () => ({
@@ -34,14 +40,18 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
   createRunCheckpoint: vi.fn(),
   getAsyncToolCall: vi.fn(),
   markAsyncToolStatus: vi.fn(),
-  markAsyncToolDelivered: vi.fn(),
   listAsyncToolCallsForRun: vi.fn(),
   getAsyncToolCalls: vi.fn(),
   claimCompletedAsyncToolCall: vi.fn(),
   releaseCompletedAsyncToolClaim: vi.fn(),
   upsertAsyncToolCall,
   markAsyncToolRunning,
+  markAsyncToolDelivered,
   completeAsyncToolCall,
+}))
+
+vi.mock('@/lib/copilot/request/tools/client', () => ({
+  waitForToolCompletion,
 }))
 
 import {
@@ -68,6 +78,8 @@ describe('sse-handlers tool lifecycle', () => {
     upsertAsyncToolCall.mockResolvedValue(null)
     markAsyncToolRunning.mockResolvedValue(null)
     completeAsyncToolCall.mockResolvedValue(null)
+    markAsyncToolDelivered.mockResolvedValue(null)
+    waitForToolCompletion.mockResolvedValue(null)
     context = {
       chatId: undefined,
       messageId: 'msg-1',
@@ -234,6 +246,51 @@ describe('sse-handlers tool lifecycle', () => {
     const updated = context.toolCalls.get('tool-primitive')
     expect(updated?.status).toBe(MothershipStreamV1ToolOutcome.success)
     expect(updated?.result?.output).toBe('done')
+  })
+
+  it('marks background client workflow tools delivered after synthetic result emission', async () => {
+    waitForToolCompletion.mockResolvedValueOnce({
+      status: 'background',
+      data: { detached: true },
+    })
+    const onEvent = vi.fn()
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-background',
+          toolName: 'run_workflow',
+          arguments: { workflowId: 'workflow-1' },
+          executor: MothershipStreamV1ToolExecutor.client,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent, interactive: true, timeout: 1000 }
+    )
+
+    await sleep(0)
+    await Promise.allSettled(context.pendingToolPromises.values())
+
+    expect(markAsyncToolDelivered).toHaveBeenCalledWith('tool-background')
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: MothershipStreamV1EventType.tool,
+        payload: expect.objectContaining({
+          toolCallId: 'tool-background',
+          phase: MothershipStreamV1ToolPhase.result,
+          status: MothershipStreamV1ToolOutcome.skipped,
+          success: true,
+          output: { detached: true },
+        }),
+      })
+    )
+    expect(context.toolCalls.get('tool-background')?.status).toBe(
+      MothershipStreamV1ToolOutcome.skipped
+    )
   })
 
   it('does not add hidden tool calls to content blocks', async () => {

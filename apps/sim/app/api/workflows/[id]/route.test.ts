@@ -20,6 +20,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getWorkflowResponseDataSchema } from '@/lib/api/contracts/workflows'
 
 const mockLoadWorkflowFromNormalizedTables =
   workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
@@ -181,6 +182,55 @@ describe('Workflow By ID API Route', () => {
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data.data.id).toBe('workflow-123')
+    })
+
+    it('omits null workflow description from state metadata so response validates', async () => {
+      const mockWorkflow = {
+        id: 'workflow-null-description',
+        userId: 'user-123',
+        name: 'No Description Workflow',
+        description: null,
+        workspaceId: 'workspace-456',
+        folderId: null,
+        sortOrder: 0,
+        color: '#3972F6',
+        lastSynced: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isDeployed: false,
+        deployedAt: null,
+        isPublicApi: false,
+        locked: false,
+        runCount: 0,
+        lastRunAt: null,
+        archivedAt: null,
+        variables: {},
+      }
+
+      mockGetSession({ user: { id: 'user-123' } })
+      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
+        workflow: mockWorkflow,
+        workspacePermission: 'admin',
+      })
+      mockLoadWorkflowFromNormalizedTables.mockResolvedValue({
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+      })
+
+      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-null-description')
+      const params = Promise.resolve({ id: 'workflow-null-description' })
+
+      const response = await GET(req, { params })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.data.state.metadata).toEqual({ name: 'No Description Workflow' })
+      expect(getWorkflowResponseDataSchema.safeParse(data.data).success).toBe(true)
     })
 
     it.concurrent('should allow access when user has workspace permissions', async () => {
