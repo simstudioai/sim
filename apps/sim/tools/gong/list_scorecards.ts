@@ -1,4 +1,5 @@
 import type { GongListScorecardsParams, GongListScorecardsResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listScorecardsTool: ToolConfig<GongListScorecardsParams, GongListScorecardsResponse> =
@@ -35,7 +36,7 @@ export const listScorecardsTool: ToolConfig<GongListScorecardsParams, GongListSc
     transformResponse: async (response: Response) => {
       const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.errors?.[0]?.message || data.message || 'Failed to list scorecards')
+        throw new Error(getGongErrorMessage(data, 'Failed to list scorecards'))
       }
       const scorecards = (data.scorecards ?? []).map((sc: Record<string, unknown>) => ({
         scorecardId: sc.scorecardId ?? '',

@@ -32,6 +32,7 @@ import {
   SubBlock,
   SubflowEditor,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
+import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/constants'
 import {
   useBlockConnections,
   useConnectionsResize,
@@ -104,6 +105,8 @@ export function Editor() {
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
   const title = currentBlock?.name || 'Editor'
+  const isBlockNameSearchHighlighted =
+    activeSearchTarget?.targetKind === 'block-name' && activeSearchTarget.blockId === currentBlockId
 
   const isSubflow =
     currentBlock && (currentBlock.type === 'loop' || currentBlock.type === 'parallel')
@@ -253,6 +256,7 @@ export function Editor() {
 
   useEffect(() => {
     if (!activeSearchTarget || activeSearchTarget.blockId !== currentBlockId) return
+    if (activeSearchTarget.targetKind === 'block-name') return
     const container = subBlocksRef.current
     if (!container) return
 
@@ -393,7 +397,7 @@ export function Editor() {
             />
           ) : (
             <h2
-              className='min-w-0 flex-1 cursor-pointer select-none truncate pr-2 font-medium text-[var(--text-primary)] text-sm'
+              className='min-w-0 flex-1 cursor-pointer select-none text-ellipsis whitespace-nowrap pr-2 font-medium text-[var(--text-primary)] text-sm [overflow-clip-margin:3px] [overflow:clip]'
               title={title}
               onDoubleClick={handleStartRename}
               onMouseDown={(e) => {
@@ -402,7 +406,11 @@ export function Editor() {
                 }
               }}
             >
-              {title}
+              {isBlockNameSearchHighlighted ? (
+                <mark className={WORKFLOW_SEARCH_HIGHLIGHT_CLASS}>{title}</mark>
+              ) : (
+                title
+              )}
             </h2>
           )}
         </div>

@@ -29,7 +29,7 @@ export const actionsShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/actions/${params.id}`,
+    url: (params) => `https://api.incident.io/v2/actions/${params.id.trim()}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

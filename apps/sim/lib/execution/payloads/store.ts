@@ -24,6 +24,8 @@ export interface LargeValueStoreContext {
   workflowId?: string
   executionId?: string
   largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
   requireDurable?: boolean
@@ -152,6 +154,7 @@ export async function materializeLargeValueRef(
       workflowId: context.workflowId,
       executionId: context.executionId,
       largeValueExecutionIds: context.largeValueExecutionIds,
+      largeValueKeys: context.largeValueKeys,
       allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
       userId: context.userId,
       maxBytes: context.maxBytes ?? ref.size,

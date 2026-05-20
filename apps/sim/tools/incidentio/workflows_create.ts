@@ -1,8 +1,7 @@
-import { createLogger } from '@sim/logger'
 import type { WorkflowsCreateParams, WorkflowsCreateResponse } from '@/tools/incidentio/types'
+import { INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/incidentio/types'
+import { mapIncidentioWorkflow, parseIncidentioJsonParam } from '@/tools/incidentio/utils'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('IncidentIOCreate')
 
 export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCreateResponse> = {
   id: 'incidentio_workflows_create',
@@ -122,27 +121,19 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      // Helper function to safely parse JSON strings
-      const parseJsonParam = (jsonString: string | undefined, defaultValue: any) => {
-        if (!jsonString) return defaultValue
-        try {
-          return JSON.parse(jsonString)
-        } catch (error) {
-          logger.warn(`Failed to parse JSON parameter: ${jsonString}`, error)
-          return defaultValue
-        }
-      }
-
-      // incident.io requires all these fields to create a workflow
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         name: params.name,
         trigger: params.trigger || 'incident.updated',
-        once_for: parseJsonParam(params.once_for, []),
-        condition_groups: parseJsonParam(params.condition_groups, []),
-        steps: parseJsonParam(params.steps, []),
-        expressions: parseJsonParam(params.expressions, []),
+        once_for: parseIncidentioJsonParam(params.once_for, 'once_for', []),
+        condition_groups: parseIncidentioJsonParam(params.condition_groups, 'condition_groups', []),
+        steps: parseIncidentioJsonParam(params.steps, 'steps', []),
+        expressions: parseIncidentioJsonParam(params.expressions, 'expressions', []),
         include_private_incidents: params.include_private_incidents ?? true,
-        runs_on_incident_modes: parseJsonParam(params.runs_on_incident_modes, ['standard']),
+        runs_on_incident_modes: parseIncidentioJsonParam(
+          params.runs_on_incident_modes,
+          'runs_on_incident_modes',
+          ['standard']
+        ),
         continue_on_step_error: params.continue_on_step_error ?? false,
         runs_on_incidents: params.runs_on_incidents || 'newly_created',
         state: params.state || 'draft',
@@ -153,7 +144,7 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
       }
 
       if (params.delay) {
-        body.delay = parseJsonParam(params.delay, undefined)
+        body.delay = parseIncidentioJsonParam(params.delay, 'delay', undefined)
       }
 
       return body
@@ -166,14 +157,8 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
     return {
       success: true,
       output: {
-        workflow: {
-          id: data.workflow.id,
-          name: data.workflow.name,
-          state: data.workflow.state,
-          folder: data.workflow.folder,
-          created_at: data.workflow.created_at,
-          updated_at: data.workflow.updated_at,
-        },
+        management_meta: data.management_meta,
+        workflow: mapIncidentioWorkflow(data.workflow),
       },
     }
   },
@@ -182,25 +167,12 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
     workflow: {
       type: 'object',
       description: 'The created workflow',
-      properties: {
-        id: { type: 'string', description: 'Unique identifier for the workflow' },
-        name: { type: 'string', description: 'Name of the workflow' },
-        state: {
-          type: 'string',
-          description: 'State of the workflow (active, draft, or disabled)',
-        },
-        folder: { type: 'string', description: 'Folder the workflow belongs to', optional: true },
-        created_at: {
-          type: 'string',
-          description: 'When the workflow was created',
-          optional: true,
-        },
-        updated_at: {
-          type: 'string',
-          description: 'When the workflow was last updated',
-          optional: true,
-        },
-      },
+      properties: INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES,
+    },
+    management_meta: {
+      type: 'json',
+      description: 'Workflow management metadata',
+      optional: true,
     },
   },
 }

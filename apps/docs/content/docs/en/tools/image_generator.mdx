@@ -6,63 +6,75 @@ description: Generate images
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="image_generator"
+  type="image_generator_v2"
   color="#4D5FFF"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[DALL-E](https://openai.com/dall-e-3) is OpenAI's advanced AI system designed to generate realistic images and art from natural language descriptions. As a state-of-the-art image generation model, DALL-E can create detailed and creative visuals based on text prompts, allowing users to transform their ideas into visual content without requiring artistic skills.
+The Image Generator block creates images from text prompts using leading image generation providers. Choose OpenAI for GPT Image models, Google Gemini for Nano Banana models, or Fal.ai for a multi-model catalog that includes Nano Banana, GPT Image, Seedream, FLUX, and Grok Imagine.
 
-With DALL-E, you can:
+Use it to:
 
-- **Generate realistic images**: Create photorealistic visuals from textual descriptions
-- **Design conceptual art**: Transform abstract ideas into visual representations
-- **Produce variations**: Generate multiple interpretations of the same prompt
-- **Control artistic style**: Specify artistic styles, mediums, and visual aesthetics
-- **Create detailed scenes**: Describe complex scenes with multiple elements and relationships
-- **Visualize products**: Generate product mockups and design concepts
-- **Illustrate ideas**: Turn written concepts into visual illustrations
+- **Generate production images**: Create polished visuals from workflow prompts
+- **Choose the right provider**: Route requests to OpenAI, Gemini, or Fal.ai based on model availability and cost
+- **Control output shape**: Set provider-specific size, aspect ratio, resolution, quality, background, and output format options
+- **Use advanced Fal.ai features**: Configure safety tolerance, safety checking, web search grounding, seeds, and thinking level when supported
+- **Pass generated files downstream**: Use the returned image file or URL in later workflow steps
 
-In Sim, the DALL-E integration enables your agents to generate images programmatically as part of their workflows. This allows for powerful automation scenarios such as content creation, visual design, and creative ideation. Your agents can formulate detailed prompts, generate corresponding images, and incorporate these visuals into their outputs or downstream processes. This integration bridges the gap between natural language processing and visual content creation, enabling your agents to communicate not just through text but also through compelling imagery. By connecting Sim with DALL-E, you can create agents that produce visual content on demand, illustrate concepts, generate design assets, and enhance user experiences with rich visual elements - all without requiring human intervention in the creative process.
+In Sim, the Image Generator block lets agents create visual assets programmatically as part of automated workflows. This is useful for content creation, design mockups, product visuals, creative ideation, and any flow that needs generated imagery without a manual handoff.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Integrate Image Generator into the workflow. Can generate images using DALL-E 3, GPT Image 1, or GPT Image 2.
+Generate images using OpenAI GPT Image, Google Nano Banana, or Fal.ai image models.
 
 
 
 ## Tools
 
-### `openai_image`
+### `image_generate`
 
-Generate images using OpenAI
+Generate images with OpenAI GPT Image, Google Nano Banana, or Fal.ai image models
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `model` | string | Yes | The model to use \(dall-e-3, gpt-image-1, or gpt-image-2\) |
-| `prompt` | string | Yes | A text description of the desired image |
-| `size` | string | Yes | Image size. dall-e-3: 1024x1024, 1024x1792, or 1792x1024. gpt-image-1: auto, 1024x1024, 1536x1024, or 1024x1536. gpt-image-2: auto or any size with edges ≤3840px and multiples of 16 \(e.g. 1024x1024, 1536x1024, 1024x1536, 2560x1440, 3840x2160\). |
-| `quality` | string | No | Quality. dall-e-3: standard\|hd. gpt-image-1/gpt-image-2: auto\|low\|medium\|high |
-| `style` | string | No | The style of the image \(vivid or natural\), only for dall-e-3 |
-| `background` | string | No | Background. gpt-image-1: auto\|transparent\|opaque. gpt-image-2: auto\|opaque \(transparent not supported\) |
-| `outputFormat` | string | No | Output image format \(png, jpeg, webp\), only for gpt-image-1 and gpt-image-2 |
-| `moderation` | string | No | Moderation level \(auto or low\), only for gpt-image-1 and gpt-image-2 |
-| `n` | number | No | The number of images to generate \(1-10\) |
-| `apiKey` | string | Yes | Your OpenAI API key |
+| `provider` | string | Yes | Image generation provider: openai, gemini, or falai |
+| `apiKey` | string | Yes | Provider API key |
+| `model` | string | Yes | Provider model ID, such as gpt-image-1.5, gemini-3.1-flash-image-preview, or nano-banana-2 |
+| `prompt` | string | Yes | Text prompt describing the image to generate |
+| `size` | string | No | Provider-specific image size |
+| `aspectRatio` | string | No | Aspect ratio, such as auto, 1:1, 16:9, or 9:16 |
+| `resolution` | string | No | Provider-specific image resolution, such as 1K, 2K, 4K, 1k, or 2k |
+| `quality` | string | No | Provider-specific image quality |
+| `background` | string | No | Background setting when supported |
+| `outputFormat` | string | No | Output image format: png, jpeg, or webp where supported |
+| `moderation` | string | No | OpenAI moderation level: auto or low |
+| `safetyTolerance` | string | No | Fal.ai safety tolerance when supported |
+| `numImages` | number | No | Number of images to generate, subject to provider limits |
+| `seed` | number | No | Random seed when supported |
+| `enableSafetyChecker` | boolean | No | Enable the Fal.ai safety checker when supported |
+| `enableWebSearch` | boolean | No | Enable web search grounding when supported by the selected Fal.ai model |
+| `thinkingLevel` | string | No | Fal.ai thinking level when supported: minimal or high |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Generated image data |
-|   ↳ `content` | string | Image URL or identifier |
-|   ↳ `image` | string | Base64 encoded image data |
-|   ↳ `metadata` | object | Image generation metadata |
-|     ↳ `model` | string | Model used for image generation |
+| `content` | string | Generated image URL or identifier |
+| `image` | file | Generated image file |
+| `imageUrl` | string | Generated image URL |
+| `provider` | string | Provider used |
+| `model` | string | Model used |
+| `metadata` | json | Generation metadata |
+|   ↳ `provider` | string | Provider used |
+|   ↳ `model` | string | Model used |
+|   ↳ `description` | string | Provider description |
+|   ↳ `revisedPrompt` | string | Revised prompt |
+|   ↳ `seed` | number | Seed used for generation |
+|   ↳ `jobId` | string | Provider job ID |
+|   ↳ `contentType` | string | Image MIME type |
 
 

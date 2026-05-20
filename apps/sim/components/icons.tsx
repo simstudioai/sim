@@ -3126,6 +3126,36 @@ export function AzureIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function AzureDevOpsIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const gradientId = `azure_devops_gradient_${id}`
+  return (
+    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128' {...props}>
+      <defs>
+        <linearGradient
+          id={gradientId}
+          gradientUnits='userSpaceOnUse'
+          x1='9'
+          y1='16.97'
+          x2='9'
+          y2='1.03'
+          gradientTransform='scale(7.11111)'
+        >
+          <stop offset='0' stopColor='#0078d4' />
+          <stop offset='.16' stopColor='#1380da' />
+          <stop offset='.53' stopColor='#3c91e5' />
+          <stop offset='.82' stopColor='#559cec' />
+          <stop offset='1' stopColor='#5ea0ef' />
+        </linearGradient>
+      </defs>
+      <path
+        fill={`url(#${gradientId})`}
+        d='M120.89 28.445v69.262l-28.445 23.324-44.09-16.07v15.93L23.395 88.25l72.746 5.688V31.574ZM96.64 31.93 55.82 7.11v16.285L18.348 34.418 7.109 48.852v32.785l16.075 7.11V46.718Zm0 0'
+      />
+    </svg>
+  )
+}
+
 export const GroqIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
     {...props}
@@ -6928,6 +6958,14 @@ export function HexIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function RailwayIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' fill='#0B0D0E' viewBox='0 0 24 24'>
+      <path d='M.113 10.27A13 13 0 0 0 0 11.48h18.23a2.3 2.3 0 0 0-.235-.347c-3.117-4.027-4.793-3.677-7.19-3.78-.8-.034-1.34-.048-4.524-.048-1.704 0-3.555.005-5.358.01-.234.63-.459 1.24-.567 1.737h9.342v1.216H.113zm18.26 2.426H.009q.029.488.094.961h16.955c.754 0 1.179-.429 1.315-.96zm-17.318 4.28s2.81 6.902 10.93 7.024c4.855 0 9.027-2.883 10.92-7.024H1.056zM11.988 0C7.5 0 3.593 2.466 1.531 6.108l4.75-.005v-.002c3.71 0 3.849.016 4.573.047l.448.016c1.563.052 3.485.22 4.996 1.364.82.621 2.007 1.99 2.712 2.965.654.902.842 1.94.396 2.934-.408.914-1.289 1.458-2.353 1.458H.391s.099.42.249.886h22.748A12 12 0 0 0 24 12.005C24 5.377 18.621 0 11.988 0' />
+    </svg>
+  )
+}
+
 export function BigQueryIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' {...props}>
@@ -6946,6 +6984,32 @@ export function SnowflakeIcon(props: SVGProps<SVGSVGElement>) {
       <path
         fill='#29B5E8'
         d='M12 2a1 1 0 0 1 1 1v3.59l2.3-2.3a1 1 0 1 1 1.4 1.42L13 9.41V12h2.6l3.7-3.7a1 1 0 0 1 1.4 1.4L18.42 12H22a1 1 0 1 1 0 2h-3.59l2.3 2.3a1 1 0 0 1-1.4 1.4L15.58 14H13v2.59l3.7 3.7a1 1 0 1 1-1.4 1.4L13 19.42V23a1 1 0 1 1-2 0v-3.58l-2.3 2.3a1 1 0 1 1-1.4-1.4l3.7-3.71V14H8.4l-3.7 3.7a1 1 0 0 1-1.4-1.4L5.58 14H2a1 1 0 0 1 0-2h3.59l-2.3-2.3a1 1 0 0 1 1.4-1.4L8.42 12H11V9.41L7.3 5.71a1 1 0 1 1 1.4-1.42l2.3 2.3V3a1 1 0 0 1 1-1Z'
+      />
+    </svg>
+  )
+}
+
+export function NewRelicIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 159.36 159.36' xmlns='http://www.w3.org/2000/svg'>
+      <polygon
+        fill='#46B978'
+        points='79.68 .19 18.89 35.29 45.38 50.58 79.68 30.77 122.04 55.23 122.04 104.13 87.73 123.94 87.73 154.52 148.52 119.42 148.52 39.94 79.68 .19'
+      />
+      <polygon
+        fill='#46B978'
+        points='53.2 94.97 53.2 143.88 79.68 159.17 79.68 79.68 10.84 39.94 10.84 70.51 53.2 94.97'
+      />
+    </svg>
+  )
+}
+
+export function WizaIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 51 49' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        fill='#FFFFFF'
+        d='m50.3 33.6-9.3-3.5c-2.9-10.4-9.6-20.8-17.1-29.4-1.4-1.5-4.4-0.7-4.2 1.9 0.4 6-0.4 13.3-4.4 20.5-0.9 1.6 1.4 3.3 2.9 1.6 3.2-3.3 5.3-9.1 6.3-15.2 3.9 5.4 9.2 13.8 11.2 22.9 0.2 0.9 0.8 1.6 1.6 1.9l6.2 2.3c-4.1 3.3-9.6 6-17.7 6-7.1 0-13.2-2.3-18.5-6l3.6-2.5c3.5 2 7.5 3.5 12.5 3.6 2.5 0 5-0.2 7.3-0.9 2-0.5 1.6-3.2-0.3-3-4 0.5-10.3 0.3-17.1-4.3-0.8-0.5-1.9-0.6-2.7-0.2l-9.2 4.3c-1.4 0.6-2.1 3.1-0.5 4.3 4.7 3.8 12.4 10.1 24.2 10.1 11.9 0 20.4-4.3 25.8-10.1 1.2-1.2 1.2-3.5-0.6-4.3z'
       />
     </svg>
   )

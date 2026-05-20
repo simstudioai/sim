@@ -2,11 +2,148 @@ import { createLogger } from '@sim/logger'
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sendToProfound } from './lib/analytics/profound'
+import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isHosted } from './lib/core/config/feature-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
 import { getClientIp } from './lib/core/utils/request'
 
 const logger = createLogger('Proxy')
+
+export interface CorsPolicy {
+  origin: string
+  credentials: boolean
+  methods: string
+  headers: string
+}
+
+const DEFAULT_API_ALLOWED_HEADERS =
+  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization'
+
+const WORKFLOW_EXECUTE_HEADERS =
+  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key'
+
+/**
+ * Workspace-internal segments under /api/{chat,form}/* that must NOT
+ * receive the embed policy. They serve the workspace UI with session
+ * cookies and need the default credentialed policy.
+ */
+const EMBED_RESERVED_SEGMENTS = new Set(['manage', 'validate'])
+
+/**
+ * True for /api/{chat,form}/[identifier] and any deeper subroute
+ * (e.g. /otp, /sso). The identifier segment is explicitly checked
+ * against EMBED_RESERVED_SEGMENTS so workspace-internal routes fall
+ * through to the default credentialed policy.
+ */
+function isEmbedPath(pathname: string): boolean {
+  const segments = pathname.split('/')
+  if (segments.length < 4) return false
+  if (segments[1] !== 'api') return false
+  if (segments[2] !== 'chat' && segments[2] !== 'form') return false
+  const identifier = segments[3]
+  if (!identifier || EMBED_RESERVED_SEGMENTS.has(identifier)) return false
+  return true
+}
+
+interface CorsRule {
+  match: (pathname: string) => boolean
+  policy: (request: NextRequest) => CorsPolicy
+}
+
+const CORS_RULES: readonly CorsRule[] = [
+  {
+    match: (p) => p.startsWith('/api/auth/oauth2/'),
+    policy: () => ({
+      origin: '*',
+      credentials: false,
+      methods: 'GET, POST, OPTIONS',
+      headers: 'Content-Type, Authorization, Accept',
+    }),
+  },
+  {
+    match: (p) => p === '/api/auth/jwks' || p.startsWith('/api/auth/.well-known/'),
+    policy: () => ({
+      origin: '*',
+      credentials: false,
+      methods: 'GET, OPTIONS',
+      headers: 'Content-Type, Accept',
+    }),
+  },
+  {
+    match: (p) => p === '/api/mcp/copilot',
+    policy: () => ({
+      origin: '*',
+      credentials: false,
+      methods: 'GET, POST, OPTIONS, DELETE',
+      headers: 'Content-Type, Authorization, X-API-Key, X-Requested-With, Accept',
+    }),
+  },
+  {
+    // Embed endpoints: /api/chat/[identifier] and /api/form/[identifier]
+    // (plus their /otp and /sso subroutes). These run on customer domains —
+    // reflect the request origin and omit credentials (auth uses signed
+    // tokens, not cookies). Workspace-internal subpaths (`manage`, `validate`,
+    // and the bare collection routes) are deliberately excluded so they
+    // continue to receive the default credentialed policy.
+    match: (p) => isEmbedPath(p),
+    policy: (request) => ({
+      origin: request.headers.get('origin') || '*',
+      credentials: false,
+      // PUT is required for OTP verification on /[identifier]/otp.
+      methods: 'GET, POST, PUT, OPTIONS',
+      headers: 'Content-Type, X-Requested-With',
+    }),
+  },
+  {
+    match: (p) => /^\/api\/workflows\/[^/]+\/execute$/.test(p),
+    policy: () => ({
+      origin: '*',
+      credentials: false,
+      methods: 'GET,POST,OPTIONS,PUT',
+      headers: WORKFLOW_EXECUTE_HEADERS,
+    }),
+  },
+]
+
+/**
+ * Single source of truth for CORS on /api/* — next.config.ts headers are
+ * baked at build time and would freeze NEXT_PUBLIC_APP_URL into the image.
+ */
+export function resolveApiCorsPolicy(request: NextRequest): CorsPolicy {
+  const { pathname } = request.nextUrl
+  for (const rule of CORS_RULES) {
+    if (rule.match(pathname)) return rule.policy(request)
+  }
+  return {
+    origin: getEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:3001',
+    credentials: true,
+    methods: 'GET,POST,OPTIONS,PUT,DELETE',
+    headers: DEFAULT_API_ALLOWED_HEADERS,
+  }
+}
+
+const CORS_PREFLIGHT_MAX_AGE = '86400'
+
+function applyCorsHeaders(response: NextResponse, policy: CorsPolicy): void {
+  response.headers.set('Access-Control-Allow-Origin', policy.origin)
+  response.headers.set('Access-Control-Allow-Credentials', String(policy.credentials))
+  response.headers.set('Access-Control-Allow-Methods', policy.methods)
+  response.headers.set('Access-Control-Allow-Headers', policy.headers)
+  if (policy.origin !== '*') {
+    response.headers.set('Vary', 'Origin')
+  }
+}
+
+/**
+ * Short-circuit preflight: Next's auto-OPTIONS for route handlers without
+ * an explicit OPTIONS export does not carry middleware headers.
+ */
+function buildPreflightResponse(policy: CorsPolicy): NextResponse {
+  const response = new NextResponse(null, { status: 204 })
+  applyCorsHeaders(response, policy)
+  response.headers.set('Access-Control-Max-Age', CORS_PREFLIGHT_MAX_AGE)
+  return response
+}
 
 const SUSPICIOUS_UA_PATTERNS = [
   /^\s*$/, // Empty user agents
@@ -122,6 +259,16 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
 export async function proxy(request: NextRequest) {
   const url = request.nextUrl
 
+  if (url.pathname.startsWith('/api/')) {
+    const policy = resolveApiCorsPolicy(request)
+    if (request.method === 'OPTIONS') {
+      return buildPreflightResponse(policy)
+    }
+    const response = NextResponse.next()
+    applyCorsHeaders(response, policy)
+    return response
+  }
+
   const sessionCookie = getSessionCookie(request)
   const hasActiveSession = isAuthDisabled || !!sessionCookie
 
@@ -202,6 +349,7 @@ export const config = {
     '/login',
     '/signup',
     '/invite/:path*', // Match invitation routes
+    '/api/:path*', // Runtime CORS
     // Catch-all for other pages, excluding static assets and public directories
     '/((?!api/|api$|_next/static|_next/image|ingest|favicon.ico|logo/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
   ],

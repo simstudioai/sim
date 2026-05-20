@@ -140,7 +140,7 @@ export const updateOrganizationWhitelabelBodySchema = z.object({
   wordmarkUrl: z.string().min(1).nullable().optional(),
   primaryColor: z
     .string()
-    .regex(HEX_COLOR_REGEX, 'Primary color must be a valid hex color (e.g. #701ffc)')
+    .regex(HEX_COLOR_REGEX, 'Primary color must be a valid hex color (e.g. #33c482)')
     .nullable()
     .optional(),
   primaryHoverColor: z

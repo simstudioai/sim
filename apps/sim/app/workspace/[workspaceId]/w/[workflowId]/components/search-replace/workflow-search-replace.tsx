@@ -265,6 +265,7 @@ export function WorkflowSearchReplace() {
         canonicalSubBlockId: match.canonicalSubBlockId,
         valuePath: match.valuePath,
         kind: match.kind,
+        targetKind: match.target.kind,
         resourceGroupKey: match.resource?.resourceGroupKey,
       })
     },

@@ -1,11 +1,12 @@
 import type { ToolConfig } from '@/tools/types'
 import type { VideoParams, VideoResponse } from '@/tools/video/types'
+import { parseBooleanParam, parseBooleanParamWithDefault } from '@/tools/video/utils'
 
 export const falaiVideoTool: ToolConfig<VideoParams, VideoResponse> = {
   id: 'video_falai',
   name: 'Fal.ai Video Generation',
   description:
-    'Generate videos using Fal.ai platform with access to multiple models including Veo 3.1, Sora 2, Kling 2.5, MiniMax Hailuo, and more',
+    'Generate videos using Fal.ai with access to Veo 3.1, Sora 2, Seedance 2.0, Kling 3.0, MiniMax Hailuo 2.3, WAN 2.2, LTX 2.3, and previously supported models',
   version: '1.0.0',
 
   params: {
@@ -26,7 +27,7 @@ export const falaiVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Fal.ai model: veo-3.1 (Google Veo 3.1), sora-2 (OpenAI Sora 2), kling-2.5-turbo-pro (Kling 2.5 Turbo Pro), kling-2.1-pro (Kling 2.1 Master), minimax-hailuo-2.3-pro (MiniMax Hailuo Pro), minimax-hailuo-2.3-standard (MiniMax Hailuo Standard), wan-2.1 (WAN T2V), ltxv-0.9.8 (LTXV 13B)',
+        'Fal.ai model: veo-3.1, veo-3.1-fast, sora-2, sora-2-pro, seedance-2.0, seedance-2.0-fast, kling-v3-pro, kling-v3-4k, kling-o3-pro, kling-o3-4k, minimax-hailuo-2.3-pro, minimax-hailuo-2.3-standard, wan-2.2-a14b-turbo, ltx-2.3, ltx-2.3-fast, plus previously supported model IDs',
     },
     prompt: {
       type: 'string',
@@ -50,13 +51,20 @@ export const falaiVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Video resolution (varies by model): 540p, 720p, 1080p',
+      description:
+        'Video resolution (varies by model): 480p, 580p, 720p, 1080p, true_1080p, 1440p, 2160p, 4k',
     },
     promptOptimizer: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
       description: 'Enable prompt optimization for MiniMax models (default: true)',
+    },
+    generateAudio: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Generate native audio when supported by the selected Fal.ai model',
     },
   },
 
@@ -78,7 +86,8 @@ export const falaiVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       duration: params.duration,
       aspectRatio: params.aspectRatio,
       resolution: params.resolution,
-      promptOptimizer: params.promptOptimizer !== false, // Default true for MiniMax
+      promptOptimizer: parseBooleanParamWithDefault(params.promptOptimizer, true),
+      generateAudio: parseBooleanParam(params.generateAudio),
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,

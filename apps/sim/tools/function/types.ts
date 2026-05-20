@@ -29,6 +29,8 @@ export interface CodeExecutionInput {
     workflowId?: string
     executionId?: string
     largeValueExecutionIds?: string[]
+    largeValueKeys?: string[]
+    fileKeys?: string[]
     allowLargeValueWorkflowScope?: boolean
     userId?: string
     workspaceId?: string

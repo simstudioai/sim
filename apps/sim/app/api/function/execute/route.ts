@@ -14,7 +14,12 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInE2B, executeShellInE2B } from '@/lib/execution/e2b'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
-import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
+import {
+  isLargeArrayManifest,
+  materializeLargeArrayManifest,
+} from '@/lib/execution/payloads/large-array-manifest'
+import { containsLargeValueRef, isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import {
   MAX_FUNCTION_INLINE_BYTES,
   MAX_INLINE_MATERIALIZATION_BYTES,
@@ -699,6 +704,8 @@ interface FunctionRouteExecutionContext {
   workspaceId?: string
   executionId?: string
   largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
   requestId: string
@@ -741,16 +748,25 @@ function getBrokerFileArgs(args: unknown): {
 function createFunctionRuntimeBrokers(
   context: FunctionRouteExecutionContext
 ): Record<string, IsolatedVMBrokerHandler> {
+  context.largeValueKeys ??= []
+  context.fileKeys ??= []
+  const largeValueKeys = context.largeValueKeys
+  const fileKeys = context.fileKeys
   const base = {
     requestId: context.requestId,
     workflowId: context.workflowId,
     workspaceId: context.workspaceId,
     executionId: context.executionId,
     largeValueExecutionIds: context.largeValueExecutionIds,
+    largeValueKeys,
+    fileKeys,
     allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
     userId: context.userId,
     logger,
   }
+
+  const recordMaterializedKeys = (value: unknown) =>
+    recordMaterializedAccessKeys({ largeValueKeys, fileKeys }, value)
 
   const readFile = async (args: unknown, encoding: 'base64' | 'text', chunked = false) => {
     const fileArgs = getBrokerFileArgs(args)
@@ -786,6 +802,24 @@ function createFunctionRuntimeBrokers(
       if (value === undefined) {
         throw unavailableLargeValueError(ref)
       }
+      recordMaterializedKeys(value)
+      return value
+    },
+    'sim.values.readArray': async (args) => {
+      const record = asRecord(args)
+      const options = asRecord(record.options)
+      const manifest = record.ref
+      if (!isLargeArrayManifest(manifest)) {
+        throw new Error('Expected a large array manifest.')
+      }
+      if (!context.executionId) {
+        throw new Error('Large array manifests require an execution context.')
+      }
+      const value = await materializeLargeArrayManifest(manifest, {
+        ...base,
+        maxBytes: clampInlineBytes(options.maxBytes, MAX_INLINE_MATERIALIZATION_BYTES),
+      })
+      recordMaterializedKeys(value)
       return value
     },
   }
@@ -810,7 +844,17 @@ async function functionJsonResponse<T>(
   context: FunctionRouteExecutionContext,
   init?: ResponseInit
 ) {
-  return NextResponse.json(await compactFunctionRouteBody(body, context), init)
+  return NextResponse.json(
+    await compactFunctionRouteBody(
+      {
+        ...body,
+        largeValueKeys: context.largeValueKeys,
+        fileKeys: context.fileKeys,
+      },
+      context
+    ),
+    init
+  )
 }
 
 async function maybeExportSandboxFileToWorkspace(args: {
@@ -955,6 +999,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workflowId,
       executionId,
       largeValueExecutionIds,
+      largeValueKeys,
+      fileKeys,
       allowLargeValueWorkflowScope = false,
       workspaceId,
       isCustomTool = false,
@@ -979,6 +1025,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workspaceId,
       executionId,
       largeValueExecutionIds,
+      largeValueKeys,
+      fileKeys,
       allowLargeValueWorkflowScope,
       userId: auth.userId,
       requestId,
@@ -1011,6 +1059,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       // because they were produced by the resolver using full execution-state context
       // (including loop/parallel scope) and should not be overwritten.
       contextVariables = { ...codeResolution.contextVariables, ...preResolvedContextVariables }
+    }
+
+    if (lang === CodeLanguage.Shell && containsLargeValueRef(contextVariables)) {
+      throw new Error(
+        'Large execution values require the JavaScript isolated-vm runtime. Select a nested field or read the value in a JavaScript function.'
+      )
     }
 
     let jsImports = ''
@@ -1123,6 +1177,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       isE2bEnabled &&
       !isCustomTool &&
       (lang === CodeLanguage.Python || (lang === CodeLanguage.JavaScript && hasImports))
+
+    if (useE2B && containsLargeValueRef(contextVariables)) {
+      throw new Error(
+        'Large execution values require the JavaScript isolated-vm runtime. Remove imports, select a nested field, or read the value in a JavaScript function without E2B.'
+      )
+    }
 
     if (useE2B) {
       logger.info(`[${requestId}] E2B status`, {

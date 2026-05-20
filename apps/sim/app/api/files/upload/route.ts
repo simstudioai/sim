@@ -21,11 +21,7 @@ import {
   validateFileType,
 } from '@/lib/uploads/utils/validation'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import {
-  createErrorResponse,
-  createOptionsResponse,
-  InvalidRequestError,
-} from '@/app/api/files/utils'
+import { createErrorResponse, InvalidRequestError } from '@/app/api/files/utils'
 
 const ALLOWED_EXTENSIONS = new Set<string>(SUPPORTED_ATTACHMENT_EXTENSIONS)
 
@@ -429,8 +425,4 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     logger.error('Error in file upload:', error)
     return createErrorResponse(error instanceof Error ? error : new Error('File upload failed'))
   }
-})
-
-export const OPTIONS = withRouteHandler(async () => {
-  return createOptionsResponse()
 })

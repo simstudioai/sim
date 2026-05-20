@@ -2,11 +2,21 @@ import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
-import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
+import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
+import {
+  isLargeArrayManifest,
+  materializeLargeArrayManifest,
+} from '@/lib/execution/payloads/large-array-manifest'
+import {
+  getLargeValueMaterializationError,
+  isLargeValueRef,
+  LARGE_VALUE_THRESHOLD_BYTES,
+} from '@/lib/execution/payloads/large-value-ref'
 import {
   assertUserFileContentAccess,
   readUserFileContent,
 } from '@/lib/execution/payloads/materialization.server'
+import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import {
   type ExecutionRedisBudgetReservation,
   getExecutionRedisBudgetKeys,
@@ -149,6 +159,8 @@ export interface Base64HydrationOptions {
   workflowId?: string
   executionId?: string
   largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
   logger?: Logger
@@ -156,6 +168,7 @@ export interface Base64HydrationOptions {
   allowUnknownSize?: boolean
   timeoutMs?: number
   cacheTtlSeconds?: number
+  preserveLargeValueMetadata?: boolean
 }
 
 class InMemoryBase64Cache implements Base64Cache {
@@ -401,6 +414,7 @@ async function resolveBase64(
       workflowId: options.workflowId,
       executionId: options.executionId,
       largeValueExecutionIds: options.largeValueExecutionIds,
+      fileKeys: options.fileKeys,
       allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
       userId: options.userId,
       encoding: 'base64',
@@ -427,6 +441,7 @@ async function hydrateUserFile(
         workflowId: options.workflowId,
         executionId: options.executionId,
         largeValueExecutionIds: options.largeValueExecutionIds,
+        fileKeys: options.fileKeys,
         allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
         userId: options.userId,
         logger,
@@ -465,6 +480,36 @@ async function hydrateValue(
     return value
   }
 
+  if (
+    options.preserveLargeValueMetadata &&
+    (isLargeArrayManifest(value) || isLargeValueRef(value))
+  ) {
+    return value
+  }
+
+  if (isLargeArrayManifest(value)) {
+    const materialized = await materializeLargeArrayManifest(value, options)
+    return hydrateValue(
+      materialized,
+      withLocalLargeValueExecutionIds(options, materialized),
+      state,
+      logger
+    )
+  }
+
+  if (isLargeValueRef(value)) {
+    const materialized = await materializeLargeValueRef(value, options)
+    if (materialized === undefined) {
+      throw getLargeValueMaterializationError(value)
+    }
+    return hydrateValue(
+      materialized,
+      withLocalLargeValueExecutionIds(options, materialized),
+      state,
+      logger
+    )
+  }
+
   if (isUserFileWithMetadata(value)) {
     return hydrateUserFile(value, options, state, logger)
   }
@@ -489,6 +534,18 @@ async function hydrateValue(
   )
 
   return Object.fromEntries(entries)
+}
+
+function withLocalLargeValueExecutionIds(
+  options: Base64HydrationOptions,
+  materializedValue: unknown
+): Base64HydrationOptions {
+  recordMaterializedAccessKeys(options, materializedValue)
+  return {
+    ...options,
+    largeValueKeys: options.largeValueKeys,
+    fileKeys: options.fileKeys,
+  }
 }
 
 /**

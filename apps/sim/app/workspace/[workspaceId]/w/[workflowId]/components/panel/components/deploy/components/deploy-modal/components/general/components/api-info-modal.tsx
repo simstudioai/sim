@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import {
@@ -144,23 +144,23 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
     }))
   }
 
-  const handleCloseAttempt = useCallback(() => {
+  const handleCloseAttempt = () => {
     if (hasChanges && !isSaving) {
       setShowUnsavedChangesAlert(true)
     } else {
       onOpenChange(false)
     }
-  }, [hasChanges, isSaving, onOpenChange])
+  }
 
-  const handleDiscardChanges = useCallback(() => {
+  const handleDiscardChanges = () => {
     setShowUnsavedChangesAlert(false)
     setDescription(initialDescriptionRef.current)
     setParamDescriptions({ ...initialParamDescriptionsRef.current })
     setAccessMode(initialAccessModeRef.current)
     onOpenChange(false)
-  }, [onOpenChange])
+  }
 
-  const handleSave = useCallback(async () => {
+  const handleSave = async () => {
     if (!workflowId) return
 
     const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -201,18 +201,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
     } finally {
       setIsSaving(false)
     }
-  }, [
-    workflowId,
-    workspaceId,
-    description,
-    workflowMetadata,
-    starterBlockId,
-    inputFormat,
-    paramDescriptions,
-    setValue,
-    onOpenChange,
-    accessMode,
-  ])
+  }
 
   return (
     <>

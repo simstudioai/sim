@@ -67,7 +67,7 @@ export const incidentsUpdateTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/incidents/${params.id}/actions/edit`,
+    url: (params) => `https://api.incident.io/v2/incidents/${params.id.trim()}/actions/edit`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

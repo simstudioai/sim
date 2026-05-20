@@ -1,4 +1,5 @@
 import type { GongGetCallTranscriptParams, GongGetCallTranscriptResponse } from '@/tools/gong/types'
+import { getGongErrorMessage, parseGongIdList } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getCallTranscriptTool: ToolConfig<
@@ -64,14 +65,13 @@ export const getCallTranscriptTool: ToolConfig<
     }),
     body: (params) => {
       const filter: Record<string, unknown> = {}
-      if (params.callIds) {
-        filter.callIds = params.callIds.split(',').map((id) => id.trim())
-      }
-      if (params.fromDateTime) filter.fromDateTime = params.fromDateTime
-      if (params.toDateTime) filter.toDateTime = params.toDateTime
-      if (params.workspaceId) filter.workspaceId = params.workspaceId
+      const callIds = parseGongIdList(params.callIds)
+      if (callIds) filter.callIds = callIds
+      if (params.fromDateTime?.trim()) filter.fromDateTime = params.fromDateTime.trim()
+      if (params.toDateTime?.trim()) filter.toDateTime = params.toDateTime.trim()
+      if (params.workspaceId?.trim()) filter.workspaceId = params.workspaceId.trim()
       const body: Record<string, unknown> = { filter }
-      if (params.cursor) body.cursor = params.cursor
+      if (params.cursor?.trim()) body.cursor = params.cursor.trim()
       return body
     },
   },
@@ -79,7 +79,7 @@ export const getCallTranscriptTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to get call transcript')
+      throw new Error(getGongErrorMessage(data, 'Failed to get call transcript'))
     }
     const callTranscripts = (data.callTranscripts ?? []).map((ct: Record<string, unknown>) => ({
       callId: ct.callId ?? '',
