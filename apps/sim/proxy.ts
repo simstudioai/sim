@@ -22,19 +22,8 @@ const DEFAULT_API_ALLOWED_HEADERS =
 const WORKFLOW_EXECUTE_HEADERS =
   'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key'
 
-/**
- * Workspace-internal segments under /api/{chat,form}/* that must NOT
- * receive the embed policy. They serve the workspace UI with session
- * cookies and need the default credentialed policy.
- */
 const EMBED_RESERVED_SEGMENTS = new Set(['manage', 'validate'])
 
-/**
- * True for /api/{chat,form}/[identifier] and any deeper subroute
- * (e.g. /otp, /sso). The identifier segment is explicitly checked
- * against EMBED_RESERVED_SEGMENTS so workspace-internal routes fall
- * through to the default credentialed policy.
- */
 function isEmbedPath(pathname: string): boolean {
   const segments = pathname.split('/')
   if (segments.length < 4) return false
@@ -79,22 +68,12 @@ const CORS_RULES: readonly CorsRule[] = [
     }),
   },
   {
-    // Embed endpoints: /api/chat/[identifier] and /api/form/[identifier]
-    // (plus their /otp and /sso subroutes). These run on customer domains
-    // and authenticate via the `chat_auth_<id>` / form auth cookie set by
-    // setDeploymentAuthCookie, so we must reflect the request origin AND
-    // allow credentials. Workspace-internal subpaths (`manage`, `validate`,
-    // and the bare collection routes) are excluded by isEmbedPath and
-    // continue to receive the default credentialed policy.
     match: (p) => isEmbedPath(p),
     policy: (request) => {
       const requestOrigin = request.headers.get('origin')
       return {
-        // Without an Origin header, fall back to '*' and drop credentials —
-        // the CORS spec rejects '*' paired with Allow-Credentials: true.
         origin: requestOrigin || '*',
         credentials: !!requestOrigin,
-        // PUT is required for OTP verification on /[identifier]/otp.
         methods: 'GET, POST, PUT, OPTIONS',
         headers: 'Content-Type, X-Requested-With',
       }
@@ -111,10 +90,6 @@ const CORS_RULES: readonly CorsRule[] = [
   },
 ]
 
-/**
- * Single source of truth for CORS on /api/* — next.config.ts headers are
- * baked at build time and would freeze NEXT_PUBLIC_APP_URL into the image.
- */
 export function resolveApiCorsPolicy(request: NextRequest): CorsPolicy {
   const { pathname } = request.nextUrl
   for (const rule of CORS_RULES) {
@@ -140,10 +115,6 @@ function applyCorsHeaders(response: NextResponse, policy: CorsPolicy): void {
   }
 }
 
-/**
- * Short-circuit preflight: Next's auto-OPTIONS for route handlers without
- * an explicit OPTIONS export does not carry middleware headers.
- */
 function buildPreflightResponse(policy: CorsPolicy): NextResponse {
   const response = new NextResponse(null, { status: 204 })
   applyCorsHeaders(response, policy)
