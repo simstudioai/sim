@@ -2,6 +2,7 @@ import { getNavBlogPosts } from '@/lib/blog/registry'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import Footer from '@/app/(landing)/components/footer/footer'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
+import { ScrollToTop } from '@/app/(landing)/components/scroll-to-top'
 
 export default async function ModelsLayout({ children }: { children: React.ReactNode }) {
   const blogPosts = await getNavBlogPosts()
@@ -24,6 +25,7 @@ export default async function ModelsLayout({ children }: { children: React.React
 
   return (
     <div className='dark flex min-h-screen flex-col bg-[var(--landing-bg)] font-[430] font-season text-[var(--landing-text)]'>
+      <ScrollToTop />
       <script
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
