@@ -134,15 +134,3 @@ export function batchUpdateUrl(presentationId: string | undefined): string {
   if (!id) throw new Error('Presentation ID is required')
   return `https://slides.googleapis.com/v1/presentations/${id}:batchUpdate`
 }
-
-/**
- * Build a FieldMask string from a record of set/unset fields. Keys with
- * defined (non-undefined) values are included; others are omitted. Useful
- * for UpdateXxxProperties requests where only changed fields should be sent.
- */
-export function buildFieldMask(fields: Record<string, unknown>): string {
-  return Object.entries(fields)
-    .filter(([, v]) => v !== undefined && v !== null && v !== '')
-    .map(([k]) => k)
-    .join(',')
-}

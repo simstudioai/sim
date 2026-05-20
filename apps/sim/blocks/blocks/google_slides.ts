@@ -2977,6 +2977,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
         if (params.operation === 'create_video') {
           result.pageObjectId = params.videoPageObjectId
           if (params.videoSource) result.source = params.videoSource
+          if (params.videoId) result.videoId = params.videoId
           const vw = toNum(params.videoWidth)
           const vh = toNum(params.videoHeight)
           const vpx = toNum(params.videoPositionX)

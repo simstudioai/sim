@@ -93,13 +93,7 @@ export const exportPresentationTool: ToolConfig<
     }
 
     const buffer = await response.arrayBuffer()
-    const bytes = new Uint8Array(buffer)
-    let binary = ''
-    for (let i = 0; i < bytes.length; i += 1) {
-      binary += String.fromCharCode(bytes[i])
-    }
-    const contentBase64 =
-      typeof btoa === 'function' ? btoa(binary) : Buffer.from(buffer).toString('base64')
+    const contentBase64 = Buffer.from(buffer).toString('base64')
 
     const presentationId = params?.presentationId?.trim() || ''
     const format = (params?.exportFormat || 'PDF').toUpperCase()
@@ -110,7 +104,7 @@ export const exportPresentationTool: ToolConfig<
       output: {
         contentBase64,
         mimeType: mime,
-        sizeBytes: bytes.length,
+        sizeBytes: buffer.byteLength,
         metadata: {
           presentationId,
           url: presentationUrl(presentationId),
