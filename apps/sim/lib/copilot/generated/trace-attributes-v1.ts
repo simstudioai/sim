@@ -325,23 +325,38 @@ export const TraceAttr = {
   GenAiRequestMessagesCount: 'gen_ai.request.messages.count',
   GenAiRequestModel: 'gen_ai.request.model',
   GenAiRequestPromptCacheBreakpointCreated: 'gen_ai.request.prompt_cache.breakpoint.created',
+  GenAiRequestPromptCacheBreakpointDynamicWriteSuppressReason:
+    'gen_ai.request.prompt_cache.breakpoint.dynamic_write_suppress_reason',
+  GenAiRequestPromptCacheBreakpointDynamicWriteSuppressed:
+    'gen_ai.request.prompt_cache.breakpoint.dynamic_write_suppressed',
   GenAiRequestPromptCacheBreakpointEligible: 'gen_ai.request.prompt_cache.breakpoint.eligible',
   GenAiRequestPromptCacheBreakpointKind: 'gen_ai.request.prompt_cache.breakpoint.kind',
+  GenAiRequestPromptCacheBreakpointMinimumTokens:
+    'gen_ai.request.prompt_cache.breakpoint.minimum_tokens',
   GenAiRequestPromptCacheBreakpointPrefixTokensEstimated:
     'gen_ai.request.prompt_cache.breakpoint.prefix_tokens_estimated',
+  GenAiRequestPromptCacheBreakpointPreviousBoundaryTokens:
+    'gen_ai.request.prompt_cache.breakpoint.previous_boundary_tokens',
   GenAiRequestPromptCacheBreakpointSection: 'gen_ai.request.prompt_cache.breakpoint.section',
   GenAiRequestPromptCacheBreakpointSkipReason: 'gen_ai.request.prompt_cache.breakpoint.skip_reason',
   GenAiRequestPromptCacheBreakpointTargetIndex:
     'gen_ai.request.prompt_cache.breakpoint.target_index',
   GenAiRequestPromptCacheBreakpointTargetRole: 'gen_ai.request.prompt_cache.breakpoint.target_role',
   GenAiRequestPromptCacheBreakpointTargetType: 'gen_ai.request.prompt_cache.breakpoint.target_type',
+  GenAiRequestPromptCacheBreakpointThresholdTokens:
+    'gen_ai.request.prompt_cache.breakpoint.threshold_tokens',
   GenAiRequestPromptCacheBreakpointTtl: 'gen_ai.request.prompt_cache.breakpoint.ttl',
   GenAiRequestPromptCacheBreakpointsCount: 'gen_ai.request.prompt_cache.breakpoints.count',
   GenAiRequestPromptCacheBreakpointsCreated: 'gen_ai.request.prompt_cache.breakpoints.created',
+  GenAiRequestPromptCacheDynamicMinimumTokens: 'gen_ai.request.prompt_cache.dynamic.minimum_tokens',
   GenAiRequestPromptCacheDynamicPrefixTokensEstimated:
     'gen_ai.request.prompt_cache.dynamic.prefix_tokens_estimated',
+  GenAiRequestPromptCacheDynamicPreviousBoundaryTokens:
+    'gen_ai.request.prompt_cache.dynamic.previous_boundary_tokens',
   GenAiRequestPromptCacheDynamicSkipReason: 'gen_ai.request.prompt_cache.dynamic.skip_reason',
   GenAiRequestPromptCacheDynamicTargetType: 'gen_ai.request.prompt_cache.dynamic.target_type',
+  GenAiRequestPromptCacheDynamicThresholdTokens:
+    'gen_ai.request.prompt_cache.dynamic.threshold_tokens',
   GenAiRequestPromptCacheDynamicTtl: 'gen_ai.request.prompt_cache.dynamic.ttl',
   GenAiRequestPromptCacheDynamicUserEligible: 'gen_ai.request.prompt_cache.dynamic_user_eligible',
   GenAiRequestPromptCacheDynamicUserSkipReason:
@@ -903,20 +918,28 @@ export const TraceAttrValues: readonly TraceAttrValue[] = [
   'gen_ai.request.messages.count',
   'gen_ai.request.model',
   'gen_ai.request.prompt_cache.breakpoint.created',
+  'gen_ai.request.prompt_cache.breakpoint.dynamic_write_suppress_reason',
+  'gen_ai.request.prompt_cache.breakpoint.dynamic_write_suppressed',
   'gen_ai.request.prompt_cache.breakpoint.eligible',
   'gen_ai.request.prompt_cache.breakpoint.kind',
+  'gen_ai.request.prompt_cache.breakpoint.minimum_tokens',
   'gen_ai.request.prompt_cache.breakpoint.prefix_tokens_estimated',
+  'gen_ai.request.prompt_cache.breakpoint.previous_boundary_tokens',
   'gen_ai.request.prompt_cache.breakpoint.section',
   'gen_ai.request.prompt_cache.breakpoint.skip_reason',
   'gen_ai.request.prompt_cache.breakpoint.target_index',
   'gen_ai.request.prompt_cache.breakpoint.target_role',
   'gen_ai.request.prompt_cache.breakpoint.target_type',
+  'gen_ai.request.prompt_cache.breakpoint.threshold_tokens',
   'gen_ai.request.prompt_cache.breakpoint.ttl',
   'gen_ai.request.prompt_cache.breakpoints.count',
   'gen_ai.request.prompt_cache.breakpoints.created',
+  'gen_ai.request.prompt_cache.dynamic.minimum_tokens',
   'gen_ai.request.prompt_cache.dynamic.prefix_tokens_estimated',
+  'gen_ai.request.prompt_cache.dynamic.previous_boundary_tokens',
   'gen_ai.request.prompt_cache.dynamic.skip_reason',
   'gen_ai.request.prompt_cache.dynamic.target_type',
+  'gen_ai.request.prompt_cache.dynamic.threshold_tokens',
   'gen_ai.request.prompt_cache.dynamic.ttl',
   'gen_ai.request.prompt_cache.dynamic_user_eligible',
   'gen_ai.request.prompt_cache.dynamic_user_skip_reason',

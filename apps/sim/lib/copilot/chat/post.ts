@@ -50,7 +50,7 @@ import type { ChatContext } from '@/stores/panel'
 export const maxDuration = 3600
 
 const logger = createLogger('UnifiedChatAPI')
-const DEFAULT_MODEL = 'claude-opus-4-6'
+const DEFAULT_MODEL = 'claude-opus-4-7'
 
 const FileAttachmentSchema = z.object({
   id: z.string(),
@@ -147,6 +147,7 @@ type UnifiedChatBranch =
       workflowId: string
       workflowName?: string
       workspaceId?: string
+      effectiveModel: string
       selectedModel: string
       mode: UnifiedChatRequest['mode']
       provider?: string
@@ -182,6 +183,7 @@ type UnifiedChatBranch =
   | {
       kind: 'workspace'
       workspaceId: string
+      effectiveModel: string
       goRoute: '/api/mothership'
       titleModel: string
       titleProvider?: undefined
@@ -554,6 +556,7 @@ async function resolveBranch(params: {
       workflowId: resolvedWorkflowId,
       workflowName: resolved.workflowName,
       workspaceId: resolvedWorkspaceId,
+        effectiveModel: selectedModel,
       selectedModel,
       mode: mode ?? 'agent',
       provider,
@@ -620,6 +623,7 @@ async function resolveBranch(params: {
   return {
     kind: 'workspace',
     workspaceId: requestedWorkspaceId,
+    effectiveModel: DEFAULT_MODEL,
     goRoute: '/api/mothership',
     titleModel: DEFAULT_MODEL,
     notifyWorkspaceStatus: true,
@@ -821,7 +825,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       activeOtelRoot.setRequestShape({
         branchKind: branch.kind,
         mode: body.mode,
-        model: body.model,
+        model: branch.effectiveModel,
         provider: body.provider,
         createNewChat: body.createNewChat,
         prefetch: body.prefetch,
