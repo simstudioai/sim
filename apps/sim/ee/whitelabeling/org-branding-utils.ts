@@ -66,6 +66,7 @@ export function generateOrgThemeCSS(settings: OrganizationWhitelabelSettings): s
 
   if (settings.primaryColor) {
     vars.push(`--brand: ${settings.primaryColor};`)
+    vars.push(`--brand-agent: ${settings.primaryColor};`)
     vars.push(`--brand-accent: ${settings.primaryColor};`)
     vars.push(`--auth-primary-btn-bg: ${settings.primaryColor};`)
     vars.push(`--auth-primary-btn-border: ${settings.primaryColor};`)
