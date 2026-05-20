@@ -305,6 +305,8 @@ export interface SubBlockConfig {
   multiSelect?: boolean
   // Combobox specific: Enable search input in dropdown
   searchable?: boolean
+  /** Dropdown-specific: include static options as Cmd K search entries that preset this subblock. */
+  commandSearchable?: boolean
   // Wand configuration for AI assistance
   wandConfig?: {
     enabled: boolean

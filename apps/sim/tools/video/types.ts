@@ -33,6 +33,16 @@ export interface VideoResponse extends ToolResponse {
     provider?: string
     model?: string
     jobId?: string
+    __falaiCostDollars?: number
+    __falaiBilling?: {
+      endpointId: string
+      requestId: string
+      source: 'billing_events' | 'historical_estimate'
+      outputUnits?: number | null
+      unitPrice?: number | null
+      percentDiscount?: number | null
+      currency?: string
+    }
   }
 }
 

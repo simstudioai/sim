@@ -8,6 +8,7 @@ import { getValidationErrorMessage, parseRequest, validationErrorResponse } from
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
@@ -102,6 +103,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let height: number | undefined
     let jobId: string | undefined
     let actualDuration: number | undefined
+    let falaiCost: FalAICostMetadata | undefined
 
     if (body.visualReference) {
       const denied = await assertToolFileAccess(
@@ -200,6 +202,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           resolution,
           body.promptOptimizer,
           body.generateAudio,
+          body.useHostedCostTracking === true,
           requestId,
           logger
         )
@@ -208,6 +211,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         height = result.height
         jobId = result.jobId
         actualDuration = result.duration
+        falaiCost = result.falaiCost
       } else {
         return NextResponse.json({ error: `Unknown provider: ${provider}` }, { status: 400 })
       }
@@ -262,6 +266,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         provider,
         model: model || 'default',
         jobId,
+        __falaiCostDollars: falaiCost?.costDollars,
+        __falaiBilling: falaiCost,
       })
     }
 
@@ -294,6 +300,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       provider,
       model: model || 'default',
       jobId,
+      __falaiCostDollars: falaiCost?.costDollars,
+      __falaiBilling: falaiCost,
     })
   } catch (error) {
     logger.error(`[${requestId}] Video proxy error:`, error)
@@ -1082,9 +1090,17 @@ async function generateWithFalAI(
   resolution: string | undefined,
   promptOptimizer: boolean | undefined,
   generateAudio: boolean | undefined,
+  useHostedCostTracking: boolean,
   requestId: string,
   logger: ReturnType<typeof createLogger>
-): Promise<{ buffer: Buffer; width: number; height: number; jobId: string; duration: number }> {
+): Promise<{
+  buffer: Buffer
+  width: number
+  height: number
+  jobId: string
+  duration: number
+  falaiCost?: FalAICostMetadata
+}> {
   logger.info(`[${requestId}] Starting Fal.ai generation with model: ${model}`)
 
   const modelConfig = FALAI_MODEL_CONFIGS[model]
@@ -1229,6 +1245,13 @@ async function generateWithFalAI(
         height,
         jobId: requestIdFal,
         duration: getNumberProperty(videoOutput, 'duration') || duration || 5,
+        falaiCost: useHostedCostTracking
+          ? await getFalAICostMetadata({
+              apiKey,
+              endpointId: modelConfig.endpoint,
+              requestId: requestIdFal,
+            })
+          : undefined,
       }
     }
 

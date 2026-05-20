@@ -104,6 +104,7 @@ import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
+import { useProvidersStore } from '@/stores/providers'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
@@ -360,10 +361,15 @@ export const Sidebar = memo(function Sidebar() {
   const { config: permissionConfig, filterBlocks } = usePermissionConfig()
   const { navigateToSettings, getSettingsHref } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
+  const providerModelSignature = useProvidersStore((state) =>
+    Object.values(state.providers)
+      .map((provider) => provider.models.join('\x00'))
+      .join('\x01')
+  )
 
   useEffect(() => {
     initializeSearchData(filterBlocks)
-  }, [initializeSearchData, filterBlocks])
+  }, [initializeSearchData, filterBlocks, providerModelSignature])
 
   const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
   const isCollapsed = useSidebarStore((state) => state.isCollapsed)

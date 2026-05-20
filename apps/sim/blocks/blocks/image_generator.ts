@@ -333,7 +333,8 @@ export const ImageGeneratorV2Block: BlockConfig<ImageGenerationResponse> = {
         { label: 'Google Gemini', id: 'gemini' },
         { label: 'Fal.ai (Multi-Model)', id: 'falai' },
       ],
-      value: () => 'openai',
+      commandSearchable: true,
+      value: () => 'falai',
     },
     {
       id: 'model',
@@ -812,6 +813,18 @@ export const ImageGeneratorV2Block: BlockConfig<ImageGenerationResponse> = {
       placeholder: 'Enter your provider API key',
       password: true,
       connectionDroppable: false,
+      hideWhenHosted: true,
+      condition: { field: 'provider', value: 'falai' },
+    },
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter your provider API key',
+      password: true,
+      connectionDroppable: false,
+      condition: { field: 'provider', value: 'falai', not: true },
     },
   ],
   tools: {
@@ -819,14 +832,13 @@ export const ImageGeneratorV2Block: BlockConfig<ImageGenerationResponse> = {
     config: {
       tool: () => 'image_generate',
       params: (params) => {
-        if (!params.apiKey) {
+        const provider = params.provider || 'openai'
+        if (provider !== 'falai' && !params.apiKey) {
           throw new Error('API key is required')
         }
         if (!params.prompt) {
           throw new Error('Prompt is required')
         }
-
-        const provider = params.provider || 'openai'
         const defaultModel =
           provider === 'gemini'
             ? 'gemini-3.1-flash-image-preview'

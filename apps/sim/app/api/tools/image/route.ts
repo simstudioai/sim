@@ -23,6 +23,7 @@ import {
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
 
 const logger = createLogger('ImageProxyAPI')
 
@@ -42,6 +43,7 @@ interface GeneratedImageResult {
   revisedPrompt?: string
   seed?: number
   jobId?: string
+  falaiCost?: FalAICostMetadata
 }
 
 interface StoredImageResponse {
@@ -61,6 +63,8 @@ interface StoredImageResponse {
     jobId?: string
     contentType: string
   }
+  __falaiCostDollars?: number
+  __falaiBilling?: FalAICostMetadata
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
@@ -869,6 +873,13 @@ async function generateWithFalAI(
         revisedPrompt: getStringProperty(resultData, 'revised_prompt'),
         seed: getNumberProperty(resultData, 'seed'),
         jobId: falRequestId,
+        falaiCost: body.useHostedCostTracking
+          ? await getFalAICostMetadata({
+              apiKey,
+              endpointId: modelConfig.endpoint,
+              requestId: falRequestId,
+            })
+          : undefined,
       }
     }
 
@@ -926,6 +937,8 @@ async function storeGeneratedImage(
         jobId: imageResult.jobId,
         contentType: imageResult.contentType,
       },
+      __falaiCostDollars: imageResult.falaiCost?.costDollars,
+      __falaiBilling: imageResult.falaiCost,
     }
   }
 
@@ -958,5 +971,7 @@ async function storeGeneratedImage(
       jobId: imageResult.jobId,
       contentType: imageResult.contentType,
     },
+    __falaiCostDollars: imageResult.falaiCost?.costDollars,
+    __falaiBilling: imageResult.falaiCost,
   }
 }

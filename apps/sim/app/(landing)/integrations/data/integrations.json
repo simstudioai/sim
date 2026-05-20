@@ -1938,7 +1938,7 @@
       },
       {
         "name": "Get Work Items Batch",
-        "description": "Fetch full details for multiple work items by ID from Azure DevOps in a single call. Pass comma-separated IDs (e.g. "
+        "description": "Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-separated IDs (e.g. "
       },
       {
         "name": "Create Work Item",
@@ -4157,10 +4157,6 @@
         "description": "Fetch and parse a file from a URL with optional custom headers."
       },
       {
-        "name": "Get",
-        "description": "Get a workspace file object from a selected file or canonical workspace file ID."
-      },
-      {
         "name": "Write",
         "description": "Create a new workspace file. If a file with the same name already exists, a numeric suffix is added (e.g., "
       },
@@ -4169,7 +4165,7 @@
         "description": "Append content to an existing workspace file. The file must already exist. Content is added to the end of the file."
       }
     ],
-    "operationCount": 5,
+    "operationCount": 4,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
@@ -14252,24 +14248,6 @@
     "category": "tools",
     "integrationTypes": ["ai", "design"],
     "tags": ["video-generation", "llm"]
-  },
-  {
-    "type": "vision_v2",
-    "slug": "vision",
-    "name": "Vision",
-    "description": "Analyze images with vision models",
-    "longDescription": "Integrate Vision into the workflow. Can analyze images with vision models.",
-    "bgColor": "#4D5FFF",
-    "iconName": "EyeIcon",
-    "docsUrl": "https://docs.sim.ai/tools/vision",
-    "operations": [],
-    "operationCount": 0,
-    "triggers": [],
-    "triggerCount": 0,
-    "authType": "api-key",
-    "category": "tools",
-    "integrationTypes": ["ai", "documents"],
-    "tags": ["llm", "document-processing", "ocr"]
   },
   {
     "type": "wealthbox",
