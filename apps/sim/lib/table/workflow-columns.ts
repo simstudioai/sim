@@ -321,7 +321,7 @@ export async function cancelWorkflowGroupRuns(
 ): Promise<number> {
   const { getTableById, updateRow } = await import('@/lib/table/service')
   const { getJobQueue } = await import('@/lib/core/async-jobs/config')
-  const { markActiveDispatchesCancelled } = await import('./dispatcher')
+  const { listActiveDispatches, markActiveDispatchesCancelled } = await import('./dispatcher')
 
   const table = await getTableById(tableId)
   if (!table) {
@@ -342,6 +342,35 @@ export async function cancelWorkflowGroupRuns(
     ? new Set(allGroups.filter((g) => options.groupIds?.includes(g.id)).map((g) => g.id))
     : new Set(allGroups.map((g) => g.id))
   if (groupIds.size === 0) return 0
+
+  // Per-row Stop on a row the dispatcher hasn't reached yet has no sidecar
+  // entry to cancel — the dispatcher would later walk to that row, see no
+  // exec, classify eligible, and re-fire. Pre-write `cancelled` tombstones
+  // for active-dispatch in-scope groups so the existing `cancelledAt >
+  // dispatch.requestedAt` filter in `dispatcherStep` catches them. Skip
+  // when there's no active dispatch (nothing to outrun).
+  let aheadOfCursorTombstones: Array<{ groupId: string; workflowId: string }> = []
+  if (rowId) {
+    const activeDispatches = await listActiveDispatches(tableId)
+    const relevant = activeDispatches.filter((d) => {
+      if (d.scope.rowIds && !d.scope.rowIds.includes(rowId)) return false
+      return d.scope.groupIds.some((gid) => groupIds.has(gid))
+    })
+    if (relevant.length > 0) {
+      // Intersection of targeted groups with active-dispatch scopes — only
+      // these groups are at risk of being re-fired by an in-progress dispatch.
+      const atRisk = new Set<string>()
+      for (const d of relevant) {
+        for (const gid of d.scope.groupIds) {
+          if (groupIds.has(gid)) atRisk.add(gid)
+        }
+      }
+      aheadOfCursorTombstones = Array.from(atRisk).map((gid) => ({
+        groupId: gid,
+        workflowId: allGroups.find((g) => g.id === gid)?.workflowId ?? '',
+      }))
+    }
+  }
 
   // Always filter by tableId — for the per-row case this prevents a
   // cross-table rowId from doing a wasted DB round-trip and silently
@@ -439,6 +468,45 @@ export async function cancelWorkflowGroupRuns(
       })
     )
   )
+
+  // Tombstones for ahead-of-cursor groups. The in-flight cancel writes above
+  // already cover groups that have a sidecar entry; we only need fresh
+  // tombstones for groups that don't (the dispatcher hasn't reached them
+  // yet, so there's nothing to cancel — but without a tombstone the
+  // dispatcher would still re-fire when its cursor walks to this row).
+  if (rowId && aheadOfCursorTombstones.length > 0) {
+    const alreadyHandled = new Set(mutations.flatMap((m) => Object.keys(m.executionsPatch)))
+    const needsTombstone = aheadOfCursorTombstones.filter((t) => !alreadyHandled.has(t.groupId))
+    if (needsTombstone.length > 0) {
+      const now = new Date()
+      await Promise.allSettled(
+        needsTombstone.map((t) =>
+          db
+            .insert(tableRowExecutions)
+            .values({
+              tableId,
+              rowId,
+              groupId: t.groupId,
+              status: 'cancelled',
+              executionId: null,
+              jobId: null,
+              workflowId: t.workflowId,
+              error: 'Cancelled',
+              runningBlockIds: [],
+              blockErrors: {},
+              cancelledAt: now,
+              updatedAt: now,
+            })
+            .onConflictDoNothing({
+              target: [tableRowExecutions.rowId, tableRowExecutions.groupId],
+            })
+            .catch((err) => {
+              logger.error(`Failed to write tombstone for ${tableId}/${rowId}/${t.groupId}:`, err)
+            })
+        )
+      )
+    }
+  }
 
   return mutations.reduce((sum, m) => sum + m.cancelledCount, 0)
 }
