@@ -98,9 +98,9 @@ export type TableEvent =
   | {
       /** Dispatcher status signal emitted by `dispatcherStep` and the cancel
        *  path. Drives the client-side "about to run" overlay for rows the
-       *  dispatcher hasn't reached yet. `scope` + `cursor` + `mode` are
-       *  carried on every transition so the client can upsert without
-       *  refetching the dispatches list. */
+       *  dispatcher hasn't reached yet. `scope` + `cursor` + `mode` +
+       *  `isManualRun` are carried on every transition so the client can
+       *  upsert without refetching the dispatches list. */
       kind: 'dispatch'
       tableId: string
       dispatchId: string
@@ -108,6 +108,7 @@ export type TableEvent =
       scope?: { groupIds: string[]; rowIds?: string[] }
       cursor?: number
       mode?: 'all' | 'incomplete' | 'new'
+      isManualRun?: boolean
     }
 
 export interface TableEventEntry {

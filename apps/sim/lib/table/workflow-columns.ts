@@ -462,7 +462,11 @@ export async function runWorkflowColumn(opts: {
 
   const allGroups = table.schema.workflowGroups ?? []
   const targetGroups = groupIds ? allGroups.filter((g) => groupIds.includes(g.id)) : allGroups
-  if (targetGroups.length === 0) throw new Error('No matching workflow groups for run')
+  // Tables with no workflow groups are the majority. Auto-fire callers from
+  // every row write would otherwise produce error-level log spam on every
+  // PATCH/insert. Manual run-column callers always pass `groupIds` so they
+  // can't reach here with an empty target.
+  if (targetGroups.length === 0) return { dispatchId: null }
   const targetGroupIds = targetGroups.map((g) => g.id)
 
   // Wipe targeted output cols + executions[gid] before any cells fire so the

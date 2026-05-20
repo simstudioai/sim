@@ -298,6 +298,7 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       scope: dispatch.scope,
       cursor: dispatch.cursor,
       mode: dispatch.mode,
+      isManualRun: dispatch.isManualRun,
     })
     return 'done'
   }
@@ -358,6 +359,7 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       scope: dispatch.scope,
       cursor: lastPosition,
       mode: dispatch.mode,
+      isManualRun: dispatch.isManualRun,
     }),
   ])
 
@@ -450,6 +452,7 @@ export async function markActiveDispatchesCancelled(tableId: string): Promise<Di
         scope: d.scope,
         cursor: d.cursor,
         mode: d.mode,
+        isManualRun: d.isManualRun,
       })
     )
   )

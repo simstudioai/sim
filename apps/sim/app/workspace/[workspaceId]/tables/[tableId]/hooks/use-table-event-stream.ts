@@ -145,7 +145,7 @@ export function useTableEventStream({
     }
 
     const applyDispatch = (event: Extract<TableEvent, { kind: 'dispatch' }>): void => {
-      const { dispatchId, status, scope, cursor, mode } = event
+      const { dispatchId, status, scope, cursor, mode, isManualRun } = event
       queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
         if (!prev) return prev
         const list = prev.dispatches
@@ -160,19 +160,23 @@ export function useTableEventStream({
           // overlay. Leave existing cache alone.
           return prev
         }
+        const idx = list.findIndex((d) => d.id === dispatchId)
+        const existing = idx === -1 ? undefined : list[idx]
+        // Prefer the event payload (current truth from server); fall back to
+        // the cached entry's value if this is a legacy emit without the
+        // field, and finally to `false` if we have nothing.
+        const resolvedManualRun = isManualRun ?? existing?.isManualRun ?? false
         const next: ActiveDispatch = {
           id: dispatchId,
           status,
           mode,
-          isManualRun: false,
+          isManualRun: resolvedManualRun,
           cursor,
           scope,
         }
-        const idx = list.findIndex((d) => d.id === dispatchId)
         if (idx === -1) return { ...prev, dispatches: [...list, next] }
         const merged = list.slice()
-        // Preserve isManualRun from the initial fetch — SSE doesn't carry it.
-        merged[idx] = { ...next, isManualRun: list[idx].isManualRun }
+        merged[idx] = next
         return { ...prev, dispatches: merged }
       })
     }

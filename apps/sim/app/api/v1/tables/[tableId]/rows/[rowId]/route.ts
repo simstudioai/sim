@@ -14,7 +14,6 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData } from '@/lib/table'
 import { updateRow } from '@/lib/table'
-import { runWorkflowColumn } from '@/lib/table/workflow-columns'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -145,14 +144,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     if (!updatedRow) {
       return NextResponse.json({ error: 'Row not found' }, { status: 404 })
     }
-    void runWorkflowColumn({
-      tableId,
-      workspaceId: validated.workspaceId,
-      rowIds: [updatedRow.id],
-      mode: 'incomplete',
-      isManualRun: false,
-      requestId,
-    }).catch((err) => logger.error(`[${requestId}] auto-dispatch (v1 row update) failed:`, err))
+    // Auto-dispatch for user edits is handled inside `updateRow` (mode: 'new').
+    // Firing a second mode: 'incomplete' dispatch here would race with it AND
+    // bulk-clear sibling-group outputs.
 
     return NextResponse.json({
       success: true,
