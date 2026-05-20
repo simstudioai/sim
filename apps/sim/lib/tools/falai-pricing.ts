@@ -1,16 +1,24 @@
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 
 export const FALAI_HOSTED_KEY_MARKUP_MULTIPLIER = 1.5
+export const FALAI_IMAGE_FALLBACK_PROVIDER_COST_DOLLARS = 0.05
+export const FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS = 0.25
+const FALAI_BILLING_EVENT_ATTEMPTS = 2
+const FALAI_BILLING_EVENT_RETRY_MS = 500
+const logger = createLogger('FalAIPricing')
 
 export interface FalAICostMetadata {
   endpointId: string
   requestId: string
   costDollars: number
-  source: 'billing_events' | 'historical_estimate'
+  source: 'billing_events' | 'historical_estimate' | 'fallback_floor'
   outputUnits?: number | null
   unitPrice?: number | null
   percentDiscount?: number | null
   currency?: string
+  error?: string
 }
 
 interface FalAIBillingEvent {
@@ -28,6 +36,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function getNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function getFalAIFallbackProviderCostDollars(endpointId: string): number {
+  const normalizedEndpointId = endpointId.toLowerCase()
+  const isImageEndpoint =
+    normalizedEndpointId.includes('image') ||
+    normalizedEndpointId.includes('nano-banana') ||
+    normalizedEndpointId.includes('seedream') ||
+    normalizedEndpointId.includes('flux') ||
+    normalizedEndpointId.includes('grok-imagine')
+
+  return isImageEndpoint
+    ? FALAI_IMAGE_FALLBACK_PROVIDER_COST_DOLLARS
+    : FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS
 }
 
 function parseBillingEvent(value: unknown): FalAIBillingEvent | undefined {
@@ -58,49 +80,72 @@ async function fetchFalAIBillingEvent(
   url.searchParams.set('request_id', requestId)
   url.searchParams.set('limit', '1')
 
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Key ${apiKey}`,
-    },
-  })
+  let response: Response
+  try {
+    response = await fetch(url, {
+      headers: {
+        Authorization: `Key ${apiKey}`,
+      },
+    })
+  } catch (error) {
+    logger.warn('Failed to fetch Fal.ai billing event', {
+      requestId,
+      error: getErrorMessage(error, 'Unknown error'),
+    })
+    return undefined
+  }
 
   if (!response.ok) return undefined
 
-  const data = (await response.json()) as unknown
+  const data = await response.json().catch((error) => {
+    logger.warn('Failed to parse Fal.ai billing event response', {
+      requestId,
+      error: getErrorMessage(error, 'Unknown error'),
+    })
+    return undefined
+  })
   if (!isRecord(data) || !Array.isArray(data.billing_events)) return undefined
 
   return data.billing_events.map(parseBillingEvent).find(Boolean)
 }
 
-async function estimateFalAICallCost(apiKey: string, endpointId: string): Promise<number> {
-  const response = await fetch('https://api.fal.ai/v1/models/pricing/estimate', {
-    method: 'POST',
-    headers: {
-      Authorization: `Key ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      estimate_type: 'historical_api_price',
-      endpoints: {
-        [endpointId]: {
-          call_quantity: 1,
-        },
+async function estimateFalAICallCost(
+  apiKey: string,
+  endpointId: string
+): Promise<{ costDollars?: number; error?: string }> {
+  let response: Response
+  try {
+    response = await fetch('https://api.fal.ai/v1/models/pricing/estimate', {
+      method: 'POST',
+      headers: {
+        Authorization: `Key ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-    }),
-  })
+      body: JSON.stringify({
+        estimate_type: 'historical_api_price',
+        endpoints: {
+          [endpointId]: {
+            call_quantity: 1,
+          },
+        },
+      }),
+    })
+  } catch (error) {
+    return { error: getErrorMessage(error, 'Unknown error') }
+  }
 
   if (!response.ok) {
     const error = await response.text().catch(() => '')
-    throw new Error(`Fal.ai pricing estimate failed: ${response.status} ${error}`)
+    return { error: `Fal.ai pricing estimate failed: ${response.status} ${error}` }
   }
 
   const data = (await response.json()) as unknown
   const totalCost = isRecord(data) ? getNumber(data.total_cost) : undefined
   if (totalCost === undefined) {
-    throw new Error('Fal.ai pricing estimate missing total_cost')
+    return { error: 'Fal.ai pricing estimate missing total_cost' }
   }
 
-  return totalCost
+  return { costDollars: totalCost }
 }
 
 export async function getFalAICostMetadata({
@@ -112,7 +157,7 @@ export async function getFalAICostMetadata({
   endpointId: string
   requestId: string
 }): Promise<FalAICostMetadata> {
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < FALAI_BILLING_EVENT_ATTEMPTS; attempt++) {
     const event = await fetchFalAIBillingEvent(apiKey, requestId)
     if (event) {
       return {
@@ -127,14 +172,34 @@ export async function getFalAICostMetadata({
       }
     }
 
-    await sleep(1000)
+    if (attempt < FALAI_BILLING_EVENT_ATTEMPTS - 1) {
+      await sleep(FALAI_BILLING_EVENT_RETRY_MS)
+    }
   }
+
+  const estimate = await estimateFalAICallCost(apiKey, endpointId)
+  if (estimate.costDollars !== undefined) {
+    return {
+      endpointId,
+      requestId,
+      costDollars: estimate.costDollars,
+      source: 'historical_estimate',
+      currency: 'USD',
+    }
+  }
+
+  logger.warn('Fal.ai cost metadata unavailable after generation completed', {
+    endpointId,
+    requestId,
+    error: estimate.error,
+  })
 
   return {
     endpointId,
     requestId,
-    costDollars: await estimateFalAICallCost(apiKey, endpointId),
-    source: 'historical_estimate',
+    costDollars: getFalAIFallbackProviderCostDollars(endpointId),
+    source: 'fallback_floor',
     currency: 'USD',
+    error: estimate.error,
   }
 }

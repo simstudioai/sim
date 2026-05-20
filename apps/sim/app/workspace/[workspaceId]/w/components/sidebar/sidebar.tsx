@@ -361,10 +361,13 @@ export const Sidebar = memo(function Sidebar() {
   const { config: permissionConfig, filterBlocks } = usePermissionConfig()
   const { navigateToSettings, getSettingsHref } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
-  const providerModelSignature = useProvidersStore((state) =>
-    Object.values(state.providers)
-      .map((provider) => provider.models.join('\x00'))
-      .join('\x01')
+  const providers = useProvidersStore((state) => state.providers)
+  const providerModelSignature = useMemo(
+    () =>
+      Object.values(providers)
+        .map((provider) => provider.models.join('\x00'))
+        .join('\x01'),
+    [providers]
   )
 
   useEffect(() => {
