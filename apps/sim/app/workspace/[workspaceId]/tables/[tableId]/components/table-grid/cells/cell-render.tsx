@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
 import type React from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { parse } from 'tldts'
 import { Badge, Checkbox, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -65,7 +65,9 @@ export function resolveCellRender({
       // (workflow yielded for human-in-the-loop). Render as Pending rather
       // than Queued so the user can tell it's not just waiting to start.
       const isPaused =
-        exec?.status === 'pending' && typeof exec.jobId === 'string' && exec.jobId.startsWith('paused-')
+        exec?.status === 'pending' &&
+        typeof exec.jobId === 'string' &&
+        exec.jobId.startsWith('paused-')
       if (isPaused) return { kind: 'pending-upstream' }
       if (exec?.status === 'queued' || exec?.status === 'pending') return { kind: 'queued' }
       return { kind: 'pending-upstream' }

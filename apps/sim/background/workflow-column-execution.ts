@@ -6,7 +6,12 @@ import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
-import type { RowData, RowExecutionMetadata, TableDefinition, WorkflowGroup } from '@/lib/table/types'
+import type {
+  RowData,
+  RowExecutionMetadata,
+  TableDefinition,
+  WorkflowGroup,
+} from '@/lib/table/types'
 import type { WorkflowGroupCellPayload } from '@/lib/table/workflow-columns'
 
 export type { WorkflowGroupCellPayload }

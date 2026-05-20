@@ -290,9 +290,7 @@ function WorkflowSidebarBody({
   // Deps default to none selected. With auto-run on, at least one is required
   // (enforced via `depsValid` below); a legacy group with empty deps will
   // surface the error on first open until the user picks at least one column.
-  const [deps, setDeps] = useState<string[]>(
-    () => existingGroup?.dependencies?.columns ?? []
-  )
+  const [deps, setDeps] = useState<string[]>(() => existingGroup?.dependencies?.columns ?? [])
   // `selectedOutputs` is encoded `${blockId}::${path}`. Seeded once `blockOutputGroups`
   // resolves (we may not have the workflow blocks loaded at first render); see the
   // post-load reconciliation below.
@@ -901,9 +899,7 @@ function WorkflowSidebarBody({
                   depOptions={depOptions}
                   deps={deps}
                   onChangeDeps={setDeps}
-                  error={
-                    showValidation && deps.length === 0 ? 'Select at least one column' : null
-                  }
+                  error={showValidation && deps.length === 0 ? 'Select at least one column' : null}
                 />
               </>
             )}

@@ -944,6 +944,11 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      // Refetch the run-state snapshot — server re-derives runningCellCount +
+      // runningByRowId from the freshly-updated sidecar via countRunningCells.
+      // Without this, the counter and row gutter button stay stale until the
+      // user refetches manually.
+      queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
     },
   })
 }

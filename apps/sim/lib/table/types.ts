@@ -70,9 +70,9 @@ export interface WorkflowGroup {
 }
 
 /**
- * Per-row execution state for one workflow group, stored in
- * `userTableRows.executions[groupId]`. Holds run metadata only — picked
- * values land in `row.data` directly.
+ * Per-row execution state for one workflow group, persisted as a row in the
+ * `tableRowExecutions` sidecar keyed by `(rowId, groupId)`. Holds run
+ * metadata only — picked output values land in `row.data` directly.
  */
 export interface RowExecutionMetadata {
   status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
@@ -299,9 +299,10 @@ export interface UpdateRowData {
   data: RowData
   workspaceId: string
   /**
-   * Optional partial patch to merge into `userTableRows.executions`. Top-level
-   * keys are `WorkflowGroup.id`; pass `null` for a key to delete that group's
-   * execution state. Used by the cell task and cancel paths.
+   * Optional partial patch to apply to the row's `tableRowExecutions`
+   * entries. Top-level keys are `WorkflowGroup.id`; pass `null` for a key
+   * to delete that group's execution row. Used by the cell task and cancel
+   * paths.
    */
   executionsPatch?: Record<string, RowExecutionMetadata | null>
   /**

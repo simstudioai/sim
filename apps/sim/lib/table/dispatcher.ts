@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { tableRunDispatches, userTableRows } from '@sim/db/schema'
+import { tableRowExecutions, tableRunDispatches, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -7,13 +7,13 @@ import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs/config'
 import { writeWorkflowGroupState } from '@/lib/table/cell-write'
 import { appendTableEvent } from '@/lib/table/events'
-import type { TableRow } from '@/lib/table/types'
+import type { RowExecutionMetadata, RowExecutions, TableRow } from '@/lib/table/types'
 import {
   buildEnqueueItems,
   buildPendingRuns,
-  type WorkflowGroupCellPayload,
   TABLE_CONCURRENCY_LIMIT,
   toTableRow,
+  type WorkflowGroupCellPayload,
 } from './workflow-columns'
 
 const logger = createLogger('TableRunDispatcher')
@@ -68,11 +68,10 @@ export async function bulkClearWorkflowGroupCells(input: {
   const outputCols = Array.from(new Set(groups.flatMap((g) => g.outputs.map((o) => o.columnName))))
   const groupIds = groups.map((g) => g.id)
 
-  // Build `data - 'col1' - 'col2' - ...` and `executions - 'gid1' - 'gid2' - ...`.
+  // Step 1: clear the targeted output columns from `data` on every row in
+  // scope. Identical chain to the previous JSONB-only path.
   let dataExpr: SQL = sql`coalesce(${userTableRows.data}, '{}'::jsonb)`
   for (const col of outputCols) dataExpr = sql`(${dataExpr}) - ${col}::text`
-  let execExpr: SQL = sql`coalesce(${userTableRows.executions}, '{}'::jsonb)`
-  for (const gid of groupIds) execExpr = sql`(${execExpr}) - ${gid}::text`
 
   const filters: SQL[] = [eq(userTableRows.tableId, tableId)]
   if (rowIds && rowIds.length > 0) {
@@ -87,22 +86,47 @@ export async function bulkClearWorkflowGroupCells(input: {
     )
     const allFilled = filledChecks.reduce((acc, expr) => sql`${acc} AND ${expr}`)
     filters.push(sql`NOT (${allFilled})`)
-    // Also skip rows where ANY targeted group has an in-flight exec from
-    // another dispatch — clobbering its `executions[gid]` would race with
-    // the in-flight worker. An `incomplete` run by definition shouldn't
-    // touch rows another dispatch is actively working on.
-    const inFlightChecks = groupIds.map(
-      (gid) =>
-        sql`${userTableRows.executions} -> ${gid}::text ->> 'status' IN ('queued', 'running', 'pending')`
+    // Also skip rows where ANY targeted group has an in-flight exec — those
+    // belong to another dispatch and clobbering them would race. Encoded as
+    // a NOT EXISTS subquery against the sidecar's `(table_id, status)`
+    // partial index.
+    filters.push(
+      sql`NOT EXISTS (
+        SELECT 1 FROM ${tableRowExecutions} re
+        WHERE re.row_id = ${userTableRows.id}
+          AND re.group_id = ANY(ARRAY[${sql.join(
+            groupIds.map((gid) => sql`${gid}`),
+            sql`, `
+          )}]::text[])
+          AND re.status IN ('queued', 'running', 'pending')
+      )`
     )
-    const anyInFlight = inFlightChecks.reduce((acc, expr) => sql`${acc} OR ${expr}`)
-    filters.push(sql`NOT (${anyInFlight})`)
   }
 
-  await db
-    .update(userTableRows)
-    .set({ data: dataExpr, executions: execExpr, updatedAt: new Date() })
-    .where(and(...filters))
+  await db.transaction(async (trx) => {
+    await trx
+      .update(userTableRows)
+      .set({ data: dataExpr, updatedAt: new Date() })
+      .where(and(...filters))
+
+    // Step 2: delete the targeted groups' executions for the rows in scope.
+    // Reuse the same row-scope filter via a subquery.
+    const execFilters: SQL[] = [
+      eq(tableRowExecutions.tableId, tableId),
+      inArray(tableRowExecutions.groupId, groupIds),
+    ]
+    if (rowIds && rowIds.length > 0) {
+      execFilters.push(inArray(tableRowExecutions.rowId, rowIds))
+    }
+    if (mode === 'incomplete') {
+      // For `incomplete`, only delete entries that aren't already in-flight
+      // — terminal states (completed/error/cancelled) get wiped so the
+      // dispatcher re-enqueues; in-flight entries stay so we don't race
+      // with their worker.
+      execFilters.push(sql`${tableRowExecutions.status} NOT IN ('queued', 'running', 'pending')`)
+    }
+    await trx.delete(tableRowExecutions).where(and(...execFilters))
+  })
 }
 
 export async function insertDispatch(input: {
@@ -142,27 +166,20 @@ export async function insertDispatch(input: {
 export async function countRunningCells(
   tableId: string
 ): Promise<{ total: number; byRowId: Record<string, number> }> {
+  // Hits the `(table_id, status)` partial index on table_row_executions.
   const rows = await db
     .select({
-      id: userTableRows.id,
-      runningCount: sql<number>`(
-        SELECT count(*)::int FROM jsonb_each(${userTableRows.executions}) e
-        WHERE e.value->>'status' = 'running'
-      )`,
+      rowId: tableRowExecutions.rowId,
+      runningCount: sql<number>`count(*)::int`,
     })
-    .from(userTableRows)
-    .where(
-      and(
-        eq(userTableRows.tableId, tableId),
-        sql`${userTableRows.executions} IS NOT NULL`,
-        sql`${userTableRows.executions} != '{}'::jsonb`
-      )
-    )
+    .from(tableRowExecutions)
+    .where(and(eq(tableRowExecutions.tableId, tableId), eq(tableRowExecutions.status, 'running')))
+    .groupBy(tableRowExecutions.rowId)
   let total = 0
   const byRowId: Record<string, number> = {}
   for (const r of rows) {
     if (r.runningCount > 0) {
-      byRowId[r.id] = r.runningCount
+      byRowId[r.rowId] = r.runningCount
       total += r.runningCount
     }
   }
@@ -265,19 +282,22 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     filters.push(inArray(userTableRows.id, dispatch.scope.rowIds))
   }
   // `'new'` mode targets only rows whose targeted groups haven't been
-  // attempted. Exclude a row only when EVERY targeted group already has an
-  // `executions[gid]` entry — if any one is missing, the row still has work
-  // to do and per-group JS filtering in `classifyEligibility` handles the
-  // rest. `jsonb_exists_all` is the function form of `?&` — safer than the
-  // operator, which collides with prepared-statement placeholder parsing in
-  // some drivers. Drizzle interpolates a JS array as a tuple of placeholders,
-  // not a Postgres array — emit `ARRAY[...]` literally.
+  // attempted. Exclude a row only when EVERY targeted group already has a
+  // sidecar entry — if any one is missing, the row still has work to do
+  // and per-group JS filtering in `classifyEligibility` handles the rest.
   if (dispatch.mode === 'new' && dispatch.scope.groupIds.length > 0) {
+    const gids = dispatch.scope.groupIds
     filters.push(
-      sql`NOT jsonb_exists_all(coalesce(${userTableRows.executions}, '{}'::jsonb), ARRAY[${sql.join(
-        dispatch.scope.groupIds.map((gid) => sql`${gid}`),
-        sql`, `
-      )}]::text[])`
+      sql`NOT EXISTS (
+        SELECT 1 FROM ${tableRowExecutions} re
+        WHERE re.row_id = ${userTableRows.id}
+          AND re.group_id = ANY(ARRAY[${sql.join(
+            gids.map((gid) => sql`${gid}`),
+            sql`, `
+          )}]::text[])
+        GROUP BY re.row_id
+        HAVING count(DISTINCT re.group_id) = ${gids.length}
+      )`
     )
   }
 
@@ -303,12 +323,40 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     return 'done'
   }
 
+  // Pre-fetch executions for the chunk so per-row eligibility doesn't fan
+  // out into one query per row. Returns `Map<rowId, RowExecutions>`.
+  const chunkRowIds = chunk.map((r) => r.id)
+  const execRows = await db
+    .select()
+    .from(tableRowExecutions)
+    .where(inArray(tableRowExecutions.rowId, chunkRowIds))
+  const executionsByRow = new Map<string, RowExecutions>()
+  for (const r of execRows) {
+    const existing = executionsByRow.get(r.rowId) ?? {}
+    const meta: RowExecutionMetadata = {
+      status: r.status as RowExecutionMetadata['status'],
+      executionId: r.executionId ?? null,
+      jobId: r.jobId ?? null,
+      workflowId: r.workflowId,
+      error: r.error ?? null,
+      ...(r.runningBlockIds && r.runningBlockIds.length > 0
+        ? { runningBlockIds: r.runningBlockIds }
+        : {}),
+      ...(r.blockErrors && Object.keys(r.blockErrors as Record<string, string>).length > 0
+        ? { blockErrors: r.blockErrors as Record<string, string> }
+        : {}),
+      ...(r.cancelledAt ? { cancelledAt: r.cancelledAt.toISOString() } : {}),
+    }
+    existing[r.groupId] = meta
+    executionsByRow.set(r.rowId, existing)
+  }
+
   // Strip rows the user cancelled mid-cascade (post-dispatch tombstones)
   // before running the shared eligibility filter — `buildPendingRuns`
   // doesn't know about the per-dispatch cancel tombstone.
   const tombstoneFiltered: TableRow[] = []
   for (const r of chunk) {
-    const tableRow = toTableRow(r)
+    const tableRow = toTableRow(r, executionsByRow.get(r.id) ?? {})
     const tombstoned = dispatch.scope.groupIds.some((gid) => {
       const exec = tableRow.executions?.[gid]
       if (!exec?.cancelledAt) return false

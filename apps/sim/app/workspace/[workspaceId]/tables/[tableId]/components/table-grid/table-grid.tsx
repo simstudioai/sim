@@ -2793,9 +2793,7 @@ export function TableGrid({
     // it has a real executionId and a viewable trace, same as
     // running/completed/error.
     const isPaused =
-      status === 'pending' &&
-      typeof exec?.jobId === 'string' &&
-      exec.jobId.startsWith('paused-')
+      status === 'pending' && typeof exec?.jobId === 'string' && exec.jobId.startsWith('paused-')
     return {
       rowId: row.id,
       groupId,

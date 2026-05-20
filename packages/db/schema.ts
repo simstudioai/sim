@@ -13,6 +13,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -2989,13 +2990,6 @@ export const userTableRows = pgTable(
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
     data: jsonb('data').notNull(),
-    /**
-     * Per-row workflow-group execution state, keyed by `WorkflowGroup.id`.
-     * Each entry holds status / executionId / jobId / blockErrors /
-     * runningBlockIds for one group's run on this row. Empty `{}` means no
-     * group has run for this row yet.
-     */
-    executions: jsonb('executions').notNull().default({}),
     position: integer('position').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -3009,6 +3003,49 @@ export const userTableRows = pgTable(
       table.tableId
     ),
     tablePositionIdx: index('user_table_rows_table_position_idx').on(table.tableId, table.position),
+  })
+)
+
+/**
+ * Per-row workflow-group execution state. One row per (rowId, groupId) — the
+ * group's run metadata (status, executionId, jobId, blockErrors, etc.) for
+ * one row of one user-defined table.
+ *
+ * Lives in a sidecar table (not a JSONB column on `user_table_rows`) so the
+ * dispatcher and "X running" counter can hit `(table_id, status)` and
+ * `(table_id, group_id)` indexes directly instead of walking JSONB blobs, and
+ * so each cell-write rewrites only its own row instead of the whole
+ * executions object on the parent row tuple.
+ */
+export const tableRowExecutions = pgTable(
+  'table_row_executions',
+  {
+    tableId: text('table_id')
+      .notNull()
+      .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),
+    rowId: text('row_id')
+      .notNull()
+      .references(() => userTableRows.id, { onDelete: 'cascade' }),
+    groupId: text('group_id').notNull(),
+    status: text('status').notNull(),
+    executionId: text('execution_id'),
+    jobId: text('job_id'),
+    workflowId: text('workflow_id').notNull(),
+    error: text('error'),
+    runningBlockIds: text('running_block_ids').array().notNull().default(sql`'{}'::text[]`),
+    blockErrors: jsonb('block_errors').notNull().default({}),
+    cancelledAt: timestamp('cancelled_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.rowId, table.groupId] }),
+    tableStatusInFlightIdx: index('table_row_executions_table_status_idx')
+      .on(table.tableId, table.status)
+      .where(sql`${table.status} IN ('queued', 'running', 'pending')`),
+    executionIdIdx: index('table_row_executions_execution_id_idx')
+      .on(table.executionId)
+      .where(sql`${table.executionId} IS NOT NULL`),
+    tableGroupIdx: index('table_row_executions_table_group_idx').on(table.tableId, table.groupId),
   })
 )
 

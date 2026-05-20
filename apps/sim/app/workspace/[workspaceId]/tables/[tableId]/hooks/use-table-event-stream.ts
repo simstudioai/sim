@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { RowData, RowExecutionMetadata, RowExecutions } from '@/lib/table'
 import type { TableEvent, TableEventEntry } from '@/lib/table/events'
-import { snapshotAndMutateRows, tableKeys, type TableRunState } from '@/hooks/queries/tables'
+import { snapshotAndMutateRows, type TableRunState, tableKeys } from '@/hooks/queries/tables'
 
 const logger = createLogger('useTableEventStream')
 

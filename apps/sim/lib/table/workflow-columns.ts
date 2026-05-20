@@ -6,14 +6,14 @@
  */
 
 import { db } from '@sim/db'
-import { pausedExecutions, userTableRows } from '@sim/db/schema'
+import { pausedExecutions, tableRowExecutions, type userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
-import { buildCancelledExecution, writeWorkflowGroupState } from '@/lib/table/cell-write'
+import { buildCancelledExecution } from '@/lib/table/cell-write'
 import type {
   RowData,
   RowExecutionMetadata,
@@ -233,11 +233,7 @@ export function cellCancelKey(tableId: string, rowId: string, groupId: string): 
  *  cancel (`runs.list({ tag })` + `runs.cancel(id)`) can target a specific
  *  cell or table without needing per-cell jobIds. */
 export function cellTagsFor(runOpts: WorkflowGroupCellPayload): string[] {
-  return [
-    `tableId:${runOpts.tableId}`,
-    `rowId:${runOpts.rowId}`,
-    `group:${runOpts.groupId}`,
-  ]
+  return [`tableId:${runOpts.tableId}`, `rowId:${runOpts.rowId}`, `group:${runOpts.groupId}`]
 }
 
 /** Cancel every active trigger.dev `workflow-group-cell` run whose tags
@@ -274,12 +270,14 @@ export async function cancelCellRunsByTags(tags: string[]): Promise<void> {
   }
 }
 
-
-export function toTableRow(r: typeof userTableRows.$inferSelect): TableRow {
+export function toTableRow(
+  r: typeof userTableRows.$inferSelect,
+  executions: RowExecutions = {}
+): TableRow {
   return {
     id: r.id,
     data: r.data as RowData,
-    executions: (r.executions as RowExecutions) ?? {},
+    executions,
     position: r.position,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
@@ -341,14 +339,19 @@ export async function cancelWorkflowGroupRuns(
   // cross-table rowId from doing a wasted DB round-trip and silently
   // under-counting in the response. For the table-wide case it's the
   // primary filter.
-  const rows = await db
+  const inFlightStatuses = ['running', 'queued', 'pending']
+  const inFlightFilters = [
+    eq(tableRowExecutions.tableId, tableId),
+    inArray(tableRowExecutions.status, inFlightStatuses),
+    inArray(tableRowExecutions.groupId, Array.from(groupIds)),
+  ]
+  if (rowId) {
+    inFlightFilters.push(eq(tableRowExecutions.rowId, rowId))
+  }
+  const inFlightRows = await db
     .select()
-    .from(userTableRows)
-    .where(
-      rowId
-        ? and(eq(userTableRows.id, rowId), eq(userTableRows.tableId, tableId))
-        : eq(userTableRows.tableId, tableId)
-    )
+    .from(tableRowExecutions)
+    .where(and(...inFlightFilters))
 
   const queue = await getJobQueue()
 
@@ -358,28 +361,32 @@ export async function cancelWorkflowGroupRuns(
     jobIds: string[]
     cancelledCount: number
   }
-  const mutations: RowMutation[] = []
+  const byRow = new Map<string, RowMutation>()
 
-  for (const row of rows) {
-    const executions = (row.executions ?? {}) as RowExecutions
-    const executionsPatch: Record<string, RowExecutionMetadata> = {}
-    const jobIds: string[] = []
-    let cancelledCount = 0
-    for (const [gid, exec] of Object.entries(executions)) {
-      if (!groupIds.has(gid)) continue
-      // `pending` covers the post-reset, pre-dispatch window; `queued` covers
-      // the post-enqueue, pre-pickup window — a stop click in either state
-      // must still stick once the worker picks the row up.
-      if (exec.status !== 'running' && exec.status !== 'queued' && exec.status !== 'pending')
-        continue
-      if (exec.jobId) jobIds.push(exec.jobId)
-      executionsPatch[gid] = buildCancelledExecution(exec)
-      cancelledCount++
+  for (const r of inFlightRows) {
+    const prev: RowExecutionMetadata = {
+      status: r.status as RowExecutionMetadata['status'],
+      executionId: r.executionId ?? null,
+      jobId: r.jobId ?? null,
+      workflowId: r.workflowId,
+      error: r.error ?? null,
+      ...(r.blockErrors && Object.keys(r.blockErrors as Record<string, string>).length > 0
+        ? { blockErrors: r.blockErrors as Record<string, string> }
+        : {}),
     }
-    if (cancelledCount > 0) {
-      mutations.push({ rowId: row.id, executionsPatch, jobIds, cancelledCount })
+    const existing = byRow.get(r.rowId) ?? {
+      rowId: r.rowId,
+      executionsPatch: {},
+      jobIds: [],
+      cancelledCount: 0,
     }
+    if (prev.jobId) existing.jobIds.push(prev.jobId)
+    existing.executionsPatch[r.groupId] = buildCancelledExecution(prev)
+    existing.cancelledCount++
+    byRow.set(r.rowId, existing)
   }
+
+  const mutations: RowMutation[] = Array.from(byRow.values())
 
   // Abort in-flight cell runs. The interface method `cancelByKey` is a no-op
   // on the trigger.dev backend (no in-process AbortControllers) and aborts
