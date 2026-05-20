@@ -160,20 +160,27 @@ export async function insertDispatch(input: {
  *  active dispatch's scope ahead of its cursor are rendered as queued even
  *  before the dispatcher has reached them, so refresh during a long Run-all
  *  doesn't lose the queued indicators. */
-/** Counts cells across the entire table whose execution `status === 'running'`
- *  — the authoritative source for the "X running" badge. Cache-derived
- *  counters miss in-flight cells on rows outside the loaded page slice. */
+/** Counts in-flight cells (queued / running / pending) across the entire
+ *  table — the authoritative source for the "X running" badge and the per-row
+ *  gutter Run/Stop button. All three statuses are user-cancellable, so the
+ *  gutter must surface Stop whenever any of them are present (else clicking
+ *  Play during the queued window would re-run an already-queued cell).
+ *  Hits the `(table_id, status)` partial index on table_row_executions. */
 export async function countRunningCells(
   tableId: string
 ): Promise<{ total: number; byRowId: Record<string, number> }> {
-  // Hits the `(table_id, status)` partial index on table_row_executions.
   const rows = await db
     .select({
       rowId: tableRowExecutions.rowId,
       runningCount: sql<number>`count(*)::int`,
     })
     .from(tableRowExecutions)
-    .where(and(eq(tableRowExecutions.tableId, tableId), eq(tableRowExecutions.status, 'running')))
+    .where(
+      and(
+        eq(tableRowExecutions.tableId, tableId),
+        inArray(tableRowExecutions.status, ['queued', 'running', 'pending'])
+      )
+    )
     .groupBy(tableRowExecutions.rowId)
   let total = 0
   const byRowId: Record<string, number> = {}

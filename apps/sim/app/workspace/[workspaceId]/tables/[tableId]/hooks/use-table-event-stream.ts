@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { RowData, RowExecutionMetadata, RowExecutions } from '@/lib/table'
+import { isExecInFlight } from '@/lib/table/deps'
 import type { TableEvent, TableEventEntry } from '@/lib/table/events'
 import { snapshotAndMutateRows, type TableRunState, tableKeys } from '@/hooks/queries/tables'
 
@@ -74,11 +75,11 @@ export function useTableEventStream({
 
     const updateRunStateCounters = (
       rowId: string,
-      wasRunning: boolean,
-      isRunning: boolean
+      wasInFlight: boolean,
+      isInFlight: boolean
     ): void => {
-      if (wasRunning === isRunning) return
-      const delta = isRunning ? 1 : -1
+      if (wasInFlight === isInFlight) return
+      const delta = isInFlight ? 1 : -1
       queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
         if (!prev) return prev
         const prevForRow = prev.runningByRowId[rowId] ?? 0
@@ -106,14 +107,18 @@ export function useTableEventStream({
         runningBlockIds,
         blockErrors,
       } = event
-      let wasRunning: boolean | null = null
+      let wasInFlight: boolean | null = null
       void snapshotAndMutateRows(
         queryClient,
         tableId,
         (row) => {
           if (row.id !== rowId) return null
           const prevExec = row.executions?.[groupId]
-          if (wasRunning === null) wasRunning = prevExec?.status === 'running'
+          // In-flight = queued | running | pending. Server's countRunningCells
+          // counts all three (the gutter Run/Stop button reads this map and
+          // needs Stop visible during queued too, else clicking Play would
+          // re-enqueue a cell that's already queued).
+          if (wasInFlight === null) wasInFlight = isExecInFlight(prevExec)
           const nextExec: RowExecutionMetadata = {
             status,
             executionId: executionId ?? null,
@@ -133,14 +138,18 @@ export function useTableEventStream({
         },
         { cancelInFlight: false }
       )
-      if (wasRunning === null) {
+      if (wasInFlight === null) {
         // Row outside the loaded page slice — can't compute the delta locally.
         // Refetch the run-state snapshot from the server. Cheap and rare.
         void queryClient.invalidateQueries({
           queryKey: tableKeys.activeDispatches(tableId),
         })
       } else {
-        updateRunStateCounters(rowId, wasRunning, status === 'running')
+        updateRunStateCounters(
+          rowId,
+          wasInFlight,
+          isExecInFlight({ status } as RowExecutionMetadata)
+        )
       }
     }
 

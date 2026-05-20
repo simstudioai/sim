@@ -488,19 +488,31 @@ export async function runWorkflowColumn(opts: {
     './dispatcher'
   )
 
-  // For table-wide manual runs (Run all rows / Run column), cancel any prior
-  // active dispatches AND their in-flight cells before clearing. Without this:
+  // For manual runs (Run all rows / Run column / Refresh-row / Refresh-cell),
+  // cancel any prior active dispatches AND in-flight cells in scope before
+  // clearing. Without this:
   //  - Two dispatcher loops would walk overlapping rows and burn duplicate work.
   //  - mode:'all' bulk-clear deletes in-flight sidecar rows without aborting
   //    workers — those would keep writing into the wiped state.
-  // Row-scoped callers (dep-edit cascade in `updateRow`) already cancel their
-  // specific scope before calling here, so we skip to avoid cancelling
-  // unrelated dispatches on other rows. Auto-fire (`mode:'new'`) is harmless
-  // overlap-wise since the NOT EXISTS filter excludes already-attempted rows.
-  const cancelPriorRuns =
-    isManualRun && (!rowIds || rowIds.length === 0) && (mode === 'all' || mode === 'incomplete')
+  // Scope: table-wide cancel when rowIds is empty (also cancels active
+  // dispatches via markActiveDispatchesCancelled), per-row cancel otherwise
+  // (no dispatch cancel — other rows' dispatches keep running). Dep-edit
+  // cascade in `updateRow` already cancels its own scope before calling,
+  // so the duplicate work here is a cheap no-op for that caller.
+  // Auto-fire (`mode:'new'`) is harmless overlap-wise — the NOT EXISTS
+  // filter excludes already-attempted rows.
+  const cancelPriorRuns = isManualRun && (mode === 'all' || mode === 'incomplete')
   if (cancelPriorRuns) {
-    await cancelWorkflowGroupRuns(tableId, undefined, { groupIds: targetGroupIds })
+    if (!rowIds || rowIds.length === 0) {
+      await cancelWorkflowGroupRuns(tableId, undefined, { groupIds: targetGroupIds })
+    } else {
+      // Per-row cancel — sequential so we don't fan out N parallel
+      // markActiveDispatchesCancelled calls (it's a no-op when rowId is set,
+      // but each call still touches the DB).
+      for (const rowId of rowIds) {
+        await cancelWorkflowGroupRuns(tableId, rowId, { groupIds: targetGroupIds })
+      }
+    }
   }
 
   // Wipe targeted output cols + executions[gid] before any cells fire so the
