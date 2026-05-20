@@ -9,11 +9,13 @@ import { usePathname } from 'next/navigation'
  * where the outgoing layout's component instances unmount before the incoming
  * layout's effect runs.
  *
- * A timestamp window (rather than a sticky boolean) self-expires the signal —
- * a hash-only back/forward fires popstate but doesn't change `usePathname`, so
- * a boolean would never be consumed and would poison the next real navigation.
+ * Initialized to `-Infinity` so initial mounts don't mimic a recent popstate.
+ * Consumed on first use (reset back to `-Infinity`) so a real link navigation
+ * immediately after Back isn't swallowed. The timestamp window provides a
+ * safety net for popstates that never trigger a pathname effect (e.g.,
+ * hash-only back/forward), letting the signal self-expire.
  */
-let lastPopstateAt = 0
+let lastPopstateAt = Number.NEGATIVE_INFINITY
 const POPSTATE_WINDOW_MS = 200
 
 if (typeof window !== 'undefined') {
@@ -36,7 +38,10 @@ export function ScrollToTop() {
   const pathname = usePathname()
 
   useEffect(() => {
-    if (performance.now() - lastPopstateAt < POPSTATE_WINDOW_MS) return
+    if (performance.now() - lastPopstateAt < POPSTATE_WINDOW_MS) {
+      lastPopstateAt = Number.NEGATIVE_INFINITY
+      return
+    }
     if (window.location.hash) return
     window.scrollTo(0, 0)
   }, [pathname])
