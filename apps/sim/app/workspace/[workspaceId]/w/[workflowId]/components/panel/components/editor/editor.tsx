@@ -397,7 +397,7 @@ export function Editor() {
             />
           ) : (
             <h2
-              className='min-w-0 flex-1 cursor-pointer select-none text-ellipsis whitespace-nowrap [overflow:clip] [overflow-clip-margin:3px] pr-2 font-medium text-[var(--text-primary)] text-sm'
+              className='min-w-0 flex-1 cursor-pointer select-none text-ellipsis whitespace-nowrap pr-2 font-medium text-[var(--text-primary)] text-sm [overflow-clip-margin:3px] [overflow:clip]'
               title={title}
               onDoubleClick={handleStartRename}
               onMouseDown={(e) => {
