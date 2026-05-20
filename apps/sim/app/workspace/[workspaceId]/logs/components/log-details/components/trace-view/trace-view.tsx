@@ -32,6 +32,7 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
+  DEFAULT_BLOCK_COLOR,
   formatCostAmount,
   formatTokenCount,
   formatTps,
@@ -118,6 +119,21 @@ function iconColorClass(bgColor: string): string {
   const g = Number.parseInt(hex.slice(2, 4), 16)
   const b = Number.parseInt(hex.slice(4, 6), 16)
   return r * 299 + g * 587 + b * 114 > 160_000 ? 'text-[#111111]' : 'text-white'
+}
+
+/**
+ * Near-black bgColors disappear against the dark-mode surface (--bg: #1b1b1b).
+ * Below the luminance threshold we fall back to the neutral block color used
+ * for blocks with no distinct identity; everything brighter passes through.
+ */
+function adjustBgForContrast(bgColor: string): string {
+  const hex = bgColor.replace('#', '')
+  if (hex.length !== 6) return bgColor
+  const r = Number.parseInt(hex.slice(0, 2), 16)
+  const g = Number.parseInt(hex.slice(2, 4), 16)
+  const b = Number.parseInt(hex.slice(4, 6), 16)
+  if (r * 299 + g * 587 + b * 114 < 30_000) return DEFAULT_BLOCK_COLOR
+  return bgColor
 }
 
 /**
@@ -268,7 +284,12 @@ const TraceTreeRow = memo(function TraceTreeRow({
   const duration = span.duration || endMs - startMs
   const isRootWorkflow = depth === 0 && span.type?.toLowerCase() === 'workflow'
   const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
-  const { icon: BlockIcon, bgColor } = getBlockIconAndColor(span.type, span.name, span.provider)
+  const { icon: BlockIcon, bgColor: rawBgColor } = getBlockIconAndColor(
+    span.type,
+    span.name,
+    span.provider
+  )
+  const bgColor = adjustBgForContrast(rawBgColor)
   const nameMatches = !!matchQuery && spanMatchesQuery(span, matchQuery)
 
   const offsetMs = runStartMs > 0 ? Math.max(0, startMs - runStartMs) : 0
@@ -651,7 +672,12 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   }
 
   const duration = span.duration || parseTime(span.endTime) - parseTime(span.startTime)
-  const { icon: BlockIcon, bgColor } = getBlockIconAndColor(span.type, span.name, span.provider)
+  const { icon: BlockIcon, bgColor: rawBgColor } = getBlockIconAndColor(
+    span.type,
+    span.name,
+    span.provider
+  )
+  const bgColor = adjustBgForContrast(rawBgColor)
   const isRootWorkflow = span.type?.toLowerCase() === 'workflow'
   const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
   const isDirectError = span.status === 'error'

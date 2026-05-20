@@ -2,10 +2,12 @@
  * MCP Service - Clean stateless service for MCP operations
  */
 
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
+import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { and, eq, isNull } from 'drizzle-orm'
 import { isTest } from '@/lib/core/config/feature-flags'
@@ -17,20 +19,27 @@ import {
   validateMcpDomain,
   validateMcpServerSsrf,
 } from '@/lib/mcp/domain-check'
+import {
+  getOrCreateOauthRow,
+  loadPreregisteredClient,
+  SimMcpOauthProvider,
+  withMcpOauthRefreshLock,
+} from '@/lib/mcp/oauth'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import {
   createMcpCacheAdapter,
   getMcpCacheType,
   type McpCacheStorageAdapter,
 } from '@/lib/mcp/storage'
-import type {
-  McpServerConfig,
-  McpServerStatusConfig,
-  McpServerSummary,
-  McpTool,
-  McpToolCall,
-  McpToolResult,
-  McpTransport,
+import {
+  McpOauthAuthorizationRequiredError,
+  type McpServerConfig,
+  type McpServerStatusConfig,
+  type McpServerSummary,
+  type McpTool,
+  type McpToolCall,
+  type McpToolResult,
+  type McpTransport,
 } from '@/lib/mcp/types'
 import { MCP_CONSTANTS } from '@/lib/mcp/utils'
 
@@ -112,6 +121,8 @@ class McpService {
       description: server.description || undefined,
       transport: 'streamable-http' as const,
       url: server.url || undefined,
+      authType: (server.authType as McpServerConfig['authType']) ?? 'headers',
+      workspaceId: server.workspaceId,
       headers: (server.headers as Record<string, string>) || {},
       timeout: server.timeout || 30000,
       retries: server.retries || 3,
@@ -143,6 +154,8 @@ class McpService {
         description: server.description || undefined,
         transport: server.transport as McpTransport,
         url: server.url || undefined,
+        authType: (server.authType as McpServerConfig['authType']) ?? 'headers',
+        workspaceId: server.workspaceId,
         headers: (server.headers as Record<string, string>) || {},
         timeout: server.timeout || 30000,
         retries: server.retries || 3,
@@ -158,7 +171,8 @@ class McpService {
    */
   private async createClient(
     config: McpServerConfig,
-    resolvedIP: string | null
+    resolvedIP: string | null,
+    userId?: string
   ): Promise<McpClient> {
     const securityPolicy = {
       requireConsent: true,
@@ -167,13 +181,46 @@ class McpService {
       allowedOrigins: config.url ? [new URL(config.url).origin] : undefined,
     }
 
-    const client = new McpClient({
-      config,
-      securityPolicy,
-      resolvedIP: resolvedIP ?? undefined,
+    if (config.authType !== 'oauth') {
+      const client = new McpClient({
+        config,
+        securityPolicy,
+        resolvedIP: resolvedIP ?? undefined,
+      })
+      await client.connect()
+      return client
+    }
+
+    if (!userId || !config.workspaceId) {
+      throw new Error('OAuth MCP server requires both userId and workspaceId')
+    }
+    const workspaceId = config.workspaceId
+
+    // Load the row inside the refresh lock so concurrent callers observe tokens
+    // written by a predecessor refresh, rather than a stale snapshot. Without
+    // this, the second caller's provider would hold a rotated-out refresh token
+    // and the SDK would trip `invalid_grant`. The lock is keyed on serverId
+    // since the row is per-server.
+    return withMcpOauthRefreshLock(config.id, async () => {
+      const row = await getOrCreateOauthRow({
+        mcpServerId: config.id,
+        userId,
+        workspaceId,
+      })
+      if (!row.tokens) {
+        throw new McpOauthAuthorizationRequiredError(config.id, config.name)
+      }
+      const preregistered = await loadPreregisteredClient(config.id)
+      const authProvider = new SimMcpOauthProvider({ row, preregistered })
+      const client = new McpClient({
+        config,
+        securityPolicy,
+        authProvider,
+        resolvedIP: resolvedIP ?? undefined,
+      })
+      await client.connect()
+      return client
     })
-    await client.connect()
-    return client
   }
 
   /**
@@ -209,7 +256,7 @@ class McpService {
         if (extraHeaders && Object.keys(extraHeaders).length > 0) {
           resolvedConfig.headers = { ...resolvedConfig.headers, ...extraHeaders }
         }
-        const client = await this.createClient(resolvedConfig, resolvedIP)
+        const client = await this.createClient(resolvedConfig, resolvedIP, userId)
 
         try {
           const result = await client.callTool(toolCall)
@@ -235,17 +282,16 @@ class McpService {
   }
 
   /**
-   * Check if an error indicates a session-related issue that might be resolved by retry
+   * Detects an expired or unknown `Mcp-Session-Id` so the caller can retry.
+   * Per MCP spec, the server returns HTTP 404 for an unknown session id and
+   * may return 400 when the session header is malformed; the SDK surfaces
+   * both as `StreamableHTTPError` with a typed numeric `code` field.
    */
   private isSessionError(error: unknown): boolean {
-    const message = toError(error).message
-    const lowerMessage = message.toLowerCase()
-    return (
-      lowerMessage.includes('session') ||
-      lowerMessage.includes('400') ||
-      lowerMessage.includes('404') ||
-      lowerMessage.includes('no valid session')
-    )
+    if (error instanceof StreamableHTTPError) {
+      return error.code === 404 || error.code === 400
+    }
+    return false
   }
 
   /**
@@ -364,7 +410,7 @@ class McpService {
             userId,
             workspaceId
           )
-          const client = await this.createClient(resolvedConfig, resolvedIP)
+          const client = await this.createClient(resolvedConfig, resolvedIP, userId)
           try {
             const tools = await client.listTools()
             logger.debug(
@@ -392,6 +438,27 @@ class McpService {
               undefined,
               result.value.tools.length
             )
+          )
+        } else if (
+          result.reason instanceof McpOauthAuthorizationRequiredError ||
+          result.reason instanceof UnauthorizedError
+        ) {
+          // Force 'disconnected' so the settings UI surfaces the re-auth button
+          // instead of a stale 'connected' state when refresh has expired.
+          logger.info(`[${requestId}] Skipping server ${server.name}: OAuth authorization pending`)
+          statusUpdates.push(
+            db
+              .update(mcpServers)
+              .set({
+                connectionStatus: 'disconnected',
+                lastError: null,
+                updatedAt: new Date(),
+              })
+              .where(eq(mcpServers.id, server.id!))
+              .then(() => undefined)
+              .catch((err) => {
+                logger.warn(`[${requestId}] Failed to mark server ${server.id} disconnected:`, err)
+              })
           )
         } else {
           failedCount++
@@ -472,7 +539,7 @@ class McpService {
           userId,
           workspaceId
         )
-        const client = await this.createClient(resolvedConfig, resolvedIP)
+        const client = await this.createClient(resolvedConfig, resolvedIP, userId)
 
         try {
           const tools = await client.listTools()
@@ -516,7 +583,7 @@ class McpService {
             userId,
             workspaceId
           )
-          const client = await this.createClient(resolvedConfig, resolvedIP)
+          const client = await this.createClient(resolvedConfig, resolvedIP, userId)
           const tools = await client.listTools()
           await client.disconnect()
 
@@ -531,6 +598,22 @@ class McpService {
             error: undefined,
           })
         } catch (error) {
+          if (
+            error instanceof McpOauthAuthorizationRequiredError ||
+            error instanceof UnauthorizedError
+          ) {
+            summaries.push({
+              id: config.id,
+              name: config.name,
+              url: config.url,
+              transport: config.transport,
+              status: 'disconnected',
+              toolCount: 0,
+              lastSeen: undefined,
+              error: undefined,
+            })
+            continue
+          }
           summaries.push({
             id: config.id,
             name: config.name,

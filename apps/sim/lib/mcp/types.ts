@@ -4,6 +4,14 @@
 
 export type McpTransport = 'streamable-http'
 
+/**
+ * Auth mode for an outbound MCP server connection.
+ * - `none`   — server requires no auth.
+ * - `headers` — static header map (legacy / API-token / bearer).
+ * - `oauth`  — OAuth 2.1 + PKCE via the SDK's authProvider, persisted per workspace server.
+ */
+export type McpAuthType = 'none' | 'headers' | 'oauth'
+
 export interface McpServerStatusConfig {
   consecutiveFailures: number
   lastSuccessfulDiscovery: string | null
@@ -15,6 +23,13 @@ export interface McpServerConfig {
   description?: string
   transport: McpTransport
   url?: string
+  authType?: McpAuthType
+  /**
+   * Required when `authType === 'oauth'` — identifies whose stored tokens
+   * to use when establishing the connection. Omit for header / none auth.
+   */
+  userId?: string
+  workspaceId?: string
   headers?: Record<string, string>
   timeout?: number
   retries?: number
@@ -136,6 +151,22 @@ export class McpConnectionError extends McpError {
   }
 }
 
+/**
+ * Thrown when an OAuth-protected MCP server is reachable but the current
+ * user has not yet authorized Sim. This is a benign "pending" state, not a
+ * connection failure — callers should surface a re-auth prompt rather than
+ * marking the server as errored.
+ */
+export class McpOauthAuthorizationRequiredError extends McpError {
+  constructor(
+    public readonly serverId: string,
+    serverName: string
+  ) {
+    super(`OAuth authorization required for "${serverName}"`)
+    this.name = 'McpOauthAuthorizationRequiredError'
+  }
+}
+
 export interface McpServerSummary {
   id: string
   name: string
@@ -169,6 +200,13 @@ export interface McpClientOptions {
    * just validated the URL via `validateMcpServerSsrf`.
    */
   resolvedIP?: string
+  /**
+   * SDK-compatible OAuth client provider. When provided, the underlying
+   * StreamableHTTPClientTransport delegates token discovery, refresh, and
+   * 401 recovery to it. Should be supplied for `authType === 'oauth'`
+   * server configs.
+   */
+  authProvider?: import('@modelcontextprotocol/sdk/client/auth.js').OAuthClientProvider
 }
 
 /**

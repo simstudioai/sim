@@ -1,5 +1,7 @@
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import { mcpToolExecutionBodySchema } from '@/lib/api/contracts/mcp'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getExecutionTimeout } from '@/lib/core/execution-limits'
@@ -7,8 +9,14 @@ import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SIM_VIA_HEADER } from '@/lib/execution/call-chain'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
-import type { McpTool, McpToolCall, McpToolResult } from '@/lib/mcp/types'
+import {
+  McpOauthAuthorizationRequiredError,
+  type McpTool,
+  type McpToolCall,
+  type McpToolResult,
+} from '@/lib/mcp/types'
 import { categorizeError, createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 import {
   assertPermissionsAllowed,
@@ -43,6 +51,7 @@ function hasType(prop: unknown): prop is SchemaProperty {
  */
 export const POST = withRouteHandler(
   withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
+    let serverId: string | undefined
     try {
       const rawBody = getParsedBody(request) ?? (await request.json())
       const parsedBody = mcpToolExecutionBodySchema.safeParse(rawBody)
@@ -63,7 +72,8 @@ export const POST = withRouteHandler(
         userId: userId,
       })
 
-      const { serverId, toolName, arguments: rawArgs } = body
+      const { toolName, arguments: rawArgs } = body
+      serverId = body.serverId
       const args = rawArgs || {}
 
       try {
@@ -101,7 +111,8 @@ export const POST = withRouteHandler(
 
         if (tool.inputSchema?.properties) {
           for (const [paramName, paramSchema] of Object.entries(tool.inputSchema.properties)) {
-            const schema = paramSchema as any
+            const schema = hasType(paramSchema) ? paramSchema : null
+            if (!schema) continue
             const value = args[paramName]
 
             if (value === undefined || value === null) {
@@ -185,12 +196,18 @@ export const POST = withRouteHandler(
         extraHeaders[SIM_VIA_HEADER] = simViaHeader
       }
 
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined
       const result = await Promise.race([
         mcpService.executeTool(userId, serverId, toolCall, workspaceId, extraHeaders),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Tool execution timeout')), executionTimeout)
-        ),
-      ])
+        new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(
+            () => reject(new Error('Tool execution timeout')),
+            executionTimeout
+          )
+        }),
+      ]).finally(() => {
+        if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
+      })
 
       const transformedResult = transformToolResult(result)
 
@@ -218,6 +235,27 @@ export const POST = withRouteHandler(
 
       return createMcpSuccessResponse(transformedResult)
     } catch (error) {
+      if (
+        error instanceof McpOauthAuthorizationRequiredError ||
+        error instanceof McpOauthRedirectRequired ||
+        error instanceof UnauthorizedError
+      ) {
+        const errorServerId =
+          error instanceof McpOauthAuthorizationRequiredError ? error.serverId : serverId
+        logger.warn(`[${requestId}] OAuth re-authorization required for MCP tool execution`, {
+          serverId: errorServerId,
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'OAuth re-authorization required',
+            code: 'reauth_required',
+            serverId: errorServerId,
+          },
+          { status: 401 }
+        )
+      }
+
       logger.error(`[${requestId}] Error executing MCP tool:`, error)
 
       const { message, status } = categorizeError(error)
