@@ -343,7 +343,7 @@ export async function processDocumentsWithQueue(
 
   const dispatched = useTrigger
     ? await dispatchViaBatchTrigger(jobPayloads, requestId)
-    : await dispatchInProcess(jobPayloads)
+    : await dispatchInProcess(jobPayloads, requestId)
 
   logger.info(
     `[${requestId}] Document dispatch complete: ${dispatched}/${jobPayloads.length} succeeded`
@@ -396,7 +396,10 @@ async function dispatchViaBatchTrigger(
   return dispatched
 }
 
-async function dispatchInProcess(jobPayloads: DocumentProcessingPayload[]): Promise<number> {
+async function dispatchInProcess(
+  jobPayloads: DocumentProcessingPayload[],
+  requestId: string
+): Promise<number> {
   const results = await Promise.allSettled(
     jobPayloads.map((p) =>
       processDocumentAsync(p.knowledgeBaseId, p.documentId, p.docData, p.processingOptions)
@@ -405,7 +408,8 @@ async function dispatchInProcess(jobPayloads: DocumentProcessingPayload[]): Prom
   let dispatched = 0
   for (const r of results) {
     if (r.status === 'fulfilled') dispatched++
-    else logger.error('Document dispatch failed', { error: getErrorMessage(r.reason) })
+    else
+      logger.error(`[${requestId}] Document dispatch failed`, { error: getErrorMessage(r.reason) })
   }
   return dispatched
 }
