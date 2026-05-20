@@ -359,10 +359,11 @@ async function dispatchViaBatchTrigger(
   requestId: string
 ): Promise<number> {
   let dispatched = 0
+  const batchIds: string[] = []
   for (let i = 0; i < jobPayloads.length; i += TRIGGER_BATCH_SIZE) {
     const chunk = jobPayloads.slice(i, i + TRIGGER_BATCH_SIZE)
     try {
-      await tasks.batchTrigger<typeof processDocumentTask>(
+      const result = await tasks.batchTrigger<typeof processDocumentTask>(
         'knowledge-process-document',
         chunk.map((payload) => ({
           payload,
@@ -381,12 +382,16 @@ async function dispatchViaBatchTrigger(
           },
         }))
       )
+      batchIds.push(result.batchId)
       dispatched += chunk.length
     } catch (error) {
       logger.error(`[${requestId}] Failed to batchTrigger ${chunk.length} document jobs`, {
         error: getErrorMessage(error),
       })
     }
+  }
+  if (batchIds.length > 0) {
+    logger.info(`[${requestId}] Trigger.dev batches dispatched`, { batchIds })
   }
   return dispatched
 }
