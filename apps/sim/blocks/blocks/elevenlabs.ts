@@ -5,7 +5,7 @@ import type { ElevenLabsBlockResponse } from '@/tools/elevenlabs/types'
 export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
   type: 'elevenlabs',
   name: 'ElevenLabs',
-  description: 'Convert TTS using ElevenLabs',
+  description: 'Convert text to speech with ElevenLabs',
   authMode: AuthMode.ApiKey,
   longDescription: 'Integrate ElevenLabs into the workflow. Can convert text to speech.',
   docsLink: 'https://docs.sim.ai/tools/elevenlabs',
@@ -42,6 +42,21 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
         { label: 'eleven_flash_v2_5', id: 'eleven_flash_v2_5' },
         { label: 'eleven_v3', id: 'eleven_v3' },
       ],
+      value: () => 'eleven_monolingual_v1',
+    },
+    {
+      id: 'stability',
+      title: 'Stability',
+      type: 'short-input',
+      placeholder: '0.0 to 1.0 (e.g., 0.5)',
+      mode: 'advanced',
+    },
+    {
+      id: 'similarityBoost',
+      title: 'Similarity Boost',
+      type: 'short-input',
+      placeholder: '0.0 to 1.0 (e.g., 0.75)',
+      mode: 'advanced',
     },
     {
       id: 'apiKey',
@@ -62,6 +77,14 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
         text: params.text,
         voiceId: params.voiceId,
         modelId: params.modelId,
+        stability:
+          params.stability !== undefined && params.stability !== ''
+            ? Number(params.stability)
+            : undefined,
+        similarityBoost:
+          params.similarityBoost !== undefined && params.similarityBoost !== ''
+            ? Number(params.similarityBoost)
+            : undefined,
       }),
     },
   },
@@ -70,6 +93,8 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
     text: { type: 'string', description: 'Text to convert' },
     voiceId: { type: 'string', description: 'Voice identifier' },
     modelId: { type: 'string', description: 'Model identifier' },
+    stability: { type: 'number', description: 'Voice stability 0.0-1.0' },
+    similarityBoost: { type: 'number', description: 'Similarity boost 0.0-1.0' },
     apiKey: { type: 'string', description: 'ElevenLabs API key' },
   },
 

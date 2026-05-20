@@ -4,7 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsResponse> = {
   id: 'elevenlabs_tts',
   name: 'ElevenLabs TTS',
-  description: 'Convert TTS using ElevenLabs voices',
+  description: 'Convert text to speech using ElevenLabs voices',
   version: '1.0.0',
 
   params: {
@@ -34,7 +34,7 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
       description:
         'Voice stability setting from 0.0 to 1.0 (e.g., 0.5 for balanced, 0.75 for more stable). Higher values produce more consistent output',
     },
-    similarity: {
+    similarityBoost: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
@@ -52,7 +52,7 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
   request: {
     url: '/api/tools/tts',
     method: 'POST',
-    headers: (params) => ({
+    headers: () => ({
       'Content-Type': 'application/json',
     }),
     body: (
@@ -65,7 +65,7 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
       voiceId: params.voiceId,
       modelId: params.modelId || 'eleven_monolingual_v1',
       stability: params.stability,
-      similarity: params.similarity,
+      similarityBoost: params.similarityBoost,
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,
