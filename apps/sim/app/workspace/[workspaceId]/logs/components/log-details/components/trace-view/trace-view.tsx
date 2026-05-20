@@ -121,6 +121,22 @@ function iconColorClass(bgColor: string): string {
 }
 
 /**
+ * Lifts a near-black icon background just enough to clear the dark-mode
+ * surface. Branded colors above the threshold pass through unchanged.
+ */
+function adjustBgForContrast(bgColor: string): string {
+  const hex = bgColor.replace('#', '')
+  if (hex.length !== 6) return bgColor
+  const r = Number.parseInt(hex.slice(0, 2), 16)
+  const g = Number.parseInt(hex.slice(2, 4), 16)
+  const b = Number.parseInt(hex.slice(4, 6), 16)
+  if (r * 299 + g * 587 + b * 114 >= 30_000) return bgColor
+  const FLOOR = 0x33
+  const lift = (c: number) => Math.max(c, FLOOR).toString(16).padStart(2, '0')
+  return `#${lift(r)}${lift(g)}${lift(b)}`
+}
+
+/**
  * Flattens the visible (expanded) span tree into a linear list for keyboard
  * navigation, carrying depth, the chain of parent ids for indent drawing, and
  * the immediate parent's duration for percentage-of-parent calculations.
@@ -268,7 +284,12 @@ const TraceTreeRow = memo(function TraceTreeRow({
   const duration = span.duration || endMs - startMs
   const isRootWorkflow = depth === 0 && span.type?.toLowerCase() === 'workflow'
   const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
-  const { icon: BlockIcon, bgColor } = getBlockIconAndColor(span.type, span.name, span.provider)
+  const { icon: BlockIcon, bgColor: rawBgColor } = getBlockIconAndColor(
+    span.type,
+    span.name,
+    span.provider
+  )
+  const bgColor = adjustBgForContrast(rawBgColor)
   const nameMatches = !!matchQuery && spanMatchesQuery(span, matchQuery)
 
   const offsetMs = runStartMs > 0 ? Math.max(0, startMs - runStartMs) : 0
@@ -651,7 +672,12 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   }
 
   const duration = span.duration || parseTime(span.endTime) - parseTime(span.startTime)
-  const { icon: BlockIcon, bgColor } = getBlockIconAndColor(span.type, span.name, span.provider)
+  const { icon: BlockIcon, bgColor: rawBgColor } = getBlockIconAndColor(
+    span.type,
+    span.name,
+    span.provider
+  )
+  const bgColor = adjustBgForContrast(rawBgColor)
   const isRootWorkflow = span.type?.toLowerCase() === 'workflow'
   const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
   const isDirectError = span.status === 'error'
