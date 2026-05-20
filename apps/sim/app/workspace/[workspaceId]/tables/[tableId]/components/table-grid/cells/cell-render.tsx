@@ -60,6 +60,12 @@ export function resolveCellRender({
     if (!isNull) return { kind: 'value', text: stringifyValue(value) }
 
     if (inFlight && !(groupHasBlockErrors && !blockRunning)) {
+      // A `pending` cell whose jobId starts with `paused-` is mid-pause
+      // (workflow yielded for human-in-the-loop). Render as Pending rather
+      // than Queued so the user can tell it's not just waiting to start.
+      const isPaused =
+        exec?.status === 'pending' && typeof exec.jobId === 'string' && exec.jobId.startsWith('paused-')
+      if (isPaused) return { kind: 'pending-upstream' }
       if (exec?.status === 'queued' || exec?.status === 'pending') return { kind: 'queued' }
       return { kind: 'pending-upstream' }
     }

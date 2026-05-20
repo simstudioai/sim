@@ -659,12 +659,20 @@ export function TableGrid({
     if (_col && _gid) {
       const _exec = contextMenu.row.executions?.[_gid]
       contextMenuIsWorkflowColumn = true
-      // Only `completed` / `error` / `running` cells are guaranteed to have a
-      // server-side execution log. `queued` / `pending` haven't started yet;
-      // `cancelled` may have been cancelled before the worker ever picked the
-      // job up, so its executionId can't be relied on either.
+      // Cells with a server-side execution log: `completed` / `error` /
+      // `running`, plus HITL-paused runs (status `pending` with a `paused-`
+      // jobId — has a real executionId + viewable trace). `queued` / plain
+      // `pending` haven't started yet; `cancelled` may have been cancelled
+      // before the worker ever picked the job up.
+      const _isPaused =
+        _exec?.status === 'pending' &&
+        typeof _exec?.jobId === 'string' &&
+        _exec.jobId.startsWith('paused-')
       contextMenuHasStartedRun =
-        _exec?.status === 'completed' || _exec?.status === 'error' || _exec?.status === 'running'
+        _exec?.status === 'completed' ||
+        _exec?.status === 'error' ||
+        _exec?.status === 'running' ||
+        _isPaused
       contextMenuExecutionId = _exec?.executionId ?? null
     }
   }
@@ -2781,11 +2789,19 @@ export function TableGrid({
     }
     const exec = row.executions?.[groupId]
     const status = exec?.status
+    // A `pending` execution with a `paused-` jobId is a HITL-paused run —
+    // it has a real executionId and a viewable trace, same as
+    // running/completed/error.
+    const isPaused =
+      status === 'pending' &&
+      typeof exec?.jobId === 'string' &&
+      exec.jobId.startsWith('paused-')
     return {
       rowId: row.id,
       groupId,
       executionId: exec?.executionId ?? null,
-      canViewExecution: status === 'completed' || status === 'error' || status === 'running',
+      canViewExecution:
+        status === 'completed' || status === 'error' || status === 'running' || isPaused,
     }
   }, [normalizedSelection, rows, displayColumns])
 
