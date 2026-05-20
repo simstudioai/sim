@@ -203,11 +203,20 @@ export function buildPendingRuns(
 /** Build the per-cell `{payload, options}` items for `queue.batchEnqueue` /
  *  `queue.batchEnqueueAndWait`. Hydrates trigger.dev tags, concurrency keys,
  *  the inline runner, and the cancel key the inline backend uses to map a
- *  Stop click to the in-flight cell's AbortController. */
+ *  Stop click to the in-flight cell's AbortController.
+ *
+ *  The `runner` is only consumed by the database (inline) backend — the
+ *  trigger.dev backend triggers by task id. Importing the cell job pulls in
+ *  the entire executor + blocks stack, so on trigger.dev we skip the import
+ *  entirely: the dispatcher container would otherwise pay a multi-second
+ *  cold-start loading code it never runs (the cell runs in its own container). */
 export async function buildEnqueueItems(
   pendingRuns: WorkflowGroupCellPayload[]
 ): Promise<Array<{ payload: WorkflowGroupCellPayload; options: EnqueueOptions }>> {
-  const { executeWorkflowGroupCellJob } = await import('@/background/workflow-column-execution')
+  const runner = isTriggerDevEnabled
+    ? undefined
+    : ((await import('@/background/workflow-column-execution'))
+        .executeWorkflowGroupCellJob as EnqueueOptions['runner'])
   return pendingRuns.map((runOpts) => ({
     payload: runOpts,
     options: {
@@ -225,7 +234,7 @@ export async function buildEnqueueItems(
       concurrencyKey: runOpts.tableId,
       concurrencyLimit: TABLE_CONCURRENCY_LIMIT,
       tags: cellTagsFor(runOpts),
-      runner: executeWorkflowGroupCellJob as EnqueueOptions['runner'],
+      ...(runner ? { runner } : {}),
       cancelKey: cellCancelKey(runOpts.tableId, runOpts.rowId, runOpts.groupId),
     },
   }))
