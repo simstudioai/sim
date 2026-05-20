@@ -22,8 +22,10 @@ const DEFAULT_API_ALLOWED_HEADERS =
 const WORKFLOW_EXECUTE_HEADERS =
   'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key'
 
+/** Subpaths under /api/{chat,form}/* that serve the workspace UI, not embeds. */
 const EMBED_RESERVED_SEGMENTS = new Set(['manage', 'validate'])
 
+/** True for /api/{chat,form}/[identifier] and any deeper subroute. */
 function isEmbedPath(pathname: string): boolean {
   const segments = pathname.split('/')
   if (segments.length < 4) return false
@@ -90,6 +92,7 @@ const CORS_RULES: readonly CorsRule[] = [
   },
 ]
 
+/** Single source of truth for /api/* CORS — resolved at request time, not baked at build. */
 export function resolveApiCorsPolicy(request: NextRequest): CorsPolicy {
   const { pathname } = request.nextUrl
   for (const rule of CORS_RULES) {
@@ -115,6 +118,7 @@ function applyCorsHeaders(response: NextResponse, policy: CorsPolicy): void {
   }
 }
 
+/** Next's auto-OPTIONS doesn't carry middleware headers, so we answer preflight here. */
 function buildPreflightResponse(policy: CorsPolicy): NextResponse {
   const response = new NextResponse(null, { status: 204 })
   applyCorsHeaders(response, policy)
