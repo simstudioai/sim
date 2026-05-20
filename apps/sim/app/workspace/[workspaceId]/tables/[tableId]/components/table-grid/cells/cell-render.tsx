@@ -303,25 +303,28 @@ const TYPEWRITER_MS_PER_CHAR = 15
  */
 function useTypewriter(text: string | null): string | null {
   const [revealed, setRevealed] = useState<string | null>(text)
-  const isFirstRunRef = useRef(true)
   const prevTextRef = useRef<string | null>(text)
+  const mountedRef = useRef(false)
+  const animateRef = useRef(false)
+
+  // Reset synchronously during render when `text` changes (not on first mount)
+  // so no frame ever shows the full new value before the animation begins —
+  // an effect-based reset lands one frame late and flashes the whole text.
+  if (prevTextRef.current !== text) {
+    prevTextRef.current = text
+    const animate = mountedRef.current && text !== null && text.length > 0
+    animateRef.current = animate
+    setRevealed(animate ? '' : text)
+  }
 
   useEffect(() => {
-    if (isFirstRunRef.current) {
-      isFirstRunRef.current = false
-      prevTextRef.current = text
-      setRevealed(text)
-      return
-    }
-    if (prevTextRef.current === text) return
-    prevTextRef.current = text
+    mountedRef.current = true
+  }, [])
 
-    if (text === null || text.length === 0) {
-      setRevealed(text)
-      return
-    }
-
-    const full = text
+  useEffect(() => {
+    if (!animateRef.current) return
+    animateRef.current = false
+    const full = text as string
     const start = performance.now()
     let raf = 0
     const tick = (now: number) => {
@@ -329,7 +332,6 @@ function useTypewriter(text: string | null): string | null {
       setRevealed(full.slice(0, chars))
       if (chars < full.length) raf = requestAnimationFrame(tick)
     }
-    setRevealed('')
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
   }, [text])

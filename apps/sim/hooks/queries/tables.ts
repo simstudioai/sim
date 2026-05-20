@@ -73,7 +73,6 @@ import type {
 } from '@/lib/table'
 import {
   areGroupDepsSatisfied,
-  areOutputsFilled,
   isExecInFlight,
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
@@ -1418,12 +1417,10 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
           // dispatcher regardless of mode. Stamping pending here would leave
           // the cell flashing Queued indefinitely (no SSE event will arrive).
           if (group && !areGroupDepsSatisfied(group, r)) continue
-          // Mirror server eligibility for `mode: 'incomplete'`: skip cells whose
-          // outputs are filled, regardless of exec status. A cancelled/error
-          // cell with a leftover value from a prior run was rendering as filled
-          // but flipping to "queued" optimistically here even though the server
-          // would skip it.
-          if (runMode === 'incomplete' && group && areOutputsFilled(group, r)) continue
+          // Mirror server eligibility for manual `mode: 'incomplete'`: a
+          // `completed` group is done (even with a blank output) — only "Run
+          // all" re-runs it. error/cancelled/never-run cells still re-run.
+          if (runMode === 'incomplete' && exec?.status === 'completed') continue
           next[groupId] = buildPendingExec(exec)
           // Mirror the server-side bulk clear: wipe output values so the cell
           // doesn't render the stale completed value behind a pending badge.
