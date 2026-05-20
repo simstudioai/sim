@@ -434,6 +434,7 @@ async function runCheckpointLoop(
     payload = {
       streamId: context.messageId,
       checkpointId: continuation.checkpointId,
+      userId: options.userId,
       results,
     }
 
