@@ -48,6 +48,10 @@ import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
+import type {
+  DocumentProcessingPayload,
+  processDocument as processDocumentTask,
+} from '@/background/knowledge-processing'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('DocumentService')
@@ -99,35 +103,6 @@ export interface DocumentData {
 export interface ProcessingOptions {
   recipe?: string
   lang?: string
-}
-
-interface DocumentJobData {
-  knowledgeBaseId: string
-  documentId: string
-  docData: {
-    filename: string
-    fileUrl: string
-    fileSize: number
-    mimeType: string
-  }
-  processingOptions: ProcessingOptions
-  requestId: string
-}
-
-async function dispatchDocumentProcessingJob(payload: DocumentJobData): Promise<void> {
-  if (isTriggerAvailable()) {
-    await tasks.trigger('knowledge-process-document', payload, {
-      tags: [`knowledgeBaseId:${payload.knowledgeBaseId}`, `documentId:${payload.documentId}`],
-    })
-    return
-  }
-
-  await processDocumentAsync(
-    payload.knowledgeBaseId,
-    payload.documentId,
-    payload.docData,
-    payload.processingOptions
-  )
 }
 
 interface DocumentTagData {
@@ -313,17 +288,20 @@ async function processDocumentTags(
   return result
 }
 
+/**
+ * Trigger.dev's documented per-call cap for `tasks.batchTrigger` is 1,000
+ * items on SDK 4.3.1+ (we're on 4.4.3). Payloads above this are chunked.
+ * https://trigger.dev/docs/triggering
+ */
 const TRIGGER_BATCH_SIZE = 1000
 
-export async function processDocumentsWithQueue(
-  createdDocuments: DocumentData[],
+function buildJobPayload(
+  doc: DocumentData,
   knowledgeBaseId: string,
   processingOptions: ProcessingOptions,
   requestId: string
-): Promise<void> {
-  if (createdDocuments.length === 0) return
-
-  const jobPayloads = createdDocuments.map<DocumentJobData>((doc) => ({
+): DocumentProcessingPayload {
+  return {
     knowledgeBaseId,
     documentId: doc.documentId,
     docData: {
@@ -334,7 +312,28 @@ export async function processDocumentsWithQueue(
     },
     processingOptions,
     requestId,
-  }))
+  }
+}
+
+/**
+ * Dispatches document processing jobs. On Trigger.dev, collapses N runs into
+ * `ceil(N / TRIGGER_BATCH_SIZE)` HTTP calls via `tasks.batchTrigger`. Without
+ * Trigger.dev, falls back to in-process execution via `processDocumentAsync`.
+ *
+ * Throws only when every dispatch fails — partial failures are logged. Stuck
+ * docs left in 'pending' are reaped by the next sync's stuck-doc retry pass.
+ */
+export async function processDocumentsWithQueue(
+  createdDocuments: DocumentData[],
+  knowledgeBaseId: string,
+  processingOptions: ProcessingOptions,
+  requestId: string
+): Promise<void> {
+  if (createdDocuments.length === 0) return
+
+  const jobPayloads = createdDocuments.map((doc) =>
+    buildJobPayload(doc, knowledgeBaseId, processingOptions, requestId)
+  )
 
   const useTrigger = isTriggerAvailable()
   logger.info(
@@ -342,64 +341,68 @@ export async function processDocumentsWithQueue(
     { backend: useTrigger ? 'trigger-dev' : 'direct' }
   )
 
-  if (useTrigger) {
-    /**
-     * Single batched dispatch per chunk of up to TRIGGER_BATCH_SIZE — collapses
-     * N HTTP roundtrips to ceil(N / TRIGGER_BATCH_SIZE). Idempotency keys allow
-     * safe re-dispatch on retry without duplicating runs.
-     */
-    let dispatched = 0
-    for (let i = 0; i < jobPayloads.length; i += TRIGGER_BATCH_SIZE) {
-      const chunk = jobPayloads.slice(i, i + TRIGGER_BATCH_SIZE)
-      try {
-        await tasks.batchTrigger(
-          'knowledge-process-document',
-          chunk.map((payload) => ({
-            payload,
-            options: {
-              idempotencyKey: `doc-process-${payload.documentId}-${requestId}`,
-              tags: [
-                `knowledgeBaseId:${payload.knowledgeBaseId}`,
-                `documentId:${payload.documentId}`,
-              ],
-            },
-          }))
-        )
-        dispatched += chunk.length
-      } catch (error) {
-        logger.error(`[${requestId}] Failed to batchTrigger ${chunk.length} document jobs`, {
-          error: getErrorMessage(error),
-        })
-        if (dispatched === 0 && i + TRIGGER_BATCH_SIZE >= jobPayloads.length) {
-          throw new Error(`All ${jobPayloads.length} document processing dispatches failed`)
-        }
-      }
-    }
-
-    logger.info(
-      `[${requestId}] Document dispatch complete: ${dispatched}/${jobPayloads.length} succeeded`
-    )
-    return
-  }
-
-  const results = await Promise.allSettled(
-    jobPayloads.map((payload) => dispatchDocumentProcessingJob(payload))
-  )
-
-  const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-  if (failures.length > 0) {
-    logger.error(`[${requestId}] ${failures.length}/${results.length} document dispatches failed`, {
-      errors: failures.map((f) => getErrorMessage(f.reason)),
-    })
-  }
+  const dispatched = useTrigger
+    ? await dispatchViaBatchTrigger(jobPayloads, requestId)
+    : await dispatchInProcess(jobPayloads)
 
   logger.info(
-    `[${requestId}] Document dispatch complete: ${results.length - failures.length}/${results.length} succeeded`
+    `[${requestId}] Document dispatch complete: ${dispatched}/${jobPayloads.length} succeeded`
   )
 
-  if (failures.length === results.length) {
-    throw new Error(`All ${failures.length} document processing dispatches failed`)
+  if (dispatched === 0) {
+    throw new Error(`All ${jobPayloads.length} document processing dispatches failed`)
   }
+}
+
+async function dispatchViaBatchTrigger(
+  jobPayloads: DocumentProcessingPayload[],
+  requestId: string
+): Promise<number> {
+  let dispatched = 0
+  for (let i = 0; i < jobPayloads.length; i += TRIGGER_BATCH_SIZE) {
+    const chunk = jobPayloads.slice(i, i + TRIGGER_BATCH_SIZE)
+    try {
+      await tasks.batchTrigger<typeof processDocumentTask>(
+        'knowledge-process-document',
+        chunk.map((payload) => ({
+          payload,
+          options: {
+            /**
+             * Scoped to (documentId, requestId) so HTTP-level retries inside a
+             * single dispatch don't double-enqueue, while legitimate re-dispatch
+             * (e.g. stuck-doc retry on a later sync) gets a fresh requestId and
+             * is allowed through.
+             */
+            idempotencyKey: `doc-process-${payload.documentId}-${requestId}`,
+            tags: [
+              `knowledgeBaseId:${payload.knowledgeBaseId}`,
+              `documentId:${payload.documentId}`,
+            ],
+          },
+        }))
+      )
+      dispatched += chunk.length
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to batchTrigger ${chunk.length} document jobs`, {
+        error: getErrorMessage(error),
+      })
+    }
+  }
+  return dispatched
+}
+
+async function dispatchInProcess(jobPayloads: DocumentProcessingPayload[]): Promise<number> {
+  const results = await Promise.allSettled(
+    jobPayloads.map((p) =>
+      processDocumentAsync(p.knowledgeBaseId, p.documentId, p.docData, p.processingOptions)
+    )
+  )
+  let dispatched = 0
+  for (const r of results) {
+    if (r.status === 'fulfilled') dispatched++
+    else logger.error('Document dispatch failed', { error: getErrorMessage(r.reason) })
+  }
+  return dispatched
 }
 
 export async function processDocumentAsync(
