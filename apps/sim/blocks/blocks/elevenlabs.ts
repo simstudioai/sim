@@ -72,20 +72,21 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
     access: ['elevenlabs_tts'],
     config: {
       tool: () => 'elevenlabs_tts',
-      params: (params) => ({
-        apiKey: params.apiKey,
-        text: params.text,
-        voiceId: params.voiceId,
-        modelId: params.modelId,
-        stability:
-          params.stability !== undefined && params.stability !== ''
-            ? Number(params.stability)
-            : undefined,
-        similarityBoost:
-          params.similarityBoost !== undefined && params.similarityBoost !== ''
-            ? Number(params.similarityBoost)
-            : undefined,
-      }),
+      params: (params) => {
+        const parseUnitInterval = (value: unknown): number | undefined => {
+          if (value === undefined || value === null || value === '') return undefined
+          const n = Number(value)
+          return Number.isFinite(n) ? n : undefined
+        }
+        return {
+          apiKey: params.apiKey,
+          text: params.text,
+          voiceId: params.voiceId,
+          modelId: params.modelId,
+          stability: parseUnitInterval(params.stability),
+          similarityBoost: parseUnitInterval(params.similarityBoost),
+        }
+      },
     },
   },
 

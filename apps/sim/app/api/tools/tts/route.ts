@@ -66,9 +66,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`
 
-    const voiceSettings: { stability?: number; similarity_boost?: number } = {}
-    if (stability !== undefined) voiceSettings.stability = stability
-    if (similarityBoost !== undefined) voiceSettings.similarity_boost = similarityBoost
+    const hasVoiceSetting = stability !== undefined || similarityBoost !== undefined
+    const voiceSettings = hasVoiceSetting
+      ? {
+          stability: stability ?? 0.5,
+          similarity_boost: similarityBoost ?? 0.75,
+        }
+      : undefined
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -80,7 +84,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       body: JSON.stringify({
         text,
         model_id: modelId,
-        ...(Object.keys(voiceSettings).length > 0 ? { voice_settings: voiceSettings } : {}),
+        ...(voiceSettings ? { voice_settings: voiceSettings } : {}),
       }),
       signal: AbortSignal.timeout(DEFAULT_EXECUTION_TIMEOUT_MS),
     })
