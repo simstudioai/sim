@@ -1336,8 +1336,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
           .workflowGroups ?? []
       const groupsById = new Map(groups.map((g) => [g.id, g]))
-      // Tally cells flipped to pending per row so we can bump the run-state
-      // counter in lockstep with the optimistic cell stamps below.
+      // Tally cells stamped per row to bump the run-state counter in lockstep.
       const stampedByRow: Record<string, number> = {}
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
         if (targetRowIds && !targetRowIds.has(r.id)) return null
@@ -1377,11 +1376,10 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         return { ...r, data: nextData, executions: next }
       })
 
-      // Bump the run-state counter to match the cells we just stamped. Without
-      // this the top-right "X running" badge and per-row gutter Stop button
-      // stay at zero until a refetch: the optimistic stamp marks the cell
-      // in-flight in the rows cache, so the dispatcher's real `pending` SSE
-      // event sees no `wasInFlight` transition and never bumps the counter.
+      // Bump the counter to match the stamped cells. Without it the "X running"
+      // badge + gutter Stop stay at zero until a refetch: the optimistic stamp
+      // already marks the cell in-flight, so the dispatcher's `pending` SSE
+      // sees no `wasInFlight` transition and never bumps the counter.
       const runStateSnapshot = queryClient.getQueryData<TableRunState>(
         tableKeys.activeDispatches(tableId)
       )
@@ -1404,23 +1402,18 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
     },
     onError: (_err, _variables, context) => {
       if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
-      // Roll back the optimistic counter bump to its pre-mutation value
-      // (possibly undefined, which clears the entry we created).
+      // Roll back the optimistic counter bump (snapshot may be undefined).
       if (context?.didBumpRunState) {
         queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
       }
     },
     onSuccess: (data, { groupIds, runMode = 'all', rowIds }, context) => {
-      // Seed the dispatch into the overlay list (drives resolveCellExec's
-      // queued overlay for ahead-of-cursor rows). Upsert directly from the
-      // response instead of refetching — a refetch would reset the
-      // optimistic counter to the server's still-zero count (the dispatcher
-      // hasn't stamped cells yet).
+      // Seed the dispatch into the overlay (drives resolveCellExec for
+      // ahead-of-cursor rows) from the response — refetching would reset the
+      // optimistic counter to the server's still-zero count.
       const dispatchId = data?.data?.dispatchId
       if (!dispatchId) {
-        // No dispatch was created (e.g. no matching groups / eligible rows).
-        // No SSE will arrive to reconcile the optimistic counter bump, so roll
-        // it back to its pre-mutation value.
+        // No dispatch created → no SSE to reconcile the bump; roll it back.
         if (context?.didBumpRunState) {
           queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
         }

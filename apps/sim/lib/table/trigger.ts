@@ -55,10 +55,9 @@ export async function fireTableTrigger(
   requestId: string
 ): Promise<void> {
   try {
-    // Lazy-imported: `@/lib/webhooks/processor` transitively pulls in the
-    // workflow executor + blocks stack. Importing it eagerly would force every
-    // consumer of `lib/table/service` (e.g. the dispatcher, which only needs
-    // `getTableById`) to pay that cold-start even when no trigger ever fires.
+    // Lazy: the webhook utils/processor pull in the executor + blocks stack.
+    // Eager imports would force every `lib/table/service` consumer (e.g. the
+    // dispatcher) to pay that cold-start even when no trigger fires.
     const { fetchActiveWebhooks } = await import('@/lib/webhooks/polling/utils')
     const webhooks = await fetchActiveWebhooks('table')
     if (webhooks.length === 0) return

@@ -297,14 +297,9 @@ const TYPEWRITER_MS_PER_CHAR = 15
  * practice means SSE-driven workflow completions arriving via
  * `useTableEventStream → applyCell()`.
  *
- * Driven by `requestAnimationFrame`, not `setInterval`: when many cells reveal
- * at once (a Run-all completing in waves), independent interval callbacks fire
- * at uncoordinated times and each forces its own React render + layout/paint —
- * O(cells) reflows over an un-virtualized grid, which degrades as more cells
- * fill. rAF callbacks for a frame all run before one paint, so React batches
- * every cell's update into a single render + paint per frame (~60fps,
- * independent of cell count). Reveal length is derived from elapsed time, so a
- * dropped frame catches up instead of slowing the animation.
+ * rAF-driven (not `setInterval`) so concurrent reveals batch into one
+ * render/paint per frame instead of O(cells) uncoordinated reflows; reveal
+ * length is elapsed-time based so dropped frames catch up rather than slow.
  */
 function useTypewriter(text: string | null): string | null {
   const [revealed, setRevealed] = useState<string | null>(text)

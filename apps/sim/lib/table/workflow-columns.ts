@@ -205,11 +205,9 @@ export function buildPendingRuns(
  *  the inline runner, and the cancel key the inline backend uses to map a
  *  Stop click to the in-flight cell's AbortController.
  *
- *  The `runner` is only consumed by the database (inline) backend — the
- *  trigger.dev backend triggers by task id. Importing the cell job pulls in
- *  the entire executor + blocks stack, so on trigger.dev we skip the import
- *  entirely: the dispatcher container would otherwise pay a multi-second
- *  cold-start loading code it never runs (the cell runs in its own container). */
+ *  `runner` is only used by the database backend; trigger.dev triggers by task
+ *  id. The cell-job import pulls in the executor + blocks stack, so skip it on
+ *  trigger.dev to avoid a multi-second dispatcher cold-start. */
 export async function buildEnqueueItems(
   pendingRuns: WorkflowGroupCellPayload[]
 ): Promise<Array<{ payload: WorkflowGroupCellPayload; options: EnqueueOptions }>> {
