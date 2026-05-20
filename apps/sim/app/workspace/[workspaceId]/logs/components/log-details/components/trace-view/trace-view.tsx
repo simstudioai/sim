@@ -32,6 +32,7 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
+  DEFAULT_BLOCK_COLOR,
   formatCostAmount,
   formatTokenCount,
   formatTps,
@@ -121,8 +122,9 @@ function iconColorClass(bgColor: string): string {
 }
 
 /**
- * Lifts a near-black icon background just enough to clear the dark-mode
- * surface. Branded colors above the threshold pass through unchanged.
+ * Near-black bgColors disappear against the dark-mode surface (--bg: #1b1b1b).
+ * Below the luminance threshold we fall back to the neutral block color used
+ * for blocks with no distinct identity; everything brighter passes through.
  */
 function adjustBgForContrast(bgColor: string): string {
   const hex = bgColor.replace('#', '')
@@ -130,10 +132,8 @@ function adjustBgForContrast(bgColor: string): string {
   const r = Number.parseInt(hex.slice(0, 2), 16)
   const g = Number.parseInt(hex.slice(2, 4), 16)
   const b = Number.parseInt(hex.slice(4, 6), 16)
-  if (r * 299 + g * 587 + b * 114 >= 30_000) return bgColor
-  const FLOOR = 0x33
-  const lift = (c: number) => Math.max(c, FLOOR).toString(16).padStart(2, '0')
-  return `#${lift(r)}${lift(g)}${lift(b)}`
+  if (r * 299 + g * 587 + b * 114 < 30_000) return DEFAULT_BLOCK_COLOR
+  return bgColor
 }
 
 /**
