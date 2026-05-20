@@ -7,6 +7,8 @@ export const ttsToolBodySchema = z.object({
   voiceId: z.string({ error: 'Missing required parameters' }).min(1, 'Missing required parameters'),
   apiKey: z.string({ error: 'Missing required parameters' }).min(1, 'Missing required parameters'),
   modelId: z.string().optional().default('eleven_monolingual_v1'),
+  stability: z.coerce.number().min(0).max(1).optional(),
+  similarityBoost: z.coerce.number().min(0).max(1).optional(),
   workspaceId: z.string().optional(),
   workflowId: z.string().optional(),
   executionId: z.string().optional(),
