@@ -426,9 +426,7 @@ export async function processDocumentAsync(
   try {
     logger.info(`[${documentId}] Starting document processing: ${docData.filename}`)
 
-    // Single JOIN fetches everything we'll need: KB processing config, workspace
-    // billing context, and the document's tag values (folded onto the embedding
-    // rows later). Replaces three separate SELECTs.
+    // KB config + workspace billing + doc tags in one JOIN (was 3 SELECTs).
     const contextRows = await db
       .select({
         userId: knowledgeBase.userId,
@@ -589,8 +587,7 @@ export async function processDocumentAsync(
           }
         }
 
-        // Document tag values are stable from upload time and were prefetched in
-        // the JOIN above — reuse them instead of issuing another SELECT.
+        // Tag values prefetched above; reuse for the embedding rows.
         const documentTags = ctx
 
         logger.info(`[${documentId}] Embeddings generated, creating embedding records with tags`)
@@ -782,10 +779,11 @@ export async function createDocumentRecords(
       throw new Error('Knowledge base not found')
     }
 
-    // Load tag definitions once for the whole batch (avoids N+1 across docs)
-    // and reuses the transaction's connection so we don't double-checkout
-    // while holding the KB FOR UPDATE lock.
-    const tagDefinitions = await loadTagDefinitions(knowledgeBaseId, tx)
+    // One load per batch (was N+1); skip entirely if no doc carries tags.
+    const hasTaggedDocs = documents.some((d) => d.documentTagsData)
+    const tagDefinitions = hasTaggedDocs
+      ? await loadTagDefinitions(knowledgeBaseId, tx)
+      : (new Map() as TagDefinitionsByName)
 
     const now = new Date()
     const documentRecords = []
