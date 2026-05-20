@@ -5,7 +5,7 @@ import type { ElevenLabsBlockResponse } from '@/tools/elevenlabs/types'
 export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
   type: 'elevenlabs',
   name: 'ElevenLabs',
-  description: 'Convert TTS using ElevenLabs',
+  description: 'Convert text to speech with ElevenLabs',
   authMode: AuthMode.ApiKey,
   longDescription: 'Integrate ElevenLabs into the workflow. Can convert text to speech.',
   docsLink: 'https://docs.sim.ai/tools/elevenlabs',
@@ -42,6 +42,21 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
         { label: 'eleven_flash_v2_5', id: 'eleven_flash_v2_5' },
         { label: 'eleven_v3', id: 'eleven_v3' },
       ],
+      value: () => 'eleven_monolingual_v1',
+    },
+    {
+      id: 'stability',
+      title: 'Stability',
+      type: 'short-input',
+      placeholder: '0.0 to 1.0 (e.g., 0.5)',
+      mode: 'advanced',
+    },
+    {
+      id: 'similarityBoost',
+      title: 'Similarity Boost',
+      type: 'short-input',
+      placeholder: '0.0 to 1.0 (e.g., 0.75)',
+      mode: 'advanced',
     },
     {
       id: 'apiKey',
@@ -57,12 +72,21 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
     access: ['elevenlabs_tts'],
     config: {
       tool: () => 'elevenlabs_tts',
-      params: (params) => ({
-        apiKey: params.apiKey,
-        text: params.text,
-        voiceId: params.voiceId,
-        modelId: params.modelId,
-      }),
+      params: (params) => {
+        const parseUnitInterval = (value: unknown): number | undefined => {
+          if (value === undefined || value === null || value === '') return undefined
+          const n = Number(value)
+          return Number.isFinite(n) ? n : undefined
+        }
+        return {
+          apiKey: params.apiKey,
+          text: params.text,
+          voiceId: params.voiceId,
+          modelId: params.modelId,
+          stability: parseUnitInterval(params.stability),
+          similarityBoost: parseUnitInterval(params.similarityBoost),
+        }
+      },
     },
   },
 
@@ -70,6 +94,8 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
     text: { type: 'string', description: 'Text to convert' },
     voiceId: { type: 'string', description: 'Voice identifier' },
     modelId: { type: 'string', description: 'Model identifier' },
+    stability: { type: 'number', description: 'Voice stability 0.0-1.0' },
+    similarityBoost: { type: 'number', description: 'Similarity boost 0.0-1.0' },
     apiKey: { type: 'string', description: 'ElevenLabs API key' },
   },
 
