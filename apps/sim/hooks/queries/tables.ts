@@ -1336,10 +1336,13 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
           .workflowGroups ?? []
       const groupsById = new Map(groups.map((g) => [g.id, g]))
+      // Tally cells flipped to pending per row so we can bump the run-state
+      // counter in lockstep with the optimistic cell stamps below.
+      const stampedByRow: Record<string, number> = {}
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
         if (targetRowIds && !targetRowIds.has(r.id)) return null
         const executions = r.executions ?? {}
-        let changed = false
+        let stamped = 0
         const next: RowExecutions = { ...executions }
         const nextData = { ...r.data }
         for (const groupId of targetGroupIds) {
@@ -1367,20 +1370,70 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
               if (o.columnName in nextData) nextData[o.columnName] = null
             }
           }
-          changed = true
+          stamped++
         }
-        if (!changed) return null
+        if (stamped === 0) return null
+        stampedByRow[r.id] = stamped
         return { ...r, data: nextData, executions: next }
       })
-      return { snapshots }
+
+      // Bump the run-state counter to match the cells we just stamped. Without
+      // this the top-right "X running" badge and per-row gutter Stop button
+      // stay at zero until a refetch: the optimistic stamp marks the cell
+      // in-flight in the rows cache, so the dispatcher's real `pending` SSE
+      // event sees no `wasInFlight` transition and never bumps the counter.
+      const runStateSnapshot = queryClient.getQueryData<TableRunState>(
+        tableKeys.activeDispatches(tableId)
+      )
+      const totalStamped = Object.values(stampedByRow).reduce((s, n) => s + n, 0)
+      if (totalStamped > 0) {
+        queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
+          const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
+          const nextByRow = { ...base.runningByRowId }
+          for (const [rid, n] of Object.entries(stampedByRow)) {
+            nextByRow[rid] = (nextByRow[rid] ?? 0) + n
+          }
+          return {
+            ...base,
+            runningCellCount: base.runningCellCount + totalStamped,
+            runningByRowId: nextByRow,
+          }
+        })
+      }
+      return { snapshots, runStateSnapshot, didBumpRunState: totalStamped > 0 }
     },
     onError: (_err, _variables, context) => {
       if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
+      // Roll back the optimistic counter bump to its pre-mutation value
+      // (possibly undefined, which clears the entry we created).
+      if (context?.didBumpRunState) {
+        queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
+      }
     },
-    onSuccess: () => {
-      // Seed the active-dispatch overlay immediately (insertDispatch ran
-      // server-side before responding); rows cache stays owned by SSE.
-      void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
+    onSuccess: (data, { groupIds, runMode = 'all', rowIds }) => {
+      // Seed the dispatch into the overlay list (drives resolveCellExec's
+      // queued overlay for ahead-of-cursor rows). Upsert directly from the
+      // response instead of refetching — a refetch would reset the
+      // optimistic counter to the server's still-zero count (the dispatcher
+      // hasn't stamped cells yet).
+      const dispatchId = data?.data?.dispatchId
+      if (!dispatchId) return
+      queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
+        const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
+        if (base.dispatches.some((d) => d.id === dispatchId)) return base
+        const dispatch: ActiveDispatch = {
+          id: dispatchId,
+          status: 'pending',
+          mode: runMode,
+          isManualRun: true,
+          cursor: -1,
+          scope: {
+            groupIds,
+            ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
+          },
+        }
+        return { ...base, dispatches: [...base.dispatches, dispatch] }
+      })
     },
   })
 }
