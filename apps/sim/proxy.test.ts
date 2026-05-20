@@ -44,7 +44,7 @@ describe('resolveApiCorsPolicy', () => {
     expect(policy.headers).toContain('X-API-Key')
   })
 
-  it('reflects origin for chat and form embeds, never sets credentials', () => {
+  it('reflects origin for chat and form embeds with credentials enabled', () => {
     const paths = [
       '/api/chat/abc',
       '/api/chat/abc/otp',
@@ -56,11 +56,17 @@ describe('resolveApiCorsPolicy', () => {
       const policy = resolveApiCorsPolicy(makeRequest(path, 'https://customer.example'))
       expect(policy).toEqual({
         origin: 'https://customer.example',
-        credentials: false,
+        credentials: true,
         methods: 'GET, POST, PUT, OPTIONS',
         headers: 'Content-Type, X-Requested-With',
       })
     }
+  })
+
+  it('drops credentials on embed policy when Origin header is absent (CORS spec invariant)', () => {
+    const policy = resolveApiCorsPolicy(makeRequest('/api/chat/abc'))
+    expect(policy.origin).toBe('*')
+    expect(policy.credentials).toBe(false)
   })
 
   it('allows PUT on the embed policy (used by OTP verification on /[identifier]/otp)', () => {
@@ -70,16 +76,12 @@ describe('resolveApiCorsPolicy', () => {
     expect(policy.methods).toContain('PUT')
   })
 
-  it('falls back to wildcard for chat/form embeds when no origin header is present', () => {
-    expect(resolveApiCorsPolicy(makeRequest('/api/chat/abc')).origin).toBe('*')
-  })
-
   it('applies the embed policy to future identifier subroutes (not just /otp, /sso)', () => {
     const policy = resolveApiCorsPolicy(
       makeRequest('/api/chat/abc/transcript', 'https://customer.example')
     )
     expect(policy.origin).toBe('https://customer.example')
-    expect(policy.credentials).toBe(false)
+    expect(policy.credentials).toBe(true)
   })
 
   it('uses the default credentialed policy for workspace-internal chat/form routes', () => {
