@@ -58,10 +58,7 @@ type DocOp =
   | { type: 'add'; extDoc: ExternalDocument }
   | { type: 'update'; existingId: string; extDoc: ExternalDocument }
 
-/**
- * Combined liveness check used between batches. One JOIN query checks both
- * connector and knowledge base state in a single roundtrip.
- */
+/** Single-roundtrip liveness check used between batches. */
 async function checkSyncLiveness(
   connectorId: string,
   knowledgeBaseId: string

@@ -288,11 +288,7 @@ async function processDocumentTags(
   return result
 }
 
-/**
- * Trigger.dev's documented per-call cap for `tasks.batchTrigger` is 1,000
- * items on SDK 4.3.1+ (we're on 4.4.3). Payloads above this are chunked.
- * https://trigger.dev/docs/triggering
- */
+/** Per-call cap for `tasks.batchTrigger` on Trigger.dev SDK 4.3.1+. */
 const TRIGGER_BATCH_SIZE = 1000
 
 function buildJobPayload(
@@ -316,12 +312,9 @@ function buildJobPayload(
 }
 
 /**
- * Dispatches document processing jobs. On Trigger.dev, collapses N runs into
- * `ceil(N / TRIGGER_BATCH_SIZE)` HTTP calls via `tasks.batchTrigger`. Without
- * Trigger.dev, falls back to in-process execution via `processDocumentAsync`.
- *
- * Throws only when every dispatch fails — partial failures are logged. Stuck
- * docs left in 'pending' are reaped by the next sync's stuck-doc retry pass.
+ * Dispatches document processing jobs via Trigger.dev's `batchTrigger` when
+ * available, or in-process otherwise. Throws only when every dispatch fails;
+ * partial failures are logged and recovered by the next sync's stuck-doc pass.
  */
 export async function processDocumentsWithQueue(
   createdDocuments: DocumentData[],
@@ -368,12 +361,8 @@ async function dispatchViaBatchTrigger(
         chunk.map((payload) => ({
           payload,
           options: {
-            /**
-             * Scoped to (documentId, requestId) so HTTP-level retries inside a
-             * single dispatch don't double-enqueue, while legitimate re-dispatch
-             * (e.g. stuck-doc retry on a later sync) gets a fresh requestId and
-             * is allowed through.
-             */
+            // Scoped to (documentId, requestId): blocks intra-dispatch retries
+            // from double-enqueuing; later syncs use a fresh requestId.
             idempotencyKey: `doc-process-${payload.documentId}-${requestId}`,
             tags: [
               `knowledgeBaseId:${payload.knowledgeBaseId}`,
