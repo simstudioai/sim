@@ -1378,14 +1378,8 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
       if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
     },
     onSuccess: () => {
-      // Seed the active-dispatch overlay from the server. `runWorkflowColumn`
-      // inserts the dispatch row synchronously before responding, so the
-      // refetch picks it up immediately — this drives `resolveCellExec`'s
-      // queued overlay for rows ahead of the cursor (scrolled-in / refetched
-      // rows that have no real exec yet) without waiting for the first
-      // `kind: 'dispatch'` SSE. Targeted at activeDispatches only — NOT the
-      // rows cache, which `useTableEventStream` owns (a rows refetch would
-      // race its incremental patches).
+      // Seed the active-dispatch overlay immediately (insertDispatch ran
+      // server-side before responding); rows cache stays owned by SSE.
       void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
     },
   })

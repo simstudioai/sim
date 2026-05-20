@@ -399,15 +399,8 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       logger.error(`[${dispatchId}] batch dispatch failed`, {
         error: toError(err).message,
       })
-      // The enqueue failed (e.g. trigger.dev API down) — these cells never
-      // ran. The cursor still advances past this window below, so they won't
-      // be retried in this dispatch. Flip the orphan pre-stamps to a terminal
-      // `error` state (with an SSE event) instead of deleting them: the
-      // failure stays visible to the user (Error pill, not a silently-empty
-      // cell), the cells aren't stuck `pending` forever, and `error` cells
-      // re-run on the next manual run (classifyEligibility treats error as
-      // eligible for manual / incomplete). Guarded on `pending + null
-      // executionId` so we only touch our own un-claimed pre-stamps.
+      // Cursor advances past this window, so flip the un-claimed pre-stamps to
+      // terminal `error` (+ SSE) — visible, not stuck pending, re-runnable.
       const failedAt = new Date()
       await Promise.allSettled(
         pendingRuns.map(async (p) => {
