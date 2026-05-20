@@ -296,6 +296,10 @@ const TYPEWRITER_MS_PER_CHAR = 15
  * value statically — animation fires only for subsequent updates, which in
  * practice means SSE-driven workflow completions arriving via
  * `useTableEventStream → applyCell()`.
+ *
+ * rAF-driven (not `setInterval`) so concurrent reveals batch into one
+ * render/paint per frame instead of O(cells) uncoordinated reflows; reveal
+ * length is elapsed-time based so dropped frames catch up rather than slow.
  */
 function useTypewriter(text: string | null): string | null {
   const [revealed, setRevealed] = useState<string | null>(text)
@@ -317,14 +321,17 @@ function useTypewriter(text: string | null): string | null {
       return
     }
 
+    const full = text
+    const start = performance.now()
+    let raf = 0
+    const tick = (now: number) => {
+      const chars = Math.min(full.length, Math.floor((now - start) / TYPEWRITER_MS_PER_CHAR))
+      setRevealed(full.slice(0, chars))
+      if (chars < full.length) raf = requestAnimationFrame(tick)
+    }
     setRevealed('')
-    let i = 0
-    const id = window.setInterval(() => {
-      i++
-      setRevealed(text.slice(0, i))
-      if (i >= text.length) window.clearInterval(id)
-    }, TYPEWRITER_MS_PER_CHAR)
-    return () => window.clearInterval(id)
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
   }, [text])
 
   return revealed
