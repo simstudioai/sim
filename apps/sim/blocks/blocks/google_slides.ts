@@ -3395,6 +3395,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     // Z-order
     reordered: { type: 'boolean', description: 'Whether the z-order was changed' },
     objectIds: { type: 'json', description: 'Object IDs affected by the operation' },
+    operation: { type: 'string', description: 'Z-order operation applied' },
 
     // Table extension
     tableObjectId: { type: 'string', description: 'Table object ID affected' },
