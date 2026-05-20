@@ -1410,14 +1410,22 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
       }
     },
-    onSuccess: (data, { groupIds, runMode = 'all', rowIds }) => {
+    onSuccess: (data, { groupIds, runMode = 'all', rowIds }, context) => {
       // Seed the dispatch into the overlay list (drives resolveCellExec's
       // queued overlay for ahead-of-cursor rows). Upsert directly from the
       // response instead of refetching — a refetch would reset the
       // optimistic counter to the server's still-zero count (the dispatcher
       // hasn't stamped cells yet).
       const dispatchId = data?.data?.dispatchId
-      if (!dispatchId) return
+      if (!dispatchId) {
+        // No dispatch was created (e.g. no matching groups / eligible rows).
+        // No SSE will arrive to reconcile the optimistic counter bump, so roll
+        // it back to its pre-mutation value.
+        if (context?.didBumpRunState) {
+          queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
+        }
+        return
+      }
       queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
         const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
         if (base.dispatches.some((d) => d.id === dispatchId)) return base
