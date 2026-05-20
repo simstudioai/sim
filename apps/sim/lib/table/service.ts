@@ -2309,21 +2309,22 @@ export async function batchUpdateRows(
     mergedData: RowData
     mergedExecutions: RowExecutions
     executionsPatch?: Record<string, RowExecutionMetadata | null>
+    inFlightDownstreamGroups: string[]
   }> = []
   for (const update of data.updates) {
     const existing = existingMap.get(update.rowId)!
     const merged = { ...existing.data, ...update.data }
     // Auto-clear exec records for workflow output columns the user just
     // wiped AND downstream dep-changed terminal groups — same rationale as
-    // `updateRow`. In-flight downstream groups are dropped here (batch
-    // updates don't run the cancel+restart orchestration — those go through
-    // single-row `updateRow`).
-    const { executionsPatch: effectiveExecutionsPatch } = deriveExecClearsForDataPatch(
-      update.data,
-      table.schema,
-      existing.executions,
-      update.executionsPatch
-    )
+    // `updateRow`. Per-row in-flight downstream groups are surfaced so we
+    // can run the cancel+rerun orchestration after the batch commits.
+    const { executionsPatch: effectiveExecutionsPatch, inFlightDownstreamGroups } =
+      deriveExecClearsForDataPatch(
+        update.data,
+        table.schema,
+        existing.executions,
+        update.executionsPatch
+      )
     const mergedExecutions = applyExecutionsPatch(existing.executions, effectiveExecutionsPatch)
 
     const sizeValidation = validateRowSize(merged)
@@ -2341,6 +2342,7 @@ export async function batchUpdateRows(
       mergedData: merged,
       mergedExecutions,
       executionsPatch: effectiveExecutionsPatch,
+      inFlightDownstreamGroups,
     })
   }
 
@@ -2404,6 +2406,39 @@ export async function batchUpdateRows(
     table.schema,
     requestId
   )
+  // Per-row cancel+rerun for in-flight downstream groups whose deps just
+  // changed — same orchestration as single-row `updateRow`. Without this,
+  // batch updates would leave running workflows reading stale dep values.
+  // Each row needs its own cancel + manual-incomplete dispatch because
+  // `cancelWorkflowGroupRuns`'s `groupIds` filter is per-row.
+  const rowsWithInFlightDownstream = mergedUpdates.filter(
+    (u) => u.inFlightDownstreamGroups.length > 0
+  )
+  if (rowsWithInFlightDownstream.length > 0) {
+    void (async () => {
+      try {
+        for (const { rowId, inFlightDownstreamGroups } of rowsWithInFlightDownstream) {
+          await cancelWorkflowGroupRuns(data.tableId, rowId, {
+            groupIds: inFlightDownstreamGroups,
+          })
+          await runWorkflowColumn({
+            tableId: data.tableId,
+            workspaceId: data.workspaceId,
+            mode: 'incomplete',
+            isManualRun: true,
+            rowIds: [rowId],
+            groupIds: inFlightDownstreamGroups,
+            requestId,
+          })
+        }
+      } catch (err) {
+        logger.error(
+          `[${requestId}] cancel+rerun for in-flight downstream groups (batch) failed:`,
+          err
+        )
+      }
+    })()
+  }
   void runWorkflowColumn({
     tableId: table.id,
     workspaceId: table.workspaceId,

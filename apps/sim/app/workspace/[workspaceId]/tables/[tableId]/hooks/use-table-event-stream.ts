@@ -147,18 +147,25 @@ export function useTableEventStream({
     const applyDispatch = (event: Extract<TableEvent, { kind: 'dispatch' }>): void => {
       const { dispatchId, status, scope, cursor, mode, isManualRun } = event
       queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
-        if (!prev) return prev
-        const list = prev.dispatches
+        // SSE may arrive before the initial fetch lands. Seed an empty
+        // run-state so the dispatch isn't dropped; counters are reconciled
+        // by the subsequent fetch / per-cell SSE events.
+        const base: TableRunState = prev ?? {
+          dispatches: [],
+          runningCellCount: 0,
+          runningByRowId: {},
+        }
+        const list = base.dispatches
         // Terminal states drop the dispatch from the overlay; client renders
         // the row's authoritative DB exec state from here.
         if (status === 'complete' || status === 'cancelled') {
           const filtered = list.filter((d) => d.id !== dispatchId)
-          return filtered.length === list.length ? prev : { ...prev, dispatches: filtered }
+          return filtered.length === list.length ? base : { ...base, dispatches: filtered }
         }
         if (scope === undefined || cursor === undefined || mode === undefined) {
           // Defensive: a legacy emit without the new fields can't drive the
           // overlay. Leave existing cache alone.
-          return prev
+          return base
         }
         const idx = list.findIndex((d) => d.id === dispatchId)
         const existing = idx === -1 ? undefined : list[idx]
@@ -174,10 +181,10 @@ export function useTableEventStream({
           cursor,
           scope,
         }
-        if (idx === -1) return { ...prev, dispatches: [...list, next] }
+        if (idx === -1) return { ...base, dispatches: [...list, next] }
         const merged = list.slice()
         merged[idx] = next
-        return { ...prev, dispatches: merged }
+        return { ...base, dispatches: merged }
       })
     }
 

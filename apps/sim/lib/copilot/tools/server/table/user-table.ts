@@ -525,16 +525,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             // doesn't, so the guard never trips here. Defensive narrowing.
             return { success: false, message: 'Row update was skipped' }
           }
-          void runWorkflowColumn({
-            tableId: args.tableId,
-            workspaceId,
-            rowIds: [updatedRow.id],
-            mode: 'incomplete',
-            isManualRun: false,
-            requestId,
-          }).catch((err) =>
-            logger.error(`[${requestId}] auto-dispatch (Mothership update_row) failed:`, err)
-          )
+          // Auto-dispatch for user edits is handled inside `updateRow`
+          // (mode: 'new' for newly-cleared groups + cancel+rerun for in-flight
+          // downstream groups). Firing a second mode: 'incomplete' dispatch
+          // here would race with the internal one AND bulk-clear sibling-group
+          // outputs (mode: 'incomplete' wipes terminal-state cells in scope).
 
           return {
             success: true,
