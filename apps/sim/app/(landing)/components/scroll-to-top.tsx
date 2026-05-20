@@ -18,6 +18,15 @@ import { usePathname } from 'next/navigation'
 let lastPopstateAt = Number.NEGATIVE_INFINITY
 const POPSTATE_WINDOW_MS = 200
 
+/**
+ * Tracks whether any `ScrollToTop` instance has run its mount effect yet.
+ * Module-scoped so cross-section navigation (which mounts a fresh instance)
+ * still scrolls — only the very first mount on page load is treated as the
+ * initial render, letting the browser's native scroll restoration win on
+ * reload.
+ */
+let hasMounted = false
+
 if (typeof window !== 'undefined') {
   window.addEventListener('popstate', () => {
     lastPopstateAt = performance.now()
@@ -30,14 +39,19 @@ if (typeof window !== 'undefined') {
  * Next.js's default scroll handling only brings the new Page element into view,
  * which often resolves to "no scroll" inside shared layouts (see vercel/next.js#64435).
  *
- * Skipped when the pathname change closely follows a popstate (preserving browser
- * back/forward scroll restoration) or when a hash anchor is targeted (letting the
- * browser's native anchor scroll win).
+ * Skipped on the initial mount (so browser scroll restoration on reload wins),
+ * when the pathname change closely follows a popstate (preserving browser
+ * back/forward scroll restoration), and when a hash anchor is targeted (letting
+ * the browser's native anchor scroll win).
  */
 export function ScrollToTop() {
   const pathname = usePathname()
 
   useEffect(() => {
+    if (!hasMounted) {
+      hasMounted = true
+      return
+    }
     if (performance.now() - lastPopstateAt < POPSTATE_WINDOW_MS) {
       lastPopstateAt = Number.NEGATIVE_INFINITY
       return
