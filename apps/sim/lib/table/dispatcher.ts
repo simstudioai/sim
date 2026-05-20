@@ -399,16 +399,21 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       logger.error(`[${dispatchId}] batch dispatch failed`, {
         error: toError(err).message,
       })
-      // Reset the orphan pre-stamps so the cells don't render "Queued" forever.
-      // Without this sweep, `pending + null executionId` rows stay until a user
-      // re-triggers the row. The classifyEligibility carve-out lets future
-      // dispatchers re-claim, but the current dispatch has already advanced
-      // its cursor past these rows. Deleting the pre-stamps lets the next
-      // explicit Run pick them up cleanly.
+      // The enqueue failed (e.g. trigger.dev API down) — these cells never
+      // ran. The cursor still advances past this window below, so they won't
+      // be retried in this dispatch. Flip the orphan pre-stamps to a terminal
+      // `error` state (with an SSE event) instead of deleting them: the
+      // failure stays visible to the user (Error pill, not a silently-empty
+      // cell), the cells aren't stuck `pending` forever, and `error` cells
+      // re-run on the next manual run (classifyEligibility treats error as
+      // eligible for manual / incomplete). Guarded on `pending + null
+      // executionId` so we only touch our own un-claimed pre-stamps.
+      const failedAt = new Date()
       await Promise.allSettled(
-        pendingRuns.map((p) =>
-          db
-            .delete(tableRowExecutions)
+        pendingRuns.map(async (p) => {
+          const updated = await db
+            .update(tableRowExecutions)
+            .set({ status: 'error', error: 'Failed to enqueue run', updatedAt: failedAt })
             .where(
               and(
                 eq(tableRowExecutions.rowId, p.rowId),
@@ -417,7 +422,19 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
                 sql`${tableRowExecutions.executionId} IS NULL`
               )
             )
-        )
+            .returning({ rowId: tableRowExecutions.rowId })
+          if (updated.length === 0) return
+          await appendTableEvent({
+            kind: 'cell',
+            tableId: dispatch.tableId,
+            rowId: p.rowId,
+            groupId: p.groupId,
+            status: 'error',
+            executionId: null,
+            jobId: null,
+            error: 'Failed to enqueue run',
+          })
+        })
       )
     }
   }
