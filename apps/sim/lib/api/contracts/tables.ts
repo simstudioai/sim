@@ -941,7 +941,18 @@ export const listActiveDispatchesContract = defineRouteContract({
   params: tableIdParamsSchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema(z.object({ dispatches: z.array(activeDispatchSchema) })),
+    schema: successResponseSchema(
+      z.object({
+        dispatches: z.array(activeDispatchSchema),
+        /** Total cells across the table whose `status === 'running'`. The
+         *  client maintains this incrementally via cell SSE events; this
+         *  field is the bootstrap snapshot on mount. */
+        runningCellCount: z.number().int().nonnegative(),
+        /** Map rowId → number of running cells on that row. Drives the
+         *  per-row badge next to the Stop button. */
+        runningByRowId: z.record(z.string(), z.number().int().positive()),
+      })
+    ),
   },
 })
 

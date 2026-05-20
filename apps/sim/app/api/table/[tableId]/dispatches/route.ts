@@ -5,7 +5,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { listActiveDispatches } from '@/lib/table/dispatcher'
+import { countRunningCells, listActiveDispatches } from '@/lib/table/dispatcher'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableDispatchesAPI')
@@ -37,7 +37,10 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
     const result = await checkAccess(tableId, authResult.userId, 'read')
     if (!result.ok) return accessError(result, requestId, tableId)
 
-    const rows = await listActiveDispatches(tableId)
+    const [rows, running] = await Promise.all([
+      listActiveDispatches(tableId),
+      countRunningCells(tableId),
+    ])
     const dispatches: ActiveDispatch[] = rows.map((r) => ({
       id: r.id,
       status: r.status as 'pending' | 'dispatching',
@@ -47,7 +50,14 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
       scope: r.scope,
     }))
 
-    return NextResponse.json({ success: true, data: { dispatches } })
+    return NextResponse.json({
+      success: true,
+      data: {
+        dispatches,
+        runningCellCount: running.total,
+        runningByRowId: running.byRowId,
+      },
+    })
   } catch (error) {
     logger.error(`[${requestId}] list-dispatches failed:`, error)
     return NextResponse.json({ error: 'Failed to list active dispatches' }, { status: 500 })

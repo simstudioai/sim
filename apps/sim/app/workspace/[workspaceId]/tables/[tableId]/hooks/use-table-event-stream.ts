@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { RowData, RowExecutionMetadata, RowExecutions } from '@/lib/table'
 import type { TableEvent, TableEventEntry } from '@/lib/table/events'
-import { snapshotAndMutateRows, tableKeys } from '@/hooks/queries/tables'
+import { snapshotAndMutateRows, tableKeys, type TableRunState } from '@/hooks/queries/tables'
 
 const logger = createLogger('useTableEventStream')
 
@@ -72,6 +72,28 @@ export function useTableEventStream({
     let lastEventId = loadPointer(tableId)
     let reconnectAttempt = 0
 
+    const updateRunStateCounters = (
+      rowId: string,
+      wasRunning: boolean,
+      isRunning: boolean
+    ): void => {
+      if (wasRunning === isRunning) return
+      const delta = isRunning ? 1 : -1
+      queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
+        if (!prev) return prev
+        const prevForRow = prev.runningByRowId[rowId] ?? 0
+        const nextForRow = Math.max(0, prevForRow + delta)
+        const nextByRow = { ...prev.runningByRowId }
+        if (nextForRow === 0) delete nextByRow[rowId]
+        else nextByRow[rowId] = nextForRow
+        return {
+          ...prev,
+          runningCellCount: Math.max(0, prev.runningCellCount + delta),
+          runningByRowId: nextByRow,
+        }
+      })
+    }
+
     const applyCell = (event: Extract<TableEvent, { kind: 'cell' }>): void => {
       const {
         rowId,
@@ -84,12 +106,14 @@ export function useTableEventStream({
         runningBlockIds,
         blockErrors,
       } = event
+      let wasRunning: boolean | null = null
       void snapshotAndMutateRows(
         queryClient,
         tableId,
         (row) => {
           if (row.id !== rowId) return null
           const prevExec = row.executions?.[groupId]
+          if (wasRunning === null) wasRunning = prevExec?.status === 'running'
           const nextExec: RowExecutionMetadata = {
             status,
             executionId: executionId ?? null,
@@ -109,46 +133,54 @@ export function useTableEventStream({
         },
         { cancelInFlight: false }
       )
+      if (wasRunning === null) {
+        // Row outside the loaded page slice — can't compute the delta locally.
+        // Refetch the run-state snapshot from the server. Cheap and rare.
+        void queryClient.invalidateQueries({
+          queryKey: tableKeys.activeDispatches(tableId),
+        })
+      } else {
+        updateRunStateCounters(rowId, wasRunning, status === 'running')
+      }
     }
 
     const applyDispatch = (event: Extract<TableEvent, { kind: 'dispatch' }>): void => {
       const { dispatchId, status, scope, cursor, mode } = event
-      queryClient.setQueryData<ActiveDispatch[]>(
-        tableKeys.activeDispatches(tableId),
-        (prev) => {
-          const list = prev ?? []
-          // Terminal states drop the dispatch from the overlay; client renders
-          // the row's authoritative DB exec state from here.
-          if (status === 'complete' || status === 'cancelled') {
-            const filtered = list.filter((d) => d.id !== dispatchId)
-            return filtered.length === list.length ? list : filtered
-          }
-          if (scope === undefined || cursor === undefined || mode === undefined) {
-            // Defensive: a legacy emit without the new fields can't drive the
-            // overlay. Leave existing cache alone.
-            return list
-          }
-          const next: ActiveDispatch = {
-            id: dispatchId,
-            status,
-            mode,
-            isManualRun: false,
-            cursor,
-            scope,
-          }
-          const idx = list.findIndex((d) => d.id === dispatchId)
-          if (idx === -1) return [...list, next]
-          const merged = list.slice()
-          // Preserve isManualRun from the initial fetch — SSE doesn't carry it.
-          merged[idx] = { ...next, isManualRun: list[idx].isManualRun }
-          return merged
+      queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
+        if (!prev) return prev
+        const list = prev.dispatches
+        // Terminal states drop the dispatch from the overlay; client renders
+        // the row's authoritative DB exec state from here.
+        if (status === 'complete' || status === 'cancelled') {
+          const filtered = list.filter((d) => d.id !== dispatchId)
+          return filtered.length === list.length ? prev : { ...prev, dispatches: filtered }
         }
-      )
+        if (scope === undefined || cursor === undefined || mode === undefined) {
+          // Defensive: a legacy emit without the new fields can't drive the
+          // overlay. Leave existing cache alone.
+          return prev
+        }
+        const next: ActiveDispatch = {
+          id: dispatchId,
+          status,
+          mode,
+          isManualRun: false,
+          cursor,
+          scope,
+        }
+        const idx = list.findIndex((d) => d.id === dispatchId)
+        if (idx === -1) return { ...prev, dispatches: [...list, next] }
+        const merged = list.slice()
+        // Preserve isManualRun from the initial fetch — SSE doesn't carry it.
+        merged[idx] = { ...next, isManualRun: list[idx].isManualRun }
+        return { ...prev, dispatches: merged }
+      })
     }
 
     const handlePrune = (payload: PrunedEvent): void => {
       logger.info('Table event buffer pruned — full refetch', { tableId, ...payload })
       void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
       lastEventId = typeof payload.earliestEventId === 'number' ? payload.earliestEventId : 0
       savePointer(tableId, lastEventId)
       // Close proactively so the server's close doesn't fire onerror and route

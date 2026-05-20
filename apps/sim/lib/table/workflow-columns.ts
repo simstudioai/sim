@@ -101,10 +101,11 @@ export function isGroupEligible(
 }
 
 /** Walks a row's workflow groups (in `workflowGroups` order) and returns the
- *  first one whose deps are met and that isn't already in-flight. Skips
- *  `excludeGroupId` (the group we just finished in the cascade loop, to
- *  prevent self-retrigger when its post-run state somehow still looks
- *  eligible). Auto-fire semantics — `isManualRun: false`. */
+ *  first one whose deps are met and that isn't already in-flight under a
+ *  different worker. Skips `excludeGroupId` (the group we just finished in
+ *  the cascade loop, to prevent self-retrigger). The cascade-loop is allowed
+ *  to claim past a dispatcher pre-stamp (`pending` with `executionId: null`)
+ *  — that's a placeholder, not a real worker claim. */
 export function pickNextEligibleGroupForRow(
   table: TableDefinition,
   row: TableRow,
@@ -113,7 +114,15 @@ export function pickNextEligibleGroupForRow(
   const groups = table.schema.workflowGroups ?? []
   for (const group of groups) {
     if (group.id === excludeGroupId) continue
-    if (isGroupEligible(group, row, { isManualRun: false, mode: 'incomplete' })) {
+    const exec = row.executions?.[group.id]
+    // Dispatcher pre-stamp (pending + executionId: null) is a placeholder; the
+    // cascade-loop is the right owner of the claim. Treat as "claimable" by
+    // pretending the exec doesn't exist for the eligibility check.
+    const effectiveRow =
+      exec?.status === 'pending' && exec.executionId == null
+        ? { ...row, executions: { ...row.executions, [group.id]: undefined } as RowExecutions }
+        : row
+    if (isGroupEligible(group, effectiveRow, { isManualRun: false, mode: 'incomplete' })) {
       return group
     }
   }
@@ -295,9 +304,15 @@ export const TABLE_CONCURRENCY_LIMIT = 20
  * `cancelled` authoritatively for every `running` or `pending` group
  * execution — the client-side write is the source of truth, independent of
  * whether the trigger.dev cancel reaches the worker before its terminal
- * write.
+ * write. Pass `groupIds` to restrict the cancel to a subset of groups on
+ * the row (used by `updateRow` to cancel only the downstream groups whose
+ * deps just changed).
  */
-export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): Promise<number> {
+export async function cancelWorkflowGroupRuns(
+  tableId: string,
+  rowId?: string,
+  options?: { groupIds?: string[] }
+): Promise<number> {
   const { getTableById, updateRow } = await import('@/lib/table/service')
   const { getJobQueue } = await import('@/lib/core/async-jobs/config')
   const { markActiveDispatchesCancelled } = await import('./dispatcher')
@@ -315,9 +330,12 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
     await markActiveDispatchesCancelled(tableId)
   }
 
-  const groups = table.schema.workflowGroups ?? []
-  if (groups.length === 0) return 0
-  const groupIds = new Set(groups.map((g) => g.id))
+  const allGroups = table.schema.workflowGroups ?? []
+  if (allGroups.length === 0) return 0
+  const groupIds = options?.groupIds
+    ? new Set(allGroups.filter((g) => options.groupIds?.includes(g.id)).map((g) => g.id))
+    : new Set(allGroups.map((g) => g.id))
+  if (groupIds.size === 0) return 0
 
   // Always filter by tableId — for the per-row case this prevents a
   // cross-table rowId from doing a wasted DB round-trip and silently

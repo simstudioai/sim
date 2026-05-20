@@ -136,6 +136,39 @@ export async function insertDispatch(input: {
  *  active dispatch's scope ahead of its cursor are rendered as queued even
  *  before the dispatcher has reached them, so refresh during a long Run-all
  *  doesn't lose the queued indicators. */
+/** Counts cells across the entire table whose execution `status === 'running'`
+ *  — the authoritative source for the "X running" badge. Cache-derived
+ *  counters miss in-flight cells on rows outside the loaded page slice. */
+export async function countRunningCells(
+  tableId: string
+): Promise<{ total: number; byRowId: Record<string, number> }> {
+  const rows = await db
+    .select({
+      id: userTableRows.id,
+      runningCount: sql<number>`(
+        SELECT count(*)::int FROM jsonb_each(${userTableRows.executions}) e
+        WHERE e.value->>'status' = 'running'
+      )`,
+    })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, tableId),
+        sql`${userTableRows.executions} IS NOT NULL`,
+        sql`${userTableRows.executions} != '{}'::jsonb`
+      )
+    )
+  let total = 0
+  const byRowId: Record<string, number> = {}
+  for (const r of rows) {
+    if (r.runningCount > 0) {
+      byRowId[r.id] = r.runningCount
+      total += r.runningCount
+    }
+  }
+  return { total, byRowId }
+}
+
 export async function listActiveDispatches(tableId: string): Promise<DispatchRow[]> {
   const rows = await db
     .select()

@@ -12,16 +12,15 @@ import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, TableRow as TableRowType } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import { isExecInFlight } from '@/lib/table/deps'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
-  useActiveDispatches,
   useBatchUpdateTableRows,
   useCreateTableRow,
   useDeleteColumn,
   useDeleteWorkflowGroup,
+  useTableRunState,
   useUpdateColumn,
   useUpdateTableMetadata,
   useUpdateTableRow,
@@ -73,6 +72,8 @@ import {
 } from './utils'
 
 const logger = createLogger('TableView')
+
+const EMPTY_RUNNING_BY_ROW: Readonly<Record<string, number>> = Object.freeze({})
 
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
@@ -301,7 +302,10 @@ export function TableGrid({
     ensureAllRowsLoaded,
   } = useTable({ workspaceId, tableId, queryOptions })
 
-  const { data: activeDispatches } = useActiveDispatches(tableId)
+  const { data: tableRunState } = useTableRunState(tableId)
+  const activeDispatches = tableRunState?.dispatches
+  const totalRunning = tableRunState?.runningCellCount ?? 0
+  const runningByRowId = tableRunState?.runningByRowId ?? EMPTY_RUNNING_BY_ROW
 
   const fetchNextPageRef = useRef(fetchNextPage)
   fetchNextPageRef.current = fetchNextPage
@@ -2693,22 +2697,11 @@ export function TableGrid({
     return ids.length > 0 ? ids : null
   }, [rowSelection, rows])
 
-  const { runningByRowId, totalRunning } = useMemo(() => {
-    const byRow = new Map<string, number>()
-    let total = 0
-    for (const row of rows) {
-      let count = 0
-      const executions = row.executions ?? {}
-      for (const gid in executions) {
-        if (isExecInFlight(executions[gid])) count++
-      }
-      if (count > 0) {
-        byRow.set(row.id, count)
-        total += count
-      }
-    }
-    return { runningByRowId: byRow, totalRunning: total }
-  }, [rows])
+  // `runningByRowId` + `totalRunning` come from `useTableRunState` above —
+  // backend-bootstrapped via `countRunningCells` and kept live by
+  // `applyCell`'s SSE-driven delta. Counts only cells whose worker has
+  // actually claimed the cell (`status === 'running'`), ignoring optimistic
+  // queued/pending stamps.
 
   // Context-menu wrappers: act on `contextMenuRowIds`, then close the menu.
   // Mirror the action bar's Play / Refresh split: Play fills empty/failed,
@@ -2729,7 +2722,7 @@ export function TableGrid({
   // Total running/queued cells across the rows the context menu is acting on;
   // drives the "Stop N running workflows" item, shown only when > 0.
   const runningInContextSelection = contextMenuRowIds.reduce(
-    (total, rowId) => total + (runningByRowId.get(rowId) ?? 0),
+    (total, rowId) => total + (runningByRowId[rowId] ?? 0),
     0
   )
 
@@ -2760,7 +2753,7 @@ export function TableGrid({
     return []
   }, [rowSelection, normalizedSelection, rows])
   const runningInActionBarSelection = actionBarRowIds.reduce(
-    (total, rowId) => total + (runningByRowId.get(rowId) ?? 0),
+    (total, rowId) => total + (runningByRowId[rowId] ?? 0),
     0
   )
 
@@ -3152,7 +3145,7 @@ export function TableGrid({
                         onCellMouseEnter={handleCellMouseEnter}
                         isRowChecked={rowSelectionIncludes(rowSelection, row.id)}
                         onRowToggle={handleRowToggle}
-                        runningCount={runningByRowId.get(row.id) ?? 0}
+                        runningCount={runningByRowId[row.id] ?? 0}
                         hasWorkflowColumns={hasWorkflowColumns}
                         numDivWidth={numDivWidth}
                         onStopRow={onStopRow}

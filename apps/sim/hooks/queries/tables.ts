@@ -207,27 +207,35 @@ export function useTable(workspaceId: string | undefined, tableId: string | unde
   })
 }
 
-async function fetchActiveDispatches(
-  tableId: string,
-  signal?: AbortSignal
-): Promise<ActiveDispatch[]> {
+export interface TableRunState {
+  dispatches: ActiveDispatch[]
+  runningCellCount: number
+  runningByRowId: Record<string, number>
+}
+
+async function fetchTableRunState(tableId: string, signal?: AbortSignal): Promise<TableRunState> {
   const response = await requestJson(listActiveDispatchesContract, {
     params: { tableId },
     signal,
   })
-  return response.data.dispatches
+  return {
+    dispatches: response.data.dispatches,
+    runningCellCount: response.data.runningCellCount,
+    runningByRowId: response.data.runningByRowId,
+  }
 }
 
 /**
- * Active dispatches for the "about to run" overlay. The cell renderer checks
- * this list to render `pending` for rows in a dispatch's scope ahead of its
- * cursor — preserves queued indicators across page refreshes during a long
- * Run-all. SSE `kind: 'dispatch'` events keep the cache fresh between fetches.
+ * Aggregate live state for a table: active dispatches (drives the "about to
+ * run" overlay), the running-cell count (top-right counter), and per-row
+ * running counts (per-row badge). Bootstrap snapshot fetched once on mount;
+ * SSE `kind: 'cell'` and `kind: 'dispatch'` events incrementally update the
+ * same cache.
  */
-export function useActiveDispatches(tableId: string | undefined) {
+export function useTableRunState(tableId: string | undefined) {
   return useQuery({
     queryKey: tableKeys.activeDispatches(tableId ?? ''),
-    queryFn: ({ signal }) => fetchActiveDispatches(tableId as string, signal),
+    queryFn: ({ signal }) => fetchTableRunState(tableId as string, signal),
     enabled: Boolean(tableId),
     staleTime: 30 * 1000,
   })

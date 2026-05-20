@@ -62,7 +62,12 @@ import {
   validateTableName,
   validateTableSchema,
 } from './validation'
-import { assertValidSchema, runWorkflowColumn, stripGroupDeps } from './workflow-columns'
+import {
+  assertValidSchema,
+  cancelWorkflowGroupRuns,
+  runWorkflowColumn,
+  stripGroupDeps,
+} from './workflow-columns'
 
 const logger = createLogger('TableService')
 
@@ -155,6 +160,36 @@ function scaledStatementTimeoutMs(
  * @param tableId - Table ID to fetch
  * @returns Table definition or null if not found
  */
+/**
+ * Returns `schema` with `columns` sorted by `metadata.columnOrder` (the user-
+ * editable visible order). Columns missing from `columnOrder` are appended at
+ * the end in their original (schema-creation) order — covers tables created
+ * before `columnOrder` existed and any drift from out-of-band column adds.
+ *
+ * This makes `schema.columns` the single source of truth for column order on
+ * the wire. The client doesn't have to join the two arrays itself — every
+ * consumer (grid, sidebar, copilot, mothership) gets the same ordered list.
+ */
+function applyColumnOrderToSchema(
+  schema: TableSchema,
+  metadata: TableMetadata | null
+): TableSchema {
+  const order = metadata?.columnOrder
+  if (!order || order.length === 0) return schema
+  const byName = new Map<string, TableSchema['columns'][number]>()
+  for (const c of schema.columns) byName.set(c.name, c)
+  const ordered: TableSchema['columns'] = []
+  for (const name of order) {
+    const c = byName.get(name)
+    if (c) {
+      ordered.push(c)
+      byName.delete(name)
+    }
+  }
+  for (const c of byName.values()) ordered.push(c)
+  return { ...schema, columns: ordered }
+}
+
 export async function getTableById(
   tableId: string,
   options?: { includeArchived?: boolean }
@@ -186,12 +221,13 @@ export async function getTableById(
   if (results.length === 0) return null
 
   const table = results[0]
+  const metadata = (table.metadata as TableMetadata) ?? null
   return {
     id: table.id,
     name: table.name,
     description: table.description,
-    schema: table.schema as TableSchema,
-    metadata: (table.metadata as TableMetadata) ?? null,
+    schema: applyColumnOrderToSchema(table.schema as TableSchema, metadata),
+    metadata,
     rowCount: table.rowCount,
     maxRows: table.maxRows,
     workspaceId: table.workspaceId,
@@ -257,12 +293,14 @@ export async function listTables(
     )
     .orderBy(userTableDefinitions.createdAt)
 
-  return tables.map((t) => ({
+  return tables.map((t) => {
+    const metadata = (t.metadata as TableMetadata) ?? null
+    return {
     id: t.id,
     name: t.name,
     description: t.description,
-    schema: t.schema as TableSchema,
-    metadata: (t.metadata as TableMetadata) ?? null,
+    schema: applyColumnOrderToSchema(t.schema as TableSchema, metadata),
+    metadata,
     rowCount: t.rowCount,
     maxRows: t.maxRows,
     workspaceId: t.workspaceId,
@@ -270,7 +308,8 @@ export async function listTables(
     archivedAt: t.archivedAt,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
-  }))
+    }
+  })
 }
 
 /**
@@ -643,9 +682,51 @@ export async function updateTableMetadata(
 ): Promise<TableMetadata> {
   const merged: TableMetadata = { ...(existingMetadata ?? {}), ...metadata }
 
+  // When `columnOrder` is in the patch, scrub any workflow-group dependency
+  // that now sits to the right of (or at the same index as) its group's
+  // leftmost column. Without this, reordering a column could leave a group
+  // depending on a column it can no longer reach in the dag — the group
+  // would never fire.
+  const newOrder = metadata.columnOrder
+  let nextSchema: TableSchema | null = null
+  if (Array.isArray(newOrder) && newOrder.length > 0) {
+    const [tableRow] = await db
+      .select({ schema: userTableDefinitions.schema })
+      .from(userTableDefinitions)
+      .where(eq(userTableDefinitions.id, tableId))
+      .limit(1)
+    if (tableRow) {
+      const schema = tableRow.schema as TableSchema
+      const groups = schema.workflowGroups ?? []
+      if (groups.length > 0) {
+        const positionOf = new Map<string, number>()
+        newOrder.forEach((name, i) => positionOf.set(name, i))
+        let mutated = false
+        const nextGroups = groups.map((group) => {
+          const ownCols = schema.columns.filter((c) => c.workflowGroupId === group.id)
+          let leftmost = Number.POSITIVE_INFINITY
+          for (const c of ownCols) {
+            const idx = positionOf.get(c.name) ?? Number.POSITIVE_INFINITY
+            if (idx < leftmost) leftmost = idx
+          }
+          if (!Number.isFinite(leftmost)) return group
+          const deps = group.dependencies?.columns ?? []
+          const removed = new Set(
+            deps.filter((dep) => (positionOf.get(dep) ?? -1) >= leftmost)
+          )
+          if (removed.size === 0) return group
+          const stripped = stripGroupDeps(group, removed)
+          if (stripped !== group) mutated = true
+          return stripped
+        })
+        if (mutated) nextSchema = { ...schema, workflowGroups: nextGroups }
+      }
+    }
+  }
+
   await db
     .update(userTableDefinitions)
-    .set({ metadata: merged })
+    .set(nextSchema ? { metadata: merged, schema: nextSchema } : { metadata: merged })
     .where(eq(userTableDefinitions.id, tableId))
 
   return merged
@@ -1544,36 +1625,73 @@ export async function getRowById(
 }
 
 /**
- * When a user edit clears a workflow output column to empty, also clear the
- * exec record for that group. Without this, a `cancelled` (or `error`) exec
- * sticks on the row even after the user wipes the output, blocking the
- * auto-fire reactor (which respects terminal states). Treating the cleared
- * cell as "user wants this re-armed" matches the rule that cells are the
- * source of truth — we already do this for `completed` via
- * `areOutputsFilled` in the eligibility predicate; this extends the same
- * behavior to error/cancelled by making the data clear remove the exec.
+ * Derive automatic clears + cancellation candidates from a row's data patch.
+ * Two cascades:
  *
- * Returns a merged `executionsPatch` (caller's patch + null for groups whose
- * outputs were cleared), or the caller's patch unchanged if nothing applies.
+ * 1. **Own-output clear**: when the user wipes a workflow output column,
+ *    drop that group's exec entry so the auto-fire reactor re-arms the cell.
+ * 2. **Downstream dep-changed retrigger**: when the user writes any column,
+ *    find every workflow group that lists that column in
+ *    `dependencies.columns`. For each such group whose current exec is in
+ *    a terminal state (`completed | error | cancelled`), clear it so
+ *    `mode: 'new'` auto-fire picks it up. For each group whose exec is
+ *    in-flight (`queued | running | pending`), return the gid in
+ *    `inFlightDownstreamGroups` so the caller can cancel + re-run via the
+ *    manual-run path.
+ *
+ * Returns:
+ * - `executionsPatch`: caller's patch + nulls for cleared groups (or
+ *   undefined if nothing applied).
+ * - `inFlightDownstreamGroups`: groups whose dep was edited and that are
+ *   currently in-flight. Cancel-and-restart is the caller's job.
  */
 function deriveExecClearsForDataPatch(
   dataPatch: RowData,
   schema: TableSchema,
+  existingExecutions: RowExecutions,
   callerPatch: Record<string, RowExecutionMetadata | null> | undefined
-): Record<string, RowExecutionMetadata | null> | undefined {
+): {
+  executionsPatch: Record<string, RowExecutionMetadata | null> | undefined
+  inFlightDownstreamGroups: string[]
+} {
   const groupsToClear = new Set<string>()
+  const inFlightDownstreamGroups: string[] = []
+  const patchedColumns = new Set(Object.keys(dataPatch))
+
+  // Pass 1: own-output clears.
   for (const [columnName, value] of Object.entries(dataPatch)) {
     const cleared = value === null || value === undefined || value === ''
     if (!cleared) continue
     const col = schema.columns.find((c) => c.name === columnName)
     if (col?.workflowGroupId) groupsToClear.add(col.workflowGroupId)
   }
-  if (groupsToClear.size === 0) return callerPatch
+
+  // Pass 2: downstream-dep retrigger. For every group whose deps include any
+  // of the patched columns, decide whether to clear the terminal exec or
+  // flag it for cancel-and-restart.
+  const groups = schema.workflowGroups ?? []
+  for (const group of groups) {
+    const deps = group.dependencies?.columns ?? []
+    const depMatched = deps.some((d) => patchedColumns.has(d))
+    if (!depMatched) continue
+    const exec = existingExecutions[group.id]
+    if (!exec) continue
+    const status = exec.status
+    if (status === 'completed' || status === 'error' || status === 'cancelled') {
+      groupsToClear.add(group.id)
+    } else if (status === 'queued' || status === 'running' || status === 'pending') {
+      inFlightDownstreamGroups.push(group.id)
+    }
+  }
+
+  if (groupsToClear.size === 0) {
+    return { executionsPatch: callerPatch, inFlightDownstreamGroups }
+  }
   const merged: Record<string, RowExecutionMetadata | null> = { ...(callerPatch ?? {}) }
   for (const gid of groupsToClear) {
     if (!(gid in merged)) merged[gid] = null
   }
-  return merged
+  return { executionsPatch: merged, inFlightDownstreamGroups }
 }
 
 /** Merges an `executionsPatch` into the row's existing executions blob. */
@@ -1665,13 +1783,16 @@ export async function updateRow(
     ...(existingRow.data as RowData),
     ...data.data,
   }
-  // Auto-clear exec records for workflow output columns the user just wiped,
-  // so the auto-fire reactor sees no exec and re-arms the cell.
-  const effectiveExecutionsPatch = deriveExecClearsForDataPatch(
-    data.data,
-    table.schema,
-    data.executionsPatch
-  )
+  // Auto-clear exec records for workflow output columns the user just wiped
+  // AND for downstream groups whose deps just changed. Surfaces the in-flight
+  // downstream groups so the caller can cancel + re-run them.
+  const { executionsPatch: effectiveExecutionsPatch, inFlightDownstreamGroups } =
+    deriveExecClearsForDataPatch(
+      data.data,
+      table.schema,
+      existingRow.executions,
+      data.executionsPatch
+    )
   const mergedExecutions = applyExecutionsPatch(existingRow.executions, effectiveExecutionsPatch)
 
   // Validate size
@@ -1774,6 +1895,56 @@ export async function updateRow(
     table.schema,
     requestId
   )
+
+  // Auto-fire only on user-facing data edits. Internal callers that mutate
+  // executions (cell-task partial/terminal writes, cancel writes) always pass
+  // `executionsPatch` — re-dispatching from those would recursively spawn new
+  // dispatches for every running/terminal write, flooding the dispatcher with
+  // redundant pre-stamps that strand `pending` cells.
+  const isInternalExecWrite =
+    data.executionsPatch && Object.keys(data.executionsPatch).length > 0
+  if (isInternalExecWrite) {
+    return updatedRow
+  }
+
+  // Two passes:
+  //  1. Cancel in-flight downstream groups whose dep just changed, then
+  //     manually re-run them — the cancel writes `cancelled` per cell and
+  //     `mode: 'incomplete' + isManualRun: true` wipes those entries and
+  //     re-enqueues.
+  //  2. `mode: 'new'` for groups that just had their exec entries cleared
+  //     (own-output wipe OR terminal downstream dep-changed) — the
+  //     dispatcher's `jsonb_exists_all` SQL filter lets the row through
+  //     because at least one targeted group's exec is now missing.
+  if (inFlightDownstreamGroups.length > 0) {
+    void (async () => {
+      try {
+        await cancelWorkflowGroupRuns(data.tableId, data.rowId, {
+          groupIds: inFlightDownstreamGroups,
+        })
+        await runWorkflowColumn({
+          tableId: data.tableId,
+          workspaceId: data.workspaceId,
+          mode: 'incomplete',
+          isManualRun: true,
+          rowIds: [data.rowId],
+          groupIds: inFlightDownstreamGroups,
+          requestId,
+        })
+      } catch (err) {
+        logger.error(`[${requestId}] cancel+rerun for in-flight downstream groups failed:`, err)
+      }
+    })()
+  }
+  void runWorkflowColumn({
+    tableId: data.tableId,
+    workspaceId: data.workspaceId,
+    rowIds: [data.rowId],
+    mode: 'new',
+    isManualRun: false,
+    requestId,
+  }).catch((err) => logger.error(`[${requestId}] auto-dispatch (updateRow) failed:`, err))
+
   return updatedRow
 }
 
@@ -2001,10 +2172,14 @@ export async function batchUpdateRows(
     const existing = existingMap.get(update.rowId)!
     const merged = { ...existing.data, ...update.data }
     // Auto-clear exec records for workflow output columns the user just
-    // wiped — same rationale as `updateRow`.
-    const effectiveExecutionsPatch = deriveExecClearsForDataPatch(
+    // wiped AND downstream dep-changed terminal groups — same rationale as
+    // `updateRow`. In-flight downstream groups are dropped here (batch
+    // updates don't run the cancel+restart orchestration — those go through
+    // single-row `updateRow`).
+    const { executionsPatch: effectiveExecutionsPatch } = deriveExecClearsForDataPatch(
       update.data,
       table.schema,
+      existing.executions,
       update.executionsPatch
     )
     const mergedExecutions = applyExecutionsPatch(existing.executions, effectiveExecutionsPatch)
