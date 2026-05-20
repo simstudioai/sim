@@ -111,11 +111,26 @@ interface DocumentTagData {
   value: string
 }
 
-async function processDocumentTags(
+type TagDefinition = typeof knowledgeBaseTagDefinitions.$inferSelect
+type TagDefinitionsByName = Map<string, TagDefinition>
+type DbExecutor = Pick<typeof db, 'select'>
+
+async function loadTagDefinitions(
   knowledgeBaseId: string,
+  executor: DbExecutor = db
+): Promise<TagDefinitionsByName> {
+  const defs = await executor
+    .select()
+    .from(knowledgeBaseTagDefinitions)
+    .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
+  return new Map(defs.map((def) => [def.displayName, def]))
+}
+
+function resolveDocumentTags(
   tagData: DocumentTagData[],
+  tagDefinitions: TagDefinitionsByName,
   requestId: string
-): Promise<ProcessedDocumentTags> {
+): ProcessedDocumentTags {
   const setTagValue = (
     tags: ProcessedDocumentTags,
     slot: string,
@@ -200,13 +215,6 @@ async function processDocumentTags(
     return result
   }
 
-  const existingDefinitions = await db
-    .select()
-    .from(knowledgeBaseTagDefinitions)
-    .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
-
-  const existingByName = new Map(existingDefinitions.map((def) => [def.displayName, def]))
-
   const undefinedTags: string[] = []
   const typeErrors: string[] = []
 
@@ -223,7 +231,7 @@ async function processDocumentTags(
 
     if (!hasValue) continue
 
-    const existingDef = existingByName.get(tagName)
+    const existingDef = tagDefinitions.get(tagName)
     if (!existingDef) {
       undefinedTags.push(tagName)
       continue
@@ -264,7 +272,7 @@ async function processDocumentTags(
 
     if (!hasValue) continue
 
-    const existingDef = existingByName.get(tagName)
+    const existingDef = tagDefinitions.get(tagName)
     if (!existingDef) continue
 
     const targetSlot = existingDef.tagSlot
@@ -770,6 +778,11 @@ export async function createDocumentRecords(
       throw new Error('Knowledge base not found')
     }
 
+    // Load tag definitions once for the whole batch (avoids N+1 across docs)
+    // and reuses the transaction's connection so we don't double-checkout
+    // while holding the KB FOR UPDATE lock.
+    const tagDefinitions = await loadTagDefinitions(knowledgeBaseId, tx)
+
     const now = new Date()
     const documentRecords = []
     const returnData: DocumentData[] = []
@@ -783,7 +796,7 @@ export async function createDocumentRecords(
         try {
           const tagData = JSON.parse(docData.documentTagsData)
           if (Array.isArray(tagData)) {
-            processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
+            processedTags = resolveDocumentTags(tagData, tagDefinitions, requestId)
           }
         } catch (error) {
           if (error instanceof SyntaxError) {
@@ -1277,7 +1290,8 @@ export async function createSingleDocument(
     try {
       const tagData = JSON.parse(documentData.documentTagsData)
       if (Array.isArray(tagData)) {
-        processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
+        const tagDefinitions = await loadTagDefinitions(knowledgeBaseId)
+        processedTags = resolveDocumentTags(tagData, tagDefinitions, requestId)
       }
     } catch (error) {
       if (error instanceof SyntaxError) {
