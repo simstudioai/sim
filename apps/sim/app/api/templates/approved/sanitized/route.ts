@@ -131,21 +131,3 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
   }
 })
-
-// Add a helpful OPTIONS handler for CORS preflight
-export const OPTIONS = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-  const queryValidation = noInputSchema.safeParse(
-    Object.fromEntries(request.nextUrl.searchParams.entries())
-  )
-  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
-  logger.info(`[${requestId}] OPTIONS request received for /api/templates/approved/sanitized`)
-
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'X-API-Key, Content-Type',
-    },
-  })
-})

@@ -6,7 +6,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { formSubmitBodySchema } from '@/lib/api/contracts/forms'
 import { parseJsonBody } from '@/lib/api/server'
-import { addCorsHeaders, validateAuthToken } from '@/lib/core/security/deployment'
+import { validateAuthToken } from '@/lib/core/security/deployment'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -55,7 +55,7 @@ export const POST = withRouteHandler(
     try {
       const parsedJson = await parseJsonBody(request)
       if (!parsedJson.success) {
-        return addCorsHeaders(createErrorResponse('Invalid request body', 400), request)
+        return createErrorResponse('Invalid request body', 400)
       }
 
       const bodyValidation = formSubmitBodySchema.safeParse(parsedJson.data)
@@ -64,10 +64,7 @@ export const POST = withRouteHandler(
           .map((err) => `${err.path.join('.')}: ${err.message}`)
           .join(', ')
         logger.warn(`[${requestId}] Validation error: ${errorMessage}`)
-        return addCorsHeaders(
-          createErrorResponse(`Invalid request body: ${errorMessage}`, 400),
-          request
-        )
+        return createErrorResponse(`Invalid request body: ${errorMessage}`, 400)
       }
 
       const parsedBody = bodyValidation.data
@@ -89,7 +86,7 @@ export const POST = withRouteHandler(
 
       if (deploymentResult.length === 0) {
         logger.warn(`[${requestId}] Form not found for identifier: ${identifier}`)
-        return addCorsHeaders(createErrorResponse('Form not found', 404), request)
+        return createErrorResponse('Form not found', 404)
       }
 
       const deployment = deploymentResult[0]
@@ -108,10 +105,7 @@ export const POST = withRouteHandler(
           logger.warn(
             `[${requestId}] Cannot log: workflow ${deployment.workflowId} has no workspace`
           )
-          return addCorsHeaders(
-            createErrorResponse('This form is currently unavailable', 403),
-            request
-          )
+          return createErrorResponse('This form is currently unavailable', 403)
         }
 
         const executionId = generateId()
@@ -136,31 +130,25 @@ export const POST = withRouteHandler(
           traceSpans: [],
         })
 
-        return addCorsHeaders(
-          createErrorResponse('This form is currently unavailable', 403),
-          request
-        )
+        return createErrorResponse('This form is currently unavailable', 403)
       }
 
       const authResult = await validateFormAuth(requestId, deployment, request, parsedBody)
       if (!authResult.authorized) {
-        return addCorsHeaders(
-          createErrorResponse(authResult.error || 'Authentication required', 401),
-          request
-        )
+        return createErrorResponse(authResult.error || 'Authentication required', 401)
       }
 
       const { formData, password, email } = parsedBody
 
       // If only authentication credentials provided (no form data), just return authenticated
       if ((password || email) && !formData) {
-        const response = addCorsHeaders(createSuccessResponse({ authenticated: true }), request)
+        const response = createSuccessResponse({ authenticated: true })
         setFormAuthCookie(response, deployment.id, deployment.authType, deployment.password)
         return response
       }
 
       if (!formData || Object.keys(formData).length === 0) {
-        return addCorsHeaders(createErrorResponse('No form data provided', 400), request)
+        return createErrorResponse('No form data provided', 400)
       }
 
       const executionId = generateId()
@@ -184,12 +172,9 @@ export const POST = withRouteHandler(
 
       if (!preprocessResult.success) {
         logger.warn(`[${requestId}] Preprocessing failed: ${preprocessResult.error?.message}`)
-        return addCorsHeaders(
-          createErrorResponse(
-            preprocessResult.error?.message || 'Failed to process request',
-            preprocessResult.error?.statusCode || 500
-          ),
-          request
+        return createErrorResponse(
+          preprocessResult.error?.message || 'Failed to process request',
+          preprocessResult.error?.statusCode || 500
         )
       }
 
@@ -198,10 +183,7 @@ export const POST = withRouteHandler(
       const workspaceId = workflowRecord?.workspaceId
       if (!workspaceId) {
         logger.error(`[${requestId}] Workflow ${deployment.workflowId} has no workspaceId`)
-        return addCorsHeaders(
-          createErrorResponse('Workflow has no associated workspace', 500),
-          request
-        )
+        return createErrorResponse('Workflow has no associated workspace', 500)
       }
 
       try {
@@ -264,29 +246,20 @@ export const POST = withRouteHandler(
 
         // Return success with customizations for thank you screen
         const customizations = deployment.customizations as Record<string, any> | null
-        return addCorsHeaders(
-          createSuccessResponse({
-            success: true,
-            executionId,
-            thankYouTitle: customizations?.thankYouTitle || 'Thank you!',
-            thankYouMessage:
-              customizations?.thankYouMessage || 'Your response has been submitted successfully.',
-          }),
-          request
-        )
+        return createSuccessResponse({
+          success: true,
+          executionId,
+          thankYouTitle: customizations?.thankYouTitle || 'Thank you!',
+          thankYouMessage:
+            customizations?.thankYouMessage || 'Your response has been submitted successfully.',
+        })
       } catch (error: any) {
         logger.error(`[${requestId}] Error processing form submission:`, error)
-        return addCorsHeaders(
-          createErrorResponse(error.message || 'Failed to process form submission', 500),
-          request
-        )
+        return createErrorResponse(error.message || 'Failed to process form submission', 500)
       }
     } catch (error: any) {
       logger.error(`[${requestId}] Error processing form submission:`, error)
-      return addCorsHeaders(
-        createErrorResponse(error.message || 'Failed to process form submission', 500),
-        request
-      )
+      return createErrorResponse(error.message || 'Failed to process form submission', 500)
     }
   }
 )
@@ -316,17 +289,14 @@ export const GET = withRouteHandler(
 
       if (deploymentResult.length === 0) {
         logger.warn(`[${requestId}] Form not found for identifier: ${identifier}`)
-        return addCorsHeaders(createErrorResponse('Form not found', 404), request)
+        return createErrorResponse('Form not found', 404)
       }
 
       const deployment = deploymentResult[0]
 
       if (!deployment.isActive) {
         logger.warn(`[${requestId}] Form is not active: ${identifier}`)
-        return addCorsHeaders(
-          createErrorResponse('This form is currently unavailable', 403),
-          request
-        )
+        return createErrorResponse('This form is currently unavailable', 403)
       }
 
       // Get the workflow's input schema
@@ -341,18 +311,15 @@ export const GET = withRouteHandler(
         authCookie &&
         validateAuthToken(authCookie.value, deployment.id, deployment.password)
       ) {
-        return addCorsHeaders(
-          createSuccessResponse({
-            id: deployment.id,
-            title: deployment.title,
-            description: deployment.description,
-            customizations: deployment.customizations,
-            authType: deployment.authType,
-            showBranding: deployment.showBranding,
-            inputSchema,
-          }),
-          request
-        )
+        return createSuccessResponse({
+          id: deployment.id,
+          title: deployment.title,
+          description: deployment.description,
+          customizations: deployment.customizations,
+          authType: deployment.authType,
+          showBranding: deployment.showBranding,
+          inputSchema,
+        })
       }
 
       // Check authentication requirement
@@ -362,46 +329,33 @@ export const GET = withRouteHandler(
         logger.info(
           `[${requestId}] Authentication required for form: ${identifier}, type: ${deployment.authType}`
         )
-        return addCorsHeaders(
-          NextResponse.json(
-            {
-              success: false,
-              error: authResult.error || 'Authentication required',
-              authType: deployment.authType,
-              title: deployment.title,
-              customizations: {
-                primaryColor: (deployment.customizations as any)?.primaryColor,
-                logoUrl: (deployment.customizations as any)?.logoUrl,
-              },
+        return NextResponse.json(
+          {
+            success: false,
+            error: authResult.error || 'Authentication required',
+            authType: deployment.authType,
+            title: deployment.title,
+            customizations: {
+              primaryColor: (deployment.customizations as any)?.primaryColor,
+              logoUrl: (deployment.customizations as any)?.logoUrl,
             },
-            { status: 401 }
-          ),
-          request
+          },
+          { status: 401 }
         )
       }
 
-      return addCorsHeaders(
-        createSuccessResponse({
-          id: deployment.id,
-          title: deployment.title,
-          description: deployment.description,
-          customizations: deployment.customizations,
-          authType: deployment.authType,
-          showBranding: deployment.showBranding,
-          inputSchema,
-        }),
-        request
-      )
+      return createSuccessResponse({
+        id: deployment.id,
+        title: deployment.title,
+        description: deployment.description,
+        customizations: deployment.customizations,
+        authType: deployment.authType,
+        showBranding: deployment.showBranding,
+        inputSchema,
+      })
     } catch (error: any) {
       logger.error(`[${requestId}] Error fetching form info:`, error)
-      return addCorsHeaders(
-        createErrorResponse(error.message || 'Failed to fetch form information', 500),
-        request
-      )
+      return createErrorResponse(error.message || 'Failed to fetch form information', 500)
     }
   }
 )
-
-export const OPTIONS = withRouteHandler(async (request: NextRequest) => {
-  return addCorsHeaders(new NextResponse(null, { status: 204 }), request)
-})

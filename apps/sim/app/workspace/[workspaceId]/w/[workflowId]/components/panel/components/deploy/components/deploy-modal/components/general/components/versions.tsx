@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { formatDateTime } from '@sim/utils/formatting'
-import clsx from 'clsx'
 import { FileText, MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
 import {
   Button,
+  Input,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -13,6 +13,7 @@ import {
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
 import { VersionDescriptionModal } from './version-description-modal'
@@ -99,9 +100,6 @@ export function Versions({
         onSuccess: () => {
           setEditingVersion(null)
         },
-        onError: () => {
-          // Keep editing state open on error so user can retry
-        },
       }
     )
   }
@@ -141,38 +139,34 @@ export function Versions({
     return (
       <div className='overflow-hidden rounded-sm border border-[var(--border)]'>
         <div className='flex h-[30px] items-center bg-[var(--surface-1)] px-4'>
-          <div className={clsx(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS)}>
+          <div className={cn(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS)}>
             <Skeleton className='h-[12px] w-[50px]' />
           </div>
-          <div className={clsx(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS)}>
+          <div className={cn(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS)}>
             <Skeleton className='h-[12px] w-[76px]' />
           </div>
-          <div className={clsx(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
+          <div className={cn(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
             <Skeleton className='h-[12px] w-[68px]' />
           </div>
-          <div className={clsx(COLUMN_WIDTHS.ACTIONS, COLUMN_BASE_CLASS)} />
+          <div className={cn(COLUMN_WIDTHS.ACTIONS, COLUMN_BASE_CLASS)} />
         </div>
         <div className='bg-[var(--surface-2)]'>
           {[0, 1].map((i) => (
             <div key={i} className='flex h-[36px] items-center px-4'>
-              <div className={clsx(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS, 'min-w-0 pr-2')}>
+              <div className={cn(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS, 'min-w-0 pr-2')}>
                 <div className='flex items-center gap-4'>
                   <Skeleton className='size-[6px] rounded-xs' />
                   <Skeleton className='h-[12px] w-[60px]' />
                 </div>
               </div>
-              <div className={clsx(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS, 'min-w-0')}>
+              <div className={cn(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS, 'min-w-0')}>
                 <Skeleton className='h-[12px] w-[80px]' />
               </div>
-              <div className={clsx(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
+              <div className={cn(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
                 <Skeleton className='h-[12px] w-[160px]' />
               </div>
               <div
-                className={clsx(
-                  COLUMN_WIDTHS.ACTIONS,
-                  COLUMN_BASE_CLASS,
-                  'flex justify-end gap-0.5'
-                )}
+                className={cn(COLUMN_WIDTHS.ACTIONS, COLUMN_BASE_CLASS, 'flex justify-end gap-0.5')}
               >
                 <Skeleton className='size-[20px] rounded-sm' />
                 <Skeleton className='size-[20px] rounded-sm' />
@@ -195,16 +189,16 @@ export function Versions({
   return (
     <div className='overflow-hidden rounded-sm border border-[var(--border)]'>
       <div className='flex h-[30px] items-center bg-[var(--surface-1)] px-4'>
-        <div className={clsx(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS)}>
+        <div className={cn(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS)}>
           <span className={HEADER_TEXT_CLASS}>Version</span>
         </div>
-        <div className={clsx(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS)}>
+        <div className={cn(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS)}>
           <span className={HEADER_TEXT_CLASS}>Deployed by</span>
         </div>
-        <div className={clsx(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
+        <div className={cn(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
           <span className={HEADER_TEXT_CLASS}>Timestamp</span>
         </div>
-        <div className={clsx(COLUMN_WIDTHS.ACTIONS, COLUMN_BASE_CLASS)} />
+        <div className={cn(COLUMN_WIDTHS.ACTIONS, COLUMN_BASE_CLASS)} />
       </div>
 
       <div className='bg-[var(--surface-2)]'>
@@ -216,7 +210,7 @@ export function Versions({
               key={v.id}
               role='button'
               tabIndex={0}
-              className={clsx(
+              className={cn(
                 'flex h-[36px] cursor-pointer items-center px-4 transition-colors duration-100',
                 isSelected
                   ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] hover-hover:bg-[color-mix(in_srgb,var(--accent)_15%,transparent)]'
@@ -231,17 +225,17 @@ export function Versions({
                 }
               }}
             >
-              <div className={clsx(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS, 'min-w-0 pr-2')}>
+              <div className={cn(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS, 'min-w-0 pr-2')}>
                 <div className='flex items-center gap-4'>
                   <div
-                    className={clsx(
-                      'h-[6px] w-[6px] shrink-0 rounded-xs',
+                    className={cn(
+                      'size-[6px] shrink-0 rounded-xs',
                       v.isActive ? 'bg-[var(--indicator-active)]' : 'bg-[var(--indicator-inactive)]'
                     )}
                     title={v.isActive ? 'Live' : 'Inactive'}
                   />
                   {editingVersion === v.version ? (
-                    <input
+                    <Input
                       ref={inputRef}
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
@@ -256,9 +250,8 @@ export function Versions({
                       }}
                       onClick={(e) => e.stopPropagation()}
                       onBlur={() => handleSaveRename(v.version)}
-                      className={clsx(
-                        'w-full border-0 bg-transparent p-0 font-medium text-caption leading-5 outline-none',
-                        'text-[var(--text-primary)] focus:outline-none focus:ring-0'
+                      className={cn(
+                        'h-auto w-full border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-caption leading-5 shadow-none outline-none focus:outline-none focus-visible:ring-0'
                       )}
                       maxLength={100}
                       disabled={renameMutation.isPending}
@@ -268,9 +261,7 @@ export function Versions({
                       spellCheck='false'
                     />
                   ) : (
-                    <span
-                      className={clsx('block flex items-center gap-1 truncate', ROW_TEXT_CLASS)}
-                    >
+                    <span className={cn('block flex items-center gap-1 truncate', ROW_TEXT_CLASS)}>
                       <span className='truncate'>{v.name || `v${v.version}`}</span>
                       {v.isActive && <span className='text-[var(--text-tertiary)]'> (live)</span>}
                       {isSelected && (
@@ -281,24 +272,20 @@ export function Versions({
                 </div>
               </div>
 
-              <div className={clsx(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS, 'min-w-0')}>
-                <span
-                  className={clsx('block truncate text-[var(--text-tertiary)]', ROW_TEXT_CLASS)}
-                >
+              <div className={cn(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS, 'min-w-0')}>
+                <span className={cn('block truncate text-[var(--text-tertiary)]', ROW_TEXT_CLASS)}>
                   {v.deployedBy || 'Unknown'}
                 </span>
               </div>
 
-              <div className={clsx(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
-                <span
-                  className={clsx('block truncate text-[var(--text-tertiary)]', ROW_TEXT_CLASS)}
-                >
+              <div className={cn(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
+                <span className={cn('block truncate text-[var(--text-tertiary)]', ROW_TEXT_CLASS)}>
                   {formatDateTime(new Date(v.createdAt))}
                 </span>
               </div>
 
               <div
-                className={clsx(
+                className={cn(
                   COLUMN_WIDTHS.ACTIONS,
                   COLUMN_BASE_CLASS,
                   'flex items-center justify-end gap-0.5'
@@ -308,7 +295,7 @@ export function Versions({
                   <Tooltip.Trigger asChild>
                     <Button
                       variant='ghost'
-                      className={clsx(
+                      className={cn(
                         '!p-1',
                         !v.description &&
                           'text-[var(--text-quaternary)] hover-hover:text-[var(--text-tertiary)]'

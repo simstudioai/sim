@@ -2,10 +2,13 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { WorkflowSearchTarget } from '@/lib/workflows/search-replace/types'
 import { EDITOR_CONNECTIONS_HEIGHT } from '@/stores/constants'
 import { usePanelStore } from '../store'
 
 let renameCallback: (() => void) | null = null
+
+export type ActiveSearchTargetKind = WorkflowSearchTarget['kind']
 
 export interface ActiveSearchTarget {
   matchId: string
@@ -14,6 +17,7 @@ export interface ActiveSearchTarget {
   canonicalSubBlockId: string
   valuePath: Array<string | number>
   kind: string
+  targetKind: ActiveSearchTargetKind
   resourceGroupKey?: string
 }
 

@@ -29,7 +29,7 @@ export const escalationsShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/escalations/${params.id}`,
+    url: (params) => `https://api.incident.io/v2/escalations/${params.id.trim()}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

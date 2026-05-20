@@ -70,9 +70,9 @@ export interface WorkflowGroup {
 }
 
 /**
- * Per-row execution state for one workflow group, stored in
- * `userTableRows.executions[groupId]`. Holds run metadata only — picked
- * values land in `row.data` directly.
+ * Per-row execution state for one workflow group, persisted as a row in the
+ * `tableRowExecutions` sidecar keyed by `(rowId, groupId)`. Holds run
+ * metadata only — picked output values land in `row.data` directly.
  */
 export interface RowExecutionMetadata {
   status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
@@ -94,6 +94,10 @@ export interface RowExecutionMetadata {
    * block should render `Error`, not every output column.
    */
   blockErrors?: Record<string, string>
+  /** ISO timestamp set when a cell is cancelled. The dispatcher skips
+   *  re-runs whose `cancelledAt > dispatch.requestedAt` — a user cancel
+   *  mid-dispatch must not be overridden by `isManualRun`. */
+  cancelledAt?: string
 }
 
 /** Map of `WorkflowGroup.id` → execution state. Stored on every row. */
@@ -163,10 +167,10 @@ export interface TableRow {
 export interface ConditionOperators {
   $eq?: ColumnValue
   $ne?: ColumnValue
-  $gt?: number
-  $gte?: number
-  $lt?: number
-  $lte?: number
+  $gt?: number | string
+  $gte?: number | string
+  $lt?: number | string
+  $lte?: number | string
   $in?: ColumnValue[]
   $nin?: ColumnValue[]
   $contains?: string
@@ -295,9 +299,10 @@ export interface UpdateRowData {
   data: RowData
   workspaceId: string
   /**
-   * Optional partial patch to merge into `userTableRows.executions`. Top-level
-   * keys are `WorkflowGroup.id`; pass `null` for a key to delete that group's
-   * execution state. Used by the cell task and cancel paths.
+   * Optional partial patch to apply to the row's `tableRowExecutions`
+   * entries. Top-level keys are `WorkflowGroup.id`; pass `null` for a key
+   * to delete that group's execution row. Used by the cell task and cancel
+   * paths.
    */
   executionsPatch?: Record<string, RowExecutionMetadata | null>
   /**
@@ -308,22 +313,12 @@ export interface UpdateRowData {
    * state. `updateRow` returns `null` when the guard rejects the write.
    */
   cancellationGuard?: { groupId: string; executionId: string }
-  /**
-   * When true, the post-write `scheduleRunsForRows` call is skipped. Used by
-   * the cancel path (which is tearing rows down, not waking them up) and by
-   * the manual-run path (which fires its own `scheduleRunsForRows` with
-   * `isManualRun: true` and doesn't want a duplicate auto-fire pass on the
-   * cleared cells). Default false: every other write fires the reactor.
-   */
-  skipScheduler?: boolean
 }
 
 export interface BulkUpdateData {
-  tableId: string
   filter: Filter
   data: RowData
   limit?: number
-  workspaceId: string
 }
 
 export interface BatchUpdateByIdData {
@@ -334,15 +329,11 @@ export interface BatchUpdateByIdData {
     executionsPatch?: Record<string, RowExecutionMetadata | null>
   }>
   workspaceId: string
-  /** Same semantics as `UpdateRowData.skipScheduler`. */
-  skipScheduler?: boolean
 }
 
 export interface BulkDeleteData {
-  tableId: string
   filter: Filter
   limit?: number
-  workspaceId: string
 }
 
 export interface BulkDeleteByIdsData {

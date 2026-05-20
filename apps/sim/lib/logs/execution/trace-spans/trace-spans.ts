@@ -10,6 +10,15 @@ import type { BlockLog, ExecutionResult } from '@/executor/types'
 const HIDDEN_OUTPUT_KEYS = new Set(['childTraceSpans'])
 const SUCCESSFUL_CHILD_ERROR_BOUNDARY_BLOCK_TYPES = new Set(['mothership'])
 
+function setFilteredValue(output: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(output, key, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  })
+}
+
 /**
  * Recursively filters hidden keys from nested objects for cleaner display.
  * Used by both executor (for log output) and UI (for display).
@@ -29,7 +38,7 @@ export function filterHiddenOutputKeys(value: unknown): unknown {
       if (HIDDEN_OUTPUT_KEYS.has(key)) {
         continue
       }
-      filtered[key] = filterHiddenOutputKeys(val)
+      setFilteredValue(filtered, key, filterHiddenOutputKeys(val))
     }
     return filtered
   }

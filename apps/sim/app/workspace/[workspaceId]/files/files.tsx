@@ -56,6 +56,7 @@ import type {
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import {
+  EMPTY_CELL_PLACEHOLDER,
   InlineRenameInput,
   ownerCell,
   Resource,
@@ -112,9 +113,9 @@ const SUPPORTED_EXTENSIONS = [
 const ACCEPT_ATTR = SUPPORTED_EXTENSIONS.map((ext) => `.${ext}`).join(',')
 
 const COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name' },
-  { id: 'size', header: 'Size' },
-  { id: 'type', header: 'Type' },
+  { id: 'name', header: 'Name', widthMultiplier: 1.15 },
+  { id: 'size', header: 'Size', widthMultiplier: 0.85 },
+  { id: 'type', header: 'Type', widthMultiplier: 1.0 },
   { id: 'created', header: 'Created' },
   { id: 'owner', header: 'Owner' },
   { id: 'updated', header: 'Last Updated' },
@@ -301,6 +302,26 @@ export function Files() {
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
   const currentFolder = currentFolderId ? (folderById.get(currentFolderId) ?? null) : null
+
+  const folderSizeMap = useMemo(() => {
+    const directSize = new Map<string, number>()
+    for (const file of files) {
+      if (file.folderId) {
+        directSize.set(file.folderId, (directSize.get(file.folderId) ?? 0) + file.size)
+      }
+    }
+    const totalSize = new Map<string, number>()
+    const getTotal = (folderId: string): number => {
+      if (totalSize.has(folderId)) return totalSize.get(folderId)!
+      const children = folders.filter((f) => f.parentId === folderId)
+      const size =
+        (directSize.get(folderId) ?? 0) + children.reduce((s, c) => s + getTotal(c.id), 0)
+      totalSize.set(folderId, size)
+      return size
+    }
+    for (const folder of folders) getTotal(folder.id)
+    return totalSize
+  }, [files, folders])
   const currentFolderPath = currentFolder?.path ?? null
 
   const visibleFolders = useMemo(() => {
@@ -406,7 +427,12 @@ export function Files() {
           icon: <Folder className='size-[14px]' />,
           label: folder.name,
         },
-        size: { label: 'Folder' },
+        size: {
+          label:
+            (folderSizeMap.get(folder.id) ?? 0) > 0
+              ? formatFileSize(folderSizeMap.get(folder.id)!, { includeBytes: true })
+              : EMPTY_CELL_PLACEHOLDER,
+        },
         type: {
           icon: <Folder className='size-[14px]' />,
           label: 'Folder',
@@ -417,7 +443,7 @@ export function Files() {
       },
       sortValues: {
         name: folder.name,
-        size: -1,
+        size: folderSizeMap.get(folder.id) ?? -1,
         type: 'Folder',
         created: new Date(folder.createdAt).getTime(),
         updated: new Date(folder.updatedAt).getTime(),
@@ -458,7 +484,7 @@ export function Files() {
     })
 
     return [...folderRows, ...fileRows]
-  }, [visibleFolders, filteredFiles, members])
+  }, [visibleFolders, filteredFiles, members, folderSizeMap])
 
   const rows: ResourceRow[] = useMemo(() => {
     if (!listRename.editingId) return baseRows
@@ -1644,9 +1670,7 @@ export function Files() {
     ? `No files match "${debouncedSearchTerm}"`
     : hasActiveFilters
       ? 'No files match the active filters'
-      : currentFolderId
-        ? 'This folder is empty'
-        : 'No files yet'
+      : undefined
 
   const filterContent = useMemo(() => {
     const typeDisplayLabel =

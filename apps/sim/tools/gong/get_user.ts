@@ -1,4 +1,5 @@
 import type { GongGetUserParams, GongGetUserResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getUserTool: ToolConfig<GongGetUserParams, GongGetUserResponse> = {
@@ -29,7 +30,7 @@ export const getUserTool: ToolConfig<GongGetUserParams, GongGetUserResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.gong.io/v2/users/${params.userId}`,
+    url: (params) => `https://api.gong.io/v2/users/${params.userId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -40,7 +41,7 @@ export const getUserTool: ToolConfig<GongGetUserParams, GongGetUserResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to get user')
+      throw new Error(getGongErrorMessage(data, 'Failed to get user'))
     }
     const user = data.user ?? data
     return {

@@ -1,0 +1,237 @@
+---
+title: Prospeo
+description: Enrich and search B2B contacts and companies
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="prospeo"
+  color="#FF1A26"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Prospeo](https://prospeo.io/) is a B2B data platform that finds verified work emails and mobile numbers, enriches person and company profiles, and exposes a searchable database of leads and companies through 20+ filters.
+
+With Prospeo, you can:
+
+- **Find verified contact details**: Discover work emails and mobile numbers from a name, LinkedIn URL, or company
+- **Enrich people and companies**: Fill in profile data including job history, location, technology stack, and funding signals
+- **Bulk-enrich at scale**: Process arrays of identifiers in a single request for high-volume workflows
+- **Search the B2B database**: Filter leads and accounts by job title, location, industry, headcount, and more
+- **Monitor account usage**: Check remaining credits, used credits, and renewal dates before running expensive operations
+
+In Sim, the Prospeo integration lets your agents perform contact discovery and CRM enrichment programmatically:
+
+- **Enrich a person**: Use `prospeo_enrich_person` to match a contact and return verified email, mobile, and profile data
+- **Enrich a company**: Use `prospeo_enrich_company` to resolve a domain, LinkedIn URL, or name into a full company profile
+- **Bulk enrichment**: Use `prospeo_bulk_enrich_person` and `prospeo_bulk_enrich_company` for batched workflows
+- **Search the database**: Use `prospeo_search_person` and `prospeo_search_company` with JSON filter objects to surface leads
+- **Build dynamic filter UIs**: Use `prospeo_search_suggestions` to autocomplete locations and job titles
+- **Track usage**: Use `prospeo_account_information` to monitor credits and plan status from within a workflow
+
+This turns Prospeo into a reliable contact and company data source for your agents — wire it into sales prospecting, CRM hygiene, lead scoring, or any pipeline that depends on accurate B2B identity data.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Find verified work emails and mobile numbers, enrich person and company profiles, and search a B2B database of leads and companies using 20+ filters.
+
+
+
+## Tools
+
+### `prospeo_account_information`
+
+Retrieve the current plan, remaining credits, and renewal date of your Prospeo account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Prospeo API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `current_plan` | string | Current Prospeo plan name |
+| `current_team_members` | number | Number of team members in your team |
+| `remaining_credits` | number | Number of credits remaining |
+| `used_credits` | number | Number of credits already used |
+| `next_quota_renewal_days` | number | Days until the next quota renewal |
+| `next_quota_renewal_date` | string | Date and time of the next quota renewal |
+
+### `prospeo_enrich_person`
+
+Enrich a person with complete B2B profile data, email address and mobile.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Prospeo API key |
+| `first_name` | string | No | First name of the person |
+| `last_name` | string | No | Last name of the person |
+| `full_name` | string | No | Full name of the person \(alternative to first_name + last_name\) |
+| `linkedin_url` | string | No | Person's public LinkedIn URL |
+| `email` | string | No | Work email of the person |
+| `company_name` | string | No | Company name |
+| `company_website` | string | No | Company website |
+| `company_linkedin_url` | string | No | Company's public LinkedIn URL |
+| `person_id` | string | No | Prospeo person_id from a previous Search Person response |
+| `only_verified_email` | boolean | No | Only return records with a verified email |
+| `enrich_mobile` | boolean | No | Reveal mobile number \(10 credits per match; email included\) |
+| `only_verified_mobile` | boolean | No | Only return records that have a mobile \(implies enrich_mobile\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `free_enrichment` | boolean | True if this enrichment was free \(already enriched in the past\) |
+| `person` | json | The matched person object including person_id, name, linkedin_url, current_job_title, job_history, mobile, email, location, and skills |
+| `company` | json | The current company of the matched person including name, website, domain, industry, employee_count, location, social URLs, funding, and technology |
+
+### `prospeo_enrich_company`
+
+Enrich a company with complete B2B data.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Prospeo API key |
+| `company_website` | string | No | Company website \(e.g., "intercom.com"\) |
+| `company_linkedin_url` | string | No | Company's public LinkedIn URL |
+| `company_name` | string | No | Company name \(use combined with website for best accuracy\) |
+| `company_id` | string | No | Prospeo company_id from a previously enriched company |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `free_enrichment` | boolean | True if this enrichment was free \(already enriched in the past\) |
+| `company` | json | The matched company object including name, website, domain, industry, employee_count, location, social URLs, funding, and technology |
+
+### `prospeo_bulk_enrich_person`
+
+Enrich up to 50 person records at once.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Prospeo API key |
+| `data` | json | Yes | Array of up to 50 person records to enrich. Each must include an "identifier" plus one of: linkedin_url, email, person_id, or \(first_name + last_name + company_*\), or \(full_name + company_*\). |
+| `only_verified_email` | boolean | No | Only return records with a verified email |
+| `enrich_mobile` | boolean | No | Reveal mobile numbers \(10 credits per match; email included\) |
+| `only_verified_mobile` | boolean | No | Only return records that have a mobile \(implies enrich_mobile\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total_cost` | number | Total credits spent by the request |
+| `matched` | array | Matched records \(identifier, person, company\) |
+|   ↳ `identifier` | string | The identifier you submitted for this record |
+|   ↳ `person` | json | The matched person object |
+|   ↳ `company` | json | The current company of the matched person |
+| `not_matched` | array | Identifiers of records we could not match given the filters |
+| `invalid_datapoints` | array | Identifiers of records that did not meet the minimum matching requirements |
+
+### `prospeo_bulk_enrich_company`
+
+Enrich up to 50 company records at once.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Prospeo API key |
+| `data` | json | Yes | Array of up to 50 company records to enrich. Each must include an "identifier" plus one of: company_website, company_linkedin_url, company_name, or company_id. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total_cost` | number | Total credits spent by the request |
+| `matched` | array | Matched company records \(identifier, company\) |
+|   ↳ `identifier` | string | The identifier you submitted for this record |
+|   ↳ `company` | json | The matched company object |
+| `not_matched` | array | Identifiers of records we could not match |
+| `invalid_datapoints` | array | Identifiers of records that did not meet the minimum matching requirements |
+
+### `prospeo_search_person`
+
+Search for leads using 20+ filters to build targeted contact lists.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Prospeo API key |
+| `filters` | json | Yes | Filter configuration object. See https://prospeo.io/api-docs/filters-documentation for all supported filters \(e.g., person_seniority, company_industry, person_location\). |
+| `page` | number | No | Page number \(defaults to 1\). Up to 1000 pages of 25 results. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | object | Pagination details |
+|   ↳ `current_page` | number | Current page number |
+|   ↳ `per_page` | number | Results per page |
+|   ↳ `total_page` | number | Total number of pages |
+|   ↳ `total_count` | number | Total number of matching records |
+| `free` | boolean | True if the request was free due to 30-day result-set deduplication |
+| `results` | array | Up to 25 search results \(person + company, no email/mobile\) |
+|   ↳ `person` | json | Matched person \(no email/mobile in search response\) |
+|   ↳ `company` | json | Current company of the person |
+
+### `prospeo_search_company`
+
+Search for companies using 20+ filters to build account lists.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Prospeo API key |
+| `filters` | json | Yes | Filter configuration object. See https://prospeo.io/api-docs/filters-documentation for all supported filters \(e.g., company_industry, company_headcount_range, company_funding\). |
+| `page` | number | No | Page number \(defaults to 1\). Up to 1000 pages of 25 results. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | object | Pagination details |
+|   ↳ `current_page` | number | Current page number |
+|   ↳ `per_page` | number | Results per page |
+|   ↳ `total_page` | number | Total number of pages |
+|   ↳ `total_count` | number | Total number of matching records |
+| `free` | boolean | True if the request was free due to 30-day result-set deduplication |
+| `results` | array | Up to 25 matching companies |
+|   ↳ `company` | json | Matched company object |
+
+### `prospeo_search_suggestions`
+
+Free endpoint to retrieve valid location or job title values for use in Search filters. Provide exactly one of location_search or job_title_search.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Prospeo API key |
+| `location_search` | string | No | Search query for location suggestions \(minimum 2 characters\). Mutually exclusive with job_title_search. |
+| `job_title_search` | string | No | Search query for job title suggestions \(minimum 2 characters\). Mutually exclusive with location_search. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `location_suggestions` | array | Location suggestions when using location_search \(empty when searching job titles\) |
+|   ↳ `name` | string | Formatted location name to use in filters |
+|   ↳ `type` | string | Location type \(COUNTRY, STATE, CITY, or ZONE\) |
+| `job_title_suggestions` | array | Up to 25 job title suggestions ordered by popularity when using job_title_search \(empty when searching locations\) |
+
+

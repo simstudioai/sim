@@ -37,6 +37,7 @@ export interface GoogleDocsToolParams {
   content?: string
   folderId?: string
   folderSelector?: string
+  markdown?: boolean
 }
 
 export type GoogleDocsResponse =

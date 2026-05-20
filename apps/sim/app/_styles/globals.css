@@ -36,7 +36,6 @@
   --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.15);
   --shadow-kbd: 0 4px 0 0 rgba(48, 48, 48, 1);
   --shadow-kbd-sm: 0 2px 0 0 rgba(48, 48, 48, 1);
-  --shadow-brand-inset: inset 0 1.25px 2.5px 0 #9b77ff;
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
@@ -218,6 +217,7 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --border-success: #e0e0e0;
 
     /* Brand & state */
+    --brand-agent: #6f3dfa;
     --brand-secondary: #33b4ff;
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
@@ -374,6 +374,7 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --border-success: #575757;
 
     /* Brand & state */
+    --brand-agent: #701ffc;
     --brand-secondary: #33b4ff;
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
@@ -762,12 +763,8 @@ input[type="search"]::-ms-clear {
     --card-text: 0 0% 3.9%;
     --card-hover: 0 0% 96.1%;
     --base-muted-foreground: #737373;
-    --gradient-primary: 263 85% 70%;
-    --gradient-secondary: 336 95% 65%;
-    --brand: #6f3dfa;
-    --brand-hover: #6338d9;
-    --brand-link: #6f3dfa;
-    --brand-link-hover: #6f3dfa;
+    --brand: #33c482;
+    --brand-hover: #2dac72;
   }
 
   .dark {
@@ -799,12 +796,8 @@ input[type="search"]::-ms-clear {
     --card-text: 0 0% 98%;
     --card-hover: 0 0% 12.0%;
     --base-muted-foreground: #a3a3a3;
-    --gradient-primary: 263 90% 75%;
-    --gradient-secondary: 336 100% 72%;
-    --brand: #701ffc;
-    --brand-hover: #802fff;
-    --brand-link: #9d54ff;
-    --brand-link-hover: #a66fff;
+    --brand: #33c482;
+    --brand-hover: #2dac72;
   }
 }
 
@@ -878,22 +871,22 @@ input[type="search"]::-ms-clear {
 @keyframes toast-enter {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.97);
+    transform: translateX(var(--stack-offset, 0px)) translateY(8px) scale(0.97);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateX(var(--stack-offset, 0px)) translateY(0) scale(1);
   }
 }
 
 @keyframes toast-exit {
   from {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateX(var(--stack-offset, 0px)) translateY(0) scale(1);
   }
   to {
     opacity: 0;
-    transform: translateY(8px) scale(0.97);
+    transform: translateX(var(--stack-offset, 0px)) translateY(8px) scale(0.97);
   }
 }
 

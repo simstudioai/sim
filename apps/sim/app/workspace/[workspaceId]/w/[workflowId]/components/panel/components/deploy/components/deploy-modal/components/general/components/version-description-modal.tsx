@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   Button,
   Modal,
@@ -43,7 +43,7 @@ export function VersionDescriptionModal({
   const hasChanges = description.trim() !== initialDescriptionRef.current.trim()
   const isGenerating = generateMutation.isPending
 
-  const handleCloseAttempt = useCallback(() => {
+  const handleCloseAttempt = () => {
     if (updateMutation.isPending || isGenerating) {
       return
     }
@@ -52,15 +52,15 @@ export function VersionDescriptionModal({
     } else {
       onOpenChange(false)
     }
-  }, [hasChanges, updateMutation.isPending, isGenerating, onOpenChange])
+  }
 
-  const handleDiscardChanges = useCallback(() => {
+  const handleDiscardChanges = () => {
     setShowUnsavedChangesAlert(false)
     setDescription(initialDescriptionRef.current)
     onOpenChange(false)
-  }, [onOpenChange])
+  }
 
-  const handleGenerateDescription = useCallback(() => {
+  const handleGenerateDescription = () => {
     generateMutation.mutate({
       workflowId,
       version,
@@ -68,9 +68,9 @@ export function VersionDescriptionModal({
         setDescription(accumulated)
       },
     })
-  }, [workflowId, version, generateMutation])
+  }
 
-  const handleSave = useCallback(() => {
+  const handleSave = () => {
     if (!workflowId) return
 
     updateMutation.mutate(
@@ -85,7 +85,7 @@ export function VersionDescriptionModal({
         },
       }
     )
-  }, [workflowId, version, description, updateMutation, onOpenChange])
+  }
 
   return (
     <>

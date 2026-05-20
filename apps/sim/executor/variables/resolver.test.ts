@@ -1,11 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  LARGE_ARRAY_MANIFEST_VERSION,
+  type LargeArrayManifest,
+} from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { BlockType } from '@/executor/constants'
 import { ExecutionState } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
 import { VariableResolver } from '@/executor/variables/resolver'
+import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 function createBlock(id: string, name: string, type: string, params = {}): SerializedBlock {
@@ -24,7 +29,37 @@ function createBlock(id: string, name: string, type: string, params = {}): Seria
   }
 }
 
-function createResolver(language = 'javascript') {
+function createTestManifest(totalCount = 100_000): LargeArrayManifest {
+  return {
+    __simLargeArrayManifest: true,
+    version: LARGE_ARRAY_MANIFEST_VERSION,
+    kind: 'array',
+    totalCount,
+    chunkCount: 1,
+    byteSize: 12 * 1024 * 1024,
+    chunks: [
+      {
+        count: totalCount,
+        byteSize: 12 * 1024 * 1024,
+        ref: {
+          __simLargeValueRef: true,
+          version: 1,
+          id: 'lv_ABCDEFGHIJKL',
+          kind: 'array',
+          size: 12 * 1024 * 1024,
+          key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
+          executionId: 'execution-1',
+        },
+      },
+    ],
+    preview: [{ key: 'SIM-0' }],
+  }
+}
+
+function createResolver(
+  language = 'javascript',
+  options: ConstructorParameters<typeof VariableResolver>[3] = {}
+) {
   const producer = createBlock('producer', 'Producer', BlockType.API)
   const functionBlock = createBlock('function', 'Function', BlockType.FUNCTION, {
     language,
@@ -67,7 +102,7 @@ function createResolver(language = 'javascript') {
   return {
     block: functionBlock,
     ctx,
-    resolver: new VariableResolver(workflow, {}, state),
+    resolver: new VariableResolver(workflow, {}, state, options),
   }
 }
 
@@ -93,6 +128,274 @@ describe('VariableResolver function block inputs', () => {
     expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
     expect(result.displayInputs.code).toBe('return "hello world"')
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
+  it('allows Variables block assignments to receive whole large refs', async () => {
+    const producer = createBlock('producer', 'Producer', BlockType.API)
+    const variablesBlock = createBlock('variables', 'Variables', BlockType.VARIABLES, {
+      variables: [
+        {
+          variableId: 'var-1',
+          variableName: 'issues',
+          type: 'array',
+          value: '<Producer.result>',
+        },
+      ],
+    })
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [producer, variablesBlock],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_ABCDEFGHIJKL',
+      kind: 'array',
+      size: 12 * 1024 * 1024,
+      executionId: 'execution-1',
+    }
+    state.setBlockOutput('producer', { result: ref })
+    const ctx = {
+      blockStates: state.getBlockStates(),
+      blockLogs: [],
+      environmentVariables: {},
+      workflowVariables: {},
+      decisions: { router: new Map(), condition: new Map() },
+      loopExecutions: new Map(),
+      executedBlocks: new Set(),
+      activeExecutionPath: new Set(),
+      completedLoops: new Set(),
+      metadata: {},
+    } as ExecutionContext
+
+    const resolver = new VariableResolver(workflow, {}, state)
+    const result = await resolver.resolveInputs(
+      ctx,
+      'variables',
+      variablesBlock.config.params,
+      variablesBlock
+    )
+
+    expect(JSON.parse(result.variables[0].value)).toEqual(ref)
+  })
+
+  it('allows Variables block assignments to receive whole large array manifests', async () => {
+    const producer = createBlock('producer', 'Producer', BlockType.API)
+    const variablesBlock = createBlock('variables', 'Variables', BlockType.VARIABLES, {
+      variables: [
+        {
+          variableId: 'var-1',
+          variableName: 'issues',
+          type: 'array',
+          value: '<Producer.result>',
+        },
+      ],
+    })
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [producer, variablesBlock],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const manifest = createTestManifest()
+    state.setBlockOutput('producer', { result: manifest })
+    const ctx = {
+      blockStates: state.getBlockStates(),
+      blockLogs: [],
+      environmentVariables: {},
+      workflowVariables: {},
+      decisions: { router: new Map(), condition: new Map() },
+      loopExecutions: new Map(),
+      executedBlocks: new Set(),
+      activeExecutionPath: new Set(),
+      completedLoops: new Set(),
+      metadata: {},
+    } as ExecutionContext
+
+    const resolver = new VariableResolver(workflow, {}, state)
+    const result = await resolver.resolveInputs(
+      ctx,
+      'variables',
+      variablesBlock.config.params,
+      variablesBlock
+    )
+
+    expect(JSON.parse(result.variables[0].value)).toEqual(manifest)
+  })
+
+  it('allows Response block data to preserve whole large refs', async () => {
+    const producer = createBlock('producer', 'Producer', BlockType.API)
+    const responseBlock = createBlock('response', 'Response', BlockType.RESPONSE, {
+      dataMode: 'json',
+      data: '<Producer.result>',
+    })
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [producer, responseBlock],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_ZYXWVUTSRQPO',
+      kind: 'array',
+      size: 12 * 1024 * 1024,
+      executionId: 'execution-1',
+    }
+    state.setBlockOutput('producer', { result: ref })
+    const ctx = {
+      blockStates: state.getBlockStates(),
+      blockLogs: [],
+      environmentVariables: {},
+      workflowVariables: {},
+      decisions: { router: new Map(), condition: new Map() },
+      loopExecutions: new Map(),
+      executedBlocks: new Set(),
+      activeExecutionPath: new Set(),
+      completedLoops: new Set(),
+      metadata: {},
+    } as ExecutionContext
+
+    const resolver = new VariableResolver(workflow, {}, state)
+    const result = await resolver.resolveInputs(
+      ctx,
+      'response',
+      responseBlock.config.params,
+      responseBlock
+    )
+
+    expect(JSON.parse(result.data)).toEqual(ref)
+  })
+
+  it('resolves workflow variable object references through context variables', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+    const issues = [{ key: 'SIM-1', summary: 'Small issue' }]
+    ctx.workflowVariables = {
+      'var-1': { id: 'var-1', name: 'issues', type: 'array', value: issues },
+    }
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'return <variable.issues>' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
+    expect(result.displayInputs.code).toBe('return [{"key":"SIM-1","summary":"Small issue"}]')
+    expect(result.contextVariables).toEqual({ __blockRef_0: issues })
+  })
+
+  it('resolves large workflow variable refs without embedding large literals', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_ABCDEFGHIJKL',
+      kind: 'array',
+      size: 12 * 1024 * 1024,
+      executionId: 'execution-1',
+    }
+    ctx.workflowVariables = {
+      'var-1': { id: 'var-1', name: 'issues', type: 'array', value: ref },
+    }
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'return <variable.issues>' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      'return (await sim.values.read(globalThis["__blockRef_0"]))'
+    )
+    expect(result.contextVariables).toEqual({ __blockRef_0: ref })
+  })
+
+  it('rewrites whole manifest workflow variables to lazy JavaScript array reads', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+    const manifest = createTestManifest()
+    ctx.workflowVariables = {
+      'var-1': { id: 'var-1', name: 'issues', type: 'array', value: manifest },
+    }
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'return <variable.issues>' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      'return (await sim.values.readArray(globalThis["__blockRef_0"]))'
+    )
+    expect(result.contextVariables).toEqual({ __blockRef_0: manifest })
+  })
+
+  it('resolves manifest workflow variable length without whole-array context variables', async () => {
+    const { block, ctx, resolver } = createResolver('javascript', { navigatePathAsync })
+    const manifest = createTestManifest()
+    ctx.workflowVariables = {
+      'var-1': { id: 'var-1', name: 'issues', type: 'array', value: manifest },
+    }
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'return <variable.issues.length>' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe('return 100000')
+    expect(result.contextVariables).toEqual({})
+  })
+
+  it('keeps manifest internals hidden during async path navigation', async () => {
+    const { ctx } = createResolver()
+    const manifest = createTestManifest()
+
+    await expect(navigatePathAsync(manifest, ['totalCount'], ctx)).resolves.toBe(100_000)
+    await expect(navigatePathAsync(manifest, ['chunkCount'], ctx)).resolves.toBe(1)
+    await expect(navigatePathAsync(manifest, ['preview'], ctx)).resolves.toEqual([{ key: 'SIM-0' }])
+    await expect(
+      navigatePathAsync(manifest, ['chunks', '0', 'ref', 'id'], ctx)
+    ).resolves.toBeUndefined()
+  })
+
+  it('resolves indexed manifest workflow variable paths without whole-array context variables', async () => {
+    const manifest = createTestManifest()
+    const navigateManifestPath = vi.fn(async () => 'SIM-0')
+    const { block, ctx, resolver } = createResolver('javascript', {
+      navigatePathAsync: navigateManifestPath,
+    })
+    ctx.workflowVariables = {
+      'var-1': { id: 'var-1', name: 'issues', type: 'array', value: manifest },
+    }
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'return <variable.issues[0].key>' },
+      block
+    )
+
+    expect(navigateManifestPath).toHaveBeenCalledWith(
+      manifest,
+      ['0', 'key'],
+      expect.objectContaining({ allowLargeValueRefs: true })
+    )
+    expect(result.resolvedInputs.code).toBe('return "SIM-0"')
+    expect(result.contextVariables).toEqual({})
   })
 
   it('resolves named loop result bracket paths in function code', async () => {
@@ -406,6 +709,35 @@ describe('VariableResolver function block inputs', () => {
         block
       )
     ).rejects.toThrow('This execution value is too large to inline')
+  })
+
+  it('fails whole large array manifests for Function runtimes without lazy helpers', async () => {
+    const { block, ctx } = createResolver('python')
+    const state = new ExecutionState()
+    state.setBlockOutput('producer', {
+      result: createTestManifest(),
+    })
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const largeResolver = new VariableResolver(workflow, {}, state)
+    const largeCtx = {
+      ...ctx,
+      blockStates: state.getBlockStates(),
+    } as ExecutionContext
+
+    await expect(
+      largeResolver.resolveInputsForFunctionBlock(
+        largeCtx,
+        'function',
+        { code: 'return <Producer.result>' },
+        block
+      )
+    ).rejects.toThrow('This execution value contains nested large values')
   })
 
   it('fails whole large value refs for JavaScript with imports', async () => {

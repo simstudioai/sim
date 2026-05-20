@@ -16,6 +16,7 @@ import {
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -1363,6 +1364,7 @@ export class PauseResumeManager {
           })
         })
       }
+      void cleanupExecutionBase64Cache(resumeExecutionId)
     }
 
     if (executionError || !result) {

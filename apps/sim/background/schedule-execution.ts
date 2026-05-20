@@ -21,6 +21,7 @@ import {
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import {
   executeWorkflowCore,
   wasExecutionFinalizedByCore,
@@ -348,6 +349,8 @@ async function runWorkflowExecution({
     })
 
     throw error
+  } finally {
+    void cleanupExecutionBase64Cache(executionId)
   }
 }
 

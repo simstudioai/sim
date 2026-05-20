@@ -257,4 +257,52 @@ List and filter CloudWatch alarms
 |   ↳ `threshold` | number | Threshold value \(MetricAlarm only\) |
 |   ↳ `stateUpdatedTimestamp` | number | Epoch ms when state last changed |
 
+### `cloudwatch_mute_alarm`
+
+Create a CloudWatch alarm mute rule that suppresses alarms for a fixed duration
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `muteRuleName` | string | Yes | Unique name for the mute rule \(used later to unmute\) |
+| `alarmNames` | array | Yes | Names of the CloudWatch alarms this mute rule targets |
+| `durationValue` | number | Yes | How long the mute lasts \(paired with durationUnit\) |
+| `durationUnit` | string | Yes | Unit for durationValue: minutes, hours, or days |
+| `description` | string | No | Optional description of why the alarms are being muted |
+| `startDate` | number | No | When the mute window begins as Unix epoch seconds. Defaults to now \(mute starts immediately\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the mute rule was created successfully |
+| `muteRuleName` | string | Name of the mute rule that was created |
+| `alarmNames` | array | Names of the alarms this rule mutes |
+| `expression` | string | Schedule expression used by the mute rule |
+| `duration` | string | ISO 8601 duration of the mute window |
+
+### `cloudwatch_unmute_alarm`
+
+Delete a CloudWatch alarm mute rule, restoring alarm notifications
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `muteRuleName` | string | Yes | Name of the mute rule to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the mute rule was deleted successfully |
+| `muteRuleName` | string | Name of the mute rule that was deleted |
+
 

@@ -29,7 +29,7 @@ export const escalationPathsDeleteTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/escalation_paths/${params.id}`,
+    url: (params) => `https://api.incident.io/v2/escalation_paths/${params.id.trim()}`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/json',

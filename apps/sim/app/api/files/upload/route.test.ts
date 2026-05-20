@@ -95,7 +95,7 @@ vi.mock('@/lib/uploads/setup.server', () => ({
 }))
 
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
-import { OPTIONS, POST } from '@/app/api/files/upload/route'
+import { POST } from '@/app/api/files/upload/route'
 
 /**
  * Configure mocks for authenticated file upload tests
@@ -306,14 +306,6 @@ describe('File Upload API Route', () => {
     expect(response.status).toBe(413)
     expect(data).toHaveProperty('error')
     expect(typeof data.error).toBe('string')
-  })
-
-  it('should handle CORS preflight requests', async () => {
-    const response = await OPTIONS()
-
-    expect(response.status).toBe(204)
-    expect(response.headers.get('Access-Control-Allow-Methods')).toBe('GET, POST, DELETE, OPTIONS')
-    expect(response.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type')
   })
 })
 

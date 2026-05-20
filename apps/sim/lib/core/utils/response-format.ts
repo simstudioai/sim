@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { materializeLargeValueRefSyncOrThrow } from '@/lib/execution/payloads/cache'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 
 const logger = createLogger('ResponseFormatUtils')
@@ -200,6 +201,18 @@ function traverseObjectPathInternal(obj: any, path: string): any {
   for (const part of parts) {
     if (isLargeValueRef(current)) {
       current = materializeLargeValueRefSyncOrThrow(current)
+    }
+
+    if (isLargeArrayManifest(current)) {
+      if (part === 'length' || part === 'totalCount') {
+        current = current.totalCount
+        continue
+      }
+      if (part === 'chunkCount' || part === 'byteSize' || part === 'preview') {
+        current = current[part]
+        continue
+      }
+      return undefined
     }
 
     if (current?.[part] !== undefined) {

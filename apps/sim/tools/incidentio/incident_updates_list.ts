@@ -43,22 +43,21 @@ export const incidentUpdatesListTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const queryParams: string[] = []
+      const url = new URL('https://api.incident.io/v2/incident_updates')
 
       if (params.incident_id) {
-        queryParams.push(`incident_id=${params.incident_id}`)
+        url.searchParams.set('incident_id', params.incident_id.trim())
       }
 
       if (params.page_size) {
-        queryParams.push(`page_size=${params.page_size}`)
+        url.searchParams.set('page_size', params.page_size.toString())
       }
 
       if (params.after) {
-        queryParams.push(`after=${params.after}`)
+        url.searchParams.set('after', params.after.trim())
       }
 
-      const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : ''
-      return `https://api.incident.io/v2/incident_updates${queryString}`
+      return url.toString()
     },
     method: 'GET',
     headers: (params) => ({

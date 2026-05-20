@@ -11,8 +11,8 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import {
-  getExecutionState,
-  getLatestExecutionState,
+  getExecutionStateForWorkflow,
+  getLatestExecutionStateWithExecutionId,
 } from '@/lib/workflows/executor/execution-state'
 import {
   performCreateFolder,
@@ -28,6 +28,7 @@ import {
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { listFolders, setWorkflowVariables, verifyFolderWorkspace } from '@/lib/workflows/utils'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } from '../access'
@@ -77,6 +78,33 @@ function buildExecutionError(error: unknown): ToolCallResult {
     })
   }
   return { success: false, error: message }
+}
+
+async function resolveRunFromBlockSnapshot(
+  workflowId: string,
+  executionId?: string
+): Promise<
+  | {
+      executionId: string
+      snapshot: SerializableExecutionState
+    }
+  | undefined
+> {
+  const sourceExecution = executionId
+    ? {
+        executionId,
+        state: await getExecutionStateForWorkflow(executionId, workflowId),
+      }
+    : await getLatestExecutionStateWithExecutionId(workflowId)
+
+  if (!sourceExecution?.state) {
+    return undefined
+  }
+
+  return {
+    executionId: sourceExecution.executionId,
+    snapshot: sourceExecution.state,
+  }
 }
 
 function resolveRunWorkflowInput(params: { workflow_input?: unknown; input?: unknown }): unknown {
@@ -710,11 +738,9 @@ export async function executeRunFromBlock(
       return { success: false, error: 'startBlockId is required' }
     }
 
-    const snapshot = params.executionId
-      ? await getExecutionState(params.executionId)
-      : await getLatestExecutionState(workflowId)
+    const sourceSnapshot = await resolveRunFromBlockSnapshot(workflowId, params.executionId)
 
-    if (!snapshot) {
+    if (!sourceSnapshot) {
       return {
         success: false,
         error: params.executionId
@@ -744,7 +770,11 @@ export async function executeRunFromBlock(
         enabled: true,
         useDraftState,
         workflowTriggerType: 'copilot',
-        runFromBlock: { startBlockId: params.startBlockId, sourceSnapshot: snapshot },
+        runFromBlock: {
+          startBlockId: params.startBlockId,
+          sourceSnapshot: sourceSnapshot.snapshot,
+          sourceExecutionId: sourceSnapshot.executionId,
+        },
       }
     )
 
@@ -1084,11 +1114,9 @@ export async function executeRunBlock(
       return { success: false, error: 'blockId is required' }
     }
 
-    const snapshot = params.executionId
-      ? await getExecutionState(params.executionId)
-      : await getLatestExecutionState(workflowId)
+    const sourceSnapshot = await resolveRunFromBlockSnapshot(workflowId, params.executionId)
 
-    if (!snapshot) {
+    if (!sourceSnapshot) {
       return {
         success: false,
         error: params.executionId
@@ -1118,7 +1146,11 @@ export async function executeRunBlock(
         enabled: true,
         useDraftState,
         workflowTriggerType: 'copilot',
-        runFromBlock: { startBlockId: params.blockId, sourceSnapshot: snapshot },
+        runFromBlock: {
+          startBlockId: params.blockId,
+          sourceSnapshot: sourceSnapshot.snapshot,
+          sourceExecutionId: sourceSnapshot.executionId,
+        },
         stopAfterBlockId: params.blockId,
       }
     )

@@ -81,7 +81,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   category: 'blocks',
   integrationType: IntegrationType.AI,
   tags: ['llm', 'agentic', 'automation'],
-  bgColor: 'var(--brand)',
+  bgColor: 'var(--brand-agent)',
   icon: AgentIcon,
   subBlocks: [
     {

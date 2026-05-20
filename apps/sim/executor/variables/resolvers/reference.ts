@@ -1,7 +1,33 @@
-import { materializeLargeValueRefSyncOrThrow } from '@/lib/execution/payloads/cache'
+import {
+  materializeLargeValueRefSync,
+  materializeLargeValueRefSyncOrThrow,
+} from '@/lib/execution/payloads/cache'
+import {
+  isLargeArrayManifest,
+  type LargeArrayManifest,
+} from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { assertNoLargeValueRefs, isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
+
+export interface PathNavigationExecutionContext {
+  workflowId: string
+  workspaceId?: string
+  executionId?: string
+  largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
+  allowLargeValueWorkflowScope?: boolean
+  userId?: string
+  metadata?: { requestId?: string }
+  base64MaxBytes?: number
+}
+
+export interface PathNavigationContext {
+  executionContext: PathNavigationExecutionContext
+  allowLargeValueRefs?: boolean
+}
+
 export interface ResolutionContext {
   executionContext: ExecutionContext
   executionState: ExecutionState
@@ -19,7 +45,7 @@ export interface Resolver {
 export type AsyncPathNavigator = (
   obj: any,
   path: string[],
-  context: ResolutionContext
+  context: PathNavigationContext
 ) => Promise<any>
 
 /**
@@ -41,6 +67,54 @@ export function splitLeadingBracketPath(part: string): { property: string; pathP
     property: bracketMatch[1],
     pathParts: indices.map((indexMatch) => indexMatch.slice(1, -1)),
   }
+}
+
+function readManifestIndexSync(
+  manifest: LargeArrayManifest,
+  index: number,
+  executionContext?: ExecutionContext
+): unknown {
+  if (!Number.isInteger(index) || index < 0 || index >= manifest.totalCount) {
+    return undefined
+  }
+
+  let offset = 0
+  for (const chunk of manifest.chunks) {
+    const nextOffset = offset + chunk.count
+    if (index < nextOffset) {
+      const materialized = materializeLargeValueRefSync(chunk.ref, executionContext)
+      if (materialized === undefined) {
+        return undefined
+      }
+      if (!Array.isArray(materialized)) {
+        throw new Error('Large array manifest chunk must materialize to an array.')
+      }
+      if (materialized.length !== chunk.count) {
+        throw new Error('Large array manifest chunk count does not match materialized data.')
+      }
+      return materialized[index - offset]
+    }
+    offset = nextOffset
+  }
+
+  return undefined
+}
+
+function navigateManifestMetadataOrIndexSync(
+  manifest: LargeArrayManifest,
+  part: string,
+  executionContext?: ExecutionContext
+): unknown {
+  if (part === 'length' || part === 'totalCount') {
+    return manifest.totalCount
+  }
+  if (part === 'chunkCount' || part === 'byteSize' || part === 'preview') {
+    return manifest[part]
+  }
+  if (/^\d+$/.test(part)) {
+    return readManifestIndexSync(manifest, Number.parseInt(part, 10), executionContext)
+  }
+  return undefined
 }
 
 /**
@@ -66,6 +140,11 @@ export function navigatePath(
       return undefined
     }
 
+    if (isLargeArrayManifest(current)) {
+      current = navigateManifestMetadataOrIndexSync(current, part, options.executionContext)
+      continue
+    }
+
     const arrayMatch = part.match(/^([^[]+)(\[.+)$/)
     if (arrayMatch) {
       const [, prop, bracketsPart] = arrayMatch
@@ -89,13 +168,25 @@ export function navigatePath(
           if (isLargeValueRef(current)) {
             current = materializeLargeValueRefSyncOrThrow(current, options.executionContext)
           }
+          if (isLargeArrayManifest(current)) {
+            current = navigateManifestMetadataOrIndexSync(
+              current,
+              indexMatch.slice(1, -1),
+              options.executionContext
+            )
+            continue
+          }
           const idx = Number.parseInt(indexMatch.slice(1, -1), 10)
           current = Array.isArray(current) ? current[idx] : undefined
         }
       }
     } else if (/^\d+$/.test(part)) {
       const index = Number.parseInt(part, 10)
-      current = Array.isArray(current) ? current[index] : undefined
+      current = isLargeArrayManifest(current)
+        ? readManifestIndexSync(current, index, options.executionContext)
+        : Array.isArray(current)
+          ? current[index]
+          : undefined
     } else {
       current =
         typeof current === 'object' && current !== null

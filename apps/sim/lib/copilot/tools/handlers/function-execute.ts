@@ -62,11 +62,11 @@ async function resolveInputFiles(
     for (const tableId of inputTables) {
       if (typeof tableId !== 'string') continue
       const table = await getTableById(tableId)
-      if (!table) {
+      if (!table || table.workspaceId !== workspaceId) {
         logger.warn('Input table not found', { tableId })
         continue
       }
-      const rows = await queryRows(tableId, workspaceId, {}, 'copilot-fn-exec')
+      const rows = await queryRows(table, {}, 'copilot-fn-exec')
       if (!rows.rows?.length) continue
 
       const allKeys = new Set<string>()
