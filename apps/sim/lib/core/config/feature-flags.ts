@@ -1,6 +1,7 @@
 /**
  * Environment utility functions for consistent environment detection across the application
  */
+import * as ipaddr from 'ipaddr.js'
 import { env, getEnv, isFalsy, isTruthy } from './env'
 
 /**
@@ -265,6 +266,107 @@ export function getAllowedMcpDomainsFromEnv(): string[] | null {
   if (!env.ALLOWED_MCP_DOMAINS) return null
   const parsed = env.ALLOWED_MCP_DOMAINS.split(',').map(normalizeDomainEntry).filter(Boolean)
   return parsed.length > 0 ? parsed : null
+}
+
+/**
+ * Parsed form of the ALLOWED_PRIVATE_HOSTS env var.
+ * - `hostnames`: lowercase hostnames matched against the original URL hostname
+ * - `cidrs`: parsed IP ranges matched against the resolved IP after DNS lookup
+ */
+export interface AllowedPrivateHosts {
+  hostnames: Set<string>
+  cidrs: Array<[ipaddr.IPv4 | ipaddr.IPv6, number]>
+}
+
+let cachedAllowedPrivateHosts: AllowedPrivateHosts | null | undefined
+
+/**
+ * Get the parsed allowlist of private hosts and CIDRs that should bypass SSRF
+ * private-IP blocking.
+ *
+ * Returns null if `ALLOWED_PRIVATE_HOSTS` is unset or has no parseable entries
+ * (default — full SSRF block enforced). Otherwise returns a structure with
+ * the lowercase hostnames and pre-parsed CIDR ranges to match against.
+ *
+ * Each entry can be:
+ *   - A bare hostname (e.g., `gitlab.allot.internal`) — matched against the
+ *     URL's original hostname, case-insensitive.
+ *   - A literal IPv4/IPv6 address (e.g., `10.112.12.56`) — matched as a /32 or /128.
+ *   - A CIDR range (e.g., `10.0.0.0/8`, `fd00::/8`) — matched against the
+ *     resolved IP after DNS lookup.
+ *
+ * The result is cached for the process lifetime; env changes require a restart.
+ */
+export function getAllowedPrivateHostsFromEnv(): AllowedPrivateHosts | null {
+  if (cachedAllowedPrivateHosts !== undefined) return cachedAllowedPrivateHosts
+  if (!env.ALLOWED_PRIVATE_HOSTS) {
+    cachedAllowedPrivateHosts = null
+    return null
+  }
+  const hostnames = new Set<string>()
+  const cidrs: AllowedPrivateHosts['cidrs'] = []
+  for (const raw of env.ALLOWED_PRIVATE_HOSTS.split(',')) {
+    const entry = raw.trim()
+    if (!entry) continue
+    if (entry.includes('/')) {
+      try {
+        cidrs.push(ipaddr.parseCIDR(entry))
+        continue
+      } catch {
+        // fall through and treat as hostname
+      }
+    }
+    if (ipaddr.isValid(entry)) {
+      const addr = ipaddr.process(entry)
+      cidrs.push([addr, addr.kind() === 'ipv4' ? 32 : 128])
+      continue
+    }
+    hostnames.add(entry.toLowerCase())
+  }
+  if (hostnames.size === 0 && cidrs.length === 0) {
+    cachedAllowedPrivateHosts = null
+    return null
+  }
+  cachedAllowedPrivateHosts = { hostnames, cidrs }
+  return cachedAllowedPrivateHosts
+}
+
+/**
+ * Returns true if either the original hostname or the resolved IP appears in
+ * the operator-curated `ALLOWED_PRIVATE_HOSTS` allowlist.
+ *
+ * Lets self-hosted deployments call internal services (e.g., GitLab on a 10.x
+ * address) without disabling SSRF protection entirely.
+ *
+ * The caller should still run the standard private-IP check first; this
+ * function is meant as an override gate after a block decision, not a
+ * replacement for SSRF validation. When the env var is unset, returns false
+ * and the default block stands.
+ */
+export function isAllowlistedPrivateHost(opts: { hostname?: string; ip?: string }): boolean {
+  const allow = getAllowedPrivateHostsFromEnv()
+  if (!allow) return false
+  if (opts.hostname && allow.hostnames.has(opts.hostname.toLowerCase())) return true
+  if (opts.ip && ipaddr.isValid(opts.ip)) {
+    try {
+      const addr = ipaddr.process(opts.ip)
+      for (const range of allow.cidrs) {
+        if (addr.kind() !== range[0].kind()) continue
+        if (addr.match(range)) return true
+      }
+    } catch {
+      // ignore unparseable IPs — caller already handled validation
+    }
+  }
+  return false
+}
+
+/**
+ * Test-only hook to reset the cached `ALLOWED_PRIVATE_HOSTS` parse result so
+ * each test can swap the underlying env value without process restart.
+ */
+export function __resetAllowedPrivateHostsCacheForTest(): void {
+  cachedAllowedPrivateHosts = undefined
 }
 
 /**

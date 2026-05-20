@@ -5,7 +5,7 @@ import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isAllowlistedPrivateHost, isHosted } from '@/lib/core/config/feature-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
 
 const logger = createLogger('InputValidation')
@@ -111,7 +111,11 @@ export async function validateUrlWithDNS(
         return ip === '127.0.0.1' || ip === '::1'
       })()
 
-    if (isPrivateOrReservedIP(address) && !(isLocalhost && resolvedIsLoopback && !isHosted)) {
+    if (
+      isPrivateOrReservedIP(address) &&
+      !(isLocalhost && resolvedIsLoopback && !isHosted) &&
+      !isAllowlistedPrivateHost({ hostname: cleanHostname, ip: address })
+    ) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
@@ -168,14 +172,21 @@ export async function validateDatabaseHost(
     return { isValid: false, error: `${paramName} cannot be localhost` }
   }
 
-  if (ipaddr.isValid(lowerHost) && isPrivateOrReservedIP(lowerHost)) {
+  if (
+    ipaddr.isValid(lowerHost) &&
+    isPrivateOrReservedIP(lowerHost) &&
+    !isAllowlistedPrivateHost({ ip: lowerHost })
+  ) {
     return { isValid: false, error: `${paramName} cannot be a private IP address` }
   }
 
   try {
     const { address } = await dns.lookup(host, { verbatim: true })
 
-    if (isPrivateOrReservedIP(address)) {
+    if (
+      isPrivateOrReservedIP(address) &&
+      !isAllowlistedPrivateHost({ hostname: lowerHost, ip: address })
+    ) {
       logger.warn('Database host resolves to blocked IP address', {
         paramName,
         hostname: host,

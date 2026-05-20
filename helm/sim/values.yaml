@@ -191,6 +191,7 @@ app:
     BLACKLISTED_PROVIDERS: ""                            # Comma-separated provider IDs to hide from UI (e.g., "openai,anthropic,google")
     BLACKLISTED_MODELS: ""                               # Comma-separated model names/prefixes to hide (e.g., "gpt-4,claude-*")
     ALLOWED_MCP_DOMAINS: ""                              # Comma-separated domains for MCP servers (e.g., "internal.company.com,mcp.example.org"). Empty = all allowed.
+    ALLOWED_PRIVATE_HOSTS: ""                            # Comma-separated hostnames, IPs, and CIDRs exempted from SSRF private-IP blocking (e.g., "gitlab.allot.internal,10.112.12.56,10.0.0.0/8"). Empty = all private/reserved IPs blocked. Use to let Sim call internal services from HTTP/webhook/database/MCP blocks.
 
     # Integration/Block Restrictions (leave empty if not restricting)
     ALLOWED_INTEGRATIONS: ""                             # Comma-separated block types to allow (e.g., "slack,github,agent"). Empty = all allowed.

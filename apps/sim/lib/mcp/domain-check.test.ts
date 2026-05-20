@@ -4,14 +4,17 @@
 import { inputValidationMock, inputValidationMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetAllowedMcpDomainsFromEnv, mockDnsLookup, hostedFlag } = vi.hoisted(() => ({
-  mockGetAllowedMcpDomainsFromEnv: vi.fn<() => string[] | null>(),
-  mockDnsLookup: vi.fn(),
-  hostedFlag: { value: false },
-}))
+const { mockGetAllowedMcpDomainsFromEnv, mockIsAllowlistedPrivateHost, mockDnsLookup, hostedFlag } =
+  vi.hoisted(() => ({
+    mockGetAllowedMcpDomainsFromEnv: vi.fn<() => string[] | null>(),
+    mockIsAllowlistedPrivateHost: vi.fn<() => boolean>().mockReturnValue(false),
+    mockDnsLookup: vi.fn(),
+    hostedFlag: { value: false },
+  }))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
   getAllowedMcpDomainsFromEnv: mockGetAllowedMcpDomainsFromEnv,
+  isAllowlistedPrivateHost: mockIsAllowlistedPrivateHost,
   get isHosted() {
     return hostedFlag.value
   },
@@ -501,5 +504,57 @@ describe('validateMcpServerSsrf', () => {
       validateMcpServerSsrf('http://169.254.169.254/latest/meta-data/')
     ).resolves.toBeNull()
     expect(mockDnsLookup).not.toHaveBeenCalled()
+  })
+
+  describe('ALLOWED_PRIVATE_HOSTS allowlist', () => {
+    it('allows private IP literal when in allowlist', async () => {
+      mockIsAllowlistedPrivateHost.mockImplementation(
+        ({ ip }: { ip?: string }) => ip === '10.112.12.56'
+      )
+      await expect(validateMcpServerSsrf('http://10.112.12.56:8080/mcp')).resolves.toBeNull()
+      expect(mockIsAllowlistedPrivateHost).toHaveBeenCalledWith({ ip: '10.112.12.56' })
+    })
+
+    it('still blocks private IP literal when allowlist returns false', async () => {
+      mockIsAllowlistedPrivateHost.mockReturnValue(false)
+      await expect(validateMcpServerSsrf('http://10.0.0.5:8080/mcp')).rejects.toThrow(McpSsrfError)
+    })
+
+    it('allows hostname resolving to private IP when hostname is allowlisted', async () => {
+      mockIsAllowlistedPrivateHost.mockImplementation(
+        ({ hostname }: { hostname?: string }) => hostname === 'gitlab.allot.internal'
+      )
+      mockDnsLookup.mockResolvedValue({ address: '10.112.12.56' })
+      await expect(validateMcpServerSsrf('https://gitlab.allot.internal/mcp')).resolves.toBe(
+        '10.112.12.56'
+      )
+    })
+
+    it('allows hostname resolving to private IP when resolved IP is allowlisted', async () => {
+      mockIsAllowlistedPrivateHost.mockImplementation(
+        ({ ip }: { ip?: string }) => ip === '10.112.12.56'
+      )
+      mockDnsLookup.mockResolvedValue({ address: '10.112.12.56' })
+      await expect(validateMcpServerSsrf('https://gitlab.allot.internal/mcp')).resolves.toBe(
+        '10.112.12.56'
+      )
+    })
+
+    it('still blocks resolved private IP when neither hostname nor IP is allowlisted', async () => {
+      mockIsAllowlistedPrivateHost.mockReturnValue(false)
+      mockDnsLookup.mockResolvedValue({ address: '10.0.0.5' })
+      await expect(validateMcpServerSsrf('https://other.internal/mcp')).rejects.toThrow(
+        McpSsrfError
+      )
+    })
+
+    it('does not override the hosted-mode loopback block', async () => {
+      hostedFlag.value = true
+      mockIsAllowlistedPrivateHost.mockReturnValue(true)
+      mockDnsLookup.mockResolvedValue({ address: '127.0.0.1' })
+      await expect(validateMcpServerSsrf('https://loopback.example/mcp')).rejects.toThrow(
+        McpSsrfError
+      )
+    })
   })
 })

@@ -132,6 +132,7 @@ export const env = createEnv({
     BLACKLISTED_PROVIDERS:                 z.string().optional(),                  // Comma-separated provider IDs to hide (e.g., "openai,anthropic")
     BLACKLISTED_MODELS:                    z.string().optional(),                  // Comma-separated model names/prefixes to hide (e.g., "gpt-4,claude-*")
     ALLOWED_MCP_DOMAINS:                   z.string().optional(),                  // Comma-separated domains for MCP servers (e.g., "internal.company.com,mcp.example.org"). Empty = all allowed.
+    ALLOWED_PRIVATE_HOSTS:                 z.string().optional(),                  // Comma-separated hostnames, IPs, or CIDRs to exempt from SSRF private-IP blocking (e.g., "gitlab.allot.internal,10.112.12.56,10.0.0.0/8"). Empty = SSRF block enforced for all private/reserved IPs.
     ALLOWED_INTEGRATIONS:                  z.string().optional(),                  // Comma-separated block types to allow (e.g., "slack,github,agent"). Empty = all allowed.
 
     // Azure Configuration - Shared credentials with feature-specific models

@@ -58,6 +58,21 @@ Use the correct PostgreSQL image:
 image: pgvector/pgvector:pg17  # NOT postgres:17
 ```
 
+## "URL resolves to a blocked IP address"
+
+Sim refuses outbound calls to private/reserved IP ranges (RFC-1918, link-local, cloud metadata) as SSRF protection. If you need agents, webhooks, or database blocks to reach an internal service (e.g., on-prem GitLab, internal SIEM, in-cluster Postgres), allowlist it:
+
+```bash
+# Hostnames, literal IPs, or CIDRs (comma-separated)
+ALLOWED_PRIVATE_HOSTS=gitlab.internal,10.112.12.56,10.0.0.0/8
+```
+
+- Hostnames are matched case-insensitively against the original URL hostname.
+- IPs and CIDRs are matched against the resolved IP after DNS lookup, so `gitlab.internal` resolving to `10.x.x.x` will be allowed if either the hostname or the IP is listed.
+- Restart the app after changing the value.
+
+For MCP servers specifically, [`ALLOWED_MCP_DOMAINS`](/mcp#domain-allowlisting) is the preferred control — setting it disables the default private-IP block for MCP entirely, replacing it with the curated domain allowlist.
+
 ## Certificate Errors (CERT_HAS_EXPIRED)
 
 If you see SSL certificate errors when calling external APIs:

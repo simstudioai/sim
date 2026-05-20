@@ -69,6 +69,8 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `RESEND_API_KEY` | Email service for notifications |
 | `ALLOWED_LOGIN_DOMAINS` | Restrict signups to domains (comma-separated) |
 | `ALLOWED_LOGIN_EMAILS` | Restrict signups to specific emails (comma-separated) |
+| `ALLOWED_MCP_DOMAINS` | Restrict outbound MCP servers to listed domains (comma-separated). Empty = all allowed |
+| `ALLOWED_PRIVATE_HOSTS` | Allowlist of hostnames, IPs, or CIDRs exempt from SSRF private-IP blocking (e.g., `gitlab.internal,10.0.0.0/8`). Use to call internal services from HTTP, webhook, database, or MCP blocks |
 | `DISABLE_REGISTRATION` | Set to `true` to disable new user signups |
 
 ## Example .env

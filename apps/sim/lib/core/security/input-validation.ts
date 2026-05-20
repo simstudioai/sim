@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import * as ipaddr from 'ipaddr.js'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isAllowlistedPrivateHost, isHosted } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('InputValidation')
 
@@ -401,7 +401,7 @@ export function validateHostname(
   }
 
   if (ipaddr.isValid(lowerHostname)) {
-    if (isPrivateOrReservedIP(lowerHostname)) {
+    if (isPrivateOrReservedIP(lowerHostname) && !isAllowlistedPrivateHost({ ip: lowerHostname })) {
       logger.warn('Hostname matches blocked IP range', {
         paramName,
         hostname: hostname.substring(0, 100),
@@ -411,6 +411,8 @@ export function validateHostname(
         error: `${paramName} cannot be a private IP address or localhost`,
       }
     }
+  } else if (isAllowlistedPrivateHost({ hostname: lowerHostname })) {
+    return { isValid: true, sanitized: lowerHostname }
   }
 
   const hostnamePattern =
@@ -733,7 +735,7 @@ export function validateExternalUrl(
   }
 
   if (!isLocalhost && ipaddr.isValid(cleanHostname)) {
-    if (isPrivateOrReservedIP(cleanHostname)) {
+    if (isPrivateOrReservedIP(cleanHostname) && !isAllowlistedPrivateHost({ ip: cleanHostname })) {
       return {
         isValid: false,
         error: `${paramName} cannot point to private IP addresses`,

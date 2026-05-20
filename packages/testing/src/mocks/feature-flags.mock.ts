@@ -41,5 +41,8 @@ export const featureFlagsMock = {
   getAllowedIntegrationsFromEnv: vi.fn().mockReturnValue(null),
   getBlacklistedProvidersFromEnv: vi.fn().mockReturnValue([]),
   getAllowedMcpDomainsFromEnv: vi.fn().mockReturnValue(null),
+  getAllowedPrivateHostsFromEnv: vi.fn().mockReturnValue(null),
+  isAllowlistedPrivateHost: vi.fn().mockReturnValue(false),
+  __resetAllowedPrivateHostsCacheForTest: vi.fn(),
   getCostMultiplier: vi.fn().mockReturnValue(1),
 }
