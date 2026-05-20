@@ -84,6 +84,13 @@ export {
   loggingSessionMock,
   loggingSessionMockFns,
 } from './logging-session.mock'
+// MCP OAuth mocks (for @/lib/mcp/oauth)
+export {
+  McpOauthInsecureUrlErrorMock,
+  McpOauthRedirectRequiredMock,
+  mcpOauthMock,
+  mcpOauthMockFns,
+} from './mcp-oauth.mock'
 // Permission mocks
 export { permissionsMock, permissionsMockFns } from './permissions.mock'
 // PostHog server mocks (for @/lib/posthog/server)

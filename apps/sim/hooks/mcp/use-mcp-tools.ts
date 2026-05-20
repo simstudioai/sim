@@ -5,26 +5,27 @@
  * using TanStack Query for optimal caching and performance
  */
 
-import type React from 'react'
+import type { ComponentType, SVGProps } from 'react'
 import { useCallback, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { McpIcon } from '@/components/icons'
 import { createMcpToolId } from '@/lib/mcp/shared'
+import type { McpToolSchema } from '@/lib/mcp/types'
 import { mcpKeys, useMcpToolsQuery } from '@/hooks/queries/mcp'
 
 const logger = createLogger('useMcpTools')
 
-interface McpToolForUI {
+export interface McpToolForUI {
   id: string
   name: string
   description?: string
   serverId: string
   serverName: string
   type: 'mcp'
-  inputSchema: any
+  inputSchema: McpToolSchema
   bgColor: string
-  icon: React.ComponentType<any>
+  icon: ComponentType<SVGProps<SVGSVGElement>>
 }
 
 export interface UseMcpToolsResult {
@@ -64,7 +65,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
       logger.info('Refreshing MCP tools', { forceRefresh, workspaceId })
 
       await queryClient.invalidateQueries({
-        queryKey: mcpKeys.tools(workspaceId),
+        queryKey: mcpKeys.toolsList(workspaceId),
         refetchType: forceRefresh ? 'active' : 'all',
       })
     },
