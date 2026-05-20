@@ -19,11 +19,20 @@ let lastPopstateAt = Number.NEGATIVE_INFINITY
 const POPSTATE_WINDOW_MS = 200
 
 /**
+ * Captured at module evaluation time. When this module is bundled into the
+ * initial page payload (direct load / reload of a shelled route), readyState
+ * is still `loading` or `interactive`, the browser will restore scroll on
+ * reload, and we should skip the first reset. When the module is dynamically
+ * imported during a client-side navigation (e.g., user clicked from `/` into
+ * `/blog/x`), readyState is already `complete` and the first mount is a real
+ * route change that should scroll to top.
+ */
+const wasInitialPageLoad = typeof document !== 'undefined' && document.readyState !== 'complete'
+
+/**
  * Tracks whether any `ScrollToTop` instance has run its mount effect yet.
  * Module-scoped so cross-section navigation (which mounts a fresh instance)
- * still scrolls — only the very first mount on page load is treated as the
- * initial render, letting the browser's native scroll restoration win on
- * reload.
+ * doesn't re-trigger the initial-mount guard.
  */
 let hasMounted = false
 
@@ -39,10 +48,10 @@ if (typeof window !== 'undefined') {
  * Next.js's default scroll handling only brings the new Page element into view,
  * which often resolves to "no scroll" inside shared layouts (see vercel/next.js#64435).
  *
- * Skipped on the initial mount (so browser scroll restoration on reload wins),
- * when the pathname change closely follows a popstate (preserving browser
- * back/forward scroll restoration), and when a hash anchor is targeted (letting
- * the browser's native anchor scroll win).
+ * Skipped on the very first mount of an initial page load (so browser scroll
+ * restoration on reload wins), when the pathname change closely follows a
+ * popstate (preserving browser back/forward restoration), and when a hash
+ * anchor is targeted (letting the browser's native anchor scroll win).
  */
 export function ScrollToTop() {
   const pathname = usePathname()
@@ -50,7 +59,7 @@ export function ScrollToTop() {
   useEffect(() => {
     if (!hasMounted) {
       hasMounted = true
-      return
+      if (wasInitialPageLoad) return
     }
     if (performance.now() - lastPopstateAt < POPSTATE_WINDOW_MS) {
       lastPopstateAt = Number.NEGATIVE_INFINITY
