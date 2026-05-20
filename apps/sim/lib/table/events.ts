@@ -68,30 +68,48 @@ function getMetaKey(tableId: string) {
 
 export type TableCellStatus = 'pending' | 'queued' | 'running' | 'completed' | 'cancelled' | 'error'
 
-export interface TableEvent {
-  kind: 'cell'
-  tableId: string
-  rowId: string
-  groupId: string
-  status: TableCellStatus
-  executionId: string | null
-  jobId: string | null
-  error: string | null
-  /**
-   * Present when this transition wrote new output values; absent on
-   * pure-status transitions (queued, running, cancelled). The publisher
-   * already has these in hand from the same updateRow call that wrote DB.
-   */
-  outputs?: Record<string, unknown>
-  /**
-   * Block-level metadata the renderer reads to distinguish "running" (some
-   * block actively executing) from "pending-upstream" (run started but this
-   * column's block hasn't fired yet). The worker fills these on partial
-   * writes; without them the cell stays on the amber Pending pill.
-   */
-  runningBlockIds?: string[]
-  blockErrors?: Record<string, string>
-}
+export type TableDispatchStatus = 'pending' | 'dispatching' | 'complete' | 'cancelled'
+
+export type TableEvent =
+  | {
+      kind: 'cell'
+      tableId: string
+      rowId: string
+      groupId: string
+      status: TableCellStatus
+      executionId: string | null
+      jobId: string | null
+      error: string | null
+      /**
+       * Present when this transition wrote new output values; absent on
+       * pure-status transitions (queued, running, cancelled). The publisher
+       * already has these in hand from the same updateRow call that wrote DB.
+       */
+      outputs?: Record<string, unknown>
+      /**
+       * Block-level metadata the renderer reads to distinguish "running" (some
+       * block actively executing) from "pending-upstream" (run started but this
+       * column's block hasn't fired yet). The worker fills these on partial
+       * writes; without them the cell stays on the amber Pending pill.
+       */
+      runningBlockIds?: string[]
+      blockErrors?: Record<string, string>
+    }
+  | {
+      /** Dispatcher status signal emitted by `dispatcherStep` and the cancel
+       *  path. Drives the client-side "about to run" overlay for rows the
+       *  dispatcher hasn't reached yet. `scope` + `cursor` + `mode` +
+       *  `isManualRun` are carried on every transition so the client can
+       *  upsert without refetching the dispatches list. */
+      kind: 'dispatch'
+      tableId: string
+      dispatchId: string
+      status: TableDispatchStatus
+      scope?: { groupIds: string[]; rowIds?: string[] }
+      cursor?: number
+      mode?: 'all' | 'incomplete' | 'new'
+      isManualRun?: boolean
+    }
 
 export interface TableEventEntry {
   eventId: number

@@ -1,6 +1,7 @@
 'use client'
 
 import type React from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { parse } from 'tldts'
 import { Badge, Checkbox, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -60,6 +61,14 @@ export function resolveCellRender({
     if (!isNull) return { kind: 'value', text: stringifyValue(value) }
 
     if (inFlight && !(groupHasBlockErrors && !blockRunning)) {
+      // A `pending` cell whose jobId starts with `paused-` is mid-pause
+      // (workflow yielded for human-in-the-loop). Render as Pending rather
+      // than Queued so the user can tell it's not just waiting to start.
+      const isPaused =
+        exec?.status === 'pending' &&
+        typeof exec.jobId === 'string' &&
+        exec.jobId.startsWith('paused-')
+      if (isPaused) return { kind: 'pending-upstream' }
       if (exec?.status === 'queued' || exec?.status === 'pending') return { kind: 'queued' }
       return { kind: 'pending-upstream' }
     }
@@ -119,6 +128,9 @@ interface CellRenderProps {
 }
 
 export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactElement | null {
+  const valueText = kind.kind === 'value' ? kind.text : null
+  const revealedValueText = useTypewriter(valueText)
+
   switch (kind.kind) {
     case 'value':
       return (
@@ -128,7 +140,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
             isEditing && 'invisible'
           )}
         >
-          {kind.text}
+          {revealedValueText ?? kind.text}
         </span>
       )
 
@@ -274,4 +286,46 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
 function Wrap({ isEditing, children }: { isEditing: boolean; children: React.ReactNode }) {
   if (!isEditing) return <>{children}</>
   return <div className='invisible'>{children}</div>
+}
+
+const TYPEWRITER_MS_PER_CHAR = 15
+
+/**
+ * Reveals `text` character-by-character whenever it changes after the first
+ * render. Initial render (page hydration or virtualization remount) shows the
+ * value statically — animation fires only for subsequent updates, which in
+ * practice means SSE-driven workflow completions arriving via
+ * `useTableEventStream → applyCell()`.
+ */
+function useTypewriter(text: string | null): string | null {
+  const [revealed, setRevealed] = useState<string | null>(text)
+  const isFirstRunRef = useRef(true)
+  const prevTextRef = useRef<string | null>(text)
+
+  useEffect(() => {
+    if (isFirstRunRef.current) {
+      isFirstRunRef.current = false
+      prevTextRef.current = text
+      setRevealed(text)
+      return
+    }
+    if (prevTextRef.current === text) return
+    prevTextRef.current = text
+
+    if (text === null || text.length === 0) {
+      setRevealed(text)
+      return
+    }
+
+    setRevealed('')
+    let i = 0
+    const id = window.setInterval(() => {
+      i++
+      setRevealed(text.slice(0, i))
+      if (i >= text.length) window.clearInterval(id)
+    }, TYPEWRITER_MS_PER_CHAR)
+    return () => window.clearInterval(id)
+  }, [text])
+
+  return revealed
 }
