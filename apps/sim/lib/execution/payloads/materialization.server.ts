@@ -25,6 +25,8 @@ export interface ExecutionMaterializationContext {
   workspaceId?: string
   executionId?: string
   largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
   requestId?: string
@@ -84,6 +86,7 @@ export function assertLargeValueRefAccess(
     context.executionId,
     ...(context.largeValueExecutionIds ?? []),
   ])
+  const allowedKeys = new Set(context.largeValueKeys ?? [])
 
   const parts = ref.key?.split('/') ?? []
   const [, workspaceId, workflowId, executionId] = parts
@@ -101,16 +104,19 @@ export function assertLargeValueRefAccess(
     context.allowLargeValueWorkflowScope &&
     context.workspaceId === workspaceId &&
     context.workflowId === workflowId
-  if (ref.executionId && !allowedExecutionIds.has(ref.executionId) && !workflowScopeAllowed) {
-    throw new Error('Large execution value is not available in this execution.')
-  }
-  if (!allowedExecutionIds.has(executionId) && !workflowScopeAllowed) {
-    throw new Error('Large execution value is not available in this execution.')
-  }
   if (context.workspaceId && workspaceId !== context.workspaceId) {
     throw new Error('Large execution value is not available in this execution.')
   }
   if (context.workflowId && workflowId !== context.workflowId) {
+    throw new Error('Large execution value is not available in this execution.')
+  }
+  if (allowedKeys.has(ref.key)) {
+    return
+  }
+  if (ref.executionId && !allowedExecutionIds.has(ref.executionId) && !workflowScopeAllowed) {
+    throw new Error('Large execution value is not available in this execution.')
+  }
+  if (!allowedExecutionIds.has(executionId) && !workflowScopeAllowed) {
     throw new Error('Large execution value is not available in this execution.')
   }
 }
@@ -191,22 +197,28 @@ function assertExecutionFileScope(key: string, options: ExecutionMaterialization
     options.executionId,
     ...(options.largeValueExecutionIds ?? []),
   ])
+  const allowedFileKeys = new Set(options.fileKeys ?? [])
   const workflowScopeAllowed =
     options.allowLargeValueWorkflowScope &&
     options.workspaceId === parts.workspaceId &&
     options.workflowId === parts.workflowId
-  if (
-    !options.executionId ||
-    (!allowedExecutionIds.has(parts.executionId) && !workflowScopeAllowed)
-  ) {
-    throw new Error('File is not available in this execution.')
-  }
 
   if (options.workspaceId && parts.workspaceId !== options.workspaceId) {
     throw new Error('File is not available in this execution.')
   }
 
   if (options.workflowId && parts.workflowId !== options.workflowId) {
+    throw new Error('File is not available in this execution.')
+  }
+
+  if (allowedFileKeys.has(key)) {
+    return
+  }
+
+  if (
+    !options.executionId ||
+    (!allowedExecutionIds.has(parts.executionId) && !workflowScopeAllowed)
+  ) {
     throw new Error('File is not available in this execution.')
   }
 }

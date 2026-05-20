@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import {
@@ -49,6 +49,16 @@ function haveSameServerSelection(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false
   const bSet = new Set(b)
   return a.every((id) => bSet.has(id))
+}
+
+function haveSameParameterDescriptions(
+  a: Record<string, string>,
+  b: Record<string, string>
+): boolean {
+  const aKeys = Object.keys(a)
+  const bKeys = Object.keys(b)
+  if (aKeys.length !== bKeys.length) return false
+  return aKeys.every((key) => a[key] === b[key])
 }
 
 /**
@@ -187,14 +197,19 @@ export function McpDeploy({
     return ids
   }, [servers, serverToolsMap])
   const [draftSelectedServerIds, setDraftSelectedServerIds] = useState<string[] | null>(null)
-
-  const hasLoadedInitialData = useRef(false)
+  const [savedValues, setSavedValues] = useState<{
+    toolName: string
+    toolDescription: string
+    parameterDescriptions: Record<string, string>
+  } | null>(null)
 
   useEffect(() => {
+    if (savedValues) return
+
     for (const server of servers) {
       const toolInfo = serverToolsMap[server.id]
       if (toolInfo?.tool) {
-        setToolName(toolInfo.tool.toolName)
+        const initialToolName = toolInfo.tool.toolName
 
         const loadedDescription = toolInfo.tool.toolDescription || ''
         const normalizedLoadedDesc = loadedDescription.toLowerCase().trim()
@@ -203,48 +218,37 @@ export function McpDeploy({
           loadedDescription === workflowName ||
           normalizedLoadedDesc === 'new workflow' ||
           normalizedLoadedDesc === 'your first workflow - start building here!'
-        setToolDescription(isDefaultDescription ? '' : loadedDescription)
+        const initialToolDescription = isDefaultDescription ? '' : loadedDescription
 
         const schema = toolInfo.tool.parameterSchema as Record<string, unknown> | undefined
         const properties = schema?.properties as
           | Record<string, { description?: string }>
           | undefined
+        const initialParameterDescriptions: Record<string, string> = {}
         if (properties) {
-          const descriptions: Record<string, string> = {}
           for (const [name, prop] of Object.entries(properties)) {
             if (
               prop.description &&
               prop.description !== name &&
               prop.description !== 'Array of file objects'
             ) {
-              descriptions[name] = prop.description
+              initialParameterDescriptions[name] = prop.description
             }
           }
-          if (Object.keys(descriptions).length > 0) {
-            setParameterDescriptions(descriptions)
-          }
         }
-        hasLoadedInitialData.current = true
+
+        setToolName(initialToolName)
+        setToolDescription(initialToolDescription)
+        setParameterDescriptions(initialParameterDescriptions)
+        setSavedValues({
+          toolName: initialToolName,
+          toolDescription: initialToolDescription,
+          parameterDescriptions: initialParameterDescriptions,
+        })
         break
       }
     }
-  }, [servers, serverToolsMap, workflowName])
-
-  const [savedValues, setSavedValues] = useState<{
-    toolName: string
-    toolDescription: string
-    parameterDescriptions: Record<string, string>
-  } | null>(null)
-
-  useEffect(() => {
-    if (hasLoadedInitialData.current && !savedValues) {
-      setSavedValues({
-        toolName,
-        toolDescription,
-        parameterDescriptions: { ...parameterDescriptions },
-      })
-    }
-  }, [toolName, toolDescription, parameterDescriptions, savedValues])
+  }, [servers, serverToolsMap, workflowName, savedValues])
 
   const selectedServerIdsForForm = draftSelectedServerIds ?? selectedServerIds
 
@@ -252,9 +256,7 @@ export function McpDeploy({
     if (!savedValues) return false
     if (toolName !== savedValues.toolName) return true
     if (toolDescription !== savedValues.toolDescription) return true
-    if (
-      JSON.stringify(parameterDescriptions) !== JSON.stringify(savedValues.parameterDescriptions)
-    ) {
+    if (!haveSameParameterDescriptions(parameterDescriptions, savedValues.parameterDescriptions)) {
       return true
     }
     return false
@@ -271,10 +273,7 @@ export function McpDeploy({
     onCanSaveChange?.(hasChanges && !!toolName.trim())
   }, [hasChanges, toolName, onCanSaveChange])
 
-  /**
-   * Save tool configuration to all deployed servers
-   */
-  const handleSave = useCallback(async () => {
+  const handleSave = async () => {
     if (!toolName.trim()) return
 
     const currentIds = new Set(selectedServerIds)
@@ -390,25 +389,7 @@ export function McpDeploy({
       logger.error('Failed to save tool configuration:', error)
       onSubmittingChange?.(false)
     }
-  }, [
-    toolName,
-    toolDescription,
-    parameterDescriptions,
-    parameterSchema,
-    selectedServerIds,
-    selectedServerIdsForForm,
-    hasToolConfigurationChanges,
-    serverToolsMap,
-    workspaceId,
-    workflowId,
-    servers,
-    addToolMutation,
-    deleteToolMutation,
-    updateToolMutation,
-    onAddedToServer,
-    onSubmittingChange,
-    onCanSaveChange,
-  ])
+  }
 
   const serverOptions: ComboboxOption[] = useMemo(() => {
     return servers.map((server) => ({
@@ -417,9 +398,9 @@ export function McpDeploy({
     }))
   }, [servers])
 
-  const handleServerSelectionChange = useCallback((newSelectedIds: string[]) => {
+  const handleServerSelectionChange = (newSelectedIds: string[]) => {
     setDraftSelectedServerIds(newSelectedIds)
-  }, [])
+  }
 
   const selectedServersLabel = useMemo(() => {
     const count = selectedServerIdsForForm.length
@@ -491,7 +472,6 @@ export function McpDeploy({
         handleSave()
       }}
     >
-      {/* Hidden submit button for parent modal to trigger */}
       <button type='submit' hidden />
 
       {servers.map((server) => (

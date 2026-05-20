@@ -7,6 +7,7 @@ import { customFieldsShowTool } from '@/tools/incidentio/custom_fields_show'
 import { customFieldsUpdateTool } from '@/tools/incidentio/custom_fields_update'
 import { escalationPathsCreateTool } from '@/tools/incidentio/escalation_paths_create'
 import { escalationPathsDeleteTool } from '@/tools/incidentio/escalation_paths_delete'
+import { escalationPathsListTool } from '@/tools/incidentio/escalation_paths_list'
 import { escalationPathsShowTool } from '@/tools/incidentio/escalation_paths_show'
 import { escalationPathsUpdateTool } from '@/tools/incidentio/escalation_paths_update'
 import { escalationsCreateTool } from '@/tools/incidentio/escalations_create'
@@ -85,7 +86,10 @@ export const incidentioIncidentTimestampsShowTool = incidentTimestampsShowTool
 export const incidentioIncidentUpdatesListTool = incidentUpdatesListTool
 export const incidentioScheduleEntriesListTool = scheduleEntriesListTool
 export const incidentioScheduleOverridesCreateTool = scheduleOverridesCreateTool
+export const incidentioEscalationPathsListTool = escalationPathsListTool
 export const incidentioEscalationPathsCreateTool = escalationPathsCreateTool
 export const incidentioEscalationPathsShowTool = escalationPathsShowTool
 export const incidentioEscalationPathsUpdateTool = escalationPathsUpdateTool
 export const incidentioEscalationPathsDeleteTool = escalationPathsDeleteTool
+
+export * from '@/tools/incidentio/types'

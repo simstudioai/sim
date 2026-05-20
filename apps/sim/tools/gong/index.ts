@@ -1,5 +1,6 @@
 import { aggregateActivityTool } from '@/tools/gong/aggregate_activity'
 import { answeredScorecardsTool } from '@/tools/gong/answered_scorecards'
+import { createCallTool } from '@/tools/gong/create_call'
 import { getCallTool } from '@/tools/gong/get_call'
 import { getCallTranscriptTool } from '@/tools/gong/get_call_transcript'
 import { getCoachingTool } from '@/tools/gong/get_coaching'
@@ -18,6 +19,7 @@ import { lookupEmailTool } from '@/tools/gong/lookup_email'
 import { lookupPhoneTool } from '@/tools/gong/lookup_phone'
 
 export const gongListCallsTool = listCallsTool
+export const gongCreateCallTool = createCallTool
 export const gongGetCallTool = getCallTool
 export const gongGetCallTranscriptTool = getCallTranscriptTool
 export const gongGetExtensiveCallsTool = getExtensiveCallsTool
@@ -35,3 +37,5 @@ export const gongListFlowsTool = listFlowsTool
 export const gongGetCoachingTool = getCoachingTool
 export const gongLookupEmailTool = lookupEmailTool
 export const gongLookupPhoneTool = lookupPhoneTool
+
+export * from './types'

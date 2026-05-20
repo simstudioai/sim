@@ -27,7 +27,7 @@ vi.mock('@sim/workflow-authz', () => ({
   assertActiveWorkflowContext: vi.fn(),
 }))
 
-import { validateWorkflowPermissions } from '@/lib/workflows/utils'
+import { createHttpResponseFromBlock, validateWorkflowPermissions } from '@/lib/workflows/utils'
 
 const mockSession = createSession({ userId: 'user-1', email: 'user1@test.com' })
 const mockWorkflow = createWorkflowRecord({
@@ -35,6 +35,15 @@ const mockWorkflow = createWorkflowRecord({
   userId: 'owner-1',
   workspaceId: 'ws-1',
 })
+
+const largeValueRef = {
+  __simLargeValueRef: true,
+  version: 1,
+  id: 'lv_ABCDEFGHIJKL',
+  kind: 'array',
+  size: 12 * 1024 * 1024,
+  executionId: 'execution-1',
+}
 
 const allowed = (workspacePermission: 'read' | 'write' | 'admin') => ({
   allowed: true,
@@ -229,5 +238,29 @@ describe('validateWorkflowPermissions', () => {
       const result = await validateWorkflowPermissions('wf-1', 'req-1')
       expectWorkflowAccessGranted(result)
     })
+  })
+})
+
+describe('createHttpResponseFromBlock', () => {
+  it('rejects large refs that cannot be materialized for HTTP response output', async () => {
+    await expect(
+      createHttpResponseFromBlock({
+        output: {
+          data: { issues: largeValueRef },
+          status: 200,
+        },
+      } as any)
+    ).rejects.toThrow('This execution value is too large to inline')
+  })
+
+  it('returns raw response data when no large execution values are present', async () => {
+    const response = await createHttpResponseFromBlock({
+      output: {
+        data: { issues: [] },
+        status: 200,
+      },
+    } as any)
+
+    await expect(response.json()).resolves.toEqual({ issues: [] })
   })
 })

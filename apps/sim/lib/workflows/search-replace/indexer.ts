@@ -982,6 +982,32 @@ export function indexWorkflowSearchMatches(
     const protectedByLock = isWorkflowBlockProtected(block.id, workflow.blocks)
     const editable = !protectedByLock && !isReadOnly
 
+    if (mode !== 'resource' && query && typeof block.name === 'string' && block.name.length > 0) {
+      const blockNameRanges = findTextRanges(block.name, query, caseSensitive)
+      blockNameRanges.forEach((range, occurrenceIndex) => {
+        matches.push({
+          id: createMatchId(['block-name', block.id, range.start, occurrenceIndex]),
+          blockId: block.id,
+          blockName: block.name,
+          blockType: block.type,
+          subBlockId: '',
+          canonicalSubBlockId: '',
+          subBlockType: 'short-input',
+          fieldTitle: 'Block name',
+          valuePath: [],
+          target: { kind: 'block-name' },
+          kind: 'text',
+          rawValue: block.name.slice(range.start, range.end),
+          searchText: block.name,
+          range,
+          editable: false,
+          navigable: true,
+          protected: protectedByLock,
+          reason: 'Block names cannot be edited via replace',
+        })
+      })
+    }
+
     if (mode !== 'resource') {
       for (const field of getWorkflowSearchSubflowFields(block)) {
         const fieldEditable = editable && field.editable

@@ -6,6 +6,19 @@ import { isTriggerBehavior, isTriggerInternalKey } from '@/executor/constants'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
+function setFilteredOutputValue(
+  output: Record<string, unknown>,
+  key: string,
+  value: unknown
+): void {
+  Object.defineProperty(output, key, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  })
+}
+
 /**
  * Filters block output for logging/display purposes.
  * Removes internal fields and fields marked with hiddenFromDisplay.
@@ -54,7 +67,7 @@ export function filterOutputForLog(
     }
 
     // Recursively filter globally hidden keys from nested objects
-    filtered[key] = filterHiddenOutputKeys(value)
+    setFilteredOutputValue(filtered, key, filterHiddenOutputKeys(value))
   }
 
   return filtered

@@ -49,7 +49,7 @@ export const escalationPathsCreateTool: ToolConfig<
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         name: params.name,
         path: params.path,
       }
@@ -128,8 +128,6 @@ export const escalationPathsCreateTool: ToolConfig<
             },
           },
         },
-        created_at: { type: 'string', description: 'When the path was created' },
-        updated_at: { type: 'string', description: 'When the path was last updated' },
       },
     },
   },

@@ -143,6 +143,149 @@ describe('hydrateUserFilesWithBase64', () => {
     expect(hydrated.file.base64).toBe(Buffer.from('hello').toString('base64'))
   })
 
+  it('materializes large refs before hydrating nested files', async () => {
+    const file: UserFile = {
+      id: 'file-1',
+      name: 'nested.txt',
+      key: 'execution/workspace/workflow/source-execution/nested.txt',
+      url: '/api/files/serve/execution/workspace/workflow/source-execution/nested.txt?context=execution',
+      size: 5,
+      type: 'text/plain',
+      context: 'execution',
+    }
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_ABCDEFGHIJKL',
+      kind: 'object',
+      size: 256,
+      key: 'execution/workspace/workflow/source-execution/large-value-lv_ABCDEFGHIJKL.json',
+      executionId: 'source-execution',
+    }
+
+    mockDownloadFile.mockImplementation(async ({ key }) => {
+      if (key.includes('large-value')) {
+        return Buffer.from(JSON.stringify({ file }), 'utf8')
+      }
+      return Buffer.from('hello', 'utf8')
+    })
+
+    const hydrated = await hydrateUserFilesWithBase64(
+      { ref },
+      {
+        workspaceId: 'workspace',
+        workflowId: 'workflow',
+        executionId: 'resume-execution',
+        largeValueExecutionIds: ['source-execution'],
+        userId: 'user-1',
+        maxBytes: 1024,
+      }
+    )
+
+    expect((hydrated.ref as unknown as { file: UserFile }).file.base64).toBe(
+      Buffer.from('hello').toString('base64')
+    )
+  })
+
+  it('preserves large-value metadata while hydrating visible files when requested', async () => {
+    mockDownloadFile.mockResolvedValueOnce(Buffer.from('hello', 'utf8'))
+    const file: UserFile = {
+      id: 'file-1',
+      name: 'visible.txt',
+      key: 'execution/workspace/workflow/execution-1/visible.txt',
+      url: '/api/files/serve/execution/workspace/workflow/execution-1/visible.txt?context=execution',
+      size: 5,
+      type: 'text/plain',
+      context: 'execution',
+    }
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_PRESERVEREF1',
+      kind: 'object',
+      size: 256,
+      key: 'execution/workspace/workflow/source-execution/large-value-lv_PRESERVEREF1.json',
+      executionId: 'source-execution',
+    }
+    const manifest = {
+      __simLargeArrayManifest: true,
+      version: 2,
+      kind: 'array',
+      totalCount: 1,
+      chunkCount: 1,
+      byteSize: 256,
+      chunks: [
+        {
+          ref,
+          count: 1,
+          byteSize: 256,
+        },
+      ],
+      preview: [{ id: 1 }],
+    }
+
+    const hydrated = await hydrateUserFilesWithBase64(
+      { file, ref, manifest },
+      {
+        workspaceId: 'workspace',
+        workflowId: 'workflow',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        maxBytes: 1024,
+        preserveLargeValueMetadata: true,
+      }
+    )
+
+    expect(hydrated.file.base64).toBe(Buffer.from('hello').toString('base64'))
+    expect(hydrated.ref).toBe(ref)
+    expect(hydrated.manifest).toBe(manifest)
+    expect(mockDownloadFile).toHaveBeenCalledOnce()
+  })
+
+  it('hydrates nested prior-execution files discovered from exact-key large refs', async () => {
+    const file: UserFile = {
+      id: 'file-1',
+      name: 'nested.txt',
+      key: 'execution/workspace/workflow/source-execution/nested.txt',
+      url: '/api/files/serve/execution/workspace/workflow/source-execution/nested.txt?context=execution',
+      size: 5,
+      type: 'text/plain',
+      context: 'execution',
+    }
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_MNOPQRSTUVWX',
+      kind: 'object',
+      size: 256,
+      key: 'execution/workspace/workflow/source-execution/large-value-lv_MNOPQRSTUVWX.json',
+      executionId: 'source-execution',
+    }
+
+    mockDownloadFile.mockImplementation(async ({ key }) => {
+      if (key.includes('large-value')) {
+        return Buffer.from(JSON.stringify({ file }), 'utf8')
+      }
+      return Buffer.from('hello', 'utf8')
+    })
+
+    const hydrated = await hydrateUserFilesWithBase64(
+      { ref },
+      {
+        workspaceId: 'workspace',
+        workflowId: 'workflow',
+        executionId: 'resume-execution',
+        largeValueKeys: [ref.key],
+        userId: 'user-1',
+        maxBytes: 1024,
+      }
+    )
+
+    expect((hydrated.ref as unknown as { file: UserFile }).file.base64).toBe(
+      Buffer.from('hello').toString('base64')
+    )
+  })
+
   it('releases reserved Redis budget when cleaning up execution cache entries', async () => {
     mockGetRedisClient.mockReturnValue(mockRedis)
     const rawEntry = JSON.stringify({ bytes: 12, userId: 'user-1' })

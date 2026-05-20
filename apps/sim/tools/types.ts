@@ -66,6 +66,8 @@ export interface ToolResponse {
   output: Record<string, any> // The structured output from the tool
   error?: string // Error message if success is false
   resources?: MothershipResource[] // Resources to auto-open/show in UI
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   timing?: {
     startTime: string // ISO timestamp when the tool execution started
     endTime: string // ISO timestamp when the tool execution ended

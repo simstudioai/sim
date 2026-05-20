@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
@@ -43,7 +43,6 @@ import {
   useDeployWorkflow,
   useUndeployWorkflow,
 } from '@/hooks/queries/deployments'
-// import { useTemplateByWorkflow } from '@/hooks/queries/templates'
 import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
@@ -59,8 +58,6 @@ import { ChatDeploy, type ExistingChat } from './components/chat/chat'
 import { ApiInfoModal } from './components/general/components/api-info-modal'
 import { GeneralDeploy } from './components/general/general'
 import { McpDeploy } from './components/mcp/mcp'
-
-// import { TemplateDeploy } from './components/template/template'
 
 const logger = createLogger('DeployModal')
 
@@ -86,7 +83,13 @@ interface WorkflowDeploymentInfoUI {
   isPublicApi: boolean
 }
 
-type TabView = 'general' | 'api' | 'chat' | /* 'template' | */ 'mcp' | 'form' | 'a2a'
+type TabView = 'general' | 'api' | 'chat' | 'mcp' | 'a2a'
+
+const DEPLOY_MODAL_TABS = new Set<TabView>(['general', 'api', 'chat', 'mcp', 'a2a'])
+
+function isDeployModalTab(value: unknown): value is TabView {
+  return typeof value === 'string' && DEPLOY_MODAL_TABS.has(value as TabView)
+}
 
 export function DeployModal({
   open,
@@ -117,8 +120,6 @@ export function DeployModal({
   const [selectedStreamingOutputs, setSelectedStreamingOutputs] = useState<string[]>([])
 
   const [undeployTargetWorkflowId, setUndeployTargetWorkflowId] = useState<string | null>(null)
-  // const [templateFormValid, setTemplateFormValid] = useState(false)
-  // const [templateSubmitting, setTemplateSubmitting] = useState(false)
   const [mcpToolSubmitting, setMcpToolSubmitting] = useState(false)
   const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
   const [a2aSubmitting, setA2aSubmitting] = useState(false)
@@ -176,29 +177,17 @@ export function DeployModal({
   const hasA2aAgent = !!existingA2aAgent
   const isA2aPublished = existingA2aAgent?.isPublished ?? false
 
-  // const { data: existingTemplate } = useTemplateByWorkflow(workflowId || '', {
-  //   enabled: !!workflowId,
-  // })
-  // const hasExistingTemplate = !!existingTemplate
-  // const templateStatus = existingTemplate
-  //   ? {
-  //       status: existingTemplate.status as 'pending' | 'approved' | 'rejected' | null,
-  //       views: existingTemplate.views,
-  //       stars: existingTemplate.stars,
-  //     }
-  //   : null
-
   const deployMutation = useDeployWorkflow()
   const undeployMutation = useUndeployWorkflow()
   const activateVersionMutation = useActivateDeploymentVersion()
 
   const versions = versionsData?.versions ?? []
 
-  const isWorkflowStillActive = useCallback((targetWorkflowId: string) => {
+  const isWorkflowStillActive = (targetWorkflowId: string) => {
     return useWorkflowRegistry.getState().activeWorkflowId === targetWorkflowId
-  }, [])
+  }
 
-  const syncDraftAfterDeploy = useCallback(async (): Promise<string | null> => {
+  const syncDraftAfterDeploy = async (): Promise<string | null> => {
     if (!workflowId) return null
 
     try {
@@ -215,7 +204,7 @@ export function DeployModal({
       })
       return 'Deployment succeeded, but local sync failed. Refresh if the status looks stale.'
     }
-  }, [workflowId, isWorkflowStillActive])
+  }
 
   useEffect(() => {
     deployActionIdRef.current += 1
@@ -223,29 +212,21 @@ export function DeployModal({
     setUndeployTargetWorkflowId(null)
   }, [workflowId])
 
-  const getApiKeyLabel = useCallback(
-    (value?: string | null) => {
-      if (value && value.trim().length > 0) {
-        return value
-      }
-      return workflowWorkspaceId ? 'Workspace API keys' : 'Personal API keys'
-    },
-    [workflowWorkspaceId]
-  )
+  const getApiKeyLabel = (value?: string | null) => {
+    if (value && value.trim().length > 0) {
+      return value
+    }
+    return workflowWorkspaceId ? 'Workspace API keys' : 'Personal API keys'
+  }
 
-  const getApiHeaderPlaceholder = useCallback(
-    () => (workflowWorkspaceId ? 'YOUR_WORKSPACE_API_KEY' : 'YOUR_PERSONAL_API_KEY'),
-    [workflowWorkspaceId]
-  )
+  const getApiHeaderPlaceholder = () =>
+    workflowWorkspaceId ? 'YOUR_WORKSPACE_API_KEY' : 'YOUR_PERSONAL_API_KEY'
 
-  const getInputFormatExample = useCallback(
-    (includeStreaming = false) => {
-      return getInputFormatExampleUtil(includeStreaming, selectedStreamingOutputs)
-    },
-    [selectedStreamingOutputs]
-  )
+  const getInputFormatExample = (includeStreaming = false) => {
+    return getInputFormatExampleUtil(includeStreaming, selectedStreamingOutputs)
+  }
 
-  const deploymentInfo: WorkflowDeploymentInfoUI | null = useMemo(() => {
+  const deploymentInfo: WorkflowDeploymentInfoUI | null = (() => {
     if (!deploymentInfoData?.isDeployed || !workflowId) {
       return null
     }
@@ -263,15 +244,7 @@ export function DeployModal({
       needsRedeployment: deploymentInfoData.needsRedeployment,
       isPublicApi: isPublicApiDisabled ? false : (deploymentInfoData.isPublicApi ?? false),
     }
-  }, [
-    deploymentInfoData,
-    isPublicApiDisabled,
-    workflowId,
-    selectedStreamingOutputs,
-    getInputFormatExample,
-    getApiHeaderPlaceholder,
-    getApiKeyLabel,
-  ])
+  })()
 
   const selectedStreamingOutputsRef = useRef(selectedStreamingOutputs)
   selectedStreamingOutputsRef.current = selectedStreamingOutputs
@@ -316,9 +289,9 @@ export function DeployModal({
 
   useEffect(() => {
     const handleOpenDeployModal = (event: Event) => {
-      const customEvent = event as CustomEvent<{ tab?: TabView }>
+      const customEvent = event as CustomEvent<{ tab?: unknown }>
       onOpenChange(true)
-      if (customEvent.detail?.tab) {
+      if (isDeployModalTab(customEvent.detail?.tab)) {
         setActiveTab(customEvent.detail.tab)
       }
     }
@@ -330,7 +303,7 @@ export function DeployModal({
     }
   }, [onOpenChange])
 
-  const onDeploy = useCallback(async () => {
+  const onDeploy = async () => {
     if (!workflowId) return
     if (!tryAcquireDeployAction(workflowId)) return
 
@@ -370,36 +343,33 @@ export function DeployModal({
         setIsFinalizingDeploy(false)
       }
     }
-  }, [workflowId, deployMutation, deployReadiness, syncDraftAfterDeploy, isWorkflowStillActive])
+  }
 
-  const handlePromoteToLive = useCallback(
-    async (version: number) => {
-      if (!workflowId) return
-      if (activateVersionInFlightRef.current) return
+  const handlePromoteToLive = async (version: number) => {
+    if (!workflowId) return
+    if (activateVersionInFlightRef.current) return
 
-      activateVersionInFlightRef.current = true
-      setIsActivatingVersion(true)
-      setDeployWarnings([])
+    activateVersionInFlightRef.current = true
+    setIsActivatingVersion(true)
+    setDeployWarnings([])
 
-      try {
-        const result = await activateVersionMutation.mutateAsync({ workflowId, version })
-        if (!isWorkflowStillActive(workflowId)) return
-        if (result.warnings && result.warnings.length > 0) {
-          setDeployWarnings(result.warnings)
-        }
-      } catch (error) {
-        if (!isWorkflowStillActive(workflowId)) return
-        logger.error('Error promoting version:', { error })
-        throw error
-      } finally {
-        activateVersionInFlightRef.current = false
-        setIsActivatingVersion(false)
+    try {
+      const result = await activateVersionMutation.mutateAsync({ workflowId, version })
+      if (!isWorkflowStillActive(workflowId)) return
+      if (result.warnings && result.warnings.length > 0) {
+        setDeployWarnings(result.warnings)
       }
-    },
-    [workflowId, activateVersionMutation, isWorkflowStillActive]
-  )
+    } catch (error) {
+      if (!isWorkflowStillActive(workflowId)) return
+      logger.error('Error promoting version:', { error })
+      throw error
+    } finally {
+      activateVersionInFlightRef.current = false
+      setIsActivatingVersion(false)
+    }
+  }
 
-  const handleUndeploy = useCallback(async () => {
+  const handleUndeploy = async () => {
     if (!undeployTargetWorkflowId) return
     const targetWorkflowId = undeployTargetWorkflowId
     if (workflowId !== targetWorkflowId || !isWorkflowStillActive(targetWorkflowId)) {
@@ -422,9 +392,9 @@ export function DeployModal({
       if (!isWorkflowStillActive(targetWorkflowId)) return
       logger.error('Error undeploying workflow:', { error })
     }
-  }, [workflowId, undeployTargetWorkflowId, undeployMutation, onOpenChange, isWorkflowStillActive])
+  }
 
-  const handleRedeploy = useCallback(async () => {
+  const handleRedeploy = async () => {
     if (!workflowId) return
     if (!tryAcquireDeployAction(workflowId)) return
 
@@ -478,9 +448,9 @@ export function DeployModal({
         setIsFinalizingDeploy(false)
       }
     }
-  }, [workflowId, deployMutation, deployReadiness, syncDraftAfterDeploy, isWorkflowStillActive])
+  }
 
-  const handleCloseModal = useCallback(() => {
+  const handleCloseModal = () => {
     deployActionIdRef.current += 1
     setIsFinalizingDeploy(false)
     if (workflowId) releaseDeployAction(workflowId)
@@ -488,9 +458,9 @@ export function DeployModal({
     setDeployError(null)
     setDeployWarnings([])
     onOpenChange(false)
-  }, [workflowId, onOpenChange])
+  }
 
-  const handleChatDeployed = useCallback(async () => {
+  const handleChatDeployed = async () => {
     if (!workflowId) return
 
     invalidateDeploymentQueries(queryClient, workflowId)
@@ -500,18 +470,18 @@ export function DeployModal({
     }
     setChatSuccess(true)
     chatSuccessTimeoutRef.current = setTimeout(() => setChatSuccess(false), 2000)
-  }, [workflowId, queryClient])
+  }
 
-  const handleRefetchChat = useCallback(async () => {
+  const handleRefetchChat = async () => {
     await refetchChatInfo()
-  }, [refetchChatInfo])
+  }
 
-  const handleChatFormSubmit = useCallback(() => {
+  const handleChatFormSubmit = () => {
     const form = document.getElementById('chat-deploy-form') as HTMLFormElement
     form?.requestSubmit()
-  }, [])
+  }
 
-  const handleChatDelete = useCallback(() => {
+  const handleChatDelete = () => {
     const form = document.getElementById('chat-deploy-form') as HTMLFormElement
     if (form) {
       const deleteButton = form.querySelector('[data-delete-trigger]') as HTMLButtonElement
@@ -519,60 +489,49 @@ export function DeployModal({
         deleteButton.click()
       }
     }
-  }, [])
+  }
 
-  // const handleTemplateFormSubmit = useCallback(() => {
-  //   const form = document.getElementById('template-deploy-form') as HTMLFormElement
-  //   form?.requestSubmit()
-  // }, [])
-
-  const handleMcpToolFormSubmit = useCallback(() => {
+  const handleMcpToolFormSubmit = () => {
     const form = document.getElementById('mcp-deploy-form') as HTMLFormElement
     form?.requestSubmit()
-  }, [])
+  }
 
-  const handleA2aPublish = useCallback(() => {
+  const handleA2aPublish = () => {
     const form = document.getElementById('a2a-deploy-form')
     const publishTrigger = form?.querySelector('[data-a2a-publish-trigger]') as HTMLButtonElement
     publishTrigger?.click()
-  }, [])
+  }
 
-  const handleA2aUnpublish = useCallback(() => {
+  const handleA2aUnpublish = () => {
     const form = document.getElementById('a2a-deploy-form')
     const unpublishTrigger = form?.querySelector(
       '[data-a2a-unpublish-trigger]'
     ) as HTMLButtonElement
     unpublishTrigger?.click()
-  }, [])
+  }
 
-  const handleA2aPublishNew = useCallback(() => {
+  const handleA2aPublishNew = () => {
     const form = document.getElementById('a2a-deploy-form')
     const publishNewTrigger = form?.querySelector(
       '[data-a2a-publish-new-trigger]'
     ) as HTMLButtonElement
     publishNewTrigger?.click()
-  }, [])
+  }
 
-  const handleA2aUpdateRepublish = useCallback(() => {
+  const handleA2aUpdateRepublish = () => {
     const form = document.getElementById('a2a-deploy-form')
     const updateRepublishTrigger = form?.querySelector(
       '[data-a2a-update-republish-trigger]'
     ) as HTMLButtonElement
     updateRepublishTrigger?.click()
-  }, [])
+  }
 
-  const handleA2aDelete = useCallback(() => {
+  const handleA2aDelete = () => {
     const form = document.getElementById('a2a-deploy-form')
     const deleteTrigger = form?.querySelector('[data-a2a-delete-trigger]') as HTMLButtonElement
     deleteTrigger?.click()
     setShowA2aDeleteConfirm(false)
-  }, [])
-
-  // const handleTemplateDelete = useCallback(() => {
-  //   const form = document.getElementById('template-deploy-form')
-  //   const deleteTrigger = form?.querySelector('[data-template-delete-trigger]') as HTMLButtonElement
-  //   deleteTrigger?.click()
-  // }, [])
+  }
 
   const isSubmitting = deployMutation.isPending || isFinalizingDeploy
   const isUndeploying = undeployMutation.isPending
@@ -671,32 +630,6 @@ export function DeployModal({
                   onVersionActivated={() => {}}
                 />
               </ModalTabsContent>
-
-              {/* <ModalTabsContent value='template'>
-                {workflowId && (
-                  <TemplateDeploy
-                    workflowId={workflowId}
-                    onDeploymentComplete={handleCloseModal}
-                    onValidationChange={setTemplateFormValid}
-                    onSubmittingChange={setTemplateSubmitting}
-                  />
-                )}
-              </ModalTabsContent> */}
-
-              {/* <ModalTabsContent value='form'>
-                {workflowId && (
-                  <FormDeploy
-                    workflowId={workflowId}
-                    onDeploymentComplete={handleCloseModal}
-                    onValidationChange={setIsFormValid}
-                    onSubmittingChange={setFormSubmitting}
-                    onExistingFormChange={setFormExists}
-                    formSubmitting={formSubmitting}
-                    setFormSubmitting={setFormSubmitting}
-                    onDeployed={handleFormDeployed}
-                  />
-                )}
-              </ModalTabsContent> */}
 
               <ModalTabsContent value='mcp' className='h-full'>
                 {workflowId && (
@@ -818,83 +751,8 @@ export function DeployModal({
               </div>
             </ModalFooter>
           )}
-          {/* {activeTab === 'template' && (
-            <ModalFooter className='items-center justify-between'>
-              {hasExistingTemplate && templateStatus ? (
-                <TemplateStatusBadge
-                  status={templateStatus.status}
-                  views={templateStatus.views}
-                  stars={templateStatus.stars}
-                />
-              ) : (
-                <div />
-              )}
-              <div className='flex items-center gap-2'>
-                {hasExistingTemplate && (
-                  <Button
-                    type='button'
-                    variant='destructive'
-                    onClick={handleTemplateDelete}
-                    disabled={templateSubmitting}
-                  >
-                    Delete
-                  </Button>
-                )}
-                <Button
-                  type='button'
-                  variant='tertiary'
-                  onClick={handleTemplateFormSubmit}
-                  disabled={templateSubmitting || !templateFormValid}
-                >
-                  {templateSubmitting
-                    ? hasExistingTemplate
-                      ? 'Updating...'
-                      : 'Publishing...'
-                    : hasExistingTemplate
-                      ? 'Update Template'
-                      : 'Publish Template'}
-                </Button>
-              </div>
-            </ModalFooter>
-          )} */}
-          {/* {activeTab === 'form' && (
-            <ModalFooter className='items-center justify-between'>
-              <div />
-              <div className='flex items-center gap-2'>
-                {formExists && (
-                  <Button
-                    type='button'
-                    variant='destructive'
-                    onClick={handleFormDelete}
-                    disabled={formSubmitting}
-                  >
-                    Delete
-                  </Button>
-                )}
-                <Button
-                  type='button'
-                  variant='tertiary'
-                  onClick={handleFormFormSubmit}
-                  disabled={formSubmitting || !isFormValid}
-                >
-                  {formSuccess
-                    ? formExists
-                      ? 'Updated'
-                      : 'Launched'
-                    : formSubmitting
-                      ? formExists
-                        ? 'Updating...'
-                        : 'Launching...'
-                      : formExists
-                        ? 'Update'
-                        : 'Launch Form'}
-                </Button>
-              </div>
-            </ModalFooter>
-          )} */}
           {activeTab === 'a2a' && (
             <ModalFooter className='items-center justify-between'>
-              {/* Status badge on left */}
               {hasA2aAgent ? (
                 isA2aPublished ? (
                   <Badge variant={a2aNeedsRepublish ? 'amber' : 'green'} size='lg' dot>
@@ -909,7 +767,6 @@ export function DeployModal({
                 <div />
               )}
               <div className='flex items-center gap-2'>
-                {/* No agent exists: Show "Publish Agent" button */}
                 {!hasA2aAgent && (
                   <Button
                     type='button'
@@ -921,7 +778,6 @@ export function DeployModal({
                   </Button>
                 )}
 
-                {/* Agent exists and published: Show Unpublish and Update */}
                 {hasA2aAgent && isA2aPublished && (
                   <>
                     <Button
@@ -943,7 +799,6 @@ export function DeployModal({
                   </>
                 )}
 
-                {/* Agent exists but unpublished: Show Delete and Publish */}
                 {hasA2aAgent && !isA2aPublished && (
                   <>
                     <Button
@@ -1067,29 +922,6 @@ function StatusBadge({ isWarning }: StatusBadgeProps) {
   )
 }
 
-// interface TemplateStatusBadgeProps {
-//   status: 'pending' | 'approved' | 'rejected' | null
-//   views?: number
-//   stars?: number
-// }
-
-// function TemplateStatusBadge({ status, views, stars }: TemplateStatusBadgeProps) {
-//   const isPending = status === 'pending'
-//   const label = isPending ? 'Under review' : 'Live'
-
-//   const statsText =
-//     status === 'approved' && views !== undefined && views > 0
-//       ? `${views} views${stars !== undefined && stars > 0 ? ` • ${stars} stars` : ''}`
-//       : null
-
-//   return (
-//     <Badge variant={isPending ? 'amber' : 'green'} size='lg' dot>
-//       {label}
-//       {statsText && <span>• {statsText}</span>}
-//     </Badge>
-//   )
-// }
-
 interface GeneralFooterProps {
   isDeployed?: boolean
   needsRedeployment: boolean
@@ -1124,7 +956,7 @@ function GeneralFooter({
   if (!isDeployed) {
     return (
       <ModalFooter className='items-center justify-between'>
-        <div className='max-w-[260px] text-muted-foreground text-xs'>{blockedMessage}</div>
+        <div className='max-w-[260px] text-[var(--text-muted)] text-xs'>{blockedMessage}</div>
         <div className='flex items-center gap-2'>
           <Button variant='tertiary' onClick={onDeploy} disabled={isDeployBlocked}>
             {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
@@ -1140,7 +972,7 @@ function GeneralFooter({
       <div className='flex min-w-0 flex-col gap-1'>
         <StatusBadge isWarning={needsRedeployment} />
         {blockedMessage && (
-          <div className='max-w-[300px] text-muted-foreground text-xs'>{blockedMessage}</div>
+          <div className='max-w-[300px] text-[var(--text-muted)] text-xs'>{blockedMessage}</div>
         )}
       </div>
       <div className='flex items-center gap-2'>

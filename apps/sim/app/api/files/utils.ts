@@ -238,13 +238,3 @@ export function createErrorResponse(error: Error, status = 500): NextResponse {
 export function createSuccessResponse(data: ApiSuccessResponse): NextResponse {
   return NextResponse.json(data)
 }
-
-export function createOptionsResponse(): NextResponse {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  })
-}

@@ -26,6 +26,13 @@ export const followUpsListTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Filter follow-ups by incident ID (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
+    incident_mode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Filter follow-ups by incident mode (standard, retrospective, test, tutorial, or stream)',
+    },
   },
 
   request: {
@@ -33,7 +40,11 @@ export const followUpsListTool: ToolConfig<
       const url = new URL('https://api.incident.io/v2/follow_ups')
 
       if (params.incident_id) {
-        url.searchParams.append('incident_id', params.incident_id)
+        url.searchParams.append('incident_id', params.incident_id.trim())
+      }
+
+      if (params.incident_mode) {
+        url.searchParams.append('incident_mode', params.incident_mode)
       }
 
       return url.toString()

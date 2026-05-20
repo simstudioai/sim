@@ -399,7 +399,11 @@ async function handleExecutePost(
 
     // Resolve runFromBlock snapshot from executionId if needed
     let resolvedRunFromBlock:
-      | { startBlockId: string; sourceSnapshot: SerializableExecutionState }
+      | {
+          startBlockId: string
+          sourceSnapshot: SerializableExecutionState
+          sourceExecutionId?: string
+        }
       | undefined
     if (rawRunFromBlock) {
       if (rawRunFromBlock.sourceSnapshot && auth.authType === 'api_key') {
@@ -424,13 +428,16 @@ async function handleExecutePost(
           sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
         }
       } else if (rawRunFromBlock.executionId) {
-        const { getExecutionStateForWorkflow, getLatestExecutionState } = await import(
-          '@/lib/workflows/executor/execution-state'
-        )
-        const snapshot =
+        const { getExecutionStateForWorkflow, getLatestExecutionStateWithExecutionId } =
+          await import('@/lib/workflows/executor/execution-state')
+        const sourceExecution =
           rawRunFromBlock.executionId === 'latest'
-            ? await getLatestExecutionState(workflowId)
-            : await getExecutionStateForWorkflow(rawRunFromBlock.executionId, workflowId)
+            ? await getLatestExecutionStateWithExecutionId(workflowId)
+            : {
+                executionId: rawRunFromBlock.executionId,
+                state: await getExecutionStateForWorkflow(rawRunFromBlock.executionId, workflowId),
+              }
+        const snapshot = sourceExecution?.state
         if (!snapshot) {
           return NextResponse.json(
             {
@@ -442,6 +449,7 @@ async function handleExecutePost(
         resolvedRunFromBlock = {
           startBlockId: rawRunFromBlock.startBlockId,
           sourceSnapshot: snapshot,
+          sourceExecutionId: sourceExecution.executionId,
         }
       } else {
         return NextResponse.json(
@@ -687,6 +695,12 @@ async function handleExecutePost(
 
     const effectiveWorkflowStateOverride =
       sanitizedWorkflowStateOverride || cachedWorkflowData || undefined
+    const largeValueExecutionIds = [executionId]
+    const largeValueKeys: string[] = []
+    const fileKeys: string[] = []
+    const allowLargeValueWorkflowScope = Boolean(
+      resolvedRunFromBlock?.sourceSnapshot && !resolvedRunFromBlock.sourceExecutionId
+    )
 
     if (!enableSSE) {
       reqLogger.info('Using non-SSE execution (direct JSON response)')
@@ -705,6 +719,10 @@ async function handleExecutePost(
         isClientSession,
         enforceCredentialAccess: useAuthenticatedUserAsActor,
         workflowStateOverride: effectiveWorkflowStateOverride,
+        largeValueExecutionIds,
+        largeValueKeys,
+        fileKeys,
+        allowLargeValueWorkflowScope,
         callChain,
         executionMode: 'sync',
       }
@@ -773,20 +791,47 @@ async function handleExecutePost(
           )
         }
 
+        const outputLargeValueKeys = result.metadata?.largeValueKeys ?? largeValueKeys
+        const outputFileKeys = result.metadata?.fileKeys ?? fileKeys
+
         const outputWithBase64 = includeFileBase64
           ? ((await hydrateUserFilesWithBase64(result.output, {
               requestId,
               workspaceId,
               workflowId,
               executionId,
-              allowLargeValueWorkflowScope: Boolean(resolvedRunFromBlock?.sourceSnapshot),
+              largeValueExecutionIds,
+              largeValueKeys: outputLargeValueKeys,
+              fileKeys: outputFileKeys,
+              allowLargeValueWorkflowScope,
               userId: actorUserId,
               maxBytes: base64MaxBytes,
+              preserveLargeValueMetadata: true,
             })) as NormalizedBlockOutput)
           : result.output
 
         if (auth.authType !== AuthType.INTERNAL_JWT && workflowHasResponseBlock(result)) {
-          return createHttpResponseFromBlock({ ...result, output: outputWithBase64 })
+          const compactResponseBlockOutput = await compactRoutePayload(outputWithBase64, {
+            workspaceId,
+            workflowId,
+            executionId,
+            userId: actorUserId,
+            preserveUserFileBase64: true,
+            preserveRoot: true,
+          })
+          return await createHttpResponseFromBlock(
+            { ...result, output: compactResponseBlockOutput },
+            {
+              workspaceId,
+              workflowId,
+              executionId,
+              largeValueExecutionIds,
+              largeValueKeys: outputLargeValueKeys,
+              fileKeys: outputFileKeys,
+              userId: actorUserId,
+              allowLargeValueWorkflowScope,
+            }
+          )
         }
 
         const compactOutput = await compactRoutePayload(outputWithBase64, {
@@ -884,10 +929,13 @@ async function handleExecutePost(
           timeoutMs: preprocessResult.executionTimeout?.sync,
         },
         executionId,
+        largeValueExecutionIds,
+        largeValueKeys,
+        fileKeys,
         workspaceId,
         workflowId,
         userId: actorUserId,
-        allowLargeValueWorkflowScope: Boolean(resolvedRunFromBlock?.sourceSnapshot),
+        allowLargeValueWorkflowScope,
         executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
           executeWorkflow(
             streamWorkflow,
@@ -906,6 +954,8 @@ async function handleExecutePost(
               base64MaxBytes,
               abortSignal,
               executionMode: 'stream',
+              largeValueKeys,
+              fileKeys,
               stopAfterBlockId,
               runFromBlock: resolvedRunFromBlock,
             },
@@ -1185,6 +1235,10 @@ async function handleExecutePost(
             isClientSession,
             enforceCredentialAccess: useAuthenticatedUserAsActor,
             workflowStateOverride: effectiveWorkflowStateOverride,
+            largeValueExecutionIds,
+            largeValueKeys,
+            fileKeys,
+            allowLargeValueWorkflowScope,
             callChain,
             executionMode: 'sync',
           }
@@ -1309,15 +1363,22 @@ async function handleExecutePost(
             return
           }
 
+          const outputLargeValueKeys = result.metadata?.largeValueKeys ?? largeValueKeys
+          const outputFileKeys = result.metadata?.fileKeys ?? fileKeys
+
           const sseOutput = includeFileBase64
             ? await hydrateUserFilesWithBase64(result.output, {
                 requestId,
                 workspaceId,
                 workflowId,
                 executionId,
-                allowLargeValueWorkflowScope: Boolean(resolvedRunFromBlock?.sourceSnapshot),
+                largeValueExecutionIds,
+                largeValueKeys: outputLargeValueKeys,
+                fileKeys: outputFileKeys,
+                allowLargeValueWorkflowScope,
                 userId: actorUserId,
                 maxBytes: base64MaxBytes,
+                preserveLargeValueMetadata: true,
               })
             : result.output
           const compactSseOutput = await compactRoutePayload(sseOutput, {

@@ -20,10 +20,27 @@ export const escalationsListTool: ToolConfig<
       visibility: 'user-only',
       description: 'incident.io API Key',
     },
+    page_size: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of escalations to return per page',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor to fetch the next page of results',
+    },
   },
 
   request: {
-    url: () => 'https://api.incident.io/v2/escalations',
+    url: (params) => {
+      const url = new URL('https://api.incident.io/v2/escalations')
+      if (params.page_size) url.searchParams.set('page_size', params.page_size.toString())
+      if (params.after) url.searchParams.set('after', params.after)
+      return url.toString()
+    },
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -38,6 +55,12 @@ export const escalationsListTool: ToolConfig<
       success: true,
       output: {
         escalations: data.escalations || [],
+        pagination_meta: data.pagination_meta
+          ? {
+              after: data.pagination_meta.after,
+              page_size: data.pagination_meta.page_size,
+            }
+          : undefined,
       },
     }
   },
@@ -57,6 +80,15 @@ export const escalationsListTool: ToolConfig<
             description: 'When the escalation policy was last updated',
           },
         },
+      },
+    },
+    pagination_meta: {
+      type: 'object',
+      description: 'Pagination metadata',
+      optional: true,
+      properties: {
+        after: { type: 'string', description: 'Cursor for next page', optional: true },
+        page_size: { type: 'number', description: 'Number of results per page' },
       },
     },
   },
