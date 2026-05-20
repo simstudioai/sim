@@ -48,7 +48,6 @@ import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
-import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('DocumentService')
@@ -314,12 +313,16 @@ async function processDocumentTags(
   return result
 }
 
+const TRIGGER_BATCH_SIZE = 1000
+
 export async function processDocumentsWithQueue(
   createdDocuments: DocumentData[],
   knowledgeBaseId: string,
   processingOptions: ProcessingOptions,
   requestId: string
 ): Promise<void> {
+  if (createdDocuments.length === 0) return
+
   const jobPayloads = createdDocuments.map<DocumentJobData>((doc) => ({
     knowledgeBaseId,
     documentId: doc.documentId,
@@ -333,12 +336,51 @@ export async function processDocumentsWithQueue(
     requestId,
   }))
 
+  const useTrigger = isTriggerAvailable()
   logger.info(
     `[${requestId}] Dispatching background processing for ${jobPayloads.length} documents`,
-    {
-      backend: isTriggerAvailable() ? 'trigger-dev' : 'direct',
-    }
+    { backend: useTrigger ? 'trigger-dev' : 'direct' }
   )
+
+  if (useTrigger) {
+    /**
+     * Single batched dispatch per chunk of up to TRIGGER_BATCH_SIZE — collapses
+     * N HTTP roundtrips to ceil(N / TRIGGER_BATCH_SIZE). Idempotency keys allow
+     * safe re-dispatch on retry without duplicating runs.
+     */
+    let dispatched = 0
+    for (let i = 0; i < jobPayloads.length; i += TRIGGER_BATCH_SIZE) {
+      const chunk = jobPayloads.slice(i, i + TRIGGER_BATCH_SIZE)
+      try {
+        await tasks.batchTrigger(
+          'knowledge-process-document',
+          chunk.map((payload) => ({
+            payload,
+            options: {
+              idempotencyKey: `doc-process-${payload.documentId}-${requestId}`,
+              tags: [
+                `knowledgeBaseId:${payload.knowledgeBaseId}`,
+                `documentId:${payload.documentId}`,
+              ],
+            },
+          }))
+        )
+        dispatched += chunk.length
+      } catch (error) {
+        logger.error(`[${requestId}] Failed to batchTrigger ${chunk.length} document jobs`, {
+          error: getErrorMessage(error),
+        })
+        if (dispatched === 0 && i + TRIGGER_BATCH_SIZE >= jobPayloads.length) {
+          throw new Error(`All ${jobPayloads.length} document processing dispatches failed`)
+        }
+      }
+    }
+
+    logger.info(
+      `[${requestId}] Document dispatch complete: ${dispatched}/${jobPayloads.length} succeeded`
+    )
+    return
+  }
 
   const results = await Promise.allSettled(
     jobPayloads.map((payload) => dispatchDocumentProcessingJob(payload))
@@ -358,8 +400,6 @@ export async function processDocumentsWithQueue(
   if (failures.length === results.length) {
     throw new Error(`All ${failures.length} document processing dispatches failed`)
   }
-
-  return
 }
 
 export async function processDocumentAsync(
@@ -696,54 +736,6 @@ export async function processDocumentAsync(
 
 export function isTriggerAvailable(): boolean {
   return Boolean(env.TRIGGER_SECRET_KEY) && isTriggerDevEnabled
-}
-
-async function processDocumentsWithTrigger(
-  documents: DocumentProcessingPayload[],
-  requestId: string
-): Promise<{ success: boolean; message: string; batchIds?: string[] }> {
-  if (!isTriggerAvailable()) {
-    throw new Error('Trigger.dev is not configured - TRIGGER_SECRET_KEY missing')
-  }
-
-  try {
-    logger.info(`[${requestId}] Triggering background processing for ${documents.length} documents`)
-
-    const MAX_BATCH_SIZE = 1000
-    const batchIds: string[] = []
-
-    for (let i = 0; i < documents.length; i += MAX_BATCH_SIZE) {
-      const chunk = documents.slice(i, i + MAX_BATCH_SIZE)
-      const batchResult = await tasks.batchTrigger(
-        'knowledge-process-document',
-        chunk.map((doc) => ({
-          payload: doc,
-          options: {
-            idempotencyKey: `doc-process-${doc.documentId}-${requestId}`,
-            tags: [`knowledgeBaseId:${doc.knowledgeBaseId}`, `documentId:${doc.documentId}`],
-          },
-        }))
-      )
-      batchIds.push(batchResult.batchId)
-    }
-
-    logger.info(
-      `[${requestId}] Triggered ${documents.length} document processing jobs in ${batchIds.length} batch(es)`
-    )
-
-    return {
-      success: true,
-      message: `${documents.length} document processing jobs triggered`,
-      batchIds,
-    }
-  } catch (error) {
-    logger.error(`[${requestId}] Failed to trigger document processing jobs:`, error)
-
-    return {
-      success: false,
-      message: getErrorMessage(error, 'Failed to trigger background jobs'),
-    }
-  }
 }
 
 export async function createDocumentRecords(
