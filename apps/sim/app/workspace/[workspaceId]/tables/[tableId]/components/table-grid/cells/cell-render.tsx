@@ -296,6 +296,15 @@ const TYPEWRITER_MS_PER_CHAR = 15
  * value statically — animation fires only for subsequent updates, which in
  * practice means SSE-driven workflow completions arriving via
  * `useTableEventStream → applyCell()`.
+ *
+ * Driven by `requestAnimationFrame`, not `setInterval`: when many cells reveal
+ * at once (a Run-all completing in waves), independent interval callbacks fire
+ * at uncoordinated times and each forces its own React render + layout/paint —
+ * O(cells) reflows over an un-virtualized grid, which degrades as more cells
+ * fill. rAF callbacks for a frame all run before one paint, so React batches
+ * every cell's update into a single render + paint per frame (~60fps,
+ * independent of cell count). Reveal length is derived from elapsed time, so a
+ * dropped frame catches up instead of slowing the animation.
  */
 function useTypewriter(text: string | null): string | null {
   const [revealed, setRevealed] = useState<string | null>(text)
@@ -317,14 +326,17 @@ function useTypewriter(text: string | null): string | null {
       return
     }
 
+    const full = text
+    const start = performance.now()
+    let raf = 0
+    const tick = (now: number) => {
+      const chars = Math.min(full.length, Math.floor((now - start) / TYPEWRITER_MS_PER_CHAR))
+      setRevealed(full.slice(0, chars))
+      if (chars < full.length) raf = requestAnimationFrame(tick)
+    }
     setRevealed('')
-    let i = 0
-    const id = window.setInterval(() => {
-      i++
-      setRevealed(text.slice(0, i))
-      if (i >= text.length) window.clearInterval(id)
-    }, TYPEWRITER_MS_PER_CHAR)
-    return () => window.clearInterval(id)
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
   }, [text])
 
   return revealed
