@@ -392,8 +392,26 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       logger.error(`[${dispatchId}] batch dispatch failed`, {
         error: toError(err).message,
       })
-      // Don't bail the dispatch — terminal states are already in the DB
-      // (workers wrote them) or will be reconciled on the next user click.
+      // Reset the orphan pre-stamps so the cells don't render "Queued" forever.
+      // Without this sweep, `pending + null executionId` rows stay until a user
+      // re-triggers the row. The classifyEligibility carve-out lets future
+      // dispatchers re-claim, but the current dispatch has already advanced
+      // its cursor past these rows. Deleting the pre-stamps lets the next
+      // explicit Run pick them up cleanly.
+      await Promise.allSettled(
+        pendingRuns.map((p) =>
+          db
+            .delete(tableRowExecutions)
+            .where(
+              and(
+                eq(tableRowExecutions.rowId, p.rowId),
+                eq(tableRowExecutions.groupId, p.groupId),
+                eq(tableRowExecutions.status, 'pending'),
+                sql`${tableRowExecutions.executionId} IS NULL`
+              )
+            )
+        )
+      )
     }
   }
 

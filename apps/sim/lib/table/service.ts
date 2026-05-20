@@ -1134,9 +1134,14 @@ export async function batchInsertRowsWithTx(
   }))
 
   void fireTableTrigger(data.tableId, table.name, 'insert', result, null, table.schema, requestId)
+  // Scope to the newly-inserted row ids so the dispatcher doesn't walk every
+  // row in the table. After the sidecar migration, all existing rows have
+  // zero entries → `mode:'new'`'s `NOT EXISTS` filter would otherwise include
+  // them, dispatching workflows on every row in a populated table.
   void runWorkflowColumn({
     tableId: table.id,
     workspaceId: table.workspaceId,
+    rowIds: result.map((r) => r.id),
     mode: 'new',
     isManualRun: false,
     requestId,

@@ -72,14 +72,22 @@ export function classifyEligibility(
   if (group.autoRun === false && !isManualRun) return 'autoRun-off'
 
   const exec = row.executions?.[group.id]
-  if (isExecInFlight(exec)) return 'in-flight'
+  // Dispatcher pre-stamp orphans (`pending` + `executionId: null`) are
+  // placeholders left behind when a previous dispatcher loop wrote the stamp
+  // but no cell-task picked up (cascade-lock contention, trigger.dev queue
+  // failure, etc.). Treat them as claimable so a new dispatcher can re-enqueue
+  // — without this carve-out the row would render "Queued" forever. Matches
+  // the `pickNextEligibleGroupForRow` cascade-loop carve-out.
+  const isOrphanPreStamp = exec?.status === 'pending' && exec.executionId == null
+  if (!isOrphanPreStamp && isExecInFlight(exec)) return 'in-flight'
   const status = exec?.status
 
   // `mode: 'new'` is the auto-fire scope: only rows that have never been
   // attempted on this group run. Any pre-existing exec entry — completed,
   // cancelled, or error — keeps the cell sticky until the user manually
   // re-runs via "Run column" / "Run all rows" / "Run this row".
-  if (mode === 'new' && exec) return 'has-prior-attempt'
+  // Exception: orphan pre-stamps are claimable (handled above).
+  if (mode === 'new' && exec && !isOrphanPreStamp) return 'has-prior-attempt'
 
   const completedAndFilled = status === 'completed' && areOutputsFilled(group, row)
   if (!isManualRun && completedAndFilled) return 'completed-on-auto'
@@ -476,11 +484,27 @@ export async function runWorkflowColumn(opts: {
   if (targetGroups.length === 0) return { dispatchId: null }
   const targetGroupIds = targetGroups.map((g) => g.id)
 
-  // Wipe targeted output cols + executions[gid] before any cells fire so the
-  // user sees the column flip to empty/Pending instantly.
   const { bulkClearWorkflowGroupCells, insertDispatch, runDispatcherToCompletion } = await import(
     './dispatcher'
   )
+
+  // For table-wide manual runs (Run all rows / Run column), cancel any prior
+  // active dispatches AND their in-flight cells before clearing. Without this:
+  //  - Two dispatcher loops would walk overlapping rows and burn duplicate work.
+  //  - mode:'all' bulk-clear deletes in-flight sidecar rows without aborting
+  //    workers — those would keep writing into the wiped state.
+  // Row-scoped callers (dep-edit cascade in `updateRow`) already cancel their
+  // specific scope before calling here, so we skip to avoid cancelling
+  // unrelated dispatches on other rows. Auto-fire (`mode:'new'`) is harmless
+  // overlap-wise since the NOT EXISTS filter excludes already-attempted rows.
+  const cancelPriorRuns =
+    isManualRun && (!rowIds || rowIds.length === 0) && (mode === 'all' || mode === 'incomplete')
+  if (cancelPriorRuns) {
+    await cancelWorkflowGroupRuns(tableId, undefined, { groupIds: targetGroupIds })
+  }
+
+  // Wipe targeted output cols + executions[gid] before any cells fire so the
+  // user sees the column flip to empty/Pending instantly.
   await bulkClearWorkflowGroupCells({
     tableId,
     groups: targetGroups.map((g) => ({ id: g.id, outputs: g.outputs })),
