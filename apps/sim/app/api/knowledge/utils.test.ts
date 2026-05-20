@@ -125,8 +125,9 @@ vi.mock('@sim/db', async () => {
                 limit: (n: number) =>
                   Promise.resolve(
                     kbRows.length > 0 && docRows.length > 0
-                      ? [{ ...kbRows[0], ...docRows[0], billedAccountUserId: 'billing-user-1' }]
-                          .slice(0, n)
+                      ? [
+                          { ...kbRows[0], ...docRows[0], billedAccountUserId: 'billing-user-1' },
+                        ].slice(0, n)
                       : []
                   ),
               }),
