@@ -17,7 +17,7 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import type { McpTransport } from '@/lib/mcp/types'
+import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,
@@ -52,6 +52,7 @@ export interface McpServerFormConfig {
   timeout: number
   oauthClientId?: string
   oauthClientSecret?: string
+  authType?: McpAuthType
 }
 
 export interface McpServerFormModalProps {
@@ -109,11 +110,12 @@ interface EnvVarDropdownConfig {
 }
 
 function getTestButtonLabel(
-  testResult: { success: boolean; error?: string } | null,
+  testResult: { success: boolean; error?: string; authRequired?: boolean } | null,
   isTestingConnection: boolean
 ): string {
   if (isTestingConnection) return 'Testing...'
   if (testResult?.success) return 'Connection success'
+  if (testResult?.authRequired) return 'Requires OAuth'
   if (testResult && !testResult.success) return 'No connection: retry'
   return 'Test Connection'
 }
@@ -517,19 +519,11 @@ export function McpServerFormModal({
         workspaceId,
       })
 
-      if (!connectionResult.success) {
-        const errorText = (connectionResult.error || '').toLowerCase()
-        const looksLikeAuthRequired =
-          /\b401\b/.test(errorText) ||
-          errorText.includes('unauthorized') ||
-          errorText.includes('oauth') ||
-          errorText.includes('authentication')
-        if (!looksLikeAuthRequired) {
-          setSubmitError(
-            connectionResult.error || 'Connection test failed. Please check the URL and try again.'
-          )
-          return
-        }
+      if (!connectionResult.success && !connectionResult.authRequired) {
+        setSubmitError(
+          connectionResult.error || 'Connection test failed. Please check the URL and try again.'
+        )
+        return
       }
 
       await onSubmit({
@@ -538,6 +532,7 @@ export function McpServerFormModal({
         url: formData.url!,
         headers,
         timeout: formData.timeout || 30000,
+        authType: connectionResult.authType,
         oauthClientId:
           mode === 'edit'
             ? oauthClientIdChanged
@@ -587,7 +582,7 @@ export function McpServerFormModal({
         workspaceId,
       })
 
-      if (!connectionResult.success) {
+      if (!connectionResult.success && !connectionResult.authRequired) {
         setSubmitError(
           connectionResult.error || 'Connection test failed. Please check the URL and try again.'
         )
@@ -600,6 +595,7 @@ export function McpServerFormModal({
         url: config.url,
         headers: config.headers,
         timeout: 30000,
+        authType: connectionResult.authType,
       })
 
       onOpenChange(false)
