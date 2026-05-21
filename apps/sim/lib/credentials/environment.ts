@@ -269,19 +269,32 @@ export async function createWorkspaceEnvCredentials(params: {
 
   if (createdIds.length === 0 || memberUserIds.length === 0) return
 
+  const wsPermissionRows = await db
+    .select({ userId: permissions.userId, permissionType: permissions.permissionType })
+    .from(permissions)
+    .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
+
+  const wsPermissionByUser = new Map(
+    wsPermissionRows.map((row) => [row.userId, row.permissionType])
+  )
+
   // Bulk-insert memberships for all new credentials × all workspace members in one query
   const membershipValues = createdIds.flatMap((credentialId) =>
-    memberUserIds.map((memberUserId) => ({
-      id: generateId(),
-      credentialId,
-      userId: memberUserId,
-      role: (memberUserId === ownerUserId ? 'admin' : 'member') as 'admin' | 'member',
-      status: 'active' as const,
-      joinedAt: now,
-      invitedBy: ownerUserId,
-      createdAt: now,
-      updatedAt: now,
-    }))
+    memberUserIds.map((memberUserId) => {
+      const wsPermission = wsPermissionByUser.get(memberUserId)
+      const isAdmin = memberUserId === ownerUserId || wsPermission === 'admin'
+      return {
+        id: generateId(),
+        credentialId,
+        userId: memberUserId,
+        role: (isAdmin ? 'admin' : 'member') as 'admin' | 'member',
+        status: 'active' as const,
+        joinedAt: now,
+        invitedBy: ownerUserId,
+        createdAt: now,
+        updatedAt: now,
+      }
+    })
   )
 
   await db.insert(credentialMember).values(membershipValues).onConflictDoNothing()
