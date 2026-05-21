@@ -93,7 +93,14 @@ export function classifyEligibility(
   if (!isManualRun && completedAndFilled) return 'completed-on-auto'
   if (!isManualRun && status === 'error') return 'error-on-auto'
   if (!isManualRun && status === 'cancelled') return 'cancelled-on-auto'
-  if (mode === 'incomplete' && completedAndFilled) return 'completed-on-incomplete'
+  // Manual incomplete-mode runs (Run row / Run incomplete) treat a `completed`
+  // group as done even if an output is blank — only "Run all" re-runs it. The
+  // auto cascade still re-fills blank outputs (completedAndFilled).
+  if (mode === 'incomplete') {
+    if (isManualRun ? status === 'completed' : completedAndFilled) {
+      return 'completed-on-incomplete'
+    }
+  }
 
   if (isManualRun && group.autoRun === false) return 'manual-bypass'
   return areGroupDepsSatisfied(group, row) ? 'eligible' : 'deps-unmet'

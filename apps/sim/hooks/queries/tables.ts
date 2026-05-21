@@ -73,7 +73,6 @@ import type {
 } from '@/lib/table'
 import {
   areGroupDepsSatisfied,
-  areOutputsFilled,
   isExecInFlight,
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
@@ -235,17 +234,34 @@ function countNewlyInFlight(before: RowExecutions, after: RowExecutions): number
   return n
 }
 
-/** Add optimistically-stamped cells to the run-state counter so the "X running"
- *  badge + per-row gutter Stop reflect them instantly (the optimistic stamp
- *  eats the dispatcher's `pending` SSE, so `applyCell` never bumps the count).
- *  Returns the prior snapshot for rollback, or `null` when nothing was bumped. */
+/** The table's maintained, unfiltered `rowCount` from the detail cache (or
+ *  `null` when the detail hasn't loaded). This is the right scope for a Run-all
+ *  estimate: the dispatcher runs every row regardless of the active view
+ *  filter, whereas the rows query's `totalCount` is filter-scoped. */
+function readTableRowCount(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string
+): number | null {
+  const def = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+  return typeof def?.rowCount === 'number' ? def.rowCount : null
+}
+
+/** Optimistically reflect a run on the "X running" badge + per-row gutter Stop
+ *  instantly (the optimistic stamp eats the dispatcher's `pending` SSE, so
+ *  `applyCell` never bumps the count, and the server's dispatch-scope count
+ *  isn't live until the first window). `stampedByRow` drives the per-row gutter
+ *  (loaded rows only); `cellCountDelta` is the badge delta — pass the full run
+ *  scope (rows × groups) for Run-all so it matches the server, or omit to use
+ *  the stamped total. Returns the prior snapshot for rollback. */
 function bumpRunState(
   queryClient: ReturnType<typeof useQueryClient>,
   tableId: string,
-  stampedByRow: Record<string, number>
+  stampedByRow: Record<string, number>,
+  cellCountDelta?: number
 ): { snapshot: TableRunState | undefined } | null {
-  const total = Object.values(stampedByRow).reduce((s, n) => s + n, 0)
-  if (total === 0) return null
+  const stampedTotal = Object.values(stampedByRow).reduce((s, n) => s + n, 0)
+  const countDelta = cellCountDelta ?? stampedTotal
+  if (countDelta === 0 && stampedTotal === 0) return null
   const snapshot = queryClient.getQueryData<TableRunState>(tableKeys.activeDispatches(tableId))
   queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
     const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
@@ -255,7 +271,7 @@ function bumpRunState(
     }
     return {
       ...base,
-      runningCellCount: base.runningCellCount + total,
+      runningCellCount: base.runningCellCount + countDelta,
       runningByRowId: nextByRow,
     }
   })
@@ -1418,12 +1434,10 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
           // dispatcher regardless of mode. Stamping pending here would leave
           // the cell flashing Queued indefinitely (no SSE event will arrive).
           if (group && !areGroupDepsSatisfied(group, r)) continue
-          // Mirror server eligibility for `mode: 'incomplete'`: skip cells whose
-          // outputs are filled, regardless of exec status. A cancelled/error
-          // cell with a leftover value from a prior run was rendering as filled
-          // but flipping to "queued" optimistically here even though the server
-          // would skip it.
-          if (runMode === 'incomplete' && group && areOutputsFilled(group, r)) continue
+          // Mirror server eligibility for manual `mode: 'incomplete'`: a
+          // `completed` group is done (even with a blank output) — only "Run
+          // all" re-runs it. error/cancelled/never-run cells still re-run.
+          if (runMode === 'incomplete' && exec?.status === 'completed') continue
           next[groupId] = buildPendingExec(exec)
           // Mirror the server-side bulk clear: wipe output values so the cell
           // doesn't render the stale completed value behind a pending badge.
@@ -1442,7 +1456,14 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         return { ...r, data: nextData, executions: next }
       })
 
-      const bumped = bumpRunState(queryClient, tableId, stampedByRow)
+      // Badge counts the whole run scope (rows × groups), matching the server's
+      // dispatch-scope count — not just the loaded rows we could stamp. For
+      // Run-all that's the table's totalCount; for a scoped run, the rowIds.
+      const scopeRowCount = targetRowIds
+        ? targetRowIds.size
+        : (readTableRowCount(queryClient, tableId) ?? Object.keys(stampedByRow).length)
+      const cellCountDelta = scopeRowCount * targetGroupIds.size
+      const bumped = bumpRunState(queryClient, tableId, stampedByRow, cellCountDelta)
       return { snapshots, runStateSnapshot: bumped?.snapshot, didBumpRunState: bumped !== null }
     },
     onError: (_err, _variables, context) => {

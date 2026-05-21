@@ -73,11 +73,11 @@ export function useTableEventStream({
     let lastEventId = loadPointer(tableId)
     let reconnectAttempt = 0
 
-    const updateRunStateCounters = (
-      rowId: string,
-      wasInFlight: boolean,
-      isInFlight: boolean
-    ): void => {
+    // Keeps the per-row gutter (`runningByRowId`) live between dispatch events.
+    // `runningCellCount` (the "X running" badge) is NOT touched here — it's the
+    // server's dispatch-scope count, seeded optimistically on click and
+    // re-synced by `applyDispatch` on every window, so live matches reload.
+    const updateRunningByRow = (rowId: string, wasInFlight: boolean, isInFlight: boolean): void => {
       if (wasInFlight === isInFlight) return
       const delta = isInFlight ? 1 : -1
       queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
@@ -87,11 +87,7 @@ export function useTableEventStream({
         const nextByRow = { ...prev.runningByRowId }
         if (nextForRow === 0) delete nextByRow[rowId]
         else nextByRow[rowId] = nextForRow
-        return {
-          ...prev,
-          runningCellCount: Math.max(0, prev.runningCellCount + delta),
-          runningByRowId: nextByRow,
-        }
+        return { ...prev, runningByRowId: nextByRow }
       })
     }
 
@@ -145,11 +141,7 @@ export function useTableEventStream({
           queryKey: tableKeys.activeDispatches(tableId),
         })
       } else {
-        updateRunStateCounters(
-          rowId,
-          wasInFlight,
-          isExecInFlight({ status } as RowExecutionMetadata)
-        )
+        updateRunningByRow(rowId, wasInFlight, isExecInFlight({ status } as RowExecutionMetadata))
       }
     }
 
@@ -195,6 +187,11 @@ export function useTableEventStream({
         merged[idx] = next
         return { ...base, dispatches: merged }
       })
+      // The dispatcher emits this once per window (after the window's cells
+      // finish + the cursor advances) and on completion. Re-sync the
+      // dispatch-scope `runningCellCount` from the server so the badge steps
+      // down per window and matches a reload exactly.
+      void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
     }
 
     const handlePrune = (payload: PrunedEvent): void => {
