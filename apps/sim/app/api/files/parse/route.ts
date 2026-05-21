@@ -112,15 +112,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       request,
       {},
       {
-        validationErrorResponse: (error) =>
-          NextResponse.json(
+        validationErrorResponse: (error) => {
+          const message = getValidationErrorMessage(error, 'Invalid request data')
+          return NextResponse.json(
             {
               success: false,
-              error: getValidationErrorMessage(error, 'Invalid request data'),
+              error: message,
               filePath: '',
             },
-            { status: 400 }
-          ),
+            { status: message.includes('At most 10 files') ? 413 : 400 }
+          )
+        },
       }
     )
     if (!parsed.success) return parsed.response
@@ -397,15 +399,16 @@ function validateFileReferenceShape(filePath: string): { isValid: boolean; error
 }
 
 function parsedOutputTooLargeResponse(results?: unknown[]): NextResponse {
+  const hasPartialResults = Boolean(results && results.length > 0)
   return NextResponse.json(
     {
-      success: false,
+      success: hasPartialResults,
       error: `Parsed file output is too large to return safely. Maximum combined parsed output is ${prettySize(
         MAX_MULTI_FILE_PARSE_OUTPUT_BYTES
       )}.`,
       ...(results && results.length > 0 ? { results } : {}),
     },
-    { status: 413 }
+    { status: hasPartialResults ? 200 : 413 }
   )
 }
 

@@ -210,6 +210,7 @@ export async function readNodeStreamToBufferWithLimit(
 export interface ReadResponseWithLimitOptions extends ReadStreamWithLimitOptions {
   headers?: { get(name: string): string | null }
   preferTextFallback?: boolean
+  allowNoBodyFallback?: boolean
 }
 
 export async function readResponseToBufferWithLimit(
@@ -221,17 +222,27 @@ export async function readResponseToBufferWithLimit(
   },
   options: ReadResponseWithLimitOptions
 ): Promise<Buffer> {
+  const contentLength = getContentLength(response.headers ?? options.headers)
   try {
-    assertContentLengthWithinLimit(
-      response.headers ?? options.headers,
-      options.maxBytes,
-      options.label
-    )
+    if (contentLength !== null) {
+      assertKnownSizeWithinLimit(contentLength, options.maxBytes, options.label)
+    }
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {
       await response.body?.cancel(error).catch(() => {})
     }
     throw error
+  }
+  if (
+    !options.allowNoBodyFallback &&
+    !response.body &&
+    contentLength === null &&
+    (response.arrayBuffer || response.text)
+  ) {
+    throw new PayloadSizeLimitError({
+      label: options.label,
+      maxBytes: options.maxBytes,
+    })
   }
   if (!response.body && options.preferTextFallback && response.text) {
     const text = await response.text()

@@ -21,6 +21,7 @@ import { presentationUrl } from '@/tools/google_slides/utils'
 
 const logger = createLogger('GoogleSlidesExportAPI')
 const MAX_GOOGLE_SLIDES_EXPORT_BYTES = 10 * 1024 * 1024
+const MAX_LEGACY_INLINE_EXPORT_BYTES = 7 * 1024 * 1024
 
 const FORMAT_TO_MIME = {
   PDF: 'application/pdf',
@@ -103,6 +104,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       label: 'Google Slides export response',
     })
     const filename = buildExportFilename(body.presentationId, exportFormat)
+    const legacyInlineContent =
+      buffer.length <= MAX_LEGACY_INLINE_EXPORT_BYTES
+        ? { contentBase64: buffer.toString('base64') }
+        : {}
     const executionContext =
       body.workspaceId && body.workflowId && body.executionId
         ? {
@@ -128,6 +133,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           mimeType,
           sizeBytes: buffer.length,
           exportUrl: file.url,
+          ...legacyInlineContent,
           metadata: {
             presentationId: body.presentationId,
             url: presentationUrl(body.presentationId),
@@ -152,6 +158,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         exportFormat,
         mimeType,
         sizeBytes: buffer.length,
+        ...legacyInlineContent,
         metadata: {
           presentationId: body.presentationId,
           url: presentationUrl(body.presentationId),

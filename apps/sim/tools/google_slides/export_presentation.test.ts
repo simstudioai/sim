@@ -99,7 +99,7 @@ describe('Google Slides export presentation tool', () => {
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 
-  it('stores exports as execution file references instead of base64', async () => {
+  it('stores exports as execution file references and keeps small legacy base64 output', async () => {
     inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
       new Response('content', {
         status: 200,
@@ -146,7 +146,7 @@ describe('Google Slides export presentation tool', () => {
       context: 'execution',
       mimeType: 'application/pdf',
     })
-    expect(result.output.contentBase64).toBeUndefined()
+    expect(result.output.contentBase64).toBe(Buffer.from('content').toString('base64'))
   })
 
   it('stores exports in copilot storage when execution context is unavailable', async () => {
@@ -186,7 +186,7 @@ describe('Google Slides export presentation tool', () => {
       context: 'copilot',
       url: '/api/files/serve/copilot/copilot-file-1',
     })
-    expect(result.output.contentBase64).toBeUndefined()
+    expect(result.output.contentBase64).toBe(Buffer.from(bytes).toString('base64'))
     expect(result.output.sizeBytes).toBe(bytes.byteLength)
   })
 

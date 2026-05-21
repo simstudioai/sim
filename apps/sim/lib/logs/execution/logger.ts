@@ -7,6 +7,7 @@ import {
   workflowExecutionLogs,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
@@ -57,11 +58,76 @@ const EXECUTION_LOG_IDLE_TIMEOUT_MS = 5_000
 
 type ExecutionData = WorkflowExecutionLog['executionData']
 
-function getJsonByteSize(value: unknown): number | undefined {
+function getJsonByteSize(
+  value: unknown,
+  maxBytes = MAX_EXECUTION_DATA_BYTES + 1
+): number | undefined {
+  const seen = new WeakSet<object>()
+  let bytes = 0
+
+  const add = (amount: number) => {
+    bytes += amount
+    if (bytes > maxBytes) {
+      throw new Error('json_size_limit_reached')
+    }
+  }
+
+  const visit = (item: unknown): void => {
+    if (item === undefined || typeof item === 'function' || typeof item === 'symbol') {
+      add(4)
+      return
+    }
+    if (item === null) {
+      add(4)
+      return
+    }
+    if (typeof item === 'string') {
+      add(Buffer.byteLength(JSON.stringify(item), 'utf8'))
+      return
+    }
+    if (typeof item === 'bigint') {
+      add(Buffer.byteLength(JSON.stringify(item.toString()), 'utf8'))
+      return
+    }
+    if (typeof item === 'number' || typeof item === 'boolean') {
+      add(Buffer.byteLength(JSON.stringify(item) ?? 'null', 'utf8'))
+      return
+    }
+    if (typeof item !== 'object') {
+      add(4)
+      return
+    }
+    if (seen.has(item)) {
+      return
+    }
+    seen.add(item)
+
+    if (Array.isArray(item)) {
+      add(2)
+      item.forEach((entry, index) => {
+        if (index > 0) add(1)
+        visit(entry)
+      })
+      return
+    }
+
+    const entries = Object.entries(item)
+    add(2)
+    entries.forEach(([key, entry], index) => {
+      if (entry === undefined || typeof entry === 'function' || typeof entry === 'symbol') return
+      if (index > 0) add(1)
+      add(Buffer.byteLength(JSON.stringify(key), 'utf8') + 1)
+      visit(entry)
+    })
+  }
+
   try {
-    const json = JSON.stringify(value)
-    return json === undefined ? undefined : Buffer.byteLength(json, 'utf8')
-  } catch {
+    visit(value)
+    return bytes
+  } catch (error) {
+    if (getErrorMessage(error) === 'json_size_limit_reached') {
+      return maxBytes + 1
+    }
     return undefined
   }
 }
@@ -76,7 +142,7 @@ function describeValue(value: unknown): string {
 }
 
 function summarizeValueForExecutionData(value: unknown, maxBytes: number): unknown {
-  const size = getJsonByteSize(value)
+  const size = getJsonByteSize(value, maxBytes)
   if (size === undefined || size <= maxBytes) {
     return value
   }
@@ -91,7 +157,7 @@ function summarizeValueForExecutionData(value: unknown, maxBytes: number): unkno
 
 function summarizeTextForExecutionData(value: string | undefined): string | undefined {
   if (!value) return value
-  const size = getJsonByteSize(value)
+  const size = getJsonByteSize(value, MAX_TRACE_IO_BYTES)
   if (size === undefined || size <= MAX_TRACE_IO_BYTES) {
     return value
   }
@@ -127,7 +193,7 @@ function summarizeTraceSpansForExecutionData(traceSpans?: TraceSpan[]): TraceSpa
     }
     if (
       modelToolCalls !== undefined &&
-      (getJsonByteSize(modelToolCalls) ?? 0) <= MAX_TRACE_IO_BYTES
+      (getJsonByteSize(modelToolCalls, MAX_TRACE_IO_BYTES) ?? 0) <= MAX_TRACE_IO_BYTES
     ) {
       summarized.modelToolCalls = modelToolCalls
     }
@@ -605,24 +671,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const level = levelOverride ?? (hasErrors ? 'error' : 'info')
     const status = statusOverride ?? (hasErrors ? 'failed' : 'completed')
 
-    // Extract files from trace spans, final output, and workflow input
-    const executionFiles = this.extractFilesFromExecution(traceSpans, finalOutput, workflowInput)
-
     // For resume executions, rebuild trace spans from the aggregated logs
     const mergedTraceSpans = isResume
       ? traceSpans && traceSpans.length > 0
         ? traceSpans
         : existingExecutionData?.traceSpans || []
       : traceSpans
-
-    const filteredTraceSpans = filterForDisplay(mergedTraceSpans)
-    const filteredFinalOutput = filterForDisplay(finalOutput)
-    const filteredWorkflowInput =
-      workflowInput !== undefined ? filterForDisplay(workflowInput) : undefined
-    const redactedTraceSpans = redactApiKeys(filteredTraceSpans)
-    const redactedFinalOutput = redactApiKeys(filteredFinalOutput)
-    const redactedWorkflowInput =
-      filteredWorkflowInput !== undefined ? redactApiKeys(filteredWorkflowInput) : undefined
 
     const executionCost = {
       total: costSummary.totalCost,
@@ -636,6 +690,37 @@ export class ExecutionLogger implements IExecutionLoggerService {
       models: costSummary.models,
     }
 
+    const boundedExecutionData = this.compactExecutionDataForStorage(
+      this.buildCompletedExecutionData({
+        existingExecutionData,
+        traceSpans: mergedTraceSpans,
+        finalOutput,
+        finalizationPath,
+        completionFailure,
+        executionCost,
+        executionState,
+        workflowInput,
+      }),
+      executionId
+    )
+
+    const executionFiles = this.extractFilesFromExecution(
+      boundedExecutionData.traceSpans,
+      boundedExecutionData.finalOutput,
+      boundedExecutionData.workflowInput
+    )
+
+    const filteredTraceSpans = filterForDisplay(boundedExecutionData.traceSpans)
+    const filteredFinalOutput = filterForDisplay(boundedExecutionData.finalOutput)
+    const filteredWorkflowInput =
+      boundedExecutionData.workflowInput !== undefined
+        ? filterForDisplay(boundedExecutionData.workflowInput)
+        : undefined
+    const redactedTraceSpans = redactApiKeys(filteredTraceSpans)
+    const redactedFinalOutput = redactApiKeys(filteredFinalOutput)
+    const redactedWorkflowInput =
+      filteredWorkflowInput !== undefined ? redactApiKeys(filteredWorkflowInput) : undefined
+
     const rawDurationMs =
       isResume && existingLog?.startedAt
         ? new Date(endedAt).getTime() - new Date(existingLog.startedAt).getTime()
@@ -646,16 +731,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
         : 0
 
     const completedExecutionData = this.compactExecutionDataForStorage(
-      this.buildCompletedExecutionData({
-        existingExecutionData,
+      {
+        ...boundedExecutionData,
         traceSpans: redactedTraceSpans,
         finalOutput: redactedFinalOutput,
-        finalizationPath,
-        completionFailure,
-        executionCost,
-        executionState,
-        workflowInput: redactedWorkflowInput,
-      }),
+        ...(redactedWorkflowInput !== undefined ? { workflowInput: redactedWorkflowInput } : {}),
+      },
       executionId
     )
 
@@ -1009,10 +1090,13 @@ export class ExecutionLogger implements IExecutionLoggerService {
   ): any[] {
     const files: any[] = []
     const seenFileIds = new Set<string>()
+    const seenObjects = new WeakSet<object>()
 
     // Helper function to extract files from any object
     const extractFilesFromObject = (obj: any, source: string) => {
       if (!obj || typeof obj !== 'object') return
+      if (seenObjects.has(obj)) return
+      seenObjects.add(obj)
 
       // Check if this object has files property
       if (Array.isArray(obj.files)) {

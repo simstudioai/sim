@@ -686,6 +686,7 @@ async function readToolResponseBody(
       maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
       label: `${options.toolId} response body`,
       signal: options.signal,
+      allowNoBodyFallback: true,
     })
   } catch (error) {
     if (isPayloadSizeLimitError(error) || response.ok !== false) {

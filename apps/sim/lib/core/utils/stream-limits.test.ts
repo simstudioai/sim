@@ -137,6 +137,17 @@ describe('stream limits', () => {
     expect(text).not.toHaveBeenCalled()
   })
 
+  it('rejects no-body response fallbacks without a trusted content-length', async () => {
+    await expect(
+      readResponseToBufferWithLimit(
+        {
+          arrayBuffer: vi.fn(async () => new Uint8Array(1024).buffer),
+        },
+        { maxBytes: 10, label: 'unknown response' }
+      )
+    ).rejects.toBeInstanceOf(PayloadSizeLimitError)
+  })
+
   it('cancels when the abort signal is already aborted', async () => {
     const controller = new AbortController()
     controller.abort(new Error('stop'))

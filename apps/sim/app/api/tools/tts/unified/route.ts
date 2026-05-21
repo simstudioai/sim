@@ -37,6 +37,33 @@ const MAX_TTS_AUDIO_BYTES = 25 * 1024 * 1024
 const MAX_TTS_ERROR_BYTES = 64 * 1024
 const MAX_TTS_JSON_BYTES = Math.ceil((MAX_TTS_AUDIO_BYTES * 4) / 3) + 256 * 1024
 
+async function readTtsErrorJson(
+  response: Response,
+  label: string
+): Promise<Record<string, unknown>> {
+  return readResponseJsonWithLimit<Record<string, unknown>>(response, {
+    maxBytes: MAX_TTS_ERROR_BYTES,
+    label,
+  }).catch(() => ({}))
+}
+
+function getTtsErrorMessage(error: Record<string, unknown>, fallback: string): string {
+  const nested = error.error
+  if (typeof nested === 'object' && nested !== null && 'message' in nested) {
+    const message = (nested as { message?: unknown }).message
+    if (typeof message === 'string') return message
+  }
+  for (const key of ['message', 'err_msg', 'error_message', 'error', 'detail']) {
+    const value = error[key]
+    if (typeof value === 'string') return value
+    if (typeof value === 'object' && value !== null && 'message' in value) {
+      const message = (value as { message?: unknown }).message
+      if (typeof message === 'string') return message
+    }
+  }
+  return fallback
+}
+
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // 1 minute
 
@@ -319,8 +346,8 @@ async function synthesizeWithOpenAi(
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    const errorMessage = error.error?.message || error.message || response.statusText
+    const error = await readTtsErrorJson(response, 'OpenAI TTS error response')
+    const errorMessage = getTtsErrorMessage(error, response.statusText)
     throw new Error(`OpenAI TTS API error: ${errorMessage}`)
   }
 
@@ -377,8 +404,8 @@ async function synthesizeWithDeepgram(
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    const errorMessage = error.err_msg || error.message || response.statusText
+    const error = await readTtsErrorJson(response, 'Deepgram TTS error response')
+    const errorMessage = getTtsErrorMessage(error, response.statusText)
     throw new Error(`Deepgram TTS API error: ${errorMessage}`)
   }
 
@@ -442,11 +469,8 @@ async function synthesizeWithElevenLabs(
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    const errorMessage =
-      typeof error.detail === 'string'
-        ? error.detail
-        : error.detail?.message || error.message || response.statusText
+    const error = await readTtsErrorJson(response, 'ElevenLabs TTS error response')
+    const errorMessage = getTtsErrorMessage(error, response.statusText)
     throw new Error(`ElevenLabs TTS API error: ${errorMessage}`)
   }
 
@@ -531,9 +555,9 @@ async function synthesizeWithCartesia(
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    const errorMessage = error.error || error.message || response.statusText
-    const errorDetail = error.detail || ''
+    const error = await readTtsErrorJson(response, 'Cartesia TTS error response')
+    const errorMessage = getTtsErrorMessage(error, response.statusText)
+    const errorDetail = typeof error.detail === 'string' ? error.detail : ''
     logger.error('Cartesia API error details:', {
       status: response.status,
       error: errorMessage,
@@ -640,8 +664,8 @@ async function synthesizeWithGoogle(
   )
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    const errorMessage = error.error?.message || error.message || response.statusText
+    const error = await readTtsErrorJson(response, 'Google TTS error response')
+    const errorMessage = getTtsErrorMessage(error, response.statusText)
     throw new Error(`Google Cloud TTS API error: ${errorMessage}`)
   }
 
@@ -801,8 +825,8 @@ async function synthesizeWithPlayHT(
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    const errorMessage = error.error_message || error.message || response.statusText
+    const error = await readTtsErrorJson(response, 'PlayHT TTS error response')
+    const errorMessage = getTtsErrorMessage(error, response.statusText)
     throw new Error(`PlayHT TTS API error: ${errorMessage}`)
   }
 

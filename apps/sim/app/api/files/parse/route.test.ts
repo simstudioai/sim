@@ -484,8 +484,8 @@ describe('File Parse API Route', () => {
     const response = await POST(req)
     const data = await response.json()
 
-    expect(response.status).toBe(413)
-    expect(data.success).toBe(false)
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
     expect(data.error).toContain('too large')
     expect(data.results).toHaveLength(1)
     expect(data.results[0].output.content).toBe('first file')
