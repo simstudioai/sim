@@ -240,9 +240,12 @@ export async function deleteRowsById(
         .returning({ id: idCol })
       result.deleted += deleted.length
     } catch (error) {
+      // Upper bound: Postgres rolls back the chunk on error, so actual deletes = 0,
+      // but we can't tell which IDs in the chunk would have matched. The next cron
+      // run picks up whatever's still expired, so this only inflates the metric.
       result.failed += chunkIds.length
       logger.error(
-        `[${tableName}] Delete chunk ${chunkIdx + 1}/${chunks.length} failed (${chunkIds.length} rows):`,
+        `[${tableName}] Delete chunk ${chunkIdx + 1}/${chunks.length} failed (up to ${chunkIds.length} rows):`,
         { error }
       )
     }

@@ -213,8 +213,14 @@ async function buildCleanupChunks(jobType: CleanupJobType): Promise<CleanupJobPa
       .filter((row) => planByWorkspaceId.get(row.id) === plan)
       .map((row) => row.id)
     if (workspaceIds.length === 0) continue
-    for (const ws of chunkArray(workspaceIds, WORKSPACES_PER_CLEANUP_CHUNK)) {
-      chunks.push({ plan, workspaceIds: ws, retentionHours, label: plan })
+    const planChunks = chunkArray(workspaceIds, WORKSPACES_PER_CLEANUP_CHUNK)
+    for (const [idx, ws] of planChunks.entries()) {
+      chunks.push({
+        plan,
+        workspaceIds: ws,
+        retentionHours,
+        label: planChunks.length > 1 ? `${plan}/${idx + 1}` : plan,
+      })
     }
   }
 
