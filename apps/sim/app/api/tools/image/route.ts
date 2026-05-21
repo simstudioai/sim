@@ -21,10 +21,21 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  assertKnownSizeWithinLimit,
+  consumeOrCancelBody,
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  isPayloadSizeLimitError,
+  readResponseJsonWithLimit,
+  readResponseTextWithLimit,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('ImageProxyAPI')
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024
+const MAX_IMAGE_JSON_BYTES = Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 256 * 1024
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 600
@@ -116,7 +127,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } catch (error) {
       logger.error(`[${requestId}] Image generation failed:`, error)
       const errorMessage = getErrorMessage(error, 'Image generation failed')
-      return NextResponse.json({ error: errorMessage }, { status: 500 })
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: isPayloadSizeLimitError(error) ? 413 : 500 }
+      )
     }
 
     const storedImage = await storeGeneratedImage(imageResult, body, authResult.userId, requestId)
@@ -131,7 +145,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error(`[${requestId}] Image generation route error:`, error)
     const errorMessage = getErrorMessage(error, 'Unknown error')
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: isPayloadSizeLimitError(error) ? 413 : 500 }
+    )
   }
 })
 
@@ -172,6 +189,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const imageResponse = await secureFetchWithPinnedIP(imageUrl, urlValidation.resolvedIP!, {
       method: 'GET',
+      maxResponseBytes: MAX_IMAGE_BYTES,
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -186,6 +204,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (!imageResponse.ok) {
+      await consumeOrCancelBody(imageResponse)
       logger.error(`[${requestId}] Image fetch failed:`, {
         status: imageResponse.status,
         statusText: imageResponse.statusText,
@@ -197,14 +216,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
 
-    const imageArrayBuffer = await imageResponse.arrayBuffer()
+    const imageBuffer = await readResponseToBufferWithLimit(imageResponse, {
+      maxBytes: MAX_IMAGE_BYTES,
+      label: 'image proxy response',
+    })
 
-    if (imageArrayBuffer.byteLength === 0) {
+    if (imageBuffer.length === 0) {
       logger.error(`[${requestId}] Empty image received`)
       return new NextResponse('Empty image received', { status: 404 })
     }
 
-    return new NextResponse(imageArrayBuffer, {
+    return new NextResponse(new Uint8Array(imageBuffer), {
       headers: {
         'Content-Type': contentType,
         'Access-Control-Allow-Origin': '*',
@@ -216,7 +238,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     logger.error(`[${requestId}] Image proxy error:`, { error: errorMessage })
 
     return new NextResponse(`Failed to proxy image: ${errorMessage}`, {
-      status: 500,
+      status: isPayloadSizeLimitError(error) ? 413 : 500,
     })
   }
 })
@@ -458,9 +480,11 @@ async function bufferFromImageUrl(url: string): Promise<{ buffer: Buffer; conten
   if (url.startsWith('data:')) {
     const match = /^data:([^;]+);base64,(.+)$/u.exec(url)
     if (!match) throw new Error('Invalid data URI image response')
+    const buffer = Buffer.from(match[2], 'base64')
+    assertKnownSizeWithinLimit(buffer.length, MAX_IMAGE_BYTES, 'inline image response')
     return {
       contentType: match[1],
-      buffer: Buffer.from(match[2], 'base64'),
+      buffer,
     }
   }
 
@@ -471,15 +495,22 @@ async function bufferFromImageUrl(url: string): Promise<{ buffer: Buffer; conten
 
   const imageResponse = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
     method: 'GET',
+    maxResponseBytes: MAX_IMAGE_BYTES,
   })
   if (!imageResponse.ok) {
-    await imageResponse.text().catch(() => {})
+    await readResponseTextWithLimit(imageResponse, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'generated image error response',
+    }).catch(() => '')
     throw new Error(`Failed to download generated image: ${imageResponse.status}`)
   }
 
   const contentType = imageResponse.headers.get('content-type') || 'image/png'
-  const arrayBuffer = await imageResponse.arrayBuffer()
-  return { buffer: Buffer.from(arrayBuffer), contentType }
+  const buffer = await readResponseToBufferWithLimit(imageResponse, {
+    maxBytes: MAX_IMAGE_BYTES,
+    label: 'generated image download',
+  })
+  return { buffer, contentType }
 }
 
 async function generateWithOpenAI(
@@ -524,11 +555,17 @@ async function generateWithOpenAI(
   })
 
   if (!openaiResponse.ok) {
-    const error = await openaiResponse.text()
+    const error = await readResponseTextWithLimit(openaiResponse, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'OpenAI image error response',
+    })
     throw new Error(`OpenAI API error: ${openaiResponse.status} - ${error}`)
   }
 
-  const data = (await openaiResponse.json()) as unknown
+  const data = await readResponseJsonWithLimit(openaiResponse, {
+    maxBytes: MAX_IMAGE_JSON_BYTES,
+    label: 'OpenAI image response',
+  })
   if (!isRecord(data)) {
     throw new Error('Invalid OpenAI image response')
   }
@@ -542,6 +579,7 @@ async function generateWithOpenAI(
 
   if (base64Image) {
     buffer = Buffer.from(base64Image, 'base64')
+    assertKnownSizeWithinLimit(buffer.length, MAX_IMAGE_BYTES, 'OpenAI image response')
   } else if (imageUrl) {
     const downloaded = await bufferFromImageUrl(imageUrl)
     buffer = downloaded.buffer
@@ -611,11 +649,17 @@ async function generateWithGemini(
   )
 
   if (!geminiResponse.ok) {
-    const error = await geminiResponse.text()
+    const error = await readResponseTextWithLimit(geminiResponse, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'Gemini image error response',
+    })
     throw new Error(`Gemini API error: ${geminiResponse.status} - ${error}`)
   }
 
-  const data = (await geminiResponse.json()) as unknown
+  const data = await readResponseJsonWithLimit(geminiResponse, {
+    maxBytes: MAX_IMAGE_JSON_BYTES,
+    label: 'Gemini image response',
+  })
   if (!isRecord(data)) {
     throw new Error('Invalid Gemini image response')
   }
@@ -650,7 +694,11 @@ async function generateWithGemini(
   }
 
   return {
-    buffer: Buffer.from(base64Image, 'base64'),
+    buffer: (() => {
+      const buffer = Buffer.from(base64Image, 'base64')
+      assertKnownSizeWithinLimit(buffer.length, MAX_IMAGE_BYTES, 'Gemini image response')
+      return buffer
+    })(),
     contentType,
     fileName: `gemini-${model}.${extensionFromContentType(contentType)}`,
     provider: 'gemini',
@@ -767,11 +815,17 @@ async function generateWithFalAI(
   })
 
   if (!createResponse.ok) {
-    const error = await createResponse.text()
+    const error = await readResponseTextWithLimit(createResponse, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'Fal.ai create error response',
+    })
     throw new Error(`Fal.ai API error: ${createResponse.status} - ${error}`)
   }
 
-  const createData = (await createResponse.json()) as unknown
+  const createData = await readResponseJsonWithLimit(createResponse, {
+    maxBytes: MAX_IMAGE_JSON_BYTES,
+    label: 'Fal.ai create response',
+  })
   if (!isRecord(createData)) {
     throw new Error('Invalid Fal.ai queue response')
   }
@@ -804,11 +858,17 @@ async function generateWithFalAI(
     })
 
     if (!statusResponse.ok) {
-      await statusResponse.text().catch(() => {})
+      await readResponseTextWithLimit(statusResponse, {
+        maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+        label: 'Fal.ai status error response',
+      }).catch(() => '')
       throw new Error(`Fal.ai status check failed: ${statusResponse.status}`)
     }
 
-    const statusData = (await statusResponse.json()) as unknown
+    const statusData = await readResponseJsonWithLimit(statusResponse, {
+      maxBytes: MAX_IMAGE_JSON_BYTES,
+      label: 'Fal.ai status response',
+    })
     if (!isRecord(statusData)) {
       throw new Error('Invalid Fal.ai status response')
     }
@@ -830,11 +890,17 @@ async function generateWithFalAI(
       )
 
       if (!resultResponse.ok) {
-        await resultResponse.text().catch(() => {})
+        await readResponseTextWithLimit(resultResponse, {
+          maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+          label: 'Fal.ai result error response',
+        }).catch(() => '')
         throw new Error(`Failed to fetch Fal.ai result: ${resultResponse.status}`)
       }
 
-      const resultData = (await resultResponse.json()) as unknown
+      const resultData = await readResponseJsonWithLimit(resultResponse, {
+        maxBytes: MAX_IMAGE_JSON_BYTES,
+        label: 'Fal.ai result response',
+      })
       if (!isRecord(resultData)) {
         throw new Error('Invalid Fal.ai result response')
       }

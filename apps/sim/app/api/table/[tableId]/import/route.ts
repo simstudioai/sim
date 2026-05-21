@@ -14,12 +14,18 @@ import {
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  assertContentLengthWithinLimit,
+  isPayloadSizeLimitError,
+  readFileToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   addTableColumnsWithTx,
   batchInsertRowsWithTx,
   buildAutoMapping,
   CSV_MAX_BATCH_SIZE,
+  CSV_MAX_FILE_SIZE_BYTES,
   type CsvHeaderMapping,
   CsvImportValidationError,
   coerceRowsForTable,
@@ -34,6 +40,7 @@ import {
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSVExisting')
+const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 interface RouteParams {
   params: Promise<{ tableId: string }>
@@ -49,6 +56,18 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
+    if (request.headers && !request.headers.get('content-length')) {
+      return NextResponse.json(
+        { error: 'Content-Length is required for CSV imports' },
+        { status: 411 }
+      )
+    }
+    assertContentLengthWithinLimit(
+      request.headers,
+      CSV_MAX_FILE_SIZE_BYTES + MAX_MULTIPART_OVERHEAD_BYTES,
+      'CSV import body'
+    )
+
     const formData = await request.formData()
     const formValidation = csvImportFormSchema.safeParse({
       file: formData.get('file'),
@@ -59,9 +78,11 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     const rawCreateColumns = formData.get('createColumns')
 
     if (!formValidation.success) {
+      const message = getValidationErrorMessage(formValidation.error)
+      const isSizeLimit = message.includes('File exceeds maximum allowed size')
       return NextResponse.json(
-        { error: getValidationErrorMessage(formValidation.error) },
-        { status: 400 }
+        { error: isSizeLimit ? 'CSV import file exceeds maximum size' : message },
+        { status: isSizeLimit ? 413 : 400 }
       )
     }
 
@@ -125,7 +146,10 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       createColumns = createColumnsValidation.data
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer())
+    const buffer = await readFileToBufferWithLimit(file, {
+      maxBytes: CSV_MAX_FILE_SIZE_BYTES,
+      label: 'CSV import file',
+    })
     const delimiter = extensionValidation.data === 'tsv' ? '\t' : ','
     const { headers, rows } = await parseCsvBuffer(buffer, delimiter)
 
@@ -343,14 +367,19 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     const message = toError(error).message
     logger.error(`[${requestId}] CSV import into existing table failed:`, error)
 
+    const isSizeLimitError =
+      isPayloadSizeLimitError(error) || message.includes('CSV import file exceeds maximum size')
     const isClientError =
       message.includes('CSV file has no') ||
       message.includes('already exists') ||
-      message.includes('Invalid column name')
+      message.includes('Invalid column name') ||
+      isSizeLimitError
 
     return NextResponse.json(
       { error: isClientError ? message : 'Failed to import CSV' },
-      { status: isClientError ? 400 : 500 }
+      {
+        status: isSizeLimitError ? 413 : isClientError ? 400 : 500,
+      }
     )
   }
 })

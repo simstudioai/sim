@@ -1,6 +1,6 @@
 import { Buffer, isUtf8 } from 'buffer'
 import { createHash } from 'crypto'
-import fsPromises, { readFile } from 'fs/promises'
+import fsPromises from 'fs/promises'
 import path from 'path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -15,6 +15,13 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
+import {
+  assertKnownSizeWithinLimit,
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  isPayloadSizeLimitError,
+  readResponseTextWithLimit,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
@@ -41,6 +48,8 @@ const logger = createLogger('FilesParseAPI')
 
 const MAX_DOWNLOAD_SIZE_BYTES = 100 * 1024 * 1024 // 100 MB
 const DOWNLOAD_TIMEOUT_MS = 30000 // 30 seconds
+const MAX_FILE_REFERENCE_LENGTH = 4096
+const MAX_MULTI_FILE_PARSE_OUTPUT_BYTES = 5 * 1024 * 1024
 const BINARY_EXTENSIONS = new Set<string>(binaryExtensionsList)
 
 function isLikelyTextBuffer(fileBuffer: Buffer): boolean {
@@ -67,6 +76,10 @@ interface ParseResult {
     hash: string
     processingTime: number
   }
+}
+
+function getContentBytes(content: unknown): number {
+  return typeof content === 'string' ? Buffer.byteLength(content, 'utf8') : 0
 }
 
 /**
@@ -134,49 +147,69 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (Array.isArray(filePath)) {
-      const results = await Promise.all(
-        filePath.map(async (singlePath) => {
-          if (!singlePath || (typeof singlePath === 'string' && singlePath.trim() === '')) {
-            return {
-              success: false,
-              error: 'Empty file path in array',
-              filePath: singlePath || '',
-            }
+      const results = []
+      let totalOutputBytes = 0
+
+      for (const singlePath of filePath) {
+        if (!singlePath || (typeof singlePath === 'string' && singlePath.trim() === '')) {
+          results.push({
+            success: false,
+            error: 'Empty file path in array',
+            filePath: singlePath || '',
+          })
+          continue
+        }
+
+        const remainingOutputBytes = MAX_MULTI_FILE_PARSE_OUTPUT_BYTES - totalOutputBytes
+        if (remainingOutputBytes <= 0) {
+          return parsedOutputTooLargeResponse()
+        }
+
+        const result = await parseFileSingle(
+          singlePath,
+          fileType,
+          workspaceId,
+          userId,
+          executionContext,
+          headers,
+          request.signal,
+          remainingOutputBytes,
+          remainingOutputBytes
+        )
+        if (result.metadata) {
+          result.metadata.processingTime = Date.now() - startTime
+        }
+
+        if (result.success) {
+          totalOutputBytes += getContentBytes(result.content)
+          if (totalOutputBytes > MAX_MULTI_FILE_PARSE_OUTPUT_BYTES) {
+            return parsedOutputTooLargeResponse()
           }
 
-          const result = await parseFileSingle(
-            singlePath,
-            fileType,
-            workspaceId,
-            userId,
-            executionContext,
-            headers
-          )
-          if (result.metadata) {
-            result.metadata.processingTime = Date.now() - startTime
-          }
+          const displayName =
+            result.originalName || extractCleanFilename(result.filePath) || 'unknown'
+          results.push({
+            success: true,
+            output: {
+              content: result.content,
+              name: displayName,
+              fileType: result.metadata?.fileType || 'application/octet-stream',
+              size: result.metadata?.size || 0,
+              binary: false,
+              file: result.userFile,
+            },
+            filePath: result.filePath,
+            viewerUrl: result.viewerUrl,
+          })
+          continue
+        }
 
-          if (result.success) {
-            const displayName =
-              result.originalName || extractCleanFilename(result.filePath) || 'unknown'
-            return {
-              success: true,
-              output: {
-                content: result.content,
-                name: displayName,
-                fileType: result.metadata?.fileType || 'application/octet-stream',
-                size: result.metadata?.size || 0,
-                binary: false,
-                file: result.userFile,
-              },
-              filePath: result.filePath,
-              viewerUrl: result.viewerUrl,
-            }
-          }
+        if (result.error?.startsWith('Parsed file output is too large')) {
+          return parsedOutputTooLargeResponse()
+        }
 
-          return result
-        })
-      )
+        results.push(result)
+      }
 
       return NextResponse.json({
         success: true,
@@ -190,7 +223,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       workspaceId,
       userId,
       executionContext,
-      headers
+      headers,
+      request.signal
     )
 
     if (result.metadata) {
@@ -237,7 +271,10 @@ async function parseFileSingle(
   workspaceId: string,
   userId: string,
   executionContext?: ExecutionContext,
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
+  signal?: AbortSignal,
+  maxDownloadBytes = MAX_DOWNLOAD_SIZE_BYTES,
+  maxParsedOutputBytes?: number
 ): Promise<ParseResult> {
   logger.info('Parsing file:', filePath)
 
@@ -246,6 +283,15 @@ async function parseFileSingle(
       success: false,
       error: 'Empty file path provided',
       filePath: filePath || '',
+    }
+  }
+
+  const referenceValidation = validateFileReferenceShape(filePath)
+  if (!referenceValidation.isValid) {
+    return {
+      success: false,
+      error: referenceValidation.error || 'Invalid file reference',
+      filePath,
     }
   }
 
@@ -259,18 +305,120 @@ async function parseFileSingle(
   }
 
   if (isInternalFileUrl(filePath)) {
-    return handleCloudFile(filePath, fileType, undefined, userId, executionContext)
+    return handleCloudFile(
+      filePath,
+      fileType,
+      undefined,
+      userId,
+      executionContext,
+      maxDownloadBytes,
+      maxParsedOutputBytes
+    )
   }
 
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    return handleExternalUrl(filePath, fileType, workspaceId, userId, executionContext, headers)
+    return handleExternalUrl(
+      filePath,
+      fileType,
+      workspaceId,
+      userId,
+      executionContext,
+      headers,
+      signal,
+      maxDownloadBytes,
+      maxParsedOutputBytes
+    )
   }
 
   if (isUsingCloudStorage()) {
-    return handleCloudFile(filePath, fileType, undefined, userId, executionContext)
+    return handleCloudFile(
+      filePath,
+      fileType,
+      undefined,
+      userId,
+      executionContext,
+      maxDownloadBytes,
+      maxParsedOutputBytes
+    )
   }
 
-  return handleLocalFile(filePath, fileType, userId, executionContext)
+  return handleLocalFile(
+    filePath,
+    fileType,
+    userId,
+    executionContext,
+    maxDownloadBytes,
+    maxParsedOutputBytes
+  )
+}
+
+function validateFileReferenceShape(filePath: string): { isValid: boolean; error?: string } {
+  const trimmed = filePath.trim()
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    isInternalFileUrl(trimmed)
+  ) {
+    return { isValid: true }
+  }
+
+  if (trimmed.startsWith('data:')) {
+    return {
+      isValid: false,
+      error: 'File input must be a URL or uploaded file reference, not inline file content',
+    }
+  }
+
+  if (filePath.length > MAX_FILE_REFERENCE_LENGTH) {
+    return {
+      isValid: false,
+      error: 'File reference is too long; provide a file URL or upload the file instead',
+    }
+  }
+
+  if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(filePath)) {
+    return {
+      isValid: false,
+      error:
+        'File reference contains binary content; provide a file URL or upload the file instead',
+    }
+  }
+
+  const newlineCount = filePath.match(/\r\n|\r|\n/g)?.length ?? 0
+  if (newlineCount > 2) {
+    return {
+      isValid: false,
+      error:
+        'File reference looks like inline file content; provide a file URL or upload the file instead',
+    }
+  }
+
+  return { isValid: true }
+}
+
+function parsedOutputTooLargeResponse(): NextResponse {
+  return NextResponse.json(
+    {
+      success: false,
+      error: `Parsed file output is too large to return safely. Maximum combined parsed output is ${prettySize(
+        MAX_MULTI_FILE_PARSE_OUTPUT_BYTES
+      )}.`,
+    },
+    { status: 413 }
+  )
+}
+
+function getParsedOutputTooLargeMessage(maxBytes: number): string {
+  return `Parsed file output is too large to return safely. Maximum parsed output is ${prettySize(
+    maxBytes
+  )}.`
+}
+
+function assertParsedContentWithinLimit(content: string, maxBytes?: number): string {
+  if (maxBytes !== undefined) {
+    assertKnownSizeWithinLimit(Buffer.byteLength(content, 'utf8'), maxBytes, 'parsed file output')
+  }
+  return content
 }
 
 /**
@@ -311,7 +459,10 @@ async function handleExternalUrl(
   workspaceId: string,
   userId: string,
   executionContext?: ExecutionContext,
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
+  signal?: AbortSignal,
+  maxDownloadBytes = MAX_DOWNLOAD_SIZE_BYTES,
+  maxParsedOutputBytes?: number
 ): Promise<ParseResult> {
   try {
     logger.info('Fetching external URL:', url)
@@ -388,29 +539,39 @@ async function handleExternalUrl(
 
         if (existingFile) {
           const storageFilePath = `/api/files/serve/${existingFile.key}`
-          return handleCloudFile(storageFilePath, fileType, 'workspace', userId, executionContext)
+          return handleCloudFile(
+            storageFilePath,
+            fileType,
+            'workspace',
+            userId,
+            executionContext,
+            maxDownloadBytes,
+            maxParsedOutputBytes
+          )
         }
       }
     }
 
     const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, {
       timeout: DOWNLOAD_TIMEOUT_MS,
+      maxResponseBytes: maxDownloadBytes,
+      signal,
       ...(headers && Object.keys(headers).length > 0 && { headers }),
     })
     if (!response.ok) {
+      await readResponseTextWithLimit(response, {
+        maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+        label: 'file download error response',
+        signal,
+      }).catch(() => '')
       throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`)
     }
 
-    const contentLength = response.headers.get('content-length')
-    if (contentLength && Number.parseInt(contentLength) > MAX_DOWNLOAD_SIZE_BYTES) {
-      throw new Error(`File too large: ${contentLength} bytes (max: ${MAX_DOWNLOAD_SIZE_BYTES})`)
-    }
-
-    const buffer = Buffer.from(await response.arrayBuffer())
-
-    if (buffer.length > MAX_DOWNLOAD_SIZE_BYTES) {
-      throw new Error(`File too large: ${buffer.length} bytes (max: ${MAX_DOWNLOAD_SIZE_BYTES})`)
-    }
+    const buffer = await readResponseToBufferWithLimit(response, {
+      maxBytes: maxDownloadBytes,
+      label: 'file download',
+      signal,
+    })
 
     logger.info(`Downloaded file from URL: ${url}, size: ${buffer.length} bytes`)
 
@@ -449,13 +610,20 @@ async function handleExternalUrl(
 
     let parseResult: ParseResult
     if (extension === 'pdf') {
-      parseResult = await handlePdfBuffer(buffer, filename, fileType, url)
+      parseResult = await handlePdfBuffer(buffer, filename, fileType, url, maxParsedOutputBytes)
     } else if (extension === 'csv') {
-      parseResult = await handleCsvBuffer(buffer, filename, fileType, url)
+      parseResult = await handleCsvBuffer(buffer, filename, fileType, url, maxParsedOutputBytes)
     } else if (isSupportedFileType(extension)) {
-      parseResult = await handleGenericTextBuffer(buffer, filename, extension, fileType, url)
+      parseResult = await handleGenericTextBuffer(
+        buffer,
+        filename,
+        extension,
+        fileType,
+        url,
+        maxParsedOutputBytes
+      )
     } else {
-      parseResult = handleGenericBuffer(buffer, filename, extension, fileType)
+      parseResult = handleGenericBuffer(buffer, filename, extension, fileType, maxParsedOutputBytes)
     }
 
     // Attach userFile to the result
@@ -466,6 +634,25 @@ async function handleExternalUrl(
     return parseResult
   } catch (error) {
     logger.error(`Error handling external URL ${sanitizeUrlForLog(url)}:`, error)
+    if (isPayloadSizeLimitError(error)) {
+      logger.warn('Rejected oversized external file parse payload', {
+        maxBytes: error.maxBytes,
+        observedBytes: error.observedBytes,
+        label: error.label,
+        url: sanitizeUrlForLog(url),
+      })
+      return {
+        success: false,
+        error:
+          error.label === 'parsed file output'
+            ? getParsedOutputTooLargeMessage(error.maxBytes)
+            : `File is too large to parse safely. Maximum supported download size is ${prettySize(
+                error.maxBytes
+              )}.`,
+        filePath: url,
+      }
+    }
+
     return {
       success: false,
       error: `Error fetching URL: ${(error as Error).message}`,
@@ -484,7 +671,9 @@ async function handleCloudFile(
   fileType: string,
   explicitContext: string | undefined,
   userId: string,
-  executionContext?: ExecutionContext
+  executionContext?: ExecutionContext,
+  maxDownloadBytes = MAX_DOWNLOAD_SIZE_BYTES,
+  maxParsedOutputBytes?: number
 ): Promise<ParseResult> {
   try {
     const cloudKey = extractStorageKey(filePath)
@@ -524,7 +713,11 @@ async function handleCloudFile(
       }
     }
 
-    const fileBuffer = await StorageService.downloadFile({ key: cloudKey, context })
+    const fileBuffer = await StorageService.downloadFile({
+      key: cloudKey,
+      context,
+      maxBytes: maxDownloadBytes,
+    })
     logger.info(
       `Downloaded file from ${context} storage (${explicitContext ? 'explicit' : 'inferred'}): ${cloudKey}, size: ${fileBuffer.length} bytes`
     )
@@ -582,19 +775,38 @@ async function handleCloudFile(
 
     let parseResult: ParseResult
     if (extension === 'pdf') {
-      parseResult = await handlePdfBuffer(fileBuffer, filename, fileType, normalizedFilePath)
+      parseResult = await handlePdfBuffer(
+        fileBuffer,
+        filename,
+        fileType,
+        normalizedFilePath,
+        maxParsedOutputBytes
+      )
     } else if (extension === 'csv') {
-      parseResult = await handleCsvBuffer(fileBuffer, filename, fileType, normalizedFilePath)
+      parseResult = await handleCsvBuffer(
+        fileBuffer,
+        filename,
+        fileType,
+        normalizedFilePath,
+        maxParsedOutputBytes
+      )
     } else if (isSupportedFileType(extension)) {
       parseResult = await handleGenericTextBuffer(
         fileBuffer,
         filename,
         extension,
         fileType,
-        normalizedFilePath
+        normalizedFilePath,
+        maxParsedOutputBytes
       )
     } else {
-      parseResult = handleGenericBuffer(fileBuffer, filename, extension, fileType)
+      parseResult = handleGenericBuffer(
+        fileBuffer,
+        filename,
+        extension,
+        fileType,
+        maxParsedOutputBytes
+      )
       parseResult.filePath = normalizedFilePath
     }
 
@@ -614,6 +826,25 @@ async function handleCloudFile(
     logger.error(`Error handling cloud file ${filePath}:`, error)
 
     const errorMessage = (error as Error).message
+    if (isPayloadSizeLimitError(error)) {
+      logger.warn('Rejected oversized cloud file parse payload', {
+        maxBytes: error.maxBytes,
+        observedBytes: error.observedBytes,
+        label: error.label,
+        filePath,
+      })
+      return {
+        success: false,
+        error:
+          error.label === 'parsed file output'
+            ? getParsedOutputTooLargeMessage(error.maxBytes)
+            : `File is too large to parse safely. Maximum supported download size is ${prettySize(
+                error.maxBytes
+              )}.`,
+        filePath,
+      }
+    }
+
     if (errorMessage.includes('Access denied') || errorMessage.includes('Forbidden')) {
       throw new Error(`Error accessing file from cloud storage: ${errorMessage}`)
     }
@@ -633,14 +864,17 @@ async function handleLocalFile(
   filePath: string,
   fileType: string,
   userId: string,
-  executionContext?: ExecutionContext
+  executionContext?: ExecutionContext,
+  maxDownloadBytes = MAX_DOWNLOAD_SIZE_BYTES,
+  maxParsedOutputBytes?: number
 ): Promise<ParseResult> {
   try {
-    const filename = filePath.split('/').pop() || filePath
+    const storageKey = isInternalFileUrl(filePath) ? extractStorageKey(filePath) : filePath
+    const filename = storageKey.split('/').pop() || storageKey
 
-    const context = inferContextFromKey(filename)
+    const context = inferContextFromKey(storageKey)
     const hasAccess = await verifyFileAccess(
-      filename,
+      storageKey,
       userId,
       undefined, // customConfig
       context, // context
@@ -656,7 +890,7 @@ async function handleLocalFile(
       }
     }
 
-    const fullPath = path.join(UPLOAD_DIR_SERVER, filename)
+    const fullPath = path.join(UPLOAD_DIR_SERVER, storageKey)
 
     logger.info('Processing local file:', fullPath)
 
@@ -666,10 +900,12 @@ async function handleLocalFile(
       throw new Error(`File not found: ${filename}`)
     }
 
-    const result = await parseFile(fullPath)
-
     const stats = await fsPromises.stat(fullPath)
-    const fileBuffer = await readFile(fullPath)
+    assertKnownSizeWithinLimit(stats.size, maxDownloadBytes, 'local file')
+
+    const result = await parseFile(fullPath)
+    const content = assertParsedContentWithinLimit(result.content, maxParsedOutputBytes)
+    const fileBuffer = await fsPromises.readFile(fullPath)
     const hash = createHash('md5').update(fileBuffer).digest('hex')
 
     const extension = path.extname(filename).toLowerCase().substring(1)
@@ -694,7 +930,7 @@ async function handleLocalFile(
 
     return {
       success: true,
-      content: result.content,
+      content,
       filePath,
       userFile,
       metadata: {
@@ -706,6 +942,25 @@ async function handleLocalFile(
     }
   } catch (error) {
     logger.error(`Error handling local file ${filePath}:`, error)
+    if (isPayloadSizeLimitError(error)) {
+      logger.warn('Rejected oversized local file parse payload', {
+        maxBytes: error.maxBytes,
+        observedBytes: error.observedBytes,
+        label: error.label,
+        filePath,
+      })
+      return {
+        success: false,
+        error:
+          error.label === 'parsed file output'
+            ? getParsedOutputTooLargeMessage(error.maxBytes)
+            : `File is too large to parse safely. Maximum supported local file size is ${prettySize(
+                error.maxBytes
+              )}.`,
+        filePath,
+      }
+    }
+
     return {
       success: false,
       error: `Error processing local file: ${(error as Error).message}`,
@@ -721,7 +976,8 @@ async function handlePdfBuffer(
   fileBuffer: Buffer,
   filename: string,
   fileType?: string,
-  originalPath?: string
+  originalPath?: string,
+  maxParsedOutputBytes?: number
 ): Promise<ParseResult> {
   try {
     logger.info(`Parsing PDF in memory: ${filename}`)
@@ -731,10 +987,11 @@ async function handlePdfBuffer(
     const content =
       result.content ||
       createPdfFallbackMessage(result.metadata?.pageCount || 0, fileBuffer.length, originalPath)
+    const limitedContent = assertParsedContentWithinLimit(content, maxParsedOutputBytes)
 
     return {
       success: true,
-      content,
+      content: limitedContent,
       filePath: originalPath || filename,
       metadata: {
         fileType: fileType || 'application/pdf',
@@ -744,6 +1001,8 @@ async function handlePdfBuffer(
       },
     }
   } catch (error) {
+    if (isPayloadSizeLimitError(error)) throw error
+
     logger.error('Failed to parse PDF in memory:', error)
 
     const content = createPdfFailureMessage(
@@ -774,7 +1033,8 @@ async function handleCsvBuffer(
   fileBuffer: Buffer,
   filename: string,
   fileType?: string,
-  originalPath?: string
+  originalPath?: string,
+  maxParsedOutputBytes?: number
 ): Promise<ParseResult> {
   try {
     logger.info(`Parsing CSV in memory: ${filename}`)
@@ -784,7 +1044,7 @@ async function handleCsvBuffer(
 
     return {
       success: true,
-      content: result.content,
+      content: assertParsedContentWithinLimit(result.content, maxParsedOutputBytes),
       filePath: originalPath || filename,
       metadata: {
         fileType: fileType || 'text/csv',
@@ -794,6 +1054,8 @@ async function handleCsvBuffer(
       },
     }
   } catch (error) {
+    if (isPayloadSizeLimitError(error)) throw error
+
     logger.error('Failed to parse CSV in memory:', error)
     return {
       success: false,
@@ -817,7 +1079,8 @@ async function handleGenericTextBuffer(
   filename: string,
   extension: string,
   fileType?: string,
-  originalPath?: string
+  originalPath?: string,
+  maxParsedOutputBytes?: number
 ): Promise<ParseResult> {
   try {
     logger.info(`Parsing text file in memory: ${filename}`)
@@ -830,7 +1093,7 @@ async function handleGenericTextBuffer(
 
         return {
           success: true,
-          content: result.content,
+          content: assertParsedContentWithinLimit(result.content, maxParsedOutputBytes),
           filePath: originalPath || filename,
           metadata: {
             fileType: fileType || getMimeTypeFromExtension(extension),
@@ -841,9 +1104,14 @@ async function handleGenericTextBuffer(
         }
       }
     } catch (parserError) {
+      if (isPayloadSizeLimitError(parserError)) throw parserError
+
       logger.warn('Specialized parser failed, falling back to generic parsing:', parserError)
     }
 
+    if (maxParsedOutputBytes !== undefined) {
+      assertKnownSizeWithinLimit(fileBuffer.length, maxParsedOutputBytes, 'parsed file output')
+    }
     const content = fileBuffer.toString('utf-8')
 
     return {
@@ -858,6 +1126,8 @@ async function handleGenericTextBuffer(
       },
     }
   } catch (error) {
+    if (isPayloadSizeLimitError(error)) throw error
+
     logger.error('Failed to parse text file in memory:', error)
     return {
       success: false,
@@ -880,12 +1150,13 @@ function handleGenericBuffer(
   fileBuffer: Buffer,
   filename: string,
   extension: string,
-  fileType?: string
+  fileType?: string,
+  maxParsedOutputBytes?: number
 ): ParseResult {
   const normalizedExtension = extension.toLowerCase()
   const content =
     !BINARY_EXTENSIONS.has(normalizedExtension) && isLikelyTextBuffer(fileBuffer)
-      ? fileBuffer.toString('utf-8')
+      ? assertParsedContentWithinLimit(fileBuffer.toString('utf-8'), maxParsedOutputBytes)
       : `[Binary ${normalizedExtension.toUpperCase()} file - ${fileBuffer.length} bytes]`
 
   return {

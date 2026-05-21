@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
   getLargeValueMaterializationError,
@@ -132,22 +133,31 @@ export async function readLargeValueRefFromStorage(
 
   assertLargeValueRefAccess(ref, options)
   assertInlineMaterializationSize(ref.size, options.maxBytes)
+  const maxBytes = options.maxBytes ?? MAX_INLINE_MATERIALIZATION_BYTES
 
   try {
     const { StorageService } = await import('@/lib/uploads')
     const buffer = await StorageService.downloadFile({
       key: ref.key,
       context: 'execution',
+      maxBytes,
     })
-    if (buffer.length > (options.maxBytes ?? MAX_INLINE_MATERIALIZATION_BYTES)) {
+    if (buffer.length > maxBytes) {
       throw new ExecutionResourceLimitError({
         resource: 'execution_payload_bytes',
         attemptedBytes: buffer.length,
-        limitBytes: options.maxBytes ?? MAX_INLINE_MATERIALIZATION_BYTES,
+        limitBytes: maxBytes,
       })
     }
     return JSON.parse(buffer.toString('utf8'))
   } catch (error) {
+    if (isPayloadSizeLimitError(error)) {
+      throw new ExecutionResourceLimitError({
+        resource: 'execution_payload_bytes',
+        attemptedBytes: error.observedBytes ?? maxBytes + 1,
+        limitBytes: maxBytes,
+      })
+    }
     if (error instanceof ExecutionResourceLimitError) {
       throw error
     }
@@ -280,7 +290,18 @@ export async function readUserFileContent(
   const log = getLogger(options)
   const requestId = options.requestId ?? 'unknown'
 
-  buffer = await downloadFileFromStorage(file, requestId, log)
+  try {
+    buffer = await downloadFileFromStorage(file, requestId, log, { maxBytes: maxSourceBytes })
+  } catch (error) {
+    if (isPayloadSizeLimitError(error)) {
+      throw new ExecutionResourceLimitError({
+        resource: 'execution_payload_bytes',
+        attemptedBytes: error.observedBytes ?? maxSourceBytes + 1,
+        limitBytes: maxSourceBytes,
+      })
+    }
+    throw error
+  }
 
   if (!buffer) {
     throw new Error(`File content for ${file.name} is unavailable.`)

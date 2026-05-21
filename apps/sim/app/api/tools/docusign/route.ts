@@ -4,17 +4,48 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { docusignToolContract } from '@/lib/api/contracts/tools/docusign'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import {
+  assertKnownSizeWithinLimit,
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  isPayloadSizeLimitError,
+  PayloadSizeLimitError,
+  readResponseJsonWithLimit,
+  readResponseTextWithLimit,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 const logger = createLogger('DocuSignAPI')
+const MAX_DOCUSIGN_DOCUMENT_BYTES = 25 * 1024 * 1024
+const MAX_DOCUSIGN_JSON_BYTES = 2 * 1024 * 1024
+const MAX_LEGACY_INLINE_DOCUMENT_BYTES = 7 * 1024 * 1024
 
 interface DocuSignAccountInfo {
   accountId: string
   baseUri: string
+}
+
+async function readDocusignJson(
+  response: Response,
+  label: string
+): Promise<Record<string, unknown>> {
+  return readResponseJsonWithLimit<Record<string, unknown>>(response, {
+    maxBytes: MAX_DOCUSIGN_JSON_BYTES,
+    label,
+  })
+}
+
+function docusignError(data: Record<string, unknown>, fallback: string): string {
+  return (
+    (typeof data.message === 'string' && data.message) ||
+    (typeof data.errorCode === 'string' && data.errorCode) ||
+    fallback
+  )
 }
 
 /**
@@ -27,7 +58,10 @@ async function resolveAccount(accessToken: string): Promise<DocuSignAccountInfo>
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
+    const errorText = await readResponseTextWithLimit(response, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'DocuSign account error response',
+    }).catch(() => '')
     logger.error('Failed to resolve DocuSign account', {
       status: response.status,
       error: errorText,
@@ -35,10 +69,16 @@ async function resolveAccount(accessToken: string): Promise<DocuSignAccountInfo>
     throw new Error(`Failed to resolve DocuSign account: ${response.status}`)
   }
 
-  const data = await response.json()
-  const accounts = data.accounts ?? []
+  const data = await readDocusignJson(response, 'DocuSign account response')
+  const accounts = Array.isArray(data.accounts)
+    ? (data.accounts as Array<{
+        is_default?: boolean
+        base_uri?: string
+        account_id?: string
+      }>)
+    : []
 
-  const defaultAccount = accounts.find((a: { is_default: boolean }) => a.is_default) ?? accounts[0]
+  const defaultAccount = accounts.find((account) => account.is_default) ?? accounts[0]
   if (!defaultAccount) {
     throw new Error('No DocuSign accounts found for this user')
   }
@@ -47,9 +87,13 @@ async function resolveAccount(accessToken: string): Promise<DocuSignAccountInfo>
   if (!baseUri) {
     throw new Error('DocuSign account is missing base_uri')
   }
+  const accountId = defaultAccount.account_id
+  if (!accountId) {
+    throw new Error('DocuSign account is missing account_id')
+  }
 
   return {
-    accountId: defaultAccount.account_id,
+    accountId,
     baseUri,
   }
 }
@@ -110,7 +154,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error('DocuSign API error', { operation, error })
     const message = getErrorMessage(error, 'Internal server error')
-    return NextResponse.json({ success: false, error: message }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: isPayloadSizeLimitError(error) ? 413 : 500 }
+    )
   }
 })
 
@@ -140,15 +187,29 @@ async function handleSendEnvelope(
         const userFile = userFiles[0]
         const denied = await assertToolFileAccess(userFile.key, userId, 'docusign-send', logger)
         if (denied) return denied
-        const buffer = await downloadFileFromStorage(userFile, 'docusign-send', logger)
+        if (userFile.size > MAX_DOCUSIGN_DOCUMENT_BYTES) {
+          return NextResponse.json(
+            { success: false, error: 'Document is too large to send through DocuSign' },
+            { status: 413 }
+          )
+        }
+        const buffer = await downloadFileFromStorage(userFile, 'docusign-send', logger, {
+          maxBytes: MAX_DOCUSIGN_DOCUMENT_BYTES,
+        })
+        assertKnownSizeWithinLimit(buffer.length, MAX_DOCUSIGN_DOCUMENT_BYTES, 'DocuSign document')
         documentBase64 = buffer.toString('base64')
         documentName = userFile.name
       }
     } catch (fileError) {
       logger.error('Failed to process file for DocuSign envelope', { fileError })
       return NextResponse.json(
-        { success: false, error: 'Failed to process uploaded file' },
-        { status: 400 }
+        {
+          success: false,
+          error: isPayloadSizeLimitError(fileError)
+            ? getErrorMessage(fileError, 'Document is too large to send through DocuSign')
+            : 'Failed to process uploaded file',
+        },
+        { status: isPayloadSizeLimitError(fileError) ? 413 : 400 }
       )
     }
   }
@@ -222,11 +283,11 @@ async function handleSendEnvelope(
     body: JSON.stringify(envelopeBody),
   })
 
-  const data = await response.json()
+  const data = await readDocusignJson(response, 'DocuSign send envelope response')
   if (!response.ok) {
     logger.error('DocuSign send envelope failed', { data, status: response.status })
     return NextResponse.json(
-      { success: false, error: data.message || data.errorCode || 'Failed to send envelope' },
+      { success: false, error: docusignError(data, 'Failed to send envelope') },
       { status: response.status }
     )
   }
@@ -276,13 +337,13 @@ async function handleCreateFromTemplate(
     body: JSON.stringify(envelopeBody),
   })
 
-  const data = await response.json()
+  const data = await readDocusignJson(response, 'DocuSign create from template response')
   if (!response.ok) {
     logger.error('DocuSign create from template failed', { data, status: response.status })
     return NextResponse.json(
       {
         success: false,
-        error: data.message || data.errorCode || 'Failed to create envelope from template',
+        error: docusignError(data, 'Failed to create envelope from template'),
       },
       { status: response.status }
     )
@@ -305,11 +366,11 @@ async function handleGetEnvelope(
     `${apiBase}/envelopes/${(envelopeId as string).trim()}?include=recipients,documents`,
     { headers }
   )
-  const data = await response.json()
+  const data = await readDocusignJson(response, 'DocuSign envelope response')
 
   if (!response.ok) {
     return NextResponse.json(
-      { success: false, error: data.message || data.errorCode || 'Failed to get envelope' },
+      { success: false, error: docusignError(data, 'Failed to get envelope') },
       { status: response.status }
     )
   }
@@ -339,11 +400,11 @@ async function handleListEnvelopes(
   if (params.count) queryParams.append('count', params.count as string)
 
   const response = await fetch(`${apiBase}/envelopes?${queryParams}`, { headers })
-  const data = await response.json()
+  const data = await readDocusignJson(response, 'DocuSign envelope list response')
 
   if (!response.ok) {
     return NextResponse.json(
-      { success: false, error: data.message || data.errorCode || 'Failed to list envelopes' },
+      { success: false, error: docusignError(data, 'Failed to list envelopes') },
       { status: response.status }
     )
   }
@@ -370,10 +431,10 @@ async function handleVoidEnvelope(
     body: JSON.stringify({ status: 'voided', voidedReason }),
   })
 
-  const data = await response.json()
+  const data = await readDocusignJson(response, 'DocuSign void envelope response')
   if (!response.ok) {
     return NextResponse.json(
-      { success: false, error: data.message || data.errorCode || 'Failed to void envelope' },
+      { success: false, error: docusignError(data, 'Failed to void envelope') },
       { status: response.status }
     )
   }
@@ -403,7 +464,10 @@ async function handleDownloadDocument(
   if (!response.ok) {
     let errorText = ''
     try {
-      errorText = await response.text()
+      errorText = await readResponseTextWithLimit(response, {
+        maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+        label: 'DocuSign document error response',
+      })
     } catch {
       // ignore
     }
@@ -422,7 +486,37 @@ async function handleDownloadDocument(
     fileName = filenameMatch[1].replace(/['"]/g, '')
   }
 
-  const buffer = Buffer.from(await response.arrayBuffer())
+  const buffer = await readResponseToBufferWithLimit(response, {
+    maxBytes: MAX_DOCUSIGN_DOCUMENT_BYTES,
+    label: 'DocuSign document download',
+  })
+
+  const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
+  const workflowId = typeof params.workflowId === 'string' ? params.workflowId : undefined
+  const executionId = typeof params.executionId === 'string' ? params.executionId : undefined
+
+  if (workspaceId && workflowId && executionId) {
+    const file = await uploadExecutionFile(
+      { workspaceId, workflowId, executionId },
+      buffer,
+      fileName,
+      contentType
+    )
+    return NextResponse.json({
+      file,
+      mimeType: contentType,
+      fileName,
+    })
+  }
+
+  if (buffer.length > MAX_LEGACY_INLINE_DOCUMENT_BYTES) {
+    throw new PayloadSizeLimitError({
+      label: 'DocuSign legacy inline document',
+      maxBytes: MAX_LEGACY_INLINE_DOCUMENT_BYTES,
+      observedBytes: buffer.length,
+    })
+  }
+
   const base64Content = buffer.toString('base64')
 
   return NextResponse.json({ base64Content, mimeType: contentType, fileName })
@@ -441,11 +535,11 @@ async function handleListTemplates(
   const url = queryString ? `${apiBase}/templates?${queryString}` : `${apiBase}/templates`
 
   const response = await fetch(url, { headers })
-  const data = await response.json()
+  const data = await readDocusignJson(response, 'DocuSign template list response')
 
   if (!response.ok) {
     return NextResponse.json(
-      { success: false, error: data.message || data.errorCode || 'Failed to list templates' },
+      { success: false, error: docusignError(data, 'Failed to list templates') },
       { status: response.status }
     )
   }
@@ -466,11 +560,11 @@ async function handleListRecipients(
   const response = await fetch(`${apiBase}/envelopes/${(envelopeId as string).trim()}/recipients`, {
     headers,
   })
-  const data = await response.json()
+  const data = await readDocusignJson(response, 'DocuSign recipients response')
 
   if (!response.ok) {
     return NextResponse.json(
-      { success: false, error: data.message || data.errorCode || 'Failed to list recipients' },
+      { success: false, error: docusignError(data, 'Failed to list recipients') },
       { status: response.status }
     )
   }

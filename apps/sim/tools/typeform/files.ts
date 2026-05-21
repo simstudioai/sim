@@ -1,5 +1,33 @@
+import {
+  PayloadSizeLimitError,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
+import type { UserFile } from '@/executor/types'
 import type { TypeformFilesParams, TypeformFilesResponse } from '@/tools/typeform/types'
 import type { ToolConfig } from '@/tools/types'
+
+const MAX_TYPEFORM_FILE_BYTES = 10 * 1024 * 1024
+const MAX_LEGACY_INLINE_FILE_BYTES = 7 * 1024 * 1024
+
+function getExecutionContext(params?: TypeformFilesParams): {
+  context?: { workspaceId: string; workflowId: string; executionId: string }
+  userId?: string
+} {
+  const context = (
+    params as (TypeformFilesParams & { _context?: Record<string, unknown> }) | undefined
+  )?._context
+  const workspaceId = typeof context?.workspaceId === 'string' ? context.workspaceId : undefined
+  const workflowId = typeof context?.workflowId === 'string' ? context.workflowId : undefined
+  const executionId = typeof context?.executionId === 'string' ? context.executionId : undefined
+  const userId = typeof context?.userId === 'string' ? context.userId : undefined
+
+  if (!workspaceId || !workflowId || !executionId) {
+    return { userId }
+  }
+
+  return { context: { workspaceId, workflowId, executionId }, userId }
+}
 
 export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> = {
   id: 'typeform_files',
@@ -73,8 +101,10 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
     // For file downloads, we get the file directly
     const contentType = response.headers.get('content-type') || 'application/octet-stream'
     const contentDisposition = response.headers.get('content-disposition') || ''
-    const arrayBuffer = await response.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    const buffer = await readResponseToBufferWithLimit(response, {
+      maxBytes: MAX_TYPEFORM_FILE_BYTES,
+      label: 'Typeform file download',
+    })
 
     // Try to extract filename from content-disposition if possible
     let filename = ''
@@ -106,16 +136,36 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
       }
     }
 
+    const { context, userId } = getExecutionContext(params)
+    let storedFile: (UserFile & { mimeType?: string }) | undefined
+
+    if (context) {
+      const userFile = await uploadExecutionFile(context, buffer, filename, contentType, userId)
+      storedFile = { ...userFile, mimeType: contentType }
+    }
+
+    if (!storedFile && buffer.length > MAX_LEGACY_INLINE_FILE_BYTES) {
+      throw new PayloadSizeLimitError({
+        label: 'Typeform legacy inline file',
+        maxBytes: MAX_LEGACY_INLINE_FILE_BYTES,
+        observedBytes: buffer.length,
+      })
+    }
+
     return {
       success: true,
       output: {
-        fileUrl: fileUrl || '',
-        file: {
-          name: filename,
-          mimeType: contentType,
-          data: buffer.toString('base64'),
-          size: buffer.length,
-        },
+        fileUrl: storedFile?.url || fileUrl || '',
+        file: storedFile
+          ? {
+              ...storedFile,
+            }
+          : {
+              name: filename,
+              mimeType: contentType,
+              data: buffer.toString('base64'),
+              size: buffer.length,
+            },
         contentType,
         filename,
       },

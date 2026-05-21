@@ -274,5 +274,9 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
 
 export const cleanupSoftDeletesTask = task({
   id: 'cleanup-soft-deletes',
+  queue: {
+    name: 'cleanup-soft-deletes',
+    concurrencyLimit: 1,
+  },
   run: runCleanupSoftDeletes,
 })

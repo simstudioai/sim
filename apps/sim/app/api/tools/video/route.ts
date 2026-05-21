@@ -7,15 +7,30 @@ import { videoProviders, videoToolContract } from '@/lib/api/contracts/tools/med
 import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import {
+  assertKnownSizeWithinLimit,
+  isPayloadSizeLimitError,
+  PayloadSizeLimitError,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('VideoProxyAPI')
+const MAX_VIDEO_OUTPUT_BYTES = 250 * 1024 * 1024
+const MAX_VIDEO_REFERENCE_IMAGE_BYTES = 25 * 1024 * 1024
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 600 // 10 minutes for video generation
+
+async function readVideoResponseBuffer(response: Response, label: string): Promise<Buffer> {
+  return readResponseToBufferWithLimit(response, {
+    maxBytes: MAX_VIDEO_OUTPUT_BYTES,
+    label,
+  })
+}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId()
@@ -214,7 +229,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } catch (error) {
       logger.error(`[${requestId}] Video generation failed:`, error)
       const errorMessage = getErrorMessage(error, 'Video generation failed')
-      return NextResponse.json({ error: errorMessage }, { status: 500 })
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: isPayloadSizeLimitError(error) ? 413 : 500 }
+      )
     }
 
     const executionContext =
@@ -298,7 +316,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error(`[${requestId}] Video proxy error:`, error)
     const errorMessage = getErrorMessage(error, 'Unknown error')
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: isPayloadSizeLimitError(error) ? 413 : 500 }
+    )
   }
 })
 
@@ -333,7 +354,21 @@ async function generateWithRunway(
   }
 
   if (visualReference) {
-    const refBuffer = await downloadFileFromStorage(visualReference, requestId, logger)
+    if (visualReference.size > MAX_VIDEO_REFERENCE_IMAGE_BYTES) {
+      throw new PayloadSizeLimitError({
+        label: 'video visual reference',
+        maxBytes: MAX_VIDEO_REFERENCE_IMAGE_BYTES,
+        observedBytes: visualReference.size,
+      })
+    }
+    const refBuffer = await downloadFileFromStorage(visualReference, requestId, logger, {
+      maxBytes: MAX_VIDEO_REFERENCE_IMAGE_BYTES,
+    })
+    assertKnownSizeWithinLimit(
+      refBuffer.length,
+      MAX_VIDEO_REFERENCE_IMAGE_BYTES,
+      'video visual reference'
+    )
     const refBase64 = refBuffer.toString('base64')
     createPayload.promptImage = `data:${visualReference.type};base64,${refBase64}` // Use promptImage
   }
@@ -388,9 +423,8 @@ async function generateWithRunway(
         throw new Error(`Failed to download video: ${videoResponse.status}`)
       }
 
-      const arrayBuffer = await videoResponse.arrayBuffer()
       return {
-        buffer: Buffer.from(arrayBuffer),
+        buffer: await readVideoResponseBuffer(videoResponse, 'Runway video response'),
         width: dimensions.width,
         height: dimensions.height,
         jobId: taskId,
@@ -510,9 +544,8 @@ async function generateWithVeo(
         throw new Error(`Failed to download video: ${videoResponse.status}`)
       }
 
-      const arrayBuffer = await videoResponse.arrayBuffer()
       return {
-        buffer: Buffer.from(arrayBuffer),
+        buffer: await readVideoResponseBuffer(videoResponse, 'Veo video response'),
         width: dimensions.width,
         height: dimensions.height,
         jobId: operationName,
@@ -616,9 +649,8 @@ async function generateWithLuma(
         throw new Error(`Failed to download video: ${videoResponse.status}`)
       }
 
-      const arrayBuffer = await videoResponse.arrayBuffer()
       return {
-        buffer: Buffer.from(arrayBuffer),
+        buffer: await readVideoResponseBuffer(videoResponse, 'Luma video response'),
         width: dimensions.width,
         height: dimensions.height,
         jobId: generationId,
@@ -766,9 +798,8 @@ async function generateWithMiniMax(
         throw new Error(`Failed to download video from URL: ${videoResponse.status}`)
       }
 
-      const arrayBuffer = await videoResponse.arrayBuffer()
       return {
-        buffer: Buffer.from(arrayBuffer),
+        buffer: await readVideoResponseBuffer(videoResponse, 'MiniMax video response'),
         width: dimensions.width,
         height: dimensions.height,
         jobId: taskId,
@@ -1212,8 +1243,6 @@ async function generateWithFalAI(
         throw new Error(`Failed to download video: ${videoResponse.status}`)
       }
 
-      const arrayBuffer = await videoResponse.arrayBuffer()
-
       let width = getNumberProperty(videoOutput, 'width') || 1920
       let height = getNumberProperty(videoOutput, 'height') || 1080
 
@@ -1224,7 +1253,7 @@ async function generateWithFalAI(
       }
 
       return {
-        buffer: Buffer.from(arrayBuffer),
+        buffer: await readVideoResponseBuffer(videoResponse, 'Fal.ai video response'),
         width,
         height,
         jobId: requestIdFal,

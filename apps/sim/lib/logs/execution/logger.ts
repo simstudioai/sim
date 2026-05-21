@@ -48,6 +48,160 @@ const TRIGGER_COUNTER_MAP: Record<string, { key: string; column: string }> = {
 } as const
 
 const logger = createLogger('ExecutionLogger')
+const MAX_EXECUTION_DATA_BYTES = 500 * 1024
+const MAX_TRACE_IO_BYTES = 8 * 1024
+const MAX_WORKFLOW_VALUE_BYTES = 64 * 1024
+const EXECUTION_LOG_STATEMENT_TIMEOUT_MS = 30_000
+const EXECUTION_LOG_LOCK_TIMEOUT_MS = 3_000
+const EXECUTION_LOG_IDLE_TIMEOUT_MS = 5_000
+
+type ExecutionData = WorkflowExecutionLog['executionData']
+
+function getJsonByteSize(value: unknown): number | undefined {
+  try {
+    const json = JSON.stringify(value)
+    return json === undefined ? undefined : Buffer.byteLength(json, 'utf8')
+  } catch {
+    return undefined
+  }
+}
+
+function describeValue(value: unknown): string {
+  if (value === null) return 'null'
+  if (value === undefined) return 'undefined'
+  if (Array.isArray(value)) return `array with ${value.length} items`
+  if (typeof value === 'string') return `string with ${value.length} characters`
+  if (typeof value === 'object') return `object with ${Object.keys(value).length} keys`
+  return typeof value
+}
+
+function summarizeValueForExecutionData(value: unknown, maxBytes: number): unknown {
+  const size = getJsonByteSize(value)
+  if (size === undefined || size <= maxBytes) {
+    return value
+  }
+
+  return {
+    _truncated: true,
+    reason: 'execution_data_size_limit',
+    originalBytes: size,
+    summary: describeValue(value),
+  }
+}
+
+function summarizeTextForExecutionData(value: string | undefined): string | undefined {
+  if (!value) return value
+  const size = getJsonByteSize(value)
+  if (size === undefined || size <= MAX_TRACE_IO_BYTES) {
+    return value
+  }
+  return `[Truncated ${size} byte text value due to execution log size limit]`
+}
+
+function summarizeTraceSpansForExecutionData(traceSpans?: TraceSpan[]): TraceSpan[] | undefined {
+  if (!traceSpans) {
+    return traceSpans
+  }
+
+  return traceSpans.map((span) => {
+    const { input, output, children, thinking, modelToolCalls, ...rest } = span
+    const summarized: TraceSpan = { ...rest }
+
+    if (input !== undefined) {
+      summarized.input = summarizeValueForExecutionData(input, MAX_TRACE_IO_BYTES) as Record<
+        string,
+        unknown
+      >
+    }
+    if (output !== undefined) {
+      summarized.output = summarizeValueForExecutionData(output, MAX_TRACE_IO_BYTES) as Record<
+        string,
+        unknown
+      >
+    }
+    if (children?.length) {
+      summarized.children = summarizeTraceSpansForExecutionData(children)
+    }
+    if (thinking !== undefined) {
+      summarized.thinking = summarizeTextForExecutionData(thinking)
+    }
+    if (
+      modelToolCalls !== undefined &&
+      (getJsonByteSize(modelToolCalls) ?? 0) <= MAX_TRACE_IO_BYTES
+    ) {
+      summarized.modelToolCalls = modelToolCalls
+    }
+
+    return summarized
+  })
+}
+
+function summarizeTraceSpansWithoutIo(traceSpans?: TraceSpan[]): TraceSpan[] | undefined {
+  if (!traceSpans) {
+    return traceSpans
+  }
+
+  return traceSpans.map((span) => {
+    const {
+      input: _input,
+      output: _output,
+      children,
+      thinking: _thinking,
+      modelToolCalls: _modelToolCalls,
+      ...rest
+    } = span
+    return {
+      ...rest,
+      ...(children?.length ? { children: summarizeTraceSpansWithoutIo(children) } : {}),
+    }
+  })
+}
+
+function summarizeExecutionState(executionState?: SerializableExecutionState) {
+  if (!executionState) {
+    return undefined
+  }
+
+  return {
+    executedBlockCount: executionState.executedBlocks.length,
+    blockLogCount: executionState.blockLogs.length,
+    completedLoopCount: executionState.completedLoops.length,
+    activeExecutionPathLength: executionState.activeExecutionPath.length,
+    pendingQueueLength: executionState.pendingQueue?.length ?? 0,
+  }
+}
+
+function recordStoredByteSize(executionData: ExecutionData): {
+  executionData: ExecutionData
+  storedBytes?: number
+} {
+  const firstBytes = getJsonByteSize(executionData)
+  if (firstBytes === undefined) {
+    return { executionData }
+  }
+
+  const withFirstSize = { ...executionData, executionDataStoredBytes: firstBytes }
+  const secondBytes = getJsonByteSize(withFirstSize)
+  if (secondBytes === undefined || secondBytes === firstBytes) {
+    return { executionData: withFirstSize, storedBytes: secondBytes ?? firstBytes }
+  }
+
+  const withSecondSize = { ...executionData, executionDataStoredBytes: secondBytes }
+  return {
+    executionData: withSecondSize,
+    storedBytes: getJsonByteSize(withSecondSize) ?? secondBytes,
+  }
+}
+
+async function setExecutionLogWriteTimeouts(trx: Pick<typeof db, 'execute'>): Promise<void> {
+  await trx.execute(
+    sql.raw(`SET LOCAL statement_timeout = '${EXECUTION_LOG_STATEMENT_TIMEOUT_MS}ms'`)
+  )
+  await trx.execute(sql.raw(`SET LOCAL lock_timeout = '${EXECUTION_LOG_LOCK_TIMEOUT_MS}ms'`))
+  await trx.execute(
+    sql.raw(`SET LOCAL idle_in_transaction_session_timeout = '${EXECUTION_LOG_IDLE_TIMEOUT_MS}ms'`)
+  )
+}
 
 function countTraceSpans(traceSpans?: TraceSpan[]): number {
   if (!Array.isArray(traceSpans) || traceSpans.length === 0) {
@@ -58,6 +212,133 @@ function countTraceSpans(traceSpans?: TraceSpan[]): number {
 }
 
 export class ExecutionLogger implements IExecutionLoggerService {
+  private compactExecutionDataForStorage(
+    executionData: ExecutionData,
+    executionId: string
+  ): ExecutionData {
+    const originalBytes = getJsonByteSize(executionData)
+    if (originalBytes === undefined || originalBytes <= MAX_EXECUTION_DATA_BYTES) {
+      return executionData
+    }
+
+    const { executionState: _executionState, ...executionDataWithoutState } = executionData
+    const summarized: ExecutionData = {
+      ...executionDataWithoutState,
+      traceSpans: summarizeTraceSpansForExecutionData(executionData.traceSpans),
+      finalOutput: summarizeValueForExecutionData(
+        executionData.finalOutput,
+        MAX_WORKFLOW_VALUE_BYTES
+      ) as BlockOutputData,
+      executionDataTruncated: true,
+      executionDataOriginalBytes: originalBytes,
+      executionDataMaxBytes: MAX_EXECUTION_DATA_BYTES,
+      executionDataTruncationReason:
+        'Execution log exceeded the maximum stored payload size, so large inputs and outputs were summarized.',
+    }
+
+    if (executionData.workflowInput !== undefined) {
+      summarized.workflowInput = summarizeValueForExecutionData(
+        executionData.workflowInput,
+        MAX_WORKFLOW_VALUE_BYTES
+      )
+    }
+
+    if (executionData.executionState) {
+      summarized.executionStateSummary = summarizeExecutionState(executionData.executionState)
+    }
+
+    const summarizedWithSize = recordStoredByteSize(summarized)
+    if (
+      summarizedWithSize.storedBytes !== undefined &&
+      summarizedWithSize.storedBytes <= MAX_EXECUTION_DATA_BYTES
+    ) {
+      logger.warn('Summarized oversized workflow execution data before storing log', {
+        executionId,
+        originalBytes,
+        storedBytes: summarizedWithSize.storedBytes,
+        maxBytes: MAX_EXECUTION_DATA_BYTES,
+      })
+      return summarizedWithSize.executionData
+    }
+
+    const minimal: ExecutionData = {
+      ...(executionData.environment ? { environment: executionData.environment } : {}),
+      ...(executionData.trigger ? { trigger: executionData.trigger } : {}),
+      ...(executionData.correlation ? { correlation: executionData.correlation } : {}),
+      ...(executionData.error ? { error: executionData.error } : {}),
+      ...(executionData.lastStartedBlock
+        ? { lastStartedBlock: executionData.lastStartedBlock }
+        : {}),
+      ...(executionData.lastCompletedBlock
+        ? { lastCompletedBlock: executionData.lastCompletedBlock }
+        : {}),
+      ...(executionData.completionFailure
+        ? { completionFailure: executionData.completionFailure }
+        : {}),
+      ...(executionData.finalizationPath
+        ? { finalizationPath: executionData.finalizationPath }
+        : {}),
+      hasTraceSpans: executionData.hasTraceSpans,
+      traceSpanCount: executionData.traceSpanCount,
+      traceSpans: summarizeTraceSpansWithoutIo(executionData.traceSpans),
+      finalOutput: summarizeValueForExecutionData(executionData.finalOutput, MAX_TRACE_IO_BYTES) as
+        | BlockOutputData
+        | undefined,
+      tokens: executionData.tokens,
+      models: executionData.models,
+      executionStateSummary: summarizeExecutionState(executionData.executionState),
+      executionDataTruncated: true,
+      executionDataOriginalBytes: originalBytes,
+      executionDataMaxBytes: MAX_EXECUTION_DATA_BYTES,
+      executionDataTruncationReason:
+        'Execution log exceeded the maximum stored payload size after summarization, so trace payload details were omitted.',
+    }
+
+    const minimalWithSize = recordStoredByteSize(minimal)
+
+    if (
+      minimalWithSize.storedBytes !== undefined &&
+      minimalWithSize.storedBytes > MAX_EXECUTION_DATA_BYTES
+    ) {
+      const metadataOnly: ExecutionData = {
+        hasTraceSpans: executionData.hasTraceSpans,
+        traceSpanCount: executionData.traceSpanCount,
+        tokens: executionData.tokens,
+        models: executionData.models,
+        executionDataTruncated: true,
+        executionDataOriginalBytes: originalBytes,
+        executionDataMaxBytes: MAX_EXECUTION_DATA_BYTES,
+        executionDataTruncationReason:
+          'Execution log exceeded the maximum stored payload size after minimal summarization, so only execution metadata was stored.',
+      }
+
+      const metadataOnlyWithSize = recordStoredByteSize(metadataOnly)
+      logger.warn(
+        'Stored metadata-only workflow execution data after oversized log summarization',
+        {
+          executionId,
+          originalBytes,
+          storedBytes: metadataOnlyWithSize.storedBytes,
+          minimalBytes: minimalWithSize.storedBytes,
+          summarizedBytes: summarizedWithSize.storedBytes,
+          maxBytes: MAX_EXECUTION_DATA_BYTES,
+        }
+      )
+
+      return metadataOnlyWithSize.executionData
+    }
+
+    logger.warn('Stored minimal workflow execution data after oversized log summarization', {
+      executionId,
+      originalBytes,
+      storedBytes: minimalWithSize.storedBytes,
+      summarizedBytes: summarizedWithSize.storedBytes,
+      maxBytes: MAX_EXECUTION_DATA_BYTES,
+    })
+
+    return minimalWithSize.executionData
+  }
+
   private buildCompletedExecutionData(params: {
     existingExecutionData?: WorkflowExecutionLog['executionData']
     traceSpans?: TraceSpan[]
@@ -336,8 +617,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     const filteredTraceSpans = filterForDisplay(mergedTraceSpans)
     const filteredFinalOutput = filterForDisplay(finalOutput)
+    const filteredWorkflowInput =
+      workflowInput !== undefined ? filterForDisplay(workflowInput) : undefined
     const redactedTraceSpans = redactApiKeys(filteredTraceSpans)
     const redactedFinalOutput = redactApiKeys(filteredFinalOutput)
+    const redactedWorkflowInput =
+      filteredWorkflowInput !== undefined ? redactApiKeys(filteredWorkflowInput) : undefined
 
     const executionCost = {
       total: costSummary.totalCost,
@@ -360,30 +645,37 @@ export class ExecutionLogger implements IExecutionLoggerService {
         ? Math.max(0, Math.round(rawDurationMs))
         : 0
 
-    const completedExecutionData = this.buildCompletedExecutionData({
-      existingExecutionData,
-      traceSpans: redactedTraceSpans,
-      finalOutput: redactedFinalOutput,
-      finalizationPath,
-      completionFailure,
-      executionCost,
-      executionState,
-      workflowInput,
-    })
+    const completedExecutionData = this.compactExecutionDataForStorage(
+      this.buildCompletedExecutionData({
+        existingExecutionData,
+        traceSpans: redactedTraceSpans,
+        finalOutput: redactedFinalOutput,
+        finalizationPath,
+        completionFailure,
+        executionCost,
+        executionState,
+        workflowInput: redactedWorkflowInput,
+      }),
+      executionId
+    )
 
-    const [updatedLog] = await db
-      .update(workflowExecutionLogs)
-      .set({
-        level,
-        status,
-        endedAt: new Date(endedAt),
-        totalDurationMs: totalDuration,
-        files: executionFiles.length > 0 ? executionFiles : null,
-        executionData: completedExecutionData,
-        cost: executionCost,
-      })
-      .where(eq(workflowExecutionLogs.executionId, executionId))
-      .returning()
+    const [updatedLog] = await db.transaction(async (tx) => {
+      await setExecutionLogWriteTimeouts(tx)
+
+      return tx
+        .update(workflowExecutionLogs)
+        .set({
+          level,
+          status,
+          endedAt: new Date(endedAt),
+          totalDurationMs: totalDuration,
+          files: executionFiles.length > 0 ? executionFiles : null,
+          executionData: completedExecutionData,
+          cost: executionCost,
+        })
+        .where(eq(workflowExecutionLogs.executionId, executionId))
+        .returning()
+    })
 
     if (!updatedLog) {
       throw new Error(`Workflow log not found for execution ${executionId}`)

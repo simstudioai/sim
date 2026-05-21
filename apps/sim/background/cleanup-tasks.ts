@@ -198,5 +198,9 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
 
 export const cleanupTasksTask = task({
   id: 'cleanup-tasks',
+  queue: {
+    name: 'cleanup-tasks',
+    concurrencyLimit: 1,
+  },
   run: runCleanupTasks,
 })

@@ -1,4 +1,11 @@
 import { createLogger } from '@sim/logger'
+import {
+  PayloadSizeLimitError,
+  readResponseTextWithLimit,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
+import type { UserFile } from '@/executor/types'
 import { presentationUrl } from '@/tools/google_slides/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -8,17 +15,22 @@ interface ExportPresentationParams {
   accessToken: string
   presentationId: string
   exportFormat?: 'PDF' | 'PPTX' | 'ODP' | 'TXT' | 'PNG' | 'JPEG' | 'SVG'
+  _context?: Record<string, unknown>
 }
 
 interface ExportPresentationResponse {
   success: boolean
   output: {
-    contentBase64: string
+    contentBase64?: string
+    file?: UserFile & { mimeType?: string }
     mimeType: string
     sizeBytes: number
     metadata: { presentationId: string; url: string; exportFormat: string }
   }
 }
+
+const MAX_GOOGLE_SLIDES_EXPORT_BYTES = 10 * 1024 * 1024
+const MAX_LEGACY_INLINE_EXPORT_BYTES = 7 * 1024 * 1024
 
 const FORMAT_TO_MIME: Record<string, string> = {
   PDF: 'application/pdf',
@@ -30,6 +42,25 @@ const FORMAT_TO_MIME: Record<string, string> = {
   SVG: 'image/svg+xml',
 }
 
+function getExecutionContext(params?: ExportPresentationParams): {
+  context?: { workspaceId: string; workflowId: string; executionId: string }
+  userId?: string
+} {
+  const context = (
+    params as (ExportPresentationParams & { _context?: Record<string, unknown> }) | undefined
+  )?._context
+  const workspaceId = typeof context?.workspaceId === 'string' ? context.workspaceId : undefined
+  const workflowId = typeof context?.workflowId === 'string' ? context.workflowId : undefined
+  const executionId = typeof context?.executionId === 'string' ? context.executionId : undefined
+  const userId = typeof context?.userId === 'string' ? context.userId : undefined
+
+  if (!workspaceId || !workflowId || !executionId) {
+    return { userId }
+  }
+
+  return { context: { workspaceId, workflowId, executionId }, userId }
+}
+
 export const exportPresentationTool: ToolConfig<
   ExportPresentationParams,
   ExportPresentationResponse
@@ -37,7 +68,7 @@ export const exportPresentationTool: ToolConfig<
   id: 'google_slides_export_presentation',
   name: 'Export Google Slides Presentation',
   description:
-    'Export a presentation to PDF, PPTX, ODP, TXT, PNG, JPEG, or SVG via the Drive export endpoint. Returns the file content base64-encoded.',
+    'Export a presentation to PDF, PPTX, ODP, TXT, PNG, JPEG, or SVG via the Drive export endpoint. Stores the exported file as an execution file when execution context is available.',
   version: '1.0.0',
 
   oauth: { required: true, provider: 'google-drive' },
@@ -83,7 +114,11 @@ export const exportPresentationTool: ToolConfig<
     if (!response.ok) {
       let errorMessage = `Failed to export presentation (status ${response.status})`
       try {
-        const data = await response.json()
+        const text = await readResponseTextWithLimit(response, {
+          maxBytes: 64 * 1024,
+          label: 'Google Slides export error response',
+        })
+        const data = JSON.parse(text)
         errorMessage = data.error?.message || errorMessage
         logger.error('Drive API error during export:', { data })
       } catch {
@@ -92,19 +127,38 @@ export const exportPresentationTool: ToolConfig<
       throw new Error(errorMessage)
     }
 
-    const buffer = await response.arrayBuffer()
-    const contentBase64 = Buffer.from(buffer).toString('base64')
+    const buffer = await readResponseToBufferWithLimit(response, {
+      maxBytes: MAX_GOOGLE_SLIDES_EXPORT_BYTES,
+      label: 'Google Slides export',
+    })
 
     const presentationId = params?.presentationId?.trim() || ''
     const format = (params?.exportFormat || 'PDF').toUpperCase()
     const mime = FORMAT_TO_MIME[format] ?? 'application/octet-stream'
+    const { context, userId } = getExecutionContext(params)
+    const filename = `${presentationId || 'presentation'}.${format.toLowerCase()}`
+    const userFile = context
+      ? await uploadExecutionFile(context, Buffer.from(buffer), filename, mime, userId)
+      : undefined
+    if (!userFile && buffer.length > MAX_LEGACY_INLINE_EXPORT_BYTES) {
+      throw new PayloadSizeLimitError({
+        label: 'Google Slides legacy inline export',
+        maxBytes: MAX_LEGACY_INLINE_EXPORT_BYTES,
+        observedBytes: buffer.length,
+      })
+    }
+    const contentBase64 =
+      !userFile && buffer.length <= MAX_LEGACY_INLINE_EXPORT_BYTES
+        ? buffer.toString('base64')
+        : undefined
 
     return {
       success: true,
       output: {
-        contentBase64,
+        ...(userFile ? { file: { ...userFile, mimeType: mime } } : {}),
+        ...(contentBase64 ? { contentBase64 } : {}),
         mimeType: mime,
-        sizeBytes: buffer.byteLength,
+        sizeBytes: buffer.length,
         metadata: {
           presentationId,
           url: presentationUrl(presentationId),
@@ -115,7 +169,16 @@ export const exportPresentationTool: ToolConfig<
   },
 
   outputs: {
-    contentBase64: { type: 'string', description: 'Base64-encoded exported file content' },
+    file: {
+      type: 'file',
+      description: 'Stored exported presentation file',
+      optional: true,
+    },
+    contentBase64: {
+      type: 'string',
+      description: 'Legacy base64 content field for small exports.',
+      optional: true,
+    },
     mimeType: { type: 'string', description: 'MIME type of the exported content' },
     sizeBytes: { type: 'number', description: 'Size of the exported content in bytes' },
     metadata: {

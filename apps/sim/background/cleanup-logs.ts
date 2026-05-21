@@ -29,9 +29,10 @@ const RESUMABLE_PAUSED_STATUSES = ['paused', 'partially_resumed', 'cancelling']
 
 async function filterLargeValueKeysWithoutRetainedReferences(
   keys: string[],
-  deletedLogIds: string[]
+  deletedLogIds: string[],
+  workspaceIds: string[]
 ): Promise<string[]> {
-  if (keys.length === 0 || deletedLogIds.length === 0) return []
+  if (keys.length === 0 || deletedLogIds.length === 0 || workspaceIds.length === 0) return []
 
   const unreferencedKeys: string[] = []
   for (const key of Array.from(new Set(keys))) {
@@ -40,6 +41,7 @@ async function filterLargeValueKeysWithoutRetainedReferences(
       .from(workflowExecutionLogs)
       .where(
         and(
+          inArray(workflowExecutionLogs.workspaceId, workspaceIds),
           notInArray(workflowExecutionLogs.id, deletedLogIds),
           sql`position(${key} in ${workflowExecutionLogs.executionData}::text) > 0`
         )
@@ -116,6 +118,7 @@ async function cleanupWorkflowExecutionLogs(
       db
         .select({
           id: workflowExecutionLogs.id,
+          workspaceId: workflowExecutionLogs.workspaceId,
           executionId: workflowExecutionLogs.executionId,
           executionData: workflowExecutionLogs.executionData,
           files: workflowExecutionLogs.files,
@@ -138,10 +141,12 @@ async function cleanupWorkflowExecutionLogs(
         .limit(limit),
     onBatch: async (rows) => {
       const deletedLogIds = rows.map((row) => row.id)
+      const workspaceIds = Array.from(new Set(rows.map((row) => row.workspaceId)))
       const largeValueKeys = rows.flatMap((row) => collectLargeValueKeys(row.executionData))
       const unreferencedLargeValueKeys = await filterLargeValueKeysWithoutRetainedReferences(
         largeValueKeys,
-        deletedLogIds
+        deletedLogIds,
+        workspaceIds
       )
 
       for (const row of rows) {
@@ -158,7 +163,7 @@ async function cleanupFreePlanOrphanedSnapshots(
   payload: CleanupJobPayload,
   retentionHours: number
 ): Promise<void> {
-  if (payload.plan !== 'free') {
+  if (payload.plan !== 'free' || payload.runGlobalMaintenance !== true) {
     return
   }
 
@@ -219,5 +224,9 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
 
 export const cleanupLogsTask = task({
   id: 'cleanup-logs',
+  queue: {
+    name: 'cleanup-logs',
+    concurrencyLimit: 1,
+  },
   run: runCleanupLogs,
 })
