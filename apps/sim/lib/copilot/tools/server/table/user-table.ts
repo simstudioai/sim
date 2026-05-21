@@ -529,6 +529,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             // doesn't, so the guard never trips here. Defensive narrowing.
             return { success: false, message: 'Row update was skipped' }
           }
+          // Auto-dispatch for user edits is handled inside `updateRow`
+          // (mode: 'new' for newly-cleared groups + cancel+rerun for in-flight
+          // downstream groups). Firing a second mode: 'incomplete' dispatch
+          // here would race with the internal one AND bulk-clear sibling-group
+          // outputs (mode: 'incomplete' wipes terminal-state cells in scope).
 
           return {
             success: true,
@@ -1418,24 +1423,19 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          // Dispatch in the background — large fan-outs (thousands of rows)
-          // issue sequential trigger.dev calls and would otherwise hold the
-          // tool span open for minutes, blocking the chat connection.
-          void runWorkflowColumn({
+          const { dispatchId } = await runWorkflowColumn({
             tableId: args.tableId,
             workspaceId,
             groupIds,
             mode: runMode,
             rowIds,
             requestId,
-          }).catch((err) => {
-            logger.error(`[${requestId}] run_column dispatch failed`, err)
           })
           const scopeLabel = rowIds ? `${rowIds.length} row(s) by id` : runMode
           return {
             success: true,
             message: `Started running ${groupIds.length} column(s) (${scopeLabel}). Cells will populate as workflows complete.`,
-            data: { triggered: null },
+            data: { dispatchId },
           }
         }
 

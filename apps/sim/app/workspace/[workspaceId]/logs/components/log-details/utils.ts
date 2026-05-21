@@ -8,6 +8,20 @@ import { getBlock, getBlockByToolName } from '@/blocks'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { normalizeToolId } from '@/tools/normalize'
 
+/**
+ * Extracts the bare tool name from an MCP tool id of the form
+ * `mcp-{serverId}-{toolName}`. Returns null when the id is not MCP-shaped.
+ * Kept local to avoid importing from `@/lib/mcp/utils`, which pulls in
+ * `next/server` and breaks client bundles.
+ */
+function tryParseMcpToolName(toolId: string): string | null {
+  if (!toolId.startsWith('mcp-')) return null
+  const parts = toolId.split('-')
+  if (parts.length < 3) return null
+  const toolName = parts.slice(2).join('-')
+  return toolName.length > 0 ? toolName : null
+}
+
 export const DEFAULT_BLOCK_COLOR = '#6b7280'
 
 export interface BlockIconAndColor {
@@ -41,6 +55,10 @@ export function getBlockIconAndColor(
 ): BlockIconAndColor {
   const lowerType = type.toLowerCase()
   if (lowerType === 'tool' && toolName) {
+    if (tryParseMcpToolName(toolName)) {
+      const mcpBlock = getBlock('mcp')
+      if (mcpBlock) return { icon: mcpBlock.icon, bgColor: mcpBlock.bgColor }
+    }
     const normalized = normalizeToolId(toolName)
     if (normalized === 'load_skill') return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
     const toolBlock = getBlockByToolName(normalized)
@@ -90,7 +108,11 @@ export function formatTps(
 }
 
 export function getDisplayName(span: TraceSpan): string {
-  if (span.type?.toLowerCase() === 'tool') return normalizeToolId(span.name)
+  if (span.type?.toLowerCase() === 'tool') {
+    const mcpToolName = tryParseMcpToolName(span.name)
+    if (mcpToolName) return mcpToolName
+    return normalizeToolId(span.name)
+  }
   return span.name
 }
 

@@ -115,7 +115,18 @@ const forClause = vi.fn(forBuilder)
 const onConflictDoUpdate = vi.fn(() => ({ returning }) as unknown as Promise<void>)
 const onConflictDoNothing = vi.fn(() => ({ returning }) as unknown as Promise<void>)
 
-const whereBuilder = () => ({ limit, orderBy, returning, groupBy, for: forClause })
+const whereBuilder = () => {
+  // Some call sites (e.g. `db.select().from(t).where(eq(...))` with no
+  // limit/orderBy) await the where directly. Make the builder a thenable so
+  // those calls resolve to the default empty array.
+  const thenable: any = Promise.resolve([] as unknown[])
+  thenable.limit = limit
+  thenable.orderBy = orderBy
+  thenable.returning = returning
+  thenable.groupBy = groupBy
+  thenable.for = forClause
+  return thenable
+}
 const where = vi.fn(whereBuilder)
 
 const joinBuilder = (): { where: typeof where; innerJoin: any; leftJoin: any } => ({

@@ -1,6 +1,7 @@
 'use client'
 
 import type React from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { parse } from 'tldts'
 import { Badge, Checkbox, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -60,6 +61,14 @@ export function resolveCellRender({
     if (!isNull) return { kind: 'value', text: stringifyValue(value) }
 
     if (inFlight && !(groupHasBlockErrors && !blockRunning)) {
+      // A `pending` cell whose jobId starts with `paused-` is mid-pause
+      // (workflow yielded for human-in-the-loop). Render as Pending rather
+      // than Queued so the user can tell it's not just waiting to start.
+      const isPaused =
+        exec?.status === 'pending' &&
+        typeof exec.jobId === 'string' &&
+        exec.jobId.startsWith('paused-')
+      if (isPaused) return { kind: 'pending-upstream' }
       if (exec?.status === 'queued' || exec?.status === 'pending') return { kind: 'queued' }
       return { kind: 'pending-upstream' }
     }
@@ -119,6 +128,9 @@ interface CellRenderProps {
 }
 
 export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactElement | null {
+  const valueText = kind.kind === 'value' ? kind.text : null
+  const revealedValueText = useTypewriter(valueText)
+
   switch (kind.kind) {
     case 'value':
       return (
@@ -128,7 +140,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
             isEditing && 'invisible'
           )}
         >
-          {kind.text}
+          {revealedValueText ?? kind.text}
         </span>
       )
 
@@ -274,4 +286,55 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
 function Wrap({ isEditing, children }: { isEditing: boolean; children: React.ReactNode }) {
   if (!isEditing) return <>{children}</>
   return <div className='invisible'>{children}</div>
+}
+
+const TYPEWRITER_MS_PER_CHAR = 15
+
+/**
+ * Reveals `text` character-by-character whenever it changes after the first
+ * render. Initial render (page hydration or virtualization remount) shows the
+ * value statically — animation fires only for subsequent updates, which in
+ * practice means SSE-driven workflow completions arriving via
+ * `useTableEventStream → applyCell()`.
+ *
+ * rAF-driven (not `setInterval`) so concurrent reveals batch into one
+ * render/paint per frame instead of O(cells) uncoordinated reflows; reveal
+ * length is elapsed-time based so dropped frames catch up rather than slow.
+ */
+function useTypewriter(text: string | null): string | null {
+  const [revealed, setRevealed] = useState<string | null>(text)
+  const prevTextRef = useRef<string | null>(text)
+  const mountedRef = useRef(false)
+  const animateRef = useRef(false)
+
+  // Reset synchronously during render when `text` changes (not on first mount)
+  // so no frame ever shows the full new value before the animation begins —
+  // an effect-based reset lands one frame late and flashes the whole text.
+  if (prevTextRef.current !== text) {
+    prevTextRef.current = text
+    const animate = mountedRef.current && text !== null && text.length > 0
+    animateRef.current = animate
+    setRevealed(animate ? '' : text)
+  }
+
+  useEffect(() => {
+    mountedRef.current = true
+  }, [])
+
+  useEffect(() => {
+    if (!animateRef.current) return
+    animateRef.current = false
+    const full = text as string
+    const start = performance.now()
+    let raf = 0
+    const tick = (now: number) => {
+      const chars = Math.min(full.length, Math.floor((now - start) / TYPEWRITER_MS_PER_CHAR))
+      setRevealed(full.slice(0, chars))
+      if (chars < full.length) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [text])
+
+  return revealed
 }

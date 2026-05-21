@@ -56,6 +56,7 @@ import { useVariablesStore } from '@/stores/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { wouldCreateCycle } from '@/stores/workflows/workflow/utils'
+import { formatParameterLabel } from '@/tools/params'
 
 const logger = createLogger('WorkflowBlock')
 
@@ -1137,6 +1138,28 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   }, [type, topologySubBlocks, id])
 
   /**
+   * Total rendered row count. `mcp-dynamic-args` expands one row per parameter
+   * in the cached tool schema, so we count those properties instead of 1.
+   */
+  const totalRenderedRowCount = useMemo(() => {
+    let count = 0
+    for (const row of subBlockRows) {
+      for (const subBlock of row) {
+        if (subBlock.type === 'mcp-dynamic-args') {
+          const schema = subBlockState._toolSchema?.value as
+            | { properties?: Record<string, unknown> }
+            | undefined
+          const properties = schema?.properties
+          count += properties && typeof properties === 'object' ? Object.keys(properties).length : 0
+        } else {
+          count += 1
+        }
+      }
+    }
+    return count
+  }, [subBlockRows, subBlockState])
+
+  /**
    * Compute and publish deterministic layout metrics for workflow blocks.
    * This avoids ResizeObserver/animation-frame jitter and prevents initial "jump".
    */
@@ -1147,7 +1170,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         blockType: type,
         category: config.category,
         displayTriggerMode,
-        visibleSubBlockCount: subBlockRows.reduce((acc, row) => acc + row.length, 0),
+        visibleSubBlockCount: totalRenderedRowCount,
         conditionRowCount: conditionRows.length,
         routerRowCount: routerRows.length,
       })
@@ -1156,7 +1179,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       type,
       config.category,
       displayTriggerMode,
-      subBlockRows.reduce((acc, row) => acc + row.length, 0),
+      totalRenderedRowCount,
       conditionRows.length,
       routerRows.length,
       horizontalHandles,
@@ -1378,9 +1401,28 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               </>
             ) : (
               subBlockRows.map((row, rowIndex) =>
-                row.map((subBlock) => {
+                row.flatMap((subBlock) => {
                   const rawValue = subBlockState[subBlock.id]?.value
-                  return (
+                  if (subBlock.type === 'mcp-dynamic-args') {
+                    const schema = subBlockState._toolSchema?.value as
+                      | { properties?: Record<string, unknown> }
+                      | undefined
+                    const properties = schema?.properties
+                    if (properties && typeof properties === 'object') {
+                      const args = (
+                        rawValue && typeof rawValue === 'object' ? rawValue : {}
+                      ) as Record<string, unknown>
+                      return Object.keys(properties).map((paramName) => (
+                        <SubBlockRow
+                          key={`${subBlock.id}-${paramName}-${rowIndex}`}
+                          title={formatParameterLabel(paramName)}
+                          value={getDisplayValue(args[paramName])}
+                        />
+                      ))
+                    }
+                    return []
+                  }
+                  return [
                     <SubBlockRow
                       key={`${subBlock.id}-${rowIndex}`}
                       title={subBlock.title ?? subBlock.id}
@@ -1394,8 +1436,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                       displayAdvancedOptions={effectiveAdvanced}
                       canonicalIndex={canonicalIndex}
                       canonicalModeOverrides={canonicalModeOverrides}
-                    />
-                  )
+                    />,
+                  ]
                 })
               )
             )}

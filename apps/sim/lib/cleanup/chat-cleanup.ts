@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { copilotChats, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, inArray, isNull } from 'drizzle-orm'
+import { chunkArray } from '@/lib/cleanup/batch-delete'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { env } from '@/lib/core/config/env'
 import type { StorageContext } from '@/lib/uploads'
@@ -10,6 +11,8 @@ import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 const logger = createLogger('ChatCleanup')
 
 const COPILOT_CLEANUP_BATCH_SIZE = 1000
+/** Bounds JSONB detoast memory: `messages` can be MBs per row. */
+const CHAT_FILE_COLLECT_CHUNK_SIZE = 500
 
 /**
  * Only storage in these contexts is tied to chat/task lifecycle. Workspace
@@ -26,10 +29,9 @@ interface FileRef {
 }
 
 /**
- * Collect all file storage keys associated with the given chat IDs.
- * Two sources:
- * 1. workspaceFiles rows with chatId FK — filtered to chat-scoped contexts only
- * 2. fileAttachments[].key inside copilotChats.messages JSONB — all copilot uploads
+ * Collect all file storage keys for the given chat IDs from two sources:
+ * 1. workspaceFiles rows with chatId FK (chat-scoped contexts only)
+ * 2. fileAttachments[].key inside copilotChats.messages JSONB
  */
 export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
   const files: FileRef[] = []
@@ -37,47 +39,49 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
 
   const seen = new Set<string>()
 
-  const [linkedFiles, chatsWithMessages] = await Promise.all([
-    db
-      .select({ key: workspaceFiles.key, context: workspaceFiles.context })
-      .from(workspaceFiles)
-      .where(
-        and(
-          inArray(workspaceFiles.chatId, chatIds),
-          isNull(workspaceFiles.deletedAt),
-          inArray(workspaceFiles.context, [...CHAT_SCOPED_CONTEXTS])
-        )
-      ),
-    db
-      .select({ messages: copilotChats.messages })
-      .from(copilotChats)
-      .where(inArray(copilotChats.id, chatIds)),
-  ])
+  for (const chunk of chunkArray(chatIds, CHAT_FILE_COLLECT_CHUNK_SIZE)) {
+    const [linkedFiles, chatsWithMessages] = await Promise.all([
+      db
+        .select({ key: workspaceFiles.key, context: workspaceFiles.context })
+        .from(workspaceFiles)
+        .where(
+          and(
+            inArray(workspaceFiles.chatId, chunk),
+            isNull(workspaceFiles.deletedAt),
+            inArray(workspaceFiles.context, [...CHAT_SCOPED_CONTEXTS])
+          )
+        ),
+      db
+        .select({ messages: copilotChats.messages })
+        .from(copilotChats)
+        .where(inArray(copilotChats.id, chunk)),
+    ])
 
-  for (const f of linkedFiles) {
-    if (!seen.has(f.key)) {
-      seen.add(f.key)
-      files.push({ key: f.key, context: f.context as ChatScopedContext })
+    for (const f of linkedFiles) {
+      if (!seen.has(f.key)) {
+        seen.add(f.key)
+        files.push({ key: f.key, context: f.context as ChatScopedContext })
+      }
     }
-  }
 
-  for (const chat of chatsWithMessages) {
-    const messages = chat.messages as unknown[]
-    if (!Array.isArray(messages)) continue
-    for (const msg of messages) {
-      if (!msg || typeof msg !== 'object') continue
-      const attachments = (msg as Record<string, unknown>).fileAttachments
-      if (!Array.isArray(attachments)) continue
-      for (const attachment of attachments) {
-        if (
-          attachment &&
-          typeof attachment === 'object' &&
-          (attachment as Record<string, unknown>).key
-        ) {
-          const key = (attachment as Record<string, unknown>).key as string
-          if (!seen.has(key)) {
-            seen.add(key)
-            files.push({ key, context: 'copilot' })
+    for (const chat of chatsWithMessages) {
+      const messages = chat.messages as unknown[]
+      if (!Array.isArray(messages)) continue
+      for (const msg of messages) {
+        if (!msg || typeof msg !== 'object') continue
+        const attachments = (msg as Record<string, unknown>).fileAttachments
+        if (!Array.isArray(attachments)) continue
+        for (const attachment of attachments) {
+          if (
+            attachment &&
+            typeof attachment === 'object' &&
+            (attachment as Record<string, unknown>).key
+          ) {
+            const key = (attachment as Record<string, unknown>).key as string
+            if (!seen.has(key)) {
+              seen.add(key)
+              files.push({ key, context: 'copilot' })
+            }
           }
         }
       }
@@ -87,9 +91,7 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
   return files
 }
 
-/**
- * Delete files from cloud storage using the correct context/bucket per file.
- */
+/** Groups files by storage context so each context can use one batch DELETE call. */
 export async function deleteStorageFiles(
   files: FileRef[],
   label: string
@@ -97,17 +99,23 @@ export async function deleteStorageFiles(
   const stats = { filesDeleted: 0, filesFailed: 0 }
   if (files.length === 0 || !isUsingCloudStorage()) return stats
 
-  await Promise.all(
-    files.map(async (file) => {
-      try {
-        await StorageService.deleteFile({ key: file.key, context: file.context })
-        stats.filesDeleted++
-      } catch (error) {
-        stats.filesFailed++
-        logger.error(`[${label}] Failed to delete storage file ${file.key}:`, { error })
-      }
-    })
-  )
+  const keysByContext = new Map<ChatScopedContext, string[]>()
+  for (const file of files) {
+    const bucket = keysByContext.get(file.context)
+    if (bucket) bucket.push(file.key)
+    else keysByContext.set(file.context, [file.key])
+  }
+
+  for (const [context, keys] of keysByContext) {
+    const result = await StorageService.deleteFiles(keys, context)
+    stats.filesDeleted += result.deleted
+    stats.filesFailed += result.failed.length
+    for (const { key, error } of result.failed) {
+      logger.error(`[${label}] Failed to delete storage file ${key} (context: ${context}):`, {
+        error,
+      })
+    }
+  }
 
   return stats
 }

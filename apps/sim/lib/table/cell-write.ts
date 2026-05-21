@@ -161,7 +161,9 @@ export async function markWorkflowGroupPickedUp(
 /** Builds the canonical `cancelled` execution state used by every cancel path.
  *  Preserves `blockErrors` from the prior state so errored cells keep
  *  rendering Error after a stop click — only cells that hadn't yet produced
- *  a value or an error should flip to "Cancelled". */
+ *  a value or an error should flip to "Cancelled". `cancelledAt` is the
+ *  tombstone the dispatcher reads to skip re-runs of cells the user killed
+ *  mid-cascade. */
 export function buildCancelledExecution(
   prev: Pick<RowExecutionMetadata, 'executionId' | 'workflowId' | 'blockErrors'>
 ): RowExecutionMetadata {
@@ -171,6 +173,7 @@ export function buildCancelledExecution(
     jobId: null,
     workflowId: prev.workflowId,
     error: 'Cancelled',
+    cancelledAt: new Date().toISOString(),
     ...(prev.blockErrors ? { blockErrors: prev.blockErrors } : {}),
   }
 }

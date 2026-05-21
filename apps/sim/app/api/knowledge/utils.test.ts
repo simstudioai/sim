@@ -116,6 +116,32 @@ vi.mock('@sim/db', async () => {
             },
           }
         },
+        innerJoin() {
+          // document × knowledge_base context JOIN — return the first kb and
+          // doc row merged (covers processDocumentAsync's prefetch).
+          return {
+            leftJoin: () => ({
+              where: () => ({
+                limit: (n: number) =>
+                  Promise.resolve(
+                    kbRows.length > 0 && docRows.length > 0
+                      ? [
+                          { ...kbRows[0], ...docRows[0], billedAccountUserId: 'billing-user-1' },
+                        ].slice(0, n)
+                      : []
+                  ),
+              }),
+            }),
+            where: () => ({
+              limit: (n: number) =>
+                Promise.resolve(
+                  kbRows.length > 0 && docRows.length > 0
+                    ? [{ ...kbRows[0], ...docRows[0] }].slice(0, n)
+                    : []
+                ),
+            }),
+          }
+        },
       }
     },
   }
