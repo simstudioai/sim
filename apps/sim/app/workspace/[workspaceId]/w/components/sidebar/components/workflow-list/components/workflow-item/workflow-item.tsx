@@ -524,7 +524,8 @@ export function WorkflowItem({
         disableDuplicate={!userPermissions.canEdit || isDuplicatingSelection}
         disableExport={!userPermissions.canEdit}
         disableColorChange={!userPermissions.canEdit || effectiveLocked}
-        disableDelete={!userPermissions.canEdit || !canDeleteSelection || effectiveLocked}
+        showDelete={userPermissions.canAdmin}
+        disableDelete={!canDeleteSelection || effectiveLocked}
         onToggleLock={handleToggleLock}
         showLock={!isMixedSelection && selectedWorkflows.size <= 1}
         disableLock={!userPermissions.canAdmin || inheritedFolderLocked}
