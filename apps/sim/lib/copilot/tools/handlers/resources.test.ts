@@ -99,4 +99,59 @@ describe('executeOpenResource', () => {
       ],
     })
   })
+
+  it('opens workflow alias file paths through workspace file reference resolution', async () => {
+    resolveWorkspaceFileReferenceMock.mockResolvedValue({
+      id: 'wf_plan_file',
+      name: 'implementation.md',
+    })
+
+    const result = await executeOpenResource(
+      {
+        resources: [{ type: 'file', path: 'workflows/My%20Workflow/.plans/implementation.md' }],
+      },
+      { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(resolveWorkspaceFileReferenceMock).toHaveBeenCalledWith(
+      'workspace-1',
+      'workflows/My%20Workflow/.plans/implementation.md'
+    )
+    expect(result).toMatchObject({
+      success: true,
+      resources: [
+        {
+          type: 'file',
+          id: 'wf_plan_file',
+          title: 'implementation.md',
+        },
+      ],
+    })
+  })
+
+  it('opens root plan alias file paths through workspace file reference resolution', async () => {
+    resolveWorkspaceFileReferenceMock.mockResolvedValue({
+      id: 'wf_root_plan',
+      name: 'root.md',
+    })
+
+    const result = await executeOpenResource(
+      {
+        resources: [{ type: 'file', path: '.plans/root.md' }],
+      },
+      { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(resolveWorkspaceFileReferenceMock).toHaveBeenCalledWith('workspace-1', '.plans/root.md')
+    expect(result).toMatchObject({
+      success: true,
+      resources: [
+        {
+          type: 'file',
+          id: 'wf_root_plan',
+          title: 'root.md',
+        },
+      ],
+    })
+  })
 })

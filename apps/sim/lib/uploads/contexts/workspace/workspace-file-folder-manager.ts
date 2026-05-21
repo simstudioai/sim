@@ -246,7 +246,8 @@ export async function getWorkspaceFileFolderPath(
 
 export async function findWorkspaceFileFolderIdByPath(
   workspaceId: string,
-  pathSegments: string[]
+  pathSegments: string[],
+  _options?: { includeReservedSystemFolders?: boolean }
 ): Promise<string | null> {
   let parentId: string | null = null
 
@@ -268,7 +269,7 @@ export async function findWorkspaceFileFolderIdByPath(
 
 export async function listWorkspaceFileFolders(
   workspaceId: string,
-  options?: { scope?: WorkspaceFileFolderScope }
+  options?: { scope?: WorkspaceFileFolderScope; includeReservedSystemFolders?: boolean }
 ): Promise<WorkspaceFileFolderRecord[]> {
   const { scope = 'active' } = options ?? {}
   const rows = await db

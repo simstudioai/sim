@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { encodeVfsPathSegments, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
+import { isPlanAliasPath, workflowAliasSandboxPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { getTableById, listTables, queryRows } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -69,7 +71,7 @@ async function resolveInputFiles(
   let totalSize = 0
 
   if (inputFiles?.length && workspaceId) {
-    const allFiles = await listWorkspaceFiles(workspaceId)
+    const allFiles = await listWorkspaceFiles(workspaceId, { includeReservedSystemFiles: true })
     for (const fileRef of inputFiles) {
       const filePath =
         typeof fileRef === 'string'
@@ -78,7 +80,16 @@ async function resolveInputFiles(
             ? (fileRef as CanonicalFileInput).path
             : undefined
       if (!filePath) continue
-      const record = findWorkspaceFileRecord(allFiles, filePath)
+      const alias = await resolveWorkflowAliasForWorkspace({ workspaceId, path: filePath })
+      if (!alias && isPlanAliasPath(filePath)) {
+        logger.warn('Unsupported plan alias input file path', { filePath })
+        continue
+      }
+      if (alias?.kind === 'plans_dir') {
+        logger.warn('Input file is a plan alias directory', { filePath })
+        continue
+      }
+      const record = findWorkspaceFileRecord(allFiles, alias?.backingPath ?? filePath)
       if (!record) {
         logger.warn('Input file not found', { fileRef })
         continue
@@ -102,7 +113,9 @@ async function resolveInputFiles(
           ? (fileRef as CanonicalFileInput).sandboxPath
           : undefined
       sandboxFiles.push({
-        path: explicitSandboxPath || getSandboxWorkspaceFilePath(record),
+        path:
+          explicitSandboxPath ||
+          (alias ? workflowAliasSandboxPath(alias.aliasPath) : getSandboxWorkspaceFilePath(record)),
         content,
         encoding: isText ? undefined : 'base64',
       })
@@ -110,8 +123,13 @@ async function resolveInputFiles(
   }
 
   if (inputDirectories?.length && workspaceId) {
-    const folders = await listWorkspaceFileFolders(workspaceId)
-    const allFiles = await listWorkspaceFiles(workspaceId, { folders })
+    const folders = await listWorkspaceFileFolders(workspaceId, {
+      includeReservedSystemFolders: true,
+    })
+    const allFiles = await listWorkspaceFiles(workspaceId, {
+      folders,
+      includeReservedSystemFiles: true,
+    })
     for (const dirRef of inputDirectories) {
       const dirPath =
         typeof dirRef === 'string'
@@ -120,7 +138,15 @@ async function resolveInputFiles(
             ? (dirRef as CanonicalDirectoryInput).path
             : undefined
       if (!dirPath) continue
-      const folderSegments = decodeVfsPathSegments(dirPath.replace(/^\/?files\/?/, ''))
+      const alias = await resolveWorkflowAliasForWorkspace({ workspaceId, path: dirPath })
+      if (alias && alias.kind !== 'plans_dir') {
+        throw new Error(`Input directory is a plan alias file, not a directory: ${dirPath}`)
+      }
+      if (!alias && isPlanAliasPath(dirPath)) {
+        throw new Error(`Unsupported plan alias directory: ${dirPath}`)
+      }
+      const backingDirPath = alias?.backingPath ?? dirPath
+      const folderSegments = decodeVfsPathSegments(backingDirPath.replace(/^\/?files\/?/, ''))
       const folderDisplayPath = folderSegments.join('/')
       const folder = folders.find((candidate) => candidate.path === folderDisplayPath)
       if (!folder) {
@@ -131,7 +157,9 @@ async function resolveInputFiles(
         dirRef !== null &&
         (dirRef as CanonicalDirectoryInput).sandboxPath
           ? (dirRef as CanonicalDirectoryInput).sandboxPath!
-          : `/home/user/files/${encodeVfsPathSegments(folder.path.split('/'))}`
+          : alias
+            ? workflowAliasSandboxPath(alias.aliasPath)
+            : `/home/user/files/${encodeVfsPathSegments(folder.path.split('/'))}`
       const descendants = allFiles.filter((file) => {
         if (!file.folderPath) return false
         return file.folderPath === folder.path || file.folderPath.startsWith(`${folder.path}/`)
@@ -181,7 +209,11 @@ async function resolveInputFiles(
         )
         const relativeFolder =
           record.folderPath?.slice(folder.path.length).replace(/^\/+/, '') ?? ''
-        const relativePath = [relativeFolder, record.name].filter(Boolean).join('/')
+        const relativePath = alias
+          ? encodeVfsPathSegments(
+              [relativeFolder, record.name].filter(Boolean).join('/').split('/')
+            )
+          : [relativeFolder, record.name].filter(Boolean).join('/')
         sandboxFiles.push({
           path: `${mountRoot}/${relativePath}`,
           content: isText ? buffer.toString('utf-8') : buffer.toString('base64'),

@@ -1797,7 +1797,20 @@ export function useChat(
       }
 
       if (session.fileId && hasRenderableFilePreviewContent(session)) {
-        setResources((current) => current.filter((resource) => resource.id !== 'streaming-file'))
+        setResources((current) => {
+          const withoutStreaming = current.filter((resource) => resource.id !== 'streaming-file')
+          if (withoutStreaming.some((resource) => resource.type === 'file' && resource.id === session.fileId)) {
+            return withoutStreaming
+          }
+          return [
+            ...withoutStreaming,
+            {
+              type: 'file',
+              id: session.fileId!,
+              title: session.fileName || 'File',
+            },
+          ]
+        })
         if (options?.activate !== false) {
           setActiveResourceId(session.fileId)
         }

@@ -97,7 +97,7 @@ export interface StreamingContext {
   activeFileIntent?: {
     toolCallId: string
     operation: string
-    target: { kind: string; fileId?: string; fileName?: string }
+    target: { kind: string; fileId?: string; fileName?: string; path?: string }
     title?: string
     contentType?: string
     edit?: Record<string, unknown>

@@ -20,6 +20,7 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
+import { cleanupWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowLifecycle')
@@ -216,6 +217,22 @@ export async function archiveWorkflow(
 
   if (options.notifySocket !== false) {
     await notifyWorkflowArchived(workflowId, options.requestId)
+  }
+
+  if (existingWorkflow.workspaceId) {
+    try {
+      await cleanupWorkflowAliasBacking({
+        workspaceId: existingWorkflow.workspaceId,
+        workflowId,
+        deletedAt: now,
+      })
+    } catch (error) {
+      logger.warn(`[${options.requestId}] Failed to clean up workflow alias backing`, {
+        workflowId,
+        workspaceId: existingWorkflow.workspaceId,
+        error,
+      })
+    }
   }
 
   await cleanupExternalWebhooksForWorkflow(workflowId, options.requestId)

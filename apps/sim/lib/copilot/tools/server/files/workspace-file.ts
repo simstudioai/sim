@@ -8,6 +8,9 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { ensureWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
+import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
+import { isPlanAliasPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -205,14 +208,42 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
     const resolveExistingTarget = async (
       target: WorkspaceFileTarget | undefined,
       operationName: string
-    ): Promise<{ fileRecord?: WorkspaceFileRecord; error?: string }> => {
+    ): Promise<{ fileRecord?: WorkspaceFileRecord; vfsPath?: string; error?: string }> => {
       if (!target || (target.kind !== 'path' && target.kind !== 'file_id')) {
         return { error: `${operationName} requires target.kind=path with target.path` }
       }
-      const fileRecord =
-        target.kind === 'path'
-          ? await resolveWorkspaceFileReference(workspaceId!, target.path)
-          : await getWorkspaceFile(workspaceId!, target.fileId)
+      let fileRecord: WorkspaceFileRecord | null = null
+      let vfsPath: string | undefined
+      if (target.kind === 'path') {
+        const alias = await resolveWorkflowAliasForWorkspace({
+          workspaceId: workspaceId!,
+          path: target.path,
+        })
+        if (!alias && isPlanAliasPath(target.path)) {
+          return { error: `Unsupported plan alias path or missing workflow: ${target.path}` }
+        }
+        if (alias) {
+          if (alias.kind === 'plans_dir') {
+            return { error: `Plan alias directory is not a file: ${target.path}` }
+          }
+          fileRecord = await resolveWorkspaceFileReference(workspaceId!, alias.backingPath)
+          if (!fileRecord && alias.kind === 'changelog') {
+            await ensureWorkflowAliasBacking({
+              workspaceId: workspaceId!,
+              userId: context.userId,
+              workflowId: alias.workflowId,
+              workflowName: alias.workflowName,
+            })
+            fileRecord = await resolveWorkspaceFileReference(workspaceId!, alias.backingPath)
+          }
+          vfsPath = alias.aliasPath
+        } else {
+          fileRecord = await resolveWorkspaceFileReference(workspaceId!, target.path)
+          vfsPath = target.path
+        }
+      } else {
+        fileRecord = await getWorkspaceFile(workspaceId!, target.fileId)
+      }
       if (!fileRecord) {
         const ref = target.kind === 'path' ? target.path : target.fileId
         return { error: `File not found: ${ref}` }
@@ -222,7 +253,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           error: `Target mismatch: "${target.fileName}" does not match resolved file "${fileRecord.name}"`,
         }
       }
-      return { fileRecord }
+      return { fileRecord, vfsPath }
     }
 
     if (!workspaceId) {
@@ -312,7 +343,11 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
         case 'append': {
           const target = normalized.target
-          const { fileRecord: existingFile, error } = await resolveExistingTarget(target, 'append')
+          const {
+            fileRecord: existingFile,
+            vfsPath,
+            error,
+          } = await resolveExistingTarget(target, 'append')
           if (error || !existingFile) return { success: false, message: error || 'File not found' }
 
           const currentBuffer = await downloadWsFile(existingFile)
@@ -335,13 +370,13 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             message: withMessageId(
               `Intent set: append to "${existingFile.name}". Wait for this success result, then call edit_content in the next step with the content to write. Do not call edit_content in parallel.`
             ),
-            data: { id: existingFile.id, name: existingFile.name, operation: 'append' },
+            data: { id: existingFile.id, name: existingFile.name, vfsPath, operation: 'append' },
           }
         }
 
         case 'update': {
           const target = normalized.target
-          const { fileRecord, error } = await resolveExistingTarget(target, 'update')
+          const { fileRecord, vfsPath, error } = await resolveExistingTarget(target, 'update')
           if (error || !fileRecord) return { success: false, message: error || 'File not found' }
 
           await storeFileIntent(workspaceId, fileRecord.id, {
@@ -362,7 +397,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             message: withMessageId(
               `Intent set: update "${fileRecord.name}". Wait for this success result, then call edit_content in the next step with the replacement content. Do not call edit_content in parallel.`
             ),
-            data: { id: fileRecord.id, name: fileRecord.name, operation: 'update' },
+            data: { id: fileRecord.id, name: fileRecord.name, vfsPath, operation: 'update' },
           }
         }
 
@@ -454,7 +489,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             return { success: false, message: 'edit is required for patch operation' }
           }
 
-          const { fileRecord, error } = await resolveExistingTarget(target, 'patch')
+          const { fileRecord, vfsPath, error } = await resolveExistingTarget(target, 'patch')
           if (error || !fileRecord) return { success: false, message: error || 'File not found' }
 
           const currentBuffer = await downloadWsFile(fileRecord)
@@ -525,7 +560,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             message: withMessageId(
               `Intent set: patch "${fileRecord.name}" (${normalized.edit.strategy}). Wait for this success result, then call edit_content in the next step with the replacement/insert content. Do not call edit_content in parallel.`
             ),
-            data: { id: fileRecord.id, name: fileRecord.name, operation: 'patch' },
+            data: { id: fileRecord.id, name: fileRecord.name, vfsPath, operation: 'patch' },
           }
         }
 

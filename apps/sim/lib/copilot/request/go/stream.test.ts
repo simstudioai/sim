@@ -21,6 +21,12 @@ vi.mock('@/lib/copilot/request/session', async () => {
   }
 })
 
+const resolveWorkspaceFileReferenceMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
+}))
+
 import {
   buildPreviewContentUpdate,
   decodeJsonStringPrefix,
@@ -93,6 +99,8 @@ function createStreamingContext(): StreamingContext {
 describe('copilot go stream helpers', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
+    resolveWorkspaceFileReferenceMock.mockReset()
+    resolveWorkspaceFileReferenceMock.mockResolvedValue(null)
   })
 
   afterEach(() => {
@@ -138,6 +146,266 @@ describe('copilot go stream helpers', () => {
       contentMode: 'snapshot',
       lastSnapshotAt: 200,
     })
+  })
+
+  it('hydrates path-based workspace_file edits into file preview events before edit_content streams', async () => {
+    resolveWorkspaceFileReferenceMock.mockResolvedValue({
+      id: 'file-1',
+      name: 'notes.md',
+    })
+
+    const workspaceFileCall = createEvent({
+      streamId: 'stream-1',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'workspace-file-1',
+        toolName: 'workspace_file',
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.call,
+        arguments: {
+          operation: 'update',
+          target: { kind: 'path', path: 'files/notes.md' },
+          title: 'Update notes',
+        },
+      },
+    })
+    const workspaceFileResult = createEvent({
+      streamId: 'stream-1',
+      cursor: '2',
+      seq: 2,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'workspace-file-1',
+        toolName: 'workspace_file',
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.result,
+        success: true,
+        output: {
+          success: true,
+          data: { id: 'file-1', name: 'notes.md', operation: 'update' },
+        },
+      },
+    })
+    const editContentDelta = createEvent({
+      streamId: 'stream-1',
+      cursor: '3',
+      seq: 3,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'edit-content-1',
+        toolName: 'edit_content',
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.args_delta,
+        argumentsDelta: '{"content":"hello world',
+      },
+    })
+    const editContentResult = createEvent({
+      streamId: 'stream-1',
+      cursor: '4',
+      seq: 4,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'edit-content-1',
+        toolName: 'edit_content',
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.result,
+        success: true,
+        output: {
+          success: true,
+          data: { id: 'file-1', name: 'notes.md' },
+        },
+      },
+    })
+    const complete = createEvent({
+      streamId: 'stream-1',
+      cursor: '5',
+      seq: 5,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.complete,
+      payload: {
+        status: MothershipStreamV1CompletionStatus.complete,
+      },
+    })
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      createSseResponse([
+        workspaceFileCall,
+        workspaceFileResult,
+        editContentDelta,
+        editContentResult,
+        complete,
+      ])
+    )
+
+    const onEvent = vi.fn()
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      messageId: 'msg-1',
+    }
+
+    await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+      onEvent,
+      timeout: 1000,
+    })
+
+    const previewEvents = onEvent.mock.calls
+      .map(([event]) => event)
+      .filter((event) => event.type === MothershipStreamV1EventType.tool && 'previewPhase' in event.payload)
+
+    expect(previewEvents.map((event) => event.payload.previewPhase)).toEqual([
+      'file_preview_start',
+      'file_preview_target',
+      'file_preview_content',
+      'file_preview_complete',
+    ])
+    expect(previewEvents[1].payload).toMatchObject({
+      previewPhase: 'file_preview_target',
+      target: { kind: 'file_id', fileId: 'file-1', fileName: 'notes.md' },
+    })
+    expect(previewEvents[2].payload).toMatchObject({
+      previewPhase: 'file_preview_content',
+      fileId: 'file-1',
+      targetKind: 'file_id',
+      content: 'hello world',
+    })
+    expect(previewEvents[3].payload).toMatchObject({
+      previewPhase: 'file_preview_complete',
+      fileId: 'file-1',
+    })
+    expect(resolveWorkspaceFileReferenceMock).toHaveBeenCalledWith('workspace-1', 'files/notes.md')
+  })
+
+  it('resolves workflow alias paths to the backing file before streaming previews', async () => {
+    resolveWorkspaceFileReferenceMock.mockResolvedValue({
+      id: 'changelog-file-1',
+      name: 'workflow-1.md',
+    })
+
+    const workspaceFileCall = createEvent({
+      streamId: 'stream-1',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'workspace-file-1',
+        toolName: 'workspace_file',
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.call,
+        arguments: {
+          operation: 'append',
+          target: { kind: 'path', path: 'workflows/My%20Workflow/changelog.md' },
+          title: 'Update changelog',
+        },
+      },
+    })
+    const editContentDelta = createEvent({
+      streamId: 'stream-1',
+      cursor: '2',
+      seq: 2,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'edit-content-1',
+        toolName: 'edit_content',
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.args_delta,
+        argumentsDelta: '{"content":"\\n- Added a workflow step',
+      },
+    })
+    const editContentResult = createEvent({
+      streamId: 'stream-1',
+      cursor: '3',
+      seq: 3,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'edit-content-1',
+        toolName: 'edit_content',
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.result,
+        success: true,
+        output: {
+          success: true,
+          data: { id: 'changelog-file-1', name: 'workflow-1.md' },
+        },
+      },
+    })
+    const complete = createEvent({
+      streamId: 'stream-1',
+      cursor: '4',
+      seq: 4,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.complete,
+      payload: {
+        status: MothershipStreamV1CompletionStatus.complete,
+      },
+    })
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      createSseResponse([workspaceFileCall, editContentDelta, editContentResult, complete])
+    )
+
+    const onEvent = vi.fn()
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      messageId: 'msg-1',
+    }
+
+    await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+      onEvent,
+      timeout: 1000,
+    })
+
+    const previewEvents = onEvent.mock.calls
+      .map(([event]) => event)
+      .filter(
+        (event) => event.type === MothershipStreamV1EventType.tool && 'previewPhase' in event.payload
+      )
+
+    expect(previewEvents.map((event) => event.payload.previewPhase)).toEqual([
+      'file_preview_start',
+      'file_preview_target',
+      'file_preview_content',
+      'file_preview_complete',
+    ])
+    expect(previewEvents[1].payload).toMatchObject({
+      previewPhase: 'file_preview_target',
+      target: { kind: 'file_id', fileId: 'changelog-file-1', fileName: 'workflow-1.md' },
+    })
+    expect(previewEvents[2].payload).toMatchObject({
+      previewPhase: 'file_preview_content',
+      fileId: 'changelog-file-1',
+      targetKind: 'file_id',
+      content: '\n- Added a workflow step',
+    })
+    expect(previewEvents[3].payload).toMatchObject({
+      previewPhase: 'file_preview_complete',
+      fileId: 'changelog-file-1',
+    })
+    expect(resolveWorkspaceFileReferenceMock).toHaveBeenCalledWith(
+      'workspace-1',
+      'workflows/My%20Workflow/changelog.md'
+    )
   })
 
   it('drops duplicate tool_result events before forwarding them', async () => {

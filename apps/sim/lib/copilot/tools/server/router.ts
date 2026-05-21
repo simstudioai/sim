@@ -16,6 +16,7 @@ import {
   MoveFileFolder,
   RenameFile,
   RenameFileFolder,
+  TouchPlan,
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -40,6 +41,7 @@ import {
   renameFileFolderServerTool,
 } from '@/lib/copilot/tools/server/files/file-folders'
 import { renameFileServerTool } from '@/lib/copilot/tools/server/files/rename-file'
+import { touchPlanServerTool } from '@/lib/copilot/tools/server/files/touch-plan'
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
@@ -103,6 +105,7 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [WorkspaceFile.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
   [editContentServerTool.name]: ['*'],
   [CreateFile.id]: ['*'],
+  [TouchPlan.id]: ['*'],
   [RenameFile.id]: ['*'],
   [DeleteFile.id]: ['*'],
   [MoveFile.id]: ['*'],
@@ -143,6 +146,7 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [workspaceFileServerTool.name]: workspaceFileServerTool,
   [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,
+  [touchPlanServerTool.name]: touchPlanServerTool,
   [renameFileServerTool.name]: renameFileServerTool,
   [deleteFileServerTool.name]: deleteFileServerTool,
   [moveFileServerTool.name]: moveFileServerTool,

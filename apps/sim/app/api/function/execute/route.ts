@@ -1121,6 +1121,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       preparedFiles.map((prepared) =>
         validateWorkspaceFileWriteTarget({
           workspaceId: resolvedWorkspaceId,
+          userId: args.authUserId,
           target: prepared.target,
         })
       )
@@ -1205,6 +1206,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
           fileId: file.id,
           fileName: file.name,
           vfsPath: file.vfsPath,
+          backingVfsPath: file.backingVfsPath,
           downloadUrl: file.downloadUrl,
           sandboxPath: file.sandboxPath,
         })),

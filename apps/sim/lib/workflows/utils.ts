@@ -6,6 +6,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, asc, eq, inArray, isNull, max, min, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { ensureWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { materializeInlineExecutionValue } from '@/lib/execution/payloads/inline-materialization.server'
 import type { ExecutionMaterializationContext } from '@/lib/execution/payloads/materialization.server'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
@@ -489,6 +490,8 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
   if (!saveResult.success) {
     throw new Error(saveResult.error || 'Failed to save workflow state')
   }
+
+  await ensureWorkflowAliasBacking({ workspaceId, userId, workflowId, workflowName: name })
 
   return { workflowId, name, workspaceId, folderId, sortOrder, createdAt: now, updatedAt: now }
 }

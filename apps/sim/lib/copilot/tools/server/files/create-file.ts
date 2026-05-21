@@ -6,6 +6,7 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
+import { isPlanAliasPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { inferContentType } from './workspace-file'
 
 const logger = createLogger('CreateFileServerTool')
@@ -26,6 +27,7 @@ interface CreateFileResult {
     name: string
     contentType: string
     vfsPath: string
+    backingVfsPath?: string
   }
 }
 
@@ -50,6 +52,13 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     }
     const outputPath =
       outputFile?.path ?? (fileName.startsWith('files/') ? fileName : `files/${fileName}`)
+    if (isPlanAliasPath(outputPath)) {
+      return {
+        success: false,
+        message:
+          'create_file does not initialize plan aliases. Use touch_plan for new workspace or workflow plans; changelog.md is created automatically per workflow.',
+      }
+    }
     const contentType = outputFile?.mimeType ?? inferContentType(outputPath, explicitType)
     const emptyBuffer = Buffer.from('', 'utf-8')
 
@@ -81,6 +90,7 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
         name: result.name,
         contentType,
         vfsPath: result.vfsPath,
+        backingVfsPath: result.backingVfsPath,
       },
     }
   },

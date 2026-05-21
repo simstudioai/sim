@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -9,6 +9,12 @@ import { PanelLeft } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
+import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import {
+  buildWorkflowAliasWorkflowEntries,
+  resolveWorkflowAliasPath,
+  resolveWorkspacePlanAliasPath,
+} from '@/lib/copilot/vfs/workflow-aliases'
 import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
@@ -16,7 +22,10 @@ import {
 } from '@/lib/core/utils/browser-storage'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { useFolders } from '@/hooks/queries/folders'
 import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
+import { useWorkflows } from '@/hooks/queries/workflows'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChat, MothershipView, TemplatePrompts, UserInput } from './components'
 import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
@@ -34,6 +43,9 @@ export function Home({ chatId }: HomeProps = {}) {
   const searchParams = useSearchParams()
   const initialResourceId = searchParams.get('resource')
   const { data: session } = useSession()
+  const { data: workspaceFiles = [] } = useWorkspaceFiles(workspaceId)
+  const { data: workflows = [] } = useWorkflows(workspaceId)
+  const { data: folders = [] } = useFolders(workspaceId)
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
@@ -275,10 +287,59 @@ export function Home({ chatId }: HomeProps = {}) {
     removeResource(resolved.type, resolved.id)
   }
 
+  const workflowAliasEntries = useMemo(
+    () =>
+      buildWorkflowAliasWorkflowEntries(
+        workflows.map((workflow) => ({
+          id: workflow.id,
+          name: workflow.name,
+          folderId: workflow.folderId ?? null,
+        })),
+        folders.map((folder) => ({
+          folderId: folder.id,
+          folderName: folder.name,
+          parentId: folder.parentId ?? null,
+        }))
+      ),
+    [folders, workflows]
+  )
+
+  const resolveFileResource = useCallback(
+    (resource: MothershipResource): MothershipResource => {
+      if (resource.type !== 'file') return resource
+
+      const reference = (resource.path || resource.id).trim()
+      const workspacePlanAlias = resolveWorkspacePlanAliasPath(reference)
+      const workflowAlias = workspacePlanAlias
+        ? null
+        : resolveWorkflowAliasPath(reference, workflowAliasEntries)
+      const alias = workspacePlanAlias || workflowAlias
+      const targetPath = alias && alias.kind !== 'plans_dir' ? alias.backingPath : reference
+
+      const file = workspaceFiles.find((candidate) => {
+        const candidatePath = canonicalWorkspaceFilePath({
+          folderPath: candidate.folderPath,
+          name: candidate.name,
+        })
+        return candidate.id === reference || candidatePath === reference || candidatePath === targetPath
+      })
+
+      if (!file) return resource
+      return {
+        ...resource,
+        id: file.id,
+        title: resource.title || file.name,
+        path: alias ? reference : resource.path,
+      }
+    },
+    [workflowAliasEntries, workspaceFiles]
+  )
+
   function handleWorkspaceResourceSelect(resource: MothershipResource) {
-    const wasAdded = addResource(resource)
+    const resolvedResource = resolveFileResource(resource)
+    const wasAdded = addResource(resolvedResource)
     if (!wasAdded) {
-      setActiveResourceId(resource.id)
+      setActiveResourceId(resolvedResource.id)
     }
     handleResourceEvent()
   }

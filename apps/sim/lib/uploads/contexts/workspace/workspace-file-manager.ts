@@ -17,6 +17,7 @@ import {
 } from '@/lib/billing/storage'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
@@ -76,6 +77,7 @@ interface ListWorkspaceFilesOptions {
   scope?: WorkspaceFileScope
   folders?: WorkspaceFileFolderRecord[]
   hydrateFolderPaths?: boolean
+  includeReservedSystemFiles?: boolean
 }
 
 /**
@@ -630,7 +632,11 @@ export async function listWorkspaceFiles(
   options?: ListWorkspaceFilesOptions
 ): Promise<WorkspaceFileRecord[]> {
   try {
-    const { scope = 'active', hydrateFolderPaths = true } = options ?? {}
+    const {
+      scope = 'active',
+      hydrateFolderPaths = true,
+      includeReservedSystemFiles = false,
+    } = options ?? {}
     const files = await db
       .select()
       .from(workspaceFiles)
@@ -654,9 +660,15 @@ export async function listWorkspaceFiles(
       )
       .orderBy(workspaceFiles.uploadedAt)
 
-    const needsFolderPaths = hydrateFolderPaths && files.some((file) => file.folderId)
+    const needsFolderPaths =
+      files.some((file) => file.folderId) && (hydrateFolderPaths || !includeReservedSystemFiles)
     const folders = needsFolderPaths
-      ? (options?.folders ?? (await listWorkspaceFileFolders(workspaceId, { scope: 'all' })))
+      ? includeReservedSystemFiles && options?.folders
+        ? options.folders
+        : await listWorkspaceFileFolders(workspaceId, {
+            scope: 'all',
+            includeReservedSystemFolders: true,
+          })
       : []
     const folderPaths = needsFolderPaths ? buildWorkspaceFileFolderPathMap(folders) : new Map()
 
@@ -770,7 +782,9 @@ async function getWorkspaceFileByExactReference(
     return getWorkspaceFileByName(workspaceId, segments[0], { folderId: null })
   }
 
-  const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments.slice(0, -1))
+  const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments.slice(0, -1), {
+    includeReservedSystemFolders: true,
+  })
   return folderId ? getWorkspaceFileByName(workspaceId, segments.at(-1) ?? '', { folderId }) : null
 }
 
@@ -781,6 +795,12 @@ export async function resolveWorkspaceFileReference(
   workspaceId: string,
   fileReference: string
 ): Promise<WorkspaceFileRecord | null> {
+  const alias = await resolveWorkflowAliasForWorkspace({ workspaceId, path: fileReference })
+  if (alias) {
+    if (alias.kind === 'plans_dir') return null
+    return resolveWorkspaceFileReference(workspaceId, alias.backingPath)
+  }
+
   const normalizedReference = normalizeWorkspaceFileReference(fileReference)
   if (normalizedReference.startsWith('wf_')) {
     const file = await getWorkspaceFile(workspaceId, normalizedReference)
@@ -793,7 +813,7 @@ export async function resolveWorkspaceFileReference(
   )
   if (exactReferenceFile) return exactReferenceFile
 
-  const files = await listWorkspaceFiles(workspaceId)
+  const files = await listWorkspaceFiles(workspaceId, { includeReservedSystemFiles: true })
   return findWorkspaceFileRecord(files, fileReference)
 }
 

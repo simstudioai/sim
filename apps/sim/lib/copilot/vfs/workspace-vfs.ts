@@ -58,6 +58,19 @@ import {
   serializeVersions,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
+import { ensureWorkflowAliasBackingQuietly } from '@/lib/copilot/vfs/workflow-alias-backing'
+import {
+  buildWorkflowAliasLinks,
+  isWorkflowAliasBackingPath,
+  WORKSPACE_PLANS_BACKING_FOLDER,
+  WORKFLOW_ALIAS_LINKS_NAME,
+  WORKFLOW_CHANGELOG_ALIAS_NAME,
+  WORKFLOW_PLANS_ALIAS_DIR,
+  WORKFLOW_PLANS_BACKING_FOLDER,
+  workspacePlanBackingPath,
+  workspacePlansBackingFolderPath,
+  workflowChangelogBackingPath,
+} from '@/lib/copilot/vfs/workflow-aliases'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
@@ -485,7 +498,7 @@ export class WorkspaceVFS {
     const canonicalMatch = path.match(new RegExp(`^files/(.+)/${suffix}$`))
     if (!canonicalMatch?.[1]) return null
 
-    const files = await listWorkspaceFiles(this._workspaceId)
+    const files = await listWorkspaceFiles(this._workspaceId, { includeReservedSystemFiles: true })
     return findWorkspaceFileRecord(files, `files/${canonicalMatch[1]}`)
   }
 
@@ -551,7 +564,11 @@ export class WorkspaceVFS {
           error: toError(err).message,
         })
         if (err instanceof SandboxUserCodeError) {
-          const json = JSON.stringify({ ok: false, error: toError(err).message, errorName: err.name })
+          const json = JSON.stringify({
+            ok: false,
+            error: toError(err).message,
+            errorName: err.name,
+          })
           return { content: json, totalLines: 1 }
         }
         return null
@@ -645,7 +662,10 @@ export class WorkspaceVFS {
     const scope = deletedMatch ? 'archived' : 'active'
 
     try {
-      const files = await listWorkspaceFiles(this._workspaceId, { scope })
+      const files = await listWorkspaceFiles(this._workspaceId, {
+        scope,
+        includeReservedSystemFiles: true,
+      })
       const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
       return readFileRecord(record)
@@ -699,7 +719,7 @@ export class WorkspaceVFS {
    */
   private async materializeWorkflows(
     workspaceId: string,
-    _userId: string
+    userId: string
   ): Promise<WorkspaceMdData['workflows']> {
     const [workflowRows, folderRows] = await Promise.all([
       listWorkflows(workspaceId),
@@ -707,6 +727,18 @@ export class WorkspaceVFS {
     ])
 
     const folderPaths = this.buildFolderPaths(folderRows)
+
+    await Promise.all(
+      workflowRows.map((wf) =>
+        ensureWorkflowAliasBackingQuietly({
+          workspaceId,
+          userId,
+          workflowId: wf.id,
+          workflowName: wf.name,
+        })
+      )
+    )
+    const workspaceFiles = await listWorkspaceFiles(workspaceId, { includeReservedSystemFiles: true })
 
     // Register all folders in the VFS so empty folders are discoverable.
     for (const { folderId } of folderRows) {
@@ -723,8 +755,75 @@ export class WorkspaceVFS {
         const prefix = folderPath
           ? `workflows/${folderPath}/${safeName}/`
           : `workflows/${safeName}/`
+        const workflowPath = prefix.replace(/\/$/, '')
 
         this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf))
+
+        const changelog = findWorkspaceFileRecord(
+          workspaceFiles,
+          workflowChangelogBackingPath(wf.id)
+        )
+        let changelogContent = ''
+        if (changelog) {
+          try {
+            changelogContent = (await readFileRecord(changelog))?.content ?? ''
+          } catch (err) {
+            logger.warn('Failed to read workflow changelog alias backing file', {
+              workspaceId,
+              workflowId: wf.id,
+              fileId: changelog.id,
+              error: toError(err).message,
+            })
+          }
+        }
+        if (changelog) {
+          this.files.set(`${prefix}${WORKFLOW_CHANGELOG_ALIAS_NAME}`, changelogContent)
+        }
+        this.files.set(`${prefix}${WORKFLOW_PLANS_ALIAS_DIR}/.folder`, '')
+
+        const planFiles = workspaceFiles.filter((file) => {
+          if (!file.folderPath) return false
+          return (
+            file.folderPath === `${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}` ||
+            file.folderPath.startsWith(`${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}/`)
+          )
+        })
+        for (const planFile of planFiles) {
+          const relativeFolder = planFile.folderPath
+            ?.replace(`${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}`, '')
+            .replace(/^\/+/, '')
+          const aliasPlanPath = [
+            prefix,
+            `${WORKFLOW_PLANS_ALIAS_DIR}/`,
+            relativeFolder ? `${encodeVfsPathSegments(relativeFolder.split('/'))}/` : '',
+            normalizeVfsSegment(planFile.name),
+          ].join('')
+          try {
+            this.files.set(aliasPlanPath, (await readFileRecord(planFile))?.content ?? '')
+          } catch (err) {
+            logger.warn('Failed to read workflow plan alias backing file', {
+              workspaceId,
+              workflowId: wf.id,
+              fileId: planFile.id,
+              error: toError(err).message,
+            })
+          }
+        }
+        this.files.set(
+          `${prefix}${WORKFLOW_ALIAS_LINKS_NAME}`,
+          JSON.stringify(
+            {
+              aliases: buildWorkflowAliasLinks({
+                workflowPath,
+                workflowId: wf.id,
+                changelog,
+                planFiles,
+              }),
+            },
+            null,
+            2
+          )
+        )
 
         let normalized: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>> = null
         try {
@@ -958,8 +1057,13 @@ export class WorkspaceVFS {
    */
   private async materializeFiles(workspaceId: string): Promise<WorkspaceMdData['files']> {
     try {
-      const folders = await listWorkspaceFileFolders(workspaceId)
-      const files = await listWorkspaceFiles(workspaceId, { folders })
+      const folders = await listWorkspaceFileFolders(workspaceId, {
+        includeReservedSystemFolders: true,
+      })
+      const files = await listWorkspaceFiles(workspaceId, {
+        folders,
+        includeReservedSystemFiles: true,
+      })
       for (const folder of folders) {
         this.files.set(`files/${encodeVfsPathSegments(folder.path.split('/'))}/.folder`, '')
       }
@@ -984,13 +1088,81 @@ export class WorkspaceVFS {
         )
       }
 
-      return files.map((f) => ({
-        id: f.id,
-        name: f.name,
-        type: f.type,
-        size: f.size,
-        folderPath: f.folderPath ?? null,
-      }))
+      this.files.set(`${WORKFLOW_PLANS_ALIAS_DIR}/.folder`, '')
+      const workspacePlanFiles = files.filter((file) => {
+        if (!file.folderPath) return false
+        return (
+          file.folderPath === `${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}` ||
+          file.folderPath.startsWith(`${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}/`)
+        )
+      })
+      const workspacePlanLinks = []
+      for (const planFile of workspacePlanFiles) {
+        const relativeFolder = planFile.folderPath
+          ?.replace(`${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}`, '')
+          .replace(/^\/+/, '')
+        const aliasRelativePath = [
+          relativeFolder ? `${encodeVfsPathSegments(relativeFolder.split('/'))}/` : '',
+          normalizeVfsSegment(planFile.name),
+        ].join('')
+        const aliasPlanPath = `${WORKFLOW_PLANS_ALIAS_DIR}/${aliasRelativePath}`
+        const relativeSegments = aliasRelativePath.split('/').slice(0, -1)
+        for (let index = 0; index < relativeSegments.length; index++) {
+          this.files.set(
+            `${WORKFLOW_PLANS_ALIAS_DIR}/${relativeSegments.slice(0, index + 1).join('/')}/.folder`,
+            ''
+          )
+        }
+        try {
+          this.files.set(aliasPlanPath, (await readFileRecord(planFile))?.content ?? '')
+          workspacePlanLinks.push({
+            kind: 'plan_file',
+            scope: 'workspace',
+            aliasPath: aliasPlanPath,
+            backingPath: workspacePlanBackingPath(aliasRelativePath),
+            backingFileId: planFile.id,
+          })
+        } catch (err) {
+          logger.warn('Failed to read workspace plan alias backing file', {
+            workspaceId,
+            fileId: planFile.id,
+            error: toError(err).message,
+          })
+        }
+      }
+      this.files.set(
+        `${WORKFLOW_PLANS_ALIAS_DIR}/${WORKFLOW_ALIAS_LINKS_NAME}`,
+        JSON.stringify(
+          {
+            aliases: [
+              {
+                kind: 'plans_dir',
+                scope: 'workspace',
+                aliasPath: WORKFLOW_PLANS_ALIAS_DIR,
+                backingPath: workspacePlansBackingFolderPath(),
+              },
+              ...workspacePlanLinks,
+            ],
+          },
+          null,
+          2
+        )
+      )
+
+      return files
+        .filter(
+          (f) =>
+            !isWorkflowAliasBackingPath(
+              canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name })
+            )
+        )
+        .map((f) => ({
+          id: f.id,
+          name: f.name,
+          type: f.type,
+          size: f.size,
+          folderPath: f.folderPath ?? null,
+        }))
     } catch (err) {
       logger.warn('Failed to materialize files', {
         workspaceId,
