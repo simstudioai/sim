@@ -3,6 +3,7 @@ import {
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
@@ -10,6 +11,7 @@ import {
   UploadPartCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { env } from '@/lib/core/config/env'
 import { S3_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/config'
@@ -249,6 +251,52 @@ export async function deleteFromS3(key: string, customConfig?: S3Config): Promis
       Key: key,
     })
   )
+}
+
+/** S3 `DeleteObjects` hard cap. */
+const S3_DELETE_OBJECTS_MAX_KEYS = 1000
+
+/**
+ * Multi-object delete. One HTTP call per 1000 keys; each key still counts
+ * against the per-prefix DELETE rate limit (3500/sec).
+ */
+export async function deleteManyFromS3(
+  keys: string[],
+  customConfig?: S3Config
+): Promise<{ failed: Array<{ key: string; error: string }> }> {
+  const failed: Array<{ key: string; error: string }> = []
+  if (keys.length === 0) return { failed }
+
+  const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
+  const s3Client = getS3Client()
+
+  for (let i = 0; i < keys.length; i += S3_DELETE_OBJECTS_MAX_KEYS) {
+    const chunk = keys.slice(i, i + S3_DELETE_OBJECTS_MAX_KEYS)
+    try {
+      const response = await s3Client.send(
+        new DeleteObjectsCommand({
+          Bucket: config.bucket,
+          Delete: {
+            Objects: chunk.map((Key) => ({ Key })),
+            Quiet: true,
+          },
+        })
+      )
+      for (const error of response.Errors ?? []) {
+        if (error.Key) {
+          failed.push({
+            key: error.Key,
+            error: error.Message ?? error.Code ?? 'unknown',
+          })
+        }
+      }
+    } catch (error) {
+      const message = getErrorMessage(error)
+      for (const Key of chunk) failed.push({ key: Key, error: message })
+    }
+  }
+
+  return { failed }
 }
 
 /**
