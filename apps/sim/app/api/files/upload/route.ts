@@ -11,10 +11,10 @@ import {
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import {
-  assertContentLengthWithinLimit,
   assertKnownSizeWithinLimit,
   isPayloadSizeLimitError,
   readFileToBufferWithLimit,
+  readFormDataWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -50,19 +50,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (request.headers && !request.headers.get('content-length')) {
-      return NextResponse.json(
-        { error: 'Content-Length is required for multipart uploads' },
-        { status: 411 }
-      )
-    }
-    assertContentLengthWithinLimit(
-      request.headers,
-      MAX_WORKSPACE_FORMDATA_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES,
-      'multipart upload body'
-    )
-
-    const formData = await request.formData()
+    const formData = await readFormDataWithLimit(request, {
+      maxBytes: MAX_WORKSPACE_FORMDATA_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES,
+      label: 'multipart upload body',
+    })
 
     const rawFiles = formData.getAll('file')
     const filesResult = uploadFilesFormFilesSchema.safeParse(rawFiles)

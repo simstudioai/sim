@@ -229,6 +229,21 @@ describe('POST /api/table/[tableId]/import', () => {
     expect(mockReplaceTableRowsWithTx).not.toHaveBeenCalled()
   })
 
+  it('accepts chunked multipart imports without a content-length header', async () => {
+    const form = createFormData(createCsvFile('name,age\nAlice,30'), { mode: 'append' })
+    const req = new NextRequest('http://localhost:3000/api/table/tbl_1/import', {
+      method: 'POST',
+      body: form,
+    })
+
+    expect(req.headers.get('content-length')).toBeNull()
+
+    const response = await POST(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+
+    expect(response.status).toBe(200)
+    expect(mockBatchInsertRowsWithTx).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects append when it would exceed maxRows', async () => {
     mockCheckAccess.mockResolvedValueOnce({
       ok: true,

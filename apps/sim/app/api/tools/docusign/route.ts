@@ -8,12 +8,12 @@ import {
   assertKnownSizeWithinLimit,
   DEFAULT_MAX_ERROR_BODY_BYTES,
   isPayloadSizeLimitError,
-  PayloadSizeLimitError,
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
@@ -23,7 +23,6 @@ import { assertToolFileAccess } from '@/app/api/files/authorization'
 const logger = createLogger('DocuSignAPI')
 const MAX_DOCUSIGN_DOCUMENT_BYTES = 25 * 1024 * 1024
 const MAX_DOCUSIGN_JSON_BYTES = 2 * 1024 * 1024
-const MAX_LEGACY_INLINE_DOCUMENT_BYTES = 7 * 1024 * 1024
 
 interface DocuSignAccountInfo {
   accountId: string
@@ -140,7 +139,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       case 'void_envelope':
         return await handleVoidEnvelope(apiBase, headers, params)
       case 'download_document':
-        return await handleDownloadDocument(apiBase, headers, params)
+        return await handleDownloadDocument(apiBase, headers, params, authResult.userId)
       case 'list_templates':
         return await handleListTemplates(apiBase, headers, params)
       case 'list_recipients':
@@ -445,7 +444,8 @@ async function handleVoidEnvelope(
 async function handleDownloadDocument(
   apiBase: string,
   headers: Record<string, string>,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  userId: string
 ) {
   const { envelopeId, documentId } = params
   if (!envelopeId) {
@@ -509,17 +509,14 @@ async function handleDownloadDocument(
     })
   }
 
-  if (buffer.length > MAX_LEGACY_INLINE_DOCUMENT_BYTES) {
-    throw new PayloadSizeLimitError({
-      label: 'DocuSign legacy inline document',
-      maxBytes: MAX_LEGACY_INLINE_DOCUMENT_BYTES,
-      observedBytes: buffer.length,
-    })
-  }
+  const file = await uploadCopilotFile({
+    buffer,
+    fileName,
+    contentType,
+    userId,
+  })
 
-  const base64Content = buffer.toString('base64')
-
-  return NextResponse.json({ base64Content, mimeType: contentType, fileName })
+  return NextResponse.json({ file, mimeType: contentType, fileName })
 }
 
 async function handleListTemplates(

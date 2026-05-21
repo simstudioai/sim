@@ -227,6 +227,26 @@ describe('File Upload API Route', () => {
     expect(uploadWorkspaceFile).toHaveBeenCalled()
   })
 
+  it('should accept chunked multipart uploads without a content-length header', async () => {
+    setupFileApiMocks({
+      cloudEnabled: false,
+      storageProvider: 'local',
+    })
+
+    const formData = createMockFormData([createMockFile()])
+    const req = new NextRequest('http://localhost:3000/api/files/upload', {
+      method: 'POST',
+      body: formData,
+    })
+
+    expect(req.headers.get('content-length')).toBeNull()
+
+    const response = await POST(req)
+
+    expect(response.status).toBe(200)
+    expect(uploadWorkspaceFile).toHaveBeenCalled()
+  })
+
   it('should upload a file to S3 when in S3 mode', async () => {
     setupFileApiMocks({
       cloudEnabled: true,

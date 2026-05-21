@@ -7,9 +7,9 @@ import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
-  assertContentLengthWithinLimit,
   isPayloadSizeLimitError,
   readFileToBufferWithLimit,
+  readFormDataWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -41,19 +41,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    if (request.headers && !request.headers.get('content-length')) {
-      return NextResponse.json(
-        { error: 'Content-Length is required for CSV imports' },
-        { status: 411 }
-      )
-    }
-    assertContentLengthWithinLimit(
-      request.headers,
-      CSV_MAX_FILE_SIZE_BYTES + MAX_MULTIPART_OVERHEAD_BYTES,
-      'CSV import body'
-    )
-
-    const formData = await request.formData()
+    const formData = await readFormDataWithLimit(request, {
+      maxBytes: CSV_MAX_FILE_SIZE_BYTES + MAX_MULTIPART_OVERHEAD_BYTES,
+      label: 'CSV import body',
+    })
     const validation = csvImportFormSchema.safeParse({
       file: formData.get('file'),
       workspaceId: formData.get('workspaceId'),

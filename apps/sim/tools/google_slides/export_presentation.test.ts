@@ -1,22 +1,44 @@
 /**
  * @vitest-environment node
  */
+import {
+  createMockRequest,
+  hybridAuthMockFns,
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUploadExecutionFile } = vi.hoisted(() => ({
+const { mockUploadCopilotFile, mockUploadExecutionFile } = vi.hoisted(() => ({
+  mockUploadCopilotFile: vi.fn(),
   mockUploadExecutionFile: vi.fn(),
 }))
 
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+vi.mock('@/lib/uploads/contexts/copilot', () => ({
+  uploadCopilotFile: mockUploadCopilotFile,
+}))
 vi.mock('@/lib/uploads/contexts/execution', () => ({
   uploadExecutionFile: mockUploadExecutionFile,
 }))
 
+import { POST } from '@/app/api/tools/google_slides/export-presentation/route'
+import type { ExportPresentationParams } from '@/tools/google_slides/export_presentation'
 import { exportPresentationTool } from '@/tools/google_slides/export_presentation'
-import { transformGoogleSlidesExportResponse } from '@/tools/google_slides/export_presentation.server'
 
 describe('Google Slides export presentation tool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      authType: 'internal_jwt',
+    })
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '93.184.216.34',
+      originalHostname: 'www.googleapis.com',
+    })
     mockUploadExecutionFile.mockResolvedValue({
       id: 'file-1',
       name: 'presentation-1.pdf',
@@ -26,15 +48,20 @@ describe('Google Slides export presentation tool', () => {
       key: 'execution/workflow/file-1',
       context: 'execution',
     })
+    mockUploadCopilotFile.mockResolvedValue({
+      id: 'copilot-file-1',
+      name: 'presentation-1.pdf',
+      size: 4,
+      type: 'application/pdf',
+      mimeType: 'application/pdf',
+      url: '/api/files/serve/copilot/copilot-file-1',
+      key: 'copilot/copilot-file-1',
+      context: 'copilot',
+    })
   })
 
-  it('stores exports as execution file references instead of base64', async () => {
-    const response = new Response('content', {
-      status: 200,
-      headers: { 'content-type': 'application/pdf' },
-    })
-
-    const result = await transformGoogleSlidesExportResponse(response, {
+  it('routes exports through the internal API with execution context', () => {
+    const params: ExportPresentationParams = {
       accessToken: 'token',
       presentationId: 'presentation-1',
       exportFormat: 'PDF',
@@ -42,10 +69,56 @@ describe('Google Slides export presentation tool', () => {
         workspaceId: 'workspace-1',
         workflowId: 'workflow-1',
         executionId: 'execution-1',
-        userId: 'user-1',
       },
-    })
+    }
 
+    expect(exportPresentationTool.request.url).toBe('/api/tools/google_slides/export-presentation')
+    expect(exportPresentationTool.request.method).toBe('POST')
+    expect(exportPresentationTool.request.body?.(params)).toEqual({
+      accessToken: 'token',
+      presentationId: 'presentation-1',
+      exportFormat: 'PDF',
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
+  })
+
+  it('stores exports as execution file references instead of base64', async () => {
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      new Response('content', {
+        status: 200,
+        headers: { 'content-type': 'application/pdf' },
+      })
+    )
+
+    const response = await POST(
+      createMockRequest('POST', {
+        accessToken: 'token',
+        presentationId: 'presentation-1',
+        exportFormat: 'PDF',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+      })
+    )
+    const result = (await response.json()) as {
+      success: true
+      output: {
+        file: { key: string; context: string; mimeType?: string }
+        contentBase64?: string
+      }
+    }
+
+    expect(response.status).toBe(200)
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'https://www.googleapis.com/drive/v3/files/presentation-1/export?mimeType=application%2Fpdf',
+      '93.184.216.34',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token' },
+        maxResponseBytes: 10 * 1024 * 1024,
+      })
+    )
     expect(mockUploadExecutionFile).toHaveBeenCalledWith(
       { workspaceId: 'workspace-1', workflowId: 'workflow-1', executionId: 'execution-1' },
       Buffer.from('content'),
@@ -58,25 +131,78 @@ describe('Google Slides export presentation tool', () => {
       context: 'execution',
       mimeType: 'application/pdf',
     })
-    expect(result?.output.contentBase64).toBeUndefined()
+    expect(result.output.contentBase64).toBeUndefined()
   })
 
-  it('preserves legacy base64 content when execution context is unavailable', async () => {
+  it('stores exports in copilot storage when execution context is unavailable', async () => {
     const bytes = Uint8Array.from([0, 255, 1, 254])
-    const response = new Response(bytes, {
-      status: 200,
-      headers: { 'content-type': 'application/pdf' },
-    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      new Response(bytes, {
+        status: 200,
+        headers: { 'content-type': 'application/pdf' },
+      })
+    )
 
-    const result = await exportPresentationTool.transformResponse?.(response, {
-      accessToken: 'token',
-      presentationId: 'presentation-1',
-      exportFormat: 'PDF',
-    })
+    const response = await POST(
+      createMockRequest('POST', {
+        accessToken: 'token',
+        presentationId: 'presentation-1',
+        exportFormat: 'PDF',
+      })
+    )
+    const result = (await response.json()) as {
+      success: true
+      output: {
+        file: { key: string; context: string; url: string }
+        contentBase64?: string
+        sizeBytes: number
+      }
+    }
 
     expect(mockUploadExecutionFile).not.toHaveBeenCalled()
-    expect(result?.output.file).toBeUndefined()
-    expect(result?.output.contentBase64).toBe(Buffer.from(bytes).toString('base64'))
-    expect(result?.output.sizeBytes).toBe(bytes.byteLength)
+    expect(mockUploadCopilotFile).toHaveBeenCalledWith({
+      buffer: Buffer.from(bytes),
+      fileName: 'presentation-1.pdf',
+      contentType: 'application/pdf',
+      userId: 'user-1',
+    })
+    expect(result.output.file).toMatchObject({
+      key: 'copilot/copilot-file-1',
+      context: 'copilot',
+      url: '/api/files/serve/copilot/copilot-file-1',
+    })
+    expect(result.output.contentBase64).toBeUndefined()
+    expect(result.output.sizeBytes).toBe(bytes.byteLength)
+  })
+
+  it('maps internal API responses into tool output', async () => {
+    const response = new Response(
+      JSON.stringify({
+        success: true,
+        output: {
+          file: {
+            key: 'copilot/copilot-file-1',
+            context: 'copilot',
+            url: '/api/files/serve/copilot/copilot-file-1',
+          },
+          mimeType: 'application/pdf',
+          sizeBytes: 3,
+          metadata: {
+            presentationId: 'presentation-1',
+            url: 'https://docs.google.com/presentation/d/presentation-1/edit',
+            exportFormat: 'PDF',
+          },
+        },
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }
+    )
+
+    const result = await exportPresentationTool.transformResponse?.(response)
+
+    expect(result?.output.file?.key).toBe('copilot/copilot-file-1')
+    expect(result?.output.metadata.presentationId).toBe('presentation-1')
   })
 })

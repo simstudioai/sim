@@ -89,7 +89,7 @@ export const docusignDownloadDocumentTool: ToolConfig<
     file: { type: 'file', description: 'Stored downloaded document file', optional: true },
     base64Content: {
       type: 'string',
-      description: 'Legacy base64 document content for small downloads',
+      description: 'Deprecated legacy inline content. New downloads return file.',
       optional: true,
     },
     mimeType: { type: 'string', description: 'MIME type of the document' },

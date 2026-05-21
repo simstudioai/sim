@@ -37,12 +37,19 @@ const REFERENCE_CHECK_KEY_CHUNK_SIZE = 200
  */
 async function filterLargeValueKeysWithoutRetainedReferences(
   keys: string[],
-  deletedLogIds: string[],
-  workspaceIds: string[]
+  deletedLogIds: string[]
 ): Promise<string[]> {
-  if (keys.length === 0 || deletedLogIds.length === 0 || workspaceIds.length === 0) return []
+  if (keys.length === 0 || deletedLogIds.length === 0) return []
 
   const uniqueKeys = Array.from(new Set(keys))
+  const workspaceIds = Array.from(
+    new Set(
+      uniqueKeys
+        .map((key) => key.split('/')[1])
+        .filter((workspaceId): workspaceId is string => Boolean(workspaceId))
+    )
+  )
+  if (workspaceIds.length === 0) return []
   const referencedKeys = new Set<string>()
 
   for (const keyChunk of chunkArray(uniqueKeys, REFERENCE_CHECK_KEY_CHUNK_SIZE)) {
@@ -145,12 +152,10 @@ async function cleanupWorkflowExecutionLogs(
         .limit(limit),
     onBatch: async (rows) => {
       const deletedLogIds = rows.map((row) => row.id)
-      const workspaceIds = Array.from(new Set(rows.map((row) => row.workspaceId)))
       const largeValueKeys = rows.flatMap((row) => collectLargeValueKeys(row.executionData))
       const unreferencedLargeValueKeys = await filterLargeValueKeysWithoutRetainedReferences(
         largeValueKeys,
-        deletedLogIds,
-        workspaceIds
+        deletedLogIds
       )
 
       for (const row of rows) {

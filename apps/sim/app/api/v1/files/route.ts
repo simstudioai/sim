@@ -6,9 +6,9 @@ import { v1ListFilesContract, v1UploadFileFormFieldsSchema } from '@/lib/api/con
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
-  assertContentLengthWithinLimit,
   isPayloadSizeLimitError,
   readFileToBufferWithLimit,
+  readFormDataWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -89,18 +89,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     let formData: FormData
     try {
-      if (request.headers && !request.headers.get('content-length')) {
-        return NextResponse.json(
-          { error: 'Content-Length is required for multipart uploads' },
-          { status: 411 }
-        )
-      }
-      assertContentLengthWithinLimit(
-        request.headers,
-        MAX_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES,
-        'workspace file upload body'
-      )
-      formData = await request.formData()
+      formData = await readFormDataWithLimit(request, {
+        maxBytes: MAX_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES,
+        label: 'workspace file upload body',
+      })
     } catch (error) {
       if (isPayloadSizeLimitError(error)) {
         return NextResponse.json({ error: error.message }, { status: 413 })

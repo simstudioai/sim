@@ -8,6 +8,7 @@ import {
   assertContentLengthWithinLimit,
   PayloadSizeLimitError,
   readFileToBufferWithLimit,
+  readFormDataWithLimit,
   readNodeStreamToBufferWithLimit,
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
@@ -164,6 +165,37 @@ describe('stream limits', () => {
     expect(buffer.toString('utf-8')).toBe('hello')
     await expect(
       readFileToBufferWithLimit(file, { maxBytes: 4, label: 'upload file' })
+    ).rejects.toBeInstanceOf(PayloadSizeLimitError)
+  })
+
+  it('parses multipart form data without requiring content-length', async () => {
+    const input = new FormData()
+    input.append('name', 'example')
+    const request = new Request('http://localhost/upload', {
+      method: 'POST',
+      body: input,
+    })
+
+    expect(request.headers.get('content-length')).toBeNull()
+
+    const formData = await readFormDataWithLimit(request, {
+      maxBytes: 1024 * 1024,
+      label: 'multipart body',
+    })
+
+    expect(formData.get('name')).toBe('example')
+  })
+
+  it('rejects multipart streams without content-length once bytes exceed the limit', async () => {
+    const request = new Request('http://localhost/upload', {
+      method: 'POST',
+      headers: { 'content-type': 'multipart/form-data; boundary=test' },
+      body: streamFromChunks([new Uint8Array(6), new Uint8Array(5)]),
+      duplex: 'half',
+    } as RequestInit)
+
+    await expect(
+      readFormDataWithLimit(request, { maxBytes: 10, label: 'multipart body' })
     ).rejects.toBeInstanceOf(PayloadSizeLimitError)
   })
 

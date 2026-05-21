@@ -56,6 +56,33 @@ export function assertContentLengthWithinLimit(
   }
 }
 
+export interface ReadFormDataWithLimitRequest {
+  url: string
+  method: string
+  headers?: Headers
+  body?: ReadableStream<Uint8Array> | null
+  formData: () => Promise<FormData>
+}
+
+export async function readFormDataWithLimit(
+  request: ReadFormDataWithLimitRequest,
+  options: { maxBytes: number; label: string }
+): Promise<FormData> {
+  assertContentLengthWithinLimit(request.headers, options.maxBytes, options.label)
+
+  if (request.headers?.get('content-length') || !request.body) {
+    return request.formData()
+  }
+
+  const body = await readStreamToBufferWithLimit(request.body, options)
+  const boundedRequest = new Request(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: new Uint8Array(body),
+  })
+  return boundedRequest.formData()
+}
+
 export interface ReadStreamWithLimitOptions {
   maxBytes: number
   label: string

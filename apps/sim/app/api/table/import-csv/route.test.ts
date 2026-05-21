@@ -90,17 +90,15 @@ describe('POST /api/table/import-csv', () => {
     expect(mockCreateTable).not.toHaveBeenCalled()
   })
 
-  it('requires content-length when request headers are available', async () => {
+  it('accepts chunked multipart requests without a content-length header', async () => {
     const req = {
       headers: new Headers({ 'transfer-encoding': 'chunked' }),
       formData: vi.fn(async () => createFormData(createCsvFile('name\nAlice'))),
     } as unknown as NextRequest
 
     const response = await POST(req)
-    const data = await response.json()
 
-    expect(response.status).toBe(411)
-    expect(data.error).toMatch(/Content-Length is required/)
-    expect(req.formData).not.toHaveBeenCalled()
+    expect(response.status).not.toBe(411)
+    expect(req.formData).toHaveBeenCalled()
   })
 })
