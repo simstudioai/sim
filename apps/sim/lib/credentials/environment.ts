@@ -128,13 +128,12 @@ export async function syncWorkspaceEnvCredentials(params: {
   actingUserId: string
 }) {
   const { workspaceId, envKeys, actingUserId } = params
-  const [[workspaceRow], memberUserIds, wsPermissionRows] = await Promise.all([
+  const [[workspaceRow], wsPermissionRows] = await Promise.all([
     db
       .select({ ownerId: workspace.ownerId })
       .from(workspace)
       .where(eq(workspace.id, workspaceId))
       .limit(1),
-    getWorkspaceMemberUserIds(workspaceId),
     db
       .select({ userId: permissions.userId, permissionType: permissions.permissionType })
       .from(permissions)
@@ -145,6 +144,9 @@ export async function syncWorkspaceEnvCredentials(params: {
 
   const wsPermissionByUser = new Map(
     wsPermissionRows.map((row) => [row.userId, row.permissionType])
+  )
+  const memberUserIds = Array.from(
+    new Set([workspaceRow.ownerId, ...wsPermissionRows.map((row) => row.userId)])
   )
 
   const normalizedKeys = Array.from(new Set(envKeys.filter(Boolean)))
@@ -231,13 +233,12 @@ export async function createWorkspaceEnvCredentials(params: {
   const keys = Array.from(new Set(newKeys.filter(Boolean)))
   if (keys.length === 0) return
 
-  const [[workspaceRow], memberUserIds, wsPermissionRows] = await Promise.all([
+  const [[workspaceRow], wsPermissionRows] = await Promise.all([
     db
       .select({ ownerId: workspace.ownerId })
       .from(workspace)
       .where(eq(workspace.id, workspaceId))
       .limit(1),
-    getWorkspaceMemberUserIds(workspaceId),
     db
       .select({ userId: permissions.userId, permissionType: permissions.permissionType })
       .from(permissions)
@@ -249,6 +250,9 @@ export async function createWorkspaceEnvCredentials(params: {
   const ownerUserId = workspaceRow.ownerId
   const wsPermissionByUser = new Map(
     wsPermissionRows.map((row) => [row.userId, row.permissionType])
+  )
+  const memberUserIds = Array.from(
+    new Set([ownerUserId, ...wsPermissionRows.map((row) => row.userId)])
   )
   const now = new Date()
   const createdIds: string[] = []

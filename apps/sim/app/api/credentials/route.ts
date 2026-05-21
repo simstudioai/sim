@@ -22,7 +22,6 @@ import {
   normalizeAtlassianDomain,
   validateAtlassianServiceAccount,
 } from '@/lib/credentials/atlassian-service-account'
-import { getWorkspaceMemberUserIds } from '@/lib/credentials/environment'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import {
@@ -535,17 +534,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
 
       if ((type === 'env_workspace' || type === 'service_account') && workspaceRow?.ownerId) {
-        const [workspaceUserIds, wsPermissionRows] = await Promise.all([
-          getWorkspaceMemberUserIds(workspaceId),
-          db
-            .select({ userId: permissions.userId, permissionType: permissions.permissionType })
-            .from(permissions)
-            .where(
-              and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId))
-            ),
-        ])
+        const wsPermissionRows = await db
+          .select({ userId: permissions.userId, permissionType: permissions.permissionType })
+          .from(permissions)
+          .where(
+            and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId))
+          )
         const wsPermissionByUser = new Map(
           wsPermissionRows.map((row) => [row.userId, row.permissionType])
+        )
+        const workspaceUserIds = Array.from(
+          new Set([workspaceRow.ownerId, ...wsPermissionRows.map((row) => row.userId)])
         )
         if (workspaceUserIds.length > 0) {
           for (const memberUserId of workspaceUserIds) {
