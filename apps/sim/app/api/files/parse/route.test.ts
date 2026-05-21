@@ -328,17 +328,27 @@ describe('File Parse API Route', () => {
     expect(data.results).toHaveLength(2)
   })
 
-  it('should cap remaining download size while processing multi-file parse results', async () => {
+  it('should keep the multi-file download cap independent from the remaining parsed-output cap', async () => {
     inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
       isValid: true,
       resolvedIP: '203.0.113.10',
     })
-    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
-      new Response('file content', {
-        status: 200,
-        headers: { 'content-type': 'text/plain' },
-      })
-    )
+    inputValidationMockFns.mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(
+        new Response('file content', {
+          status: 200,
+          headers: { 'content-type': 'text/plain' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response('second file content', {
+          status: 200,
+          headers: {
+            'content-length': String(20 * 1024 * 1024),
+            'content-type': 'text/plain',
+          },
+        })
+      )
 
     const fourMbContent = 'a'.repeat(4 * 1024 * 1024)
     mockParseBuffer
@@ -364,17 +374,17 @@ describe('File Parse API Route', () => {
       1,
       'https://example.com/file1.txt',
       '203.0.113.10',
-      expect.objectContaining({ maxResponseBytes: 5 * 1024 * 1024 })
+      expect.objectContaining({ maxResponseBytes: 100 * 1024 * 1024 })
     )
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenNthCalledWith(
       2,
       'https://example.com/file2.txt',
       '203.0.113.10',
-      expect.objectContaining({ maxResponseBytes: 1024 * 1024 })
+      expect.objectContaining({ maxResponseBytes: 100 * 1024 * 1024 })
     )
   })
 
-  it('should preserve the remaining multi-file cap when an external URL reuses a workspace file', async () => {
+  it('should preserve the full download cap when an external URL reuses a workspace file', async () => {
     inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
       isValid: true,
       resolvedIP: '203.0.113.10',
@@ -411,7 +421,7 @@ describe('File Parse API Route', () => {
     expect(response.status).toBe(200)
     expect(data.results).toHaveLength(2)
     expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledWith(
-      expect.objectContaining({ key: 'workspace-file2.txt', maxBytes: 1024 * 1024 })
+      expect.objectContaining({ key: 'workspace-file2.txt', maxBytes: 100 * 1024 * 1024 })
     )
   })
 

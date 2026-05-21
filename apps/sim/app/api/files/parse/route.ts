@@ -173,7 +173,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           executionContext,
           headers,
           request.signal,
-          remainingOutputBytes,
+          MAX_DOWNLOAD_SIZE_BYTES,
           remainingOutputBytes
         )
         if (result.metadata) {
@@ -1110,14 +1110,12 @@ async function handleGenericTextBuffer(
       logger.warn('Specialized parser failed, falling back to generic parsing:', parserError)
     }
 
-    if (maxParsedOutputBytes !== undefined) {
-      assertKnownSizeWithinLimit(fileBuffer.length, maxParsedOutputBytes, 'parsed file output')
-    }
     const content = fileBuffer.toString('utf-8')
+    const limitedContent = assertParsedContentWithinLimit(content, maxParsedOutputBytes)
 
     return {
       success: true,
-      content,
+      content: limitedContent,
       filePath: originalPath || filename,
       metadata: {
         fileType: fileType || getMimeTypeFromExtension(extension),
