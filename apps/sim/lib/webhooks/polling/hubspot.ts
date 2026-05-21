@@ -15,20 +15,42 @@ import {
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
 
 type HubSpotBuiltInObjectType = 'contact' | 'company' | 'deal' | 'ticket'
-type HubSpotEventType = 'created' | 'updated'
+type HubSpotEventType = 'created' | 'updated' | 'property_changed'
+
+interface FilterClause {
+  propertyName: string
+  operator: string
+  value?: string
+  values?: string[]
+}
 
 interface HubSpotWebhookConfig {
   credentialId?: string
-  /** Built-in slug, the literal 'custom' (defers to customObjectTypeId), or a raw HubSpot type id. */
+  /**
+   * Built-in slug, 'custom' (defers to customObjectTypeId), 'list_membership',
+   * or a raw HubSpot custom object type id ('2-12345').
+   */
   objectType?: string
   customObjectTypeId?: string
+  listId?: string
   eventType?: HubSpotEventType
+  targetPropertyName?: string
   properties?: string[] | string
-  filterPropertyName?: string
-  filterPropertyValue?: string
+  pipelineId?: string
+  stageId?: string
+  ownerId?: string
+  /** User-supplied AND-combined filters — string list or JSON-array string. */
+  filters?: string | FilterClause[]
   maxRecordsPerPoll?: number
   lastSeenTimestampMs?: string
   lastSeenObjectId?: string
+  /** List-membership cursor — the ISO joined-at of the last membership we emitted. */
+  lastSeenMembershipTimestamp?: string
+  /** Snapshot of the watched property's last-seen value per record (property_changed event). */
+  propertySnapshot?: {
+    property: string
+    values: Record<string, string | null>
+  }
   lastCheckedTimestamp?: string
 }
 
@@ -51,6 +73,8 @@ const DEFAULT_MAX_RECORDS = 50
 const MAX_MAX_RECORDS = 1000
 /** HubSpot Search API: 10k result hard cap, 5 req/s rate limit. */
 const MAX_PAGES_PER_POLL = 10
+/** Cap on property-change snapshot size to bound providerConfig payload. */
+const MAX_SNAPSHOT_SIZE = 1000
 
 const BUILT_IN_PATH: Record<HubSpotBuiltInObjectType, string> = {
   contact: 'contacts',
@@ -58,6 +82,22 @@ const BUILT_IN_PATH: Record<HubSpotBuiltInObjectType, string> = {
   deal: 'deals',
   ticket: 'tickets',
 }
+
+const VALID_OPERATORS = new Set([
+  'EQ',
+  'NEQ',
+  'CONTAINS_TOKEN',
+  'NOT_CONTAINS_TOKEN',
+  'GT',
+  'GTE',
+  'LT',
+  'LTE',
+  'BETWEEN',
+  'IN',
+  'NOT_IN',
+  'HAS_PROPERTY',
+  'NOT_HAS_PROPERTY',
+])
 
 function resolveSearchPath(objectType: string): string {
   if (objectType in BUILT_IN_PATH) {
@@ -120,132 +160,288 @@ export const hubspotPollingHandler: PollingProviderHandler = {
   label: 'HubSpot',
 
   async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
-    const { webhookData, workflowData, requestId, logger } = ctx
+    const { webhookData, requestId, logger } = ctx
     const webhookId = webhookData.id
 
     try {
       const accessToken = await resolveOAuthCredential(webhookData, 'hubspot', requestId, logger)
       const config = getProviderConfig<HubSpotWebhookConfig>(webhookData.providerConfig)
 
-      const objectType = resolveObjectType(config)
-      const eventType = config.eventType
-      if (!objectType) {
-        throw new Error(`HubSpot webhook ${webhookId} is missing objectType`)
+      if (config.objectType === 'list_membership') {
+        return await pollListMembership(ctx, config, accessToken)
       }
-      if (eventType !== 'created' && eventType !== 'updated') {
-        throw new Error(`HubSpot webhook ${webhookId} is missing or has invalid eventType`)
-      }
-
-      const filterProperty =
-        eventType === 'created' ? 'createdate' : resolveModifiedDateProperty(objectType)
-      const nowMs = Date.now()
-
-      // First poll seeds the watermark to now so we don't dump pre-activation history.
-      if (!config.lastSeenTimestampMs) {
-        await updateWebhookProviderConfig(
-          webhookId,
-          {
-            lastSeenTimestampMs: String(nowMs),
-            lastCheckedTimestamp: new Date(nowMs).toISOString(),
-          },
-          logger
-        )
-        await markWebhookSuccess(webhookId, logger)
-        logger.info(
-          `[${requestId}] Seeded HubSpot webhook ${webhookId} watermark to ${nowMs} (${objectType}/${eventType}/${filterProperty})`
-        )
-        return 'success'
-      }
-
-      const watermarkMs = Number(config.lastSeenTimestampMs)
-      if (!Number.isFinite(watermarkMs)) {
-        throw new Error(
-          `HubSpot webhook ${webhookId} has corrupt watermark ${config.lastSeenTimestampMs}`
-        )
-      }
-
-      const properties = resolveRequestedProperties(config, objectType, filterProperty)
-      const maxRecords = Math.min(
-        Math.max(config.maxRecordsPerPoll ?? DEFAULT_MAX_RECORDS, 1),
-        MAX_MAX_RECORDS
-      )
-      const lastSeenObjectId = config.lastSeenObjectId
-
-      const records = await fetchHubSpotChanges({
-        accessToken,
-        objectType,
-        filterProperty,
-        watermarkMs,
-        lastSeenObjectId,
-        properties,
-        filterPropertyName: config.filterPropertyName?.trim() || undefined,
-        filterPropertyValue: config.filterPropertyValue,
-        maxRecords,
-        requestId,
-        logger,
-      })
-
-      if (records.length === 0) {
-        await updateWebhookProviderConfig(
-          webhookId,
-          { lastCheckedTimestamp: new Date(nowMs).toISOString() },
-          logger
-        )
-        await markWebhookSuccess(webhookId, logger)
-        logger.info(
-          `[${requestId}] No new HubSpot ${objectType} ${eventType} for webhook ${webhookId}`
-        )
-        return 'success'
-      }
-
-      logger.info(
-        `[${requestId}] Found ${records.length} HubSpot ${objectType} ${eventType} records for webhook ${webhookId}`
-      )
-
-      const { processedCount, failedCount, highestSeenMs, maxIdAtHighestTimestamp } =
-        await processRecords(
-          records,
-          webhookData,
-          workflowData,
-          objectType,
-          eventType,
-          filterProperty,
-          requestId,
-          logger
-        )
-
-      const newTimestampMs = highestSeenMs > watermarkMs ? highestSeenMs : watermarkMs
-      const newObjectId = maxIdAtHighestTimestamp || lastSeenObjectId || ''
-
-      await updateWebhookProviderConfig(
-        webhookId,
-        {
-          lastSeenTimestampMs: String(newTimestampMs),
-          lastSeenObjectId: newObjectId,
-          lastCheckedTimestamp: new Date(nowMs).toISOString(),
-        },
-        logger
-      )
-
-      if (failedCount > 0 && processedCount === 0) {
-        await markWebhookFailed(webhookId, logger)
-        logger.warn(
-          `[${requestId}] All ${failedCount} HubSpot records failed to process for webhook ${webhookId}`
-        )
-        return 'failure'
-      }
-
-      await markWebhookSuccess(webhookId, logger)
-      logger.info(
-        `[${requestId}] Processed ${processedCount} HubSpot records for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
-      )
-      return 'success'
+      return await pollSearchBased(ctx, config, accessToken)
     } catch (error) {
       logger.error(`[${requestId}] Error processing HubSpot webhook ${webhookId}:`, error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
   },
+}
+
+async function pollSearchBased(
+  ctx: PollWebhookContext,
+  config: HubSpotWebhookConfig,
+  accessToken: string
+): Promise<'success' | 'failure'> {
+  const { webhookData, workflowData, requestId, logger } = ctx
+  const webhookId = webhookData.id
+
+  const objectType = resolveObjectType(config)
+  const eventType = config.eventType
+  if (!objectType) {
+    throw new Error(`HubSpot webhook ${webhookId} is missing objectType`)
+  }
+  if (eventType !== 'created' && eventType !== 'updated' && eventType !== 'property_changed') {
+    throw new Error(`HubSpot webhook ${webhookId} is missing or has invalid eventType`)
+  }
+  if (eventType === 'property_changed' && !config.targetPropertyName?.trim()) {
+    throw new Error(
+      `HubSpot webhook ${webhookId} uses property_changed event but has no targetPropertyName`
+    )
+  }
+
+  // property_changed walks the modified-date stream and diffs the watched property locally.
+  const filterProperty =
+    eventType === 'created' ? 'createdate' : resolveModifiedDateProperty(objectType)
+  const nowMs = Date.now()
+
+  if (!config.lastSeenTimestampMs) {
+    await updateWebhookProviderConfig(
+      webhookId,
+      {
+        lastSeenTimestampMs: String(nowMs),
+        lastCheckedTimestamp: new Date(nowMs).toISOString(),
+        ...(eventType === 'property_changed'
+          ? {
+              propertySnapshot: {
+                property: config.targetPropertyName?.trim() ?? '',
+                values: {},
+              },
+            }
+          : {}),
+      },
+      logger
+    )
+    await markWebhookSuccess(webhookId, logger)
+    logger.info(
+      `[${requestId}] Seeded HubSpot webhook ${webhookId} watermark to ${nowMs} (${objectType}/${eventType}/${filterProperty})`
+    )
+    return 'success'
+  }
+
+  const watermarkMs = Number(config.lastSeenTimestampMs)
+  if (!Number.isFinite(watermarkMs)) {
+    throw new Error(
+      `HubSpot webhook ${webhookId} has corrupt watermark ${config.lastSeenTimestampMs}`
+    )
+  }
+
+  const properties = resolveRequestedProperties(config, objectType, filterProperty)
+  const maxRecords = Math.min(
+    Math.max(config.maxRecordsPerPoll ?? DEFAULT_MAX_RECORDS, 1),
+    MAX_MAX_RECORDS
+  )
+  const lastSeenObjectId = config.lastSeenObjectId
+  const userFilters = buildUserFilters(config, logger, requestId)
+
+  const records = await fetchHubSpotChanges({
+    accessToken,
+    objectType,
+    filterProperty,
+    watermarkMs,
+    lastSeenObjectId,
+    properties,
+    userFilters,
+    maxRecords,
+    requestId,
+    logger,
+  })
+
+  if (records.length === 0) {
+    await updateWebhookProviderConfig(
+      webhookId,
+      { lastCheckedTimestamp: new Date(nowMs).toISOString() },
+      logger
+    )
+    await markWebhookSuccess(webhookId, logger)
+    logger.info(`[${requestId}] No new HubSpot ${objectType} ${eventType} for webhook ${webhookId}`)
+    return 'success'
+  }
+
+  logger.info(
+    `[${requestId}] Found ${records.length} HubSpot ${objectType} ${eventType} candidates for webhook ${webhookId}`
+  )
+
+  const targetProperty = config.targetPropertyName?.trim() || undefined
+  const snapshotForRun =
+    eventType === 'property_changed' && targetProperty
+      ? resolvePropertySnapshot(config, targetProperty)
+      : null
+
+  const { processedCount, failedCount, skippedCount, highestSeenMs, maxIdAtHighestTimestamp } =
+    await processRecords(
+      records,
+      webhookData,
+      workflowData,
+      objectType,
+      eventType,
+      filterProperty,
+      targetProperty,
+      snapshotForRun,
+      requestId,
+      logger
+    )
+
+  const newTimestampMs = highestSeenMs > watermarkMs ? highestSeenMs : watermarkMs
+  const newObjectId = maxIdAtHighestTimestamp || lastSeenObjectId || ''
+
+  const update: Record<string, unknown> = {
+    lastSeenTimestampMs: String(newTimestampMs),
+    lastSeenObjectId: newObjectId,
+    lastCheckedTimestamp: new Date(nowMs).toISOString(),
+  }
+  if (snapshotForRun) {
+    update.propertySnapshot = trimSnapshot(snapshotForRun)
+  }
+  await updateWebhookProviderConfig(webhookId, update, logger)
+
+  if (failedCount > 0 && processedCount === 0) {
+    await markWebhookFailed(webhookId, logger)
+    logger.warn(
+      `[${requestId}] All ${failedCount} HubSpot records failed to process for webhook ${webhookId}`
+    )
+    return 'failure'
+  }
+
+  await markWebhookSuccess(webhookId, logger)
+  logger.info(
+    `[${requestId}] Processed ${processedCount} HubSpot records${skippedCount ? `, skipped ${skippedCount} (no property change)` : ''}${failedCount ? `, ${failedCount} failed` : ''} for webhook ${webhookId}`
+  )
+  return 'success'
+}
+
+async function pollListMembership(
+  ctx: PollWebhookContext,
+  config: HubSpotWebhookConfig,
+  accessToken: string
+): Promise<'success' | 'failure'> {
+  const { webhookData, workflowData, requestId, logger } = ctx
+  const webhookId = webhookData.id
+
+  const listId = config.listId?.trim()
+  if (!listId) {
+    throw new Error(`HubSpot list_membership trigger ${webhookId} is missing listId`)
+  }
+  const nowMs = Date.now()
+  const watermark = config.lastSeenMembershipTimestamp
+
+  // First poll: capture the current head of the list and emit nothing.
+  if (!watermark) {
+    const head = await fetchListMembershipHead(listId, accessToken, requestId, logger)
+    await updateWebhookProviderConfig(
+      webhookId,
+      {
+        lastSeenMembershipTimestamp: head ?? new Date(nowMs).toISOString(),
+        lastCheckedTimestamp: new Date(nowMs).toISOString(),
+      },
+      logger
+    )
+    await markWebhookSuccess(webhookId, logger)
+    logger.info(`[${requestId}] Seeded HubSpot list_membership ${webhookId} watermark to ${head}`)
+    return 'success'
+  }
+
+  const maxRecords = Math.min(
+    Math.max(config.maxRecordsPerPoll ?? DEFAULT_MAX_RECORDS, 1),
+    MAX_MAX_RECORDS
+  )
+  const memberships = await fetchListMembershipsSince(
+    listId,
+    watermark,
+    maxRecords,
+    accessToken,
+    requestId,
+    logger
+  )
+
+  if (memberships.length === 0) {
+    await updateWebhookProviderConfig(
+      webhookId,
+      { lastCheckedTimestamp: new Date(nowMs).toISOString() },
+      logger
+    )
+    await markWebhookSuccess(webhookId, logger)
+    logger.info(`[${requestId}] No new HubSpot list_membership for webhook ${webhookId}`)
+    return 'success'
+  }
+
+  logger.info(
+    `[${requestId}] Found ${memberships.length} new HubSpot list memberships for webhook ${webhookId}`
+  )
+
+  let processedCount = 0
+  let failedCount = 0
+  let highestTs = watermark
+
+  for (const member of memberships) {
+    if (compareIsoTimestamps(member.membershipTimestamp, highestTs) > 0) {
+      highestTs = member.membershipTimestamp
+    }
+
+    try {
+      await pollingIdempotency.executeWithIdempotency(
+        'hubspot',
+        `${webhookId}:list_membership:${listId}:${member.recordId}:${member.membershipTimestamp}`,
+        async () => {
+          const payload = {
+            objectType: 'list_membership',
+            eventType: 'joined',
+            objectId: member.recordId,
+            occurredAt: member.membershipTimestamp,
+            listId,
+            timestamp: new Date().toISOString(),
+          }
+          const result = await processPolledWebhookEvent(
+            webhookData,
+            workflowData,
+            payload,
+            requestId
+          )
+          if (!result.success) {
+            throw new Error(
+              `Webhook processing failed (${result.statusCode}): ${result.error ?? 'unknown'}`
+            )
+          }
+          return { recordId: member.recordId, processed: true }
+        }
+      )
+      processedCount++
+    } catch (error) {
+      failedCount++
+      logger.error(
+        `[${requestId}] Error processing HubSpot list membership ${member.recordId}:`,
+        getErrorMessage(error, 'Unknown error')
+      )
+    }
+  }
+
+  await updateWebhookProviderConfig(
+    webhookId,
+    {
+      lastSeenMembershipTimestamp: highestTs,
+      lastCheckedTimestamp: new Date(nowMs).toISOString(),
+    },
+    logger
+  )
+
+  if (failedCount > 0 && processedCount === 0) {
+    await markWebhookFailed(webhookId, logger)
+    return 'failure'
+  }
+
+  await markWebhookSuccess(webhookId, logger)
+  return 'success'
 }
 
 function resolveObjectType(config: HubSpotWebhookConfig): string {
@@ -282,11 +478,89 @@ function resolveRequestedProperties(
 
   requested.add('createdate')
   requested.add(filterProperty)
-  if (config.filterPropertyName?.trim()) {
-    requested.add(config.filterPropertyName.trim())
+  if (config.targetPropertyName?.trim()) {
+    requested.add(config.targetPropertyName.trim())
+  }
+  for (const f of buildUserFilters(config)) {
+    if (f.propertyName) requested.add(f.propertyName)
   }
 
   return [...requested]
+}
+
+function buildUserFilters(
+  config: HubSpotWebhookConfig,
+  logger?: Logger,
+  requestId?: string
+): FilterClause[] {
+  const filters: FilterClause[] = []
+
+  // Shortcut fields translate to common HubSpot filter conditions.
+  if (config.pipelineId?.trim()) {
+    const property = config.objectType === 'ticket' ? 'hs_pipeline' : 'pipeline'
+    filters.push({ propertyName: property, operator: 'EQ', value: config.pipelineId.trim() })
+  }
+  if (config.stageId?.trim()) {
+    const property = config.objectType === 'ticket' ? 'hs_pipeline_stage' : 'dealstage'
+    filters.push({ propertyName: property, operator: 'EQ', value: config.stageId.trim() })
+  }
+  if (config.ownerId?.trim()) {
+    filters.push({ propertyName: 'hubspot_owner_id', operator: 'EQ', value: config.ownerId.trim() })
+  }
+
+  const raw = config.filters
+  if (raw) {
+    try {
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+      if (Array.isArray(parsed)) {
+        for (const entry of parsed) {
+          if (!entry || typeof entry !== 'object') continue
+          const propertyName = String((entry as FilterClause).propertyName ?? '').trim()
+          const operator = String((entry as FilterClause).operator ?? '').trim()
+          if (!propertyName || !VALID_OPERATORS.has(operator)) continue
+          const clause: FilterClause = { propertyName, operator }
+          if (Array.isArray((entry as FilterClause).values)) {
+            clause.values = (entry as FilterClause).values
+          } else if ((entry as FilterClause).value !== undefined) {
+            clause.value = String((entry as FilterClause).value)
+          }
+          filters.push(clause)
+        }
+      }
+    } catch (error) {
+      logger?.warn(
+        `[${requestId ?? ''}] Could not parse user filters as JSON, ignoring:`,
+        getErrorMessage(error, 'parse error')
+      )
+    }
+  }
+
+  return filters
+}
+
+function resolvePropertySnapshot(
+  config: HubSpotWebhookConfig,
+  property: string
+): { property: string; values: Record<string, string | null> } {
+  const existing = config.propertySnapshot
+  if (existing && existing.property === property) {
+    return { property, values: { ...existing.values } }
+  }
+  // Property changed since last config — start fresh so we don't compare against stale values.
+  return { property, values: {} }
+}
+
+function trimSnapshot(snapshot: { property: string; values: Record<string, string | null> }): {
+  property: string
+  values: Record<string, string | null>
+} {
+  const keys = Object.keys(snapshot.values)
+  if (keys.length <= MAX_SNAPSHOT_SIZE) return snapshot
+  // Drop oldest by insertion order (JS string-key iteration is insertion-ordered).
+  const keep = keys.slice(keys.length - MAX_SNAPSHOT_SIZE)
+  const trimmed: Record<string, string | null> = {}
+  for (const k of keep) trimmed[k] = snapshot.values[k]
+  return { property: snapshot.property, values: trimmed }
 }
 
 interface FetchArgs {
@@ -296,8 +570,7 @@ interface FetchArgs {
   watermarkMs: number
   lastSeenObjectId?: string
   properties: string[]
-  filterPropertyName?: string
-  filterPropertyValue?: string
+  userFilters: FilterClause[]
   maxRecords: number
   requestId: string
   logger: Logger
@@ -311,8 +584,7 @@ async function fetchHubSpotChanges(args: FetchArgs): Promise<HubSpotSearchResult
     watermarkMs,
     lastSeenObjectId,
     properties,
-    filterPropertyName,
-    filterPropertyValue,
+    userFilters,
     maxRecords,
     requestId,
     logger,
@@ -326,32 +598,22 @@ async function fetchHubSpotChanges(args: FetchArgs): Promise<HubSpotSearchResult
   // Two OR-combined filter groups give a strict monotonic cursor over (timestamp, id):
   //   A: filterProperty > watermark              (next timestamps)
   //   B: filterProperty == watermark AND id > lastSeenObjectId  (more ids at boundary)
+  // User filters AND into both groups so they apply regardless of which side matches.
   // Group B is dropped on the first poll after seeding so we don't emit boundary
   // records the seed point already skipped past.
-  const userFilter =
-    filterPropertyName && filterPropertyValue !== undefined && filterPropertyValue !== ''
-      ? { propertyName: filterPropertyName, operator: 'EQ', value: String(filterPropertyValue) }
-      : null
-
   const buildBody = (cursor?: string) => {
-    const groups: Array<{
-      filters: Array<{ propertyName: string; operator: string; value: string }>
-    }> = [
-      {
-        filters: [
-          { propertyName: filterProperty, operator: 'GT', value: String(watermarkMs) },
-          ...(userFilter ? [userFilter] : []),
-        ],
-      },
+    const groupA: FilterClause[] = [
+      { propertyName: filterProperty, operator: 'GT', value: String(watermarkMs) },
+      ...userFilters,
     ]
+    const groups = [{ filters: groupA }]
     if (lastSeenObjectId) {
-      groups.push({
-        filters: [
-          { propertyName: filterProperty, operator: 'EQ', value: String(watermarkMs) },
-          { propertyName: 'hs_object_id', operator: 'GT', value: String(lastSeenObjectId) },
-          ...(userFilter ? [userFilter] : []),
-        ],
-      })
+      const groupB: FilterClause[] = [
+        { propertyName: filterProperty, operator: 'EQ', value: String(watermarkMs) },
+        { propertyName: 'hs_object_id', operator: 'GT', value: String(lastSeenObjectId) },
+        ...userFilters,
+      ]
+      groups.push({ filters: groupB })
     }
     return {
       filterGroups: groups,
@@ -383,9 +645,7 @@ async function fetchHubSpotChanges(args: FetchArgs): Promise<HubSpotSearchResult
     }
 
     const data = (await response.json()) as HubSpotSearchResponse
-    if (data.results?.length) {
-      accumulated.push(...data.results)
-    }
+    if (data.results?.length) accumulated.push(...data.results)
 
     after = data.paging?.next?.after
     pages++
@@ -434,16 +694,20 @@ async function processRecords(
   objectType: string,
   eventType: HubSpotEventType,
   filterProperty: string,
+  targetProperty: string | undefined,
+  snapshot: { property: string; values: Record<string, string | null> } | null,
   requestId: string,
   logger: Logger
 ): Promise<{
   processedCount: number
   failedCount: number
+  skippedCount: number
   highestSeenMs: number
   maxIdAtHighestTimestamp: string
 }> {
   let processedCount = 0
   let failedCount = 0
+  let skippedCount = 0
   let highestSeenMs = 0
   let maxIdAtHighestTimestamp = ''
 
@@ -460,12 +724,31 @@ async function processRecords(
       }
     }
 
+    // property_changed semantics — diff against the per-record snapshot of the watched property.
+    // First time we see a record, treat it as a change (matches Zapier's "Updated Property" behavior).
+    let previousValue: string | null | undefined
+    let propertyValue: string | null | undefined
+    if (eventType === 'property_changed' && targetProperty && snapshot) {
+      propertyValue = record.properties?.[targetProperty] ?? null
+      const had = Object.hasOwn(snapshot.values, record.id)
+      previousValue = had ? snapshot.values[record.id] : undefined
+      if (had && (previousValue ?? null) === (propertyValue ?? null)) {
+        // Touch the snapshot to keep this record's entry from being trimmed before unchanged ones.
+        delete snapshot.values[record.id]
+        snapshot.values[record.id] = propertyValue ?? null
+        skippedCount++
+        continue
+      }
+      // Update snapshot now so subsequent records in this loop see it; persisted at end.
+      snapshot.values[record.id] = propertyValue ?? null
+    }
+
     try {
       await pollingIdempotency.executeWithIdempotency(
         'hubspot',
         `${webhookData.id}:${objectType}:${eventType}:${record.id}:${Number.isFinite(occurredAtMs) ? occurredAtMs : record.updatedAt}`,
         async () => {
-          const payload = {
+          const payload: Record<string, unknown> = {
             objectType,
             eventType,
             objectId: record.id,
@@ -478,6 +761,11 @@ async function processRecords(
             archived: record.archived,
             timestamp: new Date().toISOString(),
           }
+          if (eventType === 'property_changed' && targetProperty) {
+            payload.propertyName = targetProperty
+            payload.propertyValue = propertyValue ?? null
+            payload.previousValue = previousValue ?? null
+          }
 
           const result = await processPolledWebhookEvent(
             webhookData,
@@ -485,13 +773,11 @@ async function processRecords(
             payload,
             requestId
           )
-
           if (!result.success) {
             throw new Error(
               `Webhook processing failed (${result.statusCode}): ${result.error ?? 'unknown'}`
             )
           }
-
           return { recordId: record.id, processed: true }
         }
       )
@@ -509,9 +795,95 @@ async function processRecords(
   return {
     processedCount,
     failedCount,
+    skippedCount,
     highestSeenMs,
     maxIdAtHighestTimestamp,
   }
+}
+
+interface ListMembership {
+  recordId: string
+  membershipTimestamp: string
+}
+
+async function fetchListMembershipHead(
+  listId: string,
+  accessToken: string,
+  requestId: string,
+  logger: Logger
+): Promise<string | null> {
+  const url = `https://api.hubapi.com/crm/v3/lists/${encodeURIComponent(listId)}/memberships/join-order?limit=1`
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '')
+    logger.error(
+      `[${requestId}] HubSpot list memberships head fetch failed ${response.status}: ${errorText}`
+    )
+    throw new Error(`HubSpot list memberships head fetch ${response.status}`)
+  }
+  const data = (await response.json()) as { results?: ListMembership[] }
+  return data.results?.[0]?.membershipTimestamp ?? null
+}
+
+async function fetchListMembershipsSince(
+  listId: string,
+  watermark: string,
+  maxRecords: number,
+  accessToken: string,
+  requestId: string,
+  logger: Logger
+): Promise<ListMembership[]> {
+  // HubSpot returns members in join-order ASC. We paginate until either we find a member
+  // with a join timestamp <= watermark or we hit the per-poll cap.
+  const collected: ListMembership[] = []
+  let after: string | undefined
+  let pages = 0
+
+  do {
+    const params = new URLSearchParams({ limit: String(Math.min(maxRecords, 100)) })
+    if (after) params.set('after', after)
+    const url = `https://api.hubapi.com/crm/v3/lists/${encodeURIComponent(listId)}/memberships/join-order?${params.toString()}`
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '')
+      logger.error(
+        `[${requestId}] HubSpot list memberships fetch failed ${response.status}: ${errorText}`
+      )
+      throw new Error(`HubSpot list memberships fetch ${response.status}`)
+    }
+    const data = (await response.json()) as {
+      results?: ListMembership[]
+      paging?: { next?: { after?: string } }
+    }
+    for (const m of data.results ?? []) {
+      if (compareIsoTimestamps(m.membershipTimestamp, watermark) > 0) {
+        collected.push(m)
+      }
+    }
+    after = data.paging?.next?.after
+    pages++
+    if (collected.length >= maxRecords) break
+    if (pages >= MAX_PAGES_PER_POLL) {
+      logger.warn(
+        `[${requestId}] HubSpot list-membership poll hit MAX_PAGES_PER_POLL — remaining will roll over`
+      )
+      break
+    }
+  } while (after)
+
+  collected.sort((a, b) => compareIsoTimestamps(a.membershipTimestamp, b.membershipTimestamp))
+  return collected.slice(0, maxRecords)
+}
+
+function compareIsoTimestamps(a: string, b: string): number {
+  const aMs = Date.parse(a)
+  const bMs = Date.parse(b)
+  if (Number.isFinite(aMs) && Number.isFinite(bMs)) {
+    if (aMs === bMs) return 0
+    return aMs > bMs ? 1 : -1
+  }
+  if (a === b) return 0
+  return a > b ? 1 : -1
 }
 
 /** Numeric compare for HubSpot ids (decimal strings, treated numerically by GT/LT). */
