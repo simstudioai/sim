@@ -593,7 +593,7 @@ async function fetchHubSpotChanges(args: FetchArgs): Promise<HubSpotSearchResult
     logger,
   } = args
 
-  const url = `https://api.hubapi.com/crm/v3/objects/${resolveSearchPath(objectType)}/search`
+  const url = `https://api.hubapi.com/crm/v3/objects/${encodeURIComponent(resolveSearchPath(objectType))}/search`
   const accumulated: HubSpotSearchResult[] = []
   let after: string | undefined
   let pages = 0
