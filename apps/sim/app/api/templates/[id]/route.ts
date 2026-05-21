@@ -311,7 +311,11 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const existing = await db.select().from(templates).where(eq(templates.id, id)).limit(1)
+      const existing = await db
+        .select({ creatorId: templates.creatorId })
+        .from(templates)
+        .where(eq(templates.id, id))
+        .limit(1)
       if (existing.length === 0) {
         logger.warn(`[${requestId}] Template not found for delete: ${id}`)
         return NextResponse.json({ error: 'Template not found' }, { status: 404 })
