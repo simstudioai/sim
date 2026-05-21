@@ -252,6 +252,8 @@ export const mcpServerTestResultSchema = z.object({
   success: z.boolean(),
   message: z.string().optional(),
   error: z.string().optional(),
+  authRequired: z.boolean().optional(),
+  authType: mcpAuthTypeSchema.optional(),
   serverInfo: z
     .object({
       name: z.string(),

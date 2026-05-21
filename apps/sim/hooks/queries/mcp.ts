@@ -54,6 +54,7 @@ export interface McpServerInput {
   enabled: boolean
   oauthClientId?: string
   oauthClientSecret?: string
+  authType?: 'none' | 'headers' | 'oauth'
 }
 
 async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promise<McpServer[]> {
