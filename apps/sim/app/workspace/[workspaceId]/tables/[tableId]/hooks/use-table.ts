@@ -57,6 +57,13 @@ export interface UseTableReturn {
    * need the complete row set behind this.
    */
   ensureAllRowsLoaded: () => Promise<TableRow[]>
+  /**
+   * Pages until the cache holds at least `maxRows` rows (or no more pages
+   * exist), then returns the first `maxRows` from cache plus whether more
+   * remain. Unlike {@link ensureAllRowsLoaded} it stops early, so size-bound
+   * ops (clipboard copy) don't drain an entire large table. Filter/sort-aware.
+   */
+  ensureRowsLoadedUpTo: (maxRows: number) => Promise<{ rows: TableRow[]; hasMore: boolean }>
 }
 
 /**
@@ -119,6 +126,44 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     return queryClient.getQueryData(opts.queryKey)?.pages.flatMap((p) => p.rows) ?? []
   }, [workspaceId, tableId, queryOptions.filter, queryOptions.sort, queryClient, fetchNextPage])
 
+  const ensureRowsLoadedUpTo = useCallback(
+    async (maxRows: number): Promise<{ rows: TableRow[]; hasMore: boolean }> => {
+      if (!workspaceId || !tableId) return { rows: [], hasMore: false }
+
+      const opts = tableRowsInfiniteOptions({
+        workspaceId,
+        tableId,
+        pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT,
+        filter: queryOptions.filter,
+        sort: queryOptions.sort,
+      })
+
+      const loadedCount = (): number =>
+        queryClient.getQueryData(opts.queryKey)?.pages.reduce((sum, p) => sum + p.rows.length, 0) ??
+        0
+
+      while (loadedCount() < maxRows) {
+        const data = queryClient.getQueryData(opts.queryKey)
+        const lastPage = data?.pages[data.pages.length - 1]
+        if (!lastPage || lastPage.rows.length < TABLE_LIMITS.MAX_QUERY_LIMIT) break
+        const result = await fetchNextPage()
+        if (result.status === 'error') {
+          throw result.error ?? new Error('Failed to load table rows')
+        }
+      }
+
+      const data = queryClient.getQueryData(opts.queryKey)
+      const all = data?.pages.flatMap((p) => p.rows) ?? []
+      const lastPage = data?.pages[data.pages.length - 1]
+      const morePages = lastPage ? lastPage.rows.length === TABLE_LIMITS.MAX_QUERY_LIMIT : false
+      return {
+        rows: all.length > maxRows ? all.slice(0, maxRows) : all,
+        hasMore: morePages || all.length > maxRows,
+      }
+    },
+    [workspaceId, tableId, queryOptions.filter, queryOptions.sort, queryClient, fetchNextPage]
+  )
+
   const fetchNextPageWrapped = useCallback(async () => {
     const result = await fetchNextPage()
     if (result.status === 'error') {
@@ -176,5 +221,6 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     workflowStates,
     columnSourceInfo,
     ensureAllRowsLoaded,
+    ensureRowsLoadedUpTo,
   }
 }
