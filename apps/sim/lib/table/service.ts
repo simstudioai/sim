@@ -383,20 +383,18 @@ export async function createTable(
       }
 
       const duplicateName = await trx
-        .select({ id: userTableDefinitions.id, archivedAt: userTableDefinitions.archivedAt })
+        .select({ id: userTableDefinitions.id })
         .from(userTableDefinitions)
         .where(
           and(
             eq(userTableDefinitions.workspaceId, data.workspaceId),
-            eq(userTableDefinitions.name, data.name)
+            eq(userTableDefinitions.name, data.name),
+            isNull(userTableDefinitions.archivedAt)
           )
         )
         .limit(1)
 
       if (duplicateName.length > 0) {
-        if (duplicateName[0].archivedAt) {
-          throw new TableConflictError(data.name)
-        }
         throw new TableConflictError(data.name)
       }
 

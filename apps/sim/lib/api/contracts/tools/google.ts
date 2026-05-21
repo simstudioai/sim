@@ -60,6 +60,28 @@ export const googleVaultDownloadExportFileBodySchema = z.object({
   fileName: z.string().optional().nullable(),
 })
 
+export const googleSlidesExportFormatSchema = z.preprocess((value) => {
+  if (typeof value !== 'string') return value
+  const normalized = value.trim().toUpperCase()
+  return normalized || undefined
+}, z.enum(['PDF', 'PPTX', 'ODP', 'TXT', 'PNG', 'JPEG', 'SVG']).optional())
+
+/** Google Drive / Slides file IDs are opaque base62-ish strings without URL metacharacters. */
+export const googlePresentationIdSchema = z
+  .string()
+  .trim()
+  .min(1, 'Presentation ID is required')
+  .regex(/^[a-zA-Z0-9_-]+$/, 'Presentation ID contains invalid characters')
+
+export const googleSlidesExportPresentationBodySchema = z.object({
+  accessToken: googleAccessTokenSchema,
+  presentationId: googlePresentationIdSchema,
+  exportFormat: googleSlidesExportFormatSchema,
+  workspaceId: z.string().optional(),
+  workflowId: z.string().optional(),
+  executionId: z.string().optional(),
+})
+
 const toolJsonResponseSchema = z.unknown()
 
 export const gmailAddLabelContract = defineRouteContract({
@@ -160,6 +182,13 @@ export const googleVaultDownloadExportFileContract = defineRouteContract({
   response: { mode: 'json', schema: toolJsonResponseSchema },
 })
 
+export const googleSlidesExportPresentationContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/google_slides/export-presentation',
+  body: googleSlidesExportPresentationBodySchema,
+  response: { mode: 'json', schema: toolJsonResponseSchema },
+})
+
 export type GmailAddLabelBody = ContractBodyInput<typeof gmailAddLabelContract>
 export type GmailArchiveBody = ContractBodyInput<typeof gmailArchiveContract>
 export type GmailDeleteBody = ContractBodyInput<typeof gmailDeleteContract>
@@ -175,6 +204,9 @@ export type GoogleDriveUploadBody = ContractBodyInput<typeof googleDriveUploadCo
 export type GoogleDriveDownloadBody = ContractBodyInput<typeof googleDriveDownloadContract>
 export type GoogleVaultDownloadExportFileBody = ContractBodyInput<
   typeof googleVaultDownloadExportFileContract
+>
+export type GoogleSlidesExportPresentationBody = ContractBodyInput<
+  typeof googleSlidesExportPresentationContract
 >
 
 export type GmailAddLabelResponse = ContractJsonResponse<typeof gmailAddLabelContract>
@@ -192,4 +224,7 @@ export type GoogleDriveUploadResponse = ContractJsonResponse<typeof googleDriveU
 export type GoogleDriveDownloadResponse = ContractJsonResponse<typeof googleDriveDownloadContract>
 export type GoogleVaultDownloadExportFileResponse = ContractJsonResponse<
   typeof googleVaultDownloadExportFileContract
+>
+export type GoogleSlidesExportPresentationResponse = ContractJsonResponse<
+  typeof googleSlidesExportPresentationContract
 >

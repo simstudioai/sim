@@ -365,6 +365,7 @@ export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
       type: 'json',
       description: 'Array of CC recipients (recipientId, name, email, status)',
     },
+    file: { type: 'file', description: 'Stored downloaded document file' },
     base64Content: { type: 'string', description: 'Base64-encoded document content' },
     mimeType: { type: 'string', description: 'Document MIME type' },
     fileName: { type: 'string', description: 'Document file name' },
