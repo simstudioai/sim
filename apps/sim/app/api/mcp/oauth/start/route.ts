@@ -23,6 +23,33 @@ import { createMcpErrorResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpOauthStartAPI')
 const OAUTH_START_TTL_MS = 10 * 60 * 1000
+const MAX_SURFACED_ERROR_LENGTH = 250
+
+function surfaceOauthError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error)
+  const rawBodyMatch = raw.match(/Raw body:\s*(\{[\s\S]*\})\s*$/)
+  if (rawBodyMatch) {
+    try {
+      const body = JSON.parse(rawBodyMatch[1]) as Record<string, unknown>
+      const vendorMessage =
+        typeof body.error_description === 'string'
+          ? body.error_description
+          : typeof body.message === 'string'
+            ? body.message
+            : typeof body.error === 'string'
+              ? body.error
+              : null
+      if (vendorMessage) return truncate(`Authorization server: ${vendorMessage}`)
+    } catch {}
+  }
+  return truncate(raw.split('\n')[0] || 'Failed to start OAuth flow')
+}
+
+function truncate(message: string): string {
+  return message.length > MAX_SURFACED_ERROR_LENGTH
+    ? `${message.slice(0, MAX_SURFACED_ERROR_LENGTH)}…`
+    : message
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -116,7 +143,7 @@ export const GET = withRouteHandler(
       }
     } catch (error) {
       logger.error('Error starting MCP OAuth flow:', error)
-      return createMcpErrorResponse(toError(error), 'Failed to start OAuth flow', 500)
+      return createMcpErrorResponse(toError(error), surfaceOauthError(error), 500)
     }
   })
 )
