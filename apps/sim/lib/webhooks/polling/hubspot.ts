@@ -44,8 +44,19 @@ interface HubSpotWebhookConfig {
   maxRecordsPerPoll?: number
   lastSeenTimestampMs?: string
   lastSeenObjectId?: string
-  /** List-membership cursor — the ISO joined-at of the last membership we emitted. */
-  lastSeenMembershipTimestamp?: string
+  /**
+   * List-membership cursor — the `after` value to pass to the next
+   * `/lists/{id}/memberships/join-order` request. The HubSpot endpoint walks
+   * ASC by default (oldest first); we use cursor-based resume because
+   * `before`-mode (DESC) has ambiguous bootstrap semantics.
+   */
+  lastSeenMembershipCursor?: string
+  /**
+   * True once we've walked to the end of the list once. While this is false we
+   * are still in the seed pass — we paginate forward without emitting so the
+   * workflow doesn't see a flood of historical members on activation.
+   */
+  membershipSeedComplete?: boolean
   /** Snapshot of the watched property's last-seen value per record (property_changed event). */
   propertySnapshot?: {
     property: string
@@ -334,60 +345,69 @@ async function pollListMembership(
     throw new Error(`HubSpot list_membership trigger ${webhookId} is missing listId`)
   }
   const nowMs = Date.now()
-  const watermark = config.lastSeenMembershipTimestamp
-
-  // First poll: capture the current head of the list and emit nothing.
-  if (!watermark) {
-    const head = await fetchListMembershipHead(listId, accessToken, requestId, logger)
-    await updateWebhookProviderConfig(
-      webhookId,
-      {
-        lastSeenMembershipTimestamp: head ?? new Date(nowMs).toISOString(),
-        lastCheckedTimestamp: new Date(nowMs).toISOString(),
-      },
-      logger
-    )
-    await markWebhookSuccess(webhookId, logger)
-    logger.info(`[${requestId}] Seeded HubSpot list_membership ${webhookId} watermark to ${head}`)
-    return 'success'
-  }
-
+  const seedComplete = config.membershipSeedComplete === true
   const maxRecords = Math.min(
     Math.max(config.maxRecordsPerPoll ?? DEFAULT_MAX_RECORDS, 1),
     MAX_MAX_RECORDS
   )
-  const memberships = await fetchListMembershipsSince(
-    listId,
-    watermark,
-    maxRecords,
-    accessToken,
-    requestId,
-    logger
-  )
 
-  if (memberships.length === 0) {
+  // The HubSpot endpoint walks ASC by default. We resume from a stored `after` cursor —
+  // empty cursor means "from the beginning of the list". During the seed pass we paginate
+  // forward without emitting; once we reach the end (no `paging.next.after`) we mark the
+  // seed complete and re-fetch from the cursor-to-last-page on each normal poll. New
+  // members appended to the list show up on subsequent fetches; the idempotency layer
+  // dedups the records we've already seen on the boundary page.
+  const result = await fetchListMembershipPages({
+    listId,
+    accessToken,
+    initialAfter: config.lastSeenMembershipCursor?.trim() || undefined,
+    pageLimit: seedComplete ? maxRecords : MAX_PAGES_PER_POLL * HUBSPOT_PAGE_LIMIT,
+    requestId,
+    logger,
+  })
+
+  if (!seedComplete) {
+    // Seed phase: don't emit. Just save the cursor and (when reached) flip the flag.
+    const update: Record<string, unknown> = {
+      lastCheckedTimestamp: new Date(nowMs).toISOString(),
+      lastSeenMembershipCursor: result.resumeCursor ?? '',
+    }
+    if (result.reachedEnd) {
+      update.membershipSeedComplete = true
+      logger.info(
+        `[${requestId}] HubSpot list_membership ${webhookId} seed complete (list=${listId})`
+      )
+    } else {
+      logger.info(
+        `[${requestId}] HubSpot list_membership ${webhookId} seed in progress (list=${listId}, scanned ${result.scanned})`
+      )
+    }
+    await updateWebhookProviderConfig(webhookId, update, logger)
+    await markWebhookSuccess(webhookId, logger)
+    return 'success'
+  }
+
+  if (result.records.length === 0) {
     await updateWebhookProviderConfig(
       webhookId,
-      { lastCheckedTimestamp: new Date(nowMs).toISOString() },
+      {
+        lastCheckedTimestamp: new Date(nowMs).toISOString(),
+        lastSeenMembershipCursor: result.resumeCursor ?? '',
+      },
       logger
     )
     await markWebhookSuccess(webhookId, logger)
-    logger.info(`[${requestId}] No new HubSpot list_membership for webhook ${webhookId}`)
     return 'success'
   }
 
   logger.info(
-    `[${requestId}] Found ${memberships.length} new HubSpot list memberships for webhook ${webhookId}`
+    `[${requestId}] Found ${result.records.length} HubSpot list memberships for webhook ${webhookId}`
   )
 
   let processedCount = 0
   let failedCount = 0
-  // Memberships are pre-sorted ASC by membershipTimestamp; freeze the cursor at the first
-  // failure so the failed item and everything after it retries on the next poll.
-  let highestTs = watermark
-  let cursorFrozen = false
 
-  for (const member of memberships) {
+  for (const member of result.records) {
     try {
       await pollingIdempotency.executeWithIdempotency(
         'hubspot',
@@ -401,27 +421,23 @@ async function pollListMembership(
             listId,
             timestamp: new Date().toISOString(),
           }
-          const result = await processPolledWebhookEvent(
+          const wfResult = await processPolledWebhookEvent(
             webhookData,
             workflowData,
             payload,
             requestId
           )
-          if (!result.success) {
+          if (!wfResult.success) {
             throw new Error(
-              `Webhook processing failed (${result.statusCode}): ${result.error ?? 'unknown'}`
+              `Webhook processing failed (${wfResult.statusCode}): ${wfResult.error ?? 'unknown'}`
             )
           }
           return { recordId: member.recordId, processed: true }
         }
       )
       processedCount++
-      if (!cursorFrozen && compareIsoTimestamps(member.membershipTimestamp, highestTs) > 0) {
-        highestTs = member.membershipTimestamp
-      }
     } catch (error) {
       failedCount++
-      cursorFrozen = true
       logger.error(
         `[${requestId}] Error processing HubSpot list membership ${member.recordId}:`,
         getErrorMessage(error, 'Unknown error')
@@ -429,10 +445,17 @@ async function pollListMembership(
     }
   }
 
+  // HubSpot's `paging.next.after` is page-granular — there's no per-record cursor we can
+  // freeze on. Advance the cursor only when the entire batch succeeded; otherwise replay
+  // the page next poll and let idempotency dedup the records that already landed.
+  const advanceCursor = failedCount === 0
+  const nextCursor = advanceCursor
+    ? (result.resumeCursor ?? '')
+    : (config.lastSeenMembershipCursor?.trim() ?? '')
   await updateWebhookProviderConfig(
     webhookId,
     {
-      lastSeenMembershipTimestamp: highestTs,
+      lastSeenMembershipCursor: nextCursor,
       lastCheckedTimestamp: new Date(nowMs).toISOString(),
     },
     logger
@@ -821,89 +844,101 @@ async function processRecords(
   }
 }
 
-interface ListMembership {
+interface ListMembershipRecord {
   recordId: string
   membershipTimestamp: string
 }
 
-async function fetchListMembershipHead(
-  listId: string,
-  accessToken: string,
-  requestId: string,
+interface FetchListMembershipPagesArgs {
+  listId: string
+  accessToken: string
+  initialAfter: string | undefined
+  /** Soft cap on emitted records (normal mode) or pages × HUBSPOT_PAGE_LIMIT (seed mode). */
+  pageLimit: number
+  requestId: string
   logger: Logger
-): Promise<string | null> {
-  const url = `https://api.hubapi.com/crm/v3/lists/${encodeURIComponent(listId)}/memberships/join-order?limit=1`
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '')
-    logger.error(
-      `[${requestId}] HubSpot list memberships head fetch failed ${response.status}: ${errorText}`
-    )
-    throw new Error(`HubSpot list memberships head fetch ${response.status}`)
-  }
-  const data = (await response.json()) as { results?: ListMembership[] }
-  return data.results?.[0]?.membershipTimestamp ?? null
 }
 
-async function fetchListMembershipsSince(
-  listId: string,
-  watermark: string,
-  maxRecords: number,
-  accessToken: string,
-  requestId: string,
-  logger: Logger
-): Promise<ListMembership[]> {
-  // HubSpot returns members in join-order ASC. We paginate until either we find a member
-  // with a join timestamp <= watermark or we hit the per-poll cap.
-  const collected: ListMembership[] = []
-  let after: string | undefined
-  let pages = 0
+interface FetchListMembershipPagesResult {
+  records: ListMembershipRecord[]
+  /** Cursor to persist for the next poll; empty if we are at the very start. */
+  resumeCursor: string | undefined
+  /** True when the API stopped returning `paging.next.after` — we've consumed everything. */
+  reachedEnd: boolean
+  /** Total records scanned across pages (useful for seed-progress logging). */
+  scanned: number
+}
 
-  do {
-    const params = new URLSearchParams({ limit: String(Math.min(maxRecords, 100)) })
+/**
+ * Walks `/lists/{listId}/memberships/join-order` ASC from an optional cursor until either
+ * (a) the per-poll page cap is reached or (b) the API stops returning a next cursor.
+ *
+ * The endpoint returns members in ascending join-order by default. We never use `before`
+ * (DESC mode) because its bootstrap semantics — what value to pass for "newest first" —
+ * are undocumented in HubSpot's SDK type and behave inconsistently in practice. ASC + a
+ * stored cursor is provably correct and lets new members appear on subsequent polls as
+ * they're appended past our cursor's position.
+ */
+async function fetchListMembershipPages(
+  args: FetchListMembershipPagesArgs
+): Promise<FetchListMembershipPagesResult> {
+  const { listId, accessToken, initialAfter, pageLimit, requestId, logger } = args
+
+  const records: ListMembershipRecord[] = []
+  let after: string | undefined = initialAfter
+  let pages = 0
+  let reachedEnd = false
+  let scanned = 0
+
+  while (pages < MAX_PAGES_PER_POLL) {
+    const params = new URLSearchParams({ limit: String(HUBSPOT_PAGE_LIMIT) })
     if (after) params.set('after', after)
     const url = `https://api.hubapi.com/crm/v3/lists/${encodeURIComponent(listId)}/memberships/join-order?${params.toString()}`
     const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')
       logger.error(
         `[${requestId}] HubSpot list memberships fetch failed ${response.status}: ${errorText}`
       )
-      throw new Error(`HubSpot list memberships fetch ${response.status}`)
+      throw new Error(
+        `HubSpot list memberships fetch ${response.status}: ${errorText.slice(0, 500)}`
+      )
     }
+
     const data = (await response.json()) as {
-      results?: ListMembership[]
+      results?: Array<{ recordId: string; membershipTimestamp: string }>
       paging?: { next?: { after?: string } }
     }
-    for (const m of data.results ?? []) {
-      if (compareIsoTimestamps(m.membershipTimestamp, watermark) > 0) {
-        collected.push(m)
-      }
+    const batch = data.results ?? []
+    scanned += batch.length
+    const nextAfter = data.paging?.next?.after
+
+    for (const m of batch) {
+      records.push({
+        recordId: m.recordId,
+        membershipTimestamp: m.membershipTimestamp,
+      })
     }
-    after = data.paging?.next?.after
+
     pages++
-    if (collected.length >= maxRecords) break
-    if (pages >= MAX_PAGES_PER_POLL) {
-      logger.warn(
-        `[${requestId}] HubSpot list-membership poll hit MAX_PAGES_PER_POLL — remaining will roll over`
-      )
+    if (!nextAfter) {
+      reachedEnd = true
       break
     }
-  } while (after)
-
-  collected.sort((a, b) => compareIsoTimestamps(a.membershipTimestamp, b.membershipTimestamp))
-  return collected.slice(0, maxRecords)
-}
-
-function compareIsoTimestamps(a: string, b: string): number {
-  const aMs = Date.parse(a)
-  const bMs = Date.parse(b)
-  if (Number.isFinite(aMs) && Number.isFinite(bMs)) {
-    if (aMs === bMs) return 0
-    return aMs > bMs ? 1 : -1
+    after = nextAfter
+    if (records.length >= pageLimit) break
   }
-  if (a === b) return 0
-  return a > b ? 1 : -1
+
+  return {
+    records,
+    // If we walked to the end, hold onto the cursor we LAST used so the next poll re-fetches
+    // the tail page and picks up any members appended since. If we stopped early, the next
+    // cursor walks us forward through the rest of the list.
+    resumeCursor: after,
+    reachedEnd,
+    scanned,
+  }
 }
 
 /** Numeric compare for HubSpot ids (decimal strings, treated numerically by GT/LT). */
