@@ -234,22 +234,16 @@ function countNewlyInFlight(before: RowExecutions, after: RowExecutions): number
   return n
 }
 
-/** First-page `totalCount` from the rows infinite-query cache (or `null` when
- *  rows haven't loaded yet). Lets a Run-all estimate the full-table cell count
- *  even though only a page of rows is in memory. */
-function readTotalRowCount(
+/** The table's maintained, unfiltered `rowCount` from the detail cache (or
+ *  `null` when the detail hasn't loaded). This is the right scope for a Run-all
+ *  estimate: the dispatcher runs every row regardless of the active view
+ *  filter, whereas the rows query's `totalCount` is filter-scoped. */
+function readTableRowCount(
   queryClient: ReturnType<typeof useQueryClient>,
   tableId: string
 ): number | null {
-  const entries = queryClient.getQueriesData<InfiniteData<TableRowsResponse, number>>({
-    queryKey: tableKeys.rowsRoot(tableId),
-    exact: false,
-  })
-  for (const [, data] of entries) {
-    const tc = data?.pages?.[0]?.totalCount
-    if (typeof tc === 'number') return tc
-  }
-  return null
+  const def = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+  return typeof def?.rowCount === 'number' ? def.rowCount : null
 }
 
 /** Optimistically reflect a run on the "X running" badge + per-row gutter Stop
@@ -1467,7 +1461,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
       // Run-all that's the table's totalCount; for a scoped run, the rowIds.
       const scopeRowCount = targetRowIds
         ? targetRowIds.size
-        : (readTotalRowCount(queryClient, tableId) ?? Object.keys(stampedByRow).length)
+        : (readTableRowCount(queryClient, tableId) ?? Object.keys(stampedByRow).length)
       const cellCountDelta = scopeRowCount * targetGroupIds.size
       const bumped = bumpRunState(queryClient, tableId, stampedByRow, cellCountDelta)
       return { snapshots, runStateSnapshot: bumped?.snapshot, didBumpRunState: bumped !== null }

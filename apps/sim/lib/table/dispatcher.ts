@@ -208,13 +208,11 @@ export async function countActiveRunCells(
   dispatches?: DispatchRow[]
 ): Promise<{ total: number; byRowId: Record<string, number> }> {
   const active = dispatches ?? (await listActiveDispatches(tableId))
-  const sidecar = await countRunningCells(tableId)
-  if (active.length === 0) return sidecar
+  if (active.length === 0) return countRunningCells(tableId)
 
-  let total = 0
-  for (const d of active) {
+  const countRowsAhead = async (d: DispatchRow): Promise<number> => {
     const groupCount = d.scope.groupIds.length
-    if (groupCount === 0) continue
+    if (groupCount === 0) return 0
     const filters = [eq(userTableRows.tableId, tableId), gt(userTableRows.position, d.cursor)]
     if (d.scope.rowIds && d.scope.rowIds.length > 0) {
       filters.push(inArray(userTableRows.id, d.scope.rowIds))
@@ -223,8 +221,15 @@ export async function countActiveRunCells(
       .select({ rowsAhead: sql<number>`count(*)::int` })
       .from(userTableRows)
       .where(and(...filters))
-    total += (row?.rowsAhead ?? 0) * groupCount
+    return (row?.rowsAhead ?? 0) * groupCount
   }
+
+  // One round-trip per dispatch + the sidecar count, all in parallel.
+  const [sidecar, perDispatch] = await Promise.all([
+    countRunningCells(tableId),
+    Promise.all(active.map(countRowsAhead)),
+  ])
+  const total = perDispatch.reduce((sum, n) => sum + n, 0)
   return { total, byRowId: sidecar.byRowId }
 }
 
