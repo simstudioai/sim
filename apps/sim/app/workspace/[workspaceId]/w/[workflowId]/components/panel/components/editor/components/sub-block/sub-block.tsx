@@ -7,6 +7,7 @@ import {
   Check,
   Clipboard,
   ExternalLink,
+  Info,
 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
@@ -271,6 +272,18 @@ const renderLabel = (
           config.title
         )}
         {required && <span className='ml-0.5'>*</span>}
+        {config.tooltip && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <span className='inline-flex'>
+                <Info className='size-3 flex-shrink-0 cursor-pointer text-muted-foreground' />
+              </span>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              <p>{config.tooltip}</p>
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
         {labelSuffix}
         {config.type === 'code' &&
           config.language === 'json' &&
