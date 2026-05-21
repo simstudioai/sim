@@ -15,7 +15,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { and, inArray, isNotNull, lt } from 'drizzle-orm'
-import { type CleanupJobPayload, resolveCleanupScope } from '@/lib/billing/cleanup-dispatcher'
+import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
 import {
   batchDeleteByWorkspaceAndTimestamp,
   deleteRowsById,
@@ -92,22 +92,26 @@ async function cleanupWorkspaceFileStorage(
   const stats = { filesDeleted: 0, filesFailed: 0 }
   if (!isUsingCloudStorage()) return stats
 
-  const toDelete: Array<{ key: string; context: StorageContext }> = [
-    ...scope.legacyRows.map((r) => ({ key: r.key, context: 'workspace' as StorageContext })),
-    ...scope.multiContextRows.map((r) => ({ key: r.key, context: r.context })),
-  ]
+  const keysByContext = new Map<StorageContext, string[]>()
+  for (const r of scope.legacyRows) {
+    const bucket = keysByContext.get('workspace')
+    if (bucket) bucket.push(r.key)
+    else keysByContext.set('workspace', [r.key])
+  }
+  for (const r of scope.multiContextRows) {
+    const bucket = keysByContext.get(r.context)
+    if (bucket) bucket.push(r.key)
+    else keysByContext.set(r.context, [r.key])
+  }
 
-  await Promise.all(
-    toDelete.map(async ({ key, context }) => {
-      try {
-        await StorageService.deleteFile({ key, context })
-        stats.filesDeleted++
-      } catch (error) {
-        stats.filesFailed++
-        logger.error(`Failed to delete storage file ${key} (context: ${context}):`, { error })
-      }
-    })
-  )
+  for (const [context, keys] of keysByContext) {
+    const result = await StorageService.deleteFiles(keys, context)
+    stats.filesDeleted += result.deleted
+    stats.filesFailed += result.failed.length
+    for (const { key, error } of result.failed) {
+      logger.error(`Failed to delete storage file ${key} (context: ${context}):`, { error })
+    }
+  }
 
   return stats
 }
@@ -160,14 +164,7 @@ const CLEANUP_TARGETS = [
 
 export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise<void> {
   const startTime = Date.now()
-
-  const scope = await resolveCleanupScope('cleanup-soft-deletes', payload)
-  if (!scope) {
-    logger.info(`[${payload.plan}] No retention configured, skipping`)
-    return
-  }
-
-  const { workspaceIds, retentionHours, label } = scope
+  const { workspaceIds, retentionHours, label } = payload
 
   if (workspaceIds.length === 0) {
     logger.info(`[${label}] No workspaces to process`)
@@ -274,5 +271,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
 
 export const cleanupSoftDeletesTask = task({
   id: 'cleanup-soft-deletes',
+  machine: 'large-1x',
+  queue: { concurrencyLimit: 5 },
   run: runCleanupSoftDeletes,
 })
