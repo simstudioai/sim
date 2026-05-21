@@ -186,7 +186,11 @@ export async function getRunSegment(runId: string) {
     'copilot_runs',
     { [TraceAttr.RunId]: runId },
     async () => {
-      const [run] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId)).limit(1)
+      const [run] = await db
+        .select({ id: copilotRuns.id, userId: copilotRuns.userId })
+        .from(copilotRuns)
+        .where(eq(copilotRuns.id, runId))
+        .limit(1)
       return run ?? null
     }
   )

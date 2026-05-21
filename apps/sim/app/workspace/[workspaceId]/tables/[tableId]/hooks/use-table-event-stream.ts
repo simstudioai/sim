@@ -17,6 +17,7 @@ interface PrunedEvent {
 
 const RECONNECT_BACKOFF_MS = [500, 1_000, 2_000, 5_000, 10_000]
 const POINTER_PREFIX = 'table-event-stream-pointer:'
+const DISPATCH_INVALIDATE_DEBOUNCE_MS = 250
 
 function loadPointer(tableId: string): number {
   if (typeof window === 'undefined') return 0
@@ -72,6 +73,16 @@ export function useTableEventStream({
     // `pruned` and we full-refetch + restart from the new earliest.
     let lastEventId = loadPointer(tableId)
     let reconnectAttempt = 0
+
+    // Trailing-edge debounce coalesces window-completion bursts.
+    let dispatchInvalidateTimer: ReturnType<typeof setTimeout> | null = null
+    const scheduleDispatchInvalidate = (): void => {
+      if (dispatchInvalidateTimer !== null) clearTimeout(dispatchInvalidateTimer)
+      dispatchInvalidateTimer = setTimeout(() => {
+        dispatchInvalidateTimer = null
+        void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
+      }, DISPATCH_INVALIDATE_DEBOUNCE_MS)
+    }
 
     // Keeps the per-row gutter (`runningByRowId`) live between dispatch events.
     // `runningCellCount` (the "X running" badge) is NOT touched here — it's the
@@ -137,9 +148,7 @@ export function useTableEventStream({
       if (wasInFlight === null) {
         // Row outside the loaded page slice — can't compute the delta locally.
         // Refetch the run-state snapshot from the server. Cheap and rare.
-        void queryClient.invalidateQueries({
-          queryKey: tableKeys.activeDispatches(tableId),
-        })
+        scheduleDispatchInvalidate()
       } else {
         updateRunningByRow(rowId, wasInFlight, isExecInFlight({ status } as RowExecutionMetadata))
       }
@@ -191,13 +200,13 @@ export function useTableEventStream({
       // finish + the cursor advances) and on completion. Re-sync the
       // dispatch-scope `runningCellCount` from the server so the badge steps
       // down per window and matches a reload exactly.
-      void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
+      scheduleDispatchInvalidate()
     }
 
     const handlePrune = (payload: PrunedEvent): void => {
       logger.info('Table event buffer pruned — full refetch', { tableId, ...payload })
       void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-      void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
+      scheduleDispatchInvalidate()
       lastEventId = typeof payload.earliestEventId === 'number' ? payload.earliestEventId : 0
       savePointer(tableId, lastEventId)
       // Close proactively so the server's close doesn't fire onerror and route
@@ -274,6 +283,7 @@ export function useTableEventStream({
     return () => {
       cancelled = true
       if (reconnectTimer !== null) clearTimeout(reconnectTimer)
+      if (dispatchInvalidateTimer !== null) clearTimeout(dispatchInvalidateTimer)
       eventSource?.close()
       eventSource = null
     }

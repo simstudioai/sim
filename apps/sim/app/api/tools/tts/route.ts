@@ -7,11 +7,16 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import {
+  isPayloadSizeLimitError,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { StorageService } from '@/lib/uploads'
 
 const logger = createLogger('ProxyTTSAPI')
+const MAX_TTS_AUDIO_BYTES = 25 * 1024 * 1024
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -98,14 +103,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const audioBlob = await response.blob()
+    const audioBuffer = await readResponseToBufferWithLimit(response, {
+      maxBytes: MAX_TTS_AUDIO_BYTES,
+      label: 'TTS audio response',
+      signal: request.signal,
+    })
 
-    if (audioBlob.size === 0) {
+    if (audioBuffer.length === 0) {
       logger.error('Empty audio received from ElevenLabs')
       return NextResponse.json({ error: 'Empty audio received' }, { status: 422 })
     }
 
-    const audioBuffer = Buffer.from(await audioBlob.arrayBuffer())
     const timestamp = Date.now()
 
     // Use execution storage for workflow tool calls, copilot for chat UI
@@ -160,7 +168,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       {
         error: `Internal Server Error: ${getErrorMessage(error, 'Unknown error')}`,
       },
-      { status: 500 }
+      { status: isPayloadSizeLimitError(error) ? 413 : 500 }
     )
   }
 })

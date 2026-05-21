@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { getStorageConfig, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
 import type { BlobConfig } from '@/lib/uploads/providers/blob/types'
 import type { S3Config } from '@/lib/uploads/providers/s3/types'
@@ -184,28 +185,39 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
  * Download a file from the configured storage provider
  */
 export async function downloadFile(options: DownloadFileOptions): Promise<Buffer> {
-  const { key, context } = options
+  const { key, context, maxBytes } = options
 
   if (context) {
     const config = getStorageConfig(context)
 
     if (USE_BLOB_STORAGE) {
       const { downloadFromBlob } = await import('@/lib/uploads/providers/blob/client')
-      return downloadFromBlob(key, createBlobConfig(config))
+      const blobConfig = createBlobConfig(config)
+      return maxBytes === undefined
+        ? downloadFromBlob(key, blobConfig)
+        : downloadFromBlob(key, blobConfig, maxBytes)
     }
 
     if (USE_S3_STORAGE) {
       const { downloadFromS3 } = await import('@/lib/uploads/providers/s3/client')
-      return downloadFromS3(key, createS3Config(config))
+      const s3Config = createS3Config(config)
+      return maxBytes === undefined
+        ? downloadFromS3(key, s3Config)
+        : downloadFromS3(key, s3Config, maxBytes)
     }
   }
 
-  const { readFile } = await import('fs/promises')
+  const { readFile, stat } = await import('fs/promises')
   const { join } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
 
   const safeKey = sanitizeFileKey(key)
   const filePath = join(UPLOAD_DIR_SERVER, safeKey)
+
+  if (maxBytes !== undefined) {
+    const fileStats = await stat(filePath)
+    assertKnownSizeWithinLimit(fileStats.size, maxBytes, 'storage download')
+  }
 
   return readFile(filePath)
 }

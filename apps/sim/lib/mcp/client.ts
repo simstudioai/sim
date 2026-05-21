@@ -36,6 +36,7 @@ import {
   type McpToolsChangedCallback,
   type McpVersionInfo,
 } from '@/lib/mcp/types'
+import { MCP_CLIENT_CONSTANTS } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpClient')
 
@@ -167,7 +168,9 @@ export class McpClient {
     }
 
     try {
-      const result: ListToolsResult = await this.client.listTools()
+      const result: ListToolsResult = await this.client.listTools(undefined, {
+        timeout: MCP_CLIENT_CONSTANTS.LIST_TOOLS_TIMEOUT_MS,
+      })
 
       if (!result.tools || !Array.isArray(result.tools)) {
         logger.warn(`Invalid tools response from server ${this.config.name}:`, result)

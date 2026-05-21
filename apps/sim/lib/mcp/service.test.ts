@@ -38,13 +38,20 @@ const {
 })
 
 vi.mock('@sim/db', () => {
+  // `where(...)` resolves to the workspace's rows AND exposes `.limit()` for
+  // chains like `getServerConfig` that do `select().from().where().limit(1)`.
+  const where = (...args: unknown[]) => {
+    const rowsPromise = Promise.resolve(mockGetWorkspaceServersRows(...args))
+    const thenable = Object.assign(rowsPromise, {
+      limit: (n: number) => rowsPromise.then((rows) => rows.slice(0, n)),
+    })
+    return thenable
+  }
   const setter = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
   return {
     db: {
       select: vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: (...args: unknown[]) => mockGetWorkspaceServersRows(...args),
-        }),
+        from: vi.fn().mockReturnValue({ where }),
       }),
       update: vi.fn().mockReturnValue({ set: setter }),
       insert: vi.fn(),
@@ -237,5 +244,19 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(first.map((t) => t.name)).toEqual(['a1'])
     expect(second.map((t) => t.name)).toEqual(['a-other'])
     expect(mockListTools).toHaveBeenCalledTimes(2)
+  })
+
+  it('discoverServerTools primes the per-server cache for follow-up discoverTools', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+
+    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
+    expect(tools.map((t) => t.name)).toEqual(['a1'])
+    expect(mockListTools).toHaveBeenCalledTimes(1)
+
+    mockListTools.mockClear()
+    const second = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+    expect(second.map((t) => t.name)).toEqual(['a1'])
+    expect(mockListTools).not.toHaveBeenCalled()
   })
 })

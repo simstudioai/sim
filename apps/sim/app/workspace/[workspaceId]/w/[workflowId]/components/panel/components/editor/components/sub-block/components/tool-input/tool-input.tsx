@@ -213,7 +213,7 @@ function WorkflowToolDeployBadge({
   workflowId: string
   onDeploySuccess?: () => void
 }) {
-  const { data, isLoading } = useDeploymentInfo(workflowId, { refetchOnMount: 'always' })
+  const { data, isLoading } = useDeploymentInfo(workflowId)
   const { mutate, isPending: isDeploying } = useDeployWorkflow()
   const userPermissions = useUserPermissionsContext()
 

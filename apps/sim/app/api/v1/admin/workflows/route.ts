@@ -33,7 +33,25 @@ export const GET = withRouteHandler(
     try {
       const [countResult, workflows] = await Promise.all([
         db.select({ total: count() }).from(workflow),
-        db.select().from(workflow).orderBy(workflow.name).limit(limit).offset(offset),
+        db
+          .select({
+            id: workflow.id,
+            name: workflow.name,
+            description: workflow.description,
+            color: workflow.color,
+            workspaceId: workflow.workspaceId,
+            folderId: workflow.folderId,
+            isDeployed: workflow.isDeployed,
+            deployedAt: workflow.deployedAt,
+            runCount: workflow.runCount,
+            lastRunAt: workflow.lastRunAt,
+            createdAt: workflow.createdAt,
+            updatedAt: workflow.updatedAt,
+          })
+          .from(workflow)
+          .orderBy(workflow.name)
+          .limit(limit)
+          .offset(offset),
       ])
 
       const total = countResult[0].total

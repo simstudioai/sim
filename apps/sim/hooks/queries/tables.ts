@@ -71,6 +71,7 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   areGroupDepsSatisfied,
   isExecInFlight,
@@ -836,17 +837,24 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
     mutationFn: async (rowIds: string[]): Promise<TableRowsDeleteResult> => {
       const uniqueRowIds = Array.from(new Set(rowIds))
 
-      const response = await requestJson(deleteTableRowsContract, {
-        params: { tableId },
-        body: { workspaceId, rowIds: uniqueRowIds },
-      })
-
-      const deletedRowIds = response.data.deletedRowIds || []
-      const missingRowIds = response.data.missingRowIds || []
+      // The delete contract caps `rowIds` at MAX_BULK_OPERATION_SIZE, so large
+      // selections (e.g. "select all") are sent as sequential chunks.
+      const chunkSize = TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
+      const deletedRowIds: string[] = []
+      const missingRowIds: string[] = []
+      for (let i = 0; i < uniqueRowIds.length; i += chunkSize) {
+        const chunk = uniqueRowIds.slice(i, i + chunkSize)
+        const response = await requestJson(deleteTableRowsContract, {
+          params: { tableId },
+          body: { workspaceId, rowIds: chunk },
+        })
+        deletedRowIds.push(...(response.data.deletedRowIds || []))
+        missingRowIds.push(...(response.data.missingRowIds || []))
+      }
 
       if (missingRowIds.length > 0) {
         const failureCount = missingRowIds.length
-        const totalCount = response.data.requestedCount ?? uniqueRowIds.length
+        const totalCount = uniqueRowIds.length
         const successCount = deletedRowIds.length
         const firstMissing = missingRowIds[0]
         throw new Error(

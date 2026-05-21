@@ -137,13 +137,23 @@ export const PATCH = withRouteHandler(
       }
       await assertWorkflowMutable(webhookData.workflow.id)
 
+      const setClause: Partial<typeof webhook.$inferInsert> = {}
+      if (isActive !== undefined && isActive !== webhooks[0].webhook.isActive) {
+        setClause.isActive = isActive
+      }
+      if (failedCount !== undefined && failedCount !== webhooks[0].webhook.failedCount) {
+        setClause.failedCount = failedCount
+      }
+
+      if (Object.keys(setClause).length === 0) {
+        logger.info(`[${requestId}] No-op webhook PATCH (no field changes): ${id}`)
+        return NextResponse.json({ webhook: webhooks[0].webhook }, { status: 200 })
+      }
+
+      setClause.updatedAt = new Date()
       const updatedWebhook = await db
         .update(webhook)
-        .set({
-          isActive: isActive !== undefined ? isActive : webhooks[0].webhook.isActive,
-          failedCount: failedCount !== undefined ? failedCount : webhooks[0].webhook.failedCount,
-          updatedAt: new Date(),
-        })
+        .set(setClause)
         .where(eq(webhook.id, id))
         .returning()
 
