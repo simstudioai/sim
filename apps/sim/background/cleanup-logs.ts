@@ -3,9 +3,10 @@ import { jobExecutionLogs, pausedExecutions, workflowExecutionLogs } from '@sim/
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { and, eq, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
-import { type CleanupJobPayload, resolveCleanupScope } from '@/lib/billing/cleanup-dispatcher'
+import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
 import {
   batchDeleteByWorkspaceAndTimestamp,
+  chunkArray,
   chunkedBatchDelete,
   type TableCleanupResult,
 } from '@/lib/cleanup/batch-delete'
@@ -27,6 +28,13 @@ interface FileDeleteStats {
 
 const RESUMABLE_PAUSED_STATUSES = ['paused', 'partially_resumed', 'cancelling']
 
+/** Caps the per-row predicate cost: keys-per-row is `O(chunk)` not `O(uniqueKeys)`. */
+const REFERENCE_CHECK_KEY_CHUNK_SIZE = 200
+
+/**
+ * One `LATERAL unnest` scan per chunk replaces N per-key sequential scans
+ * (each detoasting the entire JSONB column). Substring semantics identical.
+ */
 async function filterLargeValueKeysWithoutRetainedReferences(
   keys: string[],
   deletedLogIds: string[],
@@ -34,26 +42,22 @@ async function filterLargeValueKeysWithoutRetainedReferences(
 ): Promise<string[]> {
   if (keys.length === 0 || deletedLogIds.length === 0 || workspaceIds.length === 0) return []
 
-  const unreferencedKeys: string[] = []
-  for (const key of Array.from(new Set(keys))) {
-    const [referencingLog] = await db
-      .select({ id: workflowExecutionLogs.id })
-      .from(workflowExecutionLogs)
-      .where(
-        and(
-          inArray(workflowExecutionLogs.workspaceId, workspaceIds),
-          notInArray(workflowExecutionLogs.id, deletedLogIds),
-          sql`position(${key} in ${workflowExecutionLogs.executionData}::text) > 0`
-        )
-      )
-      .limit(1)
+  const uniqueKeys = Array.from(new Set(keys))
+  const referencedKeys = new Set<string>()
 
-    if (!referencingLog) {
-      unreferencedKeys.push(key)
-    }
+  for (const keyChunk of chunkArray(uniqueKeys, REFERENCE_CHECK_KEY_CHUNK_SIZE)) {
+    const rows = await db.execute<{ key: string }>(sql`
+      SELECT DISTINCT k.key AS key
+      FROM ${workflowExecutionLogs} AS wel,
+           unnest(${keyChunk}::text[]) AS k(key)
+      WHERE wel.workspace_id = ANY(${workspaceIds}::text[])
+        AND wel.id <> ALL(${deletedLogIds}::text[])
+        AND position(k.key in wel.execution_data::text) > 0
+    `)
+    for (const row of rows) referencedKeys.add(row.key)
   }
 
-  return unreferencedKeys
+  return uniqueKeys.filter((key) => !referencedKeys.has(key))
 }
 
 async function deleteExecutionFiles(files: unknown, stats: FileDeleteStats): Promise<void> {
@@ -159,14 +163,7 @@ async function cleanupWorkflowExecutionLogs(
   return { ...dbStats, ...fileStats }
 }
 
-async function cleanupFreePlanOrphanedSnapshots(
-  payload: CleanupJobPayload,
-  retentionHours: number
-): Promise<void> {
-  if (payload.plan !== 'free' || payload.runGlobalMaintenance !== true) {
-    return
-  }
-
+async function cleanupFreePlanOrphanedSnapshots(retentionHours: number): Promise<void> {
   try {
     const retentionDays = Math.floor(retentionHours / 24)
     const snapshotsCleaned = await snapshotService.cleanupOrphanedSnapshots(retentionDays + 1)
@@ -178,20 +175,15 @@ async function cleanupFreePlanOrphanedSnapshots(
 
 export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> {
   const startTime = Date.now()
-
-  const scope = await resolveCleanupScope('cleanup-logs', payload)
-  if (!scope) {
-    logger.info(`[${payload.plan}] No retention configured, skipping`)
-    return
-  }
-
-  const { workspaceIds, retentionHours, label } = scope
+  const { workspaceIds, retentionHours, label, plan, runGlobalHousekeeping } = payload
 
   const retentionDate = new Date(Date.now() - retentionHours * 60 * 60 * 1000)
 
   if (workspaceIds.length === 0) {
     logger.info(`[${label}] No workspaces to process`)
-    await cleanupFreePlanOrphanedSnapshots(payload, retentionHours)
+    if (runGlobalHousekeeping && plan === 'free') {
+      await cleanupFreePlanOrphanedSnapshots(retentionHours)
+    }
     return
   }
 
@@ -216,7 +208,9 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
     tableName: `${label}/job_execution_logs`,
   })
 
-  await cleanupFreePlanOrphanedSnapshots(payload, retentionHours)
+  if (runGlobalHousekeeping && plan === 'free') {
+    await cleanupFreePlanOrphanedSnapshots(retentionHours)
+  }
 
   const timeElapsed = (Date.now() - startTime) / 1000
   logger.info(`[${label}] Job completed in ${timeElapsed.toFixed(2)}s`)
@@ -224,9 +218,7 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
 
 export const cleanupLogsTask = task({
   id: 'cleanup-logs',
-  queue: {
-    name: 'cleanup-logs',
-    concurrencyLimit: 1,
-  },
+  machine: 'large-1x',
+  queue: { concurrencyLimit: 5 },
   run: runCleanupLogs,
 })

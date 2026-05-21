@@ -6,7 +6,8 @@ import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 const logger = createLogger('BatchDelete')
 
 export const DEFAULT_BATCH_SIZE = 2000
-export const DEFAULT_MAX_BATCHES_PER_TABLE = 10
+/** 50 × 2000 = 100K row cap per cleanup run; drains long-tail tenants in days, not weeks. */
+export const DEFAULT_MAX_BATCHES_PER_TABLE = 50
 /**
  * Split workspaceIds into this-sized groups before running SELECT/DELETE. Large
  * IN lists combined with `started_at < X` force Postgres to probe every
@@ -14,6 +15,8 @@ export const DEFAULT_MAX_BATCHES_PER_TABLE = 10
  * at the scale of the full free tier.
  */
 export const DEFAULT_WORKSPACE_CHUNK_SIZE = 50
+/** Bounds FK cascade trigger queue (per-statement in-memory) and bind-parameter count. */
+export const DEFAULT_DELETE_CHUNK_SIZE = 1000
 
 export function chunkArray<T>(arr: T[], size: number): T[][] {
   const out: T[][] = []
@@ -215,26 +218,41 @@ export async function batchDeleteByWorkspaceAndTimestamp({
 }
 
 /**
- * Delete rows by an explicit list of IDs. Use this when the IDs were selected
- * upstream (e.g., to drive external cleanup like S3 deletes or a backend API
- * call) so the DB delete cannot drift from the upstream selection. Paired with
- * `batchDeleteByWorkspaceAndTimestamp` for tables with no external side effects.
+ * Delete by explicit ID list, chunked so each statement is its own transaction.
+ * Partial progress survives chunk-level failures.
  */
 export async function deleteRowsById(
   tableDef: PgTable,
   idCol: PgColumn,
   ids: string[],
-  tableName: string
+  tableName: string,
+  chunkSize: number = DEFAULT_DELETE_CHUNK_SIZE
 ): Promise<TableCleanupResult> {
   const result: TableCleanupResult = { table: tableName, deleted: 0, failed: 0 }
   if (ids.length === 0) return result
-  try {
-    const deleted = await db.delete(tableDef).where(inArray(idCol, ids)).returning({ id: idCol })
-    result.deleted = deleted.length
-    logger.info(`[${tableName}] Deleted ${deleted.length} rows`)
-  } catch (error) {
-    result.failed++
-    logger.error(`[${tableName}] Delete failed:`, { error })
+
+  const chunks = chunkArray(ids, chunkSize)
+  for (const [chunkIdx, chunkIds] of chunks.entries()) {
+    try {
+      const deleted = await db
+        .delete(tableDef)
+        .where(inArray(idCol, chunkIds))
+        .returning({ id: idCol })
+      result.deleted += deleted.length
+    } catch (error) {
+      // Upper bound: Postgres rolls back the chunk on error, so actual deletes = 0,
+      // but we can't tell which IDs in the chunk would have matched. The next cron
+      // run picks up whatever's still expired, so this only inflates the metric.
+      result.failed += chunkIds.length
+      logger.error(
+        `[${tableName}] Delete chunk ${chunkIdx + 1}/${chunks.length} failed (up to ${chunkIds.length} rows):`,
+        { error }
+      )
+    }
   }
+
+  logger.info(
+    `[${tableName}] Deleted ${result.deleted} rows across ${chunks.length} chunk(s)${result.failed > 0 ? `, ${result.failed} failed` : ''}`
+  )
   return result
 }

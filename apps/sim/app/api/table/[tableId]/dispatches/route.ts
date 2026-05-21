@@ -5,7 +5,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { countRunningCells, listActiveDispatches } from '@/lib/table/dispatcher'
+import { countActiveRunCells, listActiveDispatches } from '@/lib/table/dispatcher'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableDispatchesAPI')
@@ -37,10 +37,8 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
     const result = await checkAccess(tableId, authResult.userId, 'read')
     if (!result.ok) return accessError(result, requestId, tableId)
 
-    const [rows, running] = await Promise.all([
-      listActiveDispatches(tableId),
-      countRunningCells(tableId),
-    ])
+    const rows = await listActiveDispatches(tableId)
+    const running = await countActiveRunCells(tableId, rows)
     const dispatches: ActiveDispatch[] = rows.map((r) => ({
       id: r.id,
       status: r.status as 'pending' | 'dispatching',
