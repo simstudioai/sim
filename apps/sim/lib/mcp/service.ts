@@ -670,9 +670,6 @@ class McpService {
     }
   }
 
-  /**
-   * Clear tool cache for a workspace or all workspaces.
-   */
   async clearCache(workspaceId?: string): Promise<void> {
     try {
       if (workspaceId) {

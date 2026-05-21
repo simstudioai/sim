@@ -171,7 +171,7 @@ describe('surfaceOauthError', () => {
     const longMessage = 'x'.repeat(300)
     const result = surfaceOauthError(new InvalidGrantError(longMessage))
     expect(result.endsWith('…')).toBe(true)
-    expect(result.length).toBe(251) // 250 chars + ellipsis
+    expect(result.length).toBe(251)
   })
 
   it('returns generic fallback for non-Error values', () => {
