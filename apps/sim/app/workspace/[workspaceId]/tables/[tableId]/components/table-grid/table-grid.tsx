@@ -2011,8 +2011,11 @@ export function TableGrid({
       const isCopy = opts.verb === 'Copied'
       const verbLower = isCopy ? 'copy' : 'cut'
       const estimate = opts.estimatedCount
+      // duration:0 keeps the in-progress toast up through long page loads; it is
+      // dismissed explicitly on every settle path below.
       const loadingToastId = toast({
         message: `${isCopy ? 'Copying' : 'Cutting'} ${estimate.toLocaleString()} ${estimate === 1 ? 'row' : 'rows'}…`,
+        duration: 0,
       })
       let rowCount = 0
       let truncated = false
