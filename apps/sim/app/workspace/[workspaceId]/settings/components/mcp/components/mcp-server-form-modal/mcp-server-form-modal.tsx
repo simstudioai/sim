@@ -17,7 +17,7 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import type { McpTransport } from '@/lib/mcp/types'
+import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,
@@ -52,7 +52,7 @@ export interface McpServerFormConfig {
   timeout: number
   oauthClientId?: string
   oauthClientSecret?: string
-  authType?: 'none' | 'headers' | 'oauth'
+  authType?: McpAuthType
 }
 
 export interface McpServerFormModalProps {
