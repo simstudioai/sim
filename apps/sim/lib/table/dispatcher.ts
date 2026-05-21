@@ -65,67 +65,69 @@ export async function bulkClearWorkflowGroupCells(input: {
   // Pre-existing outputs on any other row must not be wiped by an auto-fire.
   if (mode === 'new') return
 
-  const outputCols = Array.from(new Set(groups.flatMap((g) => g.outputs.map((o) => o.columnName))))
   const groupIds = groups.map((g) => g.id)
+  const rowScope = rowIds && rowIds.length > 0 ? rowIds : null
 
-  // Step 1: clear the targeted output columns from `data` on every row in
-  // scope. Identical chain to the previous JSONB-only path.
-  let dataExpr: SQL = sql`coalesce(${userTableRows.data}, '{}'::jsonb)`
-  for (const col of outputCols) dataExpr = sql`(${dataExpr}) - ${col}::text`
-
-  const filters: SQL[] = [eq(userTableRows.tableId, tableId)]
-  if (rowIds && rowIds.length > 0) {
-    filters.push(inArray(userTableRows.id, rowIds))
-  }
-  if (mode === 'incomplete') {
-    // Skip rows where all output columns across all targeted groups already
-    // have a non-empty value — those are "completed-and-filled" and the
-    // eligibility predicate would skip them anyway.
-    const filledChecks = outputCols.map(
-      (col) => sql`coalesce(${userTableRows.data} ->> ${col}, '') != ''`
+  if (mode === 'all') {
+    // Run-all re-runs every targeted group: wipe all their output columns +
+    // executions for the rows in scope. (Prior in-flight runs were already
+    // cancelled by the caller.)
+    const outputCols = Array.from(
+      new Set(groups.flatMap((g) => g.outputs.map((o) => o.columnName)))
     )
-    const allFilled = filledChecks.reduce((acc, expr) => sql`${acc} AND ${expr}`)
-    filters.push(sql`NOT (${allFilled})`)
-    // Also skip rows where ANY targeted group has an in-flight exec — those
-    // belong to another dispatch and clobbering them would race. Encoded as
-    // a NOT EXISTS subquery against the sidecar's `(table_id, status)`
-    // partial index.
-    filters.push(
-      sql`NOT EXISTS (
+    let dataExpr: SQL = sql`coalesce(${userTableRows.data}, '{}'::jsonb)`
+    for (const col of outputCols) dataExpr = sql`(${dataExpr}) - ${col}::text`
+    const filters: SQL[] = [eq(userTableRows.tableId, tableId)]
+    if (rowScope) filters.push(inArray(userTableRows.id, rowScope))
+
+    await db.transaction(async (trx) => {
+      await trx
+        .update(userTableRows)
+        .set({ data: dataExpr, updatedAt: new Date() })
+        .where(and(...filters))
+      const execFilters: SQL[] = [
+        eq(tableRowExecutions.tableId, tableId),
+        inArray(tableRowExecutions.groupId, groupIds),
+      ]
+      if (rowScope) execFilters.push(inArray(tableRowExecutions.rowId, rowScope))
+      await trx.delete(tableRowExecutions).where(and(...execFilters))
+    })
+    return
+  }
+
+  // `incomplete`: clear per-group, not per-row. Only groups that are
+  // re-runnable (`error` / `cancelled`) get their output columns + exec wiped;
+  // `completed` and in-flight groups are left fully intact. A row-level "all
+  // filled" check would otherwise wipe a completed group's data + exec just
+  // because a *sibling* group on the same row is incomplete, re-running the
+  // completed one. (`never-run` groups have no exec/output to clear — the
+  // dispatcher runs them via eligibility.)
+  await db.transaction(async (trx) => {
+    for (const group of groups) {
+      const reRunnable = sql`EXISTS (
         SELECT 1 FROM ${tableRowExecutions} re
         WHERE re.row_id = ${userTableRows.id}
-          AND re.group_id = ANY(ARRAY[${sql.join(
-            groupIds.map((gid) => sql`${gid}`),
-            sql`, `
-          )}]::text[])
-          AND re.status IN ('queued', 'running', 'pending')
+          AND re.group_id = ${group.id}
+          AND re.status IN ('error', 'cancelled')
       )`
-    )
-  }
+      const filters: SQL[] = [eq(userTableRows.tableId, tableId), reRunnable]
+      if (rowScope) filters.push(inArray(userTableRows.id, rowScope))
 
-  await db.transaction(async (trx) => {
-    await trx
-      .update(userTableRows)
-      .set({ data: dataExpr, updatedAt: new Date() })
-      .where(and(...filters))
+      let dataExpr: SQL = sql`coalesce(${userTableRows.data}, '{}'::jsonb)`
+      for (const out of group.outputs) dataExpr = sql`(${dataExpr}) - ${out.columnName}::text`
+      await trx
+        .update(userTableRows)
+        .set({ data: dataExpr, updatedAt: new Date() })
+        .where(and(...filters))
 
-    // Step 2: delete the targeted groups' executions for the rows in scope.
-    // Reuse the same row-scope filter via a subquery.
-    const execFilters: SQL[] = [
-      eq(tableRowExecutions.tableId, tableId),
-      inArray(tableRowExecutions.groupId, groupIds),
-    ]
-    if (rowIds && rowIds.length > 0) {
-      execFilters.push(inArray(tableRowExecutions.rowId, rowIds))
+      const execFilters: SQL[] = [
+        eq(tableRowExecutions.tableId, tableId),
+        eq(tableRowExecutions.groupId, group.id),
+        sql`${tableRowExecutions.status} IN ('error', 'cancelled')`,
+      ]
+      if (rowScope) execFilters.push(inArray(tableRowExecutions.rowId, rowScope))
+      await trx.delete(tableRowExecutions).where(and(...execFilters))
     }
-    if (mode === 'incomplete') {
-      // For `incomplete`, only delete entries that aren't already in-flight
-      // — terminal states (completed/error/cancelled) get wiped so the
-      // dispatcher re-enqueues; in-flight entries stay so we don't race
-      // with their worker.
-      execFilters.push(sql`${tableRowExecutions.status} NOT IN ('queued', 'running', 'pending')`)
-    }
-    await trx.delete(tableRowExecutions).where(and(...execFilters))
   })
 }
 
@@ -191,6 +193,44 @@ export async function countRunningCells(
     }
   }
   return { total, byRowId }
+}
+
+/** Authoritative "cells queued or running" count for the table, derived from
+ *  active dispatches so it survives reload and matches the live count. For each
+ *  active dispatch every row in scope ahead of the cursor still has to run each
+ *  targeted group, so remaining work = (rows ahead of cursor) × |groupIds|.
+ *  Exact for Run-all; an upper bound for incomplete/new (rows the eligibility
+ *  filter later skips are still counted). Falls back to the sidecar in-flight
+ *  count when no dispatch is active (orphan stragglers). `byRowId` stays
+ *  sidecar-based — the client overlay renders queued rows ahead of the cursor. */
+export async function countActiveRunCells(
+  tableId: string,
+  dispatches?: DispatchRow[]
+): Promise<{ total: number; byRowId: Record<string, number> }> {
+  const active = dispatches ?? (await listActiveDispatches(tableId))
+  if (active.length === 0) return countRunningCells(tableId)
+
+  const countRowsAhead = async (d: DispatchRow): Promise<number> => {
+    const groupCount = d.scope.groupIds.length
+    if (groupCount === 0) return 0
+    const filters = [eq(userTableRows.tableId, tableId), gt(userTableRows.position, d.cursor)]
+    if (d.scope.rowIds && d.scope.rowIds.length > 0) {
+      filters.push(inArray(userTableRows.id, d.scope.rowIds))
+    }
+    const [row] = await db
+      .select({ rowsAhead: sql<number>`count(*)::int` })
+      .from(userTableRows)
+      .where(and(...filters))
+    return (row?.rowsAhead ?? 0) * groupCount
+  }
+
+  // One round-trip per dispatch + the sidecar count, all in parallel.
+  const [sidecar, perDispatch] = await Promise.all([
+    countRunningCells(tableId),
+    Promise.all(active.map(countRowsAhead)),
+  ])
+  const total = perDispatch.reduce((sum, n) => sum + n, 0)
+  return { total, byRowId: sidecar.byRowId }
 }
 
 export async function listActiveDispatches(tableId: string): Promise<DispatchRow[]> {
