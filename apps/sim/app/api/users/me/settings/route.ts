@@ -39,7 +39,24 @@ export const GET = withRouteHandler(async () => {
     }
 
     const userId = session.user.id
-    const result = await db.select().from(settings).where(eq(settings.userId, userId)).limit(1)
+    const result = await db
+      .select({
+        theme: settings.theme,
+        autoConnect: settings.autoConnect,
+        telemetryEnabled: settings.telemetryEnabled,
+        emailPreferences: settings.emailPreferences,
+        billingUsageNotificationsEnabled: settings.billingUsageNotificationsEnabled,
+        showTrainingControls: settings.showTrainingControls,
+        superUserModeEnabled: settings.superUserModeEnabled,
+        mothershipEnvironment: settings.mothershipEnvironment,
+        errorNotificationsEnabled: settings.errorNotificationsEnabled,
+        snapToGridSize: settings.snapToGridSize,
+        showActionBar: settings.showActionBar,
+        lastActiveWorkspaceId: settings.lastActiveWorkspaceId,
+      })
+      .from(settings)
+      .where(eq(settings.userId, userId))
+      .limit(1)
 
     if (!result.length) {
       return NextResponse.json({ data: defaultSettings }, { status: 200 })

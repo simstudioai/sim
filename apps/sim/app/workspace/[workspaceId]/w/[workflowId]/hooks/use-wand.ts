@@ -232,7 +232,7 @@ export function useWand({
         })
 
         setTimeout(() => {
-          queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+          queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
         }, 1000)
       } catch (error: any) {
         if (error.name === 'AbortError') {

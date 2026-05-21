@@ -1,19 +1,13 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, permissions, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, notInArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
 
 interface AccessibleEnvCredential {
   type: 'env_workspace' | 'env_personal'
   envKey: string
   envOwnerUserId: string | null
   updatedAt: Date
-}
-
-function getPostgresErrorCode(error: unknown): string | undefined {
-  if (!error || typeof error !== 'object') return undefined
-  const err = error as { code?: string; cause?: { code?: string } }
-  return err.code || err.cause?.code
 }
 
 export async function getWorkspaceMemberUserIds(workspaceId: string): Promise<string[]> {
@@ -70,10 +64,8 @@ async function ensureWorkspaceCredentialMemberships(
 
   const existingMemberships = await db
     .select({
-      id: credentialMember.id,
       userId: credentialMember.userId,
       status: credentialMember.status,
-      joinedAt: credentialMember.joinedAt,
     })
     .from(credentialMember)
     .where(
@@ -83,41 +75,40 @@ async function ensureWorkspaceCredentialMemberships(
       )
     )
 
-  const byUserId = new Map(existingMemberships.map((row) => [row.userId, row]))
+  // Revoked memberships are filtered out so ON CONFLICT cannot resurrect them.
+  const revokedUserIds = new Set<string>(
+    existingMemberships.filter((row) => row.status === 'revoked').map((row) => row.userId)
+  )
+  const targetUserIds = memberUserIds.filter((id) => !revokedUserIds.has(id))
+  if (targetUserIds.length === 0) return
+
   const now = new Date()
+  const values = targetUserIds.map((memberUserId) => ({
+    id: generateId(),
+    credentialId,
+    userId: memberUserId,
+    role: (memberUserId === ownerUserId ? 'admin' : 'member') as 'admin' | 'member',
+    status: 'active' as const,
+    joinedAt: now,
+    invitedBy: ownerUserId,
+    createdAt: now,
+    updatedAt: now,
+  }))
 
-  for (const memberUserId of memberUserIds) {
-    const targetRole = memberUserId === ownerUserId ? 'admin' : 'member'
-    const existing = byUserId.get(memberUserId)
-    if (existing) {
-      if (existing.status === 'revoked') {
-        continue
-      }
-      await db
-        .update(credentialMember)
-        .set({
-          role: targetRole,
-          status: 'active',
-          joinedAt: existing.joinedAt ?? now,
-          invitedBy: ownerUserId,
-          updatedAt: now,
-        })
-        .where(eq(credentialMember.id, existing.id))
-      continue
-    }
-
-    await db.insert(credentialMember).values({
-      id: generateId(),
-      credentialId,
-      userId: memberUserId,
-      role: targetRole,
-      status: 'active',
-      joinedAt: now,
-      invitedBy: ownerUserId,
-      createdAt: now,
-      updatedAt: now,
+  // `joinedAt` uses COALESCE so a non-null existing value is preserved but null is backfilled.
+  await db
+    .insert(credentialMember)
+    .values(values)
+    .onConflictDoUpdate({
+      target: [credentialMember.credentialId, credentialMember.userId],
+      set: {
+        role: sql`excluded.role`,
+        status: 'active',
+        joinedAt: sql`COALESCE(${credentialMember.joinedAt}, excluded.joined_at)`,
+        invitedBy: ownerUserId,
+        updatedAt: now,
+      },
     })
-  }
 }
 
 export async function syncWorkspaceEnvCredentials(params: {
@@ -157,27 +148,29 @@ export async function syncWorkspaceEnvCredentials(params: {
 
   for (const envKey of normalizedKeys) {
     const existingId = existingByKey.get(envKey)
-    if (existingId) {
-      credentialIdsToEnsureMembership.add(existingId)
-      continue
-    }
+    if (existingId) credentialIdsToEnsureMembership.add(existingId)
+  }
 
-    const createdId = generateId()
-    try {
-      await db.insert(credential).values({
-        id: createdId,
-        workspaceId,
-        type: 'env_workspace',
-        displayName: envKey,
-        envKey,
-        createdBy: actingUserId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      credentialIdsToEnsureMembership.add(createdId)
-    } catch (error: unknown) {
-      const code = getPostgresErrorCode(error)
-      if (code !== '23505') throw error
+  const keysToCreate = normalizedKeys.filter((key) => !existingByKey.has(key))
+  if (keysToCreate.length > 0) {
+    const inserted = await db
+      .insert(credential)
+      .values(
+        keysToCreate.map((envKey) => ({
+          id: generateId(),
+          workspaceId,
+          type: 'env_workspace' as const,
+          displayName: envKey,
+          envKey,
+          createdBy: actingUserId,
+          createdAt: now,
+          updatedAt: now,
+        }))
+      )
+      .onConflictDoNothing()
+      .returning({ id: credential.id })
+    for (const row of inserted) {
+      credentialIdsToEnsureMembership.add(row.id)
     }
   }
 
@@ -229,27 +222,24 @@ export async function createWorkspaceEnvCredentials(params: {
 
   const ownerUserId = workspaceRow.ownerId
   const now = new Date()
-  const createdIds: string[] = []
 
-  for (const envKey of keys) {
-    const createdId = generateId()
-    try {
-      await db.insert(credential).values({
-        id: createdId,
+  const inserted = await db
+    .insert(credential)
+    .values(
+      keys.map((envKey) => ({
+        id: generateId(),
         workspaceId,
-        type: 'env_workspace',
+        type: 'env_workspace' as const,
         displayName: envKey,
         envKey,
         createdBy: actingUserId,
         createdAt: now,
         updatedAt: now,
-      })
-      createdIds.push(createdId)
-    } catch (error: unknown) {
-      const code = getPostgresErrorCode(error)
-      if (code !== '23505') throw error
-    }
-  }
+      }))
+    )
+    .onConflictDoNothing()
+    .returning({ id: credential.id })
+  const createdIds = inserted.map((row) => row.id)
 
   if (createdIds.length === 0 || memberUserIds.length === 0) return
 

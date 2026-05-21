@@ -230,7 +230,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
           eq(userTableRows.workspaceId, workspaceId)
         )
       )
-      .returning()
+      .returning({ id: userTableRows.id })
 
     if (!deletedRow) {
       return NextResponse.json({ error: 'Row not found' }, { status: 404 })
