@@ -134,6 +134,23 @@ describe('MCP OAuth start route', () => {
     expect(body.error).toBe('OAuth authorization already in progress for this server')
     expect(mockMcpAuth).not.toHaveBeenCalled()
   })
+
+  it('does not leak non-OAuth internal error details to the client', async () => {
+    mcpOauthMockFns.mockGetOrCreateOauthRow.mockRejectedValueOnce(
+      new Error('connect ECONNREFUSED 10.0.0.5:5432 (internal-db-host)')
+    )
+    const request = new NextRequest(
+      'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
+    )
+
+    const response = await GET(request)
+    const body = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(body.error).toBe('Failed to start OAuth flow')
+    expect(body.error).not.toContain('ECONNREFUSED')
+    expect(body.error).not.toContain('internal-db-host')
+  })
 })
 
 describe('surfaceOauthError', () => {

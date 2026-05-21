@@ -673,13 +673,17 @@ class McpService {
   async clearCache(workspaceId?: string): Promise<void> {
     try {
       if (workspaceId) {
-        const servers = await this.getWorkspaceServers(workspaceId)
+        // Enumerate without enabled/deletedAt filters so disabled or soft-deleted
+        // servers still get their cache keys dropped (hard-deleted rows are gone
+        // from the table and their keys expire naturally via TTL).
+        const rows = await db
+          .select({ id: mcpServers.id })
+          .from(mcpServers)
+          .where(eq(mcpServers.workspaceId, workspaceId))
         await Promise.allSettled(
-          servers.map((s) => this.cacheAdapter.delete(serverCacheKey(workspaceId, s.id)))
+          rows.map((r) => this.cacheAdapter.delete(serverCacheKey(workspaceId, r.id)))
         )
-        logger.debug(
-          `Cleared MCP tool cache for workspace ${workspaceId} (${servers.length} servers)`
-        )
+        logger.debug(`Cleared MCP tool cache for workspace ${workspaceId} (${rows.length} servers)`)
       } else {
         await this.cacheAdapter.clear()
         logger.debug('Cleared all MCP tool cache')

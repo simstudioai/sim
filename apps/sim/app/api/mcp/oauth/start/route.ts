@@ -150,7 +150,11 @@ export const GET = withRouteHandler(
       }
     } catch (error) {
       logger.error('Error starting MCP OAuth flow:', error)
-      return createMcpErrorResponse(toError(error), surfaceOauthError(error), 500)
+      // Only surface OAuth-flow errors verbatim; everything else (DB, decryption,
+      // network) gets a generic message to avoid leaking internal details.
+      const userMessage =
+        error instanceof OAuthError ? surfaceOauthError(error) : 'Failed to start OAuth flow'
+      return createMcpErrorResponse(toError(error), userMessage, 500)
     }
   })
 )
