@@ -65,18 +65,9 @@ async function ensureWorkspaceCredentialMemberships(
   credentialId: string,
   memberUserIds: string[],
   ownerUserId: string,
-  workspaceId: string
+  wsPermissionByUser: Map<string, string>
 ) {
   if (!memberUserIds.length) return
-
-  const workspacePermissionRows = await db
-    .select({ userId: permissions.userId, permissionType: permissions.permissionType })
-    .from(permissions)
-    .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
-
-  const wsPermissionByUser = new Map(
-    workspacePermissionRows.map((row) => [row.userId, row.permissionType])
-  )
 
   const existingMemberships = await db
     .select({
@@ -137,16 +128,24 @@ export async function syncWorkspaceEnvCredentials(params: {
   actingUserId: string
 }) {
   const { workspaceId, envKeys, actingUserId } = params
-  const [[workspaceRow], memberUserIds] = await Promise.all([
+  const [[workspaceRow], memberUserIds, wsPermissionRows] = await Promise.all([
     db
       .select({ ownerId: workspace.ownerId })
       .from(workspace)
       .where(eq(workspace.id, workspaceId))
       .limit(1),
     getWorkspaceMemberUserIds(workspaceId),
+    db
+      .select({ userId: permissions.userId, permissionType: permissions.permissionType })
+      .from(permissions)
+      .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId))),
   ])
 
   if (!workspaceRow) return
+
+  const wsPermissionByUser = new Map(
+    wsPermissionRows.map((row) => [row.userId, row.permissionType])
+  )
 
   const normalizedKeys = Array.from(new Set(envKeys.filter(Boolean)))
   const existingCredentials = await db
@@ -197,7 +196,7 @@ export async function syncWorkspaceEnvCredentials(params: {
       credentialId,
       memberUserIds,
       workspaceRow.ownerId,
-      workspaceId
+      wsPermissionByUser
     )
   }
 
@@ -232,18 +231,25 @@ export async function createWorkspaceEnvCredentials(params: {
   const keys = Array.from(new Set(newKeys.filter(Boolean)))
   if (keys.length === 0) return
 
-  const [[workspaceRow], memberUserIds] = await Promise.all([
+  const [[workspaceRow], memberUserIds, wsPermissionRows] = await Promise.all([
     db
       .select({ ownerId: workspace.ownerId })
       .from(workspace)
       .where(eq(workspace.id, workspaceId))
       .limit(1),
     getWorkspaceMemberUserIds(workspaceId),
+    db
+      .select({ userId: permissions.userId, permissionType: permissions.permissionType })
+      .from(permissions)
+      .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId))),
   ])
 
   if (!workspaceRow) return
 
   const ownerUserId = workspaceRow.ownerId
+  const wsPermissionByUser = new Map(
+    wsPermissionRows.map((row) => [row.userId, row.permissionType])
+  )
   const now = new Date()
   const createdIds: string[] = []
 
@@ -268,15 +274,6 @@ export async function createWorkspaceEnvCredentials(params: {
   }
 
   if (createdIds.length === 0 || memberUserIds.length === 0) return
-
-  const wsPermissionRows = await db
-    .select({ userId: permissions.userId, permissionType: permissions.permissionType })
-    .from(permissions)
-    .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
-
-  const wsPermissionByUser = new Map(
-    wsPermissionRows.map((row) => [row.userId, row.permissionType])
-  )
 
   // Bulk-insert memberships for all new credentials × all workspace members in one query
   const membershipValues = createdIds.flatMap((credentialId) =>
