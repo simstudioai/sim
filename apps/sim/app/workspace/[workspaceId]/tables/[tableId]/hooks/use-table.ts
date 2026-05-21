@@ -138,12 +138,13 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
         sort: queryOptions.sort,
       })
 
-      const loadedCount = (): number =>
-        queryClient.getQueryData(opts.queryKey)?.pages.reduce((sum, p) => sum + p.rows.length, 0) ??
-        0
-
-      while (loadedCount() < maxRows) {
+      // Load one past the cap so `hasMore` is exact: a full final page only
+      // *might* have a successor, so we confirm by loading row `maxRows + 1`
+      // rather than inferring truncation from page fullness.
+      while (true) {
         const data = queryClient.getQueryData(opts.queryKey)
+        const loaded = data?.pages.reduce((sum, p) => sum + p.rows.length, 0) ?? 0
+        if (loaded > maxRows) break
         const lastPage = data?.pages[data.pages.length - 1]
         if (!lastPage || lastPage.rows.length < TABLE_LIMITS.MAX_QUERY_LIMIT) break
         const result = await fetchNextPage()
@@ -152,13 +153,10 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
         }
       }
 
-      const data = queryClient.getQueryData(opts.queryKey)
-      const all = data?.pages.flatMap((p) => p.rows) ?? []
-      const lastPage = data?.pages[data.pages.length - 1]
-      const morePages = lastPage ? lastPage.rows.length === TABLE_LIMITS.MAX_QUERY_LIMIT : false
+      const all = queryClient.getQueryData(opts.queryKey)?.pages.flatMap((p) => p.rows) ?? []
       return {
         rows: all.length > maxRows ? all.slice(0, maxRows) : all,
-        hasMore: morePages || all.length > maxRows,
+        hasMore: all.length > maxRows,
       }
     },
     [workspaceId, tableId, queryOptions.filter, queryOptions.sort, queryClient, fetchNextPage]

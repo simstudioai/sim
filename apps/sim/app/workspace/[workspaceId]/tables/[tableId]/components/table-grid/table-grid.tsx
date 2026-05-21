@@ -6,7 +6,7 @@ import { createLogger } from '@sim/logger'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { Skeleton, toast } from '@/components/emcn'
+import { Skeleton, toast, useToast } from '@/components/emcn'
 import { TableX } from '@/components/emcn/icons'
 import type { RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
@@ -317,6 +317,9 @@ export function TableGrid({
   const totalRunning = tableRunState?.runningCellCount ?? 0
   const runningByRowId = tableRunState?.runningByRowId ?? EMPTY_RUNNING_BY_ROW
 
+  const tableRowCountRef = useRef(tableData?.rowCount ?? 0)
+  tableRowCountRef.current = tableData?.rowCount ?? 0
+
   const fetchNextPageRef = useRef(fetchNextPage)
   fetchNextPageRef.current = fetchNextPage
   const hasNextPageRef = useRef(hasNextPage)
@@ -356,7 +359,8 @@ export function TableGrid({
   useLayoutEffect(() => {
     const el = theadRef.current
     if (!el) return
-    const measure = () => setHeaderHeight(el.offsetHeight)
+    const measure = () =>
+      setHeaderHeight((prev) => (prev === el.offsetHeight ? prev : el.offsetHeight))
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(el)
@@ -374,6 +378,9 @@ export function TableGrid({
   const userPermissions = useUserPermissionsContext()
   const canEditRef = useRef(userPermissions.canEdit)
   canEditRef.current = userPermissions.canEdit
+  const { dismiss: dismissToast } = useToast()
+  const dismissToastRef = useRef(dismissToast)
+  dismissToastRef.current = dismissToast
   // Refs for callback props read inside effects with stable empty deps.
   const onOpenRowModalRef = useRef(onOpenRowModal)
   onOpenRowModalRef.current = onOpenRowModal
@@ -1483,26 +1490,46 @@ export function TableGrid({
     if (!target) return
     const { rowIndex, colIndex } = target
     const selector = `[data-table-scroll] [data-row="${rowIndex}"][data-col="${colIndex}"]`
+    // `scrollIntoView` ignores the sticky `<thead>` and sticky gutter, so a cell
+    // scrolled to the edge lands behind them. Scroll manually with insets equal
+    // to the sticky header height (top) and the row-number column width (left).
+    const revealCell = (cell: HTMLElement) => {
+      const scrollEl = scrollRef.current
+      if (!scrollEl) return
+      const view = scrollEl.getBoundingClientRect()
+      const rect = cell.getBoundingClientRect()
+      const topInset = theadRef.current?.offsetHeight ?? 0
+      if (rect.top < view.top + topInset) {
+        scrollEl.scrollTop -= view.top + topInset - rect.top
+      } else if (rect.bottom > view.bottom) {
+        scrollEl.scrollTop += rect.bottom - view.bottom
+      }
+      if (rect.left < view.left + checkboxColWidth) {
+        scrollEl.scrollLeft -= view.left + checkboxColWidth - rect.left
+      } else if (rect.right > view.right) {
+        scrollEl.scrollLeft += rect.right - view.right
+      }
+    }
     let secondRaf = 0
     const rafId = requestAnimationFrame(() => {
       const cell = document.querySelector(selector) as HTMLElement | null
       if (cell) {
-        cell.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+        revealCell(cell)
         return
       }
       // Target row is windowed out (large jump / PageUp-Down). Bring it into the
-      // virtualized range first, then align horizontally once it has rendered.
+      // virtualized range first, then align once it has rendered.
       rowVirtualizer.scrollToIndex(rowIndex, { align: 'auto' })
       secondRaf = requestAnimationFrame(() => {
         const rendered = document.querySelector(selector) as HTMLElement | null
-        rendered?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+        if (rendered) revealCell(rendered)
       })
     })
     return () => {
       cancelAnimationFrame(rafId)
       if (secondRaf) cancelAnimationFrame(secondRaf)
     }
-  }, [selectionAnchor, selectionFocus, isColumnSelection, rowVirtualizer])
+  }, [selectionAnchor, selectionFocus, isColumnSelection, rowVirtualizer, checkboxColWidth])
 
   const handleCellClick = useCallback(
     (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => {
@@ -1973,13 +2000,20 @@ export function TableGrid({
       selectRow: (row: TableRowType) => boolean
       buildCells: (row: TableRowType) => string[]
       verb: 'Copied' | 'Cut'
+      /** Best-known row count for the in-progress toast (exact count is shown on completion). */
+      estimatedCount: number
       afterCopy?: (copiedRows: TableRowType[]) => Promise<void> | void
     }) => {
       if (typeof ClipboardItem === 'undefined' || !navigator.clipboard) {
         toast.error('Clipboard access is unavailable in this context')
         return
       }
-      toast({ message: `${opts.verb === 'Copied' ? 'Copying' : 'Cutting'}… loading rows` })
+      const isCopy = opts.verb === 'Copied'
+      const verbLower = isCopy ? 'copy' : 'cut'
+      const estimate = opts.estimatedCount
+      const loadingToastId = toast({
+        message: `${isCopy ? 'Copying' : 'Cutting'} ${estimate.toLocaleString()} ${estimate === 1 ? 'row' : 'rows'}…`,
+      })
       let rowCount = 0
       let truncated = false
       const copiedRows: TableRowType[] = []
@@ -1999,27 +2033,45 @@ export function TableGrid({
         rowCount = lines.length
         return new Blob([lines.join('\n')], { type: 'text/plain' })
       })()
-      void navigator.clipboard
-        .write([new ClipboardItem({ 'text/plain': blob })])
-        .then(async () => {
+      // `.write()` is invoked synchronously so the copy/cut gesture's transient
+      // activation survives the async row load inside the blob promise.
+      const writePromise = navigator.clipboard.write([new ClipboardItem({ 'text/plain': blob })])
+      void (async () => {
+        try {
+          await writePromise
+        } catch (error) {
+          // Rejects if the row load failed or the payload is too large for the
+          // clipboard — either way nothing landed, so report a plain failure
+          // rather than implying a size cap was hit.
+          logger.error(`Failed to ${verbLower} rows`, { error })
+          dismissToastRef.current(loadingToastId)
+          toast.error(`Failed to ${verbLower} — please try again`)
+          return
+        }
+        // The clipboard now holds the data; a clear failure must not be reported
+        // as a copy/cut failure.
+        try {
           await opts.afterCopy?.(copiedRows)
-          if (truncated) {
-            toast({
-              message: `${opts.verb} first ${TABLE_LIMITS.MAX_COPY_ROWS.toLocaleString()} rows — export to CSV for the rest`,
-            })
-          } else {
-            toast.success(
-              `${opts.verb} ${rowCount.toLocaleString()} ${rowCount === 1 ? 'row' : 'rows'}`
-            )
-          }
-        })
-        .catch((error) => {
-          logger.error(`Failed to ${opts.verb === 'Copied' ? 'copy' : 'cut'} rows`, { error })
-          toast.error('Selection too large to copy — use Export CSV')
-        })
+        } catch (error) {
+          logger.error('Failed to clear cut cells', { error })
+          dismissToastRef.current(loadingToastId)
+          toast.error('Copied to clipboard, but clearing the cells failed — please try again')
+          return
+        }
+        dismissToastRef.current(loadingToastId)
+        if (truncated) {
+          toast({
+            message: `${opts.verb} first ${TABLE_LIMITS.MAX_COPY_ROWS.toLocaleString()} rows — export to CSV for the rest`,
+          })
+        } else {
+          toast.success(
+            `${opts.verb} ${rowCount.toLocaleString()} ${rowCount === 1 ? 'row' : 'rows'}`
+          )
+        }
+      })()
     }
 
-    /** Clears `colNames` on `rowsToClear` (the cut tail) and records an undo entry. */
+    /** Clears `colNames` on `rowsToClear` (the cut tail), recording undo only after the update lands. */
     const clearCutRows = async (rowsToClear: TableRowType[], colNames: string[]) => {
       const undo: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const updates: Array<{ rowId: string; data: Record<string, unknown> }> = []
@@ -2033,8 +2085,8 @@ export function TableGrid({
         undo.push({ rowId: row.id, data: previousData })
         updates.push({ rowId: row.id, data: nextData })
       }
-      if (undo.length > 0) pushUndoRef.current({ type: 'clear-cells', cells: undo })
       if (updates.length > 0) await chunkBatchUpdates(updates, batchUpdateAsyncRef.current)
+      if (undo.length > 0) pushUndoRef.current({ type: 'clear-cells', cells: undo })
     }
 
     const handleCopy = (e: ClipboardEvent) => {
@@ -2056,6 +2108,7 @@ export function TableGrid({
           selectRow: (row) => rowSelectionIncludes(rowSel, row.id),
           buildCells: (row) => cols.map((col) => cellToText(row.data[col.name])),
           verb: 'Copied',
+          estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : tableRowCountRef.current,
         })
         return
       }
@@ -2069,19 +2122,17 @@ export function TableGrid({
       e.preventDefault()
 
       if (isColumnSelectionRef.current) {
+        const colNames: string[] = []
+        for (let c = sel.startCol; c <= sel.endCol; c++) {
+          const name = cols[c]?.name
+          if (name) colNames.push(name)
+        }
         writeSelectionToClipboard({
           loadRows: () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS),
           selectRow: () => true,
-          buildCells: (row) => {
-            const cells: string[] = []
-            for (let c = sel.startCol; c <= sel.endCol; c++) {
-              const colName = cols[c]?.name
-              if (!colName) continue
-              cells.push(cellToText(row.data[colName]))
-            }
-            return cells
-          },
+          buildCells: (row) => colNames.map((name) => cellToText(row.data[name])),
           verb: 'Copied',
+          estimatedCount: tableRowCountRef.current,
         })
         return
       }
@@ -2119,6 +2170,7 @@ export function TableGrid({
           selectRow: (row) => rowSelectionIncludes(rowSel, row.id),
           buildCells: (row) => cols.map((col) => cellToText(row.data[col.name])),
           verb: 'Cut',
+          estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : tableRowCountRef.current,
           afterCopy: (copied) =>
             clearCutRows(
               copied,
@@ -2147,6 +2199,7 @@ export function TableGrid({
           selectRow: () => true,
           buildCells: (row) => colNames.map((name) => cellToText(row.data[name])),
           verb: 'Cut',
+          estimatedCount: tableRowCountRef.current,
           afterCopy: (copied) => clearCutRows(copied, colNames),
         })
         return
