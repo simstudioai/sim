@@ -673,9 +673,9 @@ class McpService {
   async clearCache(workspaceId?: string): Promise<void> {
     try {
       if (workspaceId) {
-        // Enumerate without enabled/deletedAt filters so disabled or soft-deleted
-        // servers still get their cache keys dropped (hard-deleted rows are gone
-        // from the table and their keys expire naturally via TTL).
+        // No enabled/deletedAt filter so disabled and soft-deleted rows are
+        // cleared too. Hard-deleted rows are gone from the table; their keys
+        // expire via TTL.
         const rows = await db
           .select({ id: mcpServers.id })
           .from(mcpServers)
