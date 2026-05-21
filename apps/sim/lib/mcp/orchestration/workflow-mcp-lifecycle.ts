@@ -226,9 +226,9 @@ export async function performUpdateWorkflowMcpServer(
   const updatedFields = Object.keys(updateData).filter((key) => key !== 'updatedAt')
 
   try {
-    const [existingServer] = await db
-      .select({ id: workflowMcpServer.id })
-      .from(workflowMcpServer)
+    const [server] = await db
+      .update(workflowMcpServer)
+      .set(updateData)
       .where(
         and(
           eq(workflowMcpServer.id, params.serverId),
@@ -236,17 +236,11 @@ export async function performUpdateWorkflowMcpServer(
           isNull(workflowMcpServer.deletedAt)
         )
       )
-      .limit(1)
+      .returning()
 
-    if (!existingServer) {
+    if (!server) {
       return { success: false, error: 'Server not found', errorCode: 'not_found' }
     }
-
-    const [server] = await db
-      .update(workflowMcpServer)
-      .set(updateData)
-      .where(and(eq(workflowMcpServer.id, params.serverId), isNull(workflowMcpServer.deletedAt)))
-      .returning()
 
     recordAudit({
       workspaceId: params.workspaceId,
@@ -465,20 +459,6 @@ export async function performUpdateWorkflowMcpTool(
 
     if (!server) return { success: false, error: 'Server not found', errorCode: 'not_found' }
 
-    const [existingTool] = await db
-      .select({ id: workflowMcpTool.id })
-      .from(workflowMcpTool)
-      .where(
-        and(
-          eq(workflowMcpTool.id, params.toolId),
-          eq(workflowMcpTool.serverId, params.serverId),
-          isNull(workflowMcpTool.archivedAt)
-        )
-      )
-      .limit(1)
-
-    if (!existingTool) return { success: false, error: 'Tool not found', errorCode: 'not_found' }
-
     const updateData: Partial<typeof workflowMcpTool.$inferInsert> = { updatedAt: new Date() }
     if (params.toolName !== undefined) updateData.toolName = sanitizeToolName(params.toolName)
     if (params.toolDescription !== undefined) {
@@ -491,8 +471,16 @@ export async function performUpdateWorkflowMcpTool(
     const [tool] = await db
       .update(workflowMcpTool)
       .set(updateData)
-      .where(eq(workflowMcpTool.id, params.toolId))
+      .where(
+        and(
+          eq(workflowMcpTool.id, params.toolId),
+          eq(workflowMcpTool.serverId, params.serverId),
+          isNull(workflowMcpTool.archivedAt)
+        )
+      )
       .returning()
+
+    if (!tool) return { success: false, error: 'Tool not found', errorCode: 'not_found' }
 
     mcpPubSub?.publishWorkflowToolsChanged({
       serverId: params.serverId,

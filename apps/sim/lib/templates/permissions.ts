@@ -94,7 +94,10 @@ export async function verifyCreatorPermission(
   requiredLevel: CreatorPermissionLevel = 'admin'
 ): Promise<{ hasPermission: boolean; error?: string }> {
   const creatorProfile = await db
-    .select()
+    .select({
+      referenceType: templateCreators.referenceType,
+      referenceId: templateCreators.referenceId,
+    })
     .from(templateCreators)
     .where(eq(templateCreators.id, creatorId))
     .limit(1)

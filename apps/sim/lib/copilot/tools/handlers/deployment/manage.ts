@@ -37,9 +37,23 @@ export async function executeCheckDeploymentStatus(
     const workspaceId = workflowRecord.workspaceId
 
     const [apiDeploy, chatDeploy] = await Promise.all([
-      db.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1),
       db
-        .select()
+        .select({ isDeployed: workflow.isDeployed, deployedAt: workflow.deployedAt })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1),
+      db
+        .select({
+          id: chat.id,
+          identifier: chat.identifier,
+          title: chat.title,
+          description: chat.description,
+          authType: chat.authType,
+          allowedEmails: chat.allowedEmails,
+          outputConfigs: chat.outputConfigs,
+          password: chat.password,
+          customizations: chat.customizations,
+        })
         .from(chat)
         .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
         .limit(1),

@@ -71,7 +71,22 @@ export const GET = withRouteHandler(
     try {
       const [countResult, organizations] = await Promise.all([
         db.select({ total: count() }).from(organization),
-        db.select().from(organization).orderBy(organization.name).limit(limit).offset(offset),
+        db
+          .select({
+            id: organization.id,
+            name: organization.name,
+            slug: organization.slug,
+            logo: organization.logo,
+            orgUsageLimit: organization.orgUsageLimit,
+            storageUsedBytes: organization.storageUsedBytes,
+            departedMemberUsage: organization.departedMemberUsage,
+            createdAt: organization.createdAt,
+            updatedAt: organization.updatedAt,
+          })
+          .from(organization)
+          .orderBy(organization.name)
+          .limit(limit)
+          .offset(offset),
       ])
 
       const total = countResult[0].total

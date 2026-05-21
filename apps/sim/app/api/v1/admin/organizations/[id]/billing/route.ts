@@ -55,7 +55,11 @@ export const GET = withRouteHandler(
     try {
       if (!isBillingEnabled) {
         const [[orgData], [memberCount]] = await Promise.all([
-          db.select().from(organization).where(eq(organization.id, organizationId)).limit(1),
+          db
+            .select({ id: organization.id, name: organization.name })
+            .from(organization)
+            .where(eq(organization.id, organizationId))
+            .limit(1),
           db
             .select({ count: count() })
             .from(member)
