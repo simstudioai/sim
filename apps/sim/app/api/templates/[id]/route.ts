@@ -312,7 +312,13 @@ export const DELETE = withRouteHandler(
       }
 
       const existing = await db
-        .select({ creatorId: templates.creatorId })
+        .select({
+          name: templates.name,
+          workflowId: templates.workflowId,
+          creatorId: templates.creatorId,
+          status: templates.status,
+          tags: templates.tags,
+        })
         .from(templates)
         .where(eq(templates.id, id))
         .limit(1)
