@@ -167,7 +167,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     try {
-      await mcpService.clearCache(server.workspaceId)
+      // discoverServerTools writes the result to this server's cache so the UI's
+      // immediate refetch hits it instead of re-fetching live.
       await mcpService.discoverServerTools(session.user.id, server.id, server.workspaceId)
     } catch (e) {
       logger.warn('Post-auth tools refresh failed', toError(e).message)

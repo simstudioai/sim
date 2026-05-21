@@ -580,6 +580,13 @@ class McpService {
         try {
           const tools = await client.listTools()
           logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
+          // Prime the per-server cache so the next discoverTools call hits it
+          // instead of re-fetching live (which can stall on slow upstreams).
+          await this.cacheAdapter
+            .set(serverCacheKey(workspaceId, serverId), tools, this.cacheTimeout)
+            .catch((err) =>
+              logger.warn(`[${requestId}] Cache write failed for ${config.name}:`, err)
+            )
           return tools
         } finally {
           await client.disconnect()
