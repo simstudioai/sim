@@ -139,13 +139,21 @@ async function dispatchRow(row: DueRow, now: Date): Promise<RowResult> {
       })
 
       if (enqueueResult.status === 'starting') {
-        PauseResumeManager.startResumeExecution({
+        // Route through `executeResumeJob` (not `PauseResumeManager.startResumeExecution`
+        // directly) so cell-context restoration + cascade-loop continuation
+        // fires. This is the same primitive the trigger.dev `resumeExecutionTask`
+        // wraps — calling it directly handles both trigger.dev-disabled local
+        // dev and trigger.dev-enabled prod identically.
+        const { executeResumeJob } = await import('@/background/resume-execution')
+        void executeResumeJob({
           resumeEntryId: enqueueResult.resumeEntryId,
           resumeExecutionId: enqueueResult.resumeExecutionId,
-          pausedExecution: enqueueResult.pausedExecution,
+          pausedExecutionId: enqueueResult.pausedExecution.id,
           contextId: enqueueResult.contextId,
           resumeInput: enqueueResult.resumeInput,
           userId: enqueueResult.userId,
+          workflowId: row.workflowId,
+          parentExecutionId: row.executionId,
         }).catch((error) => {
           logger.error('Background time-pause resume failed', {
             executionId: row.executionId,

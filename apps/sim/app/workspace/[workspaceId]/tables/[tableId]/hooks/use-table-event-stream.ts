@@ -3,9 +3,11 @@
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
+import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { RowData, RowExecutionMetadata, RowExecutions } from '@/lib/table'
+import { isExecInFlight } from '@/lib/table/deps'
 import type { TableEvent, TableEventEntry } from '@/lib/table/events'
-import { snapshotAndMutateRows, tableKeys } from '@/hooks/queries/tables'
+import { snapshotAndMutateRows, type TableRunState, tableKeys } from '@/hooks/queries/tables'
 
 const logger = createLogger('useTableEventStream')
 
@@ -71,6 +73,24 @@ export function useTableEventStream({
     let lastEventId = loadPointer(tableId)
     let reconnectAttempt = 0
 
+    // Keeps the per-row gutter (`runningByRowId`) live between dispatch events.
+    // `runningCellCount` (the "X running" badge) is NOT touched here — it's the
+    // server's dispatch-scope count, seeded optimistically on click and
+    // re-synced by `applyDispatch` on every window, so live matches reload.
+    const updateRunningByRow = (rowId: string, wasInFlight: boolean, isInFlight: boolean): void => {
+      if (wasInFlight === isInFlight) return
+      const delta = isInFlight ? 1 : -1
+      queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
+        if (!prev) return prev
+        const prevForRow = prev.runningByRowId[rowId] ?? 0
+        const nextForRow = Math.max(0, prevForRow + delta)
+        const nextByRow = { ...prev.runningByRowId }
+        if (nextForRow === 0) delete nextByRow[rowId]
+        else nextByRow[rowId] = nextForRow
+        return { ...prev, runningByRowId: nextByRow }
+      })
+    }
+
     const applyCell = (event: Extract<TableEvent, { kind: 'cell' }>): void => {
       const {
         rowId,
@@ -83,12 +103,18 @@ export function useTableEventStream({
         runningBlockIds,
         blockErrors,
       } = event
+      let wasInFlight: boolean | null = null
       void snapshotAndMutateRows(
         queryClient,
         tableId,
         (row) => {
           if (row.id !== rowId) return null
           const prevExec = row.executions?.[groupId]
+          // In-flight = queued | running | pending. Server's countRunningCells
+          // counts all three (the gutter Run/Stop button reads this map and
+          // needs Stop visible during queued too, else clicking Play would
+          // re-enqueue a cell that's already queued).
+          if (wasInFlight === null) wasInFlight = isExecInFlight(prevExec)
           const nextExec: RowExecutionMetadata = {
             status,
             executionId: executionId ?? null,
@@ -108,11 +134,70 @@ export function useTableEventStream({
         },
         { cancelInFlight: false }
       )
+      if (wasInFlight === null) {
+        // Row outside the loaded page slice — can't compute the delta locally.
+        // Refetch the run-state snapshot from the server. Cheap and rare.
+        void queryClient.invalidateQueries({
+          queryKey: tableKeys.activeDispatches(tableId),
+        })
+      } else {
+        updateRunningByRow(rowId, wasInFlight, isExecInFlight({ status } as RowExecutionMetadata))
+      }
+    }
+
+    const applyDispatch = (event: Extract<TableEvent, { kind: 'dispatch' }>): void => {
+      const { dispatchId, status, scope, cursor, mode, isManualRun } = event
+      queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
+        // SSE may arrive before the initial fetch lands. Seed an empty
+        // run-state so the dispatch isn't dropped; counters are reconciled
+        // by the subsequent fetch / per-cell SSE events.
+        const base: TableRunState = prev ?? {
+          dispatches: [],
+          runningCellCount: 0,
+          runningByRowId: {},
+        }
+        const list = base.dispatches
+        // Terminal states drop the dispatch from the overlay; client renders
+        // the row's authoritative DB exec state from here.
+        if (status === 'complete' || status === 'cancelled') {
+          const filtered = list.filter((d) => d.id !== dispatchId)
+          return filtered.length === list.length ? base : { ...base, dispatches: filtered }
+        }
+        if (scope === undefined || cursor === undefined || mode === undefined) {
+          // Defensive: a legacy emit without the new fields can't drive the
+          // overlay. Leave existing cache alone.
+          return base
+        }
+        const idx = list.findIndex((d) => d.id === dispatchId)
+        const existing = idx === -1 ? undefined : list[idx]
+        // Prefer the event payload (current truth from server); fall back to
+        // the cached entry's value if this is a legacy emit without the
+        // field, and finally to `false` if we have nothing.
+        const resolvedManualRun = isManualRun ?? existing?.isManualRun ?? false
+        const next: ActiveDispatch = {
+          id: dispatchId,
+          status,
+          mode,
+          isManualRun: resolvedManualRun,
+          cursor,
+          scope,
+        }
+        if (idx === -1) return { ...base, dispatches: [...list, next] }
+        const merged = list.slice()
+        merged[idx] = next
+        return { ...base, dispatches: merged }
+      })
+      // The dispatcher emits this once per window (after the window's cells
+      // finish + the cursor advances) and on completion. Re-sync the
+      // dispatch-scope `runningCellCount` from the server so the badge steps
+      // down per window and matches a reload exactly.
+      void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
     }
 
     const handlePrune = (payload: PrunedEvent): void => {
       logger.info('Table event buffer pruned — full refetch', { tableId, ...payload })
       void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
       lastEventId = typeof payload.earliestEventId === 'number' ? payload.earliestEventId : 0
       savePointer(tableId, lastEventId)
       // Close proactively so the server's close doesn't fire onerror and route
@@ -152,11 +237,11 @@ export function useTableEventStream({
       eventSource.onmessage = (msg: MessageEvent<string>) => {
         try {
           const entry = JSON.parse(msg.data) as TableEventEntry
-          if (entry.event?.kind !== 'cell') return
           if (entry.eventId <= lastEventId) return
           lastEventId = entry.eventId
           savePointer(tableId, lastEventId)
-          applyCell(entry.event)
+          if (entry.event?.kind === 'cell') applyCell(entry.event)
+          else if (entry.event?.kind === 'dispatch') applyDispatch(entry.event)
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })
         }

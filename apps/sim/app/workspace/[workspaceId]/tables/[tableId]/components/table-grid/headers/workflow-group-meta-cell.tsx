@@ -35,9 +35,9 @@ interface ColumnOptionsMenuProps {
   position: { x: number; y: number }
   column: DisplayColumn
   /** Override for the destructive item's label. Defaults to "Delete column"
-   *  (or "Delete workflow" when `onDeleteGroup` is set). Use "Hide column"
-   *  when the destructive action is non-lossy (workflow-output column where
-   *  removing it leaves the group with siblings). */
+   *  for both plain columns and workflow groups. Use "Hide column" when the
+   *  destructive action is non-lossy (workflow-output column where removing
+   *  it leaves the group with siblings). */
   deleteLabel?: string
   onOpenConfig: (columnName: string) => void
   onInsertLeft: (columnName: string) => void
@@ -156,7 +156,7 @@ export function ColumnOptionsMenu({
           onSelect={() => (onDeleteGroup ? onDeleteGroup() : onDeleteColumn(column.name))}
         >
           {deleteLabel === 'Hide column' ? <EyeOff /> : <Trash />}
-          {deleteLabel ?? (onDeleteGroup ? 'Delete workflow' : 'Delete column')}
+          {deleteLabel ?? 'Delete column'}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -1457,6 +1457,20 @@
       "when": 1778714378630,
       "tag": "0208_modern_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 209,
+      "version": "7",
+      "when": 1779246572978,
+      "tag": "0209_smiling_fixer",
+      "breakpoints": true
+    },
+    {
+      "idx": 210,
+      "version": "7",
+      "when": 1779299303134,
+      "tag": "0210_mcp_oauth",
+      "breakpoints": true
     }
   ]
 }

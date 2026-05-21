@@ -241,30 +241,41 @@ function WorkflowSidebarBody({
       ? (allColumns.find((c) => c.name === config.columnName) ?? null)
       : null
 
-  // Anchor column for "left of current" filtering. For create + edit-group we
-  // treat the anchor as missing (group config sits at the right edge of the
-  // group); for edit-output the anchor is the column being edited.
-  const anchorColumnName = config.mode === 'edit-output' ? config.columnName : null
+  // Anchor index for "left of current" filtering.
+  //   - edit-output: the column being edited.
+  //   - edit-group: the leftmost column belonging to this group (deps must be
+  //     reachable from the group's first output column).
+  //   - create: no anchor; new column sits at the right edge, so every
+  //     existing column qualifies.
+  const anchorIdx = (() => {
+    if (config.mode === 'edit-output') {
+      const idx = allColumns.findIndex((c) => c.name === config.columnName)
+      return idx === -1 ? allColumns.length : idx
+    }
+    if (config.mode === 'edit-group' && existingGroup) {
+      let leftmost = Number.POSITIVE_INFINITY
+      for (let i = 0; i < allColumns.length; i++) {
+        if (allColumns[i].workflowGroupId === existingGroup.id && i < leftmost) leftmost = i
+      }
+      return Number.isFinite(leftmost) ? leftmost : allColumns.length
+    }
+    return allColumns.length
+  })()
 
   /**
    * Columns "left of current" — these are the only valid trigger dependencies.
-   * For create + edit-group, every existing column qualifies. For edit-output,
-   * only columns physically before the anchor.
    */
-  const otherColumns = (() => {
-    if (anchorColumnName === null) return allColumns
-    const idx = allColumns.findIndex((c) => c.name === anchorColumnName)
-    if (idx === -1) return allColumns.filter((c) => c.name !== anchorColumnName)
-    return allColumns.slice(0, idx)
-  })()
+  const otherColumns = anchorIdx >= allColumns.length ? allColumns : allColumns.slice(0, anchorIdx)
+
+  // Used by the "missing workflow input" suggestion below — for edit-output
+  // we exclude the column being edited (you can't suggest it as its own
+  // input).
+  const anchorColumnName = config.mode === 'edit-output' ? config.columnName : null
 
   // Every left-of-current column is a valid dep — workflow output columns
   // included. Exclude this group's own outputs (you can't depend on yourself).
   const ownOutputNames = new Set(existingGroup?.outputs.map((o) => o.columnName) ?? [])
   const depOptions = otherColumns.filter((c) => !ownOutputNames.has(c.name))
-
-  // Default deps for a brand-new group: tick every left-of-current column.
-  const defaultDeps = depOptions.map((c) => c.name)
 
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>(
     () => existingGroup?.workflowId ?? ''
@@ -276,9 +287,10 @@ function WorkflowSidebarBody({
   const [autoRun, setAutoRun] = useState<boolean>(() =>
     existingGroup ? existingGroup.autoRun !== false : false
   )
-  const [deps, setDeps] = useState<string[]>(
-    () => existingGroup?.dependencies?.columns ?? defaultDeps
-  )
+  // Deps default to none selected. With auto-run on, at least one is required
+  // (enforced via `depsValid` below); a legacy group with empty deps will
+  // surface the error on first open until the user picks at least one column.
+  const [deps, setDeps] = useState<string[]>(() => existingGroup?.dependencies?.columns ?? [])
   // `selectedOutputs` is encoded `${blockId}::${path}`. Seeded once `blockOutputGroups`
   // resolves (we may not have the workflow blocks loaded at first render); see the
   // post-load reconciliation below.
@@ -542,6 +554,7 @@ function WorkflowSidebarBody({
     if (!selectedWorkflowId) missing.push('a workflow')
     if (selectedWorkflowId && selectedOutputs.length === 0) missing.push('at least one output')
     if (isEditOutputMode && !trimmedName) missing.push('a column name')
+    if (autoRun && deps.length === 0) missing.push('at least one Run after column')
     if (missing.length > 0) {
       setShowValidation(true)
       return
@@ -664,8 +677,15 @@ function WorkflowSidebarBody({
     }
   }
 
+  // Auto-run requires ≥1 dependency column — without one, the dispatcher's
+  // eligibility predicate would never fire the workflow. Block Save and
+  // surface an inline error so the user picks a column.
+  const depsValid = !autoRun || deps.length > 0
   const saveDisabled =
-    addWorkflowGroup.isPending || updateWorkflowGroup.isPending || updateColumn.isPending
+    addWorkflowGroup.isPending ||
+    updateWorkflowGroup.isPending ||
+    updateColumn.isPending ||
+    !depsValid
   const titleByMode = {
     create: 'Add workflow',
     'edit-group': 'Configure workflow',
@@ -875,7 +895,12 @@ function WorkflowSidebarBody({
             {autoRun && (
               <>
                 <FieldDivider />
-                <RunSettingsSection depOptions={depOptions} deps={deps} onChangeDeps={setDeps} />
+                <RunSettingsSection
+                  depOptions={depOptions}
+                  deps={deps}
+                  onChangeDeps={setDeps}
+                  error={showValidation && deps.length === 0 ? 'Select at least one column' : null}
+                />
               </>
             )}
           </>

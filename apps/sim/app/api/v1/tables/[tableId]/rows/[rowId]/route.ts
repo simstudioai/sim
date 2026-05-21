@@ -144,6 +144,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     if (!updatedRow) {
       return NextResponse.json({ error: 'Row not found' }, { status: 404 })
     }
+    // Auto-dispatch for user edits is handled inside `updateRow` (mode: 'new').
+    // Firing a second mode: 'incomplete' dispatch here would race with it AND
+    // bulk-clear sibling-group outputs.
 
     return NextResponse.json({
       success: true,
