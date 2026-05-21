@@ -107,6 +107,7 @@
     "@t3-oss/env-nextjs": "0.13.4",
     "@tanstack/react-query": "5.90.8",
     "@tanstack/react-query-devtools": "5.90.2",
+    "@tanstack/react-virtual": "3.13.24",
     "@trigger.dev/sdk": "4.4.3",
     "ajv": "8.18.0",
     "better-auth": "1.3.12",
