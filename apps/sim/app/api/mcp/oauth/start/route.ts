@@ -26,7 +26,7 @@ const logger = createLogger('McpOauthStartAPI')
 const OAUTH_START_TTL_MS = 10 * 60 * 1000
 const MAX_SURFACED_ERROR_LENGTH = 250
 
-function surfaceOauthError(error: unknown): string {
+export function surfaceOauthError(error: unknown): string {
   // Spec-compliant OAuth servers throw typed subclasses with clean RFC 6749 fields.
   if (error instanceof OAuthError && !(error instanceof ServerError)) {
     return truncate(`${error.errorCode}: ${error.message}`)

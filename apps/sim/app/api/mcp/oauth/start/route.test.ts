@@ -35,7 +35,7 @@ vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
 
-import { GET } from './route'
+import { GET, surfaceOauthError } from './route'
 
 describe('MCP OAuth start route', () => {
   beforeEach(() => {
@@ -133,5 +133,49 @@ describe('MCP OAuth start route', () => {
     expect(response.status).toBe(409)
     expect(body.error).toBe('OAuth authorization already in progress for this server')
     expect(mockMcpAuth).not.toHaveBeenCalled()
+  })
+})
+
+describe('surfaceOauthError', () => {
+  it('uses typed OAuthError errorCode and message for spec-compliant errors', async () => {
+    const { InvalidGrantError } = await import('@modelcontextprotocol/sdk/server/auth/errors.js')
+    const err = new InvalidGrantError('Refresh token expired')
+    expect(surfaceOauthError(err)).toBe('invalid_grant: Refresh token expired')
+  })
+
+  it('parses Raw body envelope for ServerError fallbacks (non-spec vendors)', async () => {
+    const { ServerError } = await import('@modelcontextprotocol/sdk/server/auth/errors.js')
+    const err = new ServerError(
+      'HTTP 400: Invalid OAuth error response: zod error. Raw body: {"code":400,"message":"redirect URI https://example.com/cb is not allowed","retryable":false}'
+    )
+    expect(surfaceOauthError(err)).toBe(
+      'Authorization server: redirect URI https://example.com/cb is not allowed'
+    )
+  })
+
+  it('prefers error_description over message over error in fallback envelope', async () => {
+    const { ServerError } = await import('@modelcontextprotocol/sdk/server/auth/errors.js')
+    const err = new ServerError(
+      'HTTP 400: Invalid OAuth error response: zod. Raw body: {"error":"invalid_grant","error_description":"the description","message":"the message"}'
+    )
+    expect(surfaceOauthError(err)).toBe('Authorization server: the description')
+  })
+
+  it('returns first line of generic errors', () => {
+    const err = new Error('Network blip\n  at fetch (...)')
+    expect(surfaceOauthError(err)).toBe('Network blip')
+  })
+
+  it('truncates messages longer than 250 chars with ellipsis', async () => {
+    const { InvalidGrantError } = await import('@modelcontextprotocol/sdk/server/auth/errors.js')
+    const longMessage = 'x'.repeat(300)
+    const result = surfaceOauthError(new InvalidGrantError(longMessage))
+    expect(result.endsWith('…')).toBe(true)
+    expect(result.length).toBe(251) // 250 chars + ellipsis
+  })
+
+  it('returns generic fallback for non-Error values', () => {
+    expect(surfaceOauthError(null)).toBe('Failed to start OAuth flow')
+    expect(surfaceOauthError(undefined)).toBe('Failed to start OAuth flow')
   })
 })
