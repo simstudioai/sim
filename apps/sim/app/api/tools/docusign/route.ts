@@ -559,7 +559,8 @@ async function handleDownloadDocument(
       { workspaceId, workflowId, executionId },
       buffer,
       fileName,
-      contentType
+      contentType,
+      userId
     )
     return NextResponse.json({
       file,
