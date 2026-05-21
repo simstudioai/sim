@@ -38,7 +38,6 @@ const {
 })
 
 vi.mock('@sim/db', () => {
-  const where = vi.fn()
   const setter = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
   return {
     db: {
@@ -51,7 +50,6 @@ vi.mock('@sim/db', () => {
       insert: vi.fn(),
       delete: vi.fn(),
     },
-    __where: where,
   }
 })
 
