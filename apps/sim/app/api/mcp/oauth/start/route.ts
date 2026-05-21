@@ -1,4 +1,5 @@
 import { auth as mcpAuth } from '@modelcontextprotocol/sdk/client/auth.js'
+import { OAuthError, ServerError } from '@modelcontextprotocol/sdk/server/auth/errors.js'
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -26,23 +27,29 @@ const OAUTH_START_TTL_MS = 10 * 60 * 1000
 const MAX_SURFACED_ERROR_LENGTH = 250
 
 function surfaceOauthError(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error)
-  const rawBodyMatch = raw.match(/Raw body:\s*(\{[\s\S]*\})\s*$/)
-  if (rawBodyMatch) {
-    try {
-      const body = JSON.parse(rawBodyMatch[1]) as Record<string, unknown>
-      const vendorMessage =
-        typeof body.error_description === 'string'
-          ? body.error_description
-          : typeof body.message === 'string'
-            ? body.message
-            : typeof body.error === 'string'
-              ? body.error
-              : null
-      if (vendorMessage) return truncate(`Authorization server: ${vendorMessage}`)
-    } catch {}
+  // Spec-compliant OAuth servers throw typed subclasses with clean RFC 6749 fields.
+  if (error instanceof OAuthError && !(error instanceof ServerError)) {
+    return truncate(`${error.errorCode}: ${error.message}`)
   }
-  return truncate(raw.split('\n')[0] || 'Failed to start OAuth flow')
+
+  // ServerError wraps non-spec response bodies as "HTTP N: Invalid OAuth error
+  // response: ... Raw body: {...}". Dig the vendor message out of the JSON tail.
+  if (error instanceof Error) {
+    const rawBodyMatch = error.message.match(/Raw body:\s*(\{[\s\S]*\})\s*$/)
+    if (rawBodyMatch) {
+      try {
+        const body = JSON.parse(rawBodyMatch[1]) as Record<string, unknown>
+        const vendorMessage =
+          (typeof body.error_description === 'string' && body.error_description) ||
+          (typeof body.message === 'string' && body.message) ||
+          (typeof body.error === 'string' && body.error) ||
+          null
+        if (vendorMessage) return truncate(`Authorization server: ${vendorMessage}`)
+      } catch {}
+    }
+    return truncate(error.message.split('\n')[0] || 'Failed to start OAuth flow')
+  }
+  return 'Failed to start OAuth flow'
 }
 
 function truncate(message: string): string {
