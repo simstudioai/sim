@@ -7,6 +7,7 @@ import {
   hubspotPipelinesSelectorContract,
   hubspotPropertiesSelectorContract,
 } from '@/lib/api/contracts/selectors/hubspot'
+import { getScopesForService } from '@/lib/oauth/utils'
 import { isCredentialSetValue } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
@@ -42,7 +43,7 @@ export const hubspotPollingTrigger: TriggerConfig = {
       type: 'oauth-input',
       description: 'Connect a HubSpot account so Sim can poll your CRM on your behalf.',
       serviceId: 'hubspot',
-      requiredScopes: [],
+      requiredScopes: getScopesForService('hubspot'),
       required: true,
       mode: 'trigger',
       supportsCredentialSets: true,

@@ -382,13 +382,12 @@ async function pollListMembership(
 
   let processedCount = 0
   let failedCount = 0
+  // Memberships are pre-sorted ASC by membershipTimestamp; freeze the cursor at the first
+  // failure so the failed item and everything after it retries on the next poll.
   let highestTs = watermark
+  let cursorFrozen = false
 
   for (const member of memberships) {
-    if (compareIsoTimestamps(member.membershipTimestamp, highestTs) > 0) {
-      highestTs = member.membershipTimestamp
-    }
-
     try {
       await pollingIdempotency.executeWithIdempotency(
         'hubspot',
@@ -417,8 +416,12 @@ async function pollListMembership(
         }
       )
       processedCount++
+      if (!cursorFrozen && compareIsoTimestamps(member.membershipTimestamp, highestTs) > 0) {
+        highestTs = member.membershipTimestamp
+      }
     } catch (error) {
       failedCount++
+      cursorFrozen = true
       logger.error(
         `[${requestId}] Error processing HubSpot list membership ${member.recordId}:`,
         getErrorMessage(error, 'Unknown error')
@@ -710,24 +713,17 @@ async function processRecords(
   let skippedCount = 0
   let highestSeenMs = 0
   let maxIdAtHighestTimestamp = ''
+  // Stop advancing the cursor at the first failure so that the failed record and all later
+  // records (sorted ASC) get re-fetched on the next poll. Without this gate, a transient
+  // failure on a record at a high timestamp would advance the cursor past it permanently.
+  let cursorFrozen = false
 
   for (const record of records) {
     const occurredAtMs = extractPropertyTimestampMs(record, filterProperty)
-    if (Number.isFinite(occurredAtMs)) {
-      if (occurredAtMs > highestSeenMs) {
-        highestSeenMs = occurredAtMs
-        maxIdAtHighestTimestamp = record.id
-      } else if (occurredAtMs === highestSeenMs) {
-        if (compareObjectIds(record.id, maxIdAtHighestTimestamp) > 0) {
-          maxIdAtHighestTimestamp = record.id
-        }
-      }
-    }
 
-    // property_changed semantics — diff against the per-record snapshot of the watched property.
-    // First time we see a record, treat it as a change (matches Zapier's "Updated Property" behavior).
     let previousValue: string | null | undefined
     let propertyValue: string | null | undefined
+    let handledBySkip = false
     if (eventType === 'property_changed' && targetProperty && snapshot) {
       propertyValue = record.properties?.[targetProperty] ?? null
       const had = Object.hasOwn(snapshot.values, record.id)
@@ -737,58 +733,82 @@ async function processRecords(
         delete snapshot.values[record.id]
         snapshot.values[record.id] = propertyValue ?? null
         skippedCount++
-        continue
+        handledBySkip = true
       }
-      // Update snapshot now so subsequent records in this loop see it; persisted at end.
-      snapshot.values[record.id] = propertyValue ?? null
+      // Note: we do NOT pre-update the snapshot before processing. If emission fails the
+      // record must re-fetch on the next poll AND still appear as a change vs. the prior
+      // snapshot — otherwise we'd silently skip it on retry.
     }
 
-    try {
-      await pollingIdempotency.executeWithIdempotency(
-        'hubspot',
-        `${webhookData.id}:${objectType}:${eventType}:${record.id}:${Number.isFinite(occurredAtMs) ? occurredAtMs : record.updatedAt}`,
-        async () => {
-          const payload: Record<string, unknown> = {
-            objectType,
-            eventType,
-            objectId: record.id,
-            occurredAt: Number.isFinite(occurredAtMs)
-              ? new Date(occurredAtMs).toISOString()
-              : record.updatedAt,
-            properties: record.properties,
-            createdAt: record.createdAt,
-            updatedAt: record.updatedAt,
-            archived: record.archived,
-            timestamp: new Date().toISOString(),
-          }
-          if (eventType === 'property_changed' && targetProperty) {
-            payload.propertyName = targetProperty
-            payload.propertyValue = propertyValue ?? null
-            payload.previousValue = previousValue ?? null
-          }
+    let handledSuccessfully = handledBySkip
+    if (!handledBySkip) {
+      try {
+        await pollingIdempotency.executeWithIdempotency(
+          'hubspot',
+          `${webhookData.id}:${objectType}:${eventType}:${record.id}:${Number.isFinite(occurredAtMs) ? occurredAtMs : record.updatedAt}`,
+          async () => {
+            const payload: Record<string, unknown> = {
+              objectType,
+              eventType,
+              objectId: record.id,
+              occurredAt: Number.isFinite(occurredAtMs)
+                ? new Date(occurredAtMs).toISOString()
+                : record.updatedAt,
+              properties: record.properties,
+              createdAt: record.createdAt,
+              updatedAt: record.updatedAt,
+              archived: record.archived,
+              timestamp: new Date().toISOString(),
+            }
+            if (eventType === 'property_changed' && targetProperty) {
+              payload.propertyName = targetProperty
+              payload.propertyValue = propertyValue ?? null
+              payload.previousValue = previousValue ?? null
+            }
 
-          const result = await processPolledWebhookEvent(
-            webhookData,
-            workflowData,
-            payload,
-            requestId
-          )
-          if (!result.success) {
-            throw new Error(
-              `Webhook processing failed (${result.statusCode}): ${result.error ?? 'unknown'}`
+            const result = await processPolledWebhookEvent(
+              webhookData,
+              workflowData,
+              payload,
+              requestId
             )
+            if (!result.success) {
+              throw new Error(
+                `Webhook processing failed (${result.statusCode}): ${result.error ?? 'unknown'}`
+              )
+            }
+            return { recordId: record.id, processed: true }
           }
-          return { recordId: record.id, processed: true }
-        }
-      )
+        )
 
-      processedCount++
-    } catch (error) {
-      failedCount++
-      logger.error(
-        `[${requestId}] Error processing HubSpot ${objectType} ${record.id}:`,
-        getErrorMessage(error, 'Unknown error')
-      )
+        processedCount++
+        handledSuccessfully = true
+        if (eventType === 'property_changed' && targetProperty && snapshot) {
+          snapshot.values[record.id] = propertyValue ?? null
+        }
+      } catch (error) {
+        failedCount++
+        cursorFrozen = true
+        logger.error(
+          `[${requestId}] Error processing HubSpot ${objectType} ${record.id}:`,
+          getErrorMessage(error, 'Unknown error')
+        )
+      }
+    }
+
+    // Advance the cursor only for records handled (emitted or intentionally skipped) WITHOUT
+    // any prior failure in this batch. Records are pre-sorted (timestamp ASC, id ASC), so
+    // the watermark we persist is the highest contiguously-successful (timestamp, id) pair.
+    // Anything after the first failure stays unfrozen so it gets re-fetched next poll.
+    if (handledSuccessfully && !cursorFrozen && Number.isFinite(occurredAtMs)) {
+      if (occurredAtMs > highestSeenMs) {
+        highestSeenMs = occurredAtMs
+        maxIdAtHighestTimestamp = record.id
+      } else if (occurredAtMs === highestSeenMs) {
+        if (compareObjectIds(record.id, maxIdAtHighestTimestamp) > 0) {
+          maxIdAtHighestTimestamp = record.id
+        }
+      }
     }
   }
 
