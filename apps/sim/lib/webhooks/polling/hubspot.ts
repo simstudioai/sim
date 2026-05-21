@@ -57,12 +57,27 @@ interface HubSpotWebhookConfig {
    * workflow doesn't see a flood of historical members on activation.
    */
   membershipSeedComplete?: boolean
-  /** Snapshot of the watched property's last-seen value per record (property_changed event). */
+  /**
+   * Snapshot of the watched property's last-seen value per record (property_changed event).
+   * Persisted as an entries array (not a `Record`) because HubSpot record ids are numeric
+   * strings, and JS engines enumerate integer-indexed object keys in numeric order
+   * regardless of insertion — which would break LRU-style trimming. Array order is stable.
+   */
   propertySnapshot?: {
     property: string
-    values: Record<string, string | null>
+    /** `[recordId, value]` pairs in LRU order — oldest first. */
+    entries: Array<[string, string | null]>
   }
   lastCheckedTimestamp?: string
+}
+
+/**
+ * In-memory snapshot state used during a single poll. Uses a Map (not a plain object) so
+ * insertion-order iteration is honored even for numeric-string keys.
+ */
+interface PropertySnapshotState {
+  property: string
+  values: Map<string, string | null>
 }
 
 interface HubSpotSearchResult {
@@ -227,7 +242,7 @@ async function pollSearchBased(
           ? {
               propertySnapshot: {
                 property: config.targetPropertyName?.trim() ?? '',
-                values: {},
+                entries: [],
               },
             }
           : {}),
@@ -248,13 +263,13 @@ async function pollSearchBased(
     )
   }
 
-  const properties = resolveRequestedProperties(config, objectType, filterProperty)
+  const userFilters = buildUserFilters(config, logger, requestId)
+  const properties = resolveRequestedProperties(config, objectType, filterProperty, userFilters)
   const maxRecords = Math.min(
     Math.max(config.maxRecordsPerPoll ?? DEFAULT_MAX_RECORDS, 1),
     MAX_MAX_RECORDS
   )
   const lastSeenObjectId = config.lastSeenObjectId
-  const userFilters = buildUserFilters(config, logger, requestId)
 
   const records = await fetchHubSpotChanges({
     accessToken,
@@ -313,7 +328,7 @@ async function pollSearchBased(
     lastCheckedTimestamp: new Date(nowMs).toISOString(),
   }
   if (snapshotForRun) {
-    update.propertySnapshot = trimSnapshot(snapshotForRun)
+    update.propertySnapshot = serializeSnapshot(snapshotForRun)
   }
   await updateWebhookProviderConfig(webhookId, update, logger)
 
@@ -481,7 +496,8 @@ function resolveObjectType(config: HubSpotWebhookConfig): string {
 function resolveRequestedProperties(
   config: HubSpotWebhookConfig,
   objectType: string,
-  filterProperty: string
+  filterProperty: string,
+  userFilters: FilterClause[]
 ): string[] {
   const requested = new Set<string>()
 
@@ -507,7 +523,7 @@ function resolveRequestedProperties(
   if (config.targetPropertyName?.trim()) {
     requested.add(config.targetPropertyName.trim())
   }
-  for (const f of buildUserFilters(config)) {
+  for (const f of userFilters) {
     if (f.propertyName) requested.add(f.propertyName)
   }
 
@@ -567,26 +583,25 @@ function buildUserFilters(
 function resolvePropertySnapshot(
   config: HubSpotWebhookConfig,
   property: string
-): { property: string; values: Record<string, string | null> } {
+): PropertySnapshotState {
   const existing = config.propertySnapshot
-  if (existing && existing.property === property) {
-    return { property, values: { ...existing.values } }
+  if (existing && existing.property === property && Array.isArray(existing.entries)) {
+    return { property, values: new Map(existing.entries) }
   }
   // Property changed since last config — start fresh so we don't compare against stale values.
-  return { property, values: {} }
+  return { property, values: new Map() }
 }
 
-function trimSnapshot(snapshot: { property: string; values: Record<string, string | null> }): {
+function serializeSnapshot(state: PropertySnapshotState): {
   property: string
-  values: Record<string, string | null>
+  entries: Array<[string, string | null]>
 } {
-  const keys = Object.keys(snapshot.values)
-  if (keys.length <= MAX_SNAPSHOT_SIZE) return snapshot
-  // Drop oldest by insertion order (JS string-key iteration is insertion-ordered).
-  const keep = keys.slice(keys.length - MAX_SNAPSHOT_SIZE)
-  const trimmed: Record<string, string | null> = {}
-  for (const k of keep) trimmed[k] = snapshot.values[k]
-  return { property: snapshot.property, values: trimmed }
+  let entries = [...state.values.entries()]
+  // Drop oldest by insertion order; Map preserves it regardless of key type.
+  if (entries.length > MAX_SNAPSHOT_SIZE) {
+    entries = entries.slice(entries.length - MAX_SNAPSHOT_SIZE)
+  }
+  return { property: state.property, entries }
 }
 
 interface FetchArgs {
@@ -721,7 +736,7 @@ async function processRecords(
   eventType: HubSpotEventType,
   filterProperty: string,
   targetProperty: string | undefined,
-  snapshot: { property: string; values: Record<string, string | null> } | null,
+  snapshot: PropertySnapshotState | null,
   requestId: string,
   logger: Logger
 ): Promise<{
@@ -749,12 +764,13 @@ async function processRecords(
     let handledBySkip = false
     if (eventType === 'property_changed' && targetProperty && snapshot) {
       propertyValue = record.properties?.[targetProperty] ?? null
-      const had = Object.hasOwn(snapshot.values, record.id)
-      previousValue = had ? snapshot.values[record.id] : undefined
+      const had = snapshot.values.has(record.id)
+      previousValue = had ? snapshot.values.get(record.id) : undefined
       if (had && (previousValue ?? null) === (propertyValue ?? null)) {
-        // Touch the snapshot to keep this record's entry from being trimmed before unchanged ones.
-        delete snapshot.values[record.id]
-        snapshot.values[record.id] = propertyValue ?? null
+        // Touch the snapshot so this record's entry moves to the end of the LRU order.
+        // Map.delete + Map.set re-inserts at the tail, regardless of key type.
+        snapshot.values.delete(record.id)
+        snapshot.values.set(record.id, propertyValue ?? null)
         skippedCount++
         handledBySkip = true
       }
@@ -807,7 +823,9 @@ async function processRecords(
         processedCount++
         handledSuccessfully = true
         if (eventType === 'property_changed' && targetProperty && snapshot) {
-          snapshot.values[record.id] = propertyValue ?? null
+          // Same delete+set dance so an updated value moves to the tail of the LRU order.
+          snapshot.values.delete(record.id)
+          snapshot.values.set(record.id, propertyValue ?? null)
         }
       } catch (error) {
         failedCount++
