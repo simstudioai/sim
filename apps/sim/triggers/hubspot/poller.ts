@@ -28,10 +28,10 @@ async function fetchHubSpotProperties(blockId: string, objectType: string) {
 
 export const hubspotPollingTrigger: TriggerConfig = {
   id: 'hubspot_poller',
-  name: 'HubSpot Trigger',
+  name: 'HubSpot CRM Trigger',
   provider: 'hubspot',
   description:
-    'Triggers on changes to HubSpot records (contacts, companies, deals, tickets, custom objects) or list memberships',
+    'Triggers when HubSpot CRM records (contacts, companies, deals, tickets, custom objects) are created or updated, or when contacts join a list',
   version: '1.0.0',
   icon: HubspotIcon,
   polling: true,
