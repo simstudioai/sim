@@ -549,10 +549,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         if (workspaceUserIds.length > 0) {
           for (const memberUserId of workspaceUserIds) {
             const wsPermission = wsPermissionByUser.get(memberUserId)
-            const isAdmin =
-              memberUserId === workspaceRow.ownerId ||
-              memberUserId === session.user.id ||
-              wsPermission === 'admin'
+            const isAdmin = memberUserId === workspaceRow.ownerId || wsPermission === 'admin'
             await tx.insert(credentialMember).values({
               id: generateId(),
               credentialId,
