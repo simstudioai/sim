@@ -203,8 +203,10 @@ function cellToText(value: unknown): string {
 
 /**
  * Split updates into chunks bounded by the server batch-size limit, dispatching
- * up to 3 chunks concurrently. Throws on first failure — `Promise.all` rejects
- * immediately, so partial success cannot leave the table in an ambiguous state.
+ * up to 3 chunks concurrently. On the first chunk failure the remaining chunks
+ * are not dispatched and the error is rethrown. There is no cross-chunk
+ * transaction, so chunks already committed (or in flight when the failure
+ * occurs) are not rolled back — callers must reconcile on failure (e.g. refetch).
  */
 async function chunkBatchUpdates(
   updates: Array<{ rowId: string; data: Record<string, unknown> }>,
@@ -218,10 +220,17 @@ async function chunkBatchUpdates(
     chunks.push(updates.slice(i, i + size))
   }
   let cursor = 0
+  let failed = false
   await Promise.all(
     Array.from({ length: Math.min(3, chunks.length) }, async () => {
-      while (cursor < chunks.length) {
-        await mutateAsync({ updates: chunks[cursor++]! })
+      while (cursor < chunks.length && !failed) {
+        const chunk = chunks[cursor++]!
+        try {
+          await mutateAsync({ updates: chunk })
+        } catch (error) {
+          failed = true
+          throw error
+        }
       }
     })
   )
@@ -310,6 +319,7 @@ export function TableGrid({
     columnSourceInfo,
     ensureAllRowsLoaded,
     ensureRowsLoadedUpTo,
+    refetchRows,
   } = useTable({ workspaceId, tableId, queryOptions })
 
   const { data: tableRunState } = useTableRunState(tableId)
@@ -330,6 +340,8 @@ export function TableGrid({
   ensureAllRowsLoadedRef.current = ensureAllRowsLoaded
   const ensureRowsLoadedUpToRef = useRef(ensureRowsLoadedUpTo)
   ensureRowsLoadedUpToRef.current = ensureRowsLoadedUpTo
+  const refetchRowsRef = useRef(refetchRows)
+  refetchRowsRef.current = refetchRows
   const isAppendingRowRef = useRef(false)
 
   /**
@@ -2074,7 +2086,12 @@ export function TableGrid({
       })()
     }
 
-    /** Clears `colNames` on `rowsToClear` (the cut tail), recording undo only after the update lands. */
+    /**
+     * Clears `colNames` on `rowsToClear` (the cut tail). Undo is recorded only
+     * after the whole clear succeeds — a large cut spans multiple non-atomic
+     * chunks, so on failure we drop the (now-unreliable) undo and refetch to
+     * reconcile the grid with whatever the server actually committed.
+     */
     const clearCutRows = async (rowsToClear: TableRowType[], colNames: string[]) => {
       const undo: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const updates: Array<{ rowId: string; data: Record<string, unknown> }> = []
@@ -2088,8 +2105,14 @@ export function TableGrid({
         undo.push({ rowId: row.id, data: previousData })
         updates.push({ rowId: row.id, data: nextData })
       }
-      if (updates.length > 0) await chunkBatchUpdates(updates, batchUpdateAsyncRef.current)
-      if (undo.length > 0) pushUndoRef.current({ type: 'clear-cells', cells: undo })
+      if (updates.length === 0) return
+      try {
+        await chunkBatchUpdates(updates, batchUpdateAsyncRef.current)
+      } catch (error) {
+        refetchRowsRef.current()
+        throw error
+      }
+      pushUndoRef.current({ type: 'clear-cells', cells: undo })
     }
 
     const handleCopy = (e: ClipboardEvent) => {
