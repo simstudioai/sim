@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { account, credential, credentialMember, workspace } from '@sim/db/schema'
+import { account, credential, credentialMember, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -535,17 +535,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
 
       if ((type === 'env_workspace' || type === 'service_account') && workspaceRow?.ownerId) {
-        const workspaceUserIds = await getWorkspaceMemberUserIds(workspaceId)
+        const [workspaceUserIds, wsPermissionRows] = await Promise.all([
+          getWorkspaceMemberUserIds(workspaceId),
+          db
+            .select({ userId: permissions.userId, permissionType: permissions.permissionType })
+            .from(permissions)
+            .where(
+              and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId))
+            ),
+        ])
+        const wsPermissionByUser = new Map(
+          wsPermissionRows.map((row) => [row.userId, row.permissionType])
+        )
         if (workspaceUserIds.length > 0) {
           for (const memberUserId of workspaceUserIds) {
+            const wsPermission = wsPermissionByUser.get(memberUserId)
+            const isAdmin =
+              memberUserId === workspaceRow.ownerId ||
+              memberUserId === session.user.id ||
+              wsPermission === 'admin'
             await tx.insert(credentialMember).values({
               id: generateId(),
               credentialId,
               userId: memberUserId,
-              role:
-                memberUserId === workspaceRow.ownerId || memberUserId === session.user.id
-                  ? 'admin'
-                  : 'member',
+              role: isAdmin ? 'admin' : 'member',
               status: 'active',
               joinedAt: now,
               invitedBy: session.user.id,

@@ -64,9 +64,19 @@ export async function getUserWorkspaceIds(userId: string): Promise<string[]> {
 async function ensureWorkspaceCredentialMemberships(
   credentialId: string,
   memberUserIds: string[],
-  ownerUserId: string
+  ownerUserId: string,
+  workspaceId: string
 ) {
   if (!memberUserIds.length) return
+
+  const workspacePermissionRows = await db
+    .select({ userId: permissions.userId, permissionType: permissions.permissionType })
+    .from(permissions)
+    .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
+
+  const wsPermissionByUser = new Map(
+    workspacePermissionRows.map((row) => [row.userId, row.permissionType])
+  )
 
   const existingMemberships = await db
     .select({
@@ -87,7 +97,8 @@ async function ensureWorkspaceCredentialMemberships(
   const now = new Date()
 
   for (const memberUserId of memberUserIds) {
-    const targetRole = memberUserId === ownerUserId ? 'admin' : 'member'
+    const wsPermission = wsPermissionByUser.get(memberUserId)
+    const targetRole = memberUserId === ownerUserId || wsPermission === 'admin' ? 'admin' : 'member'
     const existing = byUserId.get(memberUserId)
     if (existing) {
       if (existing.status === 'revoked') {
@@ -182,7 +193,12 @@ export async function syncWorkspaceEnvCredentials(params: {
   }
 
   for (const credentialId of credentialIdsToEnsureMembership) {
-    await ensureWorkspaceCredentialMemberships(credentialId, memberUserIds, workspaceRow.ownerId)
+    await ensureWorkspaceCredentialMemberships(
+      credentialId,
+      memberUserIds,
+      workspaceRow.ownerId,
+      workspaceId
+    )
   }
 
   if (normalizedKeys.length > 0) {
