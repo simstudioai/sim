@@ -37,6 +37,7 @@ vi.mock('@modelcontextprotocol/sdk/types.js', () => ({
 
 vi.mock('@/lib/core/execution-limits', () => ({
   getMaxExecutionTimeout: vi.fn().mockReturnValue(30000),
+  DEFAULT_EXECUTION_TIMEOUT_MS: 30000,
 }))
 
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
