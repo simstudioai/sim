@@ -22,7 +22,13 @@ import {
 } from '@/lib/api/contracts/mcp'
 import { isLoopbackHostname } from '@/lib/core/utils/urls'
 import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/shared'
-import type { McpServerStatusConfig, McpTool, McpTransport, StoredMcpTool } from '@/lib/mcp/types'
+import type {
+  McpAuthType,
+  McpServerStatusConfig,
+  McpTool,
+  McpTransport,
+  StoredMcpTool,
+} from '@/lib/mcp/types'
 import { workflowMcpServerKeys } from '@/hooks/queries/workflow-mcp-servers'
 
 const logger = createLogger('McpQueries')
@@ -54,6 +60,7 @@ export interface McpServerInput {
   enabled: boolean
   oauthClientId?: string
   oauthClientSecret?: string
+  authType?: McpAuthType
 }
 
 async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promise<McpServer[]> {

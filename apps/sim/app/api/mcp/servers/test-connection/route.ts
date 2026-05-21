@@ -12,8 +12,9 @@ import {
   validateMcpServerSsrf,
 } from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import { detectMcpAuthType } from '@/lib/mcp/oauth'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
-import type { McpTransport } from '@/lib/mcp/types'
+import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpServerTestAPI')
@@ -31,6 +32,8 @@ function isUrlBasedTransport(transport: McpTransport): boolean {
 interface TestConnectionResult {
   success: boolean
   error?: string
+  authRequired?: boolean
+  authType?: McpAuthType
   serverInfo?: {
     name: string
     version: string
@@ -163,6 +166,18 @@ export const POST = withRouteHandler(
       }
 
       const result: TestConnectionResult = { success: false }
+
+      // Skip unauth connect when the server returns an RFC 9728 OAuth challenge.
+      if (testConfig.url) {
+        const detectedAuthType = await detectMcpAuthType(testConfig.url)
+        if (detectedAuthType === 'oauth') {
+          result.authRequired = true
+          result.authType = 'oauth'
+          return createMcpSuccessResponse(result, 200)
+        }
+        result.authType = detectedAuthType
+      }
+
       let client: McpClient | null = null
 
       try {
