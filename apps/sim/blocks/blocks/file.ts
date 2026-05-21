@@ -50,15 +50,18 @@ const resolveHttpFileUrl = (value: unknown): string => {
     throw new Error('File URL is required')
   }
 
+  let parsed: URL
   try {
-    const parsed = new URL(fileUrl)
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      throw new Error('File URL must use http or https')
-    }
-    return fileUrl
+    parsed = new URL(fileUrl)
   } catch {
     throw new Error('File URL must be a valid http or https URL')
   }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('File URL must use http or https')
+  }
+
+  return fileUrl
 }
 
 export const FileBlock: BlockConfig<FileParserOutput> = {

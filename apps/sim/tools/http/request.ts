@@ -164,6 +164,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     const responseText = await readResponseTextWithLimit(response, {
       maxBytes: MAX_HTTP_RESPONSE_BODY_BYTES,
       label: 'HTTP Request response body',
+      allowNoBodyFallback: true,
     })
     const data = contentType.includes('application/json') ? JSON.parse(responseText) : responseText
 

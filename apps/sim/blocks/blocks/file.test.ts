@@ -38,6 +38,15 @@ describe('FileV4Block', () => {
         operation: 'file_fetch',
         fileUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD',
       })
-    ).toThrow('File URL must be a valid http or https URL')
+    ).toThrow('File URL must use http or https')
+  })
+
+  it('rejects valid URLs with unsupported protocols for fetch', () => {
+    expect(() =>
+      buildParams({
+        operation: 'file_fetch',
+        fileUrl: 'ftp://example.com/file.pdf',
+      })
+    ).toThrow('File URL must use http or https')
   })
 })
