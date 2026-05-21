@@ -4,7 +4,6 @@ import {
   readResponseTextWithLimit,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import type { UserFile } from '@/executor/types'
 import { presentationUrl } from '@/tools/google_slides/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -29,10 +28,10 @@ interface ExportPresentationResponse {
   }
 }
 
-const MAX_GOOGLE_SLIDES_EXPORT_BYTES = 10 * 1024 * 1024
-const MAX_LEGACY_INLINE_EXPORT_BYTES = 7 * 1024 * 1024
+export const MAX_GOOGLE_SLIDES_EXPORT_BYTES = 10 * 1024 * 1024
+export const MAX_LEGACY_INLINE_EXPORT_BYTES = 7 * 1024 * 1024
 
-const FORMAT_TO_MIME: Record<string, string> = {
+export const FORMAT_TO_MIME: Record<string, string> = {
   PDF: 'application/pdf',
   PPTX: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   ODP: 'application/vnd.oasis.opendocument.presentation',
@@ -42,7 +41,7 @@ const FORMAT_TO_MIME: Record<string, string> = {
   SVG: 'image/svg+xml',
 }
 
-function getExecutionContext(params?: ExportPresentationParams): {
+export function getGoogleSlidesExportExecutionContext(params?: ExportPresentationParams): {
   context?: { workspaceId: string; workflowId: string; executionId: string }
   userId?: string
 } {
@@ -59,6 +58,27 @@ function getExecutionContext(params?: ExportPresentationParams): {
   }
 
   return { context: { workspaceId, workflowId, executionId }, userId }
+}
+
+export async function readGoogleSlidesExportResponse(response: Response): Promise<Buffer> {
+  if (!response.ok) {
+    let errorMessage = `Failed to export presentation (status ${response.status})`
+    try {
+      const text = await readResponseTextWithLimit(response, {
+        maxBytes: 64 * 1024,
+        label: 'Google Slides export error response',
+      })
+      const data = JSON.parse(text)
+      errorMessage = data.error?.message || errorMessage
+      logger.error('Drive API error during export:', { data })
+    } catch {}
+    throw new Error(errorMessage)
+  }
+
+  return readResponseToBufferWithLimit(response, {
+    maxBytes: MAX_GOOGLE_SLIDES_EXPORT_BYTES,
+    label: 'Google Slides export',
+  })
 }
 
 export const exportPresentationTool: ToolConfig<
@@ -111,52 +131,23 @@ export const exportPresentationTool: ToolConfig<
   },
 
   transformResponse: async (response: Response, params) => {
-    if (!response.ok) {
-      let errorMessage = `Failed to export presentation (status ${response.status})`
-      try {
-        const text = await readResponseTextWithLimit(response, {
-          maxBytes: 64 * 1024,
-          label: 'Google Slides export error response',
-        })
-        const data = JSON.parse(text)
-        errorMessage = data.error?.message || errorMessage
-        logger.error('Drive API error during export:', { data })
-      } catch {
-        // Body wasn't JSON — fall through with default error message.
-      }
-      throw new Error(errorMessage)
-    }
-
-    const buffer = await readResponseToBufferWithLimit(response, {
-      maxBytes: MAX_GOOGLE_SLIDES_EXPORT_BYTES,
-      label: 'Google Slides export',
-    })
-
+    const buffer = await readGoogleSlidesExportResponse(response)
     const presentationId = params?.presentationId?.trim() || ''
     const format = (params?.exportFormat || 'PDF').toUpperCase()
     const mime = FORMAT_TO_MIME[format] ?? 'application/octet-stream'
-    const { context, userId } = getExecutionContext(params)
-    const filename = `${presentationId || 'presentation'}.${format.toLowerCase()}`
-    const userFile = context
-      ? await uploadExecutionFile(context, Buffer.from(buffer), filename, mime, userId)
-      : undefined
-    if (!userFile && buffer.length > MAX_LEGACY_INLINE_EXPORT_BYTES) {
+    if (buffer.length > MAX_LEGACY_INLINE_EXPORT_BYTES) {
       throw new PayloadSizeLimitError({
         label: 'Google Slides legacy inline export',
         maxBytes: MAX_LEGACY_INLINE_EXPORT_BYTES,
         observedBytes: buffer.length,
       })
     }
-    const contentBase64 =
-      !userFile && buffer.length <= MAX_LEGACY_INLINE_EXPORT_BYTES
-        ? buffer.toString('base64')
-        : undefined
+    const contentBase64 = buffer.toString('base64')
 
     return {
       success: true,
       output: {
-        ...(userFile ? { file: { ...userFile, mimeType: mime } } : {}),
-        ...(contentBase64 ? { contentBase64 } : {}),
+        contentBase64,
         mimeType: mime,
         sizeBytes: buffer.length,
         metadata: {

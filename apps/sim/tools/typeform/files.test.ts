@@ -12,6 +12,7 @@ vi.mock('@/lib/uploads/contexts/execution', () => ({
 }))
 
 import { filesTool } from '@/tools/typeform/files'
+import { transformTypeformFilesResponse } from '@/tools/typeform/files.server'
 
 describe('Typeform files tool', () => {
   beforeEach(() => {
@@ -36,7 +37,7 @@ describe('Typeform files tool', () => {
       },
     })
 
-    const result = await filesTool.transformResponse?.(response, {
+    const result = await transformTypeformFilesResponse(response, {
       formId: 'form-1',
       responseId: 'response-1',
       fieldId: 'field-1',

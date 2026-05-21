@@ -44,6 +44,22 @@ import * as toolsUtilsServer from '@/tools/utils.server'
 
 const logger = createLogger('Tools')
 
+type ToolTransformResponse = NonNullable<ToolConfig['transformResponse']>
+
+async function getServerTransformResponse(
+  toolId: string
+): Promise<ToolTransformResponse | undefined> {
+  switch (toolId) {
+    case 'google_slides_export_presentation':
+      return (await import('@/tools/google_slides/export_presentation.server'))
+        .transformGoogleSlidesExportResponse
+    case 'typeform_files':
+      return (await import('@/tools/typeform/files.server')).transformTypeformFilesResponse
+    default:
+      return undefined
+  }
+}
+
 interface ToolExecutionScope {
   workspaceId?: string
   workflowId?: string
@@ -1728,7 +1744,9 @@ async function executeToolRequest(
     }
 
     // Success case: use transformResponse if available
-    if (tool.transformResponse) {
+    const transformResponse = (await getServerTransformResponse(toolId)) ?? tool.transformResponse
+
+    if (transformResponse) {
       try {
         // Create a mock response object that provides the methods transformResponse needs
         const mockResponse = {
@@ -1743,7 +1761,7 @@ async function executeToolRequest(
           blob: () => response.blob(),
         } as Response
 
-        const data = await tool.transformResponse(mockResponse, params)
+        const data = await transformResponse(mockResponse, params)
         return data
       } catch (transformError) {
         logger.error(`[${requestId}] Transform response error for ${toolId}:`, {

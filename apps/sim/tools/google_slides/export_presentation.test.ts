@@ -12,6 +12,7 @@ vi.mock('@/lib/uploads/contexts/execution', () => ({
 }))
 
 import { exportPresentationTool } from '@/tools/google_slides/export_presentation'
+import { transformGoogleSlidesExportResponse } from '@/tools/google_slides/export_presentation.server'
 
 describe('Google Slides export presentation tool', () => {
   beforeEach(() => {
@@ -33,7 +34,7 @@ describe('Google Slides export presentation tool', () => {
       headers: { 'content-type': 'application/pdf' },
     })
 
-    const result = await exportPresentationTool.transformResponse?.(response, {
+    const result = await transformGoogleSlidesExportResponse(response, {
       accessToken: 'token',
       presentationId: 'presentation-1',
       exportFormat: 'PDF',

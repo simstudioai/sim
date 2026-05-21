@@ -2,15 +2,13 @@ import {
   PayloadSizeLimitError,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
-import type { UserFile } from '@/executor/types'
 import type { TypeformFilesParams, TypeformFilesResponse } from '@/tools/typeform/types'
 import type { ToolConfig } from '@/tools/types'
 
-const MAX_TYPEFORM_FILE_BYTES = 10 * 1024 * 1024
-const MAX_LEGACY_INLINE_FILE_BYTES = 7 * 1024 * 1024
+export const MAX_TYPEFORM_FILE_BYTES = 10 * 1024 * 1024
+export const MAX_LEGACY_INLINE_FILE_BYTES = 7 * 1024 * 1024
 
-function getExecutionContext(params?: TypeformFilesParams): {
+export function getTypeformExecutionContext(params?: TypeformFilesParams): {
   context?: { workspaceId: string; workflowId: string; executionId: string }
   userId?: string
 } {
@@ -27,6 +25,46 @@ function getExecutionContext(params?: TypeformFilesParams): {
   }
 
   return { context: { workspaceId, workflowId, executionId }, userId }
+}
+
+export async function readTypeformFileResponse(
+  response: Response,
+  params?: TypeformFilesParams
+): Promise<{ buffer: Buffer; contentType: string; filename: string; fileUrl: string }> {
+  const contentType = response.headers.get('content-type') || 'application/octet-stream'
+  const contentDisposition = response.headers.get('content-disposition') || ''
+  const buffer = await readResponseToBufferWithLimit(response, {
+    maxBytes: MAX_TYPEFORM_FILE_BYTES,
+    label: 'Typeform file download',
+  })
+
+  let filename = ''
+  const filenameMatch = contentDisposition.match(/filename="(.+?)"/)
+  if (filenameMatch?.[1]) {
+    filename = filenameMatch[1]
+  }
+  if (!filename && params?.filename) {
+    filename = params.filename
+  }
+  if (!filename) {
+    filename = 'typeform-file'
+  }
+
+  let fileUrl = response.url
+  if (!fileUrl && params) {
+    const encodedFormId = encodeURIComponent(params.formId)
+    const encodedResponseId = encodeURIComponent(params.responseId)
+    const encodedFieldId = encodeURIComponent(params.fieldId)
+    const encodedFilename = encodeURIComponent(params.filename)
+
+    fileUrl = `https://api.typeform.com/forms/${encodedFormId}/responses/${encodedResponseId}/fields/${encodedFieldId}/files/${encodedFilename}`
+
+    if (params.inline !== undefined) {
+      fileUrl += `?inline=${params.inline}`
+    }
+  }
+
+  return { buffer, contentType, filename, fileUrl }
 }
 
 export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> = {
@@ -98,53 +136,12 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
   },
 
   transformResponse: async (response: Response, params?: TypeformFilesParams) => {
-    // For file downloads, we get the file directly
-    const contentType = response.headers.get('content-type') || 'application/octet-stream'
-    const contentDisposition = response.headers.get('content-disposition') || ''
-    const buffer = await readResponseToBufferWithLimit(response, {
-      maxBytes: MAX_TYPEFORM_FILE_BYTES,
-      label: 'Typeform file download',
-    })
+    const { buffer, contentType, filename, fileUrl } = await readTypeformFileResponse(
+      response,
+      params
+    )
 
-    // Try to extract filename from content-disposition if possible
-    let filename = ''
-    const filenameMatch = contentDisposition.match(/filename="(.+?)"/)
-    if (filenameMatch?.[1]) {
-      filename = filenameMatch[1]
-    }
-    if (!filename && params?.filename) {
-      filename = params.filename
-    }
-    if (!filename) {
-      filename = 'typeform-file'
-    }
-
-    // Get file URL from the response URL or construct it from parameters if not available
-    let fileUrl = response.url
-
-    // If the response URL is not available (common in test environments), construct it from params
-    if (!fileUrl && params) {
-      const encodedFormId = encodeURIComponent(params.formId)
-      const encodedResponseId = encodeURIComponent(params.responseId)
-      const encodedFieldId = encodeURIComponent(params.fieldId)
-      const encodedFilename = encodeURIComponent(params.filename)
-
-      fileUrl = `https://api.typeform.com/forms/${encodedFormId}/responses/${encodedResponseId}/fields/${encodedFieldId}/files/${encodedFilename}`
-
-      if (params.inline !== undefined) {
-        fileUrl += `?inline=${params.inline}`
-      }
-    }
-
-    const { context, userId } = getExecutionContext(params)
-    let storedFile: (UserFile & { mimeType?: string }) | undefined
-
-    if (context) {
-      const userFile = await uploadExecutionFile(context, buffer, filename, contentType, userId)
-      storedFile = { ...userFile, mimeType: contentType }
-    }
-
-    if (!storedFile && buffer.length > MAX_LEGACY_INLINE_FILE_BYTES) {
+    if (buffer.length > MAX_LEGACY_INLINE_FILE_BYTES) {
       throw new PayloadSizeLimitError({
         label: 'Typeform legacy inline file',
         maxBytes: MAX_LEGACY_INLINE_FILE_BYTES,
@@ -155,17 +152,13 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
     return {
       success: true,
       output: {
-        fileUrl: storedFile?.url || fileUrl || '',
-        file: storedFile
-          ? {
-              ...storedFile,
-            }
-          : {
-              name: filename,
-              mimeType: contentType,
-              data: buffer.toString('base64'),
-              size: buffer.length,
-            },
+        fileUrl: fileUrl || '',
+        file: {
+          name: filename,
+          mimeType: contentType,
+          data: buffer.toString('base64'),
+          size: buffer.length,
+        },
         contentType,
         filename,
       },

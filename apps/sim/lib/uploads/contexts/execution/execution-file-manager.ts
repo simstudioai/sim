@@ -4,10 +4,13 @@ import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import type { ExecutionContext } from '@/lib/uploads/contexts/execution/utils'
 import { generateExecutionFileKey, generateFileId } from '@/lib/uploads/contexts/execution/utils'
-import * as StorageService from '@/lib/uploads/core/storage-service'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionFileStorage')
+
+async function getStorageService() {
+  return import('@/lib/uploads/core/storage-service')
+}
 
 function isSerializedBuffer(value: unknown): value is { type: string; data: number[] } {
   return (
@@ -92,6 +95,7 @@ export async function uploadExecutionFile(
   }
 
   try {
+    const StorageService = await getStorageService()
     const fileInfo = await StorageService.uploadFile({
       file: fileBuffer,
       fileName: storageKey,
@@ -138,6 +142,7 @@ export async function downloadExecutionFile(
   logger.info(`Downloading execution file: ${userFile.name}`)
 
   try {
+    const StorageService = await getStorageService()
     const fileBuffer = await StorageService.downloadFile({
       key: userFile.key,
       context: 'execution',
