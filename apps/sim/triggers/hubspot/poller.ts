@@ -116,7 +116,7 @@ export const hubspotPollingTrigger: TriggerConfig = {
         { label: 'Property Changed', id: 'property_changed' },
       ],
       defaultValue: 'created',
-      required: true,
+      required: { field: 'objectType', value: 'list_membership', not: true },
       mode: 'trigger',
       condition: { field: 'objectType', value: 'list_membership', not: true },
     },
