@@ -95,7 +95,7 @@ async function ensureWorkspaceCredentialMemberships(
     updatedAt: now,
   }))
 
-  // `joinedAt` is omitted from SET so the original value is preserved on conflict.
+  // `joinedAt` uses COALESCE so a non-null existing value is preserved but null is backfilled.
   await db
     .insert(credentialMember)
     .values(values)
@@ -104,6 +104,7 @@ async function ensureWorkspaceCredentialMemberships(
       set: {
         role: sql`excluded.role`,
         status: 'active',
+        joinedAt: sql`COALESCE(${credentialMember.joinedAt}, excluded.joined_at)`,
         invitedBy: ownerUserId,
         updatedAt: now,
       },

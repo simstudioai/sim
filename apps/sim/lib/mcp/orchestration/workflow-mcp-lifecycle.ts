@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
@@ -515,14 +515,24 @@ export async function performDeleteWorkflowMcpTool(
   params: PerformDeleteWorkflowMcpToolParams
 ): Promise<PerformDeleteWorkflowMcpToolResult> {
   try {
+    const [server] = await db
+      .select({ id: workflowMcpServer.id })
+      .from(workflowMcpServer)
+      .where(
+        and(
+          eq(workflowMcpServer.id, params.serverId),
+          eq(workflowMcpServer.workspaceId, params.workspaceId),
+          isNull(workflowMcpServer.deletedAt)
+        )
+      )
+      .limit(1)
+
+    if (!server) return { success: false, error: 'Server not found', errorCode: 'not_found' }
+
     const [tool] = await db
       .delete(workflowMcpTool)
       .where(
-        and(
-          eq(workflowMcpTool.id, params.toolId),
-          eq(workflowMcpTool.serverId, params.serverId),
-          sql`EXISTS (SELECT 1 FROM ${workflowMcpServer} WHERE ${workflowMcpServer.id} = ${params.serverId} AND ${workflowMcpServer.workspaceId} = ${params.workspaceId} AND ${workflowMcpServer.deletedAt} IS NULL)`
-        )
+        and(eq(workflowMcpTool.id, params.toolId), eq(workflowMcpTool.serverId, params.serverId))
       )
       .returning()
 
