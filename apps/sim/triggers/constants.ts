@@ -47,6 +47,7 @@ export const POLLING_PROVIDERS = new Set([
   'google-calendar',
   'google-drive',
   'google-sheets',
+  'hubspot',
   'imap',
   'outlook',
   'rss',
