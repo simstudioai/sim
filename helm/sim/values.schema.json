@@ -8,8 +8,7 @@
       "properties": {
         "imageRegistry": {
           "type": "string",
-          "format": "hostname",
-          "description": "Global Docker image registry"
+          "description": "Global Docker image registry (host[:port][/path]). Supports plain hosts (registry.example.com), host:port (registry.example.com:5000), and host+path forms used by Artifactory virtual repos, Harbor projects, GCR (gcr.io/project-id), and ECR-with-namespace."
         },
         "useRegistryForAllImages": {
           "type": "boolean",
