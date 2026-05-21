@@ -84,6 +84,21 @@ describe('Google Slides export presentation tool', () => {
     })
   })
 
+  it('rejects presentation IDs that would break export URL structure', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        accessToken: 'token',
+        presentationId: 'abc?mimeType=evil',
+        exportFormat: 'PDF',
+      })
+    )
+    const result = (await response.json()) as { success: false; error: string }
+
+    expect(response.status).toBe(400)
+    expect(result.error).toContain('invalid characters')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
   it('stores exports as execution file references instead of base64', async () => {
     inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
       new Response('content', {

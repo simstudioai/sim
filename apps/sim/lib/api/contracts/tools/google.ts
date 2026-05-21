@@ -66,9 +66,16 @@ export const googleSlidesExportFormatSchema = z.preprocess((value) => {
   return normalized || undefined
 }, z.enum(['PDF', 'PPTX', 'ODP', 'TXT', 'PNG', 'JPEG', 'SVG']).optional())
 
+/** Google Drive / Slides file IDs are opaque base62-ish strings without URL metacharacters. */
+export const googlePresentationIdSchema = z
+  .string()
+  .trim()
+  .min(1, 'Presentation ID is required')
+  .regex(/^[a-zA-Z0-9_-]+$/, 'Presentation ID contains invalid characters')
+
 export const googleSlidesExportPresentationBodySchema = z.object({
   accessToken: googleAccessTokenSchema,
-  presentationId: z.string().trim().min(1, 'Presentation ID is required'),
+  presentationId: googlePresentationIdSchema,
   exportFormat: googleSlidesExportFormatSchema,
   workspaceId: z.string().optional(),
   workflowId: z.string().optional(),

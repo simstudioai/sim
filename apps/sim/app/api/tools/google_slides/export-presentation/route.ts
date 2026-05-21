@@ -36,7 +36,7 @@ export const dynamic = 'force-dynamic'
 
 function buildExportUrl(presentationId: string, exportFormat: keyof typeof FORMAT_TO_MIME): string {
   const mimeType = FORMAT_TO_MIME[exportFormat]
-  return `https://www.googleapis.com/drive/v3/files/${presentationId}/export?mimeType=${encodeURIComponent(mimeType)}`
+  return `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(presentationId)}/export?mimeType=${encodeURIComponent(mimeType)}`
 }
 
 function buildExportFilename(
