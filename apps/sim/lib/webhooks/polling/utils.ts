@@ -61,7 +61,9 @@ export async function markWebhookSuccess(webhookId: string, logger: Logger): Pro
         failedCount: 0,
         updatedAt: new Date(),
       })
-      .where(and(eq(webhook.id, webhookId), ne(webhook.failedCount, 0)))
+      .where(
+        and(eq(webhook.id, webhookId), or(isNull(webhook.failedCount), ne(webhook.failedCount, 0)))
+      )
   } catch (err) {
     logger.error(`Failed to mark webhook ${webhookId} as successful:`, err)
   }
