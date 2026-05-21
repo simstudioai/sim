@@ -81,4 +81,37 @@ describe('fileParserTool', () => {
       },
     })
   })
+
+  it('preserves partial multi-file parse successes from an oversized response', async () => {
+    const result = await fileParserTool.transformResponse?.(
+      Response.json(
+        {
+          success: false,
+          error: 'Parsed file output is too large to return safely.',
+          results: [
+            {
+              success: true,
+              output: {
+                content: 'ok',
+                fileType: 'text/plain',
+                size: 2,
+                name: 'ok.txt',
+                binary: false,
+              },
+            },
+          ],
+        },
+        { status: 413 }
+      )
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      error: 'Parsed file output is too large to return safely.',
+      output: {
+        files: [{ name: 'ok.txt', content: 'ok' }],
+        combinedContent: 'ok',
+      },
+    })
+  })
 })

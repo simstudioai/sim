@@ -162,7 +162,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         const remainingOutputBytes = MAX_MULTI_FILE_PARSE_OUTPUT_BYTES - totalOutputBytes
         if (remainingOutputBytes <= 0) {
-          return parsedOutputTooLargeResponse()
+          return parsedOutputTooLargeResponse(results)
         }
 
         const result = await parseFileSingle(
@@ -183,7 +183,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         if (result.success) {
           totalOutputBytes += getContentBytes(result.content)
           if (totalOutputBytes > MAX_MULTI_FILE_PARSE_OUTPUT_BYTES) {
-            return parsedOutputTooLargeResponse()
+            return parsedOutputTooLargeResponse(results)
           }
 
           const displayName =
@@ -205,7 +205,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
 
         if (result.error?.startsWith('Parsed file output is too large')) {
-          return parsedOutputTooLargeResponse()
+          return parsedOutputTooLargeResponse(results)
         }
 
         results.push(result)
@@ -396,13 +396,14 @@ function validateFileReferenceShape(filePath: string): { isValid: boolean; error
   return { isValid: true }
 }
 
-function parsedOutputTooLargeResponse(): NextResponse {
+function parsedOutputTooLargeResponse(results?: unknown[]): NextResponse {
   return NextResponse.json(
     {
       success: false,
       error: `Parsed file output is too large to return safely. Maximum combined parsed output is ${prettySize(
         MAX_MULTI_FILE_PARSE_OUTPUT_BYTES
       )}.`,
+      ...(results && results.length > 0 ? { results } : {}),
     },
     { status: 413 }
   )

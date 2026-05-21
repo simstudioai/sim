@@ -29,6 +29,11 @@ vi.mock('@/lib/uploads', () => ({
   },
 }))
 
+vi.mock('@/lib/uploads/core/storage-service', () => ({
+  uploadFile: mockUploadFile,
+  downloadFile: mockDownloadFile,
+}))
+
 vi.mock('@/app/api/files/authorization', () => ({
   verifyFileAccess: mockVerifyFileAccess,
 }))

@@ -89,17 +89,6 @@ const parseFileParserResponse = async (response: Response): Promise<FileParserOu
   const result: unknown = await response.json()
   logger.info('Response parsed successfully')
 
-  if (isRecord(result) && result.success === false) {
-    return {
-      success: false,
-      output: {
-        files: [],
-        combinedContent: '',
-      },
-      error: typeof result.error === 'string' ? result.error : 'Failed to parse file',
-    }
-  }
-
   // Handle multiple files response
   if (isRecord(result) && Array.isArray(result.results)) {
     logger.info('Processing multiple files response')
@@ -129,10 +118,7 @@ const parseFileParserResponse = async (response: Response): Promise<FileParserOu
       .filter((fileResult) => !(isRecord(fileResult) && fileResult.success === false))
       .map((fileResult) => normalizeFileParseResult(fileResult))
 
-    // Collect UserFile objects from results
-    const processedFiles: UserFile[] = fileResults
-      .filter((file): file is FileParseResult & { file: UserFile } => Boolean(file.file))
-      .map((file) => file.file)
+    const processedFiles = fileResults.flatMap((file) => (file.file ? [file.file] : []))
 
     // Combine all file contents with clear dividers
     const combinedContent = fileResults
@@ -149,10 +135,23 @@ const parseFileParserResponse = async (response: Response): Promise<FileParserOu
       combinedContent,
       ...(processedFiles.length > 0 && { processedFiles }),
     }
+    const error = typeof result.error === 'string' ? result.error : undefined
 
     return {
       success: true,
       output,
+      ...(error ? { error } : {}),
+    }
+  }
+
+  if (isRecord(result) && result.success === false) {
+    return {
+      success: false,
+      output: {
+        files: [],
+        combinedContent: '',
+      },
+      error: typeof result.error === 'string' ? result.error : 'Failed to parse file',
     }
   }
 

@@ -445,6 +445,43 @@ describe('File Parse API Route', () => {
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(1)
   })
 
+  it('should include successful multi-file parse results when a later file exceeds the cap', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response('file content', {
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+      })
+    )
+
+    mockParseBuffer
+      .mockResolvedValueOnce({
+        content: 'first file',
+        metadata: { pageCount: 1 },
+      })
+      .mockResolvedValueOnce({
+        content: 'a'.repeat(5 * 1024 * 1024),
+        metadata: { pageCount: 1 },
+      })
+
+    const req = createMockRequest('POST', {
+      filePath: ['https://example.com/file1.txt', 'https://example.com/file2.txt'],
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(413)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('too large')
+    expect(data.results).toHaveLength(1)
+    expect(data.results[0].output.content).toBe('first file')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(2)
+  })
+
   it('should pass custom headers when fetching external URLs', async () => {
     inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
       isValid: true,
