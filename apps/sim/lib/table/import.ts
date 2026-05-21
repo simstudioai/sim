@@ -20,8 +20,8 @@ export const CSV_SCHEMA_SAMPLE_SIZE = 100
 /** Maximum rows inserted per `batchInsertRows` call during import. */
 export const CSV_MAX_BATCH_SIZE = 1000
 
-/** Maximum CSV/TSV file size accepted by import routes (50 MB). */
-export const CSV_MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
+/** Maximum CSV/TSV file size accepted by import routes (25 MB). */
+export const CSV_MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
 
 /**
  * Error thrown when the user-supplied mapping or CSV does not line up with the

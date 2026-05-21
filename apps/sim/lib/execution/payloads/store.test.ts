@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   cacheLargeValue,
   clearLargeValueCacheForTests,
@@ -26,6 +27,11 @@ vi.mock('@/lib/uploads', () => ({
     uploadFile: mockUploadFile,
     downloadFile: mockDownloadFile,
   },
+}))
+
+vi.mock('@/lib/uploads/core/storage-service', () => ({
+  uploadFile: mockUploadFile,
+  downloadFile: mockDownloadFile,
 }))
 
 vi.mock('@/app/api/files/authorization', () => ({
@@ -427,6 +433,82 @@ describe('large execution payload store', () => {
         }
       )
     ).rejects.toMatchObject({ code: EXECUTION_RESOURCE_LIMIT_CODE })
+  })
+
+  it('passes source byte limits into execution file storage downloads', async () => {
+    const workspaceId = '11111111-1111-4111-8111-111111111111'
+    const workflowId = '22222222-2222-4222-8222-222222222222'
+    const executionId = '33333333-3333-4333-8333-333333333333'
+    mockDownloadFile.mockResolvedValueOnce(Buffer.from('hello', 'utf8'))
+
+    await expect(
+      readUserFileContent(
+        {
+          id: 'file_1',
+          name: 'hello.txt',
+          url: `/api/files/serve/execution/${workspaceId}/${workflowId}/${executionId}/hello.txt`,
+          key: `execution/${workspaceId}/${workflowId}/${executionId}/hello.txt`,
+          context: 'execution',
+          size: 5,
+          type: 'text/plain',
+        },
+        {
+          workspaceId,
+          workflowId,
+          executionId,
+          userId: 'user-1',
+          encoding: 'text',
+          maxSourceBytes: 6,
+        }
+      )
+    ).resolves.toBe('hello')
+
+    expect(mockDownloadFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: `execution/${workspaceId}/${workflowId}/${executionId}/hello.txt`,
+        context: 'execution',
+        maxBytes: 6,
+      })
+    )
+  })
+
+  it('converts storage byte-limit failures into execution resource-limit errors', async () => {
+    const workspaceId = '11111111-1111-4111-8111-111111111111'
+    const workflowId = '22222222-2222-4222-8222-222222222222'
+    const executionId = '33333333-3333-4333-8333-333333333333'
+    mockDownloadFile.mockRejectedValueOnce(
+      new PayloadSizeLimitError({
+        label: 'storage file download',
+        maxBytes: 6,
+        observedBytes: 7,
+      })
+    )
+
+    await expect(
+      readUserFileContent(
+        {
+          id: 'file_1',
+          name: 'hello.txt',
+          url: `/api/files/serve/execution/${workspaceId}/${workflowId}/${executionId}/hello.txt`,
+          key: `execution/${workspaceId}/${workflowId}/${executionId}/hello.txt`,
+          context: 'execution',
+          size: 5,
+          type: 'text/plain',
+        },
+        {
+          workspaceId,
+          workflowId,
+          executionId,
+          userId: 'user-1',
+          encoding: 'text',
+          maxSourceBytes: 6,
+        }
+      )
+    ).rejects.toMatchObject({
+      code: EXECUTION_RESOURCE_LIMIT_CODE,
+      attemptedBytes: 7,
+      limitBytes: 6,
+    })
   })
 
   it('allows explicit chunked file reads to slice within the inline cap', async () => {

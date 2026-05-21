@@ -3,7 +3,7 @@ import type { WorkspaceMode } from '@sim/db/schema'
 import { organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
-import { eq, isNull } from 'drizzle-orm'
+import { and, asc, eq, gt, isNull } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
 import { getPlanType, type PlanCategory } from '@/lib/billing/plan-helpers'
@@ -18,6 +18,7 @@ const logger = createLogger('RetentionDispatcher')
 
 /** Trigger.dev's documented cap on items per `batchTrigger` call (SDK 4.3.1+). */
 const BATCH_TRIGGER_CHUNK_SIZE = 1000
+const WORKSPACE_SCOPE_PAGE_SIZE = 500
 
 /** Bounds per-run memory + DB connections regardless of plan size. */
 const WORKSPACES_PER_CLEANUP_CHUNK = 500
@@ -63,6 +64,10 @@ const DAY = 24
 
 type PlanResolutionEntry = readonly [string, PlanCategory]
 
+function getCleanupConcurrencyKey(jobType: CleanupJobType): string {
+  return `cleanup:${jobType}`
+}
+
 /**
  * Single source of truth for cleanup retention: which key each job type reads
  * from `organization.dataRetentionSettings`, and the default retention (in
@@ -84,7 +89,9 @@ export const CLEANUP_CONFIG = {
   },
 } as const satisfies Record<CleanupJobType, CleanupJobConfig>
 
-async function listActiveWorkspaceCleanupScopeRows(): Promise<WorkspaceCleanupScopeRow[]> {
+async function listActiveWorkspaceCleanupScopeRowsPage(
+  afterId: string | null
+): Promise<WorkspaceCleanupScopeRow[]> {
   const rows = await db
     .select({
       id: workspace.id,
@@ -95,7 +102,13 @@ async function listActiveWorkspaceCleanupScopeRows(): Promise<WorkspaceCleanupSc
     })
     .from(workspace)
     .leftJoin(organization, eq(organization.id, workspace.organizationId))
-    .where(isNull(workspace.archivedAt))
+    .where(
+      afterId
+        ? and(isNull(workspace.archivedAt), gt(workspace.id, afterId))
+        : isNull(workspace.archivedAt)
+    )
+    .orderBy(asc(workspace.id))
+    .limit(WORKSPACE_SCOPE_PAGE_SIZE)
 
   return rows.map((row) => ({
     ...row,
@@ -199,64 +212,85 @@ const GLOBAL_HOUSEKEEPING_PLAN: Partial<Record<CleanupJobType, PlanCategory>> = 
   'cleanup-logs': 'free',
 }
 
-async function buildCleanupChunks(jobType: CleanupJobType): Promise<CleanupJobPayload[]> {
+async function forEachCleanupChunk(
+  jobType: CleanupJobType,
+  onChunk: (payload: CleanupJobPayload) => Promise<void>
+): Promise<{ chunkCount: number; workspaceCount: number }> {
   const config = CLEANUP_CONFIG[jobType]
-  const activeRows = await listActiveWorkspaceCleanupScopeRows()
-  const planByWorkspaceId = await resolvePlanTypesByWorkspaceId(activeRows)
+  const chunkCountByPlan: Partial<Record<NonEnterprisePlan, number>> = {}
+  const housekeepingPlan = GLOBAL_HOUSEKEEPING_PLAN[jobType]
+  let housekeepingAssigned = false
+  let workspaceCount = 0
+  let chunkCount = 0
+  let afterId: string | null = null
 
-  const chunks: CleanupJobPayload[] = []
+  const emitChunk = async (payload: CleanupJobPayload) => {
+    if (payload.plan === housekeepingPlan && !housekeepingAssigned) {
+      payload.runGlobalHousekeeping = true
+      housekeepingAssigned = true
+    }
+    chunkCount++
+    await onChunk(payload)
+  }
 
-  for (const plan of NON_ENTERPRISE_PLANS) {
-    const retentionHours = config.defaults[plan]
-    if (retentionHours === null) continue
-    const workspaceIds = activeRows
-      .filter((row) => planByWorkspaceId.get(row.id) === plan)
-      .map((row) => row.id)
-    if (workspaceIds.length === 0) continue
-    const planChunks = chunkArray(workspaceIds, WORKSPACES_PER_CLEANUP_CHUNK)
-    for (const [idx, ws] of planChunks.entries()) {
-      chunks.push({
-        plan,
-        workspaceIds: ws,
-        retentionHours,
-        label: planChunks.length > 1 ? `${plan}/${idx + 1}` : plan,
+  while (true) {
+    const rows = await listActiveWorkspaceCleanupScopeRowsPage(afterId)
+    if (rows.length === 0) break
+
+    afterId = rows[rows.length - 1].id
+    const planByWorkspaceId = await resolvePlanTypesByWorkspaceId(rows)
+
+    for (const plan of NON_ENTERPRISE_PLANS) {
+      const retentionHours = config.defaults[plan]
+      if (retentionHours === null) continue
+
+      const workspaceIds = rows
+        .filter((row) => planByWorkspaceId.get(row.id) === plan)
+        .map((row) => row.id)
+      if (workspaceIds.length === 0) continue
+
+      workspaceCount += workspaceIds.length
+      const planChunks = chunkArray(workspaceIds, WORKSPACES_PER_CLEANUP_CHUNK)
+      for (const ws of planChunks) {
+        const chunkNumber = (chunkCountByPlan[plan] ?? 0) + 1
+        chunkCountByPlan[plan] = chunkNumber
+        await emitChunk({
+          plan,
+          workspaceIds: ws,
+          retentionHours,
+          label: `${plan}/${chunkNumber}`,
+        })
+      }
+    }
+
+    for (const row of rows) {
+      if (planByWorkspaceId.get(row.id) !== 'enterprise') continue
+      const hours = row.organizationSettings?.[config.key]
+      if (hours == null) continue
+      workspaceCount++
+      await emitChunk({
+        plan: 'enterprise',
+        workspaceIds: [row.id],
+        retentionHours: hours,
+        label: `enterprise/${row.id}`,
       })
     }
   }
 
-  for (const row of activeRows) {
-    if (planByWorkspaceId.get(row.id) !== 'enterprise') continue
-    const hours = row.organizationSettings?.[config.key]
-    if (hours == null) continue
-    chunks.push({
-      plan: 'enterprise',
-      workspaceIds: [row.id],
-      retentionHours: hours,
-      label: `enterprise/${row.id}`,
-    })
-  }
-
-  const housekeepingPlan = GLOBAL_HOUSEKEEPING_PLAN[jobType]
-  if (housekeepingPlan) {
-    const target = chunks.find((c) => c.plan === housekeepingPlan)
-    if (target) {
-      target.runGlobalHousekeeping = true
-    } else if (housekeepingPlan !== 'enterprise') {
-      // Synthetic empty chunk so housekeeping still fires when the plan has no workspaces.
-      const retentionHours = config.defaults[housekeepingPlan]
-      if (retentionHours != null) {
-        chunks.push({
-          plan: housekeepingPlan,
-          workspaceIds: [],
-          retentionHours,
-          label: `${housekeepingPlan}/housekeeping`,
-          runGlobalHousekeeping: true,
-        })
-      }
+  if (housekeepingPlan && housekeepingPlan !== 'enterprise' && !housekeepingAssigned) {
+    const retentionHours = config.defaults[housekeepingPlan]
+    if (retentionHours != null) {
+      await emitChunk({
+        plan: housekeepingPlan,
+        workspaceIds: [],
+        retentionHours,
+        label: `${housekeepingPlan}/housekeeping`,
+        runGlobalHousekeeping: true,
+      })
     }
   }
 
-  return chunks
+  return { chunkCount, workspaceCount }
 }
 
 /**
@@ -270,55 +304,79 @@ export async function dispatchCleanupJobs(jobType: CleanupJobType): Promise<{
   chunkCount: number
   workspaceCount: number
 }> {
-  const chunks = await buildCleanupChunks(jobType)
-  const workspaceCount = chunks.reduce((sum, c) => sum + c.workspaceIds.length, 0)
-
-  logger.info(
-    `[${jobType}] Dispatching: ${chunks.length} chunk(s) covering ${workspaceCount} workspace(s)`
-  )
-
-  if (chunks.length === 0) {
-    return { jobIds: [], jobCount: 0, chunkCount: 0, workspaceCount: 0 }
-  }
-
   const jobIds: string[] = []
+  let succeeded = 0
+  let failed = 0
 
   if (isTriggerAvailable()) {
-    for (let i = 0; i < chunks.length; i += BATCH_TRIGGER_CHUNK_SIZE) {
-      const batch = chunks.slice(i, i + BATCH_TRIGGER_CHUNK_SIZE)
+    let batch: CleanupJobPayload[] = []
+    const flushBatch = async () => {
+      if (batch.length === 0) return
+      const currentBatch = batch
+      batch = []
       const batchResult = await tasks.batchTrigger(
         jobType,
-        batch.map((payload) => ({
+        currentBatch.map((payload) => ({
           payload,
           options: {
             tags: [`plan:${payload.plan}`, `jobType:${jobType}`],
+            concurrencyKey: getCleanupConcurrencyKey(jobType),
           },
         }))
       )
       jobIds.push(batchResult.batchId)
+      succeeded += currentBatch.length
     }
-    return { jobIds, jobCount: jobIds.length, chunkCount: chunks.length, workspaceCount }
+
+    const { chunkCount, workspaceCount } = await forEachCleanupChunk(jobType, async (payload) => {
+      batch.push(payload)
+      if (batch.length >= BATCH_TRIGGER_CHUNK_SIZE) {
+        await flushBatch()
+      }
+    })
+    await flushBatch()
+
+    logger.info(
+      `[${jobType}] Trigger cleanup chunks: ${succeeded} dispatched in ${jobIds.length} batch(es)`
+    )
+    return { jobIds, jobCount: jobIds.length, chunkCount, workspaceCount }
   }
 
-  // Fallback: parallel enqueue via abstraction (self-hosted / inline path)
   const inlineRunner = shouldExecuteInline() ? await buildCleanupRunner(jobType) : undefined
-  const jobQueue = await getJobQueue()
-  const results = await Promise.allSettled(
-    chunks.map((payload) => jobQueue.enqueue(jobType, payload, { runner: inlineRunner }))
-  )
+  if (inlineRunner) {
+    const { chunkCount, workspaceCount } = await forEachCleanupChunk(jobType, async (payload) => {
+      try {
+        await inlineRunner(payload, new AbortController().signal)
+        jobIds.push(`inline:${jobType}:${payload.label}`)
+        succeeded++
+      } catch (error) {
+        failed++
+        logger.error(`[${jobType}] Inline cleanup chunk failed:`, {
+          plan: payload.plan,
+          label: payload.label,
+          error,
+        })
+      }
+    })
 
-  let succeeded = 0
-  let failed = 0
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      jobIds.push(result.value)
-      succeeded++
-    } else {
-      failed++
-      logger.error(`[${jobType}] Failed to enqueue chunk:`, { reason: result.reason })
-    }
+    logger.info(`[${jobType}] Inline cleanup chunks: ${succeeded} succeeded, ${failed} failed`)
+    return { jobIds, jobCount: jobIds.length, chunkCount, workspaceCount }
   }
+
+  const jobQueue = await getJobQueue()
+  const { chunkCount, workspaceCount } = await forEachCleanupChunk(jobType, async (payload) => {
+    try {
+      const jobId = await jobQueue.enqueue(jobType, payload, {
+        concurrencyKey: getCleanupConcurrencyKey(jobType),
+      })
+      jobIds.push(jobId)
+      succeeded++
+    } catch (reason) {
+      failed++
+      logger.error(`[${jobType}] Failed to enqueue chunk:`, { reason })
+    }
+  })
   logger.info(`[${jobType}] Chunk enqueue: ${succeeded} succeeded, ${failed} failed`)
 
-  return { jobIds, jobCount: jobIds.length, chunkCount: chunks.length, workspaceCount }
+  return { jobIds, jobCount: jobIds.length, chunkCount, workspaceCount }
 }

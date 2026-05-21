@@ -40,8 +40,7 @@ export function useChildWorkflow(
   }
 
   const { data, isPending } = useDeploymentInfo(
-    isWorkflowSelector ? (childWorkflowId ?? null) : null,
-    { refetchOnMount: 'always' }
+    isWorkflowSelector ? (childWorkflowId ?? null) : null
   )
 
   const childIsDeployed = data?.isDeployed ?? null

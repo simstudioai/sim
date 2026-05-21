@@ -3369,6 +3369,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     title: { type: 'string', description: 'Presentation title' },
 
     // Export presentation
+    file: { type: 'file', description: 'Stored exported presentation file' },
     contentBase64: { type: 'string', description: 'Base64-encoded exported content' },
     mimeType: { type: 'string', description: 'MIME type of the exported content' },
     sizeBytes: { type: 'number', description: 'Size of the exported content in bytes' },

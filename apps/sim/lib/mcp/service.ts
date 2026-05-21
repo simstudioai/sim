@@ -580,6 +580,17 @@ class McpService {
         try {
           const tools = await client.listTools()
           logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
+          // Prime the per-server cache and reflect the successful connection on
+          // the row so the UI doesn't keep showing "Connect with OAuth" or stale
+          // disconnected/error state.
+          await Promise.allSettled([
+            this.cacheAdapter
+              .set(serverCacheKey(workspaceId, serverId), tools, this.cacheTimeout)
+              .catch((err) =>
+                logger.warn(`[${requestId}] Cache write failed for ${config.name}:`, err)
+              ),
+            this.updateServerStatus(serverId, workspaceId, true, undefined, tools.length),
+          ])
           return tools
         } finally {
           await client.disconnect()

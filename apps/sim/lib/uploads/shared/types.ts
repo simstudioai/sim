@@ -70,6 +70,7 @@ export interface UploadFileOptions {
 export interface DownloadFileOptions {
   key: string
   context?: StorageContext
+  maxBytes?: number
 }
 
 export interface DeleteFileOptions {

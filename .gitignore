@@ -85,3 +85,6 @@ i18n.cache
 .claude/worktrees/
 .claude/scheduled_tasks.lock
 .deepsec/
+
+# Personal Cursor Skills
+.cursor/skills/ask-sim/
