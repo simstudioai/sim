@@ -234,17 +234,40 @@ function countNewlyInFlight(before: RowExecutions, after: RowExecutions): number
   return n
 }
 
-/** Add optimistically-stamped cells to the run-state counter so the "X running"
- *  badge + per-row gutter Stop reflect them instantly (the optimistic stamp
- *  eats the dispatcher's `pending` SSE, so `applyCell` never bumps the count).
- *  Returns the prior snapshot for rollback, or `null` when nothing was bumped. */
+/** First-page `totalCount` from the rows infinite-query cache (or `null` when
+ *  rows haven't loaded yet). Lets a Run-all estimate the full-table cell count
+ *  even though only a page of rows is in memory. */
+function readTotalRowCount(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string
+): number | null {
+  const entries = queryClient.getQueriesData<InfiniteData<TableRowsResponse, number>>({
+    queryKey: tableKeys.rowsRoot(tableId),
+    exact: false,
+  })
+  for (const [, data] of entries) {
+    const tc = data?.pages?.[0]?.totalCount
+    if (typeof tc === 'number') return tc
+  }
+  return null
+}
+
+/** Optimistically reflect a run on the "X running" badge + per-row gutter Stop
+ *  instantly (the optimistic stamp eats the dispatcher's `pending` SSE, so
+ *  `applyCell` never bumps the count, and the server's dispatch-scope count
+ *  isn't live until the first window). `stampedByRow` drives the per-row gutter
+ *  (loaded rows only); `cellCountDelta` is the badge delta — pass the full run
+ *  scope (rows × groups) for Run-all so it matches the server, or omit to use
+ *  the stamped total. Returns the prior snapshot for rollback. */
 function bumpRunState(
   queryClient: ReturnType<typeof useQueryClient>,
   tableId: string,
-  stampedByRow: Record<string, number>
+  stampedByRow: Record<string, number>,
+  cellCountDelta?: number
 ): { snapshot: TableRunState | undefined } | null {
-  const total = Object.values(stampedByRow).reduce((s, n) => s + n, 0)
-  if (total === 0) return null
+  const stampedTotal = Object.values(stampedByRow).reduce((s, n) => s + n, 0)
+  const countDelta = cellCountDelta ?? stampedTotal
+  if (countDelta === 0 && stampedTotal === 0) return null
   const snapshot = queryClient.getQueryData<TableRunState>(tableKeys.activeDispatches(tableId))
   queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
     const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
@@ -254,7 +277,7 @@ function bumpRunState(
     }
     return {
       ...base,
-      runningCellCount: base.runningCellCount + total,
+      runningCellCount: base.runningCellCount + countDelta,
       runningByRowId: nextByRow,
     }
   })
@@ -1439,7 +1462,14 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         return { ...r, data: nextData, executions: next }
       })
 
-      const bumped = bumpRunState(queryClient, tableId, stampedByRow)
+      // Badge counts the whole run scope (rows × groups), matching the server's
+      // dispatch-scope count — not just the loaded rows we could stamp. For
+      // Run-all that's the table's totalCount; for a scoped run, the rowIds.
+      const scopeRowCount = targetRowIds
+        ? targetRowIds.size
+        : (readTotalRowCount(queryClient, tableId) ?? Object.keys(stampedByRow).length)
+      const cellCountDelta = scopeRowCount * targetGroupIds.size
+      const bumped = bumpRunState(queryClient, tableId, stampedByRow, cellCountDelta)
       return { snapshots, runStateSnapshot: bumped?.snapshot, didBumpRunState: bumped !== null }
     },
     onError: (_err, _variables, context) => {

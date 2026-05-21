@@ -195,6 +195,39 @@ export async function countRunningCells(
   return { total, byRowId }
 }
 
+/** Authoritative "cells queued or running" count for the table, derived from
+ *  active dispatches so it survives reload and matches the live count. For each
+ *  active dispatch every row in scope ahead of the cursor still has to run each
+ *  targeted group, so remaining work = (rows ahead of cursor) × |groupIds|.
+ *  Exact for Run-all; an upper bound for incomplete/new (rows the eligibility
+ *  filter later skips are still counted). Falls back to the sidecar in-flight
+ *  count when no dispatch is active (orphan stragglers). `byRowId` stays
+ *  sidecar-based — the client overlay renders queued rows ahead of the cursor. */
+export async function countActiveRunCells(
+  tableId: string,
+  dispatches?: DispatchRow[]
+): Promise<{ total: number; byRowId: Record<string, number> }> {
+  const active = dispatches ?? (await listActiveDispatches(tableId))
+  const sidecar = await countRunningCells(tableId)
+  if (active.length === 0) return sidecar
+
+  let total = 0
+  for (const d of active) {
+    const groupCount = d.scope.groupIds.length
+    if (groupCount === 0) continue
+    const filters = [eq(userTableRows.tableId, tableId), gt(userTableRows.position, d.cursor)]
+    if (d.scope.rowIds && d.scope.rowIds.length > 0) {
+      filters.push(inArray(userTableRows.id, d.scope.rowIds))
+    }
+    const [row] = await db
+      .select({ rowsAhead: sql<number>`count(*)::int` })
+      .from(userTableRows)
+      .where(and(...filters))
+    total += (row?.rowsAhead ?? 0) * groupCount
+  }
+  return { total, byRowId: sidecar.byRowId }
+}
+
 export async function listActiveDispatches(tableId: string): Promise<DispatchRow[]> {
   const rows = await db
     .select()
