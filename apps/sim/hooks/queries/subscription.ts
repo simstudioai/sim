@@ -53,7 +53,7 @@ interface UseSubscriptionDataOptions {
  * @param options - Optional configuration
  */
 export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
-  const { includeOrg = false, enabled = true, staleTime = 30 * 1000 } = options
+  const { includeOrg = false, enabled = true, staleTime = 5 * 60 * 1000 } = options
 
   return useQuery({
     queryKey: subscriptionKeys.user(includeOrg),
@@ -72,7 +72,7 @@ export function prefetchSubscriptionData(queryClient: QueryClient) {
   queryClient.prefetchQuery({
     queryKey: subscriptionKeys.user(false),
     queryFn: ({ signal }) => fetchSubscriptionData(false, signal),
-    staleTime: 30 * 1000,
+    staleTime: 5 * 60 * 1000,
   })
 }
 

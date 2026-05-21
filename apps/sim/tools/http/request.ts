@@ -1,7 +1,10 @@
+import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import type { RequestParams, RequestResponse } from '@/tools/http/types'
 import { getDefaultHeaders, processUrl } from '@/tools/http/utils'
 import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
+
+const MAX_HTTP_RESPONSE_BODY_BYTES = 10 * 1024 * 1024
 
 export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
   id: 'http_request',
@@ -158,9 +161,12 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       headers[key] = value
     })
 
-    const data = await (contentType.includes('application/json')
-      ? response.json()
-      : response.text())
+    const responseText = await readResponseTextWithLimit(response, {
+      maxBytes: MAX_HTTP_RESPONSE_BODY_BYTES,
+      label: 'HTTP Request response body',
+      allowNoBodyFallback: true,
+    })
+    const data = contentType.includes('application/json') ? JSON.parse(responseText) : responseText
 
     // Check if this is a proxy response (structured response from /api/proxy)
     if (

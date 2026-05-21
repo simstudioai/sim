@@ -355,7 +355,8 @@ Return ONLY the JSON array — no explanations, no markdown, no code fences.`,
     },
     properties: {
       type: 'json',
-      description: 'HubSpot properties on the record (object of property name to value)',
+      description:
+        'HubSpot properties on the record as a key-value object (property internal name → value). Default keys per object type (override via "Properties to Fetch"): Contact → firstname, lastname, email, phone, company, lifecyclestage, hs_lead_status, hubspot_owner_id, createdate, lastmodifieddate. Company → name, domain, industry, lifecyclestage, hubspot_owner_id, createdate, hs_lastmodifieddate. Deal → dealname, amount, dealstage, pipeline, closedate, hubspot_owner_id, createdate, hs_lastmodifieddate. Ticket → subject, content, hs_pipeline, hs_pipeline_stage, hs_ticket_priority, hubspot_owner_id, createdate, hs_lastmodifieddate. Custom and user-requested properties appear keyed by their HubSpot internal name.',
     },
     createdAt: {
       type: 'string',
