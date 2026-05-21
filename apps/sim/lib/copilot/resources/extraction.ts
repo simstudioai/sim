@@ -6,7 +6,6 @@ import {
   EditWorkflow,
   FunctionExecute,
   GenerateImage,
-  GenerateVisualization,
   Knowledge,
   KnowledgeBase,
   UserTable,
@@ -27,7 +26,6 @@ const RESOURCE_TOOL_NAMES: Set<string> = new Set([
   FunctionExecute.id,
   KnowledgeBase.id,
   Knowledge.id,
-  GenerateVisualization.id,
   GenerateImage.id,
 ])
 
@@ -143,7 +141,6 @@ export function extractResourcesFromToolResult(
     }
 
     case DownloadToWorkspaceFile.id:
-    case GenerateVisualization.id:
     case GenerateImage.id: {
       if (result.fileId) {
         return [

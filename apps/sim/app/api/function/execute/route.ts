@@ -5,9 +5,15 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   FORMAT_TO_CONTENT_TYPE,
+  getOutputFileDeclarations,
   normalizeOutputWorkspaceFileName,
+  type OutputFileDeclaration,
   resolveOutputFormat,
 } from '@/lib/copilot/request/tools/files'
+import {
+  validateWorkspaceFileWriteTarget,
+  writeWorkspaceFileByPath,
+} from '@/lib/copilot/vfs/resource-writer'
 import { isE2bEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -29,7 +35,6 @@ import {
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
-import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
@@ -48,6 +53,8 @@ const TAG_PATTERN = createReferencePattern()
 
 const E2B_JS_WRAPPER_LINES = 3
 const E2B_PYTHON_WRAPPER_LINES = 1
+const MAX_SANDBOX_OUTPUT_FILES = 20
+const MAX_SANDBOX_OUTPUT_BYTES = 50 * 1024 * 1024
 
 /** Matches valid JS identifier names (letters, digits, underscore; no leading digit). */
 const SAFE_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/
@@ -865,6 +872,8 @@ async function maybeExportSandboxFileToWorkspace(args: {
   outputFormat?: string
   outputMimeType?: string
   outputSandboxPath?: string
+  overwriteFileId?: string
+  outputMode?: 'create' | 'overwrite'
   exportedFileContent?: string
   stdout: string
   executionTime: number
@@ -877,6 +886,8 @@ async function maybeExportSandboxFileToWorkspace(args: {
     outputFormat,
     outputMimeType,
     outputSandboxPath,
+    overwriteFileId,
+    outputMode,
     exportedFileContent,
     stdout,
     executionTime,
@@ -933,28 +944,280 @@ async function maybeExportSandboxFileToWorkspace(args: {
     ? Buffer.from(exportedFileContent, 'base64')
     : Buffer.from(exportedFileContent, 'utf-8')
 
-  const uploaded = await uploadWorkspaceFile(
-    resolvedWorkspaceId,
-    authUserId,
-    fileBuffer,
-    fileName,
-    resolvedMimeType
+  const targetPath = overwriteFileId || outputPath
+  const mode = outputMode ?? (overwriteFileId ? 'overwrite' : 'create')
+
+  try {
+    const written = await writeWorkspaceFileByPath({
+      workspaceId: resolvedWorkspaceId,
+      userId: authUserId,
+      target: {
+        path: targetPath,
+        mode,
+        mimeType: outputMimeType,
+      },
+      buffer: fileBuffer,
+      inferredMimeType: resolvedMimeType,
+    })
+    logger.info('Sandbox file exported to workspace', {
+      fileId: written.id,
+      vfsPath: written.vfsPath,
+      sandboxPath: outputSandboxPath,
+      mode,
+      mimeType: resolvedMimeType,
+      size: fileBuffer.length,
+    })
+    return NextResponse.json({
+      success: true,
+      output: {
+        result: {
+          message: `Sandbox file exported to ${written.vfsPath}`,
+          fileId: written.id,
+          fileName: written.name,
+          vfsPath: written.vfsPath,
+          downloadUrl: written.downloadUrl,
+          sandboxPath: outputSandboxPath,
+        },
+        stdout: cleanStdout(stdout),
+        executionTime,
+      },
+      resources: [{ type: 'file', id: written.id, title: written.name, path: written.vfsPath }],
+    })
+  } catch (error) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to export sandbox file',
+        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+      },
+      { status: 400 }
+    )
+  }
+}
+
+async function maybeExportSandboxFilesToWorkspace(args: {
+  authUserId: string
+  workflowId?: string
+  workspaceId?: string
+  outputFiles: OutputFileDeclaration[]
+  exportedFiles?: Record<string, string>
+  exportedFileContent?: string
+  stdout: string
+  executionTime: number
+}) {
+  const sandboxFiles = args.outputFiles.filter((file) => file.sandboxPath)
+  if (sandboxFiles.length === 0) return null
+  if (sandboxFiles.length > MAX_SANDBOX_OUTPUT_FILES) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Too many sandbox output files requested (${sandboxFiles.length}). Maximum is ${MAX_SANDBOX_OUTPUT_FILES}.`,
+        output: {
+          result: null,
+          stdout: cleanStdout(args.stdout),
+          executionTime: args.executionTime,
+        },
+      },
+      { status: 400 }
+    )
+  }
+
+  if (sandboxFiles.length === 1) {
+    const file = sandboxFiles[0]
+    return maybeExportSandboxFileToWorkspace({
+      authUserId: args.authUserId,
+      workflowId: args.workflowId,
+      workspaceId: args.workspaceId,
+      outputPath: file.formatPath ?? file.path,
+      outputFormat: file.format,
+      outputMimeType: file.mimeType,
+      outputSandboxPath: file.sandboxPath,
+      outputMode: file.mode,
+      exportedFileContent:
+        (file.sandboxPath ? args.exportedFiles?.[file.sandboxPath] : undefined) ??
+        args.exportedFileContent,
+      stdout: args.stdout,
+      executionTime: args.executionTime,
+    })
+  }
+
+  const resolvedWorkspaceId =
+    args.workspaceId ||
+    (args.workflowId ? (await getWorkflowById(args.workflowId))?.workspaceId : undefined)
+  if (!resolvedWorkspaceId) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Workspace context required to save sandbox files to workspace',
+        output: {
+          result: null,
+          stdout: cleanStdout(args.stdout),
+          executionTime: args.executionTime,
+        },
+      },
+      { status: 400 }
+    )
+  }
+
+  const preparedFiles = []
+  let totalOutputBytes = 0
+  for (const file of sandboxFiles) {
+    const sandboxPath = file.sandboxPath!
+    const content = args.exportedFiles?.[sandboxPath]
+    if (content === undefined) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Sandbox file "${sandboxPath}" was not found or could not be read`,
+          output: {
+            result: null,
+            stdout: cleanStdout(args.stdout),
+            executionTime: args.executionTime,
+          },
+        },
+        { status: 500 }
+      )
+    }
+    const fileName = normalizeOutputWorkspaceFileName(file.formatPath ?? file.path)
+    const resolvedMimeType =
+      file.mimeType ||
+      FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, file.format)] ||
+      'application/octet-stream'
+    const isBinary = !new Set(Object.values(FORMAT_TO_CONTENT_TYPE)).has(resolvedMimeType)
+    const size = Buffer.byteLength(content, isBinary ? 'base64' : 'utf-8')
+    totalOutputBytes += size
+    if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
+          output: {
+            result: null,
+            stdout: cleanStdout(args.stdout),
+            executionTime: args.executionTime,
+          },
+        },
+        { status: 400 }
+      )
+    }
+    preparedFiles.push({
+      file,
+      sandboxPath,
+      content,
+      resolvedMimeType,
+      isBinary,
+      size,
+      target: {
+        path: file.path,
+        mode: file.mode ?? 'create',
+        mimeType: file.mimeType,
+      },
+    })
+  }
+
+  let validationPaths: string[]
+  try {
+    const validations = await Promise.all(
+      preparedFiles.map((prepared) =>
+        validateWorkspaceFileWriteTarget({
+          workspaceId: resolvedWorkspaceId,
+          target: prepared.target,
+        })
+      )
+    )
+    validationPaths = validations.map((validation) => validation.vfsPath)
+  } catch (error) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Invalid sandbox output destination',
+        output: {
+          result: null,
+          stdout: cleanStdout(args.stdout),
+          executionTime: args.executionTime,
+        },
+      },
+      { status: 400 }
+    )
+  }
+  const duplicateDestination = validationPaths.find(
+    (vfsPath, index) => validationPaths.indexOf(vfsPath) !== index
   )
+  if (duplicateDestination) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Duplicate sandbox output destination: ${duplicateDestination}`,
+        output: {
+          result: null,
+          stdout: cleanStdout(args.stdout),
+          executionTime: args.executionTime,
+        },
+      },
+      { status: 400 }
+    )
+  }
+
+  const writtenFiles = []
+  try {
+    for (const prepared of preparedFiles) {
+      const buffer = prepared.isBinary
+        ? Buffer.from(prepared.content, 'base64')
+        : Buffer.from(prepared.content, 'utf-8')
+      const written = await writeWorkspaceFileByPath({
+        workspaceId: resolvedWorkspaceId,
+        userId: args.authUserId,
+        target: prepared.target,
+        buffer,
+        inferredMimeType: prepared.resolvedMimeType,
+      })
+      logger.info('Sandbox file exported to workspace', {
+        fileId: written.id,
+        vfsPath: written.vfsPath,
+        sandboxPath: prepared.sandboxPath,
+        mode: prepared.file.mode ?? 'create',
+        mimeType: prepared.resolvedMimeType,
+        size: prepared.size,
+      })
+      writtenFiles.push({ ...written, sandboxPath: prepared.sandboxPath })
+    }
+  } catch (error) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to export sandbox files',
+        output: {
+          result: null,
+          stdout: cleanStdout(args.stdout),
+          executionTime: args.executionTime,
+        },
+      },
+      { status: 400 }
+    )
+  }
 
   return NextResponse.json({
     success: true,
     output: {
       result: {
-        message: `Sandbox file exported to files/${fileName}`,
-        fileId: uploaded.id,
-        fileName,
-        downloadUrl: uploaded.url,
-        sandboxPath: outputSandboxPath,
+        message: `Exported ${writtenFiles.length} sandbox files`,
+        files: writtenFiles.map((file) => ({
+          fileId: file.id,
+          fileName: file.name,
+          vfsPath: file.vfsPath,
+          downloadUrl: file.downloadUrl,
+          sandboxPath: file.sandboxPath,
+        })),
       },
-      stdout: cleanStdout(stdout),
-      executionTime,
+      stdout: cleanStdout(args.stdout),
+      executionTime: args.executionTime,
     },
-    resources: [{ type: 'file', id: uploaded.id, title: fileName }],
+    resources: writtenFiles.map((file) => ({
+      type: 'file',
+      id: file.id,
+      title: file.name,
+      path: file.vfsPath,
+    })),
   })
 }
 
@@ -990,6 +1253,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       outputFormat,
       outputMimeType,
       outputSandboxPath,
+      overwriteFileId,
+      outputs,
       envVars = {},
       blockData = {},
       blockNameMapping = {},
@@ -1007,6 +1272,26 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       _sandboxFiles,
     } = body
     sourceCodeForErrors = sourceCode
+    const outputFiles = getOutputFileDeclarations({
+      outputs,
+      outputPath,
+      outputFormat,
+      outputMimeType,
+      outputSandboxPath,
+      overwriteFileId,
+    })
+    const outputSandboxPaths = outputFiles
+      .map((file) => file.sandboxPath)
+      .filter((path): path is string => Boolean(path))
+    if (outputSandboxPaths.length > MAX_SANDBOX_OUTPUT_FILES) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Too many sandbox output files requested (${outputSandboxPaths.length}). Maximum is ${MAX_SANDBOX_OUTPUT_FILES}.`,
+        },
+        { status: 400 }
+      )
+    }
 
     const executionParams = { ...params }
     executionParams._context = undefined
@@ -1108,12 +1393,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         sandboxId,
         error: shellError,
         exportedFileContent,
+        exportedFiles,
       } = await executeShellInE2B({
         code: resolvedCode,
         envs: shellEnvs,
         timeoutMs: timeout,
         sandboxFiles: _sandboxFiles,
         outputSandboxPath,
+        outputSandboxPaths,
       })
       const executionTime = Date.now() - execStart
 
@@ -1136,15 +1423,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         )
       }
 
-      if (outputSandboxPath) {
-        const fileExportResponse = await maybeExportSandboxFileToWorkspace({
+      if (outputSandboxPaths.length > 0 || outputSandboxPath) {
+        const fileExportResponse = await maybeExportSandboxFilesToWorkspace({
           authUserId: auth.userId,
           workflowId,
           workspaceId,
-          outputPath,
-          outputFormat,
-          outputMimeType,
-          outputSandboxPath,
+          outputFiles,
+          exportedFiles,
           exportedFileContent,
           stdout: shellStdout,
           executionTime,
@@ -1237,12 +1522,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           sandboxId,
           error: e2bError,
           exportedFileContent,
+          exportedFiles,
         } = await executeInE2B({
           code: codeForE2B,
           language: CodeLanguage.JavaScript,
           timeoutMs: timeout,
           sandboxFiles: _sandboxFiles,
           outputSandboxPath,
+          outputSandboxPaths,
         })
         const executionTime = Date.now() - execStart
         stdout += e2bStdout
@@ -1273,15 +1560,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           )
         }
 
-        if (outputSandboxPath) {
-          const fileExportResponse = await maybeExportSandboxFileToWorkspace({
+        if (outputSandboxPaths.length > 0 || outputSandboxPath) {
+          const fileExportResponse = await maybeExportSandboxFilesToWorkspace({
             authUserId: auth.userId,
             workflowId,
             workspaceId,
-            outputPath,
-            outputFormat,
-            outputMimeType,
-            outputSandboxPath,
+            outputFiles,
+            exportedFiles,
             exportedFileContent,
             stdout,
             executionTime,
@@ -1324,12 +1609,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         sandboxId,
         error: e2bError,
         exportedFileContent,
+        exportedFiles,
       } = await executeInE2B({
         code: codeForE2B,
         language: CodeLanguage.Python,
         timeoutMs: timeout,
         sandboxFiles: _sandboxFiles,
         outputSandboxPath,
+        outputSandboxPaths,
       })
       const executionTime = Date.now() - execStart
       stdout += e2bStdout
@@ -1360,15 +1647,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         )
       }
 
-      if (outputSandboxPath) {
-        const fileExportResponse = await maybeExportSandboxFileToWorkspace({
+      if (outputSandboxPaths.length > 0 || outputSandboxPath) {
+        const fileExportResponse = await maybeExportSandboxFilesToWorkspace({
           authUserId: auth.userId,
           workflowId,
           workspaceId,
-          outputPath,
-          outputFormat,
-          outputMimeType,
-          outputSandboxPath,
+          outputFiles,
+          exportedFiles,
           exportedFileContent,
           stdout,
           executionTime,

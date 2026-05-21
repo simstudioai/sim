@@ -125,17 +125,47 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         fileName: {
           type: 'string',
           description:
-            'Workspace filename or slash-separated file path including extension, e.g. "main.py", "report.md", or "Reports/2026/report.md".',
+            'Backward-compatible workspace filename. Prefer outputs.files[0].path for new calls.',
+        },
+        outputs: {
+          type: 'object',
+          description: 'Workspace file output declarations using canonical VFS paths.',
+          properties: {
+            files: {
+              type: 'array',
+              description:
+                'Files to create or overwrite. Parent folders must already exist for create mode.',
+              items: {
+                type: 'object',
+                properties: {
+                  mimeType: {
+                    type: 'string',
+                    description: 'Optional MIME type override when inference is not enough.',
+                  },
+                  mode: {
+                    type: 'string',
+                    description: 'Create a new file or overwrite an existing file at path.',
+                    enum: ['create', 'overwrite'],
+                  },
+                  path: {
+                    type: 'string',
+                    description: 'Canonical destination VFS path, e.g. "files/Reports/result.csv".',
+                  },
+                },
+                required: ['path', 'mode'],
+              },
+            },
+          },
         },
       },
-      required: ['fileName'],
     },
     resultSchema: {
       type: 'object',
       properties: {
         data: {
           type: 'object',
-          description: 'Contains id (the fileId) and name.',
+          description:
+            'Contains id (internal file ID), name, and vfsPath. Use vfsPath for follow-up file tools.',
         },
         message: {
           type: 'string',
@@ -153,20 +183,17 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        name: {
+        path: {
           type: 'string',
-          description: 'Folder name.',
-        },
-        parentId: {
-          type: 'string',
-          description: 'Optional parent file-folder ID.',
+          description:
+            'Canonical folder VFS path to create, e.g. "files/Images" or "files/Reports/2026".',
         },
         workspaceId: {
           type: 'string',
           description: 'Optional workspace ID. Defaults to the current workspace.',
         },
       },
-      required: ['name'],
+      required: ['path'],
     },
     resultSchema: undefined,
   },
@@ -322,15 +349,16 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        fileIds: {
+        paths: {
           type: 'array',
-          description: 'Canonical workspace file IDs of the files to delete.',
+          description:
+            'Canonical workspace file VFS paths to delete, e.g. ["files/Reports/draft.md"].',
           items: {
             type: 'string',
           },
         },
       },
-      required: ['fileIds'],
+      required: ['paths'],
     },
     resultSchema: {
       type: 'object',
@@ -351,15 +379,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        folderIds: {
+        paths: {
           type: 'array',
-          description: 'The workspace file-folder IDs to delete.',
+          description: 'Canonical folder VFS paths to delete, e.g. ["files/Archive"].',
           items: {
             type: 'string',
           },
         },
       },
-      required: ['folderIds'],
+      required: ['paths'],
     },
     resultSchema: undefined,
   },
@@ -767,7 +795,37 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         fileName: {
           type: 'string',
           description:
-            'Optional workspace file name to save as. If omitted, the name is inferred from the response or URL.',
+            'Backward-compatible workspace file name. Prefer outputs.files[0].path for new calls.',
+        },
+        outputs: {
+          type: 'object',
+          description: 'Workspace file output declarations using canonical VFS paths.',
+          properties: {
+            files: {
+              type: 'array',
+              description:
+                'Files to create or overwrite. Parent folders must already exist for create mode.',
+              items: {
+                type: 'object',
+                properties: {
+                  mimeType: {
+                    type: 'string',
+                    description: 'Optional MIME type override when inference is not enough.',
+                  },
+                  mode: {
+                    type: 'string',
+                    description: 'Create a new file or overwrite an existing file at path.',
+                    enum: ['create', 'overwrite'],
+                  },
+                  path: {
+                    type: 'string',
+                    description: 'Canonical destination VFS path, e.g. "files/Reports/result.csv".',
+                  },
+                },
+                required: ['path', 'mode'],
+              },
+            },
+          },
         },
         url: {
           type: 'string',
@@ -865,20 +923,73 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description:
             'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with access to pre-installed CLI tools and workspace env vars as $VAR_NAME.',
         },
-        inputFiles: {
-          type: 'array',
+        inputs: {
+          type: 'object',
           description:
-            'Canonical workspace file IDs to mount in the sandbox. Discover IDs via read("files/{path}/{name}/meta.json") or glob("files/**/meta.json") / glob("files/by-id/*/meta.json"). Mounted path: /home/user/files/{fileId}/{originalName}. Example: ["wf_123"]',
-          items: {
-            type: 'string',
-          },
-        },
-        inputTables: {
-          type: 'array',
-          description:
-            'Table IDs to mount as CSV files in the sandbox. Each table appears at /home/user/tables/{tableId}.csv with a header row. Example: ["tbl_abc123"]',
-          items: {
-            type: 'string',
+            'Workspace resources to mount into the sandbox. Copy canonical VFS paths exactly from glob/read/grep output.',
+          properties: {
+            directories: {
+              type: 'array',
+              description:
+                'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/files/Reports".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                  },
+                },
+                required: ['path'],
+              },
+            },
+            files: {
+              type: 'array',
+              description: 'Workspace files to mount into the sandbox.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/files/Reports/sales.csv".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full sandbox path override. Omit to mount at /home/user/{path}.',
+                  },
+                },
+                required: ['path'],
+              },
+            },
+            tables: {
+              type: 'array',
+              description: 'Workspace tables to mount as CSV files.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description: 'Canonical VFS table path when available.',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description: 'Optional full sandbox path for the mounted CSV.',
+                  },
+                  tableId: {
+                    type: 'string',
+                    description: 'Workspace table ID.',
+                  },
+                },
+              },
+            },
           },
         },
         language: {
@@ -886,31 +997,55 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'Execution language.',
           enum: ['javascript', 'python', 'shell'],
         },
-        outputFormat: {
-          type: 'string',
-          description:
-            'Format for outputPath. Determines how the code result is serialized. If omitted, inferred from outputPath file extension.',
-          enum: ['json', 'csv', 'txt', 'md', 'html'],
-        },
-        outputMimeType: {
-          type: 'string',
-          description:
-            'MIME type for outputSandboxPath export. Required for binary files: image/png, image/jpeg, application/pdf, etc. Omit for text files.',
-        },
-        outputPath: {
-          type: 'string',
-          description:
-            'Pipe output directly to a NEW workspace file instead of returning in context. ALWAYS use this instead of a separate workspace_file write call. Use a root path like "files/result.json" — nested output paths are not supported.',
-        },
-        outputSandboxPath: {
-          type: 'string',
-          description:
-            'Path to a file created inside the sandbox that should be exported to the workspace. Use together with outputPath.',
-        },
         outputTable: {
           type: 'string',
           description:
             'Table ID to overwrite with the code\'s return value. Code MUST return an array of objects where keys match column names. All existing rows are replaced. Example: "tbl_abc123"',
+        },
+        outputs: {
+          type: 'object',
+          description:
+            'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+          properties: {
+            files: {
+              type: 'array',
+              description: 'File outputs. Parent folders must already exist for create mode.',
+              items: {
+                type: 'object',
+                properties: {
+                  format: {
+                    type: 'string',
+                    description: 'Optional serialization format for returned values.',
+                    enum: ['json', 'csv', 'txt', 'md', 'html'],
+                  },
+                  mimeType: {
+                    type: 'string',
+                    description: 'Optional MIME type override when inference is not enough.',
+                  },
+                  mode: {
+                    type: 'string',
+                    description: 'Create a new file or overwrite an existing file at path.',
+                    enum: ['create', 'overwrite'],
+                  },
+                  path: {
+                    type: 'string',
+                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                  },
+                },
+                required: ['path', 'mode'],
+              },
+            },
+          },
+        },
+        title: {
+          type: 'string',
+          description:
+            'Short user-visible label for this execution, e.g. "Clean customer CSV", "Revenue chart", or "Query GitHub issues".',
         },
       },
       required: ['code'],
@@ -944,71 +1079,122 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'Aspect ratio for the generated image.',
           enum: ['1:1', '16:9', '9:16', '4:3', '3:4'],
         },
-        fileName: {
-          type: 'string',
+        inputs: {
+          type: 'object',
           description:
-            'Output file name. Defaults to "generated-image.png". New generated images currently create root workspace files, so pass a plain file name, not a nested path.',
+            'Workspace resources to mount into the sandbox. Copy canonical VFS paths exactly from glob/read/grep output.',
+          properties: {
+            directories: {
+              type: 'array',
+              description:
+                'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/files/Reports".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                  },
+                },
+                required: ['path'],
+              },
+            },
+            files: {
+              type: 'array',
+              description: 'Workspace files to mount into the sandbox.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/files/Reports/sales.csv".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full sandbox path override. Omit to mount at /home/user/{path}.',
+                  },
+                },
+                required: ['path'],
+              },
+            },
+            tables: {
+              type: 'array',
+              description: 'Workspace tables to mount as CSV files.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description: 'Canonical VFS table path when available.',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description: 'Optional full sandbox path for the mounted CSV.',
+                  },
+                  tableId: {
+                    type: 'string',
+                    description: 'Workspace table ID.',
+                  },
+                },
+              },
+            },
+          },
         },
-        overwriteFileId: {
-          type: 'string',
+        outputs: {
+          type: 'object',
           description:
-            'If provided, overwrites the existing workspace file with this ID instead of creating a new file. Use this when the user asks to update, refine, or redo a previously generated image so the existing chat resource stays current instead of creating a duplicate like "image (1).png". The file ID is returned by previous generate_image or generate_visualization calls (fileId field), or can be found via read("files/by-id/{fileId}/meta.json").',
+            'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+          properties: {
+            files: {
+              type: 'array',
+              description: 'File outputs. Parent folders must already exist for create mode.',
+              items: {
+                type: 'object',
+                properties: {
+                  format: {
+                    type: 'string',
+                    description: 'Optional serialization format for returned values.',
+                    enum: ['json', 'csv', 'txt', 'md', 'html'],
+                  },
+                  mimeType: {
+                    type: 'string',
+                    description: 'Optional MIME type override when inference is not enough.',
+                  },
+                  mode: {
+                    type: 'string',
+                    description: 'Create a new file or overwrite an existing file at path.',
+                    enum: ['create', 'overwrite'],
+                  },
+                  path: {
+                    type: 'string',
+                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                  },
+                },
+                required: ['path', 'mode'],
+              },
+            },
+          },
         },
         prompt: {
           type: 'string',
           description:
             'Detailed text description of the image to generate, or editing instructions when used with editFileId.',
         },
-        referenceFileIds: {
-          type: 'array',
-          description:
-            'File IDs of workspace images to include as context for the generation. All images are sent alongside the prompt. Use for: editing a single image (1 file), compositing multiple images together (2+ files), style transfer, face swapping, etc. Order matters — list the primary/base image first. When revising an existing image in place, pair the primary file ID here with overwriteFileId set to that same ID.',
-          items: {
-            type: 'string',
-          },
-        },
       },
       required: ['prompt'],
-    },
-    resultSchema: undefined,
-  },
-  ['generate_visualization']: {
-    parameters: {
-      type: 'object',
-      properties: {
-        code: {
-          type: 'string',
-          description:
-            "Python code that generates a visualization using matplotlib. MUST call plt.savefig('/home/user/output.png', dpi=150, bbox_inches='tight') to produce output.",
-        },
-        fileName: {
-          type: 'string',
-          description:
-            'Output file name. Defaults to "chart.png". New visualization outputs currently create root workspace files, so pass a plain file name, not a nested path.',
-        },
-        inputFiles: {
-          type: 'array',
-          description:
-            'Canonical workspace file IDs to mount in the sandbox. Discover IDs via read("files/{path}/{name}/meta.json") or glob("files/**/meta.json") / glob("files/by-id/*/meta.json"). Mounted path: /home/user/files/{fileId}/{originalName}.',
-          items: {
-            type: 'string',
-          },
-        },
-        inputTables: {
-          type: 'array',
-          description:
-            "Table IDs to mount as CSV files in the sandbox. Each table appears at /home/user/tables/{tableId}.csv with a header row. Read with pandas: pd.read_csv('/home/user/tables/tbl_xxx.csv')",
-          items: {
-            type: 'string',
-          },
-        },
-        overwriteFileId: {
-          type: 'string',
-          description:
-            'If provided, overwrites the existing workspace file with this ID instead of creating a new file. Use this when the user asks to update, refine, or redo a previously generated chart so the existing chat resource stays current instead of creating a duplicate like "chart (1).png". The file ID is returned by previous generate_visualization or generate_image calls (fileId field), or can be found via read("files/by-id/{fileId}/meta.json").',
-        },
-      },
-      required: ['code'],
     },
     resultSchema: undefined,
   },
@@ -1387,10 +1573,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'boolean',
               description: 'Enable/disable a document (optional for update_document)',
             },
-            fileIds: {
+            filePaths: {
               type: 'array',
               description:
-                'Canonical workspace file IDs to add as documents (for add_file). Discover via read("files/{path}/{name}/meta.json") or glob("files/**/meta.json") / glob("files/by-id/*/meta.json").',
+                'Canonical workspace file VFS paths to add as documents (for add_file), e.g. ["files/Docs/handbook.pdf"].',
               items: {
                 type: 'string',
               },
@@ -1844,20 +2030,20 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        fileIds: {
+        destinationPath: {
+          type: 'string',
+          description:
+            'Canonical target folder path, e.g. "files/Images". Omit or pass "files" for root.',
+        },
+        paths: {
           type: 'array',
-          description: 'Canonical workspace file IDs to move.',
+          description: 'Canonical workspace file VFS paths to move, e.g. ["files/photo.png"].',
           items: {
             type: 'string',
           },
         },
-        folderId: {
-          type: 'string',
-          description:
-            'Target file-folder ID. Omit or pass empty string to move to workspace root.',
-        },
       },
-      required: ['fileIds'],
+      required: ['paths'],
     },
     resultSchema: undefined,
   },
@@ -1865,17 +2051,17 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        folderId: {
-          type: 'string',
-          description: 'The workspace file-folder ID to move.',
-        },
-        parentId: {
+        destinationPath: {
           type: 'string',
           description:
-            'Target parent file-folder ID. Omit or pass empty string to move to workspace root.',
+            'Canonical target parent folder path, e.g. "files/Archive". Omit or pass "files" for root.',
+        },
+        path: {
+          type: 'string',
+          description: 'Canonical folder VFS path to move, e.g. "files/Reports/2026".',
         },
       },
-      required: ['folderId'],
+      required: ['path'],
     },
     resultSchema: undefined,
   },
@@ -1951,14 +2137,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         resources: {
           type: 'array',
-          description: 'Array of resources to open. Each item must have type and id.',
+          description:
+            'Array of resources to open. Each item must have type and either id or, for files, path.',
           items: {
             type: 'object',
             properties: {
               id: {
                 type: 'string',
-                description:
-                  'Canonical resource ID. For type "file" this must be a UUID from the workspace file meta.json "id" field—never a VFS path or display name.',
+                description: 'Canonical resource ID for non-file resources.',
+              },
+              path: {
+                type: 'string',
+                description: 'Canonical VFS path for type "file", e.g. "files/Reports/report.pdf".',
               },
               type: {
                 type: 'string',
@@ -1966,7 +2156,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 enum: ['workflow', 'table', 'knowledgebase', 'file', 'log'],
               },
             },
-            required: ['type', 'id'],
+            required: ['type'],
           },
         },
       },
@@ -2073,17 +2263,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        fileId: {
-          type: 'string',
-          description: 'Canonical workspace file ID of the file to rename.',
-        },
         newName: {
           type: 'string',
           description:
             'New filename including extension, e.g. "draft_v2.md". Use move_file to move files between folders.',
         },
+        path: {
+          type: 'string',
+          description:
+            'Canonical workspace file VFS path to rename, e.g. "files/Reports/draft.md".',
+        },
       },
-      required: ['fileId', 'newName'],
+      required: ['path', 'newName'],
     },
     resultSchema: {
       type: 'object',
@@ -2108,16 +2299,16 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        folderId: {
-          type: 'string',
-          description: 'The workspace file-folder ID to rename.',
-        },
         name: {
           type: 'string',
           description: 'New folder name.',
         },
+        path: {
+          type: 'string',
+          description: 'Canonical folder VFS path to rename, e.g. "files/Reports/Old".',
+        },
       },
-      required: ['folderId', 'name'],
+      required: ['path', 'name'],
     },
     resultSchema: undefined,
   },
@@ -2760,15 +2951,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'string',
               description: "Table description (optional for 'create')",
             },
-            fileId: {
-              type: 'string',
-              description:
-                'Canonical workspace file ID for create_from_file/import_file. Discover via read("files/{path}/{name}/meta.json") or glob("files/**/meta.json") / glob("files/by-id/*/meta.json").',
-            },
             filePath: {
               type: 'string',
               description:
-                'Legacy workspace file reference for create_from_file/import_file. Prefer fileId.',
+                'Canonical workspace file VFS path for create_from_file/import_file, e.g. files/{path}/{name}.',
             },
             filter: {
               type: 'object',
@@ -3051,22 +3237,17 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         target: {
           type: 'object',
-          description: 'Explicit file target. Use kind=file_id + fileId for existing files.',
+          description: 'Explicit file target. Use kind=path + path for existing files.',
           properties: {
-            fileId: {
-              type: 'string',
-              description:
-                'Canonical existing workspace file ID. Required when target.kind=file_id.',
-            },
-            fileName: {
-              type: 'string',
-              description:
-                'Plain workspace filename including extension, e.g. "main.py" or "report.docx". Required when target.kind=new_file.',
-            },
             kind: {
               type: 'string',
               description: 'How the file target is identified.',
-              enum: ['new_file', 'file_id'],
+              enum: ['path'],
+            },
+            path: {
+              type: 'string',
+              description:
+                'Canonical existing workspace file VFS path, e.g. "files/Reports/report.md". Required when target.kind=path.',
             },
           },
           required: ['kind'],

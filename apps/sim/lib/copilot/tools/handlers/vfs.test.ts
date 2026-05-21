@@ -80,7 +80,7 @@ describe('vfs handlers oversize policy', () => {
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
     const result = await executeVfsRead(
-      { path: 'files/big.txt' },
+      { path: 'files/big.txt/content' },
       { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
     )
 
@@ -103,12 +103,35 @@ describe('vfs handlers oversize policy', () => {
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
     const result = await executeVfsRead(
-      { path: 'files/chess.png' },
+      { path: 'files/chess.png/content' },
       { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
     )
 
     expect(result.success).toBe(true)
     expect((result.output as { attachment?: { type: string } })?.attachment?.type).toBe('image')
+  })
+
+  it('passes through compiled file attachments even when oversized', async () => {
+    const vfs = makeVfs()
+    const largeBase64 = 'A'.repeat(TOOL_RESULT_MAX_INLINE_CHARS + 1)
+    vfs.readFileContent.mockResolvedValue({
+      content: 'Compiled file: report.pdf (500000 bytes, application/pdf)',
+      totalLines: 1,
+      attachment: {
+        type: 'file',
+        name: 'report.pdf',
+        source: { type: 'base64', media_type: 'application/pdf', data: largeBase64 },
+      },
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead(
+      { path: 'files/reports/report.pdf/compiled' },
+      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect((result.output as { attachment?: { type: string } })?.attachment?.type).toBe('file')
   })
 
   it('fails oversized image placeholder when image exceeds size limit', async () => {
@@ -120,11 +143,65 @@ describe('vfs handlers oversize policy', () => {
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
     const result = await executeVfsRead(
-      { path: 'files/huge.png' },
+      { path: 'files/huge.png/content' },
       { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
     )
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('too large')
+  })
+
+  it('reads canonical file leaf metadata without fetching dynamic content', async () => {
+    const vfs = makeVfs()
+    vfs.read.mockReturnValue({
+      content: '{"id":"wf_123","vfsPath":"files/report.csv"}',
+      totalLines: 1,
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead(
+      { path: 'files/report.csv' },
+      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(vfs.readFileContent).not.toHaveBeenCalled()
+    expect(vfs.read).toHaveBeenCalledWith('files/report.csv', undefined, undefined)
+  })
+
+  it('uses dynamic file reads for canonical style paths', async () => {
+    const vfs = makeVfs()
+    vfs.readFileContent.mockResolvedValue({
+      content: '{"format":"docx"}',
+      totalLines: 1,
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead(
+      { path: 'files/reports/brief.docx/style' },
+      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(vfs.readFileContent).toHaveBeenCalledWith('files/reports/brief.docx/style')
+    expect(vfs.read).not.toHaveBeenCalled()
+  })
+
+  it('uses dynamic file reads for canonical compiled paths', async () => {
+    const vfs = makeVfs()
+    vfs.readFileContent.mockResolvedValue({
+      content: 'Compiled file: brief.pdf (1000 bytes, application/pdf)',
+      totalLines: 1,
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead(
+      { path: 'files/reports/brief.pdf/compiled' },
+      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(vfs.readFileContent).toHaveBeenCalledWith('files/reports/brief.pdf/compiled')
+    expect(vfs.read).not.toHaveBeenCalled()
   })
 })

@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { getTableById, queryRows } from '@/lib/table/service'
+import { encodeVfsPathSegments, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { getTableById, listTables, queryRows } from '@/lib/table/service'
+import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
   findWorkspaceFileRecord,
@@ -13,16 +15,55 @@ const logger = createLogger('CopilotFunctionExecute')
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const MAX_TOTAL_SIZE = 50 * 1024 * 1024
+const MAX_MOUNTED_FILES = 500
 
 interface SandboxFile {
   path: string
   content: string
+  encoding?: 'base64'
+}
+
+interface CanonicalFileInput {
+  path: string
+  sandboxPath?: string
+}
+
+interface CanonicalDirectoryInput {
+  path: string
+  sandboxPath?: string
+}
+
+interface CanonicalTableInput {
+  tableId?: string
+  path?: string
+  sandboxPath?: string
+}
+
+function tableNameFromVfsPath(tableRef: string): string | null {
+  if (!tableRef.startsWith('tables/')) return null
+  const segments = decodeVfsPathSegments(tableRef)
+  const metaIndex = segments.lastIndexOf('meta.json')
+  return segments[metaIndex > 0 ? metaIndex - 1 : segments.length - 1] ?? null
+}
+
+async function resolveTableRef(
+  tableRef: string,
+  tablePathLookup?: Map<string, Awaited<ReturnType<typeof listTables>>[number]>
+) {
+  if (!tableRef.startsWith('tables/')) {
+    return getTableById(tableRef)
+  }
+
+  const tableName = tableNameFromVfsPath(tableRef)
+  if (!tableName) return null
+  return tablePathLookup?.get(tableName) ?? null
 }
 
 async function resolveInputFiles(
   workspaceId: string,
   inputFiles?: unknown[],
-  inputTables?: unknown[]
+  inputTables?: unknown[],
+  inputDirectories?: unknown[]
 ): Promise<SandboxFile[]> {
   const sandboxFiles: SandboxFile[] = []
   let totalSize = 0
@@ -30,8 +71,14 @@ async function resolveInputFiles(
   if (inputFiles?.length && workspaceId) {
     const allFiles = await listWorkspaceFiles(workspaceId)
     for (const fileRef of inputFiles) {
-      if (typeof fileRef !== 'string') continue
-      const record = findWorkspaceFileRecord(allFiles, fileRef)
+      const filePath =
+        typeof fileRef === 'string'
+          ? fileRef
+          : fileRef && typeof fileRef === 'object'
+            ? (fileRef as CanonicalFileInput).path
+            : undefined
+      if (!filePath) continue
+      const record = findWorkspaceFileRecord(allFiles, filePath)
       if (!record) {
         logger.warn('Input file not found', { fileRef })
         continue
@@ -50,27 +97,130 @@ async function resolveInputFiles(
         record.type || ''
       )
       const content = isText ? buffer.toString('utf-8') : buffer.toString('base64')
+      const explicitSandboxPath =
+        typeof fileRef === 'object' && fileRef !== null
+          ? (fileRef as CanonicalFileInput).sandboxPath
+          : undefined
       sandboxFiles.push({
-        path: getSandboxWorkspaceFilePath(record),
+        path: explicitSandboxPath || getSandboxWorkspaceFilePath(record),
         content,
         encoding: isText ? undefined : 'base64',
-      } as SandboxFile)
+      })
+    }
+  }
+
+  if (inputDirectories?.length && workspaceId) {
+    const folders = await listWorkspaceFileFolders(workspaceId)
+    const allFiles = await listWorkspaceFiles(workspaceId, { folders })
+    for (const dirRef of inputDirectories) {
+      const dirPath =
+        typeof dirRef === 'string'
+          ? dirRef
+          : dirRef && typeof dirRef === 'object'
+            ? (dirRef as CanonicalDirectoryInput).path
+            : undefined
+      if (!dirPath) continue
+      const folderSegments = decodeVfsPathSegments(dirPath.replace(/^\/?files\/?/, ''))
+      const folderDisplayPath = folderSegments.join('/')
+      const folder = folders.find((candidate) => candidate.path === folderDisplayPath)
+      if (!folder) {
+        throw new Error(`Input directory not found: ${dirPath}`)
+      }
+      const mountRoot =
+        typeof dirRef === 'object' &&
+        dirRef !== null &&
+        (dirRef as CanonicalDirectoryInput).sandboxPath
+          ? (dirRef as CanonicalDirectoryInput).sandboxPath!
+          : `/home/user/files/${encodeVfsPathSegments(folder.path.split('/'))}`
+      const descendants = allFiles.filter((file) => {
+        if (!file.folderPath) return false
+        return file.folderPath === folder.path || file.folderPath.startsWith(`${folder.path}/`)
+      })
+      if (descendants.length > MAX_MOUNTED_FILES) {
+        throw new Error(
+          `Input directory contains too many files (${descendants.length}). Maximum is ${MAX_MOUNTED_FILES}. Mount a smaller directory or individual files.`
+        )
+      }
+      logger.info('Mounting workspace directory for function_execute', {
+        vfsPath: dirPath,
+        sandboxPath: mountRoot,
+        fileCount: descendants.length,
+      })
+      const childFolders = folders.filter(
+        (candidate) =>
+          candidate.path !== folder.path && candidate.path.startsWith(`${folder.path}/`)
+      )
+      if (descendants.length === 0 && childFolders.length === 0) {
+        sandboxFiles.push({ path: `${mountRoot}/.keep`, content: '' })
+        continue
+      }
+      for (const childFolder of childFolders) {
+        const hasFiles = descendants.some((file) => {
+          if (!file.folderPath) return false
+          return (
+            file.folderPath === childFolder.path ||
+            file.folderPath.startsWith(`${childFolder.path}/`)
+          )
+        })
+        if (!hasFiles) {
+          const relativeFolder = childFolder.path.slice(folder.path.length).replace(/^\/+/, '')
+          sandboxFiles.push({ path: `${mountRoot}/${relativeFolder}/.keep`, content: '' })
+        }
+      }
+      for (const record of descendants) {
+        if (record.size > MAX_FILE_SIZE) {
+          throw new Error(`Input file exceeds size limit: ${record.name}`)
+        }
+        if (totalSize + record.size > MAX_TOTAL_SIZE) {
+          throw new Error('Total input size limit exceeded while mounting directory')
+        }
+        const buffer = await fetchWorkspaceFileBuffer(record)
+        totalSize += buffer.length
+        const isText = /^text\/|application\/json|application\/xml|application\/csv/.test(
+          record.type || ''
+        )
+        const relativeFolder =
+          record.folderPath?.slice(folder.path.length).replace(/^\/+/, '') ?? ''
+        const relativePath = [relativeFolder, record.name].filter(Boolean).join('/')
+        sandboxFiles.push({
+          path: `${mountRoot}/${relativePath}`,
+          content: isText ? buffer.toString('utf-8') : buffer.toString('base64'),
+          encoding: isText ? undefined : 'base64',
+        })
+      }
     }
   }
 
   if (inputTables?.length) {
-    for (const tableId of inputTables) {
-      if (typeof tableId !== 'string') continue
-      const table = await getTableById(tableId)
+    const hasTablePathRefs = inputTables.some((tableRef) => {
+      const tableId =
+        typeof tableRef === 'string'
+          ? tableRef
+          : tableRef && typeof tableRef === 'object'
+            ? (tableRef as CanonicalTableInput).tableId || (tableRef as CanonicalTableInput).path
+            : undefined
+      return typeof tableId === 'string' && tableId.startsWith('tables/')
+    })
+    const tablePathLookup = hasTablePathRefs
+      ? new Map((await listTables(workspaceId)).map((table) => [table.name, table]))
+      : undefined
+    for (const tableRef of inputTables) {
+      const tableId =
+        typeof tableRef === 'string'
+          ? tableRef
+          : tableRef && typeof tableRef === 'object'
+            ? (tableRef as CanonicalTableInput).tableId || (tableRef as CanonicalTableInput).path
+            : undefined
+      if (!tableId) continue
+      const table = await resolveTableRef(tableId, tablePathLookup)
       if (!table || table.workspaceId !== workspaceId) {
         logger.warn('Input table not found', { tableId })
         continue
       }
       const rows = await queryRows(table, {}, 'copilot-fn-exec')
-      if (!rows.rows?.length) continue
 
-      const allKeys = new Set<string>()
-      for (const row of rows.rows) {
+      const allKeys = new Set(table.schema.columns.map((column) => column.name))
+      for (const row of rows.rows ?? []) {
         if (row.data && typeof row.data === 'object') {
           for (const key of Object.keys(row.data as Record<string, unknown>)) {
             allKeys.add(key)
@@ -79,7 +229,7 @@ async function resolveInputFiles(
       }
       const headers = Array.from(allKeys)
       const csvLines = [headers.join(',')]
-      for (const row of rows.rows) {
+      for (const row of rows.rows ?? []) {
         const data = (row.data || {}) as Record<string, unknown>
         csvLines.push(
           headers
@@ -94,8 +244,12 @@ async function resolveInputFiles(
         )
       }
       const csvContent = csvLines.join('\n')
+      const sandboxPath =
+        typeof tableRef === 'object' && tableRef !== null
+          ? (tableRef as CanonicalTableInput).sandboxPath
+          : undefined
       sandboxFiles.push({
-        path: `/home/user/tables/${tableId}.csv`,
+        path: sandboxPath || `/home/user/tables/${table.id}.csv`,
         content: csvContent,
       })
     }
@@ -118,11 +272,30 @@ export async function executeFunctionExecute(
   }
 
   if (context.workspaceId) {
-    const inputFiles = enrichedParams.inputFiles as unknown[] | undefined
-    const inputTables = enrichedParams.inputTables as unknown[] | undefined
+    const inputs = enrichedParams.inputs as
+      | {
+          files?: CanonicalFileInput[]
+          directories?: CanonicalDirectoryInput[]
+          tables?: CanonicalTableInput[]
+        }
+      | undefined
+    const inputFiles = [
+      ...((enrichedParams.inputFiles as unknown[] | undefined) ?? []),
+      ...(inputs?.files ?? []),
+    ]
+    const inputDirectories = inputs?.directories ?? []
+    const inputTables = [
+      ...((enrichedParams.inputTables as unknown[] | undefined) ?? []),
+      ...(inputs?.tables ?? []),
+    ]
 
-    if (inputFiles?.length || inputTables?.length) {
-      const resolved = await resolveInputFiles(context.workspaceId, inputFiles, inputTables)
+    if (inputFiles?.length || inputTables?.length || inputDirectories.length) {
+      const resolved = await resolveInputFiles(
+        context.workspaceId,
+        inputFiles,
+        inputTables,
+        inputDirectories
+      )
       if (resolved.length > 0) {
         const existing = (enrichedParams._sandboxFiles as SandboxFile[]) || []
         enrichedParams._sandboxFiles = [...existing, ...resolved]

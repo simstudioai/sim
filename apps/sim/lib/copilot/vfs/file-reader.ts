@@ -261,6 +261,7 @@ export interface FileReadResult {
   totalLines: number
   attachment?: {
     type: string
+    name?: string
     source: {
       type: 'base64'
       media_type: string
@@ -316,6 +317,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
             totalLines: 1,
             attachment: {
               type: 'image',
+              name: record.name,
               source: {
                 type: 'base64' as const,
                 media_type: prepared.mediaType,

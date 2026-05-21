@@ -219,15 +219,18 @@ export type OpenResourceType = MothershipResourceType
 export interface OpenResourceItem {
   type?: OpenResourceType
   id?: string
+  path?: string
 }
 
 export interface OpenResourceParams {
   resources?: OpenResourceItem[]
   type?: OpenResourceType
   id?: string
+  path?: string
 }
 
 export interface ValidOpenResourceParams {
   type: OpenResourceType
-  id: string
+  id?: string
+  path?: string
 }

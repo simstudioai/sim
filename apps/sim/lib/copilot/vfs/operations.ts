@@ -173,6 +173,10 @@ export function glob(files: Map<string, string>, pattern: string): string[] {
 
   const directories = new Set<string>()
   for (const filePath of files.keys()) {
+    if (filePath.endsWith('/.folder')) {
+      directories.add(filePath.slice(0, -'/.folder'.length))
+      continue
+    }
     const parts = filePath.split('/')
     for (let i = 1; i < parts.length; i++) {
       directories.add(parts.slice(0, i).join('/'))
@@ -180,6 +184,7 @@ export function glob(files: Map<string, string>, pattern: string): string[] {
   }
 
   for (const filePath of files.keys()) {
+    if (filePath.endsWith('/.folder')) continue
     if (micromatch.isMatch(filePath, pattern, VFS_GLOB_OPTIONS)) {
       result.add(filePath)
     }
@@ -249,6 +254,7 @@ export function list(files: Map<string, string>, path: string): DirEntry[] {
   const entries: DirEntry[] = []
 
   for (const filePath of files.keys()) {
+    if (filePath.endsWith('/.folder')) continue
     if (!filePath.startsWith(normalizedPath)) continue
 
     const remainder = filePath.slice(normalizedPath.length)

@@ -18,16 +18,17 @@ function serializedResultSize(value: unknown): number {
 function isOversizedReadPlaceholder(content: string): boolean {
   return (
     content.startsWith('[File too large to display inline:') ||
-    content.startsWith('[Image too large:')
+    content.startsWith('[Image too large:') ||
+    content.startsWith('[Compiled artifact too large:')
   )
 }
 
-function hasImageAttachment(result: unknown): boolean {
+function hasModelAttachment(result: unknown): boolean {
   if (!result || typeof result !== 'object') {
     return false
   }
   const attachment = (result as { attachment?: { type?: string } }).attachment
-  return attachment?.type === 'image'
+  return attachment?.type === 'image' || attachment?.type === 'file' || attachment?.type === 'document'
 }
 
 export async function executeVfsGrep(
@@ -161,15 +162,15 @@ export async function executeVfsRead(
       const filename = path.slice('uploads/'.length)
       const uploadResult = await readChatUpload(filename, context.chatId)
       if (uploadResult) {
-        const isImage = hasImageAttachment(uploadResult)
+        const isAttachment = hasModelAttachment(uploadResult)
         if (
-          !isImage &&
+          !isAttachment &&
           (isOversizedReadPlaceholder(uploadResult.content) ||
             serializedResultSize(uploadResult) > TOOL_RESULT_MAX_INLINE_CHARS)
         ) {
           logger.warn('Upload read result too large', {
             path,
-            hasAttachment: isImage,
+            hasAttachment: isAttachment,
             contentLength: uploadResult.content.length,
             serializedSize: serializedResultSize(uploadResult),
           })
@@ -184,7 +185,7 @@ export async function executeVfsRead(
         logger.debug('vfs_read resolved chat upload', {
           path,
           totalLines: uploadResult.totalLines,
-          hasAttachment: isImage,
+          hasAttachment: isAttachment,
           offset,
           limit,
         })
@@ -198,20 +199,24 @@ export async function executeVfsRead(
 
     const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
 
-    // For workspace file paths (files/ or recently-deleted/files/), try readFileContent
-    // first so images, PDFs, and documents get proper attachment/parsing handling rather
-    // than being served as raw VFS metadata text.
-    const fileContent = await vfs.readFileContent(path)
+    // Plain canonical file leaves are metadata resources. Dynamic file content
+    // and inspection paths use explicit suffixes like /content, /style,
+    // /compiled-check, or /compiled.
+    const shouldReadDynamicFileContent =
+      /^files\/by-id\/[^/]+\/(?:content|style|compiled-check|compiled)$/.test(path) ||
+      /^recently-deleted\/files\/.+\/content$/.test(path) ||
+      /^files\/.+\/(?:content|style|compiled-check|compiled)$/.test(path)
+    const fileContent = shouldReadDynamicFileContent ? await vfs.readFileContent(path) : null
     if (fileContent) {
-      const isImage = hasImageAttachment(fileContent)
+      const isAttachment = hasModelAttachment(fileContent)
       if (
-        !isImage &&
+        !isAttachment &&
         (isOversizedReadPlaceholder(fileContent.content) ||
           serializedResultSize(fileContent) > TOOL_RESULT_MAX_INLINE_CHARS)
       ) {
         logger.warn('File read result too large', {
           path,
-          hasAttachment: isImage,
+          hasAttachment: isAttachment,
           contentLength: fileContent.content.length,
           serializedSize: serializedResultSize(fileContent),
         })
@@ -226,7 +231,7 @@ export async function executeVfsRead(
       logger.debug('vfs_read resolved workspace file', {
         path,
         totalLines: fileContent.totalLines,
-        hasAttachment: isImage,
+        hasAttachment: isAttachment,
         offset,
         limit,
       })
@@ -247,7 +252,7 @@ export async function executeVfsRead(
       return { success: false, error: `File not found: ${path}.${hint}` }
     }
     if (
-      !hasImageAttachment(result) &&
+      !hasModelAttachment(result) &&
       (isOversizedReadPlaceholder(result.content) ||
         serializedResultSize(result) > TOOL_RESULT_MAX_INLINE_CHARS)
     ) {

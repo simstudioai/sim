@@ -6,12 +6,17 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  getWorkspaceFile,
+  resolveWorkspaceFileReference,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 
 const logger = createLogger('DeleteFileServerTool')
 
 interface DeleteFileArgs {
+  paths?: string[]
+  path?: string
   fileIds?: string[]
   fileId?: string
   args?: Record<string, unknown>
@@ -35,17 +40,32 @@ export const deleteFileServerTool: BaseServerTool<DeleteFileArgs, DeleteFileResu
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
     const nested = params.args
-    const fileIds: string[] =
+    const paths: string[] =
+      params.paths ??
+      (nested?.paths as string[] | undefined) ??
+      [params.path || (nested?.path as string) || ''].filter(Boolean)
+    const legacyFileIds: string[] =
       params.fileIds ??
       (nested?.fileIds as string[] | undefined) ??
       [params.fileId || (nested?.fileId as string) || ''].filter(Boolean)
 
-    if (fileIds.length === 0) return { success: false, message: 'fileIds is required' }
+    if (paths.length === 0 && legacyFileIds.length === 0) {
+      return { success: false, message: 'paths is required' }
+    }
 
     const deletable: { id: string; name: string }[] = []
     const failed: string[] = []
 
-    for (const fileId of fileIds) {
+    for (const path of paths) {
+      const existingFile = await resolveWorkspaceFileReference(workspaceId, path)
+      if (!existingFile) {
+        failed.push(path)
+        continue
+      }
+      deletable.push({ id: existingFile.id, name: existingFile.name })
+    }
+
+    for (const fileId of legacyFileIds) {
       const existingFile = await getWorkspaceFile(workspaceId, fileId)
       if (!existingFile) {
         failed.push(fileId)

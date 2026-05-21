@@ -89,7 +89,7 @@ async function resolveWorkspaceFile(
   const record = await resolveWorkspaceFileReference(workspaceId, fileReference)
   if (!record) {
     throw new Error(
-      `File not found: "${fileReference}". Use glob("files/by-id/*/meta.json") to list canonical file IDs.`
+      `File not found: "${fileReference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
     )
   }
   const buffer = await fetchWorkspaceFileBuffer(record)
@@ -738,7 +738,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return {
               success: false,
               message:
-                'fileId is required for create_from_file. Read files/{name}/meta.json or files/by-id/*/meta.json to get the canonical file ID.',
+                'fileId or filePath is required for create_from_file. Use a canonical VFS path from glob("files/**") or a file ID from read("files/{path}/{name}").',
             }
           }
           if (!workspaceId) {
@@ -803,7 +803,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return {
               success: false,
               message:
-                'fileId is required for import_file. Read files/{name}/meta.json or files/by-id/*/meta.json to get the canonical file ID.',
+                'fileId or filePath is required for import_file. Use a canonical VFS path from glob("files/**") or a file ID from read("files/{path}/{name}").',
             }
           }
           if (!tableId) {

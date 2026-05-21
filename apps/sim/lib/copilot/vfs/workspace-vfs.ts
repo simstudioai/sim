@@ -29,6 +29,7 @@ import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-read
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import type { DirEntry, GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
 import * as ops from '@/lib/copilot/vfs/operations'
+import { canonicalWorkspaceFilePath, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
 import {
   serializeApiKeys,
@@ -74,6 +75,7 @@ import {
   findWorkspaceFileRecord,
   getWorkspaceFile,
   listWorkspaceFiles,
+  type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
@@ -93,6 +95,7 @@ import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkspaceVFS')
+const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
 /** Static component files, computed once and shared across all VFS instances */
 let staticComponentFiles: Map<string, string> | null = null
@@ -321,8 +324,7 @@ function getStaticComponentFiles(): Map<string, string> {
  *   knowledgebases/{name}/documents.json
  *   knowledgebases/{name}/connectors.json
  *   tables/{name}/meta.json
- *   files/{name}/meta.json
- *   files/by-id/{id}/meta.json
+ *   files/{name}                         (workspace file leaf; dynamic content on read)
  *   files/by-id/{id}/style            (dynamic — style extraction for .docx/.pptx/.pdf)
  *   files/by-id/{id}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
  *   jobs/{title}/meta.json
@@ -392,7 +394,7 @@ export class WorkspaceVFS {
           workspaceId,
           error: toError(error).message,
         })
-        return { tools: [] }
+        return { tools: [], catalogContext: '' }
       }),
     ])
 
@@ -471,21 +473,96 @@ export class WorkspaceVFS {
     return ops.suggestSimilar(this.files, missingPath, max)
   }
 
+  private async resolveWorkspaceFileForDynamicRead(
+    path: string,
+    suffix: 'style' | 'compiled-check' | 'compiled'
+  ): Promise<WorkspaceFileRecord | null> {
+    const byIdMatch = path.match(new RegExp(`^files/by-id/([^/]+)/${suffix}$`))
+    if (byIdMatch?.[1]) {
+      return getWorkspaceFile(this._workspaceId, byIdMatch[1])
+    }
+
+    const canonicalMatch = path.match(new RegExp(`^files/(.+)/${suffix}$`))
+    if (!canonicalMatch?.[1]) return null
+
+    const files = await listWorkspaceFiles(this._workspaceId)
+    return findWorkspaceFileRecord(files, `files/${canonicalMatch[1]}`)
+  }
+
   /**
    * Attempt to read dynamic workspace file content from storage.
-   * Handles images (base64), parseable documents (PDF, etc.), and text files.
+   * Handles explicit /content reads for images, PDFs, documents, and text files.
    * Also handles:
-   *   `files/by-id/{id}/style`           — style extraction (.docx / .pptx / .pdf)
-   *   `files/by-id/{id}/compiled-check`  — compile JS-source binary files or validate Mermaid diagrams
-   * Returns null if the path doesn't match `files/{name}` / `files/by-id/{id}` or the file isn't found.
+   *   `files/{path}/{name}/style`           — style extraction (.docx / .pptx / .pdf)
+   *   `files/{path}/{name}/compiled-check`  — compile JS-source binary files or validate Mermaid diagrams
+   *   `files/{path}/{name}/compiled`        — compile JS-source binary files and return the compiled artifact as an attachment
+   * Legacy `files/by-id/{id}/...` dynamic paths remain supported as a compatibility adapter.
+   * Returns null if the path doesn't match a dynamic file path or the file isn't found.
    */
   async readFileContent(path: string): Promise<FileReadResult | null> {
-    // Handle compiled-check path: files/by-id/{id}/compiled-check
-    const compiledCheckMatch = path.match(/^files\/by-id\/([^/]+)\/compiled-check$/)
-    if (compiledCheckMatch) {
-      const fileId = compiledCheckMatch[1]
+    const compiledMatch = /^files\/(?:by-id\/[^/]+|.+)\/compiled$/.test(path)
+    if (compiledMatch) {
+      let record: WorkspaceFileRecord | null = null
       try {
-        const record = await getWorkspaceFile(this._workspaceId, fileId)
+        record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled')
+        if (!record) return null
+        const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
+        const taskId = BINARY_DOC_TASKS[ext]
+        if (!taskId) return null
+        const buffer = await fetchWorkspaceFileBuffer(record)
+        const code = buffer.toString('utf-8')
+        if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
+          return {
+            content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
+            totalLines: 1,
+          }
+        }
+        const compiled = await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+        if (compiled.length > MAX_COMPILED_ATTACHMENT_BYTES) {
+          return {
+            content: `[Compiled artifact too large: ${record.name} (${compiled.length} bytes, limit ${MAX_COMPILED_ATTACHMENT_BYTES})]`,
+            totalLines: 1,
+          }
+        }
+        const contentType =
+          ext === 'pdf'
+            ? 'application/pdf'
+            : ext === 'docx'
+              ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+              : 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        return {
+          content: `Compiled file: ${record.name} (${compiled.length} bytes, ${contentType})`,
+          totalLines: 1,
+          attachment: {
+            type: 'file',
+            name: record.name,
+            source: {
+              type: 'base64',
+              media_type: contentType,
+              data: compiled.toString('base64'),
+            },
+          },
+        }
+      } catch (err) {
+        logger.warn('Compiled artifact read failed via VFS', {
+          workspaceId: this._workspaceId,
+          path,
+          fileId: record?.id,
+          error: toError(err).message,
+        })
+        if (err instanceof SandboxUserCodeError) {
+          const json = JSON.stringify({ ok: false, error: toError(err).message, errorName: err.name })
+          return { content: json, totalLines: 1 }
+        }
+        return null
+      }
+    }
+
+    const compiledCheckMatch = /^files\/(?:by-id\/[^/]+|.+)\/compiled-check$/.test(path)
+    if (compiledCheckMatch) {
+      let record: WorkspaceFileRecord | null = null
+      try {
+        record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled-check')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
         const taskId = BINARY_DOC_TASKS[ext]
@@ -521,19 +598,19 @@ export class WorkspaceVFS {
       } catch (err) {
         logger.warn('Compiled check failed via VFS', {
           workspaceId: this._workspaceId,
-          fileId,
+          path,
+          fileId: record?.id,
           error: toError(err).message,
         })
         return null
       }
     }
 
-    // Handle style extraction path: files/by-id/{id}/style
-    const styleMatch = path.match(/^files\/by-id\/([^/]+)\/style$/)
+    const styleMatch = /^files\/(?:by-id\/[^/]+|.+)\/style$/.test(path)
     if (styleMatch) {
-      const fileId = styleMatch[1]
+      let record: WorkspaceFileRecord | null = null
       try {
-        const record = await getWorkspaceFile(this._workspaceId, fileId)
+        record = await this.resolveWorkspaceFileForDynamicRead(path, 'style')
         if (!record) return null
         const rawExt = record.name.split('.').pop()?.toLowerCase()
         if (rawExt !== 'docx' && rawExt !== 'pptx' && rawExt !== 'pdf') return null
@@ -546,15 +623,16 @@ export class WorkspaceVFS {
       } catch (err) {
         logger.warn('Failed to extract document style via VFS', {
           workspaceId: this._workspaceId,
-          fileId,
+          path,
+          fileId: record?.id,
           error: toError(err).message,
         })
         return null
       }
     }
 
-    const deletedMatch = path.match(/^recently-deleted\/files\/(.+?)(?:\/content)?$/)
-    const activeMatch = path.match(/^files\/(.+?)(?:\/content)?$/)
+    const deletedMatch = path.match(/^recently-deleted\/files\/(.+)\/content$/)
+    const activeMatch = path.match(/^files\/(.+)\/content$/)
     const match = deletedMatch || activeMatch
     if (!match) return null
     const fileReference = path
@@ -880,36 +958,25 @@ export class WorkspaceVFS {
    */
   private async materializeFiles(workspaceId: string): Promise<WorkspaceMdData['files']> {
     try {
-      const files = await listWorkspaceFiles(workspaceId)
+      const folders = await listWorkspaceFileFolders(workspaceId)
+      const files = await listWorkspaceFiles(workspaceId, { folders })
+      for (const folder of folders) {
+        this.files.set(`files/${encodeVfsPathSegments(folder.path.split('/'))}/.folder`, '')
+      }
 
       for (const file of files) {
-        const safeName = sanitizeName(file.name)
-        const safeFolderPath = file.folderPath
-          ?.split('/')
-          .map((segment) => sanitizeName(segment))
-          .join('/')
-        const fileVfsPath = safeFolderPath ? `${safeFolderPath}/${safeName}` : safeName
+        const filePath = canonicalWorkspaceFilePath({
+          folderPath: file.folderPath,
+          name: file.name,
+        })
         this.files.set(
-          `files/${fileVfsPath}/meta.json`,
+          filePath,
           serializeFileMeta({
             id: file.id,
             name: file.name,
             folderId: file.folderId,
             folderPath: file.folderPath,
-            vfsPath: `files/${fileVfsPath}`,
-            contentType: file.type,
-            size: file.size,
-            uploadedAt: file.uploadedAt,
-          })
-        )
-        this.files.set(
-          `files/by-id/${file.id}/meta.json`,
-          serializeFileMeta({
-            id: file.id,
-            name: file.name,
-            folderId: file.folderId,
-            folderPath: file.folderPath,
-            vfsPath: `files/${fileVfsPath}`,
+            vfsPath: filePath,
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
@@ -1464,20 +1531,19 @@ export class WorkspaceVFS {
       }
 
       for (const file of archivedFiles) {
-        const safeName = sanitizeName(file.name)
-        const safeFolderPath = file.folderPath
-          ?.split('/')
-          .map((segment) => sanitizeName(segment))
-          .join('/')
-        const fileVfsPath = safeFolderPath ? `${safeFolderPath}/${safeName}` : safeName
+        const filePath = canonicalWorkspaceFilePath({
+          folderPath: file.folderPath,
+          name: file.name,
+          prefix: 'recently-deleted/files',
+        })
         this.files.set(
-          `recently-deleted/files/${fileVfsPath}/meta.json`,
+          filePath,
           serializeFileMeta({
             id: file.id,
             name: file.name,
             folderId: file.folderId,
             folderPath: file.folderPath,
-            vfsPath: `recently-deleted/files/${fileVfsPath}`,
+            vfsPath: filePath,
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,

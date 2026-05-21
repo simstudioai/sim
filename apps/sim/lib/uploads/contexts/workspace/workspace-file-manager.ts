@@ -16,6 +16,7 @@ import {
   incrementStorageUsage,
 } from '@/lib/billing/storage'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
+import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
@@ -697,24 +698,24 @@ export function normalizeWorkspaceFileReference(fileReference: string): string {
   if (withoutDeletedPrefix.startsWith('files/')) {
     const withoutPrefix = withoutDeletedPrefix.slice('files/'.length)
     if (withoutPrefix.endsWith('/meta.json')) {
-      return withoutPrefix.slice(0, -'/meta.json'.length)
+      return decodeVfsPathSegments(withoutPrefix.slice(0, -'/meta.json'.length)).join('/')
     }
     if (withoutPrefix.endsWith('/content')) {
-      return withoutPrefix.slice(0, -'/content'.length)
+      return decodeVfsPathSegments(withoutPrefix.slice(0, -'/content'.length)).join('/')
     }
-    return withoutPrefix
+    return decodeVfsPathSegments(withoutPrefix).join('/')
   }
 
-  return withoutDeletedPrefix
+  return decodeVfsPathSegments(withoutDeletedPrefix).join('/')
 }
 
 /**
  * Canonical sandbox mount path for an existing workspace file.
  */
 export function getSandboxWorkspaceFilePath(
-  file: Pick<WorkspaceFileRecord, 'id' | 'name'>
+  file: Pick<WorkspaceFileRecord, 'folderPath' | 'name'>
 ): string {
-  return `/home/user/files/${file.id}/${file.name}`
+  return `/home/user/${canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name })}`
 }
 
 /**

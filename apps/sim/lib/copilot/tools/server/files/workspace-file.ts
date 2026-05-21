@@ -14,7 +14,9 @@ import {
   fetchWorkspaceFileBuffer as downloadWsFile,
   getWorkspaceFile,
   getWorkspaceFileByName,
+  resolveWorkspaceFileReference,
   uploadWorkspaceFile,
+  type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   performDeleteWorkspaceFileItems,
@@ -43,6 +45,11 @@ type WorkspaceFileTarget =
   | {
       kind: 'file_id'
       fileId: string
+      fileName?: string
+    }
+  | {
+      kind: 'path'
+      path: string
       fileName?: string
     }
 
@@ -195,6 +202,29 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
     const { operation } = normalized
     const workspaceId = context.workspaceId
 
+    const resolveExistingTarget = async (
+      target: WorkspaceFileTarget | undefined,
+      operationName: string
+    ): Promise<{ fileRecord?: WorkspaceFileRecord; error?: string }> => {
+      if (!target || (target.kind !== 'path' && target.kind !== 'file_id')) {
+        return { error: `${operationName} requires target.kind=path with target.path` }
+      }
+      const fileRecord =
+        target.kind === 'path'
+          ? await resolveWorkspaceFileReference(workspaceId!, target.path)
+          : await getWorkspaceFile(workspaceId!, target.fileId)
+      if (!fileRecord) {
+        const ref = target.kind === 'path' ? target.path : target.fileId
+        return { error: `File not found: ${ref}` }
+      }
+      if (target.fileName && target.fileName !== fileRecord.name) {
+        return {
+          error: `Target mismatch: "${target.fileName}" does not match resolved file "${fileRecord.name}"`,
+        }
+      }
+      return { fileRecord }
+    }
+
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
@@ -282,28 +312,13 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
         case 'append': {
           const target = normalized.target
-          if (!target || target.kind !== 'file_id') {
-            return {
-              success: false,
-              message: 'append requires target.kind=file_id with target.fileId',
-            }
-          }
-
-          const existingFile = await getWorkspaceFile(workspaceId, target.fileId)
-          if (!existingFile) {
-            return { success: false, message: `File with ID "${target.fileId}" not found` }
-          }
-          if (target.fileName && target.fileName !== existingFile.name) {
-            return {
-              success: false,
-              message: `Target mismatch: fileId "${target.fileId}" is "${existingFile.name}", not "${target.fileName}"`,
-            }
-          }
+          const { fileRecord: existingFile, error } = await resolveExistingTarget(target, 'append')
+          if (error || !existingFile) return { success: false, message: error || 'File not found' }
 
           const currentBuffer = await downloadWsFile(existingFile)
-          await storeFileIntent(workspaceId, target.fileId, {
+          await storeFileIntent(workspaceId, existingFile.id, {
             operation: 'append',
-            fileId: target.fileId,
+            fileId: existingFile.id,
             workspaceId,
             userId: context.userId,
             chatId: context.chatId,
@@ -326,27 +341,12 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
         case 'update': {
           const target = normalized.target
-          if (!target || target.kind !== 'file_id') {
-            return {
-              success: false,
-              message: 'update requires target.kind=file_id with target.fileId',
-            }
-          }
+          const { fileRecord, error } = await resolveExistingTarget(target, 'update')
+          if (error || !fileRecord) return { success: false, message: error || 'File not found' }
 
-          const fileRecord = await getWorkspaceFile(workspaceId, target.fileId)
-          if (!fileRecord) {
-            return { success: false, message: `File with ID "${target.fileId}" not found` }
-          }
-          if (target.fileName && target.fileName !== fileRecord.name) {
-            return {
-              success: false,
-              message: `Target mismatch: fileId "${target.fileId}" is "${fileRecord.name}", not "${target.fileName}"`,
-            }
-          }
-
-          await storeFileIntent(workspaceId, target.fileId, {
+          await storeFileIntent(workspaceId, fileRecord.id, {
             operation: 'update',
-            fileId: target.fileId,
+            fileId: fileRecord.id,
             workspaceId,
             userId: context.userId,
             chatId: context.chatId,
@@ -362,7 +362,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             message: withMessageId(
               `Intent set: update "${fileRecord.name}". Wait for this success result, then call edit_content in the next step with the replacement content. Do not call edit_content in parallel.`
             ),
-            data: { id: target.fileId, name: fileRecord.name, operation: 'update' },
+            data: { id: fileRecord.id, name: fileRecord.name, operation: 'update' },
           }
         }
 
@@ -450,20 +450,12 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
         case 'patch': {
           const target = normalized.target
-          if (!target || target.kind !== 'file_id') {
-            return {
-              success: false,
-              message: 'patch requires target.kind=file_id with target.fileId',
-            }
-          }
           if (!normalized.edit) {
             return { success: false, message: 'edit is required for patch operation' }
           }
 
-          const fileRecord = await getWorkspaceFile(workspaceId, target.fileId)
-          if (!fileRecord) {
-            return { success: false, message: `File with ID "${target.fileId}" not found` }
-          }
+          const { fileRecord, error } = await resolveExistingTarget(target, 'patch')
+          if (error || !fileRecord) return { success: false, message: error || 'File not found' }
 
           const currentBuffer = await downloadWsFile(fileRecord)
           const existingContent = currentBuffer.toString('utf-8')
@@ -497,9 +489,9 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
-          await storeFileIntent(workspaceId, target.fileId, {
+          await storeFileIntent(workspaceId, fileRecord.id, {
             operation: 'patch',
-            fileId: target.fileId,
+            fileId: fileRecord.id,
             workspaceId,
             userId: context.userId,
             chatId: context.chatId,
@@ -533,7 +525,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             message: withMessageId(
               `Intent set: patch "${fileRecord.name}" (${normalized.edit.strategy}). Wait for this success result, then call edit_content in the next step with the replacement/insert content. Do not call edit_content in parallel.`
             ),
-            data: { id: target.fileId, name: fileRecord.name, operation: 'patch' },
+            data: { id: fileRecord.id, name: fileRecord.name, operation: 'patch' },
           }
         }
 

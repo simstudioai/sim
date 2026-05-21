@@ -272,13 +272,15 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const fileIds: string[] =
-            args.fileIds ?? (args.fileId ? [args.fileId] : args.filePath ? [args.filePath] : [])
-          if (fileIds.length === 0) {
+          const fileRefs: string[] =
+            args.filePaths ??
+            args.fileIds ??
+            (args.fileId ? [args.fileId] : args.filePath ? [args.filePath] : [])
+          if (fileRefs.length === 0) {
             return {
               success: false,
               message:
-                'fileIds is required for add_file. Read files/{name}/meta.json or files/by-id/*/meta.json to get the canonical file IDs.',
+                'filePaths is required for add_file. Use canonical VFS file paths from glob("files/**").',
             }
           }
 
@@ -305,7 +307,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           const added: Array<{ documentId: string; filename: string }> = []
           const failedFiles: string[] = []
 
-          for (const fileRef of fileIds) {
+          for (const fileRef of fileRefs) {
             const fileRecord = await resolveWorkspaceFileReference(kbWorkspaceId, fileRef)
             if (!fileRecord) {
               failedFiles.push(fileRef)

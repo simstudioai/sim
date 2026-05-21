@@ -4,8 +4,9 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getWorkspaceFileMock } = vi.hoisted(() => ({
+const { getWorkspaceFileMock, resolveWorkspaceFileReferenceMock } = vi.hoisted(() => ({
   getWorkspaceFileMock: vi.fn(),
+  resolveWorkspaceFileReferenceMock: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -16,6 +17,7 @@ vi.mock('@sim/db/schema', () => ({}))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   getWorkspaceFile: getWorkspaceFileMock,
+  resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
 }))
 
 vi.mock('@/lib/workflows/utils', () => ({
@@ -55,6 +57,36 @@ describe('executeOpenResource', () => {
     )
 
     expect(getWorkspaceFileMock).toHaveBeenCalledWith('workspace-1', 'wf_qL_cfff-FskMsXtOdm599')
+    expect(result).toMatchObject({
+      success: true,
+      output: { opened: 1, errors: [] },
+      resources: [
+        {
+          type: 'file',
+          id: 'wf_qL_cfff-FskMsXtOdm599',
+          title: 'MAC_Brand_Guidelines_May_2021 (1).docx',
+        },
+      ],
+    })
+  })
+
+  it('opens workspace files by canonical VFS path', async () => {
+    resolveWorkspaceFileReferenceMock.mockResolvedValue({
+      id: 'wf_qL_cfff-FskMsXtOdm599',
+      name: 'MAC_Brand_Guidelines_May_2021 (1).docx',
+    })
+
+    const result = await executeOpenResource(
+      {
+        resources: [{ type: 'file', path: 'files/Docs/MAC_Brand_Guidelines.docx' }],
+      },
+      { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(resolveWorkspaceFileReferenceMock).toHaveBeenCalledWith(
+      'workspace-1',
+      'files/Docs/MAC_Brand_Guidelines.docx'
+    )
     expect(result).toMatchObject({
       success: true,
       output: { opened: 1, errors: [] },

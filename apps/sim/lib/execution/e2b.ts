@@ -1,4 +1,4 @@
-import { Sandbox } from '@e2b/code-interpreter'
+import type { Sandbox as E2BSandbox } from '@e2b/code-interpreter'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
 import { CodeLanguage } from '@/lib/execution/languages'
@@ -15,6 +15,7 @@ export interface E2BExecutionRequest {
   timeoutMs: number
   sandboxFiles?: SandboxFile[]
   outputSandboxPath?: string
+  outputSandboxPaths?: string[]
 }
 
 export interface E2BShellExecutionRequest {
@@ -23,6 +24,7 @@ export interface E2BShellExecutionRequest {
   timeoutMs: number
   sandboxFiles?: SandboxFile[]
   outputSandboxPath?: string
+  outputSandboxPaths?: string[]
 }
 
 export interface E2BExecutionResult {
@@ -31,21 +33,82 @@ export interface E2BExecutionResult {
   sandboxId?: string
   error?: string
   exportedFileContent?: string
+  exportedFiles?: Record<string, string>
   /** Base64-encoded PNG images captured from rich outputs (e.g. matplotlib figures). */
   images?: string[]
 }
 
 const logger = createLogger('E2BExecution')
 
-export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecutionResult> {
-  const { code, language, timeoutMs, outputSandboxPath } = req
-
+async function createE2BSandbox(kind: 'code' | 'shell'): Promise<E2BSandbox> {
   const apiKey = env.E2B_API_KEY
   if (!apiKey) {
     throw new Error('E2B_API_KEY is required when E2B is enabled')
   }
 
-  const sandbox = await Sandbox.create({ apiKey })
+  const templateName = env.MOTHERSHIP_E2B_TEMPLATE_ID
+  logger.info('Creating E2B sandbox', {
+    kind,
+    template: templateName || '(default)',
+  })
+  const { Sandbox } = await import('@e2b/code-interpreter')
+  return templateName ? Sandbox.create(templateName, { apiKey }) : Sandbox.create({ apiKey })
+}
+
+function shouldReadSandboxPathAsBase64(outputSandboxPath: string): boolean {
+  const ext = outputSandboxPath.slice(outputSandboxPath.lastIndexOf('.')).toLowerCase()
+  const binaryExts = new Set([
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.webp',
+    '.pdf',
+    '.zip',
+    '.mp3',
+    '.mp4',
+    '.docx',
+    '.pptx',
+    '.xlsx',
+  ])
+  return binaryExts.has(ext)
+}
+
+async function readSandboxOutputFile(
+  sandbox: E2BSandbox,
+  outputSandboxPath: string,
+  options?: { user?: string }
+): Promise<string | undefined> {
+  try {
+    if (shouldReadSandboxPathAsBase64(outputSandboxPath)) {
+      const b64Result = await sandbox.commands.run(`base64 -w0 "${outputSandboxPath}"`, options)
+      return b64Result.stdout
+    }
+    return await sandbox.files.read(outputSandboxPath)
+  } catch (error) {
+    logger.warn('Failed to read requested sandbox output file', {
+      outputSandboxPath,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return undefined
+  }
+}
+
+function requestedOutputSandboxPaths(req: {
+  outputSandboxPath?: string
+  outputSandboxPaths?: string[]
+}): string[] {
+  const paths = [...(req.outputSandboxPaths ?? [])]
+  if (req.outputSandboxPath && !paths.includes(req.outputSandboxPath)) {
+    paths.push(req.outputSandboxPath)
+  }
+  return paths
+}
+
+export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecutionResult> {
+  const { code, language, timeoutMs } = req
+
+  const sandbox = await createE2BSandbox('code')
   const sandboxId = sandbox.sandboxId
 
   if (req.sandboxFiles?.length) {
@@ -134,36 +197,23 @@ export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecuti
       }
     }
 
-    let exportedFileContent: string | undefined
-    if (outputSandboxPath) {
-      const ext = outputSandboxPath.slice(outputSandboxPath.lastIndexOf('.')).toLowerCase()
-      const binaryExts = new Set([
-        '.png',
-        '.jpg',
-        '.jpeg',
-        '.gif',
-        '.webp',
-        '.pdf',
-        '.zip',
-        '.mp3',
-        '.mp4',
-        '.docx',
-        '.pptx',
-        '.xlsx',
-      ])
-      if (binaryExts.has(ext)) {
-        const b64Result = await sandbox.commands.run(`base64 -w0 "${outputSandboxPath}"`)
-        exportedFileContent = b64Result.stdout
-      } else {
-        exportedFileContent = await sandbox.files.read(outputSandboxPath)
+    const exportedFiles: Record<string, string> = {}
+    for (const outputSandboxPath of requestedOutputSandboxPaths(req)) {
+      const content = await readSandboxOutputFile(sandbox, outputSandboxPath)
+      if (content !== undefined) {
+        exportedFiles[outputSandboxPath] = content
       }
     }
+    const exportedFileContent = req.outputSandboxPath
+      ? exportedFiles[req.outputSandboxPath]
+      : undefined
 
     return {
       result,
       stdout: cleanedStdout,
       sandboxId,
       exportedFileContent,
+      exportedFiles: Object.keys(exportedFiles).length ? exportedFiles : undefined,
       images: images.length ? images : undefined,
     }
   } finally {
@@ -176,20 +226,9 @@ export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecuti
 export async function executeShellInE2B(
   req: E2BShellExecutionRequest
 ): Promise<E2BExecutionResult> {
-  const { code, envs, timeoutMs, outputSandboxPath } = req
+  const { code, envs, timeoutMs } = req
 
-  const apiKey = env.E2B_API_KEY
-  if (!apiKey) {
-    throw new Error('E2B_API_KEY is required when E2B is enabled')
-  }
-
-  const templateName = env.MOTHERSHIP_E2B_TEMPLATE_ID
-  logger.info('Creating E2B shell sandbox', {
-    template: templateName || '(default)',
-  })
-  const sandbox = templateName
-    ? await Sandbox.create(templateName, { apiKey })
-    : await Sandbox.create({ apiKey })
+  const sandbox = await createE2BSandbox('shell')
   const sandboxId = sandbox.sandboxId
 
   if (req.sandboxFiles?.length) {
@@ -275,34 +314,26 @@ export async function executeShellInE2B(
       cleanedStdout = filteredLines.join('\n')
     }
 
-    let exportedFileContent: string | undefined
-    if (outputSandboxPath) {
-      const ext = outputSandboxPath.slice(outputSandboxPath.lastIndexOf('.')).toLowerCase()
-      const binaryExts = new Set([
-        '.png',
-        '.jpg',
-        '.jpeg',
-        '.gif',
-        '.webp',
-        '.pdf',
-        '.zip',
-        '.mp3',
-        '.mp4',
-        '.docx',
-        '.pptx',
-        '.xlsx',
-      ])
-      if (binaryExts.has(ext)) {
-        const b64Result = await sandbox.commands.run(`base64 -w0 "${outputSandboxPath}"`, {
-          user: 'root',
-        })
-        exportedFileContent = b64Result.stdout
-      } else {
-        exportedFileContent = await sandbox.files.read(outputSandboxPath)
+    const exportedFiles: Record<string, string> = {}
+    for (const outputSandboxPath of requestedOutputSandboxPaths(req)) {
+      const content = await readSandboxOutputFile(sandbox, outputSandboxPath, {
+        user: 'root',
+      })
+      if (content !== undefined) {
+        exportedFiles[outputSandboxPath] = content
       }
     }
+    const exportedFileContent = req.outputSandboxPath
+      ? exportedFiles[req.outputSandboxPath]
+      : undefined
 
-    return { result: parsed, stdout: cleanedStdout, sandboxId, exportedFileContent }
+    return {
+      result: parsed,
+      stdout: cleanedStdout,
+      sandboxId,
+      exportedFileContent,
+      exportedFiles: Object.keys(exportedFiles).length ? exportedFiles : undefined,
+    }
   } finally {
     try {
       await sandbox.kill()

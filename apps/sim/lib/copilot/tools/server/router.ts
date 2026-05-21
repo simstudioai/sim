@@ -7,7 +7,6 @@ import {
   DeleteFileFolder,
   DownloadToWorkspaceFile,
   GenerateImage,
-  GenerateVisualization,
   KnowledgeBase,
   ManageCredential,
   ManageCustomTool,
@@ -50,7 +49,6 @@ import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-
 import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
-import { generateVisualizationServerTool } from '@/lib/copilot/tools/server/visualization/generate-visualization'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { getExecutionSummaryServerTool } from '@/lib/copilot/tools/server/workflow/get-execution-summary'
 import { getWorkflowLogsServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-logs'
@@ -113,7 +111,6 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [MoveFileFolder.id]: ['*'],
   [DeleteFileFolder.id]: ['*'],
   [DownloadToWorkspaceFile.id]: ['*'],
-  [GenerateVisualization.id]: ['generate'],
   [GenerateImage.id]: ['generate'],
 }
 
@@ -155,7 +152,6 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [moveFileFolderServerTool.name]: moveFileFolderServerTool,
   [deleteFileFolderServerTool.name]: deleteFileFolderServerTool,
   [downloadToWorkspaceFileServerTool.name]: downloadToWorkspaceFileServerTool,
-  [generateVisualizationServerTool.name]: generateVisualizationServerTool,
   [generateImageServerTool.name]: generateImageServerTool,
 }
 
