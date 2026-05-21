@@ -44,6 +44,26 @@ const resolveFilePathsFromInput = (fileInput: unknown): string[] => {
   return resolved ? [resolved] : []
 }
 
+const resolveHttpFileUrl = (value: unknown): string => {
+  const fileUrl = typeof value === 'string' ? value.trim() : ''
+  if (!fileUrl) {
+    throw new Error('File URL is required')
+  }
+
+  let parsed: URL
+  try {
+    parsed = new URL(fileUrl)
+  } catch {
+    throw new Error('File URL must be a valid http or https URL')
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('File URL must use http or https')
+  }
+
+  return fileUrl
+}
+
 export const FileBlock: BlockConfig<FileParserOutput> = {
   type: 'file',
   name: 'File (Legacy)',
@@ -733,11 +753,7 @@ export const FileV4Block: BlockConfig<FileParserV3Output> = {
         }
 
         if (operation === 'file_fetch') {
-          const fileUrl = typeof params.fileUrl === 'string' ? params.fileUrl.trim() : ''
-          if (!fileUrl) {
-            logger.error('No file URL provided')
-            throw new Error('File URL is required')
-          }
+          const fileUrl = resolveHttpFileUrl(params.fileUrl)
 
           return {
             filePath: fileUrl,

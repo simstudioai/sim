@@ -144,6 +144,7 @@ describe('Azure Blob Storage Client', () => {
             callback()
           }
         }),
+        off: vi.fn(() => mockReadableStream),
       }
 
       mockDownload.mockResolvedValueOnce({
@@ -155,6 +156,24 @@ describe('Azure Blob Storage Client', () => {
       expect(mockGetBlockBlobClient).toHaveBeenCalledWith(testKey)
       expect(mockDownload).toHaveBeenCalled()
       expect(result).toEqual(testContent)
+    })
+
+    it('should destroy the opened stream when content length exceeds the limit', async () => {
+      const mockDestroy = vi.fn()
+      const mockReadableStream = {
+        destroy: mockDestroy,
+        on: vi.fn(() => mockReadableStream),
+      }
+
+      mockDownload.mockResolvedValueOnce({
+        readableStreamBody: mockReadableStream,
+        contentLength: 1024,
+      })
+
+      await expect(downloadFromBlob('large-file-key', undefined, 10)).rejects.toThrow(
+        'storage download exceeds maximum size'
+      )
+      expect(mockDestroy).toHaveBeenCalledWith(expect.any(Error))
     })
   })
 

@@ -1,33 +1,22 @@
-import { createLogger } from '@sim/logger'
-import { presentationUrl } from '@/tools/google_slides/utils'
+import type { UserFile } from '@/executor/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('GoogleSlidesExportPresentationTool')
-
-interface ExportPresentationParams {
+export interface ExportPresentationParams {
   accessToken: string
   presentationId: string
   exportFormat?: 'PDF' | 'PPTX' | 'ODP' | 'TXT' | 'PNG' | 'JPEG' | 'SVG'
+  _context?: Record<string, unknown>
 }
 
-interface ExportPresentationResponse {
+export interface ExportPresentationResponse {
   success: boolean
   output: {
-    contentBase64: string
+    contentBase64?: string
+    file?: UserFile & { mimeType?: string }
     mimeType: string
     sizeBytes: number
     metadata: { presentationId: string; url: string; exportFormat: string }
   }
-}
-
-const FORMAT_TO_MIME: Record<string, string> = {
-  PDF: 'application/pdf',
-  PPTX: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  ODP: 'application/vnd.oasis.opendocument.presentation',
-  TXT: 'text/plain',
-  PNG: 'image/png',
-  JPEG: 'image/jpeg',
-  SVG: 'image/svg+xml',
 }
 
 export const exportPresentationTool: ToolConfig<
@@ -37,7 +26,7 @@ export const exportPresentationTool: ToolConfig<
   id: 'google_slides_export_presentation',
   name: 'Export Google Slides Presentation',
   description:
-    'Export a presentation to PDF, PPTX, ODP, TXT, PNG, JPEG, or SVG via the Drive export endpoint. Returns the file content base64-encoded.',
+    'Export a presentation to PDF, PPTX, ODP, TXT, PNG, JPEG, or SVG via the Drive export endpoint. Stores the exported file as an execution file when execution context is available.',
   version: '1.0.0',
 
   oauth: { required: true, provider: 'google-drive' },
@@ -64,58 +53,45 @@ export const exportPresentationTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const presentationId = params.presentationId?.trim()
-      if (!presentationId) throw new Error('Presentation ID is required')
-      const format = (params.exportFormat || 'PDF').toUpperCase()
-      const mime = FORMAT_TO_MIME[format]
-      if (!mime) throw new Error(`Unsupported export format: ${format}`)
-      return `https://www.googleapis.com/drive/v3/files/${presentationId}/export?mimeType=${encodeURIComponent(mime)}`
-    },
-    method: 'GET',
-    headers: (params) => {
-      if (!params.accessToken) throw new Error('Access token is required')
-      return { Authorization: `Bearer ${params.accessToken}` }
-    },
+    url: '/api/tools/google_slides/export-presentation',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      accessToken: params.accessToken,
+      presentationId: params.presentationId,
+      exportFormat: params.exportFormat,
+      workspaceId:
+        typeof params._context?.workspaceId === 'string' ? params._context.workspaceId : undefined,
+      workflowId:
+        typeof params._context?.workflowId === 'string' ? params._context.workflowId : undefined,
+      executionId:
+        typeof params._context?.executionId === 'string' ? params._context.executionId : undefined,
+    }),
   },
 
-  transformResponse: async (response: Response, params) => {
-    if (!response.ok) {
-      let errorMessage = `Failed to export presentation (status ${response.status})`
-      try {
-        const data = await response.json()
-        errorMessage = data.error?.message || errorMessage
-        logger.error('Drive API error during export:', { data })
-      } catch {
-        // Body wasn't JSON — fall through with default error message.
-      }
-      throw new Error(errorMessage)
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    if (!response.ok || data.success === false) {
+      throw new Error(data.error || 'Failed to export presentation')
     }
-
-    const buffer = await response.arrayBuffer()
-    const contentBase64 = Buffer.from(buffer).toString('base64')
-
-    const presentationId = params?.presentationId?.trim() || ''
-    const format = (params?.exportFormat || 'PDF').toUpperCase()
-    const mime = FORMAT_TO_MIME[format] ?? 'application/octet-stream'
 
     return {
       success: true,
-      output: {
-        contentBase64,
-        mimeType: mime,
-        sizeBytes: buffer.byteLength,
-        metadata: {
-          presentationId,
-          url: presentationUrl(presentationId),
-          exportFormat: format,
-        },
-      },
+      output: data.output,
     }
   },
 
   outputs: {
-    contentBase64: { type: 'string', description: 'Base64-encoded exported file content' },
+    file: {
+      type: 'file',
+      description: 'Stored exported presentation file',
+      optional: true,
+    },
+    contentBase64: {
+      type: 'string',
+      description: 'Deprecated legacy inline content. New exports return file.',
+      optional: true,
+    },
     mimeType: { type: 'string', description: 'MIME type of the exported content' },
     sizeBytes: { type: 'number', description: 'Size of the exported content in bytes' },
     metadata: {

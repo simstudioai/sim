@@ -5,6 +5,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListFilesContract, v1UploadFileFormFieldsSchema } from '@/lib/api/contracts/v1/files'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  isPayloadSizeLimitError,
+  readFileToBufferWithLimit,
+  readFormDataWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   FileConflictError,
@@ -25,6 +30,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
+const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 /** GET /api/v1/files — List all files in a workspace. */
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -83,8 +89,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     let formData: FormData
     try {
-      formData = await request.formData()
-    } catch {
+      formData = await readFormDataWithLimit(request, {
+        maxBytes: MAX_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES,
+        label: 'workspace file upload body',
+      })
+    } catch (error) {
+      if (isPayloadSizeLimitError(error)) {
+        return NextResponse.json({ error: error.message }, { status: 413 })
+      }
       return NextResponse.json(
         { error: 'Request body must be valid multipart form data' },
         { status: 400 }
@@ -117,14 +129,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         {
           error: `File size exceeds 100MB limit (${(file.size / (1024 * 1024)).toFixed(2)}MB)`,
         },
-        { status: 400 }
+        { status: 413 }
       )
     }
 
     const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (accessError) return accessError
 
-    const buffer = Buffer.from(await file.arrayBuffer())
+    const buffer = await readFileToBufferWithLimit(file, {
+      maxBytes: MAX_FILE_SIZE,
+      label: 'workspace upload file',
+    })
 
     const userFile = await uploadWorkspaceFile(
       workspaceId,
@@ -172,6 +187,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
+    if (isPayloadSizeLimitError(error)) {
+      return NextResponse.json({ error: error.message }, { status: 413 })
+    }
+
     const errorMessage = getErrorMessage(error, 'Failed to upload file')
     const isDuplicate =
       error instanceof FileConflictError || errorMessage.includes('already exists')

@@ -152,6 +152,18 @@ export interface WorkflowExecutionLog {
       }
     >
     executionState?: SerializableExecutionState
+    executionStateSummary?: {
+      executedBlockCount: number
+      blockLogCount: number
+      completedLoopCount: number
+      activeExecutionPathLength: number
+      pendingQueueLength: number
+    }
+    executionDataTruncated?: boolean
+    executionDataOriginalBytes?: number
+    executionDataStoredBytes?: number
+    executionDataMaxBytes?: number
+    executionDataTruncationReason?: string
     finalOutput?: any
     workflowInput?: unknown
     errorDetails?: {

@@ -42,6 +42,14 @@ async function filterLargeValueKeysWithoutRetainedReferences(
   if (keys.length === 0 || deletedLogIds.length === 0) return []
 
   const uniqueKeys = Array.from(new Set(keys))
+  const workspaceIds = Array.from(
+    new Set(
+      uniqueKeys
+        .map((key) => key.split('/')[1])
+        .filter((workspaceId): workspaceId is string => Boolean(workspaceId))
+    )
+  )
+  if (workspaceIds.length === 0) return []
   const referencedKeys = new Set<string>()
 
   for (const keyChunk of chunkArray(uniqueKeys, REFERENCE_CHECK_KEY_CHUNK_SIZE)) {
@@ -49,7 +57,8 @@ async function filterLargeValueKeysWithoutRetainedReferences(
       SELECT DISTINCT k.key AS key
       FROM ${workflowExecutionLogs} AS wel,
            unnest(${keyChunk}::text[]) AS k(key)
-      WHERE wel.id <> ALL(${deletedLogIds}::text[])
+      WHERE wel.workspace_id = ANY(${workspaceIds}::text[])
+        AND wel.id <> ALL(${deletedLogIds}::text[])
         AND position(k.key in wel.execution_data::text) > 0
     `)
     for (const row of rows) referencedKeys.add(row.key)
@@ -120,6 +129,7 @@ async function cleanupWorkflowExecutionLogs(
       db
         .select({
           id: workflowExecutionLogs.id,
+          workspaceId: workflowExecutionLogs.workspaceId,
           executionId: workflowExecutionLogs.executionId,
           executionData: workflowExecutionLogs.executionData,
           files: workflowExecutionLogs.files,

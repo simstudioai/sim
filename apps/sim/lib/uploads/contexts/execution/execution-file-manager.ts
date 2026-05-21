@@ -1,12 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
-import { StorageService } from '@/lib/uploads'
 import type { ExecutionContext } from '@/lib/uploads/contexts/execution/utils'
 import { generateExecutionFileKey, generateFileId } from '@/lib/uploads/contexts/execution/utils'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionFileStorage')
+
+async function getStorageService() {
+  return import('@/lib/uploads/core/storage-service')
+}
 
 function isSerializedBuffer(value: unknown): value is { type: string; data: number[] } {
   return (
@@ -91,6 +95,7 @@ export async function uploadExecutionFile(
   }
 
   try {
+    const StorageService = await getStorageService()
     const fileInfo = await StorageService.uploadFile({
       file: fileBuffer,
       fileName: storageKey,
@@ -130,13 +135,18 @@ export async function uploadExecutionFile(
 /**
  * Download a file from execution-scoped storage
  */
-export async function downloadExecutionFile(userFile: UserFile): Promise<Buffer> {
+export async function downloadExecutionFile(
+  userFile: UserFile,
+  options: { maxBytes?: number } = {}
+): Promise<Buffer> {
   logger.info(`Downloading execution file: ${userFile.name}`)
 
   try {
+    const StorageService = await getStorageService()
     const fileBuffer = await StorageService.downloadFile({
       key: userFile.key,
       context: 'execution',
+      ...(options.maxBytes === undefined ? {} : { maxBytes: options.maxBytes }),
     })
 
     logger.info(
@@ -144,6 +154,9 @@ export async function downloadExecutionFile(userFile: UserFile): Promise<Buffer>
     )
     return fileBuffer
   } catch (error) {
+    if (isPayloadSizeLimitError(error)) {
+      throw error
+    }
     logger.error(`Failed to download execution file ${userFile.name}:`, error)
     throw new Error(`Failed to download file: ${getErrorMessage(error, 'Unknown error')}`)
   }
