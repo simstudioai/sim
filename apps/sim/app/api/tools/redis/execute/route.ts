@@ -41,17 +41,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const port = parsedUrl.port ? Number(parsedUrl.port) : 6379
     const username = parsedUrl.username ? decodeURIComponent(parsedUrl.username) : undefined
     const password = parsedUrl.password ? decodeURIComponent(parsedUrl.password) : undefined
-    const dbIndex =
-      parsedUrl.pathname && parsedUrl.pathname.length > 1
-        ? Number.parseInt(parsedUrl.pathname.slice(1), 10)
-        : Number.NaN
+
+    let db = 0
+    if (parsedUrl.pathname && parsedUrl.pathname.length > 1) {
+      const dbSegment = parsedUrl.pathname.slice(1)
+      const parsedDb = Number.parseInt(dbSegment, 10)
+      if (!Number.isFinite(parsedDb) || String(parsedDb) !== dbSegment) {
+        return NextResponse.json(
+          { error: `Invalid Redis database index in URL path: '${dbSegment}'` },
+          { status: 400 }
+        )
+      }
+      db = parsedDb
+    }
 
     client = new Redis({
       host: resolvedIP,
       port,
       username,
       password,
-      db: Number.isFinite(dbIndex) ? dbIndex : 0,
+      db,
       family: resolvedIP.includes(':') ? 6 : 4,
       tls: tlsEnabled ? { servername: hostname } : undefined,
       connectTimeout: 10000,
