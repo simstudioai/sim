@@ -1,7 +1,13 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -41,6 +47,9 @@ export const mcpKeys = {
   serversList: (workspaceId?: string) => [...mcpKeys.servers(), workspaceId ?? ''] as const,
   tools: () => [...mcpKeys.all, 'tools'] as const,
   toolsList: (workspaceId?: string) => [...mcpKeys.tools(), workspaceId ?? ''] as const,
+  serverTools: () => [...mcpKeys.all, 'serverTools'] as const,
+  serverToolsList: (workspaceId?: string, serverId?: string) =>
+    [...mcpKeys.serverTools(), workspaceId ?? '', serverId ?? ''] as const,
   storedTools: () => [...mcpKeys.all, 'storedTools'] as const,
   storedToolsList: (workspaceId?: string) => [...mcpKeys.storedTools(), workspaceId ?? ''] as const,
   allowedDomains: () => [...mcpKeys.all, 'allowedDomains'] as const,
@@ -92,11 +101,16 @@ export function useMcpServers(workspaceId: string) {
 async function fetchMcpTools(
   workspaceId: string,
   forceRefresh = false,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  serverId?: string
 ): Promise<McpTool[]> {
   try {
     const data = await requestJson(discoverMcpToolsContract, {
-      query: { workspaceId, refresh: forceRefresh || undefined },
+      query: {
+        workspaceId,
+        refresh: forceRefresh || undefined,
+        ...(serverId ? { serverId } : {}),
+      },
       signal,
     })
     return data.data.tools
@@ -108,24 +122,93 @@ async function fetchMcpTools(
   }
 }
 
-export function useMcpToolsQuery(workspaceId: string) {
+/**
+ * Per-server tools query. Each server has its own React Query entry, so a slow
+ * or hung server can never block another server's load — same model Cursor and
+ * Claude Code use for remote MCP.
+ */
+export function useMcpServerTools(workspaceId: string, serverId?: string) {
   return useQuery({
-    queryKey: mcpKeys.toolsList(workspaceId),
-    queryFn: ({ signal }) => fetchMcpTools(workspaceId, false, signal),
-    enabled: !!workspaceId,
+    queryKey: mcpKeys.serverToolsList(workspaceId, serverId),
+    queryFn: ({ signal }) => fetchMcpTools(workspaceId, false, signal, serverId),
+    enabled: !!workspaceId && !!serverId,
     retry: false,
     staleTime: 30 * 1000,
-    placeholderData: keepPreviousData,
   })
+}
+
+/**
+ * Workspace-level aggregate, derived from N parallel per-server queries via
+ * `useQueries`. Public shape stays compatible with the prior workspace-keyed
+ * query (flat `McpTool[]`, single `isLoading`, single error) so existing
+ * consumers don't change. A slow server only flips its own per-server state;
+ * fast servers populate immediately.
+ */
+export function useMcpToolsQuery(workspaceId: string) {
+  const { data: servers } = useMcpServers(workspaceId)
+
+  const serverIds = useMemo(() => (servers ? servers.map((s) => s.id).sort() : []), [servers])
+
+  const results = useQueries({
+    queries: serverIds.map((serverId) => ({
+      queryKey: mcpKeys.serverToolsList(workspaceId, serverId),
+      queryFn: ({ signal }: { signal?: AbortSignal }) =>
+        fetchMcpTools(workspaceId, false, signal, serverId),
+      enabled: !!workspaceId,
+      retry: false,
+      staleTime: 30 * 1000,
+    })),
+  })
+
+  return useMemo(() => {
+    const tools: McpTool[] = []
+    let hasData = false
+    let isLoading = false
+    let firstError: Error | null = null
+    for (const result of results) {
+      if (result.data) {
+        tools.push(...result.data)
+        hasData = true
+      }
+      if (result.isLoading) isLoading = true
+      if (!firstError && result.error instanceof Error) firstError = result.error
+    }
+    return {
+      data: tools,
+      // Match the prior semantics: "loading" means we have nothing to show yet.
+      // Once any server has returned, the UI can render that and let slow
+      // neighbors fill in incrementally without keeping the spinner up.
+      isLoading: isLoading && !hasData,
+      isFetching: results.some((r) => r.isFetching),
+      error: firstError,
+      perServer: results,
+    }
+  }, [results])
 }
 
 export function useForceRefreshMcpTools() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (workspaceId: string) => fetchMcpTools(workspaceId, true),
+    mutationFn: async (workspaceId: string) => {
+      // Fetch each server's tools in parallel with `refresh=true`, populating
+      // the per-server query cache directly. A slow server only blocks its own
+      // card — fast servers light up as soon as they return.
+      const servers = queryClient.getQueryData<McpServer[]>(mcpKeys.serversList(workspaceId)) ?? []
+      const results = await Promise.allSettled(
+        servers.map(async (server) => {
+          const tools = await fetchMcpTools(workspaceId, true, undefined, server.id)
+          queryClient.setQueryData(mcpKeys.serverToolsList(workspaceId, server.id), tools)
+          return tools
+        })
+      )
+      return results
+        .filter((r): r is PromiseFulfilledResult<McpTool[]> => r.status === 'fulfilled')
+        .flatMap((r) => r.value)
+    },
     onSettled: (_data, _error, workspaceId) => {
-      queryClient.invalidateQueries({ queryKey: mcpKeys.toolsList(workspaceId) })
+      // Per-server caches were already populated inside `mutationFn` via
+      // `setQueryData`, so we only need to refresh the dependent views.
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
       queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
     },
@@ -175,7 +258,7 @@ export function useCreateMcpServer() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(variables.workspaceId) })
-      queryClient.invalidateQueries({ queryKey: mcpKeys.toolsList(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.serverTools() })
     },
   })
 }
@@ -237,7 +320,9 @@ export function useDeleteMcpServer() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(variables.workspaceId) })
-      queryClient.invalidateQueries({ queryKey: mcpKeys.toolsList(variables.workspaceId) })
+      queryClient.removeQueries({
+        queryKey: mcpKeys.serverToolsList(variables.workspaceId, variables.serverId),
+      })
       queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(variables.workspaceId) })
     },
   })
@@ -304,7 +389,9 @@ export function useUpdateMcpServer() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(variables.workspaceId) })
-      queryClient.invalidateQueries({ queryKey: mcpKeys.toolsList(variables.workspaceId) })
+      queryClient.invalidateQueries({
+        queryKey: mcpKeys.serverToolsList(variables.workspaceId, variables.serverId),
+      })
     },
   })
 }
@@ -334,7 +421,9 @@ export function useRefreshMcpServer() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(variables.workspaceId) })
-      queryClient.invalidateQueries({ queryKey: mcpKeys.toolsList(variables.workspaceId) })
+      queryClient.invalidateQueries({
+        queryKey: mcpKeys.serverToolsList(variables.workspaceId, variables.serverId),
+      })
       queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(variables.workspaceId) })
     },
   })
@@ -386,8 +475,14 @@ export function useMcpToolsEvents(workspaceId: string) {
   useEffect(() => {
     if (!workspaceId) return
 
-    const invalidate = () => {
-      queryClient.invalidateQueries({ queryKey: mcpKeys.toolsList(workspaceId) })
+    const invalidate = (serverId?: string) => {
+      if (serverId) {
+        queryClient.invalidateQueries({
+          queryKey: mcpKeys.serverToolsList(workspaceId, serverId),
+        })
+      } else {
+        queryClient.invalidateQueries({ queryKey: mcpKeys.serverTools() })
+      }
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
       queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
       queryClient.invalidateQueries({ queryKey: workflowMcpServerKeys.all })
@@ -398,8 +493,15 @@ export function useMcpToolsEvents(workspaceId: string) {
     if (!entry) {
       const source = new EventSource(`/api/mcp/events?workspaceId=${workspaceId}`)
 
-      source.addEventListener('tools_changed', () => {
-        invalidate()
+      source.addEventListener('tools_changed', (e) => {
+        let serverId: string | undefined
+        try {
+          const parsed = JSON.parse((e as MessageEvent).data) as { serverId?: string }
+          serverId = parsed.serverId
+        } catch {
+          // Older event payload or non-JSON — fall back to workspace-wide invalidation.
+        }
+        invalidate(serverId)
       })
 
       source.onerror = () => {

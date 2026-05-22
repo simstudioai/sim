@@ -39,7 +39,7 @@ export interface UseMcpToolsResult {
 export function useMcpTools(workspaceId: string): UseMcpToolsResult {
   const queryClient = useQueryClient()
 
-  const { data: mcpToolsData = [], isLoading, error: queryError } = useMcpToolsQuery(workspaceId)
+  const { data: mcpToolsData, isLoading, error: queryError } = useMcpToolsQuery(workspaceId)
 
   const mcpTools = useMemo<McpToolForUI[]>(() => {
     return mcpToolsData.map((tool) => ({
@@ -65,7 +65,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
       logger.info('Refreshing MCP tools', { forceRefresh, workspaceId })
 
       await queryClient.invalidateQueries({
-        queryKey: mcpKeys.toolsList(workspaceId),
+        queryKey: mcpKeys.serverTools(),
         refetchType: forceRefresh ? 'active' : 'all',
       })
     },

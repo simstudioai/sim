@@ -41,7 +41,7 @@ import {
   type McpToolResult,
   type McpTransport,
 } from '@/lib/mcp/types'
-import { MCP_CONSTANTS } from '@/lib/mcp/utils'
+import { MCP_CLIENT_CONSTANTS, MCP_CONSTANTS } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpService')
 
@@ -49,6 +49,15 @@ const logger = createLogger('McpService')
 function serverCacheKey(workspaceId: string, serverId: string): string {
   return `workspace:${workspaceId}:server:${serverId}`
 }
+
+// Parallel key for negative caching: when a server's listTools fails, we store
+// a short-lived marker here so the next discoverTools call skips the live fetch
+// instead of re-paying the listTools timeout.
+function failureCacheKey(workspaceId: string, serverId: string): string {
+  return `workspace:${workspaceId}:server:${serverId}:failure`
+}
+
+const FAILURE_CACHE_SENTINEL: McpTool[] = []
 
 type DiscoveryOutcome =
   | { kind: 'cached'; tools: McpTool[] }
@@ -59,6 +68,7 @@ type DiscoveryOutcome =
       resolvedIP: string | null
     }
   | { kind: 'oauth-pending' }
+  | { kind: 'unhealthy' }
   | { kind: 'error'; message: string }
 
 class McpService {
@@ -76,6 +86,14 @@ class McpService {
           .delete(serverCacheKey(event.workspaceId, event.serverId))
           .catch((err) =>
             logger.warn(`Failed to invalidate cache for ${event.serverName} on listChanged:`, err)
+          )
+        this.cacheAdapter
+          .delete(failureCacheKey(event.workspaceId, event.serverId))
+          .catch((err) =>
+            logger.warn(
+              `Failed to invalidate failure cache for ${event.serverName} on listChanged:`,
+              err
+            )
           )
       })
     }
@@ -390,6 +408,48 @@ class McpService {
   }
 
   /**
+   * Record a server as unhealthy so subsequent discovery calls within the TTL
+   * short-circuit instead of re-paying the listTools timeout. OAuth-required
+   * errors are intentionally skipped — they have their own pathway and should
+   * be retried as soon as the user reconnects.
+   */
+  private async markServerUnhealthy(
+    workspaceId: string,
+    serverId: string,
+    error: unknown
+  ): Promise<void> {
+    if (error instanceof McpOauthAuthorizationRequiredError || error instanceof UnauthorizedError) {
+      return
+    }
+    try {
+      await this.cacheAdapter.set(
+        failureCacheKey(workspaceId, serverId),
+        FAILURE_CACHE_SENTINEL,
+        MCP_CLIENT_CONSTANTS.FAILURE_CACHE_TTL_MS
+      )
+    } catch (err) {
+      logger.warn(`Failed to write failure cache for server ${serverId}:`, err)
+    }
+  }
+
+  private async isServerUnhealthy(workspaceId: string, serverId: string): Promise<boolean> {
+    try {
+      const entry = await this.cacheAdapter.get(failureCacheKey(workspaceId, serverId))
+      return entry !== null
+    } catch {
+      return false
+    }
+  }
+
+  private async clearServerFailure(workspaceId: string, serverId: string): Promise<void> {
+    try {
+      await this.cacheAdapter.delete(failureCacheKey(workspaceId, serverId))
+    } catch (err) {
+      logger.warn(`Failed to clear failure cache for server ${serverId}:`, err)
+    }
+  }
+
+  /**
    * Discover tools from all workspace servers
    */
   async discoverTools(
@@ -422,6 +482,13 @@ class McpService {
                 `[${requestId}] Cache read failed for ${config.name}, proceeding with discovery:`,
                 error
               )
+            }
+            // Short-circuit recently-failed servers so they don't block the fan-out.
+            if (await this.isServerUnhealthy(workspaceId, config.id)) {
+              logger.info(
+                `[${requestId}] Skipping recently-failed server ${config.name} (negative-cache hit)`
+              )
+              return { kind: 'unhealthy' }
             }
           }
 
@@ -484,6 +551,7 @@ class McpService {
                 logger.warn(`[${requestId}] Cache write failed for ${server.name}:`, err)
               )
           )
+          deferredSideEffects.push(this.clearServerFailure(workspaceId, server.id))
           liveConnections.push({
             resolvedConfig: outcome.resolvedConfig,
             resolvedIP: outcome.resolvedIP,
@@ -509,12 +577,19 @@ class McpService {
           )
           return
         }
+        if (outcome.kind === 'unhealthy') {
+          // Short-circuited via negative cache; status was already persisted on
+          // the original failure, no need to re-write it.
+          failedCount++
+          return
+        }
         failedCount++
         logger.warn(
           `[${requestId}] Failed to discover tools from server ${server.name}: ${outcome.message}`
         )
         deferredSideEffects.push(
-          this.updateServerStatus(server.id, workspaceId, false, outcome.message)
+          this.updateServerStatus(server.id, workspaceId, false, outcome.message),
+          this.markServerUnhealthy(workspaceId, server.id, new Error(outcome.message))
         )
       })
 
@@ -580,15 +655,16 @@ class McpService {
         try {
           const tools = await client.listTools()
           logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
-          // Prime the per-server cache and reflect the successful connection on
-          // the row so the UI doesn't keep showing "Connect with OAuth" or stale
-          // disconnected/error state.
+          // Prime the per-server cache, clear any negative-cache marker, and
+          // reflect the successful connection on the row so the UI doesn't keep
+          // showing "Connect with OAuth" or stale disconnected/error state.
           await Promise.allSettled([
             this.cacheAdapter
               .set(serverCacheKey(workspaceId, serverId), tools, this.cacheTimeout)
               .catch((err) =>
                 logger.warn(`[${requestId}] Cache write failed for ${config.name}:`, err)
               ),
+            this.clearServerFailure(workspaceId, serverId),
             this.updateServerStatus(serverId, workspaceId, true, undefined, tools.length),
           ])
           return tools
@@ -604,6 +680,10 @@ class McpService {
           await sleep(100)
           continue
         }
+        // Negative-cache the failure so the next call short-circuits instead of
+        // re-paying the listTools timeout. OAuth-required errors are skipped
+        // inside `markServerUnhealthy` so re-auth can retry immediately.
+        await this.markServerUnhealthy(workspaceId, serverId, error)
         throw error
       }
     }
@@ -692,7 +772,10 @@ class McpService {
           .from(mcpServers)
           .where(eq(mcpServers.workspaceId, workspaceId))
         await Promise.allSettled(
-          rows.map((r) => this.cacheAdapter.delete(serverCacheKey(workspaceId, r.id)))
+          rows.flatMap((r) => [
+            this.cacheAdapter.delete(serverCacheKey(workspaceId, r.id)),
+            this.cacheAdapter.delete(failureCacheKey(workspaceId, r.id)),
+          ])
         )
         logger.debug(`Cleared MCP tool cache for workspace ${workspaceId} (${rows.length} servers)`)
       } else {

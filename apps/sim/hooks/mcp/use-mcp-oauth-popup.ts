@@ -80,7 +80,15 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
       }
       if (data.ok) {
         queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
-        queryClient.invalidateQueries({ queryKey: mcpKeys.toolsList(workspaceId) })
+        if (data.serverId) {
+          // Only the freshly-authorized server needs a refetch; every other
+          // server's cached tools stay warm so a slow neighbor can't gate the UI.
+          queryClient.invalidateQueries({
+            queryKey: mcpKeys.serverToolsList(workspaceId, data.serverId),
+          })
+        } else {
+          queryClient.invalidateQueries({ queryKey: mcpKeys.serverTools() })
+        }
         queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
         toast.success('Server authorized')
       } else {
