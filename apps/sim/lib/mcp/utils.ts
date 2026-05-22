@@ -143,6 +143,10 @@ export function categorizeError(error: unknown): { message: string; status: numb
     return { message: 'Request timed out', status: 408 }
   }
 
+  if (msg.includes('cooldown')) {
+    return { message: 'Server temporarily unavailable', status: 503 }
+  }
+
   if (msg.includes('not found') || msg.includes('not accessible')) {
     return { message: 'Resource not found', status: 404 }
   }
