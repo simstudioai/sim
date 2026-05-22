@@ -66,10 +66,47 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `API_ENCRYPTION_KEY` | Encrypts stored API keys (32 hex chars): `openssl rand -hex 32` |
 | `COPILOT_API_KEY` | API key for copilot features |
 | `ADMIN_API_KEY` | Admin API key for GitOps operations |
-| `RESEND_API_KEY` | Email service for notifications |
 | `ALLOWED_LOGIN_DOMAINS` | Restrict signups to domains (comma-separated) |
 | `ALLOWED_LOGIN_EMAILS` | Restrict signups to specific emails (comma-separated) |
 | `DISABLE_REGISTRATION` | Set to `true` to disable new user signups |
+
+## Email Providers
+
+Configure one provider — the mailer auto-detects in priority order: **Resend → AWS SES → SMTP → Azure Communication Services**. If none are configured, emails are logged to the console instead.
+
+| Variable | Description |
+|----------|-------------|
+| `FROM_EMAIL_ADDRESS` | Sender address (e.g. `Sim <noreply@example.com>`). Falls back to `noreply@EMAIL_DOMAIN`. |
+| `EMAIL_DOMAIN` | Default domain when `FROM_EMAIL_ADDRESS` is unset |
+| `EMAIL_VERIFICATION_ENABLED` | Set to `true` to require email verification on signup |
+
+**Resend**
+
+| Variable | Description |
+|----------|-------------|
+| `RESEND_API_KEY` | API key from [resend.com](https://resend.com) |
+
+**AWS SES**
+
+| Variable | Description |
+|----------|-------------|
+| `AWS_SES_REGION` | AWS region for SES (e.g. `us-east-1`). Credentials are resolved through the standard AWS SDK provider chain (env vars, IRSA, ECS/EC2 instance role, SSO). |
+
+**SMTP** (works with MailHog, Postfix, SendGrid SMTP, etc.)
+
+| Variable | Description |
+|----------|-------------|
+| `SMTP_HOST` | SMTP server hostname |
+| `SMTP_PORT` | `465` for implicit TLS, `587` for STARTTLS, `25` for plain |
+| `SMTP_USER` | Optional — omit for unauthenticated relays |
+| `SMTP_PASS` | Optional — omit for unauthenticated relays |
+| `SMTP_SECURE` | Set to `true` to force TLS on connect; auto-true on port 465 |
+
+**Azure Communication Services**
+
+| Variable | Description |
+|----------|-------------|
+| `AZURE_ACS_CONNECTION_STRING` | Azure Communication Services connection string |
 
 ## Example .env
 
