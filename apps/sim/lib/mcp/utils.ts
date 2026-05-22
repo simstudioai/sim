@@ -46,8 +46,8 @@ export function sanitizeHeaders(
 export const MCP_CLIENT_CONSTANTS = {
   CLIENT_TIMEOUT: DEFAULT_EXECUTION_TIMEOUT_MS,
   AUTO_REFRESH_INTERVAL: 5 * 60 * 1000,
-  // Cap metadata calls so a slow upstream can't hang the UI for 60s+.
-  LIST_TOOLS_TIMEOUT_MS: 30_000,
+  LIST_TOOLS_TIMEOUT_MS: 10_000,
+  FAILURE_CACHE_TTL_MS: 120_000,
 } as const
 
 /**
@@ -141,6 +141,10 @@ export function categorizeError(error: unknown): { message: string; status: numb
 
   if (msg.includes('timeout')) {
     return { message: 'Request timed out', status: 408 }
+  }
+
+  if (msg.includes('cooldown')) {
+    return { message: 'Server temporarily unavailable', status: 503 }
   }
 
   if (msg.includes('not found') || msg.includes('not accessible')) {

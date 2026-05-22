@@ -284,6 +284,13 @@ describe('categorizeError', () => {
     expect(result.message).toBe('Invalid request parameters')
   })
 
+  it.concurrent('returns 503 for cooldown errors', () => {
+    const error = new Error('Server recently failed and is in cooldown — try again shortly.')
+    const result = categorizeError(error)
+    expect(result.status).toBe(503)
+    expect(result.message).toBe('Server temporarily unavailable')
+  })
+
   it.concurrent('returns 500 for generic errors', () => {
     const error = new Error('Something went wrong')
     const result = categorizeError(error)
