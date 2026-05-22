@@ -21,14 +21,20 @@ import {
   SYSTEM_REFERENCE_PREFIXES,
   splitReferenceSegment,
 } from '@/lib/workflows/sanitization/references'
+import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/constants'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import {
+  getValidWorkflowSearchRange,
+  type WorkflowSearchTextHighlight,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
   checkTagTrigger,
   TagDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import { restoreCursorAfterInsertion } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/utils'
@@ -41,6 +47,7 @@ import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/re
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 import { createShouldHighlightEnvVar, useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useCodeUndoRedo } from '@/hooks/use-code-undo-redo'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Code')
@@ -80,6 +87,16 @@ const applyDarkModeTokenStyling = (highlightedCode: string): string => {
   return highlightedCode
 }
 
+const WORKFLOW_SEARCH_MATCH_PLACEHOLDER = '__WORKFLOW_SEARCH_MATCH__'
+
+const escapeHtml = (value: string): string =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+
 /**
  * Type definition for code placeholders during syntax highlighting.
  */
@@ -99,11 +116,20 @@ interface CodePlaceholder {
 const createHighlightFunction = (
   effectiveLanguage: 'javascript' | 'python' | 'json',
   shouldHighlightReference: (part: string) => boolean,
-  shouldHighlightEnvVar: (varName: string) => boolean
+  shouldHighlightEnvVar: (varName: string) => boolean,
+  workflowSearchHighlight?: WorkflowSearchTextHighlight | null
 ) => {
   return (codeToHighlight: string): string => {
     const placeholders: CodePlaceholder[] = []
     let processedCode = codeToHighlight
+    const workflowSearchRange = getValidWorkflowSearchRange(
+      codeToHighlight,
+      workflowSearchHighlight
+    )
+
+    if (workflowSearchRange) {
+      processedCode = `${codeToHighlight.slice(0, workflowSearchRange.start)}${WORKFLOW_SEARCH_MATCH_PLACEHOLDER}${codeToHighlight.slice(workflowSearchRange.end)}`
+    }
 
     processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
       const varName = match.slice(2, -2).trim()
@@ -144,6 +170,14 @@ const createHighlightFunction = (
       }
     })
 
+    if (workflowSearchRange) {
+      const matchText = codeToHighlight.slice(workflowSearchRange.start, workflowSearchRange.end)
+      highlightedCode = highlightedCode.replace(
+        WORKFLOW_SEARCH_MATCH_PLACEHOLDER,
+        `<mark class="${WORKFLOW_SEARCH_HIGHLIGHT_CLASS}">${escapeHtml(matchText)}</mark>`
+      )
+    }
+
     return highlightedCode
   }
 }
@@ -178,6 +212,7 @@ interface CodeProps {
   wandControlRef?: React.MutableRefObject<WandControlHandlers | null>
   /** Whether to hide the internal wand button (controlled by parent) */
   hideInternalWand?: boolean
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export const Code = memo(function Code({
@@ -197,6 +232,7 @@ export const Code = memo(function Code({
   wandConfig,
   wandControlRef,
   hideInternalWand = false,
+  activeSearchTarget,
 }: CodeProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -641,11 +677,21 @@ export const Code = memo(function Code({
     () => createShouldHighlightEnvVar(availableEnvVars),
     [availableEnvVars]
   )
+  const workflowSearchHighlight = getActiveWorkflowSearchHighlight({
+    activeSearchTarget,
+    subBlockId,
+    valuePath: [],
+  })
 
   const highlightCode = useMemo(
     () =>
-      createHighlightFunction(effectiveLanguage, shouldHighlightReference, shouldHighlightEnvVar),
-    [effectiveLanguage, shouldHighlightReference, shouldHighlightEnvVar]
+      createHighlightFunction(
+        effectiveLanguage,
+        shouldHighlightReference,
+        shouldHighlightEnvVar,
+        workflowSearchHighlight
+      ),
+    [effectiveLanguage, shouldHighlightReference, shouldHighlightEnvVar, workflowSearchHighlight]
   )
 
   const handleValueChange = useCallback(

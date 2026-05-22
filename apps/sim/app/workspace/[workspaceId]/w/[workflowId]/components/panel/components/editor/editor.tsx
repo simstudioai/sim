@@ -32,7 +32,7 @@ import {
   SubBlock,
   SubflowEditor,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
-import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/constants'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   useBlockConnections,
   useConnectionsResize,
@@ -53,7 +53,7 @@ import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap, useWorkflowState } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { usePanelEditorStore } from '@/stores/panel'
+import { usePanelEditorSearchStore, usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -86,27 +86,31 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
  * @returns Editor panel content
  */
 export function Editor() {
-  const {
-    currentBlockId,
-    activeSearchTarget,
-    connectionsHeight,
-    toggleConnectionsCollapsed,
-    registerRenameCallback,
-  } = usePanelEditorStore(
-    useShallow((state) => ({
-      currentBlockId: state.currentBlockId,
-      activeSearchTarget: state.activeSearchTarget,
-      connectionsHeight: state.connectionsHeight,
-      toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
-      registerRenameCallback: state.registerRenameCallback,
-    }))
-  )
+  const { currentBlockId, connectionsHeight, toggleConnectionsCollapsed, registerRenameCallback } =
+    usePanelEditorStore(
+      useShallow((state) => ({
+        currentBlockId: state.currentBlockId,
+        connectionsHeight: state.connectionsHeight,
+        toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
+        registerRenameCallback: state.registerRenameCallback,
+      }))
+    )
+  const activeSearchTarget = usePanelEditorSearchStore((state) => state.activeSearchTarget)
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
   const title = currentBlock?.name || 'Editor'
   const isBlockNameSearchHighlighted =
     activeSearchTarget?.targetKind === 'block-name' && activeSearchTarget.blockId === currentBlockId
+  const blockNameSearchHighlight =
+    isBlockNameSearchHighlighted && activeSearchTarget?.range
+      ? {
+          range: activeSearchTarget.range,
+          rawValue: activeSearchTarget.rawValue,
+        }
+      : null
+  const activeSearchTargetForCurrentBlock =
+    activeSearchTarget?.blockId === currentBlockId ? activeSearchTarget : null
 
   const isSubflow =
     currentBlock && (currentBlock.type === 'loop' || currentBlock.type === 'parallel')
@@ -406,11 +410,9 @@ export function Editor() {
                 }
               }}
             >
-              {isBlockNameSearchHighlighted ? (
-                <mark className={WORKFLOW_SEARCH_HIGHLIGHT_CLASS}>{title}</mark>
-              ) : (
-                title
-              )}
+              {blockNameSearchHighlight
+                ? formatDisplayText(title, { workflowSearchHighlight: blockNameSearchHighlight })
+                : title}
             </h2>
           )}
         </div>
@@ -521,7 +523,7 @@ export function Editor() {
           toggleConnectionsCollapsed={toggleConnectionsCollapsed}
           userCanEdit={canEditBlock}
           isConnectionsAtMinHeight={isConnectionsAtMinHeight}
-          activeSearchTarget={activeSearchTarget}
+          activeSearchTarget={activeSearchTargetForCurrentBlock}
         />
       ) : (
         <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
@@ -628,7 +630,7 @@ export function Editor() {
                               activeSearchTarget.canonicalSubBlockId ===
                                 (subBlock.canonicalParamId ?? subBlock.id))
                           }
-                          activeSearchTarget={activeSearchTarget}
+                          activeSearchTarget={activeSearchTargetForCurrentBlock}
                           canonicalToggle={
                             isCanonicalSwap && canonicalMode && canonicalId
                               ? {
@@ -703,7 +705,7 @@ export function Editor() {
                               activeSearchTarget.canonicalSubBlockId ===
                                 (subBlock.canonicalParamId ?? subBlock.id))
                           }
-                          activeSearchTarget={activeSearchTarget}
+                          activeSearchTarget={activeSearchTargetForCurrentBlock}
                         />
                         {index < advancedOnlySubBlocks.length - 1 && (
                           <FieldDivider subblockMarker />

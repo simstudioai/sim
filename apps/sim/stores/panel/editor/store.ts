@@ -2,7 +2,11 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { WorkflowSearchTarget } from '@/lib/workflows/search-replace/types'
+import type {
+  WorkflowSearchRange,
+  WorkflowSearchTarget,
+  WorkflowSearchValuePath,
+} from '@/lib/workflows/search-replace/types'
 import { EDITOR_CONNECTIONS_HEIGHT } from '@/stores/constants'
 import { usePanelStore } from '../store'
 
@@ -15,9 +19,16 @@ export interface ActiveSearchTarget {
   blockId: string
   subBlockId: string
   canonicalSubBlockId: string
-  valuePath: Array<string | number>
+  valuePath: WorkflowSearchValuePath
   kind: string
   targetKind: ActiveSearchTargetKind
+  subBlockType: string
+  rawValue: string
+  searchText: string
+  query: string
+  range?: WorkflowSearchRange
+  structuredOccurrenceIndex?: number
+  displayLabel?: string
   resourceGroupKey?: string
 }
 
@@ -28,12 +39,8 @@ export interface ActiveSearchTarget {
 interface PanelEditorState {
   /** Currently selected block identifier, or null when nothing is selected */
   currentBlockId: string | null
-  /** Ephemeral workflow search target used for scrolling/highlighting editor fields */
-  activeSearchTarget: ActiveSearchTarget | null
   /** Sets the current selected block identifier (use null to clear) */
   setCurrentBlockId: (blockId: string | null) => void
-  /** Sets an active search target to highlight in the editor */
-  setActiveSearchTarget: (target: ActiveSearchTarget | null) => void
   /** Clears the current selection */
   clearCurrentBlock: () => void
   /** Height of the connections section in pixels */
@@ -48,6 +55,23 @@ interface PanelEditorState {
   triggerRename: () => void
 }
 
+interface PanelEditorSearchState {
+  /** Ephemeral workflow search target used for scrolling/highlighting editor fields */
+  activeSearchTarget: ActiveSearchTarget | null
+  /** Sets an active search target to highlight in the editor */
+  setActiveSearchTarget: (target: ActiveSearchTarget | null) => void
+}
+
+export const usePanelEditorSearchStore = create<PanelEditorSearchState>()((set) => ({
+  activeSearchTarget: null,
+  setActiveSearchTarget: (target) => {
+    set({ activeSearchTarget: target })
+    if (target) {
+      usePanelStore.getState().setActiveTab('editor')
+    }
+  },
+}))
+
 /**
  * Editor panel store.
  * Persisted to preserve selection across navigations/refreshes.
@@ -56,7 +80,6 @@ export const usePanelEditorStore = create<PanelEditorState>()(
   persist(
     (set, get) => ({
       currentBlockId: null,
-      activeSearchTarget: null,
       connectionsHeight: EDITOR_CONNECTIONS_HEIGHT.DEFAULT,
       registerRenameCallback: (callback) => {
         renameCallback = callback
@@ -70,14 +93,9 @@ export const usePanelEditorStore = create<PanelEditorState>()(
           usePanelStore.getState().setActiveTab('editor')
         }
       },
-      setActiveSearchTarget: (target) => {
-        set({ activeSearchTarget: target })
-        if (target) {
-          usePanelStore.getState().setActiveTab('editor')
-        }
-      },
       clearCurrentBlock: () => {
-        set({ currentBlockId: null, activeSearchTarget: null })
+        set({ currentBlockId: null })
+        usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
       },
       setConnectionsHeight: (height) => {
         const clampedHeight = Math.max(

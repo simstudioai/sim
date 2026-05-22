@@ -4,6 +4,7 @@ import type {
   WorkflowSearchMatch,
   WorkflowSearchMatchKind,
   WorkflowSearchResourceMeta,
+  WorkflowSearchValuePath,
 } from '@/lib/workflows/search-replace/types'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
@@ -16,7 +17,10 @@ export type StructuredWorkflowSearchResourceKind = Exclude<
 interface ResourceCodecParseParams {
   value: unknown
   kind: StructuredWorkflowSearchResourceKind
-  subBlockConfig: Pick<SubBlockConfig, 'type' | 'serviceId' | 'selectorKey' | 'requiredScopes'>
+  subBlockConfig: Pick<
+    SubBlockConfig,
+    'type' | 'serviceId' | 'selectorKey' | 'requiredScopes' | 'multiSelect' | 'multiple'
+  >
   selectorContext?: SelectorContext
 }
 
@@ -24,6 +28,7 @@ export interface StructuredResourceReference {
   kind: StructuredWorkflowSearchResourceKind
   rawValue: string
   searchText: string
+  valuePath?: WorkflowSearchValuePath
   resource: WorkflowSearchResourceMeta
 }
 
@@ -189,10 +194,12 @@ function parseFileReplacement(replacement: string): ResourceCodecReplaceResult {
 
 const scalarResourceCodec: WorkflowSearchResourceCodec = {
   parse({ value, kind, subBlockConfig, selectorContext }) {
-    return splitCommaResourceValue(value).map((rawValue) => ({
+    const values = splitCommaResourceValue(value)
+    return values.map((rawValue, index) => ({
       kind,
       rawValue,
       searchText: rawValue,
+      valuePath: subBlockConfig.multiSelect || values.length > 1 ? [index] : [],
       resource: createResourceMeta({ kind, rawValue, subBlockConfig, selectorContext }),
     }))
   },
@@ -206,7 +213,7 @@ const fileUploadResourceCodec: WorkflowSearchResourceCodec = {
   parse({ value, kind, subBlockConfig, selectorContext }) {
     const parsed = parseSerializedResourceValue(value).value
     const values = Array.isArray(parsed) ? parsed : parsed ? [parsed] : []
-    return values.flatMap((item) => {
+    return values.flatMap((item, index) => {
       const rawValue = getFileResourceKey(item)
       if (!rawValue) return []
       const name = (item as Record<string, unknown>).name
@@ -215,6 +222,7 @@ const fileUploadResourceCodec: WorkflowSearchResourceCodec = {
           kind,
           rawValue,
           searchText: typeof name === 'string' ? name : rawValue,
+          valuePath: subBlockConfig.multiple || values.length > 1 ? [index, 'name'] : [],
           resource: createResourceMeta({ kind, rawValue, subBlockConfig, selectorContext }),
         },
       ]
@@ -384,7 +392,10 @@ export function getWorkflowSearchSubBlockResourceKind(
 
 export function parseWorkflowSearchSubBlockResources(
   value: unknown,
-  subBlockConfig?: Pick<SubBlockConfig, 'type' | 'serviceId' | 'selectorKey' | 'requiredScopes'>,
+  subBlockConfig?: Pick<
+    SubBlockConfig,
+    'type' | 'serviceId' | 'selectorKey' | 'requiredScopes' | 'multiSelect' | 'multiple'
+  >,
   selectorContext?: SelectorContext
 ): StructuredResourceReference[] {
   const definition = getWorkflowSearchSubBlockResourceDefinition(subBlockConfig)

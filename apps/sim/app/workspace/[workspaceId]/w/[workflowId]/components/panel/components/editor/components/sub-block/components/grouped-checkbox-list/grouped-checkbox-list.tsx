@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Settings2 } from 'lucide-react'
 import {
   Button,
@@ -13,7 +13,10 @@ import {
   ModalTrigger,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface SelectedCountDisplayProps {
   noneSelected: boolean
@@ -48,6 +51,7 @@ interface GroupedCheckboxListProps {
   subBlockValues: Record<string, any>
   disabled?: boolean
   maxHeight?: number
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function GroupedCheckboxList({
@@ -59,9 +63,11 @@ export function GroupedCheckboxList({
   subBlockValues,
   disabled = false,
   maxHeight = 400,
+  activeSearchTarget,
 }: GroupedCheckboxListProps) {
   const [open, setOpen] = useState(false)
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+  const optionRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
   const previewValue = isPreview && subBlockValues ? subBlockValues[subBlockId]?.value : undefined
   const selectedValues = ((isPreview ? previewValue : storeValue) as string[]) || []
@@ -104,6 +110,21 @@ export function GroupedCheckboxList({
 
   const allSelected = selectedValues.length === options.length
   const noneSelected = selectedValues.length === 0
+
+  useEffect(() => {
+    if (activeSearchTarget?.subBlockId === subBlockId) {
+      setOpen(true)
+    }
+  }, [activeSearchTarget, subBlockId])
+
+  useEffect(() => {
+    if (!open || activeSearchTarget?.subBlockId !== subBlockId) return
+    const [, optionIndex] = activeSearchTarget.valuePath
+    if (typeof optionIndex !== 'number') return
+    requestAnimationFrame(() => {
+      optionRefs.current[optionIndex]?.scrollIntoView({ block: 'center' })
+    })
+  }, [activeSearchTarget, open, subBlockId])
 
   return (
     <Modal open={open} onOpenChange={setOpen}>
@@ -180,22 +201,40 @@ export function GroupedCheckboxList({
                     {groupName}
                   </h3>
                   <div className='space-y-3'>
-                    {groupOptions.map((option) => (
-                      <div key={option.id} className='flex items-center gap-2'>
-                        <Checkbox
-                          id={`${subBlockId}-${option.id}`}
-                          checked={selectedValues.includes(option.id)}
-                          onCheckedChange={() => handleToggle(option.id)}
-                          disabled={disabled}
-                        />
-                        <label
-                          htmlFor={`${subBlockId}-${option.id}`}
-                          className='cursor-pointer text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
+                    {groupOptions.map((option) => {
+                      const optionIndex = options.findIndex(
+                        (candidate) => candidate.id === option.id
+                      )
+                      const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+                        activeSearchTarget,
+                        blockId,
+                        subBlockId,
+                        valuePath: ['options', optionIndex],
+                        label: option.label,
+                      })
+                      return (
+                        <div
+                          key={option.id}
+                          ref={(element) => {
+                            optionRefs.current[optionIndex] = element
+                          }}
+                          className='flex items-center gap-2'
                         >
-                          {option.label}
-                        </label>
-                      </div>
-                    ))}
+                          <Checkbox
+                            id={`${subBlockId}-${option.id}`}
+                            checked={selectedValues.includes(option.id)}
+                            onCheckedChange={() => handleToggle(option.id)}
+                            disabled={disabled}
+                          />
+                          <label
+                            htmlFor={`${subBlockId}-${option.id}`}
+                            className='cursor-pointer text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
+                          >
+                            {formatDisplayText(option.label, { workflowSearchHighlight })}
+                          </label>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               ))}
