@@ -22,6 +22,10 @@ import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
+import {
+  collectLargeValueReferenceKeys,
+  replaceLargeValueReferenceKeysWithClient,
+} from '@/lib/execution/payloads/large-value-metadata'
 import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import type {
@@ -739,11 +743,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
       },
       executionId
     )
+    const completedExecutionLargeValueKeys = collectLargeValueReferenceKeys(completedExecutionData)
 
-    const [updatedLog] = await db.transaction(async (tx) => {
+    const updatedLog = await db.transaction(async (tx) => {
       await setExecutionLogWriteTimeouts(tx)
 
-      return tx
+      const [log] = await tx
         .update(workflowExecutionLogs)
         .set({
           level,
@@ -756,11 +761,24 @@ export class ExecutionLogger implements IExecutionLoggerService {
         })
         .where(eq(workflowExecutionLogs.executionId, executionId))
         .returning()
-    })
 
-    if (!updatedLog) {
-      throw new Error(`Workflow log not found for execution ${executionId}`)
-    }
+      if (!log) {
+        throw new Error(`Workflow log not found for execution ${executionId}`)
+      }
+
+      await replaceLargeValueReferenceKeysWithClient(
+        tx,
+        {
+          workspaceId: log.workspaceId,
+          workflowId: log.workflowId,
+          executionId,
+          source: 'execution_log',
+        },
+        completedExecutionLargeValueKeys
+      )
+
+      return log
+    })
 
     try {
       // Skip workflow lookup if workflow was deleted
