@@ -14,6 +14,25 @@ import type { TriggerConfig } from '@/triggers/types'
 
 const logger = createLogger('HubSpotPollingTrigger')
 
+/**
+ * Resolves the effective object type from the subblock store. `getValue` returns `null`
+ * for fields the user hasn't interacted with yet, so we fall back to the dropdown's
+ * default ('contact') — otherwise the cascading property selectors render empty on
+ * first render even when the dropdown visibly shows "contact".
+ */
+function resolveSelectedObjectType(blockId: string): string | null {
+  const objectType = useSubBlockStore.getState().getValue(blockId, 'objectType') as string | null
+  const customId = useSubBlockStore.getState().getValue(blockId, 'customObjectTypeId') as
+    | string
+    | null
+  const selected = objectType ?? 'contact'
+  if (selected === 'custom') {
+    const trimmed = customId?.trim()
+    return trimmed ? trimmed : null
+  }
+  return selected
+}
+
 async function fetchHubSpotProperties(blockId: string, objectType: string) {
   const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
     | string
@@ -128,13 +147,7 @@ export const hubspotPollingTrigger: TriggerConfig = {
       placeholder: 'Select a property',
       options: [],
       fetchOptions: async (blockId: string) => {
-        const objectType = useSubBlockStore.getState().getValue(blockId, 'objectType') as
-          | string
-          | null
-        const customId = useSubBlockStore.getState().getValue(blockId, 'customObjectTypeId') as
-          | string
-          | null
-        const resolved = objectType === 'custom' ? customId : objectType
+        const resolved = resolveSelectedObjectType(blockId)
         if (!resolved) throw new Error('Select an object type first')
         try {
           return await fetchHubSpotProperties(blockId, resolved)
@@ -162,13 +175,7 @@ export const hubspotPollingTrigger: TriggerConfig = {
       placeholder: 'Select properties (optional)',
       options: [],
       fetchOptions: async (blockId: string) => {
-        const objectType = useSubBlockStore.getState().getValue(blockId, 'objectType') as
-          | string
-          | null
-        const customId = useSubBlockStore.getState().getValue(blockId, 'customObjectTypeId') as
-          | string
-          | null
-        const resolved = objectType === 'custom' ? customId : objectType
+        const resolved = resolveSelectedObjectType(blockId)
         if (!resolved) return []
         try {
           return await fetchHubSpotProperties(blockId, resolved)
@@ -193,10 +200,8 @@ export const hubspotPollingTrigger: TriggerConfig = {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
-        const objectType = useSubBlockStore.getState().getValue(blockId, 'objectType') as
-          | string
-          | null
-        if (!credentialId || !objectType) return []
+        const objectType = resolveSelectedObjectType(blockId) ?? 'contact'
+        if (!credentialId) throw new Error('No HubSpot credential selected')
         if (isCredentialSetValue(credentialId)) return []
         try {
           const data = await requestJson(hubspotPipelinesSelectorContract, {
@@ -224,14 +229,13 @@ export const hubspotPollingTrigger: TriggerConfig = {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
-        const objectType = useSubBlockStore.getState().getValue(blockId, 'objectType') as
-          | string
-          | null
+        const objectType = resolveSelectedObjectType(blockId) ?? 'contact'
         const pipelineId = useSubBlockStore.getState().getValue(blockId, 'pipelineId') as
           | string
           | null
-        if (!credentialId || !objectType || !pipelineId) return []
+        if (!credentialId) throw new Error('No HubSpot credential selected')
         if (isCredentialSetValue(credentialId)) return []
+        if (!pipelineId) return []
         try {
           const data = await requestJson(hubspotPipelinesSelectorContract, {
             query: { credentialId, objectType },
@@ -259,7 +263,7 @@ export const hubspotPollingTrigger: TriggerConfig = {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
-        if (!credentialId) return []
+        if (!credentialId) throw new Error('No HubSpot credential selected')
         if (isCredentialSetValue(credentialId)) return []
         try {
           const data = await requestJson(hubspotOwnersSelectorContract, {
