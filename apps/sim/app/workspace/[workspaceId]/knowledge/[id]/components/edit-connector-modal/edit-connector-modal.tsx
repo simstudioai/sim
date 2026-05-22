@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowLeftRight, ExternalLink, RotateCcw } from 'lucide-react'
+import { ArrowLeftRight, ExternalLink, Info, RotateCcw } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
@@ -385,10 +385,26 @@ function SettingsTab({
         return (
           <div key={field.id} className='flex flex-col gap-2'>
             <div className='flex items-center justify-between'>
-              <Label>
-                {field.title}
-                {field.required && <span className='ml-0.5 text-[var(--text-error)]'>*</span>}
-              </Label>
+              <div className='flex items-center gap-1'>
+                <Label>
+                  {field.title}
+                  {field.required && <span className='ml-0.5 text-[var(--text-error)]'>*</span>}
+                </Label>
+                {field.description && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        type='button'
+                        className='flex size-[14px] cursor-help items-center justify-center text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-secondary)]'
+                        aria-label={`About ${field.title}`}
+                      >
+                        <Info className='size-[12px]' />
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>{field.description}</Tooltip.Content>
+                  </Tooltip.Root>
+                )}
+              </div>
               {hasCanonicalPair && canonicalId && (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
@@ -406,9 +422,6 @@ function SettingsTab({
                 </Tooltip.Root>
               )}
             </div>
-            {field.description && (
-              <p className='text-[var(--text-muted)] text-xs'>{field.description}</p>
-            )}
             {field.type === 'selector' && field.selectorKey ? (
               <ConnectorSelectorField
                 field={field as ConnectorConfigField & { selectorKey: SelectorKey }}

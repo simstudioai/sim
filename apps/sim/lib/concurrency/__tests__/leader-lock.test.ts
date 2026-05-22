@@ -120,39 +120,62 @@ describe('withLeaderLock', () => {
   it('follower does a final read after timeout to catch a just-finished leader', async () => {
     redisConfigMockFns.mockAcquireLock.mockResolvedValueOnce(false)
 
-    // pollInterval=5, maxWait=9 → loop exits after 2 in-loop polls (T+5, T+10);
-    // the third call (polls=3) is the post-deadline last-chance read.
-    let polls = 0
-    const onFollower = vi.fn(async () => {
-      polls += 1
-      if (polls <= 2) return null
-      return 'late-leader'
-    })
+    /**
+     * The intent: after the in-loop poll deadline is reached, the follower
+     * does exactly one more (last-chance) `onFollower` call to catch a leader
+     * that finished between the previous poll and the timeout. Using fake
+     * timers makes the timing deterministic — pollInterval=10 and maxWait=15
+     * cause two in-loop polls (T+10, T+20) and one last-chance read (T+20),
+     * but the schedule is driven by mocked time, not the CI wall clock.
+     */
+    vi.useFakeTimers()
+    try {
+      let polls = 0
+      const onFollower = vi.fn(async () => {
+        polls += 1
+        if (polls <= 2) return null
+        return 'late-leader'
+      })
 
-    const result = await withLeaderLock<string>({
-      key: 'k',
-      pollIntervalMs: 5,
-      maxWaitMs: 9,
-      onLeader: async () => 'should-not-run',
-      onFollower,
-    })
+      const promise = withLeaderLock<string>({
+        key: 'k',
+        pollIntervalMs: 10,
+        maxWaitMs: 15,
+        onLeader: async () => 'should-not-run',
+        onFollower,
+      })
 
-    expect(result).toBe('late-leader')
-    expect(onFollower).toHaveBeenCalledTimes(3)
+      await vi.advanceTimersByTimeAsync(30)
+      const result = await promise
+
+      expect(result).toBe('late-leader')
+      expect(onFollower).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('follower returns null after timeout', async () => {
     redisConfigMockFns.mockAcquireLock.mockResolvedValueOnce(false)
 
-    const result = await withLeaderLock<string>({
-      key: 'k',
-      pollIntervalMs: 5,
-      maxWaitMs: 20,
-      onLeader: async () => 'should-not-run',
-      onFollower: async () => null,
-    })
+    vi.useFakeTimers()
+    try {
+      const onFollower = vi.fn(async () => null)
+      const promise = withLeaderLock<string>({
+        key: 'k',
+        pollIntervalMs: 10,
+        maxWaitMs: 25,
+        onLeader: async () => 'should-not-run',
+        onFollower,
+      })
 
-    expect(result).toBeNull()
+      await vi.advanceTimersByTimeAsync(50)
+      const result = await promise
+
+      expect(result).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('only one of N concurrent callers acquires the lock', async () => {
