@@ -7,8 +7,11 @@ import { db } from '@sim/db'
 import { mcpServerOauth } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import { and, eq, gt, sql } from 'drizzle-orm'
+import { sleep } from '@sim/utils/helpers'
+import { generateId, generateShortId } from '@sim/utils/id'
+import { and, eq, gt } from 'drizzle-orm'
+import { coalesceLocally } from '@/lib/concurrency/singleflight'
+import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 
 const logger = createLogger('McpOauthStorage')
@@ -232,38 +235,58 @@ export async function clearState(rowId: string): Promise<void> {
  * refreshes against the same row would race and one would receive
  * `invalid_grant`, wiping credentials.
  *
- * Two-tier locking:
- *   1) In-process Promise chain — cheap, avoids DB roundtrips when the same
- *      Node process holds concurrent callers.
- *   2) Postgres advisory transaction lock — blocks across processes; released
- *      automatically when the transaction ends.
+ * Two-tier coordination, matching the regular OAuth refresh pattern
+ * (`app/api/auth/oauth/utils.ts`):
+ *   1) `coalesceLocally` — in-process dedup; concurrent same-process callers
+ *      share a single inflight promise.
+ *   2) Redis distributed lock (`acquireLock` / `releaseLock`) — cross-process
+ *      mutex. Followers poll until the leader releases, then acquire and run
+ *      their own `fn()` (each MCP caller needs its own client connection).
  *
- * Tradeoff: the connection is held for the duration of `fn()`, which includes
- * the SDK's OAuth HTTP refresh. Session-level locks (`pg_advisory_lock`) would
- * release the connection earlier, but they don't survive PgBouncer transaction
- * pooling — they're scoped to the underlying physical connection, which can be
- * swapped between statements. `pg_advisory_xact_lock` is the correct choice
- * here. If pool pressure becomes a real concern at scale, swap this for a
- * Redis-based distributed lock (Redlock) that doesn't pin a DB connection.
+ * Falls open if Redis is unavailable — `acquireLock` no-ops, all callers run
+ * `fn()` uncoordinated. The in-process layer still serializes within a
+ * process; cross-process races become possible but rare in practice.
  */
-const refreshLocks = new Map<string, Promise<unknown>>()
+const REFRESH_LOCK_TTL_SEC = 30
+const REFRESH_POLL_INTERVAL_MS = 100
+const REFRESH_MAX_WAIT_MS = 30_000
 
 export async function withMcpOauthRefreshLock<T>(rowId: string, fn: () => Promise<T>): Promise<T> {
-  const prev = refreshLocks.get(rowId) ?? Promise.resolve()
-  const next = prev
-    .catch(() => undefined)
-    .then(() =>
-      db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`mcp_oauth_refresh:${rowId}`}, 0))`
-        )
+  const lockKey = `mcp:oauth:refresh:${rowId}`
+  return coalesceLocally(lockKey, async () => {
+    const ownerToken = generateShortId()
+    const deadline = Date.now() + REFRESH_MAX_WAIT_MS
+
+    while (true) {
+      let acquired = false
+      try {
+        acquired = await acquireLock(lockKey, ownerToken, REFRESH_LOCK_TTL_SEC)
+      } catch (error) {
+        logger.warn('Redis unavailable, running OAuth flow uncoordinated', {
+          rowId,
+          error: toError(error).message,
+        })
         return fn()
-      })
-    )
-  refreshLocks.set(rowId, next)
-  const cleanup = () => {
-    if (refreshLocks.get(rowId) === next) refreshLocks.delete(rowId)
-  }
-  next.then(cleanup, cleanup)
-  return next
+      }
+
+      if (acquired) {
+        try {
+          return await fn()
+        } finally {
+          await releaseLock(lockKey, ownerToken).catch((error) => {
+            logger.warn('Refresh lock release failed (will expire via TTL)', {
+              rowId,
+              error: toError(error).message,
+            })
+          })
+        }
+      }
+
+      if (Date.now() >= deadline) {
+        logger.warn('Refresh lock wait timed out, running uncoordinated', { rowId })
+        return fn()
+      }
+      await sleep(REFRESH_POLL_INTERVAL_MS)
+    }
+  })
 }
