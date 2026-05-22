@@ -138,6 +138,48 @@ describe('workflow search highlight helpers', () => {
     ).toEqual({ range: { start: 3, end: 7 }, rawValue: 'Test' })
   })
 
+  it('maps fallback ranges back to original string boundaries when lowercasing expands characters', () => {
+    const resourceTarget = {
+      ...baseTarget,
+      kind: 'workflow',
+      rawValue: 'workflow-1',
+      searchText: 'workflow-1',
+      query: 'foo',
+      range: undefined,
+    }
+
+    expect(
+      getWorkflowSearchLabelHighlight({
+        activeSearchTarget: resourceTarget,
+        blockId: 'block-1',
+        subBlockId: 'field',
+        valuePath: [],
+        label: 'İFoo',
+      })
+    ).toEqual({ range: { start: 1, end: 4 }, rawValue: 'Foo' })
+  })
+
+  it('highlights the original character when a query matches part of an expanded lowercase form', () => {
+    const resourceTarget = {
+      ...baseTarget,
+      kind: 'workflow',
+      rawValue: 'workflow-1',
+      searchText: 'workflow-1',
+      query: 'i',
+      range: undefined,
+    }
+
+    expect(
+      getWorkflowSearchLabelHighlight({
+        activeSearchTarget: resourceTarget,
+        blockId: 'block-1',
+        subBlockId: 'field',
+        valuePath: [],
+        label: 'İstanbul',
+      })
+    ).toEqual({ range: { start: 0, end: 1 }, rawValue: 'İ' })
+  })
+
   it('falls back to the visible query when a display-label range no longer matches the label', () => {
     const truncatedLabelTarget = {
       ...baseTarget,

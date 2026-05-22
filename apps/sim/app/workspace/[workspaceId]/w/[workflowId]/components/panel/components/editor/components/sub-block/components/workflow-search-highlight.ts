@@ -46,6 +46,49 @@ export function getActiveWorkflowSearchHighlight(
   }
 }
 
+function findCaseInsensitiveOriginalRange(
+  label: string,
+  query: string
+): WorkflowSearchTextHighlight | null {
+  const normalizedLabel = label.toLowerCase()
+  const normalizedQuery = query.toLowerCase()
+  const normalizedStart = normalizedLabel.indexOf(normalizedQuery)
+  if (normalizedStart < 0) return null
+
+  const normalizedEnd = normalizedStart + normalizedQuery.length
+  let normalizedOffset = 0
+  let originalStart: number | undefined
+  let originalEnd: number | undefined
+
+  for (let originalIndex = 0; originalIndex < label.length; ) {
+    const codePoint = label.codePointAt(originalIndex)
+    if (codePoint === undefined) break
+    const character = String.fromCodePoint(codePoint)
+    const nextOriginalIndex = originalIndex + character.length
+    const nextNormalizedOffset = normalizedOffset + character.toLowerCase().length
+
+    if (originalStart === undefined && normalizedStart < nextNormalizedOffset) {
+      originalStart = originalIndex
+    }
+    if (originalStart !== undefined && normalizedEnd <= nextNormalizedOffset) {
+      originalEnd = nextOriginalIndex
+      break
+    }
+
+    originalIndex = nextOriginalIndex
+    normalizedOffset = nextNormalizedOffset
+  }
+
+  if (originalStart === undefined || originalEnd === undefined || originalEnd <= originalStart) {
+    return null
+  }
+
+  return {
+    range: { start: originalStart, end: originalEnd },
+    rawValue: label.slice(originalStart, originalEnd),
+  }
+}
+
 export function getWorkflowSearchLabelHighlight(
   options: ActiveSearchHighlightOptions & { label: string }
 ): WorkflowSearchTextHighlight | null {
@@ -67,13 +110,7 @@ export function getWorkflowSearchLabelHighlight(
 
   const trimmedQuery = activeSearchTarget.query.trim()
   if (trimmedQuery) {
-    const index = label.toLocaleLowerCase().indexOf(trimmedQuery.toLocaleLowerCase())
-    if (index >= 0) {
-      return {
-        range: { start: index, end: index + trimmedQuery.length },
-        rawValue: label.slice(index, index + trimmedQuery.length),
-      }
-    }
+    return findCaseInsensitiveOriginalRange(label, trimmedQuery)
   }
 
   return null
