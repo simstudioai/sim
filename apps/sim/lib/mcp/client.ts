@@ -80,6 +80,11 @@ export class McpClient {
     )
   }
 
+  /**
+   * Initialize connection to MCP server.
+   * If an `onToolsChanged` callback was provided, registers a notification handler
+   * for `notifications/tools/list_changed` after connecting.
+   */
   async connect(): Promise<void> {
     logger.info(`Connecting to MCP server: ${this.config.name} (${this.config.transport})`)
 

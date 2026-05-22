@@ -17,7 +17,10 @@ export interface McpServerConfig {
   transport: McpTransport
   url?: string
   authType?: McpAuthType
-  /** Required for `authType === 'oauth'` — selects whose stored tokens to use. */
+  /**
+   * Required when `authType === 'oauth'` — identifies whose stored tokens
+   * to use when establishing the connection. Omit for header / none auth.
+   */
   userId?: string
   workspaceId?: string
   headers?: Record<string, string>
@@ -129,7 +132,12 @@ export class McpConnectionError extends McpError {
   }
 }
 
-/** Benign "needs re-auth" state — distinct from a connection failure. */
+/**
+ * Thrown when an OAuth-protected MCP server is reachable but the current
+ * user has not yet authorized Sim. This is a benign "pending" state, not a
+ * connection failure — callers should surface a re-auth prompt rather than
+ * marking the server as errored.
+ */
 export class McpOauthAuthorizationRequiredError extends McpError {
   constructor(
     public readonly serverId: string,
@@ -153,15 +161,32 @@ export interface McpServerSummary {
   error?: string
 }
 
+/**
+ * Callback invoked when an MCP server sends a `notifications/tools/list_changed` notification.
+ */
 export type McpToolsChangedCallback = (serverId: string) => void
 
+/**
+ * Options for creating an McpClient with notification support.
+ */
 export interface McpClientOptions {
   config: McpServerConfig
   securityPolicy?: McpSecurityPolicy
   onToolsChanged?: McpToolsChangedCallback
-  /** Pre-resolved IP pinned via undici to prevent DNS-rebinding between URL validation and connection. */
+  /**
+   * Pre-resolved IP address to pin all transport HTTP connections to. When
+   * set, the SDK transport uses a custom fetch backed by an undici Agent with
+   * a fixed DNS lookup, preventing DNS-rebinding (TOCTOU) attacks between
+   * URL validation and connection. Should be supplied by callers that have
+   * just validated the URL via `validateMcpServerSsrf`.
+   */
   resolvedIP?: string
-  /** SDK provider for OAuth token discovery, refresh, and 401 recovery. Required for `authType === 'oauth'`. */
+  /**
+   * SDK-compatible OAuth client provider. When provided, the underlying
+   * StreamableHTTPClientTransport delegates token discovery, refresh, and
+   * 401 recovery to it. Should be supplied for `authType === 'oauth'`
+   * server configs.
+   */
   authProvider?: import('@modelcontextprotocol/sdk/client/auth.js').OAuthClientProvider
 }
 
@@ -200,7 +225,10 @@ export interface McpToolDiscoveryResponse {
   byServer: Record<string, number>
 }
 
-/** Minimal MCP tool reference stored in workflow blocks for schema validation. */
+/**
+ * MCP tool reference stored in workflow blocks (for validation).
+ * Minimal version used for comparing against discovered tools.
+ */
 export interface StoredMcpToolReference {
   serverId: string
   serverUrl?: string
@@ -208,6 +236,10 @@ export interface StoredMcpToolReference {
   schema?: McpToolSchema
 }
 
+/**
+ * Full stored MCP tool with workflow context (for API responses).
+ * Extended version that includes which workflow the tool is used in.
+ */
 export interface StoredMcpTool extends StoredMcpToolReference {
   workflowId: string
   workflowName: string

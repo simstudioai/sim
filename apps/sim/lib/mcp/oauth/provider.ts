@@ -41,7 +41,10 @@ export interface PreregisteredClient {
 interface SimMcpOauthProviderInit {
   row: McpOauthRow
   scope?: string
-  /** When set, the SDK skips Dynamic Client Registration and uses these credentials directly. */
+  /**
+   * Optional user-supplied client credentials. When provided, the SDK skips
+   * Dynamic Client Registration and uses these for the auth/token exchange.
+   */
   preregistered?: PreregisteredClient
 }
 

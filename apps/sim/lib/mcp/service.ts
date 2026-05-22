@@ -242,6 +242,10 @@ class McpService {
     })
   }
 
+  /**
+   * Execute a tool on a specific server with retry logic for session errors.
+   * Retries once on session-related errors (400, 404, session ID issues).
+   */
   async executeTool(
     userId: string,
     serverId: string,
