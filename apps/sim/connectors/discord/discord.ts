@@ -154,6 +154,7 @@ export const discordConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'e.g. 123456789012345678',
       required: true,
+      description: 'The Discord channel ID to sync messages from',
     },
     {
       id: 'maxMessages',

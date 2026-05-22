@@ -452,6 +452,7 @@ export const servicenowConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'yourinstance.service-now.com',
       required: true,
+      description: 'Your ServiceNow instance URL',
     },
     {
       id: 'username',
@@ -459,12 +460,14 @@ export const servicenowConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'admin',
       required: true,
+      description: 'ServiceNow username for Basic Auth',
     },
     {
       id: 'contentType',
       title: 'Content Type',
       type: 'dropdown',
       required: true,
+      description: 'Type of content to sync from ServiceNow',
       options: [
         { label: 'Knowledge Base Articles', id: 'kb_knowledge' },
         { label: 'Incidents', id: 'incident' },
@@ -475,6 +478,7 @@ export const servicenowConnector: ConnectorConfig = {
       title: 'Article State',
       type: 'dropdown',
       required: false,
+      description: 'Filter KB articles by workflow state',
       options: [
         { label: 'All States', id: 'all' },
         { label: 'Published', id: 'published' },
@@ -490,12 +494,14 @@ export const servicenowConnector: ConnectorConfig = {
       type: 'short-input',
       required: false,
       placeholder: 'e.g. IT, HR, General',
+      description: 'Filter KB articles by category label',
     },
     {
       id: 'incidentState',
       title: 'Incident State',
       type: 'dropdown',
       required: false,
+      description: 'Filter incidents by state',
       options: [
         { label: 'All States', id: 'all' },
         { label: 'New', id: '1' },
@@ -511,6 +517,7 @@ export const servicenowConnector: ConnectorConfig = {
       title: 'Incident Priority',
       type: 'dropdown',
       required: false,
+      description: 'Filter incidents by priority',
       options: [
         { label: 'All Priorities', id: 'all' },
         { label: 'Critical', id: '1' },
@@ -526,6 +533,7 @@ export const servicenowConnector: ConnectorConfig = {
       type: 'short-input',
       required: false,
       placeholder: `e.g. 200 (default: ${DEFAULT_MAX_ITEMS})`,
+      description: 'Maximum number of items to sync',
     },
   ],
 

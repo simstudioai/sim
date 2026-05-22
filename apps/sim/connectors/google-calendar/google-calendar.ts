@@ -267,6 +267,7 @@ export const googleCalendarConnector: ConnectorConfig = {
       multi: true,
       placeholder: 'Select one or more calendars',
       required: false,
+      description: 'Calendars to sync from. Defaults to your primary calendar.',
     },
     {
       id: 'calendarId',
@@ -298,6 +299,7 @@ export const googleCalendarConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'e.g. standup, sprint review (optional)',
       required: false,
+      description: 'Filter events by text search across all fields.',
     },
     {
       id: 'maxEvents',

@@ -262,12 +262,14 @@ export const redditConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'e.g. machinelearning',
       required: true,
+      description: 'Subreddit name to sync posts from (without r/ prefix)',
     },
     {
       id: 'sort',
       title: 'Sort',
       type: 'dropdown',
       required: false,
+      description: 'How to sort posts',
       options: [
         { label: 'Hot', id: 'hot' },
         { label: 'New', id: 'new' },
@@ -295,6 +297,7 @@ export const redditConnector: ConnectorConfig = {
       type: 'short-input',
       required: false,
       placeholder: `e.g. 100 (default: ${DEFAULT_MAX_POSTS})`,
+      description: 'Maximum number of posts to sync',
     },
   ],
 

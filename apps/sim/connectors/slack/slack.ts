@@ -513,6 +513,7 @@ export const slackConnector: ConnectorConfig = {
       multi: true,
       placeholder: 'Select one or more channels',
       required: true,
+      description: 'Channels to sync messages from',
     },
     {
       id: 'channel',
@@ -523,6 +524,7 @@ export const slackConnector: ConnectorConfig = {
       multi: true,
       placeholder: 'e.g. general, C01ABC23DEF (comma-separated for multiple)',
       required: true,
+      description: 'Channel names or IDs to sync messages from',
     },
     {
       id: 'maxMessages',

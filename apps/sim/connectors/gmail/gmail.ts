@@ -360,6 +360,7 @@ export const gmailConnector: ConnectorConfig = {
       multi: true,
       placeholder: 'Select one or more labels',
       required: false,
+      description: 'Only sync emails matching any of these labels. Leave empty for all mail.',
     },
     {
       id: 'label',
@@ -370,6 +371,7 @@ export const gmailConnector: ConnectorConfig = {
       multi: true,
       placeholder: 'e.g. INBOX, IMPORTANT (comma-separated; commas in label names not supported)',
       required: false,
+      description: 'Only sync emails matching any of these labels. Leave empty for all mail.',
     },
     {
       id: 'dateRange',
@@ -411,6 +413,7 @@ export const gmailConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'e.g. from:boss@company.com subject:report has:attachment',
       required: false,
+      description: 'Additional Gmail search filter. Uses the same syntax as the Gmail search bar.',
     },
     {
       id: 'maxThreads',
