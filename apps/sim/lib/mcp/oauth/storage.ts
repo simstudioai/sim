@@ -308,8 +308,14 @@ async function runWithRedisMutex<T>(
     }
 
     if (Date.now() >= deadline) {
-      logger.warn('Refresh lock wait timed out, running uncoordinated', { rowId })
-      return fn()
+      // Lock still held by another process AND its watchdog is keeping it
+      // alive — falling open would let us refresh concurrently and race the
+      // rotating refresh token. Throw and let the caller decide whether to
+      // retry; the Redis-down path remains the only branch that runs `fn()`
+      // uncoordinated (no coordination available there).
+      throw new Error(
+        `MCP OAuth refresh lock for ${rowId} held longer than ${REFRESH_MAX_WAIT_MS}ms`
+      )
     }
     await sleep(REFRESH_POLL_INTERVAL_MS)
   }

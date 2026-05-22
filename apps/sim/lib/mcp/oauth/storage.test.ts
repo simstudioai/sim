@@ -202,6 +202,25 @@ describe('withMcpOauthRefreshLock', () => {
     expect(keys).toContain('mcp:oauth:refresh:row-b')
   })
 
+  it('throws when the lock is held longer than the max wait (does not race)', async () => {
+    vi.useFakeTimers()
+    try {
+      // Acquire always fails — another process holds the lock with watchdog extension.
+      mockAcquireLock.mockResolvedValue(false)
+      const fn = vi.fn(async () => 'should-not-run')
+
+      const pending = withMcpOauthRefreshLock('row-deadline', fn)
+      // Attach the rejection expectation before draining so Vitest doesn't see
+      // an unhandled rejection while timers advance.
+      const assertion = expect(pending).rejects.toThrow(/held longer than/)
+      await vi.advanceTimersByTimeAsync(31_000)
+      await assertion
+      expect(fn).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('extends the lock TTL while fn() is running so long refreshes do not lose the lock', async () => {
     vi.useFakeTimers()
     try {
