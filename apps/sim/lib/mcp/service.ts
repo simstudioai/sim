@@ -723,7 +723,17 @@ class McpService {
           await sleep(100)
           continue
         }
-        await this.markServerUnhealthy(workspaceId, serverId, error)
+        // Drop any stale positive cache so a follow-up cache-respecting call
+        // doesn't keep returning old tools from a now-broken server. The
+        // negative cache marker then makes that follow-up fail fast.
+        await Promise.allSettled([
+          this.cacheAdapter
+            .delete(serverCacheKey(workspaceId, serverId))
+            .catch((err) =>
+              logger.warn(`[${requestId}] Cache delete failed for ${serverId}:`, err)
+            ),
+          this.markServerUnhealthy(workspaceId, serverId, error),
+        ])
         throw error
       }
     }

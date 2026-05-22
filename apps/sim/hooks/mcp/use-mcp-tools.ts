@@ -32,7 +32,7 @@ export interface UseMcpToolsResult {
   mcpTools: McpToolForUI[]
   isLoading: boolean
   error: string | null
-  refreshTools: (forceRefresh?: boolean) => Promise<void>
+  refreshTools: () => Promise<void>
   getToolsByServer: (serverId: string) => McpToolForUI[]
 }
 
@@ -55,22 +55,20 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     }))
   }, [mcpToolsData])
 
-  const refreshTools = useCallback(
-    async (forceRefresh = false) => {
-      if (!workspaceId) {
-        logger.warn('Cannot refresh tools: no workspaceId provided')
-        return
-      }
+  // Soft refresh: invalidate per-server query entries so React Query refetches
+  // them, but let the server-side cache decide whether to go live (the per-server
+  // queryFn always sends refresh=false). For an explicit cache-bypass refresh,
+  // use `useForceRefreshMcpTools` instead.
+  const refreshTools = useCallback(async () => {
+    if (!workspaceId) {
+      logger.warn('Cannot refresh tools: no workspaceId provided')
+      return
+    }
 
-      logger.info('Refreshing MCP tools', { forceRefresh, workspaceId })
-
-      await queryClient.invalidateQueries({
-        queryKey: mcpKeys.serverToolsWorkspace(workspaceId),
-        refetchType: forceRefresh ? 'active' : 'all',
-      })
-    },
-    [workspaceId, queryClient]
-  )
+    await queryClient.invalidateQueries({
+      queryKey: mcpKeys.serverToolsWorkspace(workspaceId),
+    })
+  }, [workspaceId, queryClient])
 
   const getToolsByServer = useCallback(
     (serverId: string): McpToolForUI[] => {

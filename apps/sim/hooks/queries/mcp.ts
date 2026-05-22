@@ -140,7 +140,20 @@ export function useMcpServerTools(workspaceId: string, serverId?: string) {
 export function useMcpToolsQuery(workspaceId: string) {
   const { data: servers, isLoading: serversLoading } = useMcpServers(workspaceId)
 
-  const serverIds = useMemo(() => (servers ? servers.map((s) => s.id).sort() : []), [servers])
+  // Filter on (a) enabled (disabled servers would 404 in discover and pollute the
+  // negative cache), and (b) workspaceId match (useMcpServers keeps the previous
+  // workspace's data via keepPreviousData, so during a workspace switch we'd
+  // otherwise spawn discover calls for the wrong workspace's IDs).
+  const serverIds = useMemo(
+    () =>
+      servers
+        ? servers
+            .filter((s) => s.enabled && s.workspaceId === workspaceId)
+            .map((s) => s.id)
+            .sort()
+        : [],
+    [servers, workspaceId]
+  )
 
   const results = useQueries({
     queries: serverIds.map((serverId) => ({
@@ -160,7 +173,10 @@ export function useMcpToolsQuery(workspaceId: string) {
     let anyServerLoading = false
     let firstError: Error | null = null
     for (const result of results) {
-      if (result.data) {
+      // Drop stale data when the latest refetch failed — otherwise React Query's
+      // stale-while-revalidate behavior would surface broken-server tools in the
+      // aggregate while the per-server card shows an error.
+      if (result.data && !result.isError) {
         tools.push(...result.data)
         hasData = true
       }
