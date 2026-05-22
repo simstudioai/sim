@@ -8,6 +8,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
+import { chunkArray } from '@/lib/cleanup/batch-delete'
 import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 
 const logger = createLogger('LargeValueMetadata')
@@ -73,14 +74,6 @@ function parseLargeValueStorageKey(key: string): LargeValueStorageKeyParts | nul
     workflowId: parts[2],
     executionId: parts[3],
   }
-}
-
-function chunkArray<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = []
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size))
-  }
-  return chunks
 }
 
 function getBoundedUniqueKeys(keys: string[], label: string): string[] {
