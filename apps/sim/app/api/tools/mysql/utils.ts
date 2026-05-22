@@ -26,7 +26,7 @@ export async function createMySQLConnection(config: MySQLConnectionConfig) {
     user: config.username,
     password: config.password,
     stream: () => {
-      const socket = net.connect(config.port, resolvedIP)
+      const socket = net.connect({ host: resolvedIP, port: config.port, timeout: 10000 })
       socket.setNoDelay(true)
       return socket
     },
