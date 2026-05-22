@@ -16,27 +16,6 @@ function getPostgresErrorCode(error: unknown): string | undefined {
   return err.code || err.cause?.code
 }
 
-export async function getWorkspaceMemberUserIds(workspaceId: string): Promise<string[]> {
-  const [workspaceRows, permissionRows] = await Promise.all([
-    db
-      .select({ ownerId: workspace.ownerId })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1),
-    db
-      .select({ userId: permissions.userId })
-      .from(permissions)
-      .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId))),
-  ])
-  const workspaceRow = workspaceRows[0]
-
-  const memberIds = new Set<string>(permissionRows.map((row) => row.userId))
-  if (workspaceRow?.ownerId) {
-    memberIds.add(workspaceRow.ownerId)
-  }
-  return Array.from(memberIds)
-}
-
 export async function getUserWorkspaceIds(userId: string): Promise<string[]> {
   const [permissionRows, ownedWorkspaceRows] = await Promise.all([
     db
