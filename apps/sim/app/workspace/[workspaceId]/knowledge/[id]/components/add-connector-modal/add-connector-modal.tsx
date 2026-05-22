@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowLeftRight, Plus, Search } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, Info, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -347,12 +347,28 @@ export function AddConnectorModal({
                   return (
                     <div key={field.id} className='flex flex-col gap-2'>
                       <div className='flex items-center justify-between'>
-                        <Label>
-                          {field.title}
-                          {field.required && (
-                            <span className='ml-0.5 text-[var(--text-error)]'>*</span>
+                        <div className='flex items-center gap-1'>
+                          <Label>
+                            {field.title}
+                            {field.required && (
+                              <span className='ml-0.5 text-[var(--text-error)]'>*</span>
+                            )}
+                          </Label>
+                          {field.description && (
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <button
+                                  type='button'
+                                  className='flex size-[14px] cursor-help items-center justify-center text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-secondary)]'
+                                  aria-label={`About ${field.title}`}
+                                >
+                                  <Info className='size-[12px]' />
+                                </button>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content side='top'>{field.description}</Tooltip.Content>
+                            </Tooltip.Root>
                           )}
-                        </Label>
+                        </div>
                         {hasCanonicalPair && canonicalId && (
                           <Tooltip.Root>
                             <Tooltip.Trigger asChild>
@@ -372,9 +388,6 @@ export function AddConnectorModal({
                           </Tooltip.Root>
                         )}
                       </div>
-                      {field.description && (
-                        <p className='text-[var(--text-muted)] text-xs'>{field.description}</p>
-                      )}
                       {field.type === 'selector' && field.selectorKey ? (
                         <ConnectorSelectorField
                           field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
