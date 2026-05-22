@@ -29,7 +29,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
 } from '@/lib/oauth/types'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { checkWorkspaceAccess, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialsAPI')
 
@@ -296,8 +296,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } = parsed.data.body
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, session.user.id)
-    if (!workspaceAccess.canWrite) {
-      return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
+    if (!workspaceAccess.hasAccess) {
+      return NextResponse.json({ error: 'Workspace access required' }, { status: 403 })
+    }
+
+    const isAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: 'Admin permission required to manage credentials' },
+        { status: 403 }
+      )
     }
 
     let resolvedDisplayName = displayName?.trim() ?? ''
