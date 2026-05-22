@@ -320,6 +320,95 @@ describe('sse-handlers tool lifecycle', () => {
     expect(context.toolCalls.get('tool-hidden')?.name).toBe('load_agent_skill')
   })
 
+  it('does not add ui-hidden tool calls to content blocks', async () => {
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-ui-hidden',
+          toolName: 'read',
+          arguments: { path: 'components/integrations/slack/README.md' },
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+          ui: { hidden: true },
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    expect(context.contentBlocks).toEqual([])
+    expect(context.toolCalls.get('tool-ui-hidden')?.name).toBe('read')
+  })
+
+  it('removes an existing content block when a later frame marks the tool hidden', async () => {
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-hidden-after-partial',
+          toolName: 'read',
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+          status: 'generating',
+          arguments: { path: 'components/integrations' },
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+    expect(context.contentBlocks).toHaveLength(1)
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-hidden-after-partial',
+          toolName: 'read',
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+          arguments: { path: 'components/integrations/slack/README.md' },
+          ui: { hidden: true },
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    expect(context.contentBlocks).toEqual([])
+  })
+
+  it('does not show pathless read or glob generating placeholders', async () => {
+    for (const toolName of ['read', 'glob'] as const) {
+      await sseHandlers.tool(
+        {
+          type: MothershipStreamV1EventType.tool,
+          payload: {
+            toolCallId: `${toolName}-generating`,
+            toolName,
+            executor: MothershipStreamV1ToolExecutor.go,
+            mode: MothershipStreamV1ToolMode.sync,
+            phase: MothershipStreamV1ToolPhase.call,
+            status: 'generating',
+          },
+        } satisfies StreamEvent,
+        context,
+        execContext,
+        { interactive: false, timeout: 1000 }
+      )
+    }
+
+    expect(context.contentBlocks).toEqual([])
+    expect(context.toolCalls.has('read-generating')).toBe(false)
+    expect(context.toolCalls.has('glob-generating')).toBe(false)
+  })
+
   it('updates stored params when a subagent generating event is followed by the final tool call', async () => {
     executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
     context.subAgentParentToolCallId = 'parent-1'

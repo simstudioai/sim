@@ -7,10 +7,8 @@ import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import {
-  parseWorkspaceFileCreatePath,
-  writeWorkspaceFileByPath,
-} from '@/lib/copilot/vfs/resource-writer'
+import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 
 const logger = createLogger('CopilotToolResultFiles')
 
@@ -114,7 +112,12 @@ export function convertRowsToCsv(rows: Record<string, unknown>[]): string {
 }
 
 export function normalizeOutputWorkspaceFileName(outputPath: string): string {
-  return parseWorkspaceFileCreatePath(outputPath).fileName
+  const segments = decodeVfsPathSegments(outputPath.trim().replace(/^\/+|\/+$/g, ''))
+  const fileName = segments.at(-1)
+  if (!fileName) {
+    throw new Error('Output path must include a file name')
+  }
+  return fileName
 }
 
 export function resolveOutputFormat(fileName: string, explicit?: string): OutputFormat {

@@ -18,6 +18,7 @@ import {
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
+import { isReservedWorkflowAliasBackingDisplayPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
@@ -170,12 +171,13 @@ export async function uploadWorkspaceFile(
   fileBuffer: Buffer,
   fileName: string,
   contentType: string,
-  options?: { folderId?: string | null }
+  options?: { folderId?: string | null; exactName?: boolean }
 ): Promise<UserFile> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
 
   const folderId = await assertWorkspaceFileFolderTarget(workspaceId, options?.folderId)
   const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
+  const exactName = options?.exactName ?? false
   const quotaCheck = await checkStorageQuota(userId, fileBuffer.length)
 
   if (!quotaCheck.allowed) {
@@ -183,12 +185,14 @@ export async function uploadWorkspaceFile(
   }
 
   let lastError: unknown
-  for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
-    const uniqueName = await allocateUniqueWorkspaceFileName(
-      workspaceId,
-      normalizedFileName,
-      folderId
-    )
+  const maxAttempts = exactName ? 1 : MAX_UPLOAD_UNIQUE_RETRIES
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const uniqueName = exactName
+      ? normalizedFileName
+      : await allocateUniqueWorkspaceFileName(workspaceId, normalizedFileName, folderId)
+    if (exactName && (await fileExistsInWorkspace(workspaceId, uniqueName, folderId))) {
+      throw new FileConflictError(uniqueName)
+    }
     const storageKey = generateWorkspaceFileKey(workspaceId, uniqueName)
     let fileId = `wf_${generateShortId()}`
 
@@ -283,6 +287,9 @@ export async function uploadWorkspaceFile(
         throw error
       }
       if (getPostgresErrorCode(error) === '23505') {
+        if (exactName) {
+          throw new FileConflictError(normalizedFileName)
+        }
         logger.warn(
           `Unique name conflict on upload (attempt ${attempt + 1}/${MAX_UPLOAD_UNIQUE_RETRIES}), retrying with a new name`
         )
@@ -672,7 +679,12 @@ export async function listWorkspaceFiles(
       : []
     const folderPaths = needsFolderPaths ? buildWorkspaceFileFolderPathMap(folders) : new Map()
 
-    return files.map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
+    return files
+      .map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
+      .filter((file) => {
+        if (includeReservedSystemFiles) return true
+        return !isReservedWorkflowAliasBackingDisplayPath(file.folderPath)
+      })
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
     return []

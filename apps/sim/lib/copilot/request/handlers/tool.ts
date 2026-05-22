@@ -51,7 +51,7 @@ const logger = createLogger('CopilotToolHandler')
 
 function applyToolDisplay(
   toolCall: ToolCallState | undefined,
-  ui: { title?: string; phaseLabel?: string }
+  ui: { title?: string; phaseLabel?: string; hidden?: boolean }
 ): void {
   if (!toolCall) return
   const displayTitle = ui.title || ui.phaseLabel
@@ -235,6 +235,8 @@ async function handleCallPhase(
   const isSubagent = scope === 'subagent'
   const ui = getToolCallUI(data)
 
+  if (isPartial && shouldDelayVfsPlaceholder(toolName, args)) return
+
   if (isSubagent) {
     if (wasToolResultSeen(toolCallId) || existing?.endTime) {
       if (existing && !existing.name && toolName) existing.name = toolName
@@ -308,23 +310,40 @@ async function handleCallPhase(
   )
 }
 
+function shouldDelayVfsPlaceholder(
+  toolName: string,
+  args: Record<string, unknown> | undefined
+): boolean {
+  return (toolName === 'read' || toolName === 'glob') && !args
+}
+
+function removeToolCallContentBlock(context: StreamingContext, toolCallId: string): void {
+  for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
+    const block = context.contentBlocks[i]
+    if (block.type === 'tool_call' && block.toolCall?.id === toolCallId) {
+      context.contentBlocks.splice(i, 1)
+    }
+  }
+}
+
 function registerSubagentToolCall(
   context: StreamingContext,
   toolCallId: string,
   toolName: string,
   args: Record<string, unknown> | undefined,
   parentToolCallId: string,
-  ui: { title?: string; phaseLabel?: string }
+  ui: { title?: string; phaseLabel?: string; hidden?: boolean }
 ): void {
   if (!context.subAgentToolCalls[parentToolCallId]) {
     context.subAgentToolCalls[parentToolCallId] = []
   }
-  const hideFromUi = isToolHiddenInUi(toolName)
+  const hideFromUi = isToolHiddenInUi(toolName) || ui.hidden === true
   let toolCall = context.toolCalls.get(toolCallId)
   if (toolCall) {
     if (!toolCall.name && toolName) toolCall.name = toolName
     if (args && !toolCall.params) toolCall.params = args
     applyToolDisplay(toolCall, ui)
+    if (hideFromUi) removeToolCallContentBlock(context, toolCallId)
   } else {
     toolCall = {
       id: toolCallId,
@@ -363,12 +382,16 @@ function registerMainToolCall(
   toolName: string,
   args: Record<string, unknown> | undefined,
   existing: ToolCallState | undefined,
-  ui: { title?: string; phaseLabel?: string }
+  ui: { title?: string; phaseLabel?: string; hidden?: boolean }
 ): void {
-  const hideFromUi = isToolHiddenInUi(toolName)
+  const hideFromUi = isToolHiddenInUi(toolName) || ui.hidden === true
   if (existing) {
     if (args && !existing.params) existing.params = args
     applyToolDisplay(existing, ui)
+    if (hideFromUi) {
+      removeToolCallContentBlock(context, toolCallId)
+      return
+    }
     if (
       !hideFromUi &&
       !context.contentBlocks.some((b) => b.type === 'tool_call' && b.toolCall?.id === toolCallId)

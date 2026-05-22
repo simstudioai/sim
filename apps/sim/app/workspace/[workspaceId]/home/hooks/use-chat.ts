@@ -52,6 +52,7 @@ import {
   DeployApi,
   DeployChat,
   DeployMcp,
+  FunctionExecute,
   GetPageContents,
   GetWorkflowLogs,
   Glob,
@@ -581,8 +582,19 @@ function resolveOperationDisplayTitle(
   return label ?? fallback
 }
 
+function prefixFunctionExecuteTitle(title: string | undefined, language: unknown): string {
+  const modePrefix = language === 'shell' ? 'CLI' : 'Code'
+  const baseTitle = title ?? 'Running code'
+  if (baseTitle.startsWith(`${modePrefix}:`)) return baseTitle
+  return `${modePrefix}: ${baseTitle}`
+}
+
 function resolveToolDisplayTitle(name: string, args?: Record<string, unknown>): string | undefined {
   if (!args) return undefined
+
+  if (name === FunctionExecute.id) {
+    return prefixFunctionExecuteTitle(stringParam(args.title), args.language)
+  }
 
   if (name === WorkspaceFile.id) {
     const target = asPayloadRecord(args.target)
@@ -731,6 +743,13 @@ function matchStreamingStringArg(streamingArgs: string, key: string): string | u
 }
 
 function resolveStreamingToolDisplayTitle(name: string, streamingArgs: string): string | undefined {
+  if (name === FunctionExecute.id) {
+    return prefixFunctionExecuteTitle(
+      matchStreamingStringArg(streamingArgs, 'title'),
+      matchStreamingStringArg(streamingArgs, 'language')
+    )
+  }
+
   if (name === WorkspaceFile.id) {
     return resolveWorkspaceFileDisplayTitle(
       matchStreamingStringArg(streamingArgs, 'operation'),
@@ -1799,7 +1818,11 @@ export function useChat(
       if (session.fileId && hasRenderableFilePreviewContent(session)) {
         setResources((current) => {
           const withoutStreaming = current.filter((resource) => resource.id !== 'streaming-file')
-          if (withoutStreaming.some((resource) => resource.type === 'file' && resource.id === session.fileId)) {
+          if (
+            withoutStreaming.some(
+              (resource) => resource.type === 'file' && resource.id === session.fileId
+            )
+          ) {
             return withoutStreaming
           }
           return [

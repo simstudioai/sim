@@ -1,17 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  ensureWorkflowAliasBacking: vi.fn(),
-  ensureWorkspacePlanBacking: vi.fn(),
-  resolveWorkflowAliasForWorkspace: vi.fn(),
-  ensureWorkspaceFileFolderPath: vi.fn(),
-  findWorkspaceFileFolderIdByPath: vi.fn(),
-  normalizeWorkspaceFileItemName: vi.fn((name: string) => name.trim()),
-  getWorkspaceFileByName: vi.fn(),
-  resolveWorkspaceFileReference: vi.fn(),
-  updateWorkspaceFileContent: vi.fn(),
-  uploadWorkspaceFile: vi.fn(),
-}))
+const mocks = vi.hoisted(() => {
+  class FileConflictError extends Error {
+    readonly code = 'FILE_EXISTS' as const
+  }
+
+  return {
+    FileConflictError,
+    ensureWorkflowAliasBacking: vi.fn(),
+    ensureWorkspacePlanBacking: vi.fn(),
+    resolveWorkflowAliasForWorkspace: vi.fn(),
+    ensureWorkspaceFileFolderPath: vi.fn(),
+    findWorkspaceFileFolderIdByPath: vi.fn(),
+    normalizeWorkspaceFileItemName: vi.fn((name: string) => name.trim()),
+    getWorkspaceFileByName: vi.fn(),
+    resolveWorkspaceFileReference: vi.fn(),
+    updateWorkspaceFileContent: vi.fn(),
+    uploadWorkspaceFile: vi.fn(),
+  }
+})
 
 vi.mock('@/lib/copilot/vfs/workflow-alias-backing', () => ({
   ensureWorkflowAliasBacking: mocks.ensureWorkflowAliasBacking,
@@ -29,13 +36,14 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => 
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  FileConflictError: mocks.FileConflictError,
   getWorkspaceFileByName: mocks.getWorkspaceFileByName,
   resolveWorkspaceFileReference: mocks.resolveWorkspaceFileReference,
   updateWorkspaceFileContent: mocks.updateWorkspaceFileContent,
   uploadWorkspaceFile: mocks.uploadWorkspaceFile,
 }))
 
-import { writeWorkspaceFileByPath } from './resource-writer'
+import { validateWorkspaceFileWriteTarget, writeWorkspaceFileByPath } from './resource-writer'
 
 describe('resource writer workflow aliases', () => {
   beforeEach(() => {
@@ -83,7 +91,7 @@ describe('resource writer workflow aliases', () => {
       Buffer.from('content'),
       'launch.md',
       'text/markdown',
-      { folderId: 'folder-id' }
+      { folderId: 'folder-id', exactName: true }
     )
     expect(result).toMatchObject({
       id: 'file-plan',
@@ -189,5 +197,114 @@ describe('resource writer workflow aliases', () => {
       backingVfsPath: 'files/.plans/workspace/root.md',
       mode: 'create',
     })
+  })
+
+  it('rejects direct writes to reserved workflow alias backing paths', async () => {
+    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue(null)
+
+    await expect(
+      writeWorkspaceFileByPath({
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        target: {
+          path: 'files/.plans/wf_1/launch.md',
+          mode: 'create',
+        },
+        buffer: Buffer.from('content'),
+        inferredMimeType: 'text/markdown',
+      })
+    ).rejects.toThrow('Reserved workflow alias backing paths must be accessed through their alias path')
+
+    expect(mocks.uploadWorkspaceFile).not.toHaveBeenCalled()
+  })
+
+  it('rejects validation of reserved workflow alias backing paths', async () => {
+    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue(null)
+
+    await expect(
+      validateWorkspaceFileWriteTarget({
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        target: {
+          path: 'files/.changelogs/wf_1.md',
+          mode: 'overwrite',
+        },
+      })
+    ).rejects.toThrow('Reserved workflow alias backing paths must be accessed through their alias path')
+
+    expect(mocks.resolveWorkspaceFileReference).not.toHaveBeenCalled()
+  })
+
+  it('uses exact-name creates for alias backing files', async () => {
+    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue({
+      kind: 'plan_file',
+      scope: 'workflow',
+      workflowId: 'wf_1',
+      workflowName: 'My Workflow',
+      workflowPath: 'workflows/My%20Workflow',
+      aliasPath: 'workflows/My%20Workflow/.plans/launch.md',
+      backingPath: 'files/.plans/wf_1/launch.md',
+      backingFolderPath: 'files/.plans/wf_1',
+      planRelativePath: 'launch.md',
+    })
+    mocks.getWorkspaceFileByName.mockResolvedValue(null)
+    mocks.uploadWorkspaceFile.mockResolvedValue({
+      id: 'file-plan',
+      name: 'launch.md',
+      size: 7,
+      type: 'text/markdown',
+      url: '/download',
+    })
+
+    await writeWorkspaceFileByPath({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      target: {
+        path: 'workflows/My%20Workflow/.plans/launch.md',
+        mode: 'create',
+      },
+      buffer: Buffer.from('content'),
+      inferredMimeType: 'text/markdown',
+    })
+
+    expect(mocks.uploadWorkspaceFile).toHaveBeenCalledWith(
+      'workspace-1',
+      'user-1',
+      Buffer.from('content'),
+      'launch.md',
+      'text/markdown',
+      { folderId: 'folder-id', exactName: true }
+    )
+  })
+
+  it('reports alias path when exact-name alias backing creation conflicts', async () => {
+    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue({
+      kind: 'plan_file',
+      scope: 'workflow',
+      workflowId: 'wf_1',
+      workflowName: 'My Workflow',
+      workflowPath: 'workflows/My%20Workflow',
+      aliasPath: 'workflows/My%20Workflow/.plans/launch.md',
+      backingPath: 'files/.plans/wf_1/launch.md',
+      backingFolderPath: 'files/.plans/wf_1',
+      planRelativePath: 'launch.md',
+    })
+    mocks.getWorkspaceFileByName.mockResolvedValue(null)
+    mocks.uploadWorkspaceFile.mockRejectedValue(new mocks.FileConflictError('launch.md'))
+
+    await expect(
+      writeWorkspaceFileByPath({
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        target: {
+          path: 'workflows/My%20Workflow/.plans/launch.md',
+          mode: 'create',
+        },
+        buffer: Buffer.from('content'),
+        inferredMimeType: 'text/markdown',
+      })
+    ).rejects.toThrow(
+      'File already exists at workflows/My%20Workflow/.plans/launch.md. Use mode "overwrite" to update it.'
+    )
   })
 })

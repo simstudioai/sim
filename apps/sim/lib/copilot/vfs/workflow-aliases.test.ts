@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildWorkflowAliasWorkflowEntries,
+  isWorkflowAliasBackingPath,
   resolveWorkspacePlanAliasPath,
   resolveWorkflowAliasPath,
   workspacePlanBackingPath,
@@ -128,5 +129,11 @@ describe('workflow aliases', () => {
 
     expect(resolveWorkflowAliasPath('workflows/Root%20Flow/random.md', workflows)).toBeNull()
     expect(resolveWorkflowAliasPath('workflows/Missing/changelog.md', workflows)).toBeNull()
+  })
+
+  it('recognizes reserved backing paths after VFS segment canonicalization', () => {
+    expect(isWorkflowAliasBackingPath('files/.plans/wf_1/launch.md')).toBe(true)
+    expect(isWorkflowAliasBackingPath('files/%2Eplans/wf_1/launch.md')).toBe(true)
+    expect(isWorkflowAliasBackingPath('files/ordinary/launch.md')).toBe(false)
   })
 })

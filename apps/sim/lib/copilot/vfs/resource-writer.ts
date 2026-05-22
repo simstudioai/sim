@@ -6,6 +6,7 @@ import {
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
 import {
   isPlanAliasPath,
+  isWorkflowAliasBackingPath,
   WORKFLOW_CHANGELOG_BACKING_FOLDER,
   WORKFLOW_PLANS_BACKING_FOLDER,
   WORKSPACE_PLANS_BACKING_FOLDER,
@@ -17,6 +18,7 @@ import {
   normalizeWorkspaceFileItemName,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
+  FileConflictError,
   getWorkspaceFileByName,
   resolveWorkspaceFileReference,
   updateWorkspaceFileContent,
@@ -127,6 +129,14 @@ async function resolveCreateTarget(
 
 function vfsPathForRecord(record: WorkspaceFileRecord): string {
   return canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name })
+}
+
+function assertNotReservedWorkflowAliasBackingPath(path: string): void {
+  if (isWorkflowAliasBackingPath(path)) {
+    throw new Error(
+      `Reserved workflow alias backing paths must be accessed through their alias path: ${path}`
+    )
+  }
 }
 
 async function resolveWorkflowAliasFileTarget(args: {
@@ -255,6 +265,8 @@ export async function validateWorkspaceFileWriteTarget(args: {
     }
   }
 
+  assertNotReservedWorkflowAliasBackingPath(args.target.path)
+
   if (args.target.mode === 'overwrite') {
     const existing = await resolveWorkspaceFileReference(args.workspaceId, args.target.path)
     if (!existing) {
@@ -332,8 +344,15 @@ export async function writeWorkspaceFileByPath(args: {
       args.buffer,
       resolved.fileName,
       contentType,
-      { folderId: resolved.folderId }
-    )
+      { folderId: resolved.folderId, exactName: true }
+    ).catch((error: unknown) => {
+      if (error instanceof FileConflictError) {
+        throw new Error(
+          `File already exists at ${alias.aliasPath}. Use mode "overwrite" to update it.`
+        )
+      }
+      throw error
+    })
     return {
       id: uploaded.id,
       name: uploaded.name,
@@ -345,6 +364,8 @@ export async function writeWorkspaceFileByPath(args: {
       mode: 'create',
     }
   }
+
+  assertNotReservedWorkflowAliasBackingPath(args.target.path)
 
   if (args.target.mode === 'overwrite') {
     const existing = await resolveWorkspaceFileReference(args.workspaceId, args.target.path)

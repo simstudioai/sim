@@ -161,7 +161,7 @@ describe('copilot go stream helpers', () => {
       requestId: 'req-1',
       type: MothershipStreamV1EventType.tool,
       payload: {
-        toolCallId: 'workspace-file-1',
+        toolCallId: 'workspace-file-path-1',
         toolName: 'workspace_file',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
@@ -180,7 +180,7 @@ describe('copilot go stream helpers', () => {
       requestId: 'req-1',
       type: MothershipStreamV1EventType.tool,
       payload: {
-        toolCallId: 'workspace-file-1',
+        toolCallId: 'workspace-file-path-1',
         toolName: 'workspace_file',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
@@ -199,7 +199,7 @@ describe('copilot go stream helpers', () => {
       requestId: 'req-1',
       type: MothershipStreamV1EventType.tool,
       payload: {
-        toolCallId: 'edit-content-1',
+        toolCallId: 'edit-content-path-1',
         toolName: 'edit_content',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
@@ -214,7 +214,7 @@ describe('copilot go stream helpers', () => {
       requestId: 'req-1',
       type: MothershipStreamV1EventType.tool,
       payload: {
-        toolCallId: 'edit-content-1',
+        toolCallId: 'edit-content-path-1',
         toolName: 'edit_content',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
@@ -301,7 +301,7 @@ describe('copilot go stream helpers', () => {
       requestId: 'req-1',
       type: MothershipStreamV1EventType.tool,
       payload: {
-        toolCallId: 'workspace-file-1',
+        toolCallId: 'workspace-file-alias-1',
         toolName: 'workspace_file',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
@@ -320,7 +320,7 @@ describe('copilot go stream helpers', () => {
       requestId: 'req-1',
       type: MothershipStreamV1EventType.tool,
       payload: {
-        toolCallId: 'edit-content-1',
+        toolCallId: 'edit-content-alias-1',
         toolName: 'edit_content',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
@@ -335,7 +335,7 @@ describe('copilot go stream helpers', () => {
       requestId: 'req-1',
       type: MothershipStreamV1EventType.tool,
       payload: {
-        toolCallId: 'edit-content-1',
+        toolCallId: 'edit-content-alias-1',
         toolName: 'edit_content',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,

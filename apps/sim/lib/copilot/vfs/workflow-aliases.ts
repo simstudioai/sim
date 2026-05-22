@@ -272,7 +272,17 @@ export function isPlanAliasPath(path: string): boolean {
 }
 
 export function isWorkflowAliasBackingPath(path: string): boolean {
-  const normalizedPath = path.trim().replace(/^\/+|\/+$/g, '')
+  const trimmedPath = path.trim().replace(/^\/+|\/+$/g, '')
+  let normalizedPath = trimmedPath
+  if (trimmedPath.startsWith('files/')) {
+    try {
+      normalizedPath = `files/${decodeVfsPathSegments(trimmedPath.slice('files/'.length))
+        .map((segment) => normalizeVfsSegment(segment))
+        .join('/')}`
+    } catch {
+      normalizedPath = trimmedPath
+    }
+  }
   return (
     normalizedPath === `files/${normalizeVfsSegment(WORKFLOW_CHANGELOG_BACKING_FOLDER)}` ||
     normalizedPath === `files/${normalizeVfsSegment(WORKFLOW_PLANS_BACKING_FOLDER)}` ||
