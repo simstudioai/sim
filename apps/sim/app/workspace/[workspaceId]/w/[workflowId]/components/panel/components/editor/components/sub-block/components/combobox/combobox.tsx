@@ -8,6 +8,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { getBlock } from '@/blocks/registry'
@@ -15,6 +16,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { getProviderFromModel } from '@/providers/utils'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -68,6 +70,7 @@ interface ComboBoxProps {
   ) => Promise<{ label: string; id: string } | null>
   /** Field dependencies that trigger option refetch when changed */
   dependsOn?: SubBlockConfig['dependsOn']
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export const ComboBox = memo(function ComboBox({
@@ -84,6 +87,7 @@ export const ComboBox = memo(function ComboBox({
   fetchOptions,
   fetchOptionById,
   dependsOn,
+  activeSearchTarget,
 }: ComboBoxProps) {
   // Hooks and context
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
@@ -449,6 +453,13 @@ export const ComboBox = memo(function ComboBox({
   const overlayContent = useMemo(() => {
     const SelectedIcon = selectedOptionIcon
     const displayLabel = inputValue
+    const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+      activeSearchTarget,
+      blockId,
+      subBlockId,
+      valuePath: [],
+      label: displayLabel,
+    })
     return (
       <div className='flex w-full items-center truncate [scrollbar-width:none]'>
         {SelectedIcon && <SelectedIcon className='mr-2 size-3 flex-shrink-0' />}
@@ -456,11 +467,12 @@ export const ComboBox = memo(function ComboBox({
           {formatDisplayText(displayLabel, {
             accessiblePrefixes,
             highlightAll: !accessiblePrefixes,
+            workflowSearchHighlight,
           })}
         </div>
       </div>
     )
-  }, [inputValue, accessiblePrefixes, selectedOption, selectedOptionIcon])
+  }, [activeSearchTarget, blockId, inputValue, accessiblePrefixes, selectedOptionIcon, subBlockId])
 
   const ctrlOnChangeRef = useRef<
     ((e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => void) | null

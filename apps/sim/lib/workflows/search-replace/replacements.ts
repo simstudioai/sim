@@ -63,6 +63,21 @@ function getTouchedPathsByField(matches: WorkflowSearchMatch[]) {
   return touchedPathsByField
 }
 
+function getResourceReplacementScope(
+  value: unknown,
+  match: WorkflowSearchMatch
+): { value: unknown; path: WorkflowSearchMatch['valuePath'] } | null {
+  for (let prefixLength = match.valuePath.length; prefixLength >= 0; prefixLength -= 1) {
+    const path = match.valuePath.slice(0, prefixLength)
+    const candidateValue = path.length === 0 ? value : getValueAtPath(value, path)
+    if (workflowSearchResourceValueContains(match, candidateValue)) {
+      return { value: candidateValue, path }
+    }
+  }
+
+  return null
+}
+
 function getDependentValuePathsToClear(
   match: WorkflowSearchMatch,
   touchedPathsByField: Map<string, WorkflowSearchMatch['valuePath'][]>
@@ -265,16 +280,15 @@ export function buildWorkflowSearchReplacePlan({
       )
       nextValue = clearDependentValues(nextValue, dependentValuePathsToClear)
     } else {
-      const currentValue = getValueAtPath(nextValue, match.valuePath)
-      const valueForReplacement = match.valuePath.length === 0 ? nextValue : currentValue
-      if (!workflowSearchResourceValueContains(match, valueForReplacement)) {
+      const replacementScope = getResourceReplacementScope(nextValue, match)
+      if (!replacementScope) {
         conflicts.push({ matchId: match.id, reason: 'Target resource changed since search' })
         continue
       }
 
       const resourceReplacement = replaceWorkflowSearchResourceValue(
         match,
-        valueForReplacement,
+        replacementScope.value,
         replacement
       )
       if (!resourceReplacement.success) {
@@ -286,9 +300,9 @@ export function buildWorkflowSearchReplacePlan({
       }
       const replacedValue = resourceReplacement.nextValue
       nextValue =
-        match.valuePath.length === 0
+        replacementScope.path.length === 0
           ? replacedValue
-          : setValueAtPath(nextValue, match.valuePath, replacedValue)
+          : setValueAtPath(nextValue, replacementScope.path, replacedValue)
       nextValue = clearDependentValues(nextValue, dependentValuePathsToClear)
     }
 
