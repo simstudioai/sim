@@ -32,14 +32,14 @@ export interface UseMcpToolsResult {
   mcpTools: McpToolForUI[]
   isLoading: boolean
   error: string | null
-  refreshTools: (forceRefresh?: boolean) => Promise<void>
+  refreshTools: () => Promise<void>
   getToolsByServer: (serverId: string) => McpToolForUI[]
 }
 
 export function useMcpTools(workspaceId: string): UseMcpToolsResult {
   const queryClient = useQueryClient()
 
-  const { data: mcpToolsData = [], isLoading, error: queryError } = useMcpToolsQuery(workspaceId)
+  const { data: mcpToolsData, isLoading, error: queryError } = useMcpToolsQuery(workspaceId)
 
   const mcpTools = useMemo<McpToolForUI[]>(() => {
     return mcpToolsData.map((tool) => ({
@@ -55,22 +55,17 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     }))
   }, [mcpToolsData])
 
-  const refreshTools = useCallback(
-    async (forceRefresh = false) => {
-      if (!workspaceId) {
-        logger.warn('Cannot refresh tools: no workspaceId provided')
-        return
-      }
+  // Soft refresh — invalidate per-server entries. For cache-bypass, use `useForceRefreshMcpTools`.
+  const refreshTools = useCallback(async () => {
+    if (!workspaceId) {
+      logger.warn('Cannot refresh tools: no workspaceId provided')
+      return
+    }
 
-      logger.info('Refreshing MCP tools', { forceRefresh, workspaceId })
-
-      await queryClient.invalidateQueries({
-        queryKey: mcpKeys.toolsList(workspaceId),
-        refetchType: forceRefresh ? 'active' : 'all',
-      })
-    },
-    [workspaceId, queryClient]
-  )
+    await queryClient.invalidateQueries({
+      queryKey: mcpKeys.serverToolsWorkspace(workspaceId),
+    })
+  }, [workspaceId, queryClient])
 
   const getToolsByServer = useCallback(
     (serverId: string): McpToolForUI[] => {
