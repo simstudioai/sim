@@ -28,6 +28,7 @@ import {
 } from '@/components/emcn'
 import { Database, DatabaseX } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
+import { cn } from '@/lib/core/utils/cn'
 import { ADD_CONNECTOR_SEARCH_PARAM } from '@/lib/credentials/client-state'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
@@ -920,19 +921,35 @@ export function KnowledgeBase({
           const def = CONNECTOR_REGISTRY[connector.connectorType]
           const ConnectorIcon = def?.icon
           return (
-            <button
+            <Button
               key={connector.id}
               type='button'
+              variant='ghost'
+              size='sm'
               onClick={() => setShowConnectorsModal(true)}
-              className='flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption shadow-[inset_0_0_0_1px_var(--border)] transition-colors hover-hover:bg-[var(--surface-3)]'
+              className='h-7 max-w-[180px] shrink-0 justify-start gap-1.5 rounded-lg border border-[var(--border-muted)] bg-[var(--surface-2)] px-2 text-[var(--text-secondary)] text-caption hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
             >
-              {connector.status === 'syncing' ? (
-                <Loader className='size-[14px]' animate />
-              ) : (
-                ConnectorIcon && <ConnectorIcon className='size-[14px]' />
-              )}
-              {def?.name || connector.connectorType}
-            </button>
+              <span className='relative flex size-4 flex-shrink-0 items-center justify-center'>
+                {connector.status === 'syncing' ? (
+                  <Loader className='size-[14px]' animate />
+                ) : (
+                  ConnectorIcon && <ConnectorIcon className='size-[14px]' />
+                )}
+                {connector.status !== 'active' && connector.status !== 'syncing' && (
+                  <span
+                    className={cn(
+                      '-right-0.5 -top-0.5 absolute size-1.5 rounded-xs border border-[var(--surface-2)]',
+                      connector.status === 'error'
+                        ? 'bg-[var(--text-error)]'
+                        : connector.status === 'disabled'
+                          ? 'bg-[var(--caution)]'
+                          : 'bg-[var(--text-muted)]'
+                    )}
+                  />
+                )}
+              </span>
+              <span className='truncate'>{def?.name || connector.connectorType}</span>
+            </Button>
           )
         })}
       </>
@@ -1317,6 +1334,7 @@ export function KnowledgeBase({
               connectors={connectors}
               isLoading={isLoadingConnectors}
               canEdit={userPermissions.canEdit}
+              className='mt-0'
             />
           </ModalBody>
         </ModalContent>
