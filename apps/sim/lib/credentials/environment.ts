@@ -38,8 +38,7 @@ async function ensureWorkspaceCredentialMemberships(
   credentialId: string,
   memberUserIds: string[],
   ownerUserId: string,
-  wsPermissionByUser: Map<string, string>,
-  actingUserId?: string
+  wsPermissionByUser: Map<string, string>
 ) {
   if (!memberUserIds.length) return
 
@@ -66,8 +65,7 @@ async function ensureWorkspaceCredentialMemberships(
   const now = new Date()
   const values = targetUserIds.map((memberUserId) => {
     const wsPermission = wsPermissionByUser.get(memberUserId)
-    const isAdmin =
-      memberUserId === ownerUserId || memberUserId === actingUserId || wsPermission === 'admin'
+    const isAdmin = memberUserId === ownerUserId || wsPermission === 'admin'
     return {
       id: generateId(),
       credentialId,
@@ -175,8 +173,7 @@ export async function syncWorkspaceEnvCredentials(params: {
       credentialId,
       memberUserIds,
       workspaceRow.ownerId,
-      wsPermissionByUser,
-      actingUserId
+      wsPermissionByUser
     )
   }
 
@@ -258,8 +255,7 @@ export async function createWorkspaceEnvCredentials(params: {
   const membershipValues = createdIds.flatMap((credentialId) =>
     memberUserIds.map((memberUserId) => {
       const wsPermission = wsPermissionByUser.get(memberUserId)
-      const isAdmin =
-        memberUserId === ownerUserId || memberUserId === actingUserId || wsPermission === 'admin'
+      const isAdmin = memberUserId === ownerUserId || wsPermission === 'admin'
       return {
         id: generateId(),
         credentialId,
