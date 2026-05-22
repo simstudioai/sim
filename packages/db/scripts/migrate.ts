@@ -12,6 +12,7 @@ if (!url) {
 const client = postgres(url, { max: 1, connect_timeout: 10 })
 
 try {
+  await client`SET statement_timeout = 0`
   await migrate(drizzle(client), { migrationsFolder: './migrations' })
   console.log('Migrations applied successfully.')
 } catch (error) {
