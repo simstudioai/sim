@@ -5,9 +5,9 @@ import { Button, Input, Textarea, Tooltip } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
-import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
@@ -71,16 +71,15 @@ export function EvalInput({
   const defaultMetric = useMemo(() => createDefaultMetric(), [])
   const metrics: EvalMetric[] = value || [defaultMetric]
 
-  const isNestedSearchHighlighted = (metricIndex: number, metricPath: Array<string | number>) =>
-    activeSearchTarget?.subBlockId === subBlockId &&
-    activeSearchTarget.valuePath[0] === metricIndex &&
-    metricPath.every((segment, index) => activeSearchTarget.valuePath[index + 1] === segment)
+  const getMetricSearchHighlight = (metricIndex: number, metricPath: Array<string | number>) =>
+    getActiveWorkflowSearchHighlight({
+      activeSearchTarget,
+      blockId,
+      subBlockId,
+      valuePath: [metricIndex, ...metricPath],
+    })
 
-  const renderFieldLabel = (label: string, highlighted: boolean) => (
-    <Label className='text-small'>
-      {highlighted ? <mark className={WORKFLOW_SEARCH_HIGHLIGHT_CLASS}>{label}</mark> : label}
-    </Label>
-  )
+  const renderFieldLabel = (label: string) => <Label className='text-small'>{label}</Label>
 
   const addMetric = () => {
     if (isPreview || disabled) return
@@ -191,18 +190,35 @@ export function EvalInput({
 
           <div className='flex flex-col gap-2 border-[var(--border-1)] px-2.5 pt-1.5 pb-2.5'>
             <div key={`name-${metric.id}`} className='flex flex-col gap-1.5'>
-              {renderFieldLabel('Name', isNestedSearchHighlighted(index, ['name']))}
-              <Input
-                name='name'
-                value={metric.name}
-                onChange={(e) => updateMetric(metric.id, 'name', e.target.value)}
-                placeholder='Accuracy'
-                disabled={isPreview || disabled}
-              />
+              {renderFieldLabel('Name')}
+              <div className='relative'>
+                <Input
+                  name='name'
+                  value={metric.name}
+                  onChange={(e) => updateMetric(metric.id, 'name', e.target.value)}
+                  placeholder='Accuracy'
+                  disabled={isPreview || disabled}
+                  className='text-transparent caret-foreground placeholder:text-muted-foreground/50'
+                />
+                <div
+                  className={cn(
+                    'pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm',
+                    (isPreview || disabled) && 'opacity-50'
+                  )}
+                >
+                  <span className='truncate'>
+                    {formatDisplayText(metric.name || '', {
+                      accessiblePrefixes,
+                      highlightAll: !accessiblePrefixes,
+                      workflowSearchHighlight: getMetricSearchHighlight(index, ['name']),
+                    })}
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div key={`description-${metric.id}`} className='flex flex-col gap-1.5'>
-              {renderFieldLabel('Description', isNestedSearchHighlighted(index, ['description']))}
+              {renderFieldLabel('Description')}
               <div className='relative'>
                 {(() => {
                   const fieldState = inputController.fieldHelpers.getFieldState(metric.id)
@@ -249,6 +265,9 @@ export function EvalInput({
                           {formatDisplayText(metric.description || '', {
                             accessiblePrefixes,
                             highlightAll: !accessiblePrefixes,
+                            workflowSearchHighlight: getMetricSearchHighlight(index, [
+                              'description',
+                            ]),
                           })}
                         </div>
                       </div>
@@ -274,30 +293,46 @@ export function EvalInput({
 
             <div key={`range-${metric.id}`} className='grid grid-cols-2 gap-2'>
               <div className='flex flex-col gap-1.5'>
-                {renderFieldLabel('Min Value', isNestedSearchHighlighted(index, ['range', 'min']))}
-                <Input
-                  type='text'
-                  value={metric.range.min}
-                  onChange={(e) => updateRange(metric.id, 'min', e.target.value)}
-                  onBlur={(e) => handleRangeBlur(metric.id, 'min', e.target.value)}
-                  disabled={isPreview || disabled}
-                  autoComplete='off'
-                  data-form-type='other'
-                  name='eval-range-min'
-                />
+                {renderFieldLabel('Min Value')}
+                <div className='relative'>
+                  <Input
+                    type='text'
+                    value={metric.range.min ?? ''}
+                    onChange={(e) => updateRange(metric.id, 'min', e.target.value)}
+                    onBlur={(e) => handleRangeBlur(metric.id, 'min', e.target.value)}
+                    disabled={isPreview || disabled}
+                    autoComplete='off'
+                    data-form-type='other'
+                    name='eval-range-min'
+                    className='text-transparent caret-foreground'
+                  />
+                  <div className='pointer-events-none absolute inset-0 flex items-center truncate px-2 py-1.5 font-medium font-sans text-sm'>
+                    {formatDisplayText(String(metric.range.min ?? ''), {
+                      workflowSearchHighlight: getMetricSearchHighlight(index, ['range', 'min']),
+                    })}
+                  </div>
+                </div>
               </div>
               <div className='flex flex-col gap-1.5'>
-                {renderFieldLabel('Max Value', isNestedSearchHighlighted(index, ['range', 'max']))}
-                <Input
-                  type='text'
-                  value={metric.range.max}
-                  onChange={(e) => updateRange(metric.id, 'max', e.target.value)}
-                  onBlur={(e) => handleRangeBlur(metric.id, 'max', e.target.value)}
-                  disabled={isPreview || disabled}
-                  autoComplete='off'
-                  data-form-type='other'
-                  name='eval-range-max'
-                />
+                {renderFieldLabel('Max Value')}
+                <div className='relative'>
+                  <Input
+                    type='text'
+                    value={metric.range.max ?? ''}
+                    onChange={(e) => updateRange(metric.id, 'max', e.target.value)}
+                    onBlur={(e) => handleRangeBlur(metric.id, 'max', e.target.value)}
+                    disabled={isPreview || disabled}
+                    autoComplete='off'
+                    data-form-type='other'
+                    name='eval-range-max'
+                    className='text-transparent caret-foreground'
+                  />
+                  <div className='pointer-events-none absolute inset-0 flex items-center truncate px-2 py-1.5 font-medium font-sans text-sm'>
+                    {formatDisplayText(String(metric.range.max ?? ''), {
+                      workflowSearchHighlight: getMetricSearchHighlight(index, ['range', 'max']),
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

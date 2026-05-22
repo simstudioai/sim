@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Badge, Input } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
@@ -6,12 +6,14 @@ import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowState } from '@/hooks/queries/workflows'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 /**
  * Props for the InputMappingField component
@@ -29,6 +31,7 @@ interface InputMappingFieldProps {
   overlayRefs: React.RefObject<Map<string, HTMLDivElement>>
   collapsed: boolean
   onToggleCollapse: () => void
+  workflowSearchHighlight?: ReturnType<typeof getActiveWorkflowSearchHighlight>
 }
 
 /**
@@ -42,6 +45,7 @@ interface InputMappingProps {
   disabled?: boolean
   /** Sub-block values from the preview context for resolving sibling sub-block values */
   previewContextValues?: Record<string, unknown>
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -56,6 +60,7 @@ export function InputMapping({
   previewValue,
   disabled = false,
   previewContextValues,
+  activeSearchTarget,
 }: InputMappingProps) {
   const subBlockId = subBlock.id
   const [mapping, setMapping] = useSubBlockValue(blockId, subBlockId)
@@ -120,6 +125,13 @@ export function InputMapping({
     }))
   }
 
+  useEffect(() => {
+    if (activeSearchTarget?.subBlockId !== subBlockId) return
+    const [fieldName] = activeSearchTarget.valuePath
+    if (typeof fieldName !== 'string' || !collapsedFields[fieldName]) return
+    setCollapsedFields((prev) => ({ ...prev, [fieldName]: false }))
+  }, [activeSearchTarget, collapsedFields, subBlockId])
+
   if (!selectedWorkflowId) {
     return (
       <div className='flex h-32 items-center justify-center rounded-sm border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] dark:bg-[var(--code-bg)]'>
@@ -160,23 +172,31 @@ export function InputMapping({
 
   return (
     <div className='space-y-2'>
-      {childInputFields.map((field) => (
-        <InputMappingField
-          key={field.name}
-          fieldName={field.name}
-          fieldType={field.type}
-          value={valueObj[field.name] || ''}
-          onChange={(value) => handleFieldUpdate(field.name, value)}
-          blockId={blockId}
-          disabled={isPreview || disabled}
-          accessiblePrefixes={accessiblePrefixes}
-          inputController={inputController}
-          inputRefs={inputRefs}
-          overlayRefs={overlayRefs}
-          collapsed={collapsedFields[field.name] || false}
-          onToggleCollapse={() => toggleCollapse(field.name)}
-        />
-      ))}
+      {childInputFields.map((field) => {
+        const workflowSearchHighlight = getActiveWorkflowSearchHighlight({
+          activeSearchTarget,
+          subBlockId,
+          valuePath: [field.name],
+        })
+        return (
+          <InputMappingField
+            key={field.name}
+            fieldName={field.name}
+            fieldType={field.type}
+            value={valueObj[field.name] || ''}
+            onChange={(value) => handleFieldUpdate(field.name, value)}
+            blockId={blockId}
+            disabled={isPreview || disabled}
+            accessiblePrefixes={accessiblePrefixes}
+            inputController={inputController}
+            inputRefs={inputRefs}
+            overlayRefs={overlayRefs}
+            collapsed={collapsedFields[field.name] || false}
+            onToggleCollapse={() => toggleCollapse(field.name)}
+            workflowSearchHighlight={workflowSearchHighlight}
+          />
+        )
+      })}
     </div>
   )
 }
@@ -199,6 +219,7 @@ function InputMappingField({
   overlayRefs,
   collapsed,
   onToggleCollapse,
+  workflowSearchHighlight,
 }: InputMappingFieldProps) {
   const fieldId = fieldName
   const fieldState = inputController.fieldHelpers.getFieldState(fieldId)
@@ -293,7 +314,9 @@ function InputMappingField({
                 >
                   {formatDisplayText(
                     value,
-                    accessiblePrefixes ? { accessiblePrefixes } : { highlightAll: true }
+                    accessiblePrefixes
+                      ? { accessiblePrefixes, workflowSearchHighlight }
+                      : { highlightAll: true, workflowSearchHighlight }
                   )}
                 </div>
               </div>

@@ -17,6 +17,8 @@ import {
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -27,6 +29,7 @@ import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
@@ -38,6 +41,7 @@ interface CredentialSelectorProps {
   isPreview?: boolean
   previewValue?: any | null
   previewContextValues?: Record<string, unknown>
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function CredentialSelector({
@@ -47,6 +51,7 @@ export function CredentialSelector({
   isPreview = false,
   previewValue,
   previewContextValues,
+  activeSearchTarget,
 }: CredentialSelectorProps) {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -324,6 +329,12 @@ export function CredentialSelector({
   ])
 
   const selectedCredentialProvider = selectedCredential?.provider ?? provider
+  const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+    activeSearchTarget,
+    subBlockId: subBlock.id,
+    valuePath: [],
+    label: displayValue,
+  })
 
   const overlayContent = useMemo(() => {
     if (!displayValue) return null
@@ -334,7 +345,9 @@ export function CredentialSelector({
           <div className='mr-2 flex-shrink-0 opacity-90'>
             <Users className='size-3' />
           </div>
-          <span className='truncate'>{displayValue}</span>
+          <span className='truncate'>
+            {formatDisplayText(displayValue, { workflowSearchHighlight })}
+          </span>
         </div>
       )
     }
@@ -345,7 +358,9 @@ export function CredentialSelector({
           <div className='mr-2 flex-shrink-0 opacity-90'>
             <KeyRound className='size-3' />
           </div>
-          <span className='truncate'>{displayValue}</span>
+          <span className='truncate'>
+            {formatDisplayText(displayValue, { workflowSearchHighlight })}
+          </span>
         </div>
       )
     }
@@ -355,7 +370,9 @@ export function CredentialSelector({
         <div className='mr-2 flex-shrink-0 opacity-90'>
           {getProviderIcon(selectedCredentialProvider)}
         </div>
-        <span className='truncate'>{displayValue}</span>
+        <span className='truncate'>
+          {formatDisplayText(displayValue, { workflowSearchHighlight })}
+        </span>
       </div>
     )
   }, [
@@ -366,6 +383,7 @@ export function CredentialSelector({
     selectedCredentialSet,
     isAllCredentials,
     selectedAllCredential,
+    workflowSearchHighlight,
   ])
 
   const handleComboboxChange = useCallback(

@@ -29,6 +29,7 @@ import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
+import type { ConfigFieldValue } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
@@ -108,6 +109,7 @@ export function AddConnectorModal({
     setCanonicalModes,
     canonicalGroups,
     isFieldVisible,
+    isFieldPopulated,
     handleFieldChange,
     toggleCanonicalMode,
     resolveSourceConfig,
@@ -150,7 +152,7 @@ export function AddConnectorModal({
     for (const field of connectorConfig.configFields) {
       if (!field.required) continue
       if (!isFieldVisible(field)) continue
-      if (!sourceConfig[field.id]?.trim()) return false
+      if (!isFieldPopulated(field)) return false
     }
     return true
   }, [
@@ -158,8 +160,8 @@ export function AddConnectorModal({
     isApiKeyMode,
     apiKeyValue,
     effectiveCredentialId,
-    sourceConfig,
     isFieldVisible,
+    isFieldPopulated,
   ])
 
   const handleSubmit = () => {
@@ -169,7 +171,13 @@ export function AddConnectorModal({
 
     const resolvedConfig: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(resolveSourceConfig())) {
-      if (value) resolvedConfig[key] = value
+      if (Array.isArray(value)) {
+        if (value.length > 0) resolvedConfig[key] = value
+      } else if (typeof value === 'string') {
+        if (value) resolvedConfig[key] = value
+      } else if (value !== undefined && value !== null) {
+        resolvedConfig[key] = value
+      }
     }
     if (disabledTagIds.size > 0) {
       resolvedConfig.disabledTagIds = Array.from(disabledTagIds)
@@ -370,8 +378,8 @@ export function AddConnectorModal({
                       {field.type === 'selector' && field.selectorKey ? (
                         <ConnectorSelectorField
                           field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
-                          value={sourceConfig[field.id] || ''}
-                          onChange={(value) => handleFieldChange(field.id, value)}
+                          value={sourceConfig[field.id] ?? (field.multi ? [] : '')}
+                          onChange={(value: ConfigFieldValue) => handleFieldChange(field.id, value)}
                           credentialId={effectiveCredentialId}
                           sourceConfig={sourceConfig}
                           configFields={connectorConfig.configFields}
@@ -385,13 +393,21 @@ export function AddConnectorModal({
                             label: opt.label,
                             value: opt.id,
                           }))}
-                          value={sourceConfig[field.id] || undefined}
+                          value={
+                            typeof sourceConfig[field.id] === 'string'
+                              ? (sourceConfig[field.id] as string) || undefined
+                              : undefined
+                          }
                           onChange={(value) => handleFieldChange(field.id, value)}
                           placeholder={field.placeholder || `Select ${field.title.toLowerCase()}`}
                         />
                       ) : (
                         <Input
-                          value={sourceConfig[field.id] || ''}
+                          value={
+                            Array.isArray(sourceConfig[field.id])
+                              ? (sourceConfig[field.id] as string[]).join(', ')
+                              : (sourceConfig[field.id] as string) || ''
+                          }
                           onChange={(e) => handleFieldChange(field.id, e.target.value)}
                           placeholder={field.placeholder}
                         />

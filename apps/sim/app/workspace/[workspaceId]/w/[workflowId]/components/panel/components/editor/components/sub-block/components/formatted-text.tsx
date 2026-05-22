@@ -1,22 +1,72 @@
 import type { ReactNode } from 'react'
 import { splitReferenceSegment } from '@/lib/workflows/sanitization/references'
+import type { WorkflowSearchRange } from '@/lib/workflows/search-replace/types'
+import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/constants'
 import { normalizeName, REFERENCE } from '@/executor/constants'
 import { createCombinedPattern } from '@/executor/utils/reference-validation'
+
+export interface WorkflowSearchTextHighlight {
+  range?: WorkflowSearchRange
+  rawValue?: string
+}
 
 export interface HighlightContext {
   accessiblePrefixes?: Set<string>
   availableEnvVars?: Set<string>
   highlightAll?: boolean
+  workflowSearchHighlight?: WorkflowSearchTextHighlight | null
 }
 
 const SYSTEM_PREFIXES = new Set(['loop', 'parallel', 'variable'])
 
-/**
- * Formats text by highlighting block references (<...>) and environment variables ({{...}})
- * Used in code editor, long inputs, and short inputs for consistent syntax highlighting
- */
-export function formatDisplayText(text: string, context?: HighlightContext): ReactNode[] {
+export function getValidWorkflowSearchRange(
+  text: string,
+  highlight?: WorkflowSearchTextHighlight | null
+): WorkflowSearchRange | null {
+  const range = highlight?.range
+  if (!range || !highlight?.rawValue) return null
+  if (range.start < 0 || range.end <= range.start || range.end > text.length) return null
+  return text.slice(range.start, range.end) === highlight.rawValue ? range : null
+}
+
+function withoutWorkflowSearchHighlight(context?: HighlightContext): HighlightContext | undefined {
+  if (!context?.workflowSearchHighlight) return context
+  return {
+    ...context,
+    workflowSearchHighlight: undefined,
+  }
+}
+
+function formatDisplayTextInternal(
+  text: string,
+  context: HighlightContext | undefined,
+  keyPrefix: string
+): ReactNode[] {
   if (!text) return []
+
+  const workflowSearchRange = getValidWorkflowSearchRange(text, context?.workflowSearchHighlight)
+  if (workflowSearchRange) {
+    const baseContext = withoutWorkflowSearchHighlight(context)
+    return [
+      ...formatDisplayTextInternal(
+        text.slice(0, workflowSearchRange.start),
+        baseContext,
+        `${keyPrefix}before-`
+      ),
+      <mark key={`${keyPrefix}workflow-search`} className={WORKFLOW_SEARCH_HIGHLIGHT_CLASS}>
+        {formatDisplayTextInternal(
+          text.slice(workflowSearchRange.start, workflowSearchRange.end),
+          baseContext,
+          `${keyPrefix}match-`
+        )}
+      </mark>,
+      ...formatDisplayTextInternal(
+        text.slice(workflowSearchRange.end),
+        baseContext,
+        `${keyPrefix}after-`
+      ),
+    ]
+  }
 
   const shouldHighlightReference = (reference: string): boolean => {
     if (!reference.startsWith('<') || !reference.endsWith('>')) {
@@ -59,7 +109,7 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
 
   const pushPlainText = (value: string) => {
     if (!value) return
-    nodes.push(<span key={key++}>{value}</span>)
+    nodes.push(<span key={`${keyPrefix}${key++}`}>{value}</span>)
   }
 
   let match: RegExpExecArray | null
@@ -75,12 +125,12 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
       const varName = matchText.slice(2, -2).trim()
       if (shouldHighlightEnvVar(varName)) {
         nodes.push(
-          <span key={key++} className='text-[var(--brand-secondary)]'>
+          <span key={`${keyPrefix}${key++}`} className='text-[var(--brand-secondary)]'>
             {matchText}
           </span>
         )
       } else {
-        nodes.push(<span key={key++}>{matchText}</span>)
+        nodes.push(<span key={`${keyPrefix}${key++}`}>{matchText}</span>)
       }
     } else {
       const split = splitReferenceSegment(matchText)
@@ -88,12 +138,12 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
       if (split && shouldHighlightReference(split.reference)) {
         pushPlainText(split.leading)
         nodes.push(
-          <span key={key++} className='text-[var(--brand-secondary)]'>
+          <span key={`${keyPrefix}${key++}`} className='text-[var(--brand-secondary)]'>
             {split.reference}
           </span>
         )
       } else {
-        nodes.push(<span key={key++}>{matchText}</span>)
+        nodes.push(<span key={`${keyPrefix}${key++}`}>{matchText}</span>)
       }
     }
 
@@ -105,4 +155,12 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
   }
 
   return nodes
+}
+
+/**
+ * Formats text by highlighting block references (<...>), environment variables ({{...}}),
+ * and the active workflow search range.
+ */
+export function formatDisplayText(text: string, context?: HighlightContext): ReactNode[] {
+  return formatDisplayTextInternal(text, context, '')
 }

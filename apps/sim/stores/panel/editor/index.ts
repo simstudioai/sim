@@ -1,1 +1,1 @@
-export { usePanelEditorStore } from './store'
+export { usePanelEditorSearchStore, usePanelEditorStore } from './store'
