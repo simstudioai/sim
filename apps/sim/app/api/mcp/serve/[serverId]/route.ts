@@ -36,6 +36,22 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkflowMcpServeAPI')
 
+// Newest first. We echo the client's version when we support it (per
+// MCP 2025-06-18 lifecycle spec); otherwise fall back to our latest.
+const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'] as const
+const LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0]
+
+function negotiateProtocolVersion(rpcParams: unknown): string {
+  const requested =
+    rpcParams && typeof rpcParams === 'object' && 'protocolVersion' in rpcParams
+      ? (rpcParams as { protocolVersion?: unknown }).protocolVersion
+      : undefined
+  if (typeof requested === 'string' && SUPPORTED_PROTOCOL_VERSIONS.includes(requested as never)) {
+    return requested
+  }
+  return LATEST_PROTOCOL_VERSION
+}
+
 export const dynamic = 'force-dynamic'
 
 interface RouteParams {
@@ -214,7 +230,7 @@ export const POST = withRouteHandler(
       switch (method) {
         case 'initialize': {
           const result: InitializeResult = {
-            protocolVersion: '2024-11-05',
+            protocolVersion: negotiateProtocolVersion(rpcParams),
             capabilities: { tools: {} },
             serverInfo: { name: server.name, version: '1.0.0' },
           }

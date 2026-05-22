@@ -601,9 +601,9 @@ class McpService {
 
       // Await cache writes so a follow-up discoverTools sees consistent state.
       await Promise.allSettled(cacheWrites)
-      Promise.allSettled(deferredSideEffects).catch((err) => {
-        logger.error(`[${requestId}] Error in deferred discovery work:`, err)
-      })
+      // Each deferred side-effect self-logs failures, so we just mark the
+      // promises as handled to avoid unhandled-rejection warnings.
+      for (const p of deferredSideEffects) p.catch(() => {})
 
       if (mcpConnectionManager) {
         for (const conn of liveConnections) {

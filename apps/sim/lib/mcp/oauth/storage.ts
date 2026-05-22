@@ -8,7 +8,7 @@ import { mcpServerOauth } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, gt } from 'drizzle-orm'
+import { and, eq, gt, sql } from 'drizzle-orm'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 
 const logger = createLogger('McpOauthStorage')
@@ -227,19 +227,31 @@ export async function clearState(rowId: string): Promise<void> {
 }
 
 /**
- * Per-process serialization for an OAuth row. Refresh tokens rotate (RFC 6749 §6,
- * MCP §2.3.3), so two concurrent refreshes against the same row would race and one
- * would receive `invalid_grant`, wiping the credentials. We serialize SDK calls
- * that may trigger a refresh on a per-row basis.
+ * Serialize OAuth row access across all callers, in-process AND across
+ * processes. Refresh tokens rotate (RFC 6749 §6, MCP §2.3.3), so two concurrent
+ * refreshes against the same row would race and one would receive
+ * `invalid_grant`, wiping credentials.
+ *
+ * Two-tier locking:
+ *   1) In-process Promise chain — cheap, avoids DB roundtrips when the same
+ *      Node process holds concurrent callers.
+ *   2) Postgres advisory transaction lock — blocks across processes; released
+ *      automatically when the transaction ends.
  */
 const refreshLocks = new Map<string, Promise<unknown>>()
 
 export async function withMcpOauthRefreshLock<T>(rowId: string, fn: () => Promise<T>): Promise<T> {
   const prev = refreshLocks.get(rowId) ?? Promise.resolve()
-  // Wait for the predecessor to settle (success or failure), discard its
-  // value/error, then run fn. Each caller awaits its own fn's outcome — errors
-  // do not propagate across callers in the chain.
-  const next = prev.catch(() => undefined).then(() => fn())
+  const next = prev
+    .catch(() => undefined)
+    .then(() =>
+      db.transaction(async (tx) => {
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`mcp_oauth_refresh:${rowId}`}, 0))`
+        )
+        return fn()
+      })
+    )
   refreshLocks.set(rowId, next)
   const cleanup = () => {
     if (refreshLocks.get(rowId) === next) refreshLocks.delete(rowId)
