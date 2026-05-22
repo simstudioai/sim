@@ -7,12 +7,6 @@ import type { MailProvider } from '@/lib/messaging/email/types'
 
 const logger = createLogger('MailProviders')
 
-/**
- * Provider factories in priority order. The first configured one becomes
- * the primary; the rest serve as automatic fallbacks. Operators select
- * a provider by setting its credentials — there is no `EMAIL_PROVIDER`
- * env var to maintain.
- */
 const factories = [
   createResendProvider,
   createSesProvider,
@@ -20,10 +14,6 @@ const factories = [
   createAzureProvider,
 ] as const
 
-/**
- * Safely invoke a factory; a misconfigured provider must not prevent the
- * mailer module from loading or block other providers from registering.
- */
 function safeCreate(factory: () => MailProvider | null): MailProvider | null {
   try {
     return factory()

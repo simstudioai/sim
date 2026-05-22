@@ -36,12 +36,6 @@ export interface BatchSendEmailResult {
   data?: unknown
 }
 
-/**
- * A fully-prepared email, ready for any provider to dispatch.
- * Headers, sender, subject sanitization, and unsubscribe injection
- * are already applied — providers only translate this shape into
- * their own API and send.
- */
 export interface ProcessedEmailData {
   to: string | string[]
   subject: string
@@ -55,12 +49,6 @@ export interface ProcessedEmailData {
 
 export type MailProviderName = 'resend' | 'ses' | 'smtp' | 'azure'
 
-/**
- * A transport for sending email. Providers receive normalized data
- * and translate it to their own SDK. `sendBatch` is optional — providers
- * with a native batch API implement it; otherwise the orchestrator
- * falls back to per-message sends.
- */
 export interface MailProvider {
   readonly name: MailProviderName
   send(data: ProcessedEmailData): Promise<SendEmailResult>

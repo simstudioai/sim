@@ -5,11 +5,6 @@ import type {
   SendEmailResult,
 } from '@/lib/messaging/email/types'
 
-/**
- * Send a prepared email through any nodemailer transporter (SMTP, SES, etc.).
- * Returns a uniform {@link SendEmailResult}; the underlying transport's
- * messageId is surfaced in `data.id` so call sites can correlate.
- */
 export async function sendViaNodemailer(
   transporter: Transporter,
   data: ProcessedEmailData,

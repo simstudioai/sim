@@ -104,7 +104,7 @@ export const env = createEnv({
     SMTP_PORT:                             z.coerce.number().int().min(1).max(65535).optional(),
     SMTP_USER:                             z.string().min(1).optional(),           // SMTP username
     SMTP_PASS:                             z.string().min(1).optional(),           // SMTP password
-    SMTP_SECURE:                           z.coerce.boolean().optional(),          // Force TLS on connect (defaults to true on port 465)
+    SMTP_SECURE:                           z.boolean().optional(),                 // Force TLS on connect (defaults to true on port 465); read via envBoolean to handle string values from process.env
 
     // SMS & Messaging
     TWILIO_ACCOUNT_SID:                    z.string().min(1).optional(),           // Twilio Account SID for SMS sending
@@ -563,14 +563,10 @@ export function envNumber(
 }
 
 /**
- * Coerce an env-derived value to a boolean, returning `undefined` when the
- * value is unset so callers can apply context-aware defaults.
- *
- * Required because `skipValidation: true` lets raw strings reach consumers,
- * and `Boolean("false")` is `true` in JavaScript — so `z.coerce.boolean()`
- * silently flips the meaning of `MY_FLAG=false`. Accepts the common truthy
- * spellings (`"true"`, `"1"`, `"yes"`, `"on"`) and treats everything else as
- * `false`. Case-insensitive.
+ * Coerce an env-derived value to a boolean. Returns `undefined` when unset
+ * so callers can apply context-aware defaults. Required because
+ * `Boolean("false") === true`, so `z.coerce.boolean()` would silently flip
+ * the meaning of `MY_FLAG=false`.
  */
 export function envBoolean(value: boolean | string | undefined | null): boolean | undefined {
   if (typeof value === 'boolean') return value

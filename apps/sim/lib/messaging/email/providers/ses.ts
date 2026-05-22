@@ -7,22 +7,16 @@ import type { MailProvider } from '@/lib/messaging/email/types'
 
 /**
  * AWS SES via nodemailer's SES transport using the AWS SDK v3 client.
- *
- * Credentials are resolved through the SDK's default credential provider
- * chain (env vars, shared config, ECS/EKS task role, EC2 instance profile,
- * SSO). Only the region needs to be set explicitly via `AWS_SES_REGION`.
+ * Credentials resolve through the SDK's default provider chain (env vars,
+ * shared config, ECS/EKS task role, EC2 instance profile, SSO).
  */
 export function createSesProvider(): MailProvider | null {
   const region = env.AWS_SES_REGION
   if (!region) return null
 
   const sesClient = new SESv2Client({ region })
-  // `@types/nodemailer` bundles its own copy of `@aws-sdk/client-sesv2`, so the
-  // SendEmailCommand and SESv2Client we import are structurally identical at
-  // runtime but TS sees them as a different declarations. Cast through the
-  // nodemailer SES shape to bridge the two type identities.
   const sesOptions: SESTransport.Options = {
-    SES: { sesClient, SendEmailCommand } as SESTransport.Options['SES'],
+    SES: { sesClient, SendEmailCommand },
   }
   const transporter = nodemailer.createTransport(sesOptions)
 

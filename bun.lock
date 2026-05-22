@@ -478,6 +478,7 @@
     "sharp",
   ],
   "overrides": {
+    "@aws-sdk/client-sesv2": "3.1032.0",
     "@next/env": "16.2.6",
     "drizzle-orm": "^0.45.2",
     "mermaid": "11.15.0",

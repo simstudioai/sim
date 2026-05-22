@@ -38,10 +38,6 @@ function buildUnsubscribeInjection(
   }
 }
 
-/**
- * Validate sender, recipients, reply-to, and subject. Throws on header
- * injection attempts or empty subjects.
- */
 function validateAndSanitize(options: EmailOptions): {
   senderEmail: string
   subject: string
@@ -68,11 +64,6 @@ function validateAndSanitize(options: EmailOptions): {
   return { senderEmail, subject, replyTo: options.replyTo }
 }
 
-/**
- * Normalize an outgoing email into the provider-agnostic
- * {@link ProcessedEmailData} shape. Does not perform unsubscribe
- * gating — call {@link shouldSkipForUnsubscribe} first.
- */
 export function processEmailData(options: EmailOptions): ProcessedEmailData {
   const { senderEmail, subject, replyTo } = validateAndSanitize(options)
   const {
@@ -108,10 +99,6 @@ export function processEmailData(options: EmailOptions): ProcessedEmailData {
   }
 }
 
-/**
- * Returns true if the email should be skipped because the recipient has
- * unsubscribed from this email type. Transactional emails are never gated.
- */
 export async function shouldSkipForUnsubscribe(options: EmailOptions): Promise<boolean> {
   const { emailType = 'transactional', to } = options
   if (emailType === 'transactional') return false

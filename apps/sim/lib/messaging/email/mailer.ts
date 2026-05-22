@@ -36,19 +36,10 @@ const MOCK_EMAIL_RESULT: SendEmailResult = {
   data: { id: 'mock-email-id' },
 }
 
-/**
- * True when at least one email provider is configured via env vars.
- */
 export function hasEmailService(): boolean {
   return activeProviders.length > 0
 }
 
-/**
- * Send a single email. Iterates configured providers in priority order
- * (resend → ses → smtp → azure) and falls back to the next on error.
- * Returns a successful "logged" result when no provider is configured,
- * so dev environments don't break on missing email creds.
- */
 export async function sendEmail(options: EmailOptions): Promise<SendEmailResult> {
   try {
     if (await shouldSkipForUnsubscribe(options)) {
@@ -123,12 +114,6 @@ async function prepareBatch(emails: EmailOptions[]): Promise<PreparedBatchEntry[
   )
 }
 
-/**
- * Send a batch of emails. Uses the first configured provider with a
- * native `sendBatch` capability (currently only Resend); falls back to
- * per-message sends for providers without batch support, or if the
- * batch call itself fails.
- */
 export async function sendBatchEmails(options: BatchEmailOptions): Promise<BatchSendEmailResult> {
   try {
     const entries = await prepareBatch(options.emails)
@@ -189,7 +174,7 @@ function mergeBatchResults(
     success: successCount === results.length,
     message:
       skippedCount > 0
-        ? `${sendable.length} emails sent, ${skippedCount} skipped`
+        ? `${successCount} emails sent, ${skippedCount} skipped`
         : successCount === results.length
           ? 'All batch emails sent successfully'
           : `${successCount}/${results.length} emails sent successfully`,
