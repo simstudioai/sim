@@ -17,8 +17,12 @@ export function createSesProvider(): MailProvider | null {
   if (!region) return null
 
   const sesClient = new SESv2Client({ region })
+  // `@types/nodemailer` bundles its own copy of `@aws-sdk/client-sesv2`, so the
+  // SendEmailCommand and SESv2Client we import are structurally identical at
+  // runtime but TS sees them as a different declarations. Cast through the
+  // nodemailer SES shape to bridge the two type identities.
   const sesOptions: SESTransport.Options = {
-    SES: { sesClient, SendEmailCommand },
+    SES: { sesClient, SendEmailCommand } as SESTransport.Options['SES'],
   }
   const transporter = nodemailer.createTransport(sesOptions)
 
