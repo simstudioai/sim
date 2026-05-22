@@ -48,8 +48,13 @@ export const mcpKeys = {
   tools: () => [...mcpKeys.all, 'tools'] as const,
   toolsList: (workspaceId?: string) => [...mcpKeys.tools(), workspaceId ?? ''] as const,
   serverTools: () => [...mcpKeys.all, 'serverTools'] as const,
+  // Workspace-scoped prefix so bulk invalidations (refresh-all, create-server)
+  // only touch the current workspace's per-server entries — not every
+  // workspace cached in the QueryClient.
+  serverToolsWorkspace: (workspaceId?: string) =>
+    [...mcpKeys.serverTools(), workspaceId ?? ''] as const,
   serverToolsList: (workspaceId?: string, serverId?: string) =>
-    [...mcpKeys.serverTools(), workspaceId ?? '', serverId ?? ''] as const,
+    [...mcpKeys.serverToolsWorkspace(workspaceId), serverId ?? ''] as const,
   storedTools: () => [...mcpKeys.all, 'storedTools'] as const,
   storedToolsList: (workspaceId?: string) => [...mcpKeys.storedTools(), workspaceId ?? ''] as const,
   allowedDomains: () => [...mcpKeys.all, 'allowedDomains'] as const,
@@ -149,7 +154,7 @@ export function useMcpServerTools(workspaceId: string, serverId?: string) {
  * fast servers populate immediately.
  */
 export function useMcpToolsQuery(workspaceId: string) {
-  const { data: servers } = useMcpServers(workspaceId)
+  const { data: servers, isLoading: serversLoading } = useMcpServers(workspaceId)
 
   const serverIds = useMemo(() => (servers ? servers.map((s) => s.id).sort() : []), [servers])
 
@@ -168,27 +173,31 @@ export function useMcpToolsQuery(workspaceId: string) {
   return useMemo(() => {
     const tools: McpTool[] = []
     let hasData = false
-    let isLoading = false
+    let anyServerLoading = false
     let firstError: Error | null = null
     for (const result of results) {
       if (result.data) {
         tools.push(...result.data)
         hasData = true
       }
-      if (result.isLoading) isLoading = true
+      if (result.isLoading) anyServerLoading = true
       if (!firstError && result.error instanceof Error) firstError = result.error
     }
     return {
       data: tools,
-      // Match the prior semantics: "loading" means we have nothing to show yet.
-      // Once any server has returned, the UI can render that and let slow
-      // neighbors fill in incrementally without keeping the spinner up.
-      isLoading: isLoading && !hasData,
-      isFetching: results.some((r) => r.isFetching),
-      error: firstError,
+      // "Loading" means we have nothing to render yet — including the gap
+      // between mount and the server-list arriving (otherwise consumers flash
+      // an empty state). Once any per-server query has returned, we drop the
+      // spinner and let slow neighbors fill in incrementally.
+      isLoading: (serversLoading || anyServerLoading) && !hasData,
+      isFetching: serversLoading || results.some((r) => r.isFetching),
+      // Only surface an aggregate error when no server returned anything —
+      // one slow/dead server should not blank out tools from the others.
+      // Per-server errors are still exposed via `perServer`.
+      error: hasData ? null : firstError,
       perServer: results,
     }
-  }, [results])
+  }, [results, serversLoading])
 }
 
 export function useForceRefreshMcpTools() {
@@ -207,13 +216,27 @@ export function useForceRefreshMcpTools() {
           return tools
         })
       )
+      // Invalidate the per-server keys of any server that failed so stale tools
+      // don't linger after a force-refresh — React Query will refetch and the
+      // negative cache (set server-side) will make that retry fail fast.
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const failedServer = servers[index]
+          if (failedServer) {
+            queryClient.invalidateQueries({
+              queryKey: mcpKeys.serverToolsList(workspaceId, failedServer.id),
+            })
+          }
+        }
+      })
       return results
         .filter((r): r is PromiseFulfilledResult<McpTool[]> => r.status === 'fulfilled')
         .flatMap((r) => r.value)
     },
     onSettled: (_data, _error, workspaceId) => {
-      // Per-server caches were already populated inside `mutationFn` via
-      // `setQueryData`, so we only need to refresh the dependent views.
+      // Successful per-server caches were already populated inside `mutationFn`
+      // via `setQueryData`; failed ones were invalidated above. Just refresh
+      // the dependent views.
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
       queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
     },
@@ -263,7 +286,9 @@ export function useCreateMcpServer() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(variables.workspaceId) })
-      queryClient.invalidateQueries({ queryKey: mcpKeys.serverTools() })
+      queryClient.invalidateQueries({
+        queryKey: mcpKeys.serverToolsWorkspace(variables.workspaceId),
+      })
     },
   })
 }
@@ -486,7 +511,7 @@ export function useMcpToolsEvents(workspaceId: string) {
           queryKey: mcpKeys.serverToolsList(workspaceId, serverId),
         })
       } else {
-        queryClient.invalidateQueries({ queryKey: mcpKeys.serverTools() })
+        queryClient.invalidateQueries({ queryKey: mcpKeys.serverToolsWorkspace(workspaceId) })
       }
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
       queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })

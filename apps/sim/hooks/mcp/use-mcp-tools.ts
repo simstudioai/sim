@@ -65,7 +65,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
       logger.info('Refreshing MCP tools', { forceRefresh, workspaceId })
 
       await queryClient.invalidateQueries({
-        queryKey: mcpKeys.serverTools(),
+        queryKey: mcpKeys.serverToolsWorkspace(workspaceId),
         refetchType: forceRefresh ? 'active' : 'all',
       })
     },

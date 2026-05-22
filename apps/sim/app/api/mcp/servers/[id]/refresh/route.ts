@@ -197,7 +197,12 @@ export const POST = withRouteHandler(
           }
 
         try {
-          discoveredTools = await mcpService.discoverServerTools(userId, serverId, workspaceId)
+          discoveredTools = await mcpService.discoverServerTools(
+            userId,
+            serverId,
+            workspaceId,
+            true
+          )
           connectionStatus = 'connected'
           toolCount = discoveredTools.length
           logger.info(`[${requestId}] Discovered ${toolCount} tools from server ${serverId}`)

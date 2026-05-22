@@ -291,11 +291,18 @@ describe('McpService.discoverTools per-server caching', () => {
       'Request timed out'
     )
 
-    // Following the failure, the negative cache would short-circuit discoverTools.
-    // Reconnecting the server (e.g. after OAuth) should bring it back to live.
+    // After the failure the negative cache is set, so the next default call
+    // short-circuits without re-paying the listTools timeout.
     mockListTools.mockClear()
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'cooldown'
+    )
+    expect(mockListTools).not.toHaveBeenCalled()
+
+    // Reconnecting via the explicit-refresh path (refresh button / OAuth
+    // callback) bypasses both caches and brings the server back to live.
     mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
-    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
+    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
     expect(tools.map((t) => t.name)).toEqual(['a1'])
 
     // discoverTools now sees the cleared negative cache + primed positive cache.

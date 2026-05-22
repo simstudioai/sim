@@ -87,7 +87,9 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
             queryKey: mcpKeys.serverToolsList(workspaceId, data.serverId),
           })
         } else {
-          queryClient.invalidateQueries({ queryKey: mcpKeys.serverTools() })
+          queryClient.invalidateQueries({
+            queryKey: mcpKeys.serverToolsWorkspace(workspaceId),
+          })
         }
         queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
         toast.success('Server authorized')

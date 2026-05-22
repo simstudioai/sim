@@ -32,6 +32,7 @@ import {
   type McpCacheStorageAdapter,
 } from '@/lib/mcp/storage'
 import {
+  McpConnectionError,
   McpOauthAuthorizationRequiredError,
   type McpServerConfig,
   type McpServerStatusConfig,
@@ -69,7 +70,9 @@ type DiscoveryOutcome =
     }
   | { kind: 'oauth-pending' }
   | { kind: 'unhealthy' }
-  | { kind: 'error'; message: string }
+  // Carries the original error so `markServerUnhealthy` can apply its
+  // `instanceof` exemption — `getErrorMessage(...)` erases type info.
+  | { kind: 'error'; message: string; originalError: unknown }
 
 class McpService {
   private cacheAdapter: McpCacheStorageAdapter
@@ -519,7 +522,11 @@ class McpService {
             ) {
               return { kind: 'oauth-pending' }
             }
-            return { kind: 'error', message: getErrorMessage(error, 'Unknown error') }
+            return {
+              kind: 'error',
+              message: getErrorMessage(error, 'Unknown error'),
+              originalError: error,
+            }
           }
         })
       )
@@ -593,7 +600,7 @@ class McpService {
         )
         deferredSideEffects.push(
           this.updateServerStatus(server.id, workspaceId, false, outcome.message),
-          this.markServerUnhealthy(workspaceId, server.id, new Error(outcome.message))
+          this.markServerUnhealthy(workspaceId, server.id, outcome.originalError)
         )
       })
 
@@ -630,6 +637,12 @@ class McpService {
    * Discover tools from a specific server with retry logic for session errors.
    * Retries once on session-related errors (400, 404, session ID issues).
    *
+   * By default consults the positive + negative cache before going live, so
+   * a React Query refetch for a healthy server is served from cache and a
+   * recently-failed server short-circuits instead of re-paying the listTools
+   * timeout. Pass `forceRefresh: true` from explicit user-initiated paths
+   * (refresh button, OAuth callback) to bypass both caches.
+   *
    * Concurrent callers for the same `(workspaceId, serverId, userId)` share a
    * single in-flight upstream request — important when an OAuth callback
    * primes the cache while a UI refetch races against it, or when multiple
@@ -638,13 +651,19 @@ class McpService {
   async discoverServerTools(
     userId: string,
     serverId: string,
-    workspaceId: string
+    workspaceId: string,
+    forceRefresh = false
   ): Promise<McpTool[]> {
-    const inflightKey = `${workspaceId}:${serverId}:${userId}`
+    const inflightKey = `${workspaceId}:${serverId}:${userId}:${forceRefresh ? 'force' : 'cache'}`
     const existing = this.inflightServerDiscovery.get(inflightKey)
     if (existing) return existing
 
-    const promise = this.discoverServerToolsImpl(userId, serverId, workspaceId).finally(() => {
+    const promise = this.discoverServerToolsImpl(
+      userId,
+      serverId,
+      workspaceId,
+      forceRefresh
+    ).finally(() => {
       this.inflightServerDiscovery.delete(inflightKey)
     })
     this.inflightServerDiscovery.set(inflightKey, promise)
@@ -654,10 +673,34 @@ class McpService {
   private async discoverServerToolsImpl(
     userId: string,
     serverId: string,
-    workspaceId: string
+    workspaceId: string,
+    forceRefresh: boolean
   ): Promise<McpTool[]> {
     const requestId = generateRequestId()
     const maxRetries = 2
+
+    if (!forceRefresh) {
+      // Positive cache hit — same payload the aggregate fan-out would return,
+      // no upstream traffic.
+      try {
+        const cached = await this.cacheAdapter.get(serverCacheKey(workspaceId, serverId))
+        if (cached) {
+          logger.debug(`[${requestId}] Cache hit for server ${serverId}`)
+          return cached.tools
+        }
+      } catch (error) {
+        logger.warn(`[${requestId}] Cache read failed for server ${serverId}:`, error)
+      }
+      // Negative cache hit — fail fast with a typed error the caller can map
+      // to a 503-style response, rather than waiting out the listTools timeout.
+      if (await this.isServerUnhealthy(workspaceId, serverId)) {
+        logger.info(`[${requestId}] Skipping recently-failed server ${serverId} (negative-cache)`)
+        throw new McpConnectionError(
+          'Server recently failed and is in cooldown — try again shortly.',
+          serverId
+        )
+      }
+    }
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
