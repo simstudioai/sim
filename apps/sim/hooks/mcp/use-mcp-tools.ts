@@ -55,10 +55,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     }))
   }, [mcpToolsData])
 
-  // Soft refresh: invalidate per-server query entries so React Query refetches
-  // them, but let the server-side cache decide whether to go live (the per-server
-  // queryFn always sends refresh=false). For an explicit cache-bypass refresh,
-  // use `useForceRefreshMcpTools` instead.
+  // Soft refresh — invalidate per-server entries. For cache-bypass, use `useForceRefreshMcpTools`.
   const refreshTools = useCallback(async () => {
     if (!workspaceId) {
       logger.warn('Cannot refresh tools: no workspaceId provided')

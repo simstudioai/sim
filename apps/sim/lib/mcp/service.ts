@@ -723,9 +723,7 @@ class McpService {
           await sleep(100)
           continue
         }
-        // Drop any stale positive cache so a follow-up cache-respecting call
-        // doesn't keep returning old tools from a now-broken server. The
-        // negative cache marker then makes that follow-up fail fast.
+        // Drop positive cache so a follow-up doesn't return stale tools.
         await Promise.allSettled([
           this.cacheAdapter
             .delete(serverCacheKey(workspaceId, serverId))

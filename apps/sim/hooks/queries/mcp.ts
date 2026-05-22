@@ -140,10 +140,8 @@ export function useMcpServerTools(workspaceId: string, serverId?: string) {
 export function useMcpToolsQuery(workspaceId: string) {
   const { data: servers, isLoading: serversLoading } = useMcpServers(workspaceId)
 
-  // Filter on (a) enabled (disabled servers would 404 in discover and pollute the
-  // negative cache), and (b) workspaceId match (useMcpServers keeps the previous
-  // workspace's data via keepPreviousData, so during a workspace switch we'd
-  // otherwise spawn discover calls for the wrong workspace's IDs).
+  // Skip disabled rows (would 404 → negative-cache) and rows from a previous
+  // workspace (keepPreviousData on useMcpServers).
   const serverIds = useMemo(
     () =>
       servers
@@ -173,9 +171,7 @@ export function useMcpToolsQuery(workspaceId: string) {
     let anyServerLoading = false
     let firstError: Error | null = null
     for (const result of results) {
-      // Drop stale data when the latest refetch failed — otherwise React Query's
-      // stale-while-revalidate behavior would surface broken-server tools in the
-      // aggregate while the per-server card shows an error.
+      // Drop stale data from servers whose latest refetch errored.
       if (result.data && !result.isError) {
         tools.push(...result.data)
         hasData = true
@@ -185,12 +181,9 @@ export function useMcpToolsQuery(workspaceId: string) {
     }
     return {
       data: tools,
-      // Stay loading until we have something to render; once any server
-      // returned, drop the spinner and let slow neighbors fill in.
       isLoading: (serversLoading || anyServerLoading) && !hasData,
       isFetching: serversLoading || results.some((r) => r.isFetching),
-      // One dead server must not blank out the workspace — only surface the
-      // aggregate error when nothing rendered. Per-server errors live in `perServer`.
+      // Suppress when any healthy server rendered; per-server errors live in `perServer`.
       error: hasData ? null : firstError,
       perServer: results,
     }
@@ -210,7 +203,6 @@ export function useForceRefreshMcpTools() {
           return tools
         })
       )
-      // Failed servers: invalidate so React Query retries via the server-side negative cache.
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
           const failedServer = servers[index]
