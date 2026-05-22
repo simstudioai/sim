@@ -75,6 +75,10 @@ class McpService {
   private cacheAdapter: McpCacheStorageAdapter
   private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT
   private unsubscribeConnectionManager?: () => void
+  // Coalesce concurrent `discoverServerTools` calls for the same target into a
+  // single upstream `tools/list`. Keyed on (workspaceId, serverId, userId)
+  // because OAuth-scoped tokens (and therefore visible tools) can vary per user.
+  private inflightServerDiscovery = new Map<string, Promise<McpTool[]>>()
 
   constructor() {
     this.cacheAdapter = createMcpCacheAdapter()
@@ -625,8 +629,29 @@ class McpService {
   /**
    * Discover tools from a specific server with retry logic for session errors.
    * Retries once on session-related errors (400, 404, session ID issues).
+   *
+   * Concurrent callers for the same `(workspaceId, serverId, userId)` share a
+   * single in-flight upstream request — important when an OAuth callback
+   * primes the cache while a UI refetch races against it, or when multiple
+   * tabs land on the same workspace at the same moment.
    */
   async discoverServerTools(
+    userId: string,
+    serverId: string,
+    workspaceId: string
+  ): Promise<McpTool[]> {
+    const inflightKey = `${workspaceId}:${serverId}:${userId}`
+    const existing = this.inflightServerDiscovery.get(inflightKey)
+    if (existing) return existing
+
+    const promise = this.discoverServerToolsImpl(userId, serverId, workspaceId).finally(() => {
+      this.inflightServerDiscovery.delete(inflightKey)
+    })
+    this.inflightServerDiscovery.set(inflightKey, promise)
+    return promise
+  }
+
+  private async discoverServerToolsImpl(
     userId: string,
     serverId: string,
     workspaceId: string

@@ -134,6 +134,10 @@ export function useMcpServerTools(workspaceId: string, serverId?: string) {
     enabled: !!workspaceId && !!serverId,
     retry: false,
     staleTime: 30 * 1000,
+    // Tool schemas rarely change between tab switches; `listChanged` SSE events
+    // and mutation invalidations already cover real updates. Skip the alt-tab
+    // refetch storm.
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -157,6 +161,7 @@ export function useMcpToolsQuery(workspaceId: string) {
       enabled: !!workspaceId,
       retry: false,
       staleTime: 30 * 1000,
+      refetchOnWindowFocus: false,
     })),
   })
 

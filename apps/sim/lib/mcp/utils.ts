@@ -49,8 +49,10 @@ export const MCP_CLIENT_CONSTANTS = {
   // Cap metadata calls so a slow upstream can't hang the UI.
   LIST_TOOLS_TIMEOUT_MS: 10_000,
   // Negative-cache TTL for failed tool discovery: subsequent calls within this
-  // window short-circuit instead of re-paying the listTools timeout.
-  FAILURE_CACHE_TTL_MS: 30_000,
+  // window short-circuit instead of re-paying the listTools timeout. Cleared on
+  // listChanged, OAuth completion, manual refresh, or the next successful
+  // discovery — so 2 minutes is the floor only for genuinely dead servers.
+  FAILURE_CACHE_TTL_MS: 120_000,
 } as const
 
 /**
