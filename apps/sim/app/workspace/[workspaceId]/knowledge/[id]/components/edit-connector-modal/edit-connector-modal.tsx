@@ -67,20 +67,40 @@ function readPersistedCanonicalModes(
 
 /**
  * Deep equality for sourceConfig values (string, string[], or undefined/null).
- * Empty string and empty array are treated as equivalent to absence.
+ *
+ * Empty string, empty array, and nullish are treated as equivalent to absence.
+ * When either side is an array (multi-value field), both sides are normalized
+ * to string[] via CSV-split-and-trim so a persisted legacy scalar `"ENG"`
+ * compares equal to an in-memory `["ENG"]` and a persisted CSV `"ENG,PROJ"`
+ * compares equal to `["ENG","PROJ"]`. Without this, opening edit on a
+ * pre-multi-select connector would falsely show unsaved changes.
  */
 function valuesEqual(a: unknown, b: unknown): boolean {
   const isEmpty = (v: unknown): boolean => {
     if (v == null) return true
     if (Array.isArray(v)) return v.length === 0
-    if (typeof v === 'string') return v === ''
+    if (typeof v === 'string') return v.trim() === ''
     return false
   }
   if (isEmpty(a) && isEmpty(b)) return true
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) return false
-    for (let i = 0; i < a.length; i++) {
-      if (a[i] !== b[i]) return false
+
+  const toArray = (v: unknown): string[] | null => {
+    if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string')
+    if (typeof v === 'string') {
+      return v
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    }
+    return null
+  }
+
+  if (Array.isArray(a) || Array.isArray(b)) {
+    const arrA = toArray(a) ?? []
+    const arrB = toArray(b) ?? []
+    if (arrA.length !== arrB.length) return false
+    for (let i = 0; i < arrA.length; i++) {
+      if (arrA[i] !== arrB[i]) return false
     }
     return true
   }
