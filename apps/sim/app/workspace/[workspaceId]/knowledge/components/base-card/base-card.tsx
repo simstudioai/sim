@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { formatAbsoluteDate, formatRelativeTime } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
 import { Badge, DocumentAttachment, Tooltip } from '@/components/emcn'
@@ -102,6 +102,19 @@ export function BaseCard({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isTagsModalOpen, setIsTagsModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const connectorEntries = useMemo(
+    () =>
+      connectorTypes
+        .map((type) => ({ type, config: CONNECTOR_REGISTRY[type] }))
+        .filter((entry) => Boolean(entry.config?.icon)),
+    [connectorTypes]
+  )
+  const visibleConnectorEntries = useMemo(() => connectorEntries.slice(0, 3), [connectorEntries])
+  const hiddenConnectorLabels = useMemo(
+    () => connectorEntries.slice(3).map(({ type, config }) => config?.name ?? type),
+    [connectorEntries]
+  )
+  const hiddenConnectorCount = hiddenConnectorLabels.length
 
   const searchParams = new URLSearchParams({
     kbName: title,
@@ -209,19 +222,14 @@ export function BaseCard({
               <p className='line-clamp-2 h-[36px] flex-1 text-[var(--text-tertiary)] text-caption leading-[18px]'>
                 {description}
               </p>
-              {connectorTypes.length > 0 && (
-                <div className='flex flex-shrink-0 items-center'>
-                  {connectorTypes.map((type, index) => {
-                    const config = CONNECTOR_REGISTRY[type]
-                    if (!config?.icon) return null
+              {connectorEntries.length > 0 && (
+                <div className='[&>*:not(:first-child)]:-ml-1 flex flex-shrink-0 items-center'>
+                  {visibleConnectorEntries.map(({ type, config }) => {
                     const Icon = config.icon
                     return (
                       <Tooltip.Root key={type}>
                         <Tooltip.Trigger asChild>
-                          <div
-                            className='flex size-[20px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--surface-5)]'
-                            style={{ marginLeft: index > 0 ? '-4px' : '0' }}
-                          >
+                          <div className='flex size-5 flex-shrink-0 items-center justify-center rounded-md border border-[var(--surface-3)] bg-[var(--surface-5)] transition-[border-color] group-hover:border-[var(--surface-4)] dark:border-[var(--surface-4)] dark:group-hover:border-[var(--surface-5)]'>
                             <Icon className='size-[12px] text-[var(--text-secondary)]' />
                           </div>
                         </Tooltip.Trigger>
@@ -229,6 +237,16 @@ export function BaseCard({
                       </Tooltip.Root>
                     )
                   })}
+                  {hiddenConnectorCount > 0 && (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <div className='flex size-5 flex-shrink-0 items-center justify-center rounded-md border border-[var(--surface-3)] bg-[var(--surface-5)] font-medium text-[var(--text-muted)] text-micro transition-[border-color] group-hover:border-[var(--surface-4)] dark:border-[var(--surface-4)] dark:group-hover:border-[var(--surface-5)]'>
+                          +{hiddenConnectorCount}
+                        </div>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>{hiddenConnectorLabels.join(', ')}</Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
                 </div>
               )}
             </div>

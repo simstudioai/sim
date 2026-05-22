@@ -71,22 +71,35 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
 
   if (entries.length === 0) return { label: EMPTY_CELL_PLACEHOLDER }
 
+  const visibleEntries = entries.slice(0, 3)
+  const hiddenEntries = entries.slice(3)
+
   return {
     content: (
       <div className='flex items-center gap-1'>
-        {entries.map(({ type, def }) => {
+        {visibleEntries.map(({ type, def }) => {
           const Icon = def.icon
           return (
             <Tooltip.Root key={type}>
               <Tooltip.Trigger asChild>
-                <span className='flex-shrink-0'>
-                  <Icon className='size-3.5' />
+                <span className='flex size-5 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-4)] text-[var(--text-secondary)]'>
+                  <Icon className='size-[13px]' />
                 </span>
               </Tooltip.Trigger>
               <Tooltip.Content>{def.name}</Tooltip.Content>
             </Tooltip.Root>
           )
         })}
+        {hiddenEntries.length > 0 && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <span className='flex size-5 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-4)] font-medium text-[var(--text-muted)] text-micro'>
+                +{hiddenEntries.length}
+              </span>
+            </Tooltip.Trigger>
+            <Tooltip.Content>{hiddenEntries.map(({ def }) => def.name).join(', ')}</Tooltip.Content>
+          </Tooltip.Root>
+        )}
       </div>
     ),
   }
