@@ -4,6 +4,8 @@ import { account, credential, credentialSetMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, desc, eq, inArray } from 'drizzle-orm'
+import { withLeaderLock } from '@/lib/concurrency/leader-lock'
+import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { refreshOAuthToken } from '@/lib/oauth'
 import {
@@ -11,6 +13,11 @@ import {
   isMicrosoftProvider,
   PROACTIVE_REFRESH_THRESHOLD_DAYS,
 } from '@/lib/oauth/microsoft'
+import {
+  getRecentTerminalError,
+  isTerminalRefreshError,
+  markCredentialDead,
+} from '@/lib/oauth/terminal-errors'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
@@ -318,6 +325,112 @@ export async function getCredential(requestId: string, credentialId: string, use
   return getCredentialByAccountId(requestId, resolved.accountId, userId)
 }
 
+interface CoalescedRefreshOptions {
+  accountId: string
+  providerId: string
+  refreshToken: string
+  requestId?: string
+  userId?: string
+}
+
+async function performCoalescedRefresh({
+  accountId,
+  providerId,
+  refreshToken,
+  requestId,
+  userId,
+}: CoalescedRefreshOptions): Promise<string | null> {
+  const logContext = {
+    ...(requestId ? { requestId } : {}),
+    ...(userId ? { userId } : {}),
+    providerId,
+    accountId,
+  }
+
+  const deadCode = await getRecentTerminalError(accountId)
+  if (deadCode) {
+    logger.warn('Skipping refresh: credential recently failed', {
+      ...logContext,
+      errorCode: deadCode,
+    })
+    return null
+  }
+
+  const lockKey = `oauth:refresh:${accountId}`
+
+  return coalesceLocally(lockKey, () =>
+    withLeaderLock<string>({
+      key: lockKey,
+      onLeader: async () => {
+        try {
+          const result = await refreshOAuthToken(providerId, refreshToken)
+
+          if (!result.ok) {
+            logger.error('Failed to refresh token', {
+              ...logContext,
+              errorCode: result.errorCode,
+            })
+            if (result.errorCode && isTerminalRefreshError(result.errorCode)) {
+              await markCredentialDead(accountId, result.errorCode)
+            }
+            return null
+          }
+
+          const updateData: Record<string, unknown> = {
+            accessToken: result.accessToken,
+            accessTokenExpiresAt: new Date(Date.now() + result.expiresIn * 1000),
+            updatedAt: new Date(),
+          }
+          if (result.refreshToken && result.refreshToken !== refreshToken) {
+            updateData.refreshToken = result.refreshToken
+          }
+          if (isMicrosoftProvider(providerId)) {
+            updateData.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
+          }
+
+          await db.update(account).set(updateData).where(eq(account.id, accountId))
+
+          logger.info('Successfully refreshed access token', logContext)
+          return result.accessToken
+        } catch (error) {
+          logger.error('Refresh failed inside leader path', {
+            ...logContext,
+            error: toError(error).message,
+          })
+          return null
+        }
+      },
+      onFollower: async () => {
+        try {
+          const [row] = await db
+            .select({
+              accessToken: account.accessToken,
+              accessTokenExpiresAt: account.accessTokenExpiresAt,
+            })
+            .from(account)
+            .where(eq(account.id, accountId))
+            .limit(1)
+          if (
+            row?.accessToken &&
+            row.accessTokenExpiresAt &&
+            row.accessTokenExpiresAt > new Date()
+          ) {
+            logger.info('Got fresh access token from coalesced refresh', logContext)
+            return row.accessToken
+          }
+          return null
+        } catch (error) {
+          logger.warn('Follower DB read failed during refresh poll', {
+            ...logContext,
+            error: toError(error).message,
+          })
+          return null
+        }
+      },
+    })
+  )
+}
+
 export async function getOAuthToken(userId: string, providerId: string): Promise<string | null> {
   const connections = await db
     .select({
@@ -347,52 +460,12 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
     !!credential.refreshToken && (!credential.accessToken || (tokenExpiry && tokenExpiry < now))
 
   if (shouldAttemptRefresh) {
-    logger.info(
-      `Access token expired for user ${userId}, provider ${providerId}. Attempting to refresh.`
-    )
-
-    try {
-      // Use the existing refreshOAuthToken function
-      const refreshResult = await refreshOAuthToken(providerId, credential.refreshToken!)
-
-      if (!refreshResult) {
-        logger.error(`Failed to refresh token for user ${userId}, provider ${providerId}`, {
-          providerId,
-          userId,
-          hasRefreshToken: !!credential.refreshToken,
-        })
-        return null
-      }
-
-      const { accessToken, expiresIn, refreshToken: newRefreshToken } = refreshResult
-
-      // Update the database with new tokens
-      const updateData: any = {
-        accessToken,
-        accessTokenExpiresAt: new Date(Date.now() + expiresIn * 1000), // Convert seconds to milliseconds
-        updatedAt: new Date(),
-      }
-
-      // If we received a new refresh token (some providers like Airtable rotate them), save it
-      if (newRefreshToken && newRefreshToken !== credential.refreshToken) {
-        logger.info(`Updating refresh token for user ${userId}, provider ${providerId}`)
-        updateData.refreshToken = newRefreshToken
-      }
-
-      // Update the token in the database with the actual expiration time from the provider
-      await db.update(account).set(updateData).where(eq(account.id, credential.id))
-
-      logger.info(`Successfully refreshed token for user ${userId}, provider ${providerId}`)
-      return accessToken
-    } catch (error) {
-      logger.error(`Error refreshing token for user ${userId}, provider ${providerId}`, {
-        error: toError(error).message,
-        stack: error instanceof Error ? error.stack : undefined,
-        providerId,
-        userId,
-      })
-      return null
-    }
+    return performCoalescedRefresh({
+      accountId: credential.id,
+      providerId,
+      refreshToken: credential.refreshToken!,
+      userId,
+    })
   }
 
   if (!credential.accessToken) {
@@ -472,66 +545,27 @@ export async function refreshAccessTokenIfNeeded(
   const accessToken = credential.accessToken
 
   if (shouldRefresh) {
-    logger.info(`[${requestId}] Refreshing token for credential`)
-    try {
-      const refreshedToken = await refreshOAuthToken(
-        credential.providerId,
-        credential.refreshToken!
-      )
+    const resolvedCredentialId =
+      (credential as { resolvedCredentialId?: string }).resolvedCredentialId ?? credentialId
 
-      if (!refreshedToken) {
-        logger.error(`[${requestId}] Failed to refresh token for credential: ${credentialId}`, {
-          credentialId,
-          providerId: credential.providerId,
-          userId: credential.userId,
-          hasRefreshToken: !!credential.refreshToken,
-        })
-        if (!accessTokenNeedsRefresh && accessToken) {
-          logger.info(`[${requestId}] Proactive refresh failed but access token still valid`)
-          return accessToken
-        }
-        return null
-      }
+    const fresh = await performCoalescedRefresh({
+      accountId: resolvedCredentialId,
+      providerId: credential.providerId,
+      refreshToken: credential.refreshToken!,
+      requestId,
+      userId: credential.userId,
+    })
+    if (fresh) return fresh
 
-      // Prepare update data
-      const updateData: Record<string, unknown> = {
-        accessToken: refreshedToken.accessToken,
-        accessTokenExpiresAt: new Date(Date.now() + refreshedToken.expiresIn * 1000),
-        updatedAt: new Date(),
-      }
-
-      // If we received a new refresh token, update it
-      if (refreshedToken.refreshToken && refreshedToken.refreshToken !== credential.refreshToken) {
-        logger.info(`[${requestId}] Updating refresh token for credential`)
-        updateData.refreshToken = refreshedToken.refreshToken
-      }
-
-      if (isMicrosoftProvider(credential.providerId)) {
-        updateData.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
-      }
-
-      // Update the token in the database
-      const resolvedCredentialId =
-        (credential as { resolvedCredentialId?: string }).resolvedCredentialId ?? credentialId
-      await db.update(account).set(updateData).where(eq(account.id, resolvedCredentialId))
-
-      logger.info(`[${requestId}] Successfully refreshed access token for credential`)
-      return refreshedToken.accessToken
-    } catch (error) {
-      logger.error(`[${requestId}] Error refreshing token for credential`, {
-        error: toError(error).message,
-        stack: error instanceof Error ? error.stack : undefined,
-        providerId: credential.providerId,
-        credentialId,
-        userId: credential.userId,
-      })
-      if (!accessTokenNeedsRefresh && accessToken) {
-        logger.info(`[${requestId}] Proactive refresh failed but access token still valid`)
-        return accessToken
-      }
-      return null
+    // If refresh was only triggered proactively (Microsoft refresh-token aging),
+    // the still-valid access token is a fine fallback.
+    if (!accessTokenNeedsRefresh && accessToken) {
+      logger.info(`[${requestId}] Refresh unavailable; reusing still-valid access token`)
+      return accessToken
     }
-  } else if (!accessToken) {
+    return null
+  }
+  if (!accessToken) {
     // We have no access token and either no refresh token or not eligible to refresh
     logger.error(`[${requestId}] Missing access token for credential`)
     return null
@@ -580,65 +614,20 @@ export async function refreshTokenIfNeeded(
     return { accessToken: credential.accessToken, refreshed: false }
   }
 
-  try {
-    const refreshResult = await refreshOAuthToken(credential.providerId, credential.refreshToken!)
+  const fresh = await performCoalescedRefresh({
+    accountId: resolvedCredentialId,
+    providerId: credential.providerId,
+    refreshToken: credential.refreshToken!,
+    requestId,
+    userId: credential.userId,
+  })
+  if (fresh) return { accessToken: fresh, refreshed: true }
 
-    if (!refreshResult) {
-      logger.error(`[${requestId}] Failed to refresh token for credential`)
-      if (!accessTokenNeedsRefresh && credential.accessToken) {
-        logger.info(`[${requestId}] Proactive refresh failed but access token still valid`)
-        return { accessToken: credential.accessToken, refreshed: false }
-      }
-      throw new Error('Failed to refresh token')
-    }
-
-    const { accessToken: refreshedToken, expiresIn, refreshToken: newRefreshToken } = refreshResult
-
-    // Prepare update data
-    const updateData: Record<string, unknown> = {
-      accessToken: refreshedToken,
-      accessTokenExpiresAt: new Date(Date.now() + expiresIn * 1000), // Use provider's expiry
-      updatedAt: new Date(),
-    }
-
-    // If we received a new refresh token, update it
-    if (newRefreshToken && newRefreshToken !== credential.refreshToken) {
-      logger.info(`[${requestId}] Updating refresh token`)
-      updateData.refreshToken = newRefreshToken
-    }
-
-    if (isMicrosoftProvider(credential.providerId)) {
-      updateData.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
-    }
-
-    await db.update(account).set(updateData).where(eq(account.id, resolvedCredentialId))
-
-    logger.info(`[${requestId}] Successfully refreshed access token`)
-    return { accessToken: refreshedToken, refreshed: true }
-  } catch (error) {
-    logger.warn(
-      `[${requestId}] Refresh attempt failed, checking if another concurrent request succeeded`
-    )
-
-    const freshCredential = await getCredential(requestId, resolvedCredentialId, credential.userId)
-    if (freshCredential?.accessToken) {
-      const freshExpiresAt = freshCredential.accessTokenExpiresAt
-      const stillValid = !freshExpiresAt || freshExpiresAt > new Date()
-
-      if (stillValid) {
-        logger.info(`[${requestId}] Found valid token from concurrent refresh, using it`)
-        return { accessToken: freshCredential.accessToken, refreshed: true }
-      }
-    }
-
-    if (!accessTokenNeedsRefresh && credential.accessToken) {
-      logger.info(`[${requestId}] Proactive refresh failed but access token still valid`)
-      return { accessToken: credential.accessToken, refreshed: false }
-    }
-
-    logger.error(`[${requestId}] Refresh failed and no valid token found in DB`, error)
-    throw error
+  if (!accessTokenNeedsRefresh && credential.accessToken) {
+    logger.info(`[${requestId}] Refresh unavailable; reusing still-valid access token`)
+    return { accessToken: credential.accessToken, refreshed: false }
   }
+  throw new Error('Failed to refresh token')
 }
 
 export interface CredentialSetCredential {
@@ -701,32 +690,13 @@ export async function getCredentialsForCredentialSet(
     let accessToken = cred.accessToken
 
     if (shouldRefresh && cred.refreshToken) {
-      try {
-        const refreshResult = await refreshOAuthToken(providerId, cred.refreshToken)
-
-        if (refreshResult) {
-          accessToken = refreshResult.accessToken
-
-          const updateData: Record<string, unknown> = {
-            accessToken: refreshResult.accessToken,
-            accessTokenExpiresAt: new Date(Date.now() + refreshResult.expiresIn * 1000),
-            updatedAt: new Date(),
-          }
-
-          if (refreshResult.refreshToken && refreshResult.refreshToken !== cred.refreshToken) {
-            updateData.refreshToken = refreshResult.refreshToken
-          }
-
-          await db.update(account).set(updateData).where(eq(account.id, cred.id))
-
-          logger.info(`Refreshed token for user ${cred.userId}, provider ${providerId}`)
-        }
-      } catch (error) {
-        logger.error(`Failed to refresh token for user ${cred.userId}, provider ${providerId}`, {
-          error: toError(error).message,
-        })
-        continue
-      }
+      const fresh = await performCoalescedRefresh({
+        accountId: cred.id,
+        providerId,
+        refreshToken: cred.refreshToken,
+        userId: cred.userId,
+      })
+      if (fresh) accessToken = fresh
     }
 
     if (accessToken) {
