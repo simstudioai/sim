@@ -27,6 +27,7 @@ const {
   mockValues,
   mockWhere,
   mockTxWhere,
+  mockNotInArray,
 } = vi.hoisted(() => {
   const mockOnConflictDoNothing = vi.fn(async () => undefined)
   const mockValues = vi.fn(() => ({ onConflictDoNothing: mockOnConflictDoNothing }))
@@ -54,6 +55,7 @@ const {
     mockEq: vi.fn((...args: unknown[]) => ({ op: 'eq', args })),
     mockExecute: vi.fn(async () => [{ count: 0 }]),
     mockInsert,
+    mockNotInArray: vi.fn((...args: unknown[]) => ({ op: 'notInArray', args })),
     mockOnConflictDoNothing,
     mockSelect,
     mockSelectFrom,
@@ -127,6 +129,7 @@ vi.mock('drizzle-orm', () => ({
   and: mockAnd,
   eq: mockEq,
   inArray: vi.fn((...args: unknown[]) => ({ op: 'inArray', args })),
+  notInArray: mockNotInArray,
   sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
 }))
 
@@ -284,6 +287,38 @@ describe('large value metadata', () => {
     ).rejects.toThrow('Large value dependency closure exceeds the limit')
 
     expect(mockTxSelectLimit).toHaveBeenCalledWith(MAX_LARGE_VALUE_REFERENCES_PER_SCOPE)
+  })
+
+  it('filters known dependency children before applying the remaining reference budget', async () => {
+    const directKeys = Array.from({ length: MAX_LARGE_VALUE_REFERENCES_PER_SCOPE }, (_, index) =>
+      largeValueKey(`e${index.toString(36).padStart(11, '0')}`)
+    )
+    const knownChildKey = directKeys[1]
+    const unseenChildKey = largeValueKey('unseenchild1', 'source-execution')
+    mockTxSelectLimit.mockImplementationOnce(async () => {
+      const filtersKnownChildren = mockNotInArray.mock.calls.some(
+        ([field, values]) =>
+          field === 'executionLargeValueDependencies.childKey' &&
+          Array.isArray(values) &&
+          values.includes(knownChildKey)
+      )
+      return [{ childKey: filtersKnownChildren ? unseenChildKey : knownChildKey }]
+    })
+
+    await expect(
+      registerLargeValueOwner(
+        {
+          key: largeValueKey('zyxwvutsrqpo', 'execution-1'),
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          size: 123,
+        },
+        directKeys
+      )
+    ).rejects.toThrow('Large value dependency closure exceeds the limit')
+
+    expect(mockTxSelectLimit).toHaveBeenCalledWith(1)
   })
 
   it('replaces an execution reference set with same-workspace unique keys', async () => {

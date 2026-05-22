@@ -7,7 +7,7 @@ import {
   workflowExecutionLogs,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
 import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 
 const logger = createLogger('LargeValueMetadata')
@@ -101,6 +101,16 @@ function getCount(rows: unknown): number {
   return Number((row as { count: unknown }).count) || 0
 }
 
+export function collectLargeValueReferenceKeys(value: unknown, workspaceId?: string): string[] {
+  return getBoundedUniqueKeys(
+    collectLargeValueKeys(value).filter((key) => {
+      const parsed = parseLargeValueStorageKey(key)
+      return workspaceId ? parsed?.workspaceId === workspaceId : Boolean(parsed)
+    }),
+    'Large value reference set'
+  )
+}
+
 async function getDependencyClosure(
   client: LargeValueMetadataClient,
   ownerKey: string,
@@ -133,7 +143,8 @@ async function getDependencyClosure(
         .where(
           and(
             eq(executionLargeValueDependencies.workspaceId, workspaceId),
-            inArray(executionLargeValueDependencies.parentKey, keyChunk)
+            inArray(executionLargeValueDependencies.parentKey, keyChunk),
+            notInArray(executionLargeValueDependencies.childKey, Array.from(closureKeys))
           )
         )
         .limit(remainingBudget + 1)
@@ -226,13 +237,29 @@ export async function replaceLargeValueReferencesWithClient(
   scope: LargeValueReferenceScope,
   value: unknown
 ): Promise<void> {
+  if (!scope.workspaceId || !scope.executionId) {
+    return
+  }
+
+  await replaceLargeValueReferenceKeysWithClient(
+    client,
+    scope,
+    collectLargeValueReferenceKeys(value, scope.workspaceId)
+  )
+}
+
+export async function replaceLargeValueReferenceKeysWithClient(
+  client: LargeValueMetadataClient,
+  scope: LargeValueReferenceScope,
+  referenceKeys: string[]
+): Promise<void> {
   const { workspaceId, workflowId, executionId, source } = scope
   if (!workspaceId || !executionId) {
     return
   }
 
   const keys = getBoundedUniqueKeys(
-    collectLargeValueKeys(value).filter((key) => {
+    referenceKeys.filter((key) => {
       const parsed = parseLargeValueStorageKey(key)
       return parsed?.workspaceId === workspaceId
     }),
@@ -340,8 +367,11 @@ export async function replaceLargeValueReferences(
   scope: LargeValueReferenceScope,
   value: unknown
 ): Promise<void> {
+  const referenceKeys = scope.workspaceId
+    ? collectLargeValueReferenceKeys(value, scope.workspaceId)
+    : []
   await db.transaction(async (tx) => {
-    await replaceLargeValueReferencesWithClient(tx, scope, value)
+    await replaceLargeValueReferenceKeysWithClient(tx, scope, referenceKeys)
   })
 }
 

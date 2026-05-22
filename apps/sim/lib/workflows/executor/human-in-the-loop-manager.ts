@@ -13,7 +13,10 @@ import {
   resetExecutionStreamBuffer,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
-import { replaceLargeValueReferencesWithClient } from '@/lib/execution/payloads/large-value-metadata'
+import {
+  collectLargeValueReferenceKeys,
+  replaceLargeValueReferenceKeysWithClient,
+} from '@/lib/execution/payloads/large-value-metadata'
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -189,6 +192,9 @@ export class PauseResumeManager {
     const snapshotWorkspaceId = getSnapshotWorkspaceId(
       isRecord(snapshotReferenceValue) ? snapshotReferenceValue.snapshot : undefined
     )
+    const snapshotReferenceKeys = snapshotWorkspaceId
+      ? collectLargeValueReferenceKeys(snapshotReferenceValue, snapshotWorkspaceId)
+      : []
 
     const pausePointsRecord = pausePoints.reduce<Record<string, any>>((acc, point) => {
       acc[point.contextId] = {
@@ -241,7 +247,7 @@ export class PauseResumeManager {
           nextResumeAt,
         })
         if (snapshotWorkspaceId) {
-          await replaceLargeValueReferencesWithClient(
+          await replaceLargeValueReferenceKeysWithClient(
             tx,
             {
               workspaceId: snapshotWorkspaceId,
@@ -249,7 +255,7 @@ export class PauseResumeManager {
               executionId,
               source: 'paused_snapshot',
             },
-            snapshotReferenceValue
+            snapshotReferenceKeys
           )
         }
         return
@@ -298,7 +304,7 @@ export class PauseResumeManager {
         .where(eq(pausedExecutions.id, existing.id))
 
       if (snapshotWorkspaceId) {
-        await replaceLargeValueReferencesWithClient(
+        await replaceLargeValueReferenceKeysWithClient(
           tx,
           {
             workspaceId: snapshotWorkspaceId,
@@ -306,7 +312,7 @@ export class PauseResumeManager {
             executionId,
             source: 'paused_snapshot',
           },
-          snapshotReferenceValue
+          snapshotReferenceKeys
         )
       }
     })
@@ -1614,6 +1620,10 @@ export class PauseResumeManager {
       triggerIds: currentSnapshot.triggerIds,
     }
     const snapshotWorkspaceId = getSnapshotWorkspaceId(snapshotData)
+    const snapshotReferenceValue = { ...updatedSnapshot, snapshot: snapshotData }
+    const snapshotReferenceKeys = snapshotWorkspaceId
+      ? collectLargeValueReferenceKeys(snapshotReferenceValue, snapshotWorkspaceId)
+      : []
 
     await db.transaction(async (tx) => {
       await tx
@@ -1625,7 +1635,7 @@ export class PauseResumeManager {
         .where(eq(pausedExecutions.id, pausedExecutionId))
 
       if (snapshotWorkspaceId) {
-        await replaceLargeValueReferencesWithClient(
+        await replaceLargeValueReferenceKeysWithClient(
           tx,
           {
             workspaceId: snapshotWorkspaceId,
@@ -1633,7 +1643,7 @@ export class PauseResumeManager {
             executionId: pausedExecution.executionId,
             source: 'paused_snapshot',
           },
-          { ...updatedSnapshot, snapshot: snapshotData }
+          snapshotReferenceKeys
         )
       }
     })
