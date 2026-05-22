@@ -19,7 +19,7 @@ const LARGE_VALUE_METADATA_WRITE_CHUNK_SIZE = 500
 const LARGE_VALUE_METADATA_WORKSPACE_CHUNK_SIZE = 50
 const LARGE_VALUE_METADATA_PRUNE_BATCH_SIZE = 1_000
 const LARGE_VALUE_METADATA_PRUNE_MAX_ROWS_PER_TABLE = 5_000
-const LIVE_PAUSED_REFERENCE_STATUSES = ['paused', 'partially_resumed', 'cancelling'] as const
+export const LIVE_PAUSED_REFERENCE_STATUSES = ['paused', 'partially_resumed', 'cancelling'] as const
 
 export interface LargeValueOwner {
   key: string

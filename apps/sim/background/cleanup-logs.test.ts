@@ -164,6 +164,7 @@ vi.mock('@/lib/cleanup/batch-delete', () => ({
 }))
 
 vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
+  LIVE_PAUSED_REFERENCE_STATUSES: ['paused', 'partially_resumed', 'cancelling'],
   markLargeValuesDeleted: mockMarkLargeValuesDeleted,
   pruneLargeValueMetadata: mockPruneLargeValueMetadata,
   unreferencedLargeValuePredicate: vi.fn(() => ({ op: 'unreferencedLargeValuePredicate' })),

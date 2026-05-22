@@ -19,6 +19,7 @@ import {
   type TableCleanupResult,
 } from '@/lib/cleanup/batch-delete'
 import {
+  LIVE_PAUSED_REFERENCE_STATUSES,
   markLargeValuesDeleted,
   pruneLargeValueMetadata,
   unreferencedLargeValuePredicate,
@@ -34,8 +35,6 @@ interface FileDeleteStats {
   filesDeleted: number
   filesDeleteFailed: number
 }
-
-const RESUMABLE_PAUSED_STATUSES = ['paused', 'partially_resumed', 'cancelling']
 
 const WORKFLOW_LOG_CLEANUP_BATCH_SIZE = 500
 const WORKFLOW_LOG_CLEANUP_MAX_BATCHES = 50
@@ -254,7 +253,7 @@ async function cleanupLegacyLargeExecutionValues(
                       SELECT 1
                       FROM ${pausedExecutions} AS ref_pe
                       WHERE ref_pe.execution_id = ref.execution_id
-                        AND ref_pe.status = ANY(${RESUMABLE_PAUSED_STATUSES}::text[])
+                        AND ref_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
                     )
                   )
                 )
@@ -277,7 +276,7 @@ async function cleanupLegacyLargeExecutionValues(
                     SELECT 1
                     FROM ${pausedExecutions} AS parent_owner_pe
                     WHERE parent_owner_pe.execution_id = parent_value.owner_execution_id
-                      AND parent_owner_pe.status = ANY(${RESUMABLE_PAUSED_STATUSES}::text[])
+                      AND parent_owner_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
                   )
                   OR EXISTS (
                     SELECT 1
@@ -298,7 +297,7 @@ async function cleanupLegacyLargeExecutionValues(
                             SELECT 1
                             FROM ${pausedExecutions} AS parent_ref_pe
                             WHERE parent_ref_pe.execution_id = parent_ref.execution_id
-                              AND parent_ref_pe.status = ANY(${RESUMABLE_PAUSED_STATUSES}::text[])
+                              AND parent_ref_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
                           )
                         )
                       )
@@ -314,7 +313,7 @@ async function cleanupLegacyLargeExecutionValues(
               SELECT 1
               FROM ${pausedExecutions} AS pe
               WHERE pe.execution_id = split_part(${workspaceFiles.key}, '/', 4)
-                AND pe.status = ANY(${RESUMABLE_PAUSED_STATUSES}::text[])
+                AND pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
             )`
           )
         )
@@ -395,7 +394,7 @@ async function cleanupWorkflowExecutionLogs(
             lt(workflowExecutionLogs.startedAt, retentionDate),
             or(
               isNull(pausedExecutions.status),
-              notInArray(pausedExecutions.status, RESUMABLE_PAUSED_STATUSES)
+              notInArray(pausedExecutions.status, [...LIVE_PAUSED_REFERENCE_STATUSES])
             )
           )
         )

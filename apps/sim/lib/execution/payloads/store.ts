@@ -175,8 +175,8 @@ export async function storeLargeValue(
   if (key) {
     const registered = await registerPersistedValueOwner(key, size, referencedKeys, context)
     if (!registered) {
-      const cleaned = await deleteUntrackedPersistedValue(key)
-      if (!cleaned || context.requireDurable) {
+      await deleteUntrackedPersistedValue(key)
+      if (context.requireDurable) {
         throw new Error('Failed to persist large execution value metadata')
       }
       key = undefined

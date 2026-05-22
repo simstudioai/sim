@@ -155,6 +155,27 @@ describe('large execution payload store', () => {
     expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
   })
 
+  it('falls back to memory-only refs for non-durable writes when orphan cleanup fails', async () => {
+    const value = { payload: 'x'.repeat(2048) }
+    const json = JSON.stringify(value)
+    mockRegisterLargeValueOwner.mockResolvedValueOnce(false)
+    mockDeleteFiles.mockImplementationOnce(async ([key]) => ({
+      deleted: 0,
+      failed: [{ key }],
+    }))
+
+    const ref = await storeLargeValue(value, json, Buffer.byteLength(json, 'utf8'), {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      userId: 'user-1',
+    })
+
+    expect(ref.key).toBeUndefined()
+    expect(materializeLargeValueRefSync(ref, { executionId: 'execution-1' })).toEqual(value)
+    expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
+  })
+
   it('passes nested large value refs to owner metadata registration', async () => {
     const nestedKey =
       'execution/workspace-1/workflow-1/source-execution/large-value-lv_abcdefghijkl.json'
