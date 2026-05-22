@@ -455,9 +455,16 @@ export const googleCalendarConnector: ConnectorConfig = {
      */
     const parsedCalendarIds = parseMultiValue(sourceConfig.calendarId)
     const calendarIds = parsedCalendarIds.length > 0 ? parsedCalendarIds : ['primary']
-    const isMultiCalendar = calendarIds.length > 1
 
+    /**
+     * Derive `isMultiCalendar` from the externalId itself, not from the current
+     * config. If a row was synced under a multi-calendar config and the user
+     * later removed calendars, the row's externalId still has the prefix —
+     * returning a doc without the prefix would mint a duplicate via the sync
+     * engine's externalId-keyed matching.
+     */
     const separatorIndex = externalId.indexOf(':')
+    const isMultiCalendar = separatorIndex !== -1
     let calendarId: string
     let eventId: string
     if (separatorIndex === -1) {

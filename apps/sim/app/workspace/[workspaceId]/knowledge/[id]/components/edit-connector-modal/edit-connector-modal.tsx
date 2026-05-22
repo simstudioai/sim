@@ -99,10 +99,13 @@ function valuesEqual(a: unknown, b: unknown): boolean {
     const arrA = toArray(a) ?? []
     const arrB = toArray(b) ?? []
     if (arrA.length !== arrB.length) return false
-    for (let i = 0; i < arrA.length; i++) {
-      if (arrA[i] !== arrB[i]) return false
-    }
-    return true
+    /**
+     * Order-insensitive: the multi-select UI does not guarantee insertion order
+     * matches the server-returned order, so `["PROD","ENG"]` and `["ENG","PROD"]`
+     * should be treated as equal to avoid a false unsaved-changes state.
+     */
+    const setA = new Set(arrA)
+    return arrB.every((v) => setA.has(v))
   }
   return a === b
 }

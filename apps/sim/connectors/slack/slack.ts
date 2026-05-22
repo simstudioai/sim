@@ -558,8 +558,14 @@ export const slackConnector: ConnectorConfig = {
     for (const channelInput of channelInputs) {
       const channel = await resolveChannel(accessToken, channelInput)
       if (!channel) {
-        logger.info(`Channel not found, skipping: ${channelInput}`)
-        continue
+        /**
+         * Fail loudly rather than silently skipping. A configured channel that
+         * suddenly stops resolving (bot removed, channel archived, renamed)
+         * would otherwise have its previously-indexed document orphaned and
+         * deleted by the sync engine with no error surfaced. Matches the MS
+         * Teams connector's behaviour.
+         */
+        throw new Error(`Channel not found: ${channelInput}`)
       }
 
       const { content, contentHash, messageCount, lastActivityTs } =
