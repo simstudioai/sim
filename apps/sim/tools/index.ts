@@ -13,6 +13,10 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  isPayloadSizeLimitError,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { isUserFile } from '@/lib/core/utils/user-file'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
@@ -561,12 +565,16 @@ import { normalizeToolId } from '@/tools/normalize'
  * Next.js 16 has a default middleware/proxy body limit of 10MB.
  */
 const MAX_REQUEST_BODY_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
+const MAX_TOOL_RESPONSE_BODY_BYTES = 10 * 1024 * 1024 // 10MB
 
 /**
  * User-friendly error message for body size limit exceeded
  */
 const BODY_SIZE_LIMIT_ERROR_MESSAGE =
   'Request body size limit exceeded (10MB). The workflow data is too large to process. Try reducing the size of variables, inputs, or data being passed between blocks.'
+
+const RESPONSE_SIZE_LIMIT_ERROR_MESSAGE =
+  'Tool response size limit exceeded (10MB). The response is too large to keep in workflow data. Reduce the response size or return a file reference instead.'
 
 /**
  * Validates request body size and throws a user-friendly error if exceeded
@@ -632,6 +640,67 @@ function handleBodySizeLimitError(error: unknown, requestId: string, context: st
   }
 
   return false
+}
+
+function handleResponseSizeLimitError(error: unknown, requestId: string, context: string): boolean {
+  if (!isPayloadSizeLimitError(error)) return false
+
+  logger.error(`[${requestId}] Response body size limit exceeded for ${context}:`, {
+    label: error.label,
+    maxBytes: error.maxBytes,
+    observedBytes: error.observedBytes,
+  })
+  throw new Error(RESPONSE_SIZE_LIMIT_ERROR_MESSAGE)
+}
+
+function cloneResponseHeaders(headers: Headers | HeadersInit | undefined): Headers {
+  const clonedHeaders = new Headers()
+  if (!headers) return clonedHeaders
+
+  if (typeof (headers as Headers).forEach === 'function') {
+    ;(headers as Headers).forEach((value, key) => {
+      clonedHeaders.set(key, value)
+    })
+    return clonedHeaders
+  }
+
+  return new Headers(headers)
+}
+
+async function readToolResponseBody(
+  response: {
+    ok?: boolean
+    headers?: { get(name: string): string | null }
+    body?: ReadableStream<Uint8Array> | null
+    arrayBuffer?: () => Promise<ArrayBuffer>
+    text?: () => Promise<string>
+  },
+  options: {
+    requestId: string
+    toolId: string
+    signal?: AbortSignal
+  }
+): Promise<Buffer> {
+  try {
+    return await readResponseToBufferWithLimit(response, {
+      maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+      label: `${options.toolId} response body`,
+      signal: options.signal,
+      allowNoBodyFallback: true,
+    })
+  } catch (error) {
+    if (isPayloadSizeLimitError(error) || response.ok !== false) {
+      throw error
+    }
+
+    logger.warn(
+      `[${options.requestId}] Failed to read non-OK response body for ${options.toolId}`,
+      {
+        error: toError(error).message,
+      }
+    )
+    return Buffer.alloc(0)
+  }
 }
 
 /**
@@ -1299,6 +1368,18 @@ function parseRetryAfterHeader(header: string | null): number {
   return 0
 }
 
+function shouldRetryWithoutReadingBody(
+  status: number,
+  headers: { get(name: string): string | null },
+  retryConfig: ResolvedRetryConfig | null | undefined,
+  isLastAttempt: boolean
+): boolean {
+  if (!retryConfig || isLastAttempt || !isRetryableFailure(null, status)) {
+    return false
+  }
+  return parseRetryAfterHeader(headers.get('retry-after')) <= retryConfig.maxDelayMs
+}
+
 /**
  * Execute a tool request directly
  * Internal routes (/api/...) use regular fetch
@@ -1392,6 +1473,7 @@ async function executeToolRequest(
 
     let response: Response | undefined
     let lastError: unknown
+    const nullBodyStatuses = new Set([101, 204, 205, 304])
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const isLastAttempt = attempt === maxAttempts - 1
@@ -1416,12 +1498,39 @@ async function executeToolRequest(
           }
 
           try {
-            response = await fetch(fullUrl, {
+            const internalResponse = await fetch(fullUrl, {
               method: requestParams.method,
               headers: headers,
               body: requestParams.body,
               signal: controller.signal,
             })
+            if (
+              nullBodyStatuses.has(internalResponse.status) ||
+              shouldRetryWithoutReadingBody(
+                internalResponse.status,
+                internalResponse.headers,
+                retryConfig,
+                isLastAttempt
+              )
+            ) {
+              internalResponse.body?.cancel().catch(() => {})
+              response = new Response(null, {
+                status: internalResponse.status,
+                statusText: internalResponse.statusText,
+                headers: cloneResponseHeaders(internalResponse.headers),
+              })
+            } else {
+              const bodyBuffer = await readToolResponseBody(internalResponse, {
+                requestId,
+                toolId,
+                signal: controller.signal,
+              })
+              response = new Response(new Uint8Array(bodyBuffer), {
+                status: internalResponse.status,
+                statusText: internalResponse.statusText,
+                headers: cloneResponseHeaders(internalResponse.headers),
+              })
+            }
           } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
               // Distinguish caller cancellation from local timeout: rethrow the AbortError
@@ -1449,21 +1558,34 @@ async function executeToolRequest(
             headers: headersRecord,
             body: requestParams.body ?? undefined,
             timeout: requestParams.timeout,
+            maxResponseBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
             signal,
           })
 
           const responseHeaders = new Headers(secureResponse.headers.toRecord())
-          const nullBodyStatuses = new Set([101, 204, 205, 304])
 
-          if (nullBodyStatuses.has(secureResponse.status)) {
+          if (
+            nullBodyStatuses.has(secureResponse.status) ||
+            shouldRetryWithoutReadingBody(
+              secureResponse.status,
+              responseHeaders,
+              retryConfig,
+              isLastAttempt
+            )
+          ) {
+            secureResponse.body?.cancel().catch(() => {})
             response = new Response(null, {
               status: secureResponse.status,
               statusText: secureResponse.statusText,
               headers: responseHeaders,
             })
           } else {
-            const bodyBuffer = await secureResponse.arrayBuffer()
-            response = new Response(bodyBuffer, {
+            const bodyBuffer = await readToolResponseBody(secureResponse, {
+              requestId,
+              toolId,
+              signal,
+            })
+            response = new Response(new Uint8Array(bodyBuffer), {
               status: secureResponse.status,
               statusText: secureResponse.statusText,
               headers: responseHeaders,
@@ -1484,7 +1606,7 @@ async function executeToolRequest(
           `[${requestId}] Retrying ${toolId} after error (attempt ${attempt + 1}/${maxAttempts})`,
           { delayMs }
         )
-        await new Promise((r) => setTimeout(r, delayMs))
+        await sleep(delayMs)
         continue
       }
 
@@ -1517,7 +1639,7 @@ async function executeToolRequest(
           `[${requestId}] Retrying ${toolId} after HTTP ${response.status} (attempt ${attempt + 1}/${maxAttempts})`,
           { delayMs }
         )
-        await new Promise((r) => setTimeout(r, delayMs))
+        await sleep(delayMs)
         continue
       }
 
@@ -1528,29 +1650,18 @@ async function executeToolRequest(
       throw lastError ?? new Error(`Request failed for ${toolId}`)
     }
 
-    // For non-OK responses, attempt JSON first; if parsing fails, fall back to text
     if (!response.ok) {
-      // Check for 413 (Entity Too Large) - body size limit exceeded
-      if (response.status === 413) {
-        logger.error(`[${requestId}] Request body too large for ${toolId} (HTTP 413):`, {
-          status: response.status,
-          statusText: response.statusText,
-        })
-        throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
-      }
-
       let errorData: any
       try {
-        errorData = await response.json()
-      } catch (jsonError) {
-        // JSON parsing failed, fall back to reading as text for error extraction
-        logger.warn(`[${requestId}] Response is not JSON for ${toolId}, reading as text`)
+        const errorText = await response.text()
         try {
-          errorData = await response.text()
-        } catch (textError) {
-          logger.error(`[${requestId}] Failed to read response body for ${toolId}`)
-          errorData = null
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = errorText
         }
+      } catch {
+        logger.error(`[${requestId}] Failed to read response body for ${toolId}`)
+        errorData = null
       }
 
       const errorInfo: ErrorInfo = {
@@ -1560,6 +1671,20 @@ async function executeToolRequest(
       }
 
       const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
+      const hasStructuredErrorPayload =
+        errorData !== null &&
+        typeof errorData === 'object' &&
+        !Array.isArray(errorData) &&
+        ('error' in errorData || 'message' in errorData)
+
+      if (response.status === 413 && !hasStructuredErrorPayload) {
+        logger.error(`[${requestId}] Request body too large for ${toolId} (HTTP 413):`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorData,
+        })
+        throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
+      }
 
       logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
         status: errorInfo.status,
@@ -1636,6 +1761,8 @@ async function executeToolRequest(
       error: undefined,
     }
   } catch (error: any) {
+    handleResponseSizeLimitError(error, requestId, toolId)
+
     // Check if this is a body size limit error and throw user-friendly message
     handleBodySizeLimitError(error, requestId, toolId)
 

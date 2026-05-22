@@ -24,6 +24,8 @@ export const TABLE_LIMITS = {
   MAX_BATCH_INSERT_SIZE: 1000,
   /** Maximum rows per bulk update/delete operation */
   MAX_BULK_OPERATION_SIZE: 1000,
+  /** Maximum rows a single clipboard copy/cut serializes; beyond this the user is steered to Export. */
+  MAX_COPY_ROWS: 50000,
 } as const
 
 /**

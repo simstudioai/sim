@@ -291,30 +291,25 @@ function Wrap({ isEditing, children }: { isEditing: boolean; children: React.Rea
 const TYPEWRITER_MS_PER_CHAR = 15
 
 /**
- * Reveals `text` character-by-character whenever it changes after the first
- * render. Initial render (page hydration or virtualization remount) shows the
- * value statically — animation fires only for subsequent updates, which in
- * practice means SSE-driven workflow completions arriving via
- * `useTableEventStream → applyCell()`.
- *
- * rAF-driven (not `setInterval`) so concurrent reveals batch into one
- * render/paint per frame instead of O(cells) uncoordinated reflows; reveal
- * length is elapsed-time based so dropped frames catch up rather than slow.
+ * Reveals `text` character-by-character when it changes after the first render;
+ * the initial render (mount / scroll-in) shows it statically. The slice is
+ * derived from elapsed time during render rather than held in state, so it is
+ * never `null` and never the full string on the frame `text` changes — which is
+ * what prevents the caller's `?? kind.text` fallback from flashing the whole
+ * value for a frame. `prevText` is state (not a ref) so a discarded render rolls
+ * it back and re-detects the change on the committed render.
  */
 function useTypewriter(text: string | null): string | null {
-  const [revealed, setRevealed] = useState<string | null>(text)
-  const prevTextRef = useRef<string | null>(text)
+  const [prevText, setPrevText] = useState<string | null>(text)
+  const [, forceFrame] = useState(0)
   const mountedRef = useRef(false)
-  const animateRef = useRef(false)
+  // Reveal-clock start; 0 = show statically (mount / cleared / empty).
+  const startRef = useRef(0)
 
-  // Reset synchronously during render when `text` changes (not on first mount)
-  // so no frame ever shows the full new value before the animation begins —
-  // an effect-based reset lands one frame late and flashes the whole text.
-  if (prevTextRef.current !== text) {
-    prevTextRef.current = text
-    const animate = mountedRef.current && text !== null && text.length > 0
-    animateRef.current = animate
-    setRevealed(animate ? '' : text)
+  if (prevText !== text) {
+    setPrevText(text)
+    startRef.current =
+      mountedRef.current && text !== null && text.length > 0 ? performance.now() : 0
   }
 
   useEffect(() => {
@@ -322,19 +317,22 @@ function useTypewriter(text: string | null): string | null {
   }, [])
 
   useEffect(() => {
-    if (!animateRef.current) return
-    animateRef.current = false
-    const full = text as string
-    const start = performance.now()
+    if (startRef.current === 0 || text === null) return
     let raf = 0
-    const tick = (now: number) => {
-      const chars = Math.min(full.length, Math.floor((now - start) / TYPEWRITER_MS_PER_CHAR))
-      setRevealed(full.slice(0, chars))
-      if (chars < full.length) raf = requestAnimationFrame(tick)
+    const tick = () => {
+      const chars = Math.floor((performance.now() - startRef.current) / TYPEWRITER_MS_PER_CHAR)
+      forceFrame((f) => f + 1)
+      if (chars < text.length) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
   }, [text])
 
-  return revealed
+  if (text === null) return null
+  if (startRef.current === 0) return text
+  const chars = Math.min(
+    text.length,
+    Math.floor((performance.now() - startRef.current) / TYPEWRITER_MS_PER_CHAR)
+  )
+  return text.slice(0, chars)
 }

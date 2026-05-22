@@ -232,13 +232,23 @@ If any tools support pagination:
 - [ ] Pagination response fields (`nextToken`, `cursor`, etc.) are included in tool outputs
 - [ ] Pagination subBlocks are set to `mode: 'advanced'`
 
-## Step 7: Validate Error Handling
+## Step 7: Validate Memory Load Safety
+
+If any tool lists, searches, exports, imports, downloads, uploads, paginates, batches, transforms arrays, or reads file/HTTP bodies, read `.agents/skills/memory-load-check/SKILL.md` and apply it to the integration.
+
+- [ ] List/search tools expose API limits and do not auto-fetch every page into memory
+- [ ] Transform logic does not build unbounded arrays, maps, sets, or `Promise.all` fan-outs
+- [ ] File and HTTP body reads use explicit byte caps or existing stream-limit helpers
+- [ ] Large result payloads are summarized, paginated, referenced, or capped rather than raw-dumped
+- [ ] Pagination and download tests cover caps, early stop behavior, or partial-result preservation when relevant
+
+## Step 8: Validate Error Handling
 
 - [ ] `transformResponse` checks for error conditions before accessing data
 - [ ] Error responses include meaningful messages (not just generic "failed")
 - [ ] HTTP error status codes are handled (check `response.ok` or status codes)
 
-## Step 8: Report and Fix
+## Step 9: Report and Fix
 
 ### Report Format
 
@@ -297,6 +307,7 @@ After fixing, confirm:
 - [ ] Validated OAuth scopes use centralized utilities (getScopesForService, getCanonicalScopesForProvider) — no hardcoded arrays
 - [ ] Validated scope descriptions exist in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts` for all scopes
 - [ ] Validated pagination consistency across tools and block
+- [ ] Validated memory load safety using `.agents/skills/memory-load-check/SKILL.md` when tools list/search/download/import/export/batch data
 - [ ] Validated error handling (error checks, meaningful messages)
 - [ ] Validated registry entries (tools and block, alphabetical, correct imports)
 - [ ] Reported all issues grouped by severity

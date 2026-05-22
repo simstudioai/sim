@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Combobox } from '@/components/emcn/components'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface McpToolSelectorProps {
   blockId: string
@@ -15,6 +18,7 @@ interface McpToolSelectorProps {
   isPreview?: boolean
   previewValue?: string | null
   previewContextValues?: Record<string, unknown>
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function McpToolSelector({
@@ -24,6 +28,7 @@ export function McpToolSelector({
   isPreview = false,
   previewValue,
   previewContextValues,
+  activeSearchTarget,
 }: McpToolSelectorProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -108,6 +113,12 @@ export function McpToolSelector({
   }, [selectedTool])
 
   const isDisabled = disabled || !serverValue
+  const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+    activeSearchTarget,
+    subBlockId: subBlock.id,
+    valuePath: [],
+    label: inputValue,
+  })
 
   return (
     <Combobox
@@ -122,6 +133,13 @@ export function McpToolSelector({
       filterOptions={true}
       isLoading={isLoading}
       error={error || null}
+      overlayContent={
+        workflowSearchHighlight ? (
+          <span className='block truncate'>
+            {formatDisplayText(inputValue, { workflowSearchHighlight })}
+          </span>
+        ) : undefined
+      }
     />
   )
 }

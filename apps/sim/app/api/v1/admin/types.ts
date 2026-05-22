@@ -198,7 +198,23 @@ export interface AdminWorkflowDetail extends AdminWorkflow {
   edgeCount: number
 }
 
-export function toAdminWorkflow(dbWorkflow: DbWorkflow): AdminWorkflow {
+export type AdminWorkflowSource = Pick<
+  DbWorkflow,
+  | 'id'
+  | 'name'
+  | 'description'
+  | 'color'
+  | 'workspaceId'
+  | 'folderId'
+  | 'isDeployed'
+  | 'deployedAt'
+  | 'runCount'
+  | 'lastRunAt'
+  | 'createdAt'
+  | 'updatedAt'
+>
+
+export function toAdminWorkflow(dbWorkflow: AdminWorkflowSource): AdminWorkflow {
   return {
     id: dbWorkflow.id,
     name: dbWorkflow.name,
@@ -443,7 +459,20 @@ export interface AdminOrganizationDetail extends AdminOrganization {
   subscription: AdminSubscription | null
 }
 
-export function toAdminOrganization(dbOrg: DbOrganization): AdminOrganization {
+export type AdminOrganizationSource = Pick<
+  DbOrganization,
+  | 'id'
+  | 'name'
+  | 'slug'
+  | 'logo'
+  | 'orgUsageLimit'
+  | 'storageUsedBytes'
+  | 'departedMemberUsage'
+  | 'createdAt'
+  | 'updatedAt'
+>
+
+export function toAdminOrganization(dbOrg: AdminOrganizationSource): AdminOrganization {
   return {
     id: dbOrg.id,
     name: dbOrg.name,

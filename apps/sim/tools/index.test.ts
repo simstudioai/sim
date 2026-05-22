@@ -744,6 +744,88 @@ describe('Automatic Internal Route Detection', () => {
     Object.assign(tools, originalTools)
   })
 
+  it('should reject internal tool responses that exceed the response body cap', async () => {
+    const mockTool = {
+      id: 'test_oversized_internal_tool',
+      name: 'Test Oversized Internal Tool',
+      description: 'A test tool with an oversized response',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: '/api/test/oversized',
+        method: 'GET',
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'should not run' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_oversized_internal_tool = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response('too large', {
+          status: 200,
+          headers: {
+            'content-length': '10485761',
+            'content-type': 'text/plain',
+          },
+        })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('test_oversized_internal_tool', {})
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('response size limit exceeded')
+    expect(mockTool.transformResponse).not.toHaveBeenCalled()
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('preserves structured 413 errors from internal tool routes', async () => {
+    const mockTool = {
+      id: 'test_internal_route_413_tool',
+      name: 'Test Internal Route 413 Tool',
+      description: 'A test tool with a route-produced payload limit error',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: '/api/test/payload-limit',
+        method: 'GET',
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'should not run' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_internal_route_413_tool = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'Generated image exceeds maximum size' }), {
+          status: 413,
+          headers: { 'content-type': 'application/json' },
+        })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('test_internal_route_413_tool', {})
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Generated image exceeds maximum size')
+    expect(result.error).not.toContain('Request body size limit exceeded')
+    expect(mockTool.transformResponse).not.toHaveBeenCalled()
+
+    Object.assign(tools, originalTools)
+  })
+
   it('should detect external routes (full URLs) and call directly with SSRF protection', async () => {
     // This test verifies that external URLs are called directly (not via proxy)
     // with SSRF protection via secureFetchWithPinnedIP

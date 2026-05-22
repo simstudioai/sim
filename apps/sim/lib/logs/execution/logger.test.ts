@@ -168,6 +168,97 @@ describe('ExecutionLogger', () => {
       expect(completedData.hasTraceSpans).toBe(false)
       expect(completedData.traceSpanCount).toBe(0)
     })
+
+    test('summarizes oversized execution data before storage', () => {
+      const loggerInstance = new ExecutionLogger() as any
+      const largePayload = 'x'.repeat(220_000)
+      const executionState = {
+        blockStates: {
+          blockA: {
+            output: { data: largePayload },
+            executed: true,
+            executionTime: 10,
+          },
+        },
+        executedBlocks: ['blockA'],
+        blockLogs: [
+          {
+            blockId: 'blockA',
+            blockName: 'HTTP',
+            blockType: 'api',
+            startedAt: '2025-01-01T00:00:00.000Z',
+            endedAt: '2025-01-01T00:00:01.000Z',
+            durationMs: 1000,
+            success: true,
+            executionOrder: 1,
+            input: { url: 'https://example.com/image.jpg', data: largePayload },
+            output: { data: largePayload },
+          },
+        ],
+        decisions: { router: {}, condition: {} },
+        completedLoops: [],
+        activeExecutionPath: [],
+      }
+
+      const completedData = loggerInstance.buildCompletedExecutionData({
+        traceSpans: [
+          {
+            id: 'workflow-execution',
+            name: 'Workflow Execution',
+            type: 'workflow',
+            duration: 1000,
+            startTime: '2025-01-01T00:00:00.000Z',
+            endTime: '2025-01-01T00:00:01.000Z',
+            status: 'success',
+            children: [
+              {
+                id: 'blockA-1',
+                name: 'HTTP',
+                type: 'api',
+                duration: 1000,
+                startTime: '2025-01-01T00:00:00.000Z',
+                endTime: '2025-01-01T00:00:01.000Z',
+                status: 'success',
+                blockId: 'blockA',
+                executionOrder: 1,
+                input: { url: 'https://example.com/image.jpg', data: largePayload },
+                output: { data: largePayload },
+              },
+            ],
+          },
+        ],
+        finalOutput: { data: largePayload },
+        executionState,
+        finalizationPath: 'completed',
+        executionCost: {
+          tokens: { input: 0, output: 0, total: 0 },
+          models: {},
+        },
+      })
+
+      const compacted = loggerInstance.compactExecutionDataForStorage(
+        completedData,
+        'execution-oversized'
+      )
+      const storedBytes = Buffer.byteLength(JSON.stringify(compacted), 'utf8')
+
+      expect(storedBytes).toBeLessThanOrEqual(500 * 1024)
+      expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.executionState).toBeUndefined()
+      expect(compacted.executionStateSummary).toEqual({
+        executedBlockCount: 1,
+        blockLogCount: 1,
+        completedLoopCount: 0,
+        activeExecutionPathLength: 0,
+        pendingQueueLength: 0,
+      })
+      expect(compacted.traceSpans?.[0]?.children?.[0]?.input).toEqual({
+        _truncated: true,
+        reason: 'execution_data_size_limit',
+        originalBytes: expect.any(Number),
+        summary: 'object with 2 keys',
+      })
+    })
   })
 
   describe('file extraction', () => {

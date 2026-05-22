@@ -6,11 +6,14 @@ import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Badge } from '@/components/emcn'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
 import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -64,6 +67,7 @@ interface DropdownProps {
   dependsOn?: SubBlockConfig['dependsOn']
   /** Enable search input in dropdown */
   searchable?: boolean
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -90,6 +94,7 @@ export const Dropdown = memo(function Dropdown({
   fetchOptionById,
   dependsOn,
   searchable = false,
+  activeSearchTarget,
 }: DropdownProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
     string | string[] | null | undefined,
@@ -459,14 +464,46 @@ export const Dropdown = memo(function Dropdown({
 
     return (
       <div className='flex items-center gap-1 overflow-hidden whitespace-nowrap'>
-        {multiValues.map((selectedValue: string) => (
-          <Badge key={selectedValue} className='shrink-0 rounded-lg py-1 text-caption leading-none'>
-            {(optionMap.get(selectedValue) || selectedValue).toLowerCase()}
-          </Badge>
-        ))}
+        {multiValues.map((selectedValue: string, index) => {
+          const label = (optionMap.get(selectedValue) || selectedValue).toLowerCase()
+          const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+            activeSearchTarget,
+            blockId,
+            subBlockId,
+            valuePath: [index],
+            label,
+          })
+          return (
+            <Badge
+              key={selectedValue}
+              className='shrink-0 rounded-lg py-1 text-caption leading-none'
+            >
+              {formatDisplayText(label, { workflowSearchHighlight })}
+            </Badge>
+          )
+        })}
       </div>
     )
-  }, [multiSelect, multiValues, optionMap])
+  }, [activeSearchTarget, blockId, multiSelect, multiValues, optionMap, subBlockId])
+
+  const singleSelectOverlay = useMemo(() => {
+    if (multiSelect || !singleValue) return undefined
+    const label = optionMap.get(singleValue)
+    if (!label) return undefined
+    const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+      activeSearchTarget,
+      blockId,
+      subBlockId,
+      valuePath: [],
+      label,
+    })
+    if (!workflowSearchHighlight) return undefined
+    return (
+      <span className='truncate text-[var(--text-primary)]'>
+        {formatDisplayText(label, { workflowSearchHighlight })}
+      </span>
+    )
+  }, [activeSearchTarget, blockId, multiSelect, optionMap, singleValue, subBlockId])
 
   const isSearchable = searchable || (subBlockId === 'operation' && comboboxOptions.length > 5)
 
@@ -481,7 +518,7 @@ export const Dropdown = memo(function Dropdown({
       disabled={disabled}
       editable={false}
       onOpenChange={handleOpenChange}
-      overlayContent={multiSelectOverlay}
+      overlayContent={multiSelectOverlay ?? singleSelectOverlay}
       multiSelect={multiSelect}
       isLoading={isLoadingOptions}
       error={fetchError}

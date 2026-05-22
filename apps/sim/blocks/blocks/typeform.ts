@@ -445,6 +445,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
     message: { type: 'string', description: 'Deletion confirmation message' },
     // File operation outputs
     fileUrl: { type: 'string', description: 'Downloaded file URL' },
+    file: { type: 'file', description: 'Downloaded file' },
     contentType: { type: 'string', description: 'File content type' },
     filename: { type: 'string', description: 'File name' },
     // Insights outputs

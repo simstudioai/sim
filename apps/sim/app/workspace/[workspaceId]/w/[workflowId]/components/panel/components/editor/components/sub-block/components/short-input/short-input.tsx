@@ -4,8 +4,12 @@ import { useReactFlow } from 'reactflow'
 import { Input } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
-import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
+  formatDisplayText,
+  getValidWorkflowSearchRange,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
+import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
@@ -13,6 +17,7 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 /**
  * Props for the ShortInput component
@@ -48,6 +53,8 @@ interface ShortInputProps {
   hideInternalWand?: boolean
   /** Whether workflow search is actively highlighting this input */
   isSearchHighlighted?: boolean
+  activeSearchTarget?: ActiveSearchTarget | null
+  workflowSearchValuePath?: Array<string | number>
 }
 
 /**
@@ -77,6 +84,8 @@ export const ShortInput = memo(function ShortInput({
   wandControlRef,
   hideInternalWand = false,
   isSearchHighlighted = false,
+  activeSearchTarget,
+  workflowSearchValuePath = [],
 }: ShortInputProps) {
   const [localContent, setLocalContent] = useState<string>('')
   const [isFocused, setIsFocused] = useState(false)
@@ -334,15 +343,29 @@ export const ShortInput = memo(function ShortInput({
               : useWebhookUrl && webhookManagement.webhookUrl
                 ? webhookManagement.webhookUrl
                 : ctrlValue
+            const actualValueString = actualValue ?? ''
+            const workflowSearchHighlight = getActiveWorkflowSearchHighlight({
+              activeSearchTarget,
+              blockId,
+              subBlockId,
+              valuePath: workflowSearchValuePath,
+            })
+            const hasExactSearchHighlight = Boolean(
+              getValidWorkflowSearchRange(actualValueString, workflowSearchHighlight)
+            )
 
-            const shouldMask = password && !isFocused && !isSearchHighlighted
-            const displayValue = shouldMask ? '•'.repeat(actualValue?.length ?? 0) : actualValue
+            const shouldMask =
+              password && !isFocused && !isSearchHighlighted && !hasExactSearchHighlight
+            const displayValue = shouldMask
+              ? '•'.repeat(actualValueString.length)
+              : actualValueString
 
             const formattedText = shouldMask
-              ? '•'.repeat(actualValue?.length ?? 0)
-              : formatDisplayText(actualValue, {
+              ? '•'.repeat(actualValueString.length)
+              : formatDisplayText(actualValueString, {
                   accessiblePrefixes,
                   highlightAll: !accessiblePrefixes,
+                  workflowSearchHighlight,
                 })
 
             return (

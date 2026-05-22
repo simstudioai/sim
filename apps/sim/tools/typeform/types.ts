@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 export interface TypeformFilesParams {
@@ -7,12 +8,13 @@ export interface TypeformFilesParams {
   filename: string
   inline?: boolean
   apiKey: string
+  _context?: Record<string, unknown>
 }
 
 export interface TypeformFilesResponse extends ToolResponse {
   output: {
     fileUrl: string
-    file: ToolFileData
+    file: (UserFile & { mimeType?: string }) | ToolFileData
     contentType: string
     filename: string
   }

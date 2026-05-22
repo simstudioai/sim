@@ -567,6 +567,9 @@ export const workflowSchedule = pgTable(
       archivedAtPartialIdx: index('workflow_schedule_archived_at_partial_idx')
         .on(table.archivedAt)
         .where(sql`${table.archivedAt} IS NOT NULL`),
+      sourceWorkspaceSourceTypeIdx: index(
+        'idx_workflow_schedule_on_source_workspace_id_source_t_c07f3bba6'
+      ).on(table.sourceWorkspaceId, table.sourceType, table.archivedAt, table.status),
     }
   }
 )
@@ -651,6 +654,14 @@ export const webhook = pgTable(
       archivedAtPartialIdx: index('webhook_archived_at_partial_idx')
         .on(table.archivedAt)
         .where(sql`${table.archivedAt} IS NOT NULL`),
+      providerActiveWorkflowDeploymentIdx: index(
+        'idx_webhook_on_provider_is_active_workflow_id_deploym_bdeed5468'
+      ).on(table.provider, table.isActive, table.workflowId, table.deploymentVersionId),
+      workflowBlockUpdatedDescIdx: index('idx_webhook_on_workflow_id_block_id_updated_at_desc').on(
+        table.workflowId,
+        table.blockId,
+        table.updatedAt.desc()
+      ),
     }
   }
 )
@@ -951,6 +962,10 @@ export const chat = pgTable(
       archivedAtPartialIdx: index('chat_archived_at_partial_idx')
         .on(table.archivedAt)
         .where(sql`${table.archivedAt} IS NOT NULL`),
+      workflowArchivedAtIdx: index('idx_chat_on_workflow_id_archived_at').on(
+        table.workflowId,
+        table.archivedAt
+      ),
     }
   }
 )

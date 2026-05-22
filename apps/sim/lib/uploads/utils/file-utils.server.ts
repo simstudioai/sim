@@ -7,6 +7,11 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import {
+  assertKnownSizeWithinLimit,
+  consumeOrCancelBody,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import type { StorageContext } from '@/lib/uploads'
 import { StorageService } from '@/lib/uploads'
 import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
@@ -139,14 +144,15 @@ export async function resolveFileInputToUrl(
  */
 export async function downloadFileFromUrl(
   fileUrl: string,
-  timeoutMs = getMaxExecutionTimeout()
+  timeoutMs = getMaxExecutionTimeout(),
+  maxBytes?: number
 ): Promise<Buffer> {
   const { parseInternalFileUrl } = await import('./file-utils')
 
   if (isInternalFileUrl(fileUrl)) {
     const { key, context } = parseInternalFileUrl(fileUrl)
     const { downloadFile } = await import('@/lib/uploads/core/storage-service')
-    return downloadFile({ key, context })
+    return downloadFile({ key, context, maxBytes })
   }
 
   const urlValidation = await validateUrlWithDNS(fileUrl, 'fileUrl')
@@ -156,13 +162,18 @@ export async function downloadFileFromUrl(
 
   const response = await secureFetchWithPinnedIP(fileUrl, urlValidation.resolvedIP!, {
     timeout: timeoutMs,
+    maxResponseBytes: maxBytes,
   })
 
   if (!response.ok) {
+    await consumeOrCancelBody(response)
     throw new Error(`Failed to download file: ${response.statusText}`)
   }
 
-  return Buffer.from(await response.arrayBuffer())
+  return readResponseToBufferWithLimit(response, {
+    maxBytes: maxBytes ?? Number.MAX_SAFE_INTEGER,
+    label: 'file download',
+  })
 }
 
 export async function resolveInternalFileUrl(
@@ -208,16 +219,20 @@ export async function resolveInternalFileUrl(
 export async function downloadFileFromStorage(
   userFile: UserFile,
   requestId: string,
-  logger: Logger
+  logger: Logger,
+  options: { maxBytes?: number } = {}
 ): Promise<Buffer> {
   let buffer: Buffer
+  if (options.maxBytes !== undefined && userFile.size > options.maxBytes) {
+    assertKnownSizeWithinLimit(userFile.size, options.maxBytes, 'storage file download')
+  }
 
   if (isExecutionFile(userFile)) {
     logger.info(`[${requestId}] Downloading from execution storage: ${userFile.key}`)
     const { downloadExecutionFile } = await import(
       '@/lib/uploads/contexts/execution/execution-file-manager'
     )
-    buffer = await downloadExecutionFile(userFile)
+    buffer = await downloadExecutionFile(userFile, { maxBytes: options.maxBytes })
   } else if (userFile.key) {
     const context = (userFile.context as StorageContext) || inferContextFromKey(userFile.key)
     logger.info(
@@ -228,9 +243,14 @@ export async function downloadFileFromStorage(
     buffer = await downloadFile({
       key: userFile.key,
       context,
+      maxBytes: options.maxBytes,
     })
   } else {
     throw new Error('File has no key - cannot download')
+  }
+
+  if (options.maxBytes !== undefined) {
+    assertKnownSizeWithinLimit(buffer.length, options.maxBytes, 'storage file download')
   }
 
   return buffer

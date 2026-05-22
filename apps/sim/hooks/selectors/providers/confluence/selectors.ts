@@ -37,7 +37,7 @@ export const confluenceSelectors = {
           signal,
         })
         for (const space of data.spaces || []) {
-          collected.push({ id: space.id, label: formatConfluenceSpaceLabel(space) })
+          collected.push({ id: space.key, label: formatConfluenceSpaceLabel(space) })
         }
         cursor = data.nextCursor
       } while (cursor)
@@ -57,7 +57,7 @@ export const confluenceSelectors = {
       })
       return {
         items: (data.spaces || []).map((space) => ({
-          id: space.id,
+          id: space.key,
           label: formatConfluenceSpaceLabel(space),
         })),
         nextCursor: data.nextCursor,
@@ -81,9 +81,9 @@ export const confluenceSelectors = {
         },
         signal,
       })
-      const space = (data.spaces || []).find((s) => s.id === detailId) ?? null
+      const space = (data.spaces || []).find((s) => s.key === detailId) ?? null
       if (!space) return null
-      return { id: space.id, label: formatConfluenceSpaceLabel(space) }
+      return { id: space.key, label: formatConfluenceSpaceLabel(space) }
     },
   },
   'confluence.pages': {

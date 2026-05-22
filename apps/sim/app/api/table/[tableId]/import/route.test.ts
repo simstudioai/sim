@@ -112,6 +112,7 @@ function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
 async function callPost(form: FormData, { tableId }: { tableId: string } = { tableId: 'tbl_1' }) {
   const req = new NextRequest(`http://localhost:3000/api/table/${tableId}/import`, {
     method: 'POST',
+    headers: { 'content-length': '1024' },
     body: form,
   })
   return POST(req, { params: Promise.resolve({ tableId }) })
@@ -182,6 +183,26 @@ describe('POST /api/table/[tableId]/import', () => {
     expect(data.error).toMatch(/archived/i)
   })
 
+  it('returns 413 for oversized CSV files before reading their contents', async () => {
+    const file = createCsvFile('name,age\nAlice,30')
+    Object.defineProperty(file, 'size', {
+      value: 26 * 1024 * 1024,
+    })
+    const arrayBufferSpy = vi.spyOn(file, 'arrayBuffer')
+
+    const req = {
+      formData: async () => createFormData(file),
+    } as unknown as NextRequest
+
+    const response = await POST(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+    expect(response.status).toBe(413)
+    const data = await response.json()
+    expect(data.error).toMatch(/CSV import file exceeds maximum size/)
+    expect(arrayBufferSpy).not.toHaveBeenCalled()
+    expect(mockBatchInsertRowsWithTx).not.toHaveBeenCalled()
+    expect(mockReplaceTableRowsWithTx).not.toHaveBeenCalled()
+  })
+
   it('returns 400 when the CSV is missing a required column', async () => {
     const response = await callPost(createFormData(createCsvFile('age\n30')))
     expect(response.status).toBe(400)
@@ -206,6 +227,21 @@ describe('POST /api/table/[tableId]/import', () => {
       { name: 'Bob', age: 40 },
     ])
     expect(mockReplaceTableRowsWithTx).not.toHaveBeenCalled()
+  })
+
+  it('accepts chunked multipart imports without a content-length header', async () => {
+    const form = createFormData(createCsvFile('name,age\nAlice,30'), { mode: 'append' })
+    const req = new NextRequest('http://localhost:3000/api/table/tbl_1/import', {
+      method: 'POST',
+      body: form,
+    })
+
+    expect(req.headers.get('content-length')).toBeNull()
+
+    const response = await POST(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+
+    expect(response.status).toBe(200)
+    expect(mockBatchInsertRowsWithTx).toHaveBeenCalledTimes(1)
   })
 
   it('rejects append when it would exceed maxRows', async () => {

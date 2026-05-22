@@ -233,8 +233,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     const handleOperationConfirmed = () => {
       clearTimeout(timeoutId)
       timeoutId = setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
-      }, 1000)
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
+      }, 5000)
     }
     onOperationConfirmed(handleOperationConfirmed)
     return () => clearTimeout(timeoutId)

@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { dedupeOverlappingWorkflowSearchMatches } from '@/lib/workflows/search-replace/resources/resolvers'
+import {
+  dedupeOverlappingWorkflowSearchMatches,
+  workflowSearchMatchMatchesQuery,
+} from '@/lib/workflows/search-replace/resources/resolvers'
 import type { WorkflowSearchMatch } from '@/lib/workflows/search-replace/types'
 
 function createMatch(overrides: Partial<WorkflowSearchMatch>): WorkflowSearchMatch {
@@ -111,5 +114,29 @@ describe('dedupeOverlappingWorkflowSearchMatches', () => {
       firstMatch,
       secondMatch,
     ])
+  })
+})
+
+describe('workflowSearchMatchMatchesQuery', () => {
+  it('does not keep structured resource matches alive from only block or field label text', () => {
+    const selectorMatch = createMatch({
+      id: 'selector-resource',
+      blockName: 'Testy',
+      fieldTitle: 'Select Presentation',
+      subBlockId: 'presentationId',
+      subBlockType: 'file-selector',
+      kind: 'file',
+      rawValue: 'opaque-presentation-id',
+      searchText: 'opaque-presentation-id',
+      range: undefined,
+      resource: { kind: 'file', key: 'opaque-presentation-id' },
+    })
+
+    expect(
+      workflowSearchMatchMatchesQuery({ ...selectorMatch, displayLabel: 'Gucci Case' }, 'Test')
+    ).toBe(false)
+    expect(
+      workflowSearchMatchMatchesQuery({ ...selectorMatch, displayLabel: 'Gucci Case' }, 'Gucci')
+    ).toBe(true)
   })
 })

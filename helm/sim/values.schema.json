@@ -178,6 +178,30 @@
               "type": "string",
               "description": "Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)"
             },
+            "AWS_SES_REGION": {
+              "type": "string",
+              "description": "AWS region for SES (e.g., 'us-east-1'). Credentials are resolved via the standard AWS provider chain (env vars, IRSA, EC2/ECS task role, SSO)."
+            },
+            "SMTP_HOST": {
+              "type": "string",
+              "description": "SMTP server hostname. When set together with SMTP_PORT, enables the SMTP mail provider."
+            },
+            "SMTP_PORT": {
+              "type": "string",
+              "description": "SMTP server port. 465 = implicit TLS, 587 = STARTTLS, 25 = plain."
+            },
+            "SMTP_USER": {
+              "type": "string",
+              "description": "SMTP username (optional — leave empty for unauthenticated relays like MailHog)."
+            },
+            "SMTP_PASS": {
+              "type": "string",
+              "description": "SMTP password (optional — leave empty for unauthenticated relays)."
+            },
+            "SMTP_SECURE": {
+              "type": "string",
+              "description": "Set to 'true' to force TLS on connect. Defaults to true when SMTP_PORT=465."
+            },
             "GOOGLE_CLIENT_ID": {
               "type": "string",
               "description": "Google OAuth client ID"

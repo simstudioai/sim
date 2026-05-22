@@ -46,6 +46,8 @@ export function sanitizeHeaders(
 export const MCP_CLIENT_CONSTANTS = {
   CLIENT_TIMEOUT: DEFAULT_EXECUTION_TIMEOUT_MS,
   AUTO_REFRESH_INTERVAL: 5 * 60 * 1000,
+  // Cap metadata calls so a slow upstream can't hang the UI for 60s+.
+  LIST_TOOLS_TIMEOUT_MS: 30_000,
 } as const
 
 /**
