@@ -312,4 +312,12 @@ export async function register() {
 
   const { startMemoryTelemetry } = await import('./lib/monitoring/memory-telemetry')
   startMemoryTelemetry()
+
+  // Fire-and-forget catch-up sweep: bounded to the last 7 days, idempotent,
+  // runs in the background so server boot isn't blocked.
+  void import('./lib/copilot/chat/messages-catchup')
+    .then((mod) => mod.catchUpCopilotChatMessages())
+    .catch((err) => {
+      logger.warn('Failed to schedule copilot chat messages catch-up', err)
+    })
 }

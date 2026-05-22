@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { updateCopilotMessagesContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
 import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
+import { replaceCopilotChatMessages } from '@/lib/copilot/chat/messages-dual-write'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -87,6 +88,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     await db.update(copilotChats).set(updateData).where(eq(copilotChats.id, chatId))
+    await replaceCopilotChatMessages(chatId, normalizedMessages)
 
     logger.info(`[${tracker.requestId}] Successfully updated chat`, {
       chatId,

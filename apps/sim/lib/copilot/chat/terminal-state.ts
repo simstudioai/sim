@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
+import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-dual-write'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { CopilotChatFinalizeOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -47,6 +48,7 @@ export async function finalizeAssistantTurn({
       [TraceAttr.ChatHasAssistantMessage]: !!assistantMessage,
     },
     async (span) => {
+      let appendedAssistantMessage: PersistedMessage | undefined
       const result = await db.transaction(async (tx) => {
         const where = userId
           ? and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId))
@@ -113,6 +115,7 @@ export async function finalizeAssistantTurn({
               messages: sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`,
             })
             .where(updateWhere)
+          appendedAssistantMessage = assistantMessage
           return {
             found: true,
             updated: true,
@@ -147,6 +150,12 @@ export async function finalizeAssistantTurn({
             : CopilotChatFinalizeOutcome.StaleUserMessage,
         }
       })
+
+      if (appendedAssistantMessage) {
+        await appendCopilotChatMessages(chatId, [appendedAssistantMessage], {
+          streamId: userMessageId,
+        })
+      }
 
       span.setAttribute(TraceAttr.ChatFinalizeOutcome, result.outcome)
       return result
