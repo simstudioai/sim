@@ -99,6 +99,12 @@ export const env = createEnv({
     PERSONAL_EMAIL_FROM:                   z.string().min(1).optional(),           // From address for personalized emails
     EMAIL_DOMAIN:                          z.string().min(1).optional(),           // Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
     AZURE_ACS_CONNECTION_STRING:           z.string().optional(),                  // Azure Communication Services connection string
+    AWS_SES_REGION:                        z.string().min(1).optional(),           // AWS region for SES (credentials resolved via default SDK provider chain)
+    SMTP_HOST:                             z.string().min(1).optional(),           // SMTP server hostname
+    SMTP_PORT:                             z.coerce.number().int().min(1).max(65535).optional(),
+    SMTP_USER:                             z.string().min(1).optional(),           // SMTP username
+    SMTP_PASS:                             z.string().min(1).optional(),           // SMTP password
+    SMTP_SECURE:                           z.boolean().optional(),                 // Force TLS on connect (defaults to true on port 465); read via envBoolean to handle string values from process.env
 
     // SMS & Messaging
     TWILIO_ACCOUNT_SID:                    z.string().min(1).optional(),           // Twilio Account SID for SMS sending
@@ -554,4 +560,17 @@ export function envNumber(
   if (value === undefined || value === null || value === '') return fallback
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed >= min ? parsed : fallback
+}
+
+/**
+ * Coerce an env-derived value to a boolean. Returns `undefined` when unset
+ * so callers can apply context-aware defaults. Required because
+ * `Boolean("false") === true`, so `z.coerce.boolean()` would silently flip
+ * the meaning of `MY_FLAG=false`.
+ */
+export function envBoolean(value: boolean | string | undefined | null): boolean | undefined {
+  if (typeof value === 'boolean') return value
+  if (value === undefined || value === null || value === '') return undefined
+  const normalized = String(value).trim().toLowerCase()
+  return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on'
 }
