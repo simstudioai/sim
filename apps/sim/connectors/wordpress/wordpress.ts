@@ -115,14 +115,12 @@ export const wordpressConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'e.g. mysite.wordpress.com',
       required: true,
-      description: 'WordPress site domain',
     },
     {
       id: 'postType',
       title: 'Post Type',
       type: 'dropdown',
       required: false,
-      description: 'Filter by content type',
       options: [
         { label: 'Both', id: 'Both' },
         { label: 'Posts', id: 'Posts' },
@@ -135,7 +133,6 @@ export const wordpressConnector: ConnectorConfig = {
       type: 'short-input',
       required: false,
       placeholder: `e.g. 50 (default: ${DEFAULT_MAX_POSTS})`,
-      description: 'Maximum number of posts to sync',
     },
   ],
 

@@ -285,7 +285,6 @@ export const intercomConnector: ConnectorConfig = {
       title: 'Content Type',
       type: 'dropdown',
       required: true,
-      description: 'Choose what to sync from Intercom',
       options: [
         { label: 'Articles Only', id: 'articles' },
         { label: 'Conversations Only', id: 'conversations' },
@@ -297,7 +296,6 @@ export const intercomConnector: ConnectorConfig = {
       title: 'Article State',
       type: 'dropdown',
       required: false,
-      description: 'Filter articles by state (default: published)',
       options: [
         { label: 'Published', id: 'published' },
         { label: 'Draft', id: 'draft' },
@@ -309,7 +307,6 @@ export const intercomConnector: ConnectorConfig = {
       title: 'Conversation State',
       type: 'dropdown',
       required: false,
-      description: 'Filter conversations by state (default: all)',
       options: [
         { label: 'Open', id: 'open' },
         { label: 'Closed', id: 'closed' },
@@ -322,7 +319,6 @@ export const intercomConnector: ConnectorConfig = {
       type: 'short-input',
       required: false,
       placeholder: `e.g. 200 (default: ${DEFAULT_MAX_ITEMS})`,
-      description: 'Maximum number of articles or conversations to sync',
     },
   ],
 

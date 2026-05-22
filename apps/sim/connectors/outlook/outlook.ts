@@ -334,7 +334,6 @@ export const outlookConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'e.g. from:boss@company.com subject:report hasAttachment:true',
       required: false,
-      description: 'Search filter using Outlook KQL syntax.',
     },
     {
       id: 'maxConversations',

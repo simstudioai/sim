@@ -222,7 +222,6 @@ export const microsoftTeamsConnector: ConnectorConfig = {
       mode: 'advanced',
       placeholder: 'e.g. fbe2bf47-16c8-47cf-b4a5-4b9b187c508b',
       required: true,
-      description: 'The ID of the Microsoft Teams team',
     },
     {
       id: 'channelSelector',
@@ -245,7 +244,6 @@ export const microsoftTeamsConnector: ConnectorConfig = {
       multi: true,
       placeholder: 'e.g. General, Announcements (comma-separated for multiple)',
       required: true,
-      description: 'Channel names or IDs to sync messages from',
     },
     {
       id: 'maxMessages',

@@ -183,7 +183,6 @@ export const obsidianConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'https://127.0.0.1:27124',
       required: true,
-      description: 'Base URL of your Obsidian Local REST API (default port: 27124 for HTTPS)',
     },
     {
       id: 'folderPath',
@@ -191,7 +190,6 @@ export const obsidianConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'e.g. Projects/Notes',
       required: false,
-      description: 'Only sync notes from this folder (leave empty for entire vault)',
     },
   ],
 

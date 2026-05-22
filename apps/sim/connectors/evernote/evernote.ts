@@ -383,7 +383,6 @@ export const evernoteConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'Leave empty to sync all notebooks',
       required: false,
-      description: 'Sync only notes from this notebook (optional)',
     },
   ],
 

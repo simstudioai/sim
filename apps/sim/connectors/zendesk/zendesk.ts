@@ -332,7 +332,6 @@ export const zendeskConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'yourcompany (from yourcompany.zendesk.com)',
       required: true,
-      description: 'Your Zendesk subdomain',
     },
     {
       id: 'email',
@@ -340,14 +339,12 @@ export const zendeskConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'agent@yourcompany.com',
       required: true,
-      description: 'Email address of the Zendesk user for API authentication',
     },
     {
       id: 'contentType',
       title: 'Content Type',
       type: 'dropdown',
       required: true,
-      description: 'What content to sync from Zendesk',
       options: [
         { label: 'Articles & Tickets', id: 'both' },
         { label: 'Help Center Articles Only', id: 'articles' },
@@ -359,7 +356,6 @@ export const zendeskConnector: ConnectorConfig = {
       title: 'Ticket Status Filter',
       type: 'dropdown',
       required: false,
-      description: 'Filter tickets by status (applies only when syncing tickets)',
       options: [
         { label: 'All Statuses', id: 'all' },
         { label: 'New', id: 'new' },
@@ -376,7 +372,6 @@ export const zendeskConnector: ConnectorConfig = {
       type: 'short-input',
       required: false,
       placeholder: 'e.g. en-us (default: all locales)',
-      description: 'Locale for Help Center articles',
     },
     {
       id: 'maxTickets',
@@ -384,7 +379,6 @@ export const zendeskConnector: ConnectorConfig = {
       type: 'short-input',
       required: false,
       placeholder: `e.g. 200 (default: ${DEFAULT_MAX_TICKETS})`,
-      description: 'Maximum number of tickets to sync',
     },
   ],
 

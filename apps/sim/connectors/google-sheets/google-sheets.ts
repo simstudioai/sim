@@ -216,7 +216,6 @@ export const googleSheetsConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'e.g. 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms',
       required: true,
-      description: 'The ID from the spreadsheet URL: docs.google.com/spreadsheets/d/{ID}/edit',
     },
     {
       id: 'sheetFilter',

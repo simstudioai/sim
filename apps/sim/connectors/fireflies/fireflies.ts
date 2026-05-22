@@ -140,7 +140,6 @@ export const firefliesConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'e.g. john@example.com',
       required: false,
-      description: 'Only sync transcripts hosted by this email',
     },
     {
       id: 'maxTranscripts',

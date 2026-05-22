@@ -115,7 +115,6 @@ export const dropboxConnector: ConnectorConfig = {
       type: 'short-input',
       placeholder: 'e.g. /Documents (default: entire Dropbox)',
       required: false,
-      description: 'Leave empty to sync all supported files',
     },
     {
       id: 'maxFiles',
