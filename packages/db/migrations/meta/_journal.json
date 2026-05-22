@@ -1478,6 +1478,13 @@
       "when": 1779398164637,
       "tag": "0211_breezy_cloak",
       "breakpoints": true
+    },
+    {
+      "idx": 212,
+      "version": "7",
+      "when": 1779419523710,
+      "tag": "0212_gifted_patriot",
+      "breakpoints": true
     }
   ]
 }

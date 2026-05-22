@@ -1,8 +1,13 @@
 import { db } from '@sim/db'
-import { jobExecutionLogs, pausedExecutions, workflowExecutionLogs } from '@sim/db/schema'
+import {
+  executionLargeValues,
+  jobExecutionLogs,
+  pausedExecutions,
+  workflowExecutionLogs,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
-import { and, eq, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, lt, notInArray, or } from 'drizzle-orm'
 import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
 import {
   batchDeleteByWorkspaceAndTimestamp,
@@ -10,7 +15,11 @@ import {
   chunkedBatchDelete,
   type TableCleanupResult,
 } from '@/lib/cleanup/batch-delete'
-import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
+import {
+  markLargeValuesDeleted,
+  pruneLargeValueMetadata,
+  unreferencedLargeValuePredicate,
+} from '@/lib/execution/payloads/large-value-metadata'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
@@ -21,90 +30,176 @@ interface FileDeleteStats {
   filesTotal: number
   filesDeleted: number
   filesDeleteFailed: number
+}
+
+const RESUMABLE_PAUSED_STATUSES = ['paused', 'partially_resumed', 'cancelling']
+
+const WORKFLOW_LOG_CLEANUP_BATCH_SIZE = 500
+const WORKFLOW_LOG_CLEANUP_MAX_BATCHES = 50
+const WORKFLOW_LOG_CLEANUP_ROW_LIMIT =
+  WORKFLOW_LOG_CLEANUP_BATCH_SIZE * WORKFLOW_LOG_CLEANUP_MAX_BATCHES
+const LOG_CLEANUP_CONCURRENCY_LIMIT = 2
+const LARGE_VALUE_CLEANUP_BATCH_SIZE = 500
+const LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT = 5_000
+const LARGE_VALUE_CLEANUP_GRACE_HOURS = 7 * 24
+const LARGE_VALUE_TOMBSTONE_RETENTION_HOURS = 30 * 24
+
+async function deleteExecutionFiles(files: unknown, stats: FileDeleteStats): Promise<void> {
+  if (!isUsingCloudStorage() || !files || !Array.isArray(files)) return
+
+  const keys = Array.from(
+    new Set(files.filter((f) => f && typeof f === 'object' && f.key).map((f) => f.key as string))
+  )
+  stats.filesTotal += keys.length
+  if (keys.length === 0) return
+
+  let result: Awaited<ReturnType<typeof StorageService.deleteFiles>>
+  try {
+    result = await StorageService.deleteFiles(keys, 'execution')
+  } catch (error) {
+    stats.filesDeleteFailed += keys.length
+    logger.error('Failed to bulk delete execution files:', { error })
+    return
+  }
+
+  const failedKeys = new Set(result.failed.map(({ key }) => key))
+  stats.filesDeleted += result.deleted
+  stats.filesDeleteFailed += result.failed.length
+
+  for (const { key, error } of result.failed) {
+    logger.error(`Failed to delete file ${key}:`, { error })
+  }
+  for (const key of keys) {
+    if (failedKeys.has(key)) continue
+    try {
+      await deleteFileMetadata(key)
+    } catch (metadataError) {
+      stats.filesDeleteFailed++
+      logger.error(`Failed to delete file metadata ${key}:`, { metadataError })
+    }
+  }
+}
+
+interface LargeValueCleanupStats {
   largeValuesTotal: number
   largeValuesDeleted: number
   largeValuesDeleteFailed: number
 }
 
-const RESUMABLE_PAUSED_STATUSES = ['paused', 'partially_resumed', 'cancelling']
-
-/** Caps the per-row predicate cost: keys-per-row is `O(chunk)` not `O(uniqueKeys)`. */
-const REFERENCE_CHECK_KEY_CHUNK_SIZE = 200
-
-/**
- * One `LATERAL unnest` scan per chunk replaces N per-key sequential scans
- * (each detoasting the entire JSONB column). Substring semantics identical.
- */
-async function filterLargeValueKeysWithoutRetainedReferences(
-  keys: string[],
-  deletedLogIds: string[]
-): Promise<string[]> {
-  if (keys.length === 0 || deletedLogIds.length === 0) return []
-
-  const uniqueKeys = Array.from(new Set(keys))
-  const workspaceIds = Array.from(
-    new Set(
-      uniqueKeys
-        .map((key) => key.split('/')[1])
-        .filter((workspaceId): workspaceId is string => Boolean(workspaceId))
-    )
-  )
-  if (workspaceIds.length === 0) return []
-  const referencedKeys = new Set<string>()
-
-  for (const keyChunk of chunkArray(uniqueKeys, REFERENCE_CHECK_KEY_CHUNK_SIZE)) {
-    const rows = await db.execute<{ key: string }>(sql`
-      SELECT DISTINCT k.key AS key
-      FROM ${workflowExecutionLogs} AS wel,
-           unnest(${keyChunk}::text[]) AS k(key)
-      WHERE wel.workspace_id = ANY(${workspaceIds}::text[])
-        AND wel.id <> ALL(${deletedLogIds}::text[])
-        AND position(k.key in wel.execution_data::text) > 0
-    `)
-    for (const row of rows) referencedKeys.add(row.key)
+async function deleteLargeValueKeys(keys: string[]): Promise<{ deleted: number; failed: number }> {
+  if (!isUsingCloudStorage() || keys.length === 0) {
+    return { deleted: 0, failed: 0 }
   }
 
-  return uniqueKeys.filter((key) => !referencedKeys.has(key))
+  let result: Awaited<ReturnType<typeof StorageService.deleteFiles>>
+  try {
+    result = await StorageService.deleteFiles(keys, 'execution')
+  } catch (error) {
+    logger.error('Failed to bulk delete large execution values:', { error })
+    return { deleted: 0, failed: keys.length }
+  }
+
+  const failedKeys = new Set(result.failed.map(({ key }) => key))
+  const deletedKeys = keys.filter((key) => !failedKeys.has(key))
+
+  if (deletedKeys.length > 0) {
+    try {
+      await markLargeValuesDeleted(deletedKeys)
+    } catch (error) {
+      logger.error('Failed to mark large execution values as deleted:', { error })
+      return { deleted: 0, failed: result.failed.length + deletedKeys.length }
+    }
+  }
+
+  for (const { key, error } of result.failed) {
+    logger.error(`Failed to delete large execution value ${key}:`, { error })
+  }
+
+  for (const key of deletedKeys) {
+    try {
+      await deleteFileMetadata(key)
+    } catch (metadataError) {
+      logger.error(`Failed to delete large execution value metadata ${key}:`, { metadataError })
+    }
+  }
+
+  return { deleted: deletedKeys.length, failed: result.failed.length }
 }
 
-async function deleteExecutionFiles(files: unknown, stats: FileDeleteStats): Promise<void> {
-  if (!isUsingCloudStorage() || !files || !Array.isArray(files)) return
+async function cleanupLargeExecutionValues(
+  workspaceIds: string[],
+  retentionDate: Date,
+  label: string
+): Promise<LargeValueCleanupStats> {
+  const stats: LargeValueCleanupStats = {
+    largeValuesTotal: 0,
+    largeValuesDeleted: 0,
+    largeValuesDeleteFailed: 0,
+  }
+  if (workspaceIds.length === 0) return stats
 
-  const keys = files.filter((f) => f && typeof f === 'object' && f.key).map((f) => f.key as string)
-  stats.filesTotal += keys.length
-
-  await Promise.all(
-    keys.map(async (key) => {
-      try {
-        await StorageService.deleteFile({ key, context: 'execution' })
-        await deleteFileMetadata(key)
-        stats.filesDeleted++
-      } catch (fileError) {
-        stats.filesDeleteFailed++
-        logger.error(`Failed to delete file ${key}:`, { fileError })
-      }
-    })
+  const largeValueRetentionDate = new Date(
+    retentionDate.getTime() - LARGE_VALUE_CLEANUP_GRACE_HOURS * 60 * 60 * 1000
   )
+  const workspaceChunks = chunkArray(workspaceIds, 50)
+  let attempted = 0
+
+  for (const chunkIds of workspaceChunks) {
+    while (attempted < LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT) {
+      const limit = Math.min(
+        LARGE_VALUE_CLEANUP_BATCH_SIZE,
+        LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT - attempted
+      )
+      const rows = await db
+        .select({ key: executionLargeValues.key })
+        .from(executionLargeValues)
+        .where(
+          and(
+            inArray(executionLargeValues.workspaceId, chunkIds),
+            isNull(executionLargeValues.deletedAt),
+            lt(executionLargeValues.createdAt, largeValueRetentionDate),
+            unreferencedLargeValuePredicate()
+          )
+        )
+        .orderBy(asc(executionLargeValues.createdAt), asc(executionLargeValues.key))
+        .limit(limit)
+
+      if (rows.length === 0) break
+
+      const keys = rows.map((row) => row.key)
+      stats.largeValuesTotal += keys.length
+      attempted += keys.length
+      const result = await deleteLargeValueKeys(keys)
+      stats.largeValuesDeleted += result.deleted
+      stats.largeValuesDeleteFailed += result.failed
+
+      if (result.deleted === 0) {
+        break
+      }
+    }
+
+    if (attempted >= LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT) break
+  }
+
+  logger.info(
+    `[${label}/execution_large_values] Complete: ${stats.largeValuesDeleted}/${stats.largeValuesTotal} deleted, ${stats.largeValuesDeleteFailed} failed`
+  )
+
+  return stats
 }
 
-async function deleteLargeValueStorageKeys(keys: string[], stats: FileDeleteStats): Promise<void> {
-  if (!isUsingCloudStorage() || keys.length === 0) return
-
-  const uniqueKeys = Array.from(new Set(keys))
-  stats.largeValuesTotal += uniqueKeys.length
-
-  await Promise.all(
-    uniqueKeys.map(async (key) => {
-      try {
-        await StorageService.deleteFile({ key, context: 'execution' })
-        await deleteFileMetadata(key)
-        stats.largeValuesDeleted++
-      } catch (error) {
-        stats.largeValuesDeleteFailed++
-        logger.error(`Failed to delete large execution value ${key}:`, { error })
-      }
-    })
-  )
+async function cleanupLargeValueMetadata(workspaceIds: string[], label: string): Promise<void> {
+  try {
+    const tombstonesDeletedBefore = new Date(
+      Date.now() - LARGE_VALUE_TOMBSTONE_RETENTION_HOURS * 60 * 60 * 1000
+    )
+    const result = await pruneLargeValueMetadata({ workspaceIds, tombstonesDeletedBefore })
+    logger.info(
+      `[${label}/execution_large_value_metadata] Pruned ${result.referencesDeleted} stale references, ${result.dependenciesDeleted} dependencies, ${result.tombstonesDeleted} tombstones`
+    )
+  } catch (error) {
+    logger.error(`[${label}/execution_large_value_metadata] Failed to prune metadata`, { error })
+  }
 }
 
 async function cleanupWorkflowExecutionLogs(
@@ -116,9 +211,6 @@ async function cleanupWorkflowExecutionLogs(
     filesTotal: 0,
     filesDeleted: 0,
     filesDeleteFailed: 0,
-    largeValuesTotal: 0,
-    largeValuesDeleted: 0,
-    largeValuesDeleteFailed: 0,
   }
 
   const dbStats = await chunkedBatchDelete({
@@ -129,9 +221,6 @@ async function cleanupWorkflowExecutionLogs(
       db
         .select({
           id: workflowExecutionLogs.id,
-          workspaceId: workflowExecutionLogs.workspaceId,
-          executionId: workflowExecutionLogs.executionId,
-          executionData: workflowExecutionLogs.executionData,
           files: workflowExecutionLogs.files,
         })
         .from(workflowExecutionLogs)
@@ -151,18 +240,13 @@ async function cleanupWorkflowExecutionLogs(
         )
         .limit(limit),
     onBatch: async (rows) => {
-      const deletedLogIds = rows.map((row) => row.id)
-      const largeValueKeys = rows.flatMap((row) => collectLargeValueKeys(row.executionData))
-      const unreferencedLargeValueKeys = await filterLargeValueKeysWithoutRetainedReferences(
-        largeValueKeys,
-        deletedLogIds
-      )
-
       for (const row of rows) {
         await deleteExecutionFiles(row.files, fileStats)
       }
-      await deleteLargeValueStorageKeys(unreferencedLargeValueKeys, fileStats)
     },
+    batchSize: WORKFLOW_LOG_CLEANUP_BATCH_SIZE,
+    maxBatches: WORKFLOW_LOG_CLEANUP_MAX_BATCHES,
+    totalRowLimit: WORKFLOW_LOG_CLEANUP_ROW_LIMIT,
   })
 
   return { ...dbStats, ...fileStats }
@@ -200,9 +284,11 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
   logger.info(
     `[${label}] workflow_execution_logs files: ${workflowResults.filesDeleted}/${workflowResults.filesTotal} deleted, ${workflowResults.filesDeleteFailed} failed`
   )
+  const largeValueResults = await cleanupLargeExecutionValues(workspaceIds, retentionDate, label)
   logger.info(
-    `[${label}] workflow_execution_logs large values: ${workflowResults.largeValuesDeleted}/${workflowResults.largeValuesTotal} deleted, ${workflowResults.largeValuesDeleteFailed} failed`
+    `[${label}] workflow_execution_logs large values: ${largeValueResults.largeValuesDeleted}/${largeValueResults.largeValuesTotal} deleted, ${largeValueResults.largeValuesDeleteFailed} failed`
   )
+  await cleanupLargeValueMetadata(workspaceIds, label)
 
   await batchDeleteByWorkspaceAndTimestamp({
     tableDef: jobExecutionLogs,
@@ -224,6 +310,6 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
 export const cleanupLogsTask = task({
   id: 'cleanup-logs',
   machine: 'large-1x',
-  queue: { concurrencyLimit: 5 },
+  queue: { concurrencyLimit: LOG_CLEANUP_CONCURRENCY_LIMIT },
   run: runCleanupLogs,
 })

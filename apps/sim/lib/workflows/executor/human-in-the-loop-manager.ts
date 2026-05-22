@@ -13,6 +13,7 @@ import {
   resetExecutionStreamBuffer,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
+import { replaceLargeValueReferencesWithClient } from '@/lib/execution/payloads/large-value-metadata'
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -46,6 +47,21 @@ const CANCELLABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function parseSnapshotForReferenceTracking(snapshotSeed: SerializedSnapshot): unknown {
+  try {
+    return { ...snapshotSeed, snapshot: JSON.parse(snapshotSeed.snapshot) }
+  } catch {
+    return snapshotSeed
+  }
+}
+
+function getSnapshotWorkspaceId(snapshotValue: unknown): string | undefined {
+  if (!isRecord(snapshotValue)) return undefined
+  const metadata = snapshotValue.metadata
+  if (!isRecord(metadata)) return undefined
+  return typeof metadata.workspaceId === 'string' ? metadata.workspaceId : undefined
 }
 
 function isResumablePausedStatus(status: string): boolean {
@@ -169,6 +185,10 @@ export function computeEarliestResumeAt(
 export class PauseResumeManager {
   static async persistPauseResult(args: PersistPauseResultArgs): Promise<void> {
     const { workflowId, executionId, pausePoints, snapshotSeed, executorUserId } = args
+    const snapshotReferenceValue = parseSnapshotForReferenceTracking(snapshotSeed)
+    const snapshotWorkspaceId = getSnapshotWorkspaceId(
+      isRecord(snapshotReferenceValue) ? snapshotReferenceValue.snapshot : undefined
+    )
 
     const pausePointsRecord = pausePoints.reduce<Record<string, any>>((acc, point) => {
       acc[point.contextId] = {
@@ -220,6 +240,18 @@ export class PauseResumeManager {
           updatedAt: now,
           nextResumeAt,
         })
+        if (snapshotWorkspaceId) {
+          await replaceLargeValueReferencesWithClient(
+            tx,
+            {
+              workspaceId: snapshotWorkspaceId,
+              workflowId,
+              executionId,
+              source: 'paused_snapshot',
+            },
+            snapshotReferenceValue
+          )
+        }
         return
       }
 
@@ -264,6 +296,19 @@ export class PauseResumeManager {
           nextResumeAt: mergedNextResumeAt,
         })
         .where(eq(pausedExecutions.id, existing.id))
+
+      if (snapshotWorkspaceId) {
+        await replaceLargeValueReferencesWithClient(
+          tx,
+          {
+            workspaceId: snapshotWorkspaceId,
+            workflowId,
+            executionId,
+            source: 'paused_snapshot',
+          },
+          snapshotReferenceValue
+        )
+      }
     })
 
     await PauseResumeManager.processQueuedResumes(executionId, workflowId)
@@ -1568,14 +1613,30 @@ export class PauseResumeManager {
       snapshot: JSON.stringify(snapshotData),
       triggerIds: currentSnapshot.triggerIds,
     }
+    const snapshotWorkspaceId = getSnapshotWorkspaceId(snapshotData)
 
-    await db
-      .update(pausedExecutions)
-      .set({
-        executionSnapshot: updatedSnapshot,
-        updatedAt: new Date(),
-      })
-      .where(eq(pausedExecutions.id, pausedExecutionId))
+    await db.transaction(async (tx) => {
+      await tx
+        .update(pausedExecutions)
+        .set({
+          executionSnapshot: updatedSnapshot,
+          updatedAt: new Date(),
+        })
+        .where(eq(pausedExecutions.id, pausedExecutionId))
+
+      if (snapshotWorkspaceId) {
+        await replaceLargeValueReferencesWithClient(
+          tx,
+          {
+            workspaceId: snapshotWorkspaceId,
+            workflowId: pausedExecution.workflowId,
+            executionId: pausedExecution.executionId,
+            source: 'paused_snapshot',
+          },
+          { ...updatedSnapshot, snapshot: snapshotData }
+        )
+      }
+    })
 
     logger.info('Updated snapshot after resume', {
       pausedExecutionId,

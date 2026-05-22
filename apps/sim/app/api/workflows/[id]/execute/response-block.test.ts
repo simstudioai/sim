@@ -15,11 +15,14 @@ import { EXECUTION_RESOURCE_LIMIT_CODE } from '@/lib/execution/resource-errors'
 import type { ExecutionResult } from '@/lib/workflows/types'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 
-const { mockDownloadFile, mockUploadFile, uploadedFiles } = vi.hoisted(() => ({
-  mockDownloadFile: vi.fn(),
-  mockUploadFile: vi.fn(),
-  uploadedFiles: new Map<string, Buffer>(),
-}))
+const { mockDownloadFile, mockRegisterLargeValueOwner, mockUploadFile, uploadedFiles } = vi.hoisted(
+  () => ({
+    mockDownloadFile: vi.fn(),
+    mockRegisterLargeValueOwner: vi.fn(),
+    mockUploadFile: vi.fn(),
+    uploadedFiles: new Map<string, Buffer>(),
+  })
+)
 
 const MATERIALIZATION_CONTEXT = {
   workspaceId: 'workspace-1',
@@ -33,6 +36,10 @@ vi.mock('@/lib/uploads', () => ({
     downloadFile: mockDownloadFile,
     uploadFile: mockUploadFile,
   },
+}))
+
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
+  registerLargeValueOwner: mockRegisterLargeValueOwner,
 }))
 
 function buildExecutionResult(overrides: Partial<ExecutionResult> = {}): ExecutionResult {
@@ -66,6 +73,7 @@ describe('Response block gating by auth type', () => {
     vi.clearAllMocks()
     clearLargeValueCacheForTests()
     uploadedFiles.clear()
+    mockRegisterLargeValueOwner.mockResolvedValue(true)
     mockUploadFile.mockImplementation(async ({ customKey, file }) => {
       uploadedFiles.set(customKey, file)
       return { key: customKey }

@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { cacheLargeValue, materializeLargeValueRefSync } from '@/lib/execution/payloads/cache'
+import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import {
   LARGE_VALUE_REF_VERSION,
   type LargeValueKind,
@@ -102,6 +103,65 @@ async function persistValue(
   }
 }
 
+async function registerPersistedValueOwner(
+  key: string | undefined,
+  size: number,
+  referencedKeys: string[],
+  context: LargeValueStoreContext
+): Promise<boolean> {
+  const { workspaceId, workflowId, executionId } = context
+  if (!key || !workspaceId || !workflowId || !executionId) {
+    return false
+  }
+
+  try {
+    const { registerLargeValueOwner } = await import(
+      '@/lib/execution/payloads/large-value-metadata'
+    )
+    return await registerLargeValueOwner(
+      {
+        key,
+        workspaceId,
+        workflowId,
+        executionId,
+        size,
+      },
+      referencedKeys
+    )
+  } catch (error) {
+    logger.warn('Failed to register large execution value metadata', {
+      key,
+      error: toError(error).message,
+    })
+    return false
+  }
+}
+
+async function deleteUntrackedPersistedValue(key: string): Promise<boolean> {
+  try {
+    const [{ StorageService }, { deleteFileMetadata }] = await Promise.all([
+      import('@/lib/uploads'),
+      import('@/lib/uploads/server/metadata'),
+    ])
+    const result = await StorageService.deleteFiles([key], 'execution')
+    const deleteFailed = result.failed.some((failed) => failed.key === key)
+    if (deleteFailed) {
+      logger.warn('Failed to delete untracked large execution value from storage', {
+        key,
+      })
+      return false
+    }
+    await deleteFileMetadata(key)
+    return true
+  } catch (error) {
+    logger.warn('Failed to clean up untracked large execution value', {
+      key,
+      error: toError(error).message,
+    })
+    return false
+  }
+}
+
 export async function storeLargeValue(
   value: unknown,
   json: string,
@@ -109,8 +169,19 @@ export async function storeLargeValue(
   context: LargeValueStoreContext
 ): Promise<LargeValueRef> {
   assertDurableLargeValueSize(size)
+  const referencedKeys = collectLargeValueKeys(value)
   const id = `lv_${generateShortId(12)}`
-  const key = await persistValue(id, json, context)
+  let key = await persistValue(id, json, context)
+  if (key) {
+    const registered = await registerPersistedValueOwner(key, size, referencedKeys, context)
+    if (!registered) {
+      const cleaned = await deleteUntrackedPersistedValue(key)
+      if (!cleaned || context.requireDurable) {
+        throw new Error('Failed to persist large execution value metadata')
+      }
+      key = undefined
+    }
+  }
   const cached = cacheLargeValue(id, value, size, context, { recoverable: Boolean(key) })
   if (!key && !cached) {
     throw new Error('Cannot retain large execution value without durable storage')

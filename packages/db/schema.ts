@@ -367,6 +367,80 @@ export const workflowExecutionLogs = pgTable(
   })
 )
 
+export const executionLargeValues = pgTable(
+  'execution_large_values',
+  {
+    key: text('key').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
+    ownerExecutionId: text('owner_execution_id').notNull(),
+    size: integer('size').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at'),
+  },
+  (table) => ({
+    ownerExecutionIdIdx: index('execution_large_values_owner_execution_id_idx').on(
+      table.ownerExecutionId
+    ),
+    cleanupIdx: index('execution_large_values_cleanup_idx')
+      .on(table.workspaceId, table.createdAt, table.key)
+      .where(sql`${table.deletedAt} IS NULL`),
+    tombstoneCleanupIdx: index('execution_large_values_tombstone_cleanup_idx')
+      .on(table.workspaceId, table.deletedAt, table.key)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
+  })
+)
+
+export const executionLargeValueReferences = pgTable(
+  'execution_large_value_references',
+  {
+    key: text('key').notNull(),
+    executionId: text('execution_id').notNull(),
+    source: text('source').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.key, table.executionId, table.source] }),
+    keyIdx: index('execution_large_value_references_key_idx').on(table.key),
+    executionIdIdx: index('execution_large_value_references_execution_id_idx').on(
+      table.executionId
+    ),
+    workspaceExecutionIdIdx: index(
+      'execution_large_value_references_workspace_execution_id_idx'
+    ).on(table.workspaceId, table.executionId),
+  })
+)
+
+export const executionLargeValueDependencies = pgTable(
+  'execution_large_value_dependencies',
+  {
+    parentKey: text('parent_key').notNull(),
+    childKey: text('child_key').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.parentKey, table.childKey] }),
+    childKeyIdx: index('execution_large_value_dependencies_child_key_idx').on(table.childKey),
+    workspaceParentKeyIdx: index('execution_large_value_dependencies_workspace_parent_key_idx').on(
+      table.workspaceId,
+      table.parentKey
+    ),
+    workspaceChildKeyIdx: index('execution_large_value_dependencies_workspace_child_key_idx').on(
+      table.workspaceId,
+      table.childKey
+    ),
+  })
+)
+
 export const pausedExecutions = pgTable(
   'paused_executions',
   {

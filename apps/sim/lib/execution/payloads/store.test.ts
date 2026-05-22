@@ -16,16 +16,27 @@ import {
 import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
 import { EXECUTION_RESOURCE_LIMIT_CODE } from '@/lib/execution/resource-errors'
 
-const { mockDownloadFile, mockUploadFile, mockVerifyFileAccess } = vi.hoisted(() => ({
+const {
+  mockDeleteFileMetadata,
+  mockDeleteFiles,
+  mockDownloadFile,
+  mockRegisterLargeValueOwner,
+  mockUploadFile,
+  mockVerifyFileAccess,
+} = vi.hoisted(() => ({
+  mockDeleteFileMetadata: vi.fn(),
+  mockDeleteFiles: vi.fn(),
   mockDownloadFile: vi.fn(),
+  mockRegisterLargeValueOwner: vi.fn(),
   mockUploadFile: vi.fn(),
   mockVerifyFileAccess: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads', () => ({
   StorageService: {
-    uploadFile: mockUploadFile,
+    deleteFiles: mockDeleteFiles,
     downloadFile: mockDownloadFile,
+    uploadFile: mockUploadFile,
   },
 }))
 
@@ -38,11 +49,22 @@ vi.mock('@/app/api/files/authorization', () => ({
   verifyFileAccess: mockVerifyFileAccess,
 }))
 
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
+  registerLargeValueOwner: mockRegisterLargeValueOwner,
+}))
+
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  deleteFileMetadata: mockDeleteFileMetadata,
+}))
+
 describe('large execution payload store', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearLargeValueCacheForTests()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
+    mockRegisterLargeValueOwner.mockResolvedValue(true)
+    mockDeleteFiles.mockResolvedValue({ deleted: 1, failed: [] })
+    mockDeleteFileMetadata.mockResolvedValue(true)
     mockVerifyFileAccess.mockResolvedValue(true)
   })
 
@@ -74,6 +96,86 @@ describe('large execution payload store', () => {
         customKey: ref.key,
       })
     )
+    expect(mockRegisterLargeValueOwner).toHaveBeenCalledWith(
+      {
+        key: ref.key,
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        size: Buffer.byteLength(json, 'utf8'),
+      },
+      []
+    )
+  })
+
+  it('cleans up uploaded storage and fails durable writes when owner metadata is not recorded', async () => {
+    const value = { payload: 'x'.repeat(2048) }
+    const json = JSON.stringify(value)
+    mockRegisterLargeValueOwner.mockResolvedValueOnce(false)
+
+    await expect(
+      storeLargeValue(value, json, Buffer.byteLength(json, 'utf8'), {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        requireDurable: true,
+      })
+    ).rejects.toThrow('Failed to persist large execution value metadata')
+
+    const key = 'execution/workspace-1/workflow-1/execution-1/large-value-lv_'
+    expect(mockDeleteFiles.mock.calls[0]?.[0][0]).toContain(key)
+    expect(mockDeleteFileMetadata).toHaveBeenCalledOnce()
+  })
+
+  it('keeps file metadata when untracked storage deletion reports failure', async () => {
+    const value = { payload: 'x'.repeat(2048) }
+    const json = JSON.stringify(value)
+    mockRegisterLargeValueOwner.mockResolvedValueOnce(false)
+    mockDeleteFiles.mockImplementationOnce(async (keys: string[]) => ({
+      deleted: 0,
+      failed: [{ key: keys[0] }],
+    }))
+
+    await expect(
+      storeLargeValue(value, json, Buffer.byteLength(json, 'utf8'), {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        requireDurable: true,
+      })
+    ).rejects.toThrow('Failed to persist large execution value metadata')
+
+    expect(mockDeleteFiles).toHaveBeenCalledOnce()
+    expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
+  })
+
+  it('passes nested large value refs to owner metadata registration', async () => {
+    const nestedKey =
+      'execution/workspace-1/workflow-1/source-execution/large-value-lv_abcdefghijkl.json'
+    const value = {
+      nested: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_abcdefghijkl',
+        kind: 'object',
+        size: 123,
+        key: nestedKey,
+      },
+      payload: 'x'.repeat(2048),
+    }
+    const json = JSON.stringify(value)
+
+    await storeLargeValue(value, json, Buffer.byteLength(json, 'utf8'), {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      userId: 'user-1',
+      requireDurable: true,
+    })
+
+    expect(mockRegisterLargeValueOwner).toHaveBeenCalledWith(expect.any(Object), [nestedKey])
   })
 
   it('fails durable writes before producing refs when execution context is missing', async () => {
