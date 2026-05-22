@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { hubspotListsSelectorContract } from '@/lib/api/contracts/selectors/hubspot'
 import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -26,6 +27,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const parsed = await parseRequest(hubspotListsSelectorContract, request, {})
     if (!parsed.success) return parsed.response
     const { credentialId, objectTypeId, query } = parsed.data.query
+
+    const credentialIdValidation = validateAlphanumericId(credentialId, 'credentialId', 255)
+    if (!credentialIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid credential ID: ${credentialIdValidation.error}`)
+      return NextResponse.json({ error: credentialIdValidation.error }, { status: 400 })
+    }
 
     const authz = await authorizeCredentialUse(request, {
       credentialId,
