@@ -117,6 +117,30 @@ describe('withLeaderLock', () => {
     expect(onFollower.mock.calls.length).toBeGreaterThanOrEqual(2)
   })
 
+  it('follower does a final read after timeout to catch a just-finished leader', async () => {
+    redisConfigMockFns.mockAcquireLock.mockResolvedValueOnce(false)
+
+    // pollInterval=5, maxWait=9 → loop exits after 2 in-loop polls (T+5, T+10);
+    // the third call (polls=3) is the post-deadline last-chance read.
+    let polls = 0
+    const onFollower = vi.fn(async () => {
+      polls += 1
+      if (polls <= 2) return null
+      return 'late-leader'
+    })
+
+    const result = await withLeaderLock<string>({
+      key: 'k',
+      pollIntervalMs: 5,
+      maxWaitMs: 9,
+      onLeader: async () => 'should-not-run',
+      onFollower,
+    })
+
+    expect(result).toBe('late-leader')
+    expect(onFollower).toHaveBeenCalledTimes(3)
+  })
+
   it('follower returns null after timeout', async () => {
     redisConfigMockFns.mockAcquireLock.mockResolvedValueOnce(false)
 
