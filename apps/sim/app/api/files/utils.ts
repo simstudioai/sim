@@ -191,7 +191,7 @@ function getSecureFileHeaders(filename: string, originalContentType: string) {
   }
 }
 
-function encodeFilenameForHeader(storageKey: string): string {
+export function encodeFilenameForHeader(storageKey: string): string {
   const filename = storageKey.split('/').pop() || storageKey
 
   const hasNonAscii = /[^\x00-\x7F]/.test(filename)

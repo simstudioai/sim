@@ -13,6 +13,7 @@ import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
 import { verifyFileAccess } from '@/app/api/files/authorization'
+import { encodeFilenameForHeader } from '@/app/api/files/utils'
 
 const logger = createLogger('FilesExportAPI')
 
@@ -95,7 +96,7 @@ export const GET = withRouteHandler(
         status: 200,
         headers: {
           'Content-Type': 'text/markdown; charset=utf-8',
-          'Content-Disposition': `attachment; filename="${mdName}"`,
+          'Content-Disposition': `attachment; ${encodeFilenameForHeader(mdName)}`,
           'Content-Length': String(mdBytes.length),
         },
       })
@@ -158,7 +159,7 @@ export const GET = withRouteHandler(
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${zipName}"`,
+        'Content-Disposition': `attachment; ${encodeFilenameForHeader(zipName)}`,
         'Content-Length': String(zipBuffer.length),
       },
     })
