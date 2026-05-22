@@ -123,12 +123,16 @@ export async function sendBatchEmails(options: BatchEmailOptions): Promise<Batch
 
     if (sendable.length === 0) {
       const results = entries.map((e) => e.skippedResult ?? SKIPPED_UNSUBSCRIBED_RESULT)
+      const allUnsubscribed =
+        entries.length > 0 && entries.every((e) => e.skippedResult === SKIPPED_UNSUBSCRIBED_RESULT)
       return {
         success: results.every((r) => r.success),
         message:
           options.emails.length === 0
             ? 'No emails to send'
-            : 'All batch emails skipped (users unsubscribed)',
+            : allUnsubscribed
+              ? 'All batch emails skipped (users unsubscribed)'
+              : 'No emails sent (all entries skipped or failed validation)',
         results,
         data: { count: 0 },
       }
@@ -168,17 +172,20 @@ function mergeBatchResults(
     (entry) => resultsByIndex.get(entry.index) ?? entry.skippedResult ?? SKIPPED_UNSUBSCRIBED_RESULT
   )
 
-  const successCount = results.filter((r) => r.success).length
+  // sentCount excludes both unsubscribe-skipped (success but not delivered)
+  // and prepare-failed entries — only counts what actually went out the wire.
+  const sentCount = sentResults.filter((r) => r.success).length
   const skippedCount = entries.length - sendable.length
+  const allSucceeded = sentCount === sendable.length && skippedCount === 0
   return {
-    success: successCount === results.length,
+    success: results.every((r) => r.success),
     message:
       skippedCount > 0
-        ? `${successCount} emails sent, ${skippedCount} skipped`
-        : successCount === results.length
+        ? `${sentCount} emails sent, ${skippedCount} skipped`
+        : allSucceeded
           ? 'All batch emails sent successfully'
-          : `${successCount}/${results.length} emails sent successfully`,
+          : `${sentCount}/${sendable.length} emails sent successfully`,
     results,
-    data: { count: successCount },
+    data: { count: sentCount },
   }
 }

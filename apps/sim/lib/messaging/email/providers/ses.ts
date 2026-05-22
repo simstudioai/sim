@@ -15,8 +15,10 @@ export function createSesProvider(): MailProvider | null {
   if (!region) return null
 
   const sesClient = new SESv2Client({ region })
+  // `@types/nodemailer` pulls in its own nested `@aws-sdk/client-sesv2`, giving
+  // the SDK classes two nominal identities; runtime is identical, cast bridges them.
   const sesOptions: SESTransport.Options = {
-    SES: { sesClient, SendEmailCommand },
+    SES: { sesClient, SendEmailCommand } as unknown as SESTransport.Options['SES'],
   }
   const transporter = nodemailer.createTransport(sesOptions)
 
