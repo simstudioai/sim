@@ -45,12 +45,7 @@ export const mcpKeys = {
   all: ['mcp'] as const,
   servers: () => [...mcpKeys.all, 'servers'] as const,
   serversList: (workspaceId?: string) => [...mcpKeys.servers(), workspaceId ?? ''] as const,
-  tools: () => [...mcpKeys.all, 'tools'] as const,
-  toolsList: (workspaceId?: string) => [...mcpKeys.tools(), workspaceId ?? ''] as const,
   serverTools: () => [...mcpKeys.all, 'serverTools'] as const,
-  // Workspace-scoped prefix so bulk invalidations (refresh-all, create-server)
-  // only touch the current workspace's per-server entries — not every
-  // workspace cached in the QueryClient.
   serverToolsWorkspace: (workspaceId?: string) =>
     [...mcpKeys.serverTools(), workspaceId ?? ''] as const,
   serverToolsList: (workspaceId?: string, serverId?: string) =>
@@ -127,11 +122,6 @@ async function fetchMcpTools(
   }
 }
 
-/**
- * Per-server tools query. Each server has its own React Query entry, so a slow
- * or hung server can never block another server's load — same model Cursor and
- * Claude Code use for remote MCP.
- */
 export function useMcpServerTools(workspaceId: string, serverId?: string) {
   return useQuery({
     queryKey: mcpKeys.serverToolsList(workspaceId, serverId),
@@ -139,19 +129,13 @@ export function useMcpServerTools(workspaceId: string, serverId?: string) {
     enabled: !!workspaceId && !!serverId,
     retry: false,
     staleTime: 30 * 1000,
-    // Tool schemas rarely change between tab switches; `listChanged` SSE events
-    // and mutation invalidations already cover real updates. Skip the alt-tab
-    // refetch storm.
     refetchOnWindowFocus: false,
   })
 }
 
 /**
- * Workspace-level aggregate, derived from N parallel per-server queries via
- * `useQueries`. Public shape stays compatible with the prior workspace-keyed
- * query (flat `McpTool[]`, single `isLoading`, single error) so existing
- * consumers don't change. A slow server only flips its own per-server state;
- * fast servers populate immediately.
+ * Workspace aggregate derived from N parallel per-server queries via
+ * `useQueries`. One slow server cannot block the others.
  */
 export function useMcpToolsQuery(workspaceId: string) {
   const { data: servers, isLoading: serversLoading } = useMcpServers(workspaceId)
@@ -185,15 +169,12 @@ export function useMcpToolsQuery(workspaceId: string) {
     }
     return {
       data: tools,
-      // "Loading" means we have nothing to render yet — including the gap
-      // between mount and the server-list arriving (otherwise consumers flash
-      // an empty state). Once any per-server query has returned, we drop the
-      // spinner and let slow neighbors fill in incrementally.
+      // Stay loading until we have something to render; once any server
+      // returned, drop the spinner and let slow neighbors fill in.
       isLoading: (serversLoading || anyServerLoading) && !hasData,
       isFetching: serversLoading || results.some((r) => r.isFetching),
-      // Only surface an aggregate error when no server returned anything —
-      // one slow/dead server should not blank out tools from the others.
-      // Per-server errors are still exposed via `perServer`.
+      // One dead server must not blank out the workspace — only surface the
+      // aggregate error when nothing rendered. Per-server errors live in `perServer`.
       error: hasData ? null : firstError,
       perServer: results,
     }
@@ -205,9 +186,6 @@ export function useForceRefreshMcpTools() {
 
   return useMutation({
     mutationFn: async (workspaceId: string) => {
-      // Fetch each server's tools in parallel with `refresh=true`, populating
-      // the per-server query cache directly. A slow server only blocks its own
-      // card — fast servers light up as soon as they return.
       const servers = queryClient.getQueryData<McpServer[]>(mcpKeys.serversList(workspaceId)) ?? []
       const results = await Promise.allSettled(
         servers.map(async (server) => {
@@ -216,9 +194,7 @@ export function useForceRefreshMcpTools() {
           return tools
         })
       )
-      // Invalidate the per-server keys of any server that failed so stale tools
-      // don't linger after a force-refresh — React Query will refetch and the
-      // negative cache (set server-side) will make that retry fail fast.
+      // Failed servers: invalidate so React Query retries via the server-side negative cache.
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
           const failedServer = servers[index]
@@ -234,9 +210,6 @@ export function useForceRefreshMcpTools() {
         .flatMap((r) => r.value)
     },
     onSettled: (_data, _error, workspaceId) => {
-      // Successful per-server caches were already populated inside `mutationFn`
-      // via `setQueryData`; failed ones were invalidated above. Just refresh
-      // the dependent views.
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
       queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
     },
@@ -529,7 +502,7 @@ export function useMcpToolsEvents(workspaceId: string) {
           const parsed = JSON.parse((e as MessageEvent).data) as { serverId?: string }
           serverId = parsed.serverId
         } catch {
-          // Older event payload or non-JSON — fall back to workspace-wide invalidation.
+          // Non-JSON payload → workspace-wide fallback.
         }
         invalidate(serverId)
       })

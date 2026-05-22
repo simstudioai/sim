@@ -46,14 +46,10 @@ import { MCP_CLIENT_CONSTANTS, MCP_CONSTANTS } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpService')
 
-// Per-server keys so one slow server can't invalidate another's cached tools.
 function serverCacheKey(workspaceId: string, serverId: string): string {
   return `workspace:${workspaceId}:server:${serverId}`
 }
 
-// Parallel key for negative caching: when a server's listTools fails, we store
-// a short-lived marker here so the next discoverTools call skips the live fetch
-// instead of re-paying the listTools timeout.
 function failureCacheKey(workspaceId: string, serverId: string): string {
   return `workspace:${workspaceId}:server:${serverId}:failure`
 }
@@ -70,17 +66,15 @@ type DiscoveryOutcome =
     }
   | { kind: 'oauth-pending' }
   | { kind: 'unhealthy' }
-  // Carries the original error so `markServerUnhealthy` can apply its
-  // `instanceof` exemption — `getErrorMessage(...)` erases type info.
+  // originalError preserves the type so markServerUnhealthy's instanceof
+  // exemption survives the getErrorMessage call.
   | { kind: 'error'; message: string; originalError: unknown }
 
 class McpService {
   private cacheAdapter: McpCacheStorageAdapter
   private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT
   private unsubscribeConnectionManager?: () => void
-  // Coalesce concurrent `discoverServerTools` calls for the same target into a
-  // single upstream `tools/list`. Keyed on (workspaceId, serverId, userId)
-  // because OAuth-scoped tokens (and therefore visible tools) can vary per user.
+  // Keyed on (workspaceId, serverId, userId) — OAuth-scoped tokens vary per user.
   private inflightServerDiscovery = new Map<string, Promise<McpTool[]>>()
 
   constructor() {
@@ -415,10 +409,8 @@ class McpService {
   }
 
   /**
-   * Record a server as unhealthy so subsequent discovery calls within the TTL
-   * short-circuit instead of re-paying the listTools timeout. OAuth-required
-   * errors are intentionally skipped — they have their own pathway and should
-   * be retried as soon as the user reconnects.
+   * Negative-cache a discovery failure. OAuth-required errors are exempt so
+   * reconnects retry immediately.
    */
   private async markServerUnhealthy(
     workspaceId: string,
@@ -490,7 +482,6 @@ class McpService {
                 error
               )
             }
-            // Short-circuit recently-failed servers so they don't block the fan-out.
             if (await this.isServerUnhealthy(workspaceId, config.id)) {
               logger.info(
                 `[${requestId}] Skipping recently-failed server ${config.name} (negative-cache hit)`
@@ -589,8 +580,7 @@ class McpService {
           return
         }
         if (outcome.kind === 'unhealthy') {
-          // Short-circuited via negative cache; status was already persisted on
-          // the original failure, no need to re-write it.
+          // Status was persisted on the original failure; nothing to re-write.
           failedCount++
           return
         }
@@ -634,19 +624,11 @@ class McpService {
   }
 
   /**
-   * Discover tools from a specific server with retry logic for session errors.
-   * Retries once on session-related errors (400, 404, session ID issues).
-   *
-   * By default consults the positive + negative cache before going live, so
-   * a React Query refetch for a healthy server is served from cache and a
-   * recently-failed server short-circuits instead of re-paying the listTools
-   * timeout. Pass `forceRefresh: true` from explicit user-initiated paths
-   * (refresh button, OAuth callback) to bypass both caches.
-   *
-   * Concurrent callers for the same `(workspaceId, serverId, userId)` share a
-   * single in-flight upstream request — important when an OAuth callback
-   * primes the cache while a UI refetch races against it, or when multiple
-   * tabs land on the same workspace at the same moment.
+   * Discover tools from one server. Cache-aside by default; pass
+   * `forceRefresh: true` from explicit-refresh paths (refresh button, OAuth
+   * callback) to bypass both positive and negative caches. Concurrent callers
+   * for the same `(workspaceId, serverId, userId, forceRefresh)` share one
+   * upstream request.
    */
   async discoverServerTools(
     userId: string,
@@ -680,8 +662,6 @@ class McpService {
     const maxRetries = 2
 
     if (!forceRefresh) {
-      // Positive cache hit — same payload the aggregate fan-out would return,
-      // no upstream traffic.
       try {
         const cached = await this.cacheAdapter.get(serverCacheKey(workspaceId, serverId))
         if (cached) {
@@ -691,8 +671,6 @@ class McpService {
       } catch (error) {
         logger.warn(`[${requestId}] Cache read failed for server ${serverId}:`, error)
       }
-      // Negative cache hit — fail fast with a typed error the caller can map
-      // to a 503-style response, rather than waiting out the listTools timeout.
       if (await this.isServerUnhealthy(workspaceId, serverId)) {
         logger.info(`[${requestId}] Skipping recently-failed server ${serverId} (negative-cache)`)
         throw new McpConnectionError(
@@ -723,9 +701,6 @@ class McpService {
         try {
           const tools = await client.listTools()
           logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
-          // Prime the per-server cache, clear any negative-cache marker, and
-          // reflect the successful connection on the row so the UI doesn't keep
-          // showing "Connect with OAuth" or stale disconnected/error state.
           await Promise.allSettled([
             this.cacheAdapter
               .set(serverCacheKey(workspaceId, serverId), tools, this.cacheTimeout)
@@ -748,9 +723,6 @@ class McpService {
           await sleep(100)
           continue
         }
-        // Negative-cache the failure so the next call short-circuits instead of
-        // re-paying the listTools timeout. OAuth-required errors are skipped
-        // inside `markServerUnhealthy` so re-auth can retry immediately.
         await this.markServerUnhealthy(workspaceId, serverId, error)
         throw error
       }

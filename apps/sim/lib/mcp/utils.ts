@@ -46,12 +46,7 @@ export function sanitizeHeaders(
 export const MCP_CLIENT_CONSTANTS = {
   CLIENT_TIMEOUT: DEFAULT_EXECUTION_TIMEOUT_MS,
   AUTO_REFRESH_INTERVAL: 5 * 60 * 1000,
-  // Cap metadata calls so a slow upstream can't hang the UI.
   LIST_TOOLS_TIMEOUT_MS: 10_000,
-  // Negative-cache TTL for failed tool discovery: subsequent calls within this
-  // window short-circuit instead of re-paying the listTools timeout. Cleared on
-  // listChanged, OAuth completion, manual refresh, or the next successful
-  // discovery — so 2 minutes is the floor only for genuinely dead servers.
   FAILURE_CACHE_TTL_MS: 120_000,
 } as const
 
