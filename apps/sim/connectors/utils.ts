@@ -43,3 +43,38 @@ export function joinTagArray(value: unknown): string | undefined {
   const arr = Array.isArray(value) ? (value as string[]) : []
   return arr.length > 0 ? arr.join(', ') : undefined
 }
+
+/**
+ * Normalizes a multi-value sourceConfig field into a trimmed, deduplicated string array.
+ *
+ * Accepts a string (CSV from advanced manual input or legacy single-value), an array
+ * of strings (from multi-select UI or new array storage), or undefined/null. Always
+ * returns a string[] — connectors call this once at the top of listDocuments to
+ * branch on `values.length` for single vs multi behavior.
+ */
+export function parseMultiValue(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const item of value) {
+      if (typeof item !== 'string') continue
+      const trimmed = item.trim()
+      if (!trimmed || seen.has(trimmed)) continue
+      seen.add(trimmed)
+      out.push(trimmed)
+    }
+    return out
+  }
+  if (typeof value === 'string') {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const part of value.split(',')) {
+      const trimmed = part.trim()
+      if (!trimmed || seen.has(trimmed)) continue
+      seen.add(trimmed)
+      out.push(trimmed)
+    }
+    return out
+  }
+  return []
+}
