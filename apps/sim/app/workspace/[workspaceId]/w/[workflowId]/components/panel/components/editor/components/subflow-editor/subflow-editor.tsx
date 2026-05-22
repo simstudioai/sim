@@ -4,13 +4,28 @@ import { ChevronUp } from 'lucide-react'
 import SimpleCodeEditor from 'react-simple-code-editor'
 import { Code as CodeEditor, Combobox, getCodeEditorProps, Input, Label } from '@/components/emcn'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
+import {
+  formatDisplayText,
+  getValidWorkflowSearchRange,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { ConnectedBlock } from '../../hooks/use-block-connections'
 import { useSubflowEditor } from '../../hooks/use-subflow-editor'
 import { ConnectionBlocks } from '../connection-blocks'
 import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '../constants'
+
+const WORKFLOW_SEARCH_MATCH_PLACEHOLDER = '__WORKFLOW_SEARCH_MATCH__'
+
+const escapeHtml = (value: string): string =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
 
 interface SubflowEditorProps {
   currentBlock: BlockState
@@ -77,13 +92,29 @@ export function SubflowEditor({
     : isConditionMode
       ? WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.condition
       : WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items
-  const isSearchHighlighted = (fieldId: string) =>
-    activeSearchTarget?.blockId === currentBlockId &&
-    (activeSearchTarget.subBlockId === fieldId ||
-      activeSearchTarget.canonicalSubBlockId === fieldId)
-  const isTypeHighlighted = isSearchHighlighted(WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type)
-  const isConfigHighlighted = isSearchHighlighted(configSearchFieldId)
-  const isBatchSizeHighlighted = isSearchHighlighted(WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize)
+  const configSearchHighlight = getActiveWorkflowSearchHighlight({
+    activeSearchTarget,
+    subBlockId: configSearchFieldId,
+    valuePath: [],
+    targetKind: 'subflow',
+  })
+  const batchSizeSearchHighlight = getActiveWorkflowSearchHighlight({
+    activeSearchTarget,
+    subBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize,
+    valuePath: [],
+    targetKind: 'subflow',
+  })
+  const highlightEditorValue = (value: string) => {
+    const workflowSearchRange = getValidWorkflowSearchRange(value, configSearchHighlight)
+    if (!workflowSearchRange) return highlightWithReferences(value)
+    const highlightedValue = highlightWithReferences(
+      `${value.slice(0, workflowSearchRange.start)}${WORKFLOW_SEARCH_MATCH_PLACEHOLDER}${value.slice(workflowSearchRange.end)}`
+    )
+    return highlightedValue.replace(
+      WORKFLOW_SEARCH_MATCH_PLACEHOLDER,
+      `<mark class="${WORKFLOW_SEARCH_HIGHLIGHT_CLASS}">${escapeHtml(value.slice(workflowSearchRange.start, workflowSearchRange.end))}</mark>`
+    )
+  }
 
   return (
     <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
@@ -95,15 +126,7 @@ export function SubflowEditor({
             className='rounded-md'
           >
             <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-              {isTypeHighlighted ? (
-                <mark className={WORKFLOW_SEARCH_HIGHLIGHT_CLASS}>
-                  {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
-                </mark>
-              ) : currentBlock.type === 'loop' ? (
-                'Loop Type'
-              ) : (
-                'Parallel Type'
-              )}
+              {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
             </Label>
             <Combobox
               options={typeOptions}
@@ -130,33 +153,28 @@ export function SubflowEditor({
             className='rounded-md'
           >
             <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-              {isConfigHighlighted ? (
-                <mark className={WORKFLOW_SEARCH_HIGHLIGHT_CLASS}>
-                  {isCountMode
-                    ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
-                    : isConditionMode
-                      ? 'While Condition'
-                      : `${currentBlock.type === 'loop' ? 'Collection' : 'Parallel'} Items`}
-                </mark>
-              ) : isCountMode ? (
-                `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
-              ) : isConditionMode ? (
-                'While Condition'
-              ) : (
-                `${currentBlock.type === 'loop' ? 'Collection' : 'Parallel'} Items`
-              )}
+              {isCountMode
+                ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
+                : isConditionMode
+                  ? 'While Condition'
+                  : `${currentBlock.type === 'loop' ? 'Collection' : 'Parallel'} Items`}
             </Label>
 
             {isCountMode ? (
-              <div>
+              <div className='relative'>
                 <Input
                   type='text'
                   value={inputValue}
                   onChange={handleSubflowIterationsChange}
                   onBlur={handleSubflowIterationsBlur}
                   disabled={!userCanEdit}
-                  className='mb-1'
+                  className='mb-1 text-transparent caret-[var(--text-primary)]'
                 />
+                <div className='pointer-events-none absolute inset-x-0 top-0 flex h-8 items-center overflow-hidden px-2 font-medium font-sans text-sm'>
+                  {formatDisplayText(inputValue, {
+                    workflowSearchHighlight: configSearchHighlight,
+                  })}
+                </div>
                 <div className='text-[var(--text-muted)] text-micro'>
                   Enter a whole number greater than 0.
                 </div>
@@ -172,7 +190,7 @@ export function SubflowEditor({
                     <SimpleCodeEditor
                       value={editorValue}
                       onValueChange={handleSubflowEditorChange}
-                      highlight={highlightWithReferences}
+                      highlight={highlightEditorValue}
                       {...getCodeEditorProps({
                         isPreview: false,
                         disabled: !userCanEdit,
@@ -205,14 +223,10 @@ export function SubflowEditor({
             <div
               data-workflow-search-subblock-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize}
               data-workflow-search-canonical-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize}
-              className='mt-4 rounded-md'
+              className='relative mt-4 rounded-md'
             >
               <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-                {isBatchSizeHighlighted ? (
-                  <mark className={WORKFLOW_SEARCH_HIGHLIGHT_CLASS}>Parallel Batch Size</mark>
-                ) : (
-                  'Parallel Batch Size'
-                )}
+                Parallel Batch Size
               </Label>
               <Input
                 type='text'
@@ -220,8 +234,13 @@ export function SubflowEditor({
                 onChange={handleParallelBatchSizeChange}
                 onBlur={handleParallelBatchSizeBlur}
                 disabled={!userCanEdit}
-                className='mb-1'
+                className='mb-1 text-transparent caret-[var(--text-primary)]'
               />
+              <div className='pointer-events-none absolute inset-x-0 top-[26px] flex h-8 items-center overflow-hidden px-2 font-medium font-sans text-sm'>
+                {formatDisplayText(batchSizeValue, {
+                  workflowSearchHighlight: batchSizeSearchHighlight,
+                })}
+              </div>
               <div className='text-[var(--text-muted)] text-micro'>
                 Run 1 to 20 parallel branches at a time.
               </div>

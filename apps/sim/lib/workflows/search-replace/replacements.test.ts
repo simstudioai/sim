@@ -37,6 +37,94 @@ describe('buildWorkflowSearchReplacePlan', () => {
     })
   })
 
+  it('skips non-editable display-label matches instead of writing labels into stored values', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['dropdown-1'] = {
+      id: 'dropdown-1',
+      type: 'custom',
+      name: 'Dropdown Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        operation: { id: 'operation', type: 'dropdown', value: 'send_email' },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'Email',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [
+            {
+              id: 'operation',
+              title: 'Operation',
+              type: 'dropdown',
+              options: [{ id: 'send_email', label: 'Send Email' }],
+            },
+          ],
+        },
+      },
+    }).filter((match) => match.blockId === 'dropdown-1')
+
+    const plan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches,
+      selectedMatchIds: new Set(matches.map((match) => match.id)),
+      defaultReplacement: 'Slack',
+    })
+
+    expect(plan.updates).toEqual([])
+    expect(plan.skipped).toEqual([
+      { matchId: matches[0].id, reason: 'Display labels cannot be replaced' },
+    ])
+  })
+
+  it('indexes dropdown display labels with the same casing shown by the editor', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['file-1'] = {
+      id: 'file-1',
+      type: 'file_v4',
+      name: 'File',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        operation: { id: 'operation', type: 'dropdown', value: 'file_read' },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'Read',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        file_v4: {
+          subBlocks: [
+            {
+              id: 'operation',
+              title: 'Operation',
+              type: 'dropdown',
+              options: [{ id: 'file_read', label: 'Read' }],
+            },
+          ],
+        },
+      },
+    }).filter((match) => match.blockId === 'file-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        searchText: 'read',
+        rawValue: 'read',
+        range: { start: 0, end: 4 },
+      }),
+    ])
+  })
+
   it('replaces environment tokens while preserving surrounding text', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     const matches = indexWorkflowSearchMatches({
