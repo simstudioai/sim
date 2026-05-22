@@ -1,13 +1,3 @@
-/**
- * MCP (Model Context Protocol) Client
- *
- * Implements the client side of MCP protocol with support for:
- * - Streamable HTTP transport (MCP 2025-06-18)
- * - Tool execution and discovery
- * - Session management and protocol version negotiation
- * - Custom security/consent layer
- */
-
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
@@ -94,11 +84,6 @@ export class McpClient {
     )
   }
 
-  /**
-   * Initialize connection to MCP server.
-   * If an `onToolsChanged` callback was provided, registers a notification handler
-   * for `notifications/tools/list_changed` after connecting.
-   */
   async connect(): Promise<void> {
     logger.info(`Connecting to MCP server: ${this.config.name} (${this.config.transport})`)
 
@@ -135,9 +120,6 @@ export class McpClient {
     }
   }
 
-  /**
-   * Disconnect from MCP server
-   */
   async disconnect(): Promise<void> {
     logger.info(`Disconnecting from MCP server: ${this.config.name}`)
 
@@ -152,16 +134,10 @@ export class McpClient {
     logger.info(`Disconnected from MCP server: ${this.config.name}`)
   }
 
-  /**
-   * Get current connection status
-   */
   getStatus(): McpConnectionStatus {
     return { ...this.connectionStatus }
   }
 
-  /**
-   * List all available tools from the server
-   */
   async listTools(): Promise<McpTool[]> {
     if (!this.isConnected) {
       throw new McpConnectionError('Not connected to server', this.config.name)
@@ -190,9 +166,6 @@ export class McpClient {
     }
   }
 
-  /**
-   * Execute a tool on the MCP server
-   */
   async callTool(toolCall: McpToolCall): Promise<McpToolResult> {
     if (!this.isConnected) {
       throw new McpConnectionError('Not connected to server', this.config.name)
@@ -237,10 +210,6 @@ export class McpClient {
     }
   }
 
-  /**
-   * Ping the server to check if it's still alive and responsive
-   * Per MCP spec: servers should respond to ping requests
-   */
   async ping(): Promise<{ _meta?: Record<string, any> }> {
     if (!this.isConnected) {
       throw new McpConnectionError('Not connected to server', this.config.name)
@@ -257,18 +226,11 @@ export class McpClient {
     }
   }
 
-  /**
-   * Check if the server declared `capabilities.tools.listChanged: true` during initialization.
-   */
   hasListChangedCapability(): boolean {
     return !!this.client.getServerCapabilities()?.tools?.listChanged
   }
 
-  /**
-   * Register a callback to be invoked when the underlying transport closes.
-   * Used by the connection manager for reconnection logic.
-   * Chains with the SDK's internal onclose handler so it still performs its cleanup.
-   */
+  /** Chains with the SDK's internal onclose handler so its cleanup still runs. */
   onClose(callback: () => void): void {
     const existingHandler = this.transport.onclose
     this.transport.onclose = () => {
@@ -277,16 +239,10 @@ export class McpClient {
     }
   }
 
-  /**
-   * Get server configuration
-   */
   getConfig(): McpServerConfig {
     return { ...this.config }
   }
 
-  /**
-   * Get version information for this client
-   */
   static getVersionInfo(): McpVersionInfo {
     return {
       supported: [...McpClient.SUPPORTED_VERSIONS],
@@ -294,9 +250,6 @@ export class McpClient {
     }
   }
 
-  /**
-   * Get the negotiated protocol version for this connection
-   */
   getNegotiatedVersion(): string | undefined {
     const serverVersion = this.client.getServerVersion()
     return typeof serverVersion === 'string' ? serverVersion : undefined
@@ -306,9 +259,6 @@ export class McpClient {
     return this.transport.sessionId
   }
 
-  /**
-   * Request user consent for tool execution
-   */
   async requestConsent(consentRequest: McpConsentRequest): Promise<McpConsentResponse> {
     if (!this.securityPolicy.requireConsent) {
       return { granted: true, auditId: `audit-${Date.now()}` }
