@@ -94,11 +94,11 @@ interface PreparedBatchEntry {
 
 async function prepareBatch(emails: EmailOptions[]): Promise<PreparedBatchEntry[]> {
   return Promise.all(
-    emails.map(async (email, index) => {
-      if (await shouldSkipForUnsubscribe(email)) {
-        return { index, data: null, skippedResult: SKIPPED_UNSUBSCRIBED_RESULT }
-      }
+    emails.map(async (email, index): Promise<PreparedBatchEntry> => {
       try {
+        if (await shouldSkipForUnsubscribe(email)) {
+          return { index, data: null, skippedResult: SKIPPED_UNSUBSCRIBED_RESULT }
+        }
         return { index, data: processEmailData(email), skippedResult: null }
       } catch (error) {
         return {
