@@ -214,18 +214,18 @@ export async function materializeLargeValueRef(
     return materializeLargeValueRefSync(ref, context)
   }
 
-  try {
-    const { addLargeValueReference } = await import('@/lib/execution/payloads/large-value-metadata')
-    await addLargeValueReference(
-      {
-        workspaceId: context.workspaceId,
-        workflowId: context.workflowId,
-        executionId: context.executionId,
-        source: 'execution_log',
-      },
-      ref.key
-    )
+  const { addLargeValueReference } = await import('@/lib/execution/payloads/large-value-metadata')
+  await addLargeValueReference(
+    {
+      workspaceId: context.workspaceId,
+      workflowId: context.workflowId,
+      executionId: context.executionId,
+      source: 'execution_log',
+    },
+    ref.key
+  )
 
+  try {
     const cached = materializeLargeValueRefSync(ref, context)
     if (cached !== undefined) {
       return cached

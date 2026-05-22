@@ -472,6 +472,28 @@ describe('large execution payload store', () => {
     expect(mockDownloadFile).not.toHaveBeenCalled()
   })
 
+  it('fails loudly when reference tracking fails before returning cached durable refs', async () => {
+    const scope = {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    }
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_TRACKFAIL12',
+      kind: 'object',
+      size: 32,
+      key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_TRACKFAIL12.json',
+      executionId: 'execution-1',
+    } as const
+    cacheLargeValue(ref.id, { retained: true }, ref.size, scope, { recoverable: true })
+    mockAddLargeValueReference.mockRejectedValueOnce(new Error('reference cap exceeded'))
+
+    await expect(materializeLargeValueRef(ref, scope)).rejects.toThrow('reference cap exceeded')
+    expect(mockDownloadFile).not.toHaveBeenCalled()
+  })
+
   it('enforces maxBytes before returning cached refs', async () => {
     const scope = {
       workspaceId: 'workspace-1',
