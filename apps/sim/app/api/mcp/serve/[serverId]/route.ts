@@ -11,8 +11,10 @@ import {
   type JSONRPCError,
   type JSONRPCMessage,
   type JSONRPCResultResponse,
+  LATEST_PROTOCOL_VERSION,
   type ListToolsResult,
   type RequestId,
+  SUPPORTED_PROTOCOL_VERSIONS,
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
@@ -36,20 +38,12 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkflowMcpServeAPI')
 
-// Newest first. We echo the client's version when we support it (per
-// MCP 2025-06-18 lifecycle spec); otherwise fall back to our latest.
-const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'] as const
-const LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0]
-
 function negotiateProtocolVersion(rpcParams: unknown): string {
   const requested =
     rpcParams && typeof rpcParams === 'object' && 'protocolVersion' in rpcParams
       ? (rpcParams as { protocolVersion?: unknown }).protocolVersion
       : undefined
-  if (
-    typeof requested === 'string' &&
-    (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(requested)
-  ) {
+  if (typeof requested === 'string' && SUPPORTED_PROTOCOL_VERSIONS.includes(requested)) {
     return requested
   }
   return LATEST_PROTOCOL_VERSION

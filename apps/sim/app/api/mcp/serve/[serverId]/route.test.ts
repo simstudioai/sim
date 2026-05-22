@@ -232,14 +232,16 @@ describe('MCP Serve Route', () => {
       expect(body.result.protocolVersion).toBe('2024-11-05')
     })
 
-    it('falls back to latest when client requests unknown version', async () => {
+    it('falls back to SDK latest when client requests unknown version', async () => {
+      const { LATEST_PROTOCOL_VERSION } = await import('@modelcontextprotocol/sdk/types.js')
       const body = await callInitialize('2099-01-01')
-      expect(body.result.protocolVersion).toBe('2025-06-18')
+      expect(body.result.protocolVersion).toBe(LATEST_PROTOCOL_VERSION)
     })
 
-    it('falls back to latest when client omits protocolVersion', async () => {
+    it('falls back to SDK latest when client omits protocolVersion', async () => {
+      const { LATEST_PROTOCOL_VERSION } = await import('@modelcontextprotocol/sdk/types.js')
       const body = await callInitialize(undefined)
-      expect(body.result.protocolVersion).toBe('2025-06-18')
+      expect(body.result.protocolVersion).toBe(LATEST_PROTOCOL_VERSION)
     })
   })
 })

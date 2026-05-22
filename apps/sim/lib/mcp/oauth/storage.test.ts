@@ -11,11 +11,25 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockAcquireLock, mockReleaseLock } = vi.hoisted(() => ({
+  mockAcquireLock: vi.fn(),
+  mockReleaseLock: vi.fn(),
+}))
+
 vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@sim/db/schema', () => schemaMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/core/config/redis', () => ({
+  acquireLock: mockAcquireLock,
+  releaseLock: mockReleaseLock,
+}))
 
-import { getOrCreateOauthRow, loadOauthRow, setOauthRowUser } from './storage'
+import {
+  getOrCreateOauthRow,
+  loadOauthRow,
+  setOauthRowUser,
+  withMcpOauthRefreshLock,
+} from './storage'
 
 describe('MCP OAuth storage', () => {
   beforeEach(() => {
@@ -90,5 +104,85 @@ describe('MCP OAuth storage', () => {
         updatedAt: expect.any(Date),
       })
     )
+  })
+})
+
+describe('withMcpOauthRefreshLock', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAcquireLock.mockReset()
+    mockReleaseLock.mockReset()
+    mockReleaseLock.mockResolvedValue(true)
+  })
+
+  it('coalesces concurrent in-process callers onto a single fn execution', async () => {
+    mockAcquireLock.mockResolvedValue(true)
+    const fn = vi.fn(async () => 'tokens')
+
+    const results = await Promise.all([
+      withMcpOauthRefreshLock('row-coalesce', fn),
+      withMcpOauthRefreshLock('row-coalesce', fn),
+      withMcpOauthRefreshLock('row-coalesce', fn),
+    ])
+
+    expect(results).toEqual(['tokens', 'tokens', 'tokens'])
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(mockAcquireLock).toHaveBeenCalledTimes(1)
+    expect(mockReleaseLock).toHaveBeenCalledTimes(1)
+  })
+
+  it('serializes cross-process callers: follower polls until leader releases', async () => {
+    // First acquire fails (another process holds it), second succeeds.
+    mockAcquireLock.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    const fn = vi.fn(async () => 'fresh')
+
+    const result = await withMcpOauthRefreshLock('row-mutex', fn)
+
+    expect(result).toBe('fresh')
+    expect(mockAcquireLock).toHaveBeenCalledTimes(2)
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls open when Redis is unavailable on acquire', async () => {
+    mockAcquireLock.mockRejectedValueOnce(new Error('Redis connection refused'))
+    const fn = vi.fn(async () => 'uncoordinated')
+
+    const result = await withMcpOauthRefreshLock('row-redis-down', fn)
+
+    expect(result).toBe('uncoordinated')
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(mockReleaseLock).not.toHaveBeenCalled()
+  })
+
+  it('releases the lock even when fn throws', async () => {
+    mockAcquireLock.mockResolvedValue(true)
+    const fn = vi.fn(async () => {
+      throw new Error('refresh failed')
+    })
+
+    await expect(withMcpOauthRefreshLock('row-throws', fn)).rejects.toThrow('refresh failed')
+
+    expect(mockReleaseLock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not surface releaseLock failures to the caller', async () => {
+    mockAcquireLock.mockResolvedValue(true)
+    mockReleaseLock.mockRejectedValueOnce(new Error('release failed'))
+    const fn = vi.fn(async () => 'value')
+
+    const result = await withMcpOauthRefreshLock('row-release-fail', fn)
+    expect(result).toBe('value')
+  })
+
+  it('uses per-row lock keys so different rows do not serialize', async () => {
+    mockAcquireLock.mockResolvedValue(true)
+    const fn = vi.fn(async () => 'ok')
+
+    await Promise.all([withMcpOauthRefreshLock('row-a', fn), withMcpOauthRefreshLock('row-b', fn)])
+
+    expect(mockAcquireLock).toHaveBeenCalledTimes(2)
+    const keys = mockAcquireLock.mock.calls.map((c) => c[0])
+    expect(keys).toContain('mcp:oauth:refresh:row-a')
+    expect(keys).toContain('mcp:oauth:refresh:row-b')
   })
 })

@@ -2,7 +2,9 @@ import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import {
+  LATEST_PROTOCOL_VERSION,
   type ListToolsResult,
+  SUPPORTED_PROTOCOL_VERSIONS,
   type Tool,
   ToolListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js'
@@ -39,12 +41,6 @@ export class McpClient {
   private onToolsChanged?: McpToolsChangedCallback
   private authProvider?: McpClientOptions['authProvider']
   private isConnected = false
-
-  private static readonly SUPPORTED_VERSIONS = [
-    '2025-06-18', // Latest stable with elicitation and OAuth 2.1
-    '2025-03-26', // Streamable HTTP support
-    '2024-11-05', // Initial stable release
-  ]
 
   constructor(options: McpClientOptions) {
     this.config = options.config
@@ -245,8 +241,8 @@ export class McpClient {
 
   static getVersionInfo(): McpVersionInfo {
     return {
-      supported: [...McpClient.SUPPORTED_VERSIONS],
-      preferred: McpClient.SUPPORTED_VERSIONS[0],
+      supported: [...SUPPORTED_PROTOCOL_VERSIONS],
+      preferred: LATEST_PROTOCOL_VERSION,
     }
   }
 

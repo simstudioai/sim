@@ -25,12 +25,13 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   createPinnedLookup: mockCreatePinnedLookup,
 }))
 
-import { createMcpPinnedFetch } from '@/lib/mcp/pinned-fetch'
+import { __resetPinnedAgentsForTests, createMcpPinnedFetch } from '@/lib/mcp/pinned-fetch'
 
 describe('createMcpPinnedFetch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     capturedAgentOptions.length = 0
+    __resetPinnedAgentsForTests()
     mockCreatePinnedLookup.mockReturnValue('pinned-lookup-fn')
     mockUndiciFetch.mockResolvedValue(new Response('ok'))
   })
@@ -73,7 +74,7 @@ describe('createMcpPinnedFetch', () => {
     expect(init.dispatcher).toBeInstanceOf(mockAgent)
   })
 
-  it('reuses the same dispatcher across calls (one Agent per fetch instance)', async () => {
+  it('reuses the same dispatcher across calls within a fetch instance', async () => {
     const fetchLike = createMcpPinnedFetch('203.0.113.10')
     await fetchLike('https://example.com/a')
     await fetchLike('https://example.com/b')
@@ -81,5 +82,27 @@ describe('createMcpPinnedFetch', () => {
     const d1 = (mockUndiciFetch.mock.calls[0][1] as { dispatcher: unknown }).dispatcher
     const d2 = (mockUndiciFetch.mock.calls[1][1] as { dispatcher: unknown }).dispatcher
     expect(d1).toBe(d2)
+  })
+
+  it('pools agents by resolvedIP across createMcpPinnedFetch calls', async () => {
+    const a = createMcpPinnedFetch('203.0.113.10')
+    const b = createMcpPinnedFetch('203.0.113.10')
+    await a('https://example.com/a')
+    await b('https://example.com/b')
+    expect(capturedAgentOptions).toHaveLength(1)
+    const d1 = (mockUndiciFetch.mock.calls[0][1] as { dispatcher: unknown }).dispatcher
+    const d2 = (mockUndiciFetch.mock.calls[1][1] as { dispatcher: unknown }).dispatcher
+    expect(d1).toBe(d2)
+  })
+
+  it('creates separate agents for different resolved IPs', async () => {
+    const a = createMcpPinnedFetch('203.0.113.10')
+    const b = createMcpPinnedFetch('198.51.100.20')
+    await a('https://example.com/a')
+    await b('https://example.com/b')
+    expect(capturedAgentOptions).toHaveLength(2)
+    const d1 = (mockUndiciFetch.mock.calls[0][1] as { dispatcher: unknown }).dispatcher
+    const d2 = (mockUndiciFetch.mock.calls[1][1] as { dispatcher: unknown }).dispatcher
+    expect(d1).not.toBe(d2)
   })
 })
