@@ -114,27 +114,17 @@ async function registerPersistedValueOwner(
     return false
   }
 
-  try {
-    const { registerLargeValueOwner } = await import(
-      '@/lib/execution/payloads/large-value-metadata'
-    )
-    return await registerLargeValueOwner(
-      {
-        key,
-        workspaceId,
-        workflowId,
-        executionId,
-        size,
-      },
-      referencedKeys
-    )
-  } catch (error) {
-    logger.warn('Failed to register large execution value metadata', {
+  const { registerLargeValueOwner } = await import('@/lib/execution/payloads/large-value-metadata')
+  return await registerLargeValueOwner(
+    {
       key,
-      error: toError(error).message,
-    })
-    return false
-  }
+      workspaceId,
+      workflowId,
+      executionId,
+      size,
+    },
+    referencedKeys
+  )
 }
 
 async function deleteUntrackedPersistedValue(key: string): Promise<boolean> {

@@ -155,6 +155,25 @@ describe('large execution payload store', () => {
     expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
   })
 
+  it('does not delete uploaded storage when owner metadata registration throws', async () => {
+    const value = { payload: 'x'.repeat(2048) }
+    const json = JSON.stringify(value)
+    mockRegisterLargeValueOwner.mockRejectedValueOnce(new Error('metadata db down'))
+
+    await expect(
+      storeLargeValue(value, json, Buffer.byteLength(json, 'utf8'), {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        requireDurable: true,
+      })
+    ).rejects.toThrow('metadata db down')
+
+    expect(mockDeleteFiles).not.toHaveBeenCalled()
+    expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
+  })
+
   it('falls back to memory-only refs for non-durable writes when orphan cleanup fails', async () => {
     const value = { payload: 'x'.repeat(2048) }
     const json = JSON.stringify(value)
