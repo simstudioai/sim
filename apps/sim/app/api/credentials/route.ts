@@ -534,7 +534,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
 
       if ((type === 'env_workspace' || type === 'service_account') && workspaceRow?.ownerId) {
-        const wsPermissionRows = await db
+        const wsPermissionRows = await tx
           .select({ userId: permissions.userId, permissionType: permissions.permissionType })
           .from(permissions)
           .where(
