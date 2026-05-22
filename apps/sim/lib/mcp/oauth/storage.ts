@@ -10,7 +10,7 @@ import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, gt } from 'drizzle-orm'
-import { acquireLock, releaseLock } from '@/lib/core/config/redis'
+import { acquireLock, extendLock, releaseLock } from '@/lib/core/config/redis'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 
 const logger = createLogger('McpOauthStorage')
@@ -238,13 +238,16 @@ export async function clearState(rowId: string): Promise<void> {
  * `McpClient` instances that can't be shared, unlike a scalar access token):
  *   1) In-process: per-row Promise chain. Concurrent callers queue; each
  *      runs `fn()` after the previous settles.
- *   2) Cross-process: Redis mutex (`acquireLock` / `releaseLock`). Followers
- *      poll until the holder releases, then acquire and run `fn()`.
+ *   2) Cross-process: Redis mutex (`acquireLock` / `releaseLock`) with a TTL
+ *      watchdog that periodically extends the lock while `fn()` runs, so
+ *      long-running refreshes don't drop the lock and let another process
+ *      race onto the same refresh.
  *
  * Falls open if Redis is unavailable — `acquireLock` no-ops, but in-process
  * serialization still holds within a single Node process.
  */
-const REFRESH_LOCK_TTL_SEC = 30
+const REFRESH_LOCK_TTL_SEC = 15
+const REFRESH_LOCK_EXTEND_INTERVAL_MS = 5_000
 const REFRESH_POLL_INTERVAL_MS = 100
 const REFRESH_MAX_WAIT_MS = 30_000
 
@@ -283,9 +286,18 @@ async function runWithRedisMutex<T>(
     }
 
     if (acquired) {
+      const watchdog = setInterval(() => {
+        extendLock(lockKey, ownerToken, REFRESH_LOCK_TTL_SEC).catch((error) => {
+          logger.warn('Refresh lock extend failed', {
+            rowId,
+            error: toError(error).message,
+          })
+        })
+      }, REFRESH_LOCK_EXTEND_INTERVAL_MS)
       try {
         return await fn()
       } finally {
+        clearInterval(watchdog)
         await releaseLock(lockKey, ownerToken).catch((error) => {
           logger.warn('Refresh lock release failed (will expire via TTL)', {
             rowId,

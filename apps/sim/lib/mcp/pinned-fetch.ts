@@ -23,12 +23,13 @@ function getPinnedAgent(resolvedIP: string): Agent {
     return existing
   }
   if (pinnedAgents.size >= MAX_POOLED_AGENTS) {
+    // Drop the oldest entry WITHOUT closing it — existing `createMcpPinnedFetch`
+    // closures may still hold a reference and have in-flight requests. The
+    // dispatcher is GC'd (and its sockets cleaned up) when the last closure
+    // releases it; undici closes idle keep-alive connections after its own
+    // timeout (default 4s).
     const oldestKey = pinnedAgents.keys().next().value
-    if (oldestKey !== undefined) {
-      const oldest = pinnedAgents.get(oldestKey)
-      pinnedAgents.delete(oldestKey)
-      oldest?.close().catch(() => {})
-    }
+    if (oldestKey !== undefined) pinnedAgents.delete(oldestKey)
   }
   const agent = new Agent({ connect: { lookup: createPinnedLookup(resolvedIP) } })
   pinnedAgents.set(resolvedIP, agent)
@@ -36,11 +37,6 @@ function getPinnedAgent(resolvedIP: string): Agent {
 }
 
 export function __resetPinnedAgentsForTests(): void {
-  for (const agent of pinnedAgents.values()) {
-    try {
-      void agent.close?.()
-    } catch {}
-  }
   pinnedAgents.clear()
 }
 

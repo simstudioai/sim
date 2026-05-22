@@ -11,9 +11,10 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAcquireLock, mockReleaseLock } = vi.hoisted(() => ({
+const { mockAcquireLock, mockReleaseLock, mockExtendLock } = vi.hoisted(() => ({
   mockAcquireLock: vi.fn(),
   mockReleaseLock: vi.fn(),
+  mockExtendLock: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => dbChainMock)
@@ -22,6 +23,7 @@ vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/core/config/redis', () => ({
   acquireLock: mockAcquireLock,
   releaseLock: mockReleaseLock,
+  extendLock: mockExtendLock,
 }))
 
 import {
@@ -112,7 +114,9 @@ describe('withMcpOauthRefreshLock', () => {
     vi.clearAllMocks()
     mockAcquireLock.mockReset()
     mockReleaseLock.mockReset()
+    mockExtendLock.mockReset()
     mockReleaseLock.mockResolvedValue(true)
+    mockExtendLock.mockResolvedValue(true)
   })
 
   it('serializes concurrent in-process callers, each running its own fn()', async () => {
@@ -196,5 +200,38 @@ describe('withMcpOauthRefreshLock', () => {
     const keys = mockAcquireLock.mock.calls.map((c) => c[0])
     expect(keys).toContain('mcp:oauth:refresh:row-a')
     expect(keys).toContain('mcp:oauth:refresh:row-b')
+  })
+
+  it('extends the lock TTL while fn() is running so long refreshes do not lose the lock', async () => {
+    vi.useFakeTimers()
+    try {
+      mockAcquireLock.mockResolvedValue(true)
+      let resolveFn: (v: string) => void
+      const fn = vi.fn(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveFn = resolve
+          })
+      )
+
+      const pending = withMcpOauthRefreshLock('row-watchdog', fn)
+
+      // Advance time past two extend intervals (5s + 5s = 10s).
+      await vi.advanceTimersByTimeAsync(11_000)
+      expect(mockExtendLock.mock.calls.length).toBeGreaterThanOrEqual(2)
+      for (const call of mockExtendLock.mock.calls) {
+        expect(call[0]).toBe('mcp:oauth:refresh:row-watchdog')
+      }
+
+      resolveFn!('done')
+      await expect(pending).resolves.toBe('done')
+
+      // Watchdog must stop once fn() settles — no more extend calls.
+      const extendCallsAtFinish = mockExtendLock.mock.calls.length
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect(mockExtendLock.mock.calls.length).toBe(extendCallsAtFinish)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

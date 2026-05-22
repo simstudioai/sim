@@ -3,12 +3,17 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAgent, mockCreatePinnedLookup, mockUndiciFetch, capturedAgentOptions } = vi.hoisted(
-  () => {
+const { mockAgent, mockCreatePinnedLookup, mockUndiciFetch, capturedAgentOptions, agentCloses } =
+  vi.hoisted(() => {
     const capturedAgentOptions: unknown[] = []
+    const agentCloses: unknown[] = []
     class MockAgent {
       constructor(options: unknown) {
         capturedAgentOptions.push(options)
+      }
+      close() {
+        agentCloses.push(this)
+        return Promise.resolve()
       }
     }
     return {
@@ -16,9 +21,9 @@ const { mockAgent, mockCreatePinnedLookup, mockUndiciFetch, capturedAgentOptions
       mockCreatePinnedLookup: vi.fn(),
       mockUndiciFetch: vi.fn(),
       capturedAgentOptions,
+      agentCloses,
     }
-  }
-)
+  })
 
 vi.mock('undici', () => ({ Agent: mockAgent, fetch: mockUndiciFetch }))
 vi.mock('@/lib/core/security/input-validation.server', () => ({
@@ -31,6 +36,7 @@ describe('createMcpPinnedFetch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     capturedAgentOptions.length = 0
+    agentCloses.length = 0
     __resetPinnedAgentsForTests()
     mockCreatePinnedLookup.mockReturnValue('pinned-lookup-fn')
     mockUndiciFetch.mockResolvedValue(new Response('ok'))
@@ -104,5 +110,18 @@ describe('createMcpPinnedFetch', () => {
     const d1 = (mockUndiciFetch.mock.calls[0][1] as { dispatcher: unknown }).dispatcher
     const d2 = (mockUndiciFetch.mock.calls[1][1] as { dispatcher: unknown }).dispatcher
     expect(d1).not.toBe(d2)
+  })
+
+  it('does not close evicted agents — captured closures keep working', async () => {
+    // Build an early closure whose agent will get evicted by later IPs.
+    const earlyClient = createMcpPinnedFetch('10.0.0.1')
+    // Fill the cache past its 64-entry limit so the early entry is evicted.
+    for (let i = 0; i < 64; i++) createMcpPinnedFetch(`10.1.${Math.floor(i / 256)}.${i % 256}`)
+
+    // Eviction must NOT have closed any agents.
+    expect(agentCloses).toHaveLength(0)
+    // The early closure's captured dispatcher is still callable.
+    await earlyClient('https://example.com/still-works')
+    expect(mockUndiciFetch).toHaveBeenCalledTimes(1)
   })
 })
