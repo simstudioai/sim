@@ -128,19 +128,25 @@ function resolveDepValue(
   sourceConfig: ConfigFieldMap
 ): string {
   const depField = configFields.find((f) => f.id === depFieldId)
-  const readFirst = (raw: ConfigFieldValue | undefined): string => {
-    if (Array.isArray(raw)) return raw[0] ?? ''
+  /**
+   * For multi-value parent fields, pass all selected values to dependent
+   * selectors as a comma-joined string so the downstream selector can load
+   * options across every selected parent (e.g. Linear projects across multiple
+   * selected teams). Single-value parents pass through unchanged.
+   */
+  const readDep = (raw: ConfigFieldValue | undefined): string => {
+    if (Array.isArray(raw)) return raw.join(',')
     return raw ?? ''
   }
-  if (!depField?.canonicalParamId) return readFirst(sourceConfig[depFieldId])
+  if (!depField?.canonicalParamId) return readDep(sourceConfig[depFieldId])
 
   const activeMode = canonicalModes[depField.canonicalParamId] ?? 'basic'
-  if (depField.mode === activeMode) return readFirst(sourceConfig[depFieldId])
+  if (depField.mode === activeMode) return readDep(sourceConfig[depFieldId])
 
   const activeField = configFields.find(
     (f) => f.canonicalParamId === depField.canonicalParamId && f.mode === activeMode
   )
-  return activeField ? readFirst(sourceConfig[activeField.id]) : readFirst(sourceConfig[depFieldId])
+  return activeField ? readDep(sourceConfig[activeField.id]) : readDep(sourceConfig[depFieldId])
 }
 
 function getDependencyLabel(
