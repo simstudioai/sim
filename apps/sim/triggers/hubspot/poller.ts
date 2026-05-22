@@ -200,9 +200,7 @@ export const hubspotPollingTrigger: TriggerConfig = {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
-        const objectType =
-          (useSubBlockStore.getState().getValue(blockId, 'objectType') as string | null) ??
-          'contact'
+        const objectType = resolveSelectedObjectType(blockId) ?? 'contact'
         if (!credentialId) throw new Error('No HubSpot credential selected')
         if (isCredentialSetValue(credentialId)) return []
         try {
@@ -231,9 +229,7 @@ export const hubspotPollingTrigger: TriggerConfig = {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
-        const objectType =
-          (useSubBlockStore.getState().getValue(blockId, 'objectType') as string | null) ??
-          'contact'
+        const objectType = resolveSelectedObjectType(blockId) ?? 'contact'
         const pipelineId = useSubBlockStore.getState().getValue(blockId, 'pipelineId') as
           | string
           | null
