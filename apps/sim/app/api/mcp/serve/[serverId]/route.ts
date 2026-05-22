@@ -46,7 +46,10 @@ function negotiateProtocolVersion(rpcParams: unknown): string {
     rpcParams && typeof rpcParams === 'object' && 'protocolVersion' in rpcParams
       ? (rpcParams as { protocolVersion?: unknown }).protocolVersion
       : undefined
-  if (typeof requested === 'string' && SUPPORTED_PROTOCOL_VERSIONS.includes(requested as never)) {
+  if (
+    typeof requested === 'string' &&
+    (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(requested)
+  ) {
     return requested
   }
   return LATEST_PROTOCOL_VERSION

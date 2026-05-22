@@ -237,6 +237,14 @@ export async function clearState(rowId: string): Promise<void> {
  *      Node process holds concurrent callers.
  *   2) Postgres advisory transaction lock — blocks across processes; released
  *      automatically when the transaction ends.
+ *
+ * Tradeoff: the connection is held for the duration of `fn()`, which includes
+ * the SDK's OAuth HTTP refresh. Session-level locks (`pg_advisory_lock`) would
+ * release the connection earlier, but they don't survive PgBouncer transaction
+ * pooling — they're scoped to the underlying physical connection, which can be
+ * swapped between statements. `pg_advisory_xact_lock` is the correct choice
+ * here. If pool pressure becomes a real concern at scale, swap this for a
+ * Redis-based distributed lock (Redlock) that doesn't pin a DB connection.
  */
 const refreshLocks = new Map<string, Promise<unknown>>()
 
