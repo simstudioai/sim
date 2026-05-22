@@ -61,7 +61,8 @@ export async function appendCopilotChatMessages(
         set: {
           content: sql`excluded.content`,
           role: sql`excluded.role`,
-          model: sql`excluded.model`,
+          // Preserve existing non-null model if the incoming row lacks one.
+          model: sql`COALESCE(excluded.model, ${copilotChatMessages.model})`,
           updatedAt: sql`now()`,
         },
       })
