@@ -3,6 +3,10 @@
 import { useMemo } from 'react'
 import { Combobox, type ComboboxOption, Loader } from '@/components/emcn'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
+import type {
+  ConfigFieldMap,
+  ConfigFieldValue,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { getDependsOnFields } from '@/blocks/utils'
 import type { ConnectorConfigField } from '@/connectors/types'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
@@ -10,10 +14,10 @@ import { useSelectorOptions } from '@/hooks/selectors/use-selector-query'
 
 interface ConnectorSelectorFieldProps {
   field: ConnectorConfigField & { selectorKey: SelectorKey }
-  value: string
-  onChange: (value: string) => void
+  value: ConfigFieldValue
+  onChange: (value: ConfigFieldValue) => void
   credentialId: string | null
-  sourceConfig: Record<string, string>
+  sourceConfig: ConfigFieldMap
   configFields: ConnectorConfigField[]
   canonicalModes: Record<string, 'basic' | 'advanced'>
   disabled?: boolean
@@ -29,6 +33,8 @@ export function ConnectorSelectorField({
   canonicalModes,
   disabled,
 }: ConnectorSelectorFieldProps) {
+  const isMulti = Boolean(field.multi)
+
   const context = useMemo<SelectorContext>(() => {
     const ctx: SelectorContext = {}
     if (credentialId) ctx.oauthCredential = credentialId
@@ -73,11 +79,34 @@ export function ConnectorSelectorField({
     )
   }
 
+  if (isMulti) {
+    const multiValues = Array.isArray(value) ? value : value ? [value] : []
+    return (
+      <Combobox
+        multiSelect
+        options={comboboxOptions}
+        multiSelectValues={multiValues}
+        onMultiSelectChange={(values) => onChange(values)}
+        searchable
+        searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
+        placeholder={
+          !credentialId
+            ? 'Connect an account first'
+            : !depsResolved
+              ? `Select ${getDependencyLabel(field, configFields)} first`
+              : field.placeholder || `Select ${field.title.toLowerCase()}`
+        }
+        disabled={disabled || !credentialId || !depsResolved}
+      />
+    )
+  }
+
+  const singleValue = Array.isArray(value) ? value[0] : value
   return (
     <Combobox
       options={comboboxOptions}
-      value={value || undefined}
-      onChange={onChange}
+      value={singleValue || undefined}
+      onChange={(next) => onChange(next)}
       searchable
       searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
       placeholder={
@@ -96,18 +125,22 @@ function resolveDepValue(
   depFieldId: string,
   configFields: ConnectorConfigField[],
   canonicalModes: Record<string, 'basic' | 'advanced'>,
-  sourceConfig: Record<string, string>
+  sourceConfig: ConfigFieldMap
 ): string {
   const depField = configFields.find((f) => f.id === depFieldId)
-  if (!depField?.canonicalParamId) return sourceConfig[depFieldId] ?? ''
+  const readFirst = (raw: ConfigFieldValue | undefined): string => {
+    if (Array.isArray(raw)) return raw[0] ?? ''
+    return raw ?? ''
+  }
+  if (!depField?.canonicalParamId) return readFirst(sourceConfig[depFieldId])
 
   const activeMode = canonicalModes[depField.canonicalParamId] ?? 'basic'
-  if (depField.mode === activeMode) return sourceConfig[depFieldId] ?? ''
+  if (depField.mode === activeMode) return readFirst(sourceConfig[depFieldId])
 
   const activeField = configFields.find(
     (f) => f.canonicalParamId === depField.canonicalParamId && f.mode === activeMode
   )
-  return activeField ? (sourceConfig[activeField.id] ?? '') : (sourceConfig[depFieldId] ?? '')
+  return activeField ? readFirst(sourceConfig[activeField.id]) : readFirst(sourceConfig[depFieldId])
 }
 
 function getDependencyLabel(

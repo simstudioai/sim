@@ -3,7 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { GmailIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GmailConnector')
 
@@ -46,15 +46,39 @@ interface GmailLabel {
 }
 
 /**
+ * Formats a single Gmail label name for use in a `label:` operator.
+ * Gmail search syntax accepts quoted strings for labels containing spaces;
+ * unquoted label tokens have spaces replaced with hyphens.
+ */
+function formatLabelToken(name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) return ''
+  if (/\s/.test(trimmed)) {
+    const escaped = trimmed.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    return `label:"${escaped}"`
+  }
+  return `label:${trimmed}`
+}
+
+/**
  * Builds a Gmail search query string from the source config.
  * Combines the user's custom query with the label and date range filters.
+ * When multiple labels are provided, they are OR-joined: `(label:A OR label:B)`.
  */
 function buildSearchQuery(sourceConfig: Record<string, unknown>): string {
   const parts: string[] = []
 
-  const labelName = sourceConfig.label as string | undefined
-  if (labelName?.trim()) {
-    parts.push(`label:${labelName.trim().replace(/\s+/g, '-')}`)
+  const labelNames = parseMultiValue(sourceConfig.label)
+  if (labelNames.length === 1) {
+    const token = formatLabelToken(labelNames[0])
+    if (token) parts.push(token)
+  } else if (labelNames.length > 1) {
+    const tokens = labelNames.map(formatLabelToken).filter(Boolean)
+    if (tokens.length === 1) {
+      parts.push(tokens[0])
+    } else if (tokens.length > 1) {
+      parts.push(`(${tokens.join(' OR ')})`)
+    }
   }
 
   const dateRange = (sourceConfig.dateRange as string) || 'all'
@@ -88,8 +112,13 @@ function buildSearchQuery(sourceConfig: Record<string, unknown>): string {
   }
 
   const customQuery = sourceConfig.query as string | undefined
-  if (customQuery?.trim()) {
-    parts.push(customQuery.trim())
+  const trimmedCustom = customQuery?.trim()
+  if (trimmedCustom) {
+    // Wrap the user-supplied query in parentheses so any internal OR operators
+    // bind only within the custom expression and don't combine with preceding
+    // label / category / date filters.
+    const needsGroup = /\bOR\b/i.test(trimmedCustom) && !/^\(.*\)$/.test(trimmedCustom)
+    parts.push(needsGroup ? `(${trimmedCustom})` : trimmedCustom)
   }
 
   return parts.join(' ')
@@ -318,24 +347,26 @@ export const gmailConnector: ConnectorConfig = {
   configFields: [
     {
       id: 'labelSelector',
-      title: 'Label',
+      title: 'Labels',
       type: 'selector',
       selectorKey: 'gmail.labels',
       canonicalParamId: 'label',
       mode: 'basic',
-      placeholder: 'Select a label',
+      multi: true,
+      placeholder: 'Select one or more labels',
       required: false,
-      description: 'Only sync emails with this label. Leave empty for all mail.',
+      description: 'Only sync emails matching any of these labels. Leave empty for all mail.',
     },
     {
       id: 'label',
-      title: 'Label',
+      title: 'Labels',
       type: 'short-input',
       canonicalParamId: 'label',
       mode: 'advanced',
-      placeholder: 'e.g. INBOX, IMPORTANT, or a custom label name',
+      multi: true,
+      placeholder: 'e.g. INBOX, IMPORTANT (comma-separated; commas in label names not supported)',
       required: false,
-      description: 'Only sync emails with this label. Leave empty for all mail.',
+      description: 'Only sync emails matching any of these labels. Leave empty for all mail.',
     },
     {
       id: 'dateRange',
@@ -529,9 +560,9 @@ export const gmailConnector: ConnectorConfig = {
         return { valid: false, error: `Failed to access Gmail: ${profileResponse.status}` }
       }
 
-      // If a label is specified, verify it exists
-      const labelName = sourceConfig.label as string | undefined
-      if (labelName?.trim()) {
+      // If labels are specified, verify each one exists
+      const labelNames = parseMultiValue(sourceConfig.label)
+      if (labelNames.length > 0) {
         const labelsUrl = `${GMAIL_API_BASE}/labels`
         const labelsResponse = await fetchWithRetry(
           labelsUrl,
@@ -551,13 +582,13 @@ export const gmailConnector: ConnectorConfig = {
 
         const labelsData = await labelsResponse.json()
         const labels = (labelsData.labels || []) as GmailLabel[]
-        const normalized = labelName.trim().toLowerCase()
-        const match = labels.find((l) => l.name.toLowerCase() === normalized)
+        const labelNameSet = new Set(labels.map((l) => l.name.toLowerCase()))
+        const missing = labelNames.filter((name) => !labelNameSet.has(name.toLowerCase()))
 
-        if (!match) {
+        if (missing.length > 0) {
           return {
             valid: false,
-            error: `Label "${labelName}" not found. Available labels: ${labels
+            error: `Label(s) not found: ${missing.join(', ')}. Available labels: ${labels
               .filter(
                 (l) =>
                   l.type !== 'system' ||

@@ -28,6 +28,10 @@ import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
+import type {
+  ConfigFieldMap,
+  ConfigFieldValue,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
@@ -59,6 +63,28 @@ function readPersistedCanonicalModes(
     if (value === 'basic' || value === 'advanced') result[key] = value
   }
   return result
+}
+
+/**
+ * Deep equality for sourceConfig values (string, string[], or undefined/null).
+ * Empty string and empty array are treated as equivalent to absence.
+ */
+function valuesEqual(a: unknown, b: unknown): boolean {
+  const isEmpty = (v: unknown): boolean => {
+    if (v == null) return true
+    if (Array.isArray(v)) return v.length === 0
+    if (typeof v === 'string') return v === ''
+    return false
+  }
+  if (isEmpty(a) && isEmpty(b)) return true
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false
+    }
+    return true
+  }
+  return a === b
 }
 
 function didCanonicalModesChange(
@@ -96,11 +122,16 @@ export function EditConnectorModal({
    * manual input), both field IDs get the same value so toggling preserves it.
    * Captured once on mount; editing state is owned by the hook afterward.
    */
-  const [initialSourceConfig] = useState<Record<string, string>>(() => {
-    const config: Record<string, string> = {}
+  const [initialSourceConfig] = useState<ConfigFieldMap>(() => {
+    const config: ConfigFieldMap = {}
     if (!connectorConfig) {
       for (const [key, value] of Object.entries(connector.sourceConfig)) {
-        if (!INTERNAL_CONFIG_KEYS.has(key)) config[key] = String(value ?? '')
+        if (INTERNAL_CONFIG_KEYS.has(key)) continue
+        if (Array.isArray(value)) {
+          config[key] = value.filter((v): v is string => typeof v === 'string')
+        } else {
+          config[key] = String(value ?? '')
+        }
       }
       return config
     }
@@ -108,7 +139,21 @@ export function EditConnectorModal({
       const canonicalId = field.canonicalParamId ?? field.id
       if (INTERNAL_CONFIG_KEYS.has(canonicalId)) continue
       const rawValue = connector.sourceConfig[canonicalId]
-      if (rawValue !== undefined) config[field.id] = String(rawValue ?? '')
+      if (rawValue === undefined) continue
+      if (field.multi) {
+        if (Array.isArray(rawValue)) {
+          config[field.id] = rawValue.filter((v): v is string => typeof v === 'string')
+        } else if (typeof rawValue === 'string') {
+          config[field.id] = rawValue
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        } else {
+          config[field.id] = []
+        }
+      } else {
+        config[field.id] = String(rawValue ?? '')
+      }
     }
     return config
   })
@@ -147,7 +192,7 @@ export function EditConnectorModal({
     if (didCanonicalModesChange(canonicalModes, persistedCanonicalModes)) return true
     const resolved = resolveSourceConfig()
     for (const [key, value] of Object.entries(resolved)) {
-      if (String(connector.sourceConfig[key] ?? '') !== value) return true
+      if (!valuesEqual(connector.sourceConfig[key], value)) return true
     }
     return false
   }, [
@@ -169,9 +214,9 @@ export function EditConnectorModal({
     }
 
     const resolved = resolveSourceConfig()
-    const changedEntries: Record<string, string> = {}
+    const changedEntries: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(resolved)) {
-      if (String(connector.sourceConfig[key] ?? '') !== value) changedEntries[key] = value
+      if (!valuesEqual(connector.sourceConfig[key], value)) changedEntries[key] = value
     }
 
     const modesChanged = didCanonicalModesChange(canonicalModes, persistedCanonicalModes)
@@ -276,12 +321,12 @@ export function EditConnectorModal({
 
 interface SettingsTabProps {
   connectorConfig: ConnectorConfig | null
-  sourceConfig: Record<string, string>
+  sourceConfig: ConfigFieldMap
   credentialId: string | null
   canonicalGroups: Map<string, ConnectorConfigField[]>
   canonicalModes: Record<string, 'basic' | 'advanced'>
   onToggleCanonicalMode: (canonicalId: string) => void
-  onFieldChange: (fieldId: string, value: string) => void
+  onFieldChange: (fieldId: string, value: ConfigFieldValue) => void
   isFieldVisible: (field: ConnectorConfigField) => boolean
   syncInterval: number
   setSyncInterval: (v: number) => void
@@ -344,8 +389,8 @@ function SettingsTab({
             {field.type === 'selector' && field.selectorKey ? (
               <ConnectorSelectorField
                 field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
-                value={sourceConfig[field.id] || ''}
-                onChange={(value) => onFieldChange(field.id, value)}
+                value={sourceConfig[field.id] ?? (field.multi ? [] : '')}
+                onChange={(value: ConfigFieldValue) => onFieldChange(field.id, value)}
                 credentialId={credentialId}
                 sourceConfig={sourceConfig}
                 configFields={connectorConfig.configFields}
@@ -359,13 +404,21 @@ function SettingsTab({
                   label: opt.label,
                   value: opt.id,
                 }))}
-                value={sourceConfig[field.id] || undefined}
+                value={
+                  typeof sourceConfig[field.id] === 'string'
+                    ? (sourceConfig[field.id] as string) || undefined
+                    : undefined
+                }
                 onChange={(value) => onFieldChange(field.id, value)}
                 placeholder={field.placeholder || `Select ${field.title.toLowerCase()}`}
               />
             ) : (
               <Input
-                value={sourceConfig[field.id] || ''}
+                value={
+                  Array.isArray(sourceConfig[field.id])
+                    ? (sourceConfig[field.id] as string[]).join(', ')
+                    : (sourceConfig[field.id] as string) || ''
+                }
                 onChange={(e) => onFieldChange(field.id, e.target.value)}
                 placeholder={field.placeholder}
               />
