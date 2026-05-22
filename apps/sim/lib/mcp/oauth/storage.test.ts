@@ -115,20 +115,32 @@ describe('withMcpOauthRefreshLock', () => {
     mockReleaseLock.mockResolvedValue(true)
   })
 
-  it('coalesces concurrent in-process callers onto a single fn execution', async () => {
+  it('serializes concurrent in-process callers, each running its own fn()', async () => {
     mockAcquireLock.mockResolvedValue(true)
-    const fn = vi.fn(async () => 'tokens')
+    let active = 0
+    let maxActive = 0
+    const fn = vi.fn(async () => {
+      active++
+      maxActive = Math.max(maxActive, active)
+      await new Promise((r) => setTimeout(r, 1))
+      active--
+      return 'tokens'
+    })
 
     const results = await Promise.all([
-      withMcpOauthRefreshLock('row-coalesce', fn),
-      withMcpOauthRefreshLock('row-coalesce', fn),
-      withMcpOauthRefreshLock('row-coalesce', fn),
+      withMcpOauthRefreshLock('row-serial', fn),
+      withMcpOauthRefreshLock('row-serial', fn),
+      withMcpOauthRefreshLock('row-serial', fn),
     ])
 
     expect(results).toEqual(['tokens', 'tokens', 'tokens'])
-    expect(fn).toHaveBeenCalledTimes(1)
-    expect(mockAcquireLock).toHaveBeenCalledTimes(1)
-    expect(mockReleaseLock).toHaveBeenCalledTimes(1)
+    // Each caller gets its own fn() invocation — critical because fn() returns
+    // a stateful McpClient that can't be shared across consumers.
+    expect(fn).toHaveBeenCalledTimes(3)
+    // But never two at the same time within a process.
+    expect(maxActive).toBe(1)
+    expect(mockAcquireLock).toHaveBeenCalledTimes(3)
+    expect(mockReleaseLock).toHaveBeenCalledTimes(3)
   })
 
   it('serializes cross-process callers: follower polls until leader releases', async () => {

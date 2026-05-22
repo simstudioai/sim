@@ -10,7 +10,6 @@ import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, gt } from 'drizzle-orm'
-import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 
@@ -235,58 +234,71 @@ export async function clearState(rowId: string): Promise<void> {
  * refreshes against the same row would race and one would receive
  * `invalid_grant`, wiping credentials.
  *
- * Two-tier coordination, matching the regular OAuth refresh pattern
- * (`app/api/auth/oauth/utils.ts`):
- *   1) `coalesceLocally` — in-process dedup; concurrent same-process callers
- *      share a single inflight promise.
- *   2) Redis distributed lock (`acquireLock` / `releaseLock`) — cross-process
- *      mutex. Followers poll until the leader releases, then acquire and run
- *      their own `fn()` (each MCP caller needs its own client connection).
+ * Two-tier serialization (each caller runs its OWN `fn()` — callers consume
+ * `McpClient` instances that can't be shared, unlike a scalar access token):
+ *   1) In-process: per-row Promise chain. Concurrent callers queue; each
+ *      runs `fn()` after the previous settles.
+ *   2) Cross-process: Redis mutex (`acquireLock` / `releaseLock`). Followers
+ *      poll until the holder releases, then acquire and run `fn()`.
  *
- * Falls open if Redis is unavailable — `acquireLock` no-ops, all callers run
- * `fn()` uncoordinated. The in-process layer still serializes within a
- * process; cross-process races become possible but rare in practice.
+ * Falls open if Redis is unavailable — `acquireLock` no-ops, but in-process
+ * serialization still holds within a single Node process.
  */
 const REFRESH_LOCK_TTL_SEC = 30
 const REFRESH_POLL_INTERVAL_MS = 100
 const REFRESH_MAX_WAIT_MS = 30_000
 
+const inflightChains = new Map<string, Promise<unknown>>()
+
 export async function withMcpOauthRefreshLock<T>(rowId: string, fn: () => Promise<T>): Promise<T> {
   const lockKey = `mcp:oauth:refresh:${rowId}`
-  return coalesceLocally(lockKey, async () => {
-    const ownerToken = generateShortId()
-    const deadline = Date.now() + REFRESH_MAX_WAIT_MS
+  const prev = inflightChains.get(lockKey) ?? Promise.resolve()
+  const next = prev.catch(() => undefined).then(() => runWithRedisMutex(lockKey, rowId, fn))
+  inflightChains.set(lockKey, next)
+  const cleanup = () => {
+    if (inflightChains.get(lockKey) === next) inflightChains.delete(lockKey)
+  }
+  next.then(cleanup, cleanup)
+  return next as Promise<T>
+}
 
-    while (true) {
-      let acquired = false
-      try {
-        acquired = await acquireLock(lockKey, ownerToken, REFRESH_LOCK_TTL_SEC)
-      } catch (error) {
-        logger.warn('Redis unavailable, running OAuth flow uncoordinated', {
-          rowId,
-          error: toError(error).message,
-        })
-        return fn()
-      }
+async function runWithRedisMutex<T>(
+  lockKey: string,
+  rowId: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  const ownerToken = generateShortId()
+  const deadline = Date.now() + REFRESH_MAX_WAIT_MS
 
-      if (acquired) {
-        try {
-          return await fn()
-        } finally {
-          await releaseLock(lockKey, ownerToken).catch((error) => {
-            logger.warn('Refresh lock release failed (will expire via TTL)', {
-              rowId,
-              error: toError(error).message,
-            })
-          })
-        }
-      }
-
-      if (Date.now() >= deadline) {
-        logger.warn('Refresh lock wait timed out, running uncoordinated', { rowId })
-        return fn()
-      }
-      await sleep(REFRESH_POLL_INTERVAL_MS)
+  while (true) {
+    let acquired = false
+    try {
+      acquired = await acquireLock(lockKey, ownerToken, REFRESH_LOCK_TTL_SEC)
+    } catch (error) {
+      logger.warn('Redis unavailable, running OAuth flow uncoordinated', {
+        rowId,
+        error: toError(error).message,
+      })
+      return fn()
     }
-  })
+
+    if (acquired) {
+      try {
+        return await fn()
+      } finally {
+        await releaseLock(lockKey, ownerToken).catch((error) => {
+          logger.warn('Refresh lock release failed (will expire via TTL)', {
+            rowId,
+            error: toError(error).message,
+          })
+        })
+      }
+    }
+
+    if (Date.now() >= deadline) {
+      logger.warn('Refresh lock wait timed out, running uncoordinated', { rowId })
+      return fn()
+    }
+    await sleep(REFRESH_POLL_INTERVAL_MS)
+  }
 }
