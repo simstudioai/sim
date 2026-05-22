@@ -10,7 +10,6 @@ export async function createPostgresConnection(config: PostgresConnectionConfig)
 
   const resolvedHost = hostValidation.resolvedIP ?? config.host
 
-  // `rejectUnauthorized: false` matches postgres.js's `'require'` string semantics; `servername` is set so SNI works with the pinned IP host.
   const sslConfig: boolean | 'prefer' | { rejectUnauthorized: boolean; servername?: string } =
     config.ssl === 'disabled'
       ? false

@@ -46,7 +46,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         ? Number.parseInt(parsedUrl.pathname.slice(1), 10)
         : Number.NaN
 
-    // Pin to resolved IP to prevent DNS rebinding; for `rediss://`, pass original hostname as TLS servername.
     client = new Redis({
       host: resolvedIP,
       port,

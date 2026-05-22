@@ -25,7 +25,6 @@ export async function createMySQLConnection(config: MySQLConnectionConfig) {
     database: config.database,
     user: config.username,
     password: config.password,
-    // Pin socket to resolved IP to prevent DNS rebinding; mysql2 still uses config.host for TLS servername.
     stream: () => {
       const socket = net.connect(config.port, resolvedIP)
       socket.setNoDelay(true)
