@@ -145,7 +145,8 @@ export function useConnectorConfigFields({
   )
 
   const isFieldPopulated = useCallback(
-    (field: ConnectorConfigField): boolean => isValuePopulated(sourceConfig[field.id] ?? ''),
+    (field: ConnectorConfigField): boolean =>
+      isValuePopulated(sourceConfig[field.id] ?? emptyValue(field)),
     [sourceConfig]
   )
 
