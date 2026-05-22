@@ -3,6 +3,7 @@ import {
   executionLargeValueDependencies,
   executionLargeValueReferences,
   executionLargeValues,
+  pausedExecutions,
   workflowExecutionLogs,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -18,6 +19,7 @@ const LARGE_VALUE_METADATA_WRITE_CHUNK_SIZE = 500
 const LARGE_VALUE_METADATA_WORKSPACE_CHUNK_SIZE = 50
 const LARGE_VALUE_METADATA_PRUNE_BATCH_SIZE = 1_000
 const LARGE_VALUE_METADATA_PRUNE_MAX_ROWS_PER_TABLE = 5_000
+const LIVE_PAUSED_REFERENCE_STATUSES = ['paused', 'partially_resumed', 'cancelling'] as const
 
 export interface LargeValueOwner {
   key: string
@@ -118,27 +120,39 @@ async function getDependencyClosure(
   }
 
   const closureKeys = new Set(directKeys)
-  for (const keyChunk of chunkArray(directKeys, LARGE_VALUE_METADATA_WRITE_CHUNK_SIZE)) {
-    const remainingBudget = MAX_LARGE_VALUE_REFERENCES_PER_SCOPE - closureKeys.size
-    const rows = await client
-      .selectDistinct({ childKey: executionLargeValueDependencies.childKey })
-      .from(executionLargeValueDependencies)
-      .where(
-        and(
-          eq(executionLargeValueDependencies.workspaceId, workspaceId),
-          inArray(executionLargeValueDependencies.parentKey, keyChunk)
-        )
-      )
-      .limit(remainingBudget + 1)
+  let frontier = directKeys
 
-    for (const row of rows) {
-      closureKeys.add(row.childKey)
-      if (closureKeys.size > MAX_LARGE_VALUE_REFERENCES_PER_SCOPE) {
-        throw new Error(
-          `Large value dependency closure exceeds the limit of ${MAX_LARGE_VALUE_REFERENCES_PER_SCOPE}`
+  while (frontier.length > 0) {
+    const nextFrontier: string[] = []
+
+    for (const keyChunk of chunkArray(frontier, LARGE_VALUE_METADATA_WRITE_CHUNK_SIZE)) {
+      const remainingBudget = MAX_LARGE_VALUE_REFERENCES_PER_SCOPE - closureKeys.size
+      const rows = await client
+        .selectDistinct({ childKey: executionLargeValueDependencies.childKey })
+        .from(executionLargeValueDependencies)
+        .where(
+          and(
+            eq(executionLargeValueDependencies.workspaceId, workspaceId),
+            inArray(executionLargeValueDependencies.parentKey, keyChunk)
+          )
         )
+        .limit(remainingBudget + 1)
+
+      for (const row of rows) {
+        if (closureKeys.has(row.childKey)) {
+          continue
+        }
+        closureKeys.add(row.childKey)
+        nextFrontier.push(row.childKey)
+        if (closureKeys.size > MAX_LARGE_VALUE_REFERENCES_PER_SCOPE) {
+          throw new Error(
+            `Large value dependency closure exceeds the limit of ${MAX_LARGE_VALUE_REFERENCES_PER_SCOPE}`
+          )
+        }
       }
     }
+
+    frontier = nextFrontier
   }
 
   return Array.from(closureKeys)
@@ -255,6 +269,73 @@ export async function replaceLargeValueReferencesWithClient(
   }
 }
 
+export async function addLargeValueReference(
+  scope: LargeValueReferenceScope,
+  key: string
+): Promise<void> {
+  const { workspaceId, workflowId, executionId, source } = scope
+  if (!workspaceId || !executionId) {
+    return
+  }
+
+  const [boundedKey] = getBoundedUniqueKeys(
+    [key].filter((candidate) => {
+      const parsed = parseLargeValueStorageKey(candidate)
+      return parsed?.workspaceId === workspaceId
+    }),
+    'Large value reference set'
+  )
+  if (!boundedKey) {
+    return
+  }
+
+  const [existingRef] = await db
+    .select({ key: executionLargeValueReferences.key })
+    .from(executionLargeValueReferences)
+    .where(
+      and(
+        eq(executionLargeValueReferences.workspaceId, workspaceId),
+        eq(executionLargeValueReferences.executionId, executionId),
+        eq(executionLargeValueReferences.source, source),
+        eq(executionLargeValueReferences.key, boundedKey)
+      )
+    )
+    .limit(1)
+
+  if (existingRef) {
+    return
+  }
+
+  const existingRefs = await db
+    .select({ key: executionLargeValueReferences.key })
+    .from(executionLargeValueReferences)
+    .where(
+      and(
+        eq(executionLargeValueReferences.workspaceId, workspaceId),
+        eq(executionLargeValueReferences.executionId, executionId),
+        eq(executionLargeValueReferences.source, source)
+      )
+    )
+    .limit(MAX_LARGE_VALUE_REFERENCES_PER_SCOPE + 1)
+
+  if (existingRefs.length >= MAX_LARGE_VALUE_REFERENCES_PER_SCOPE) {
+    throw new Error(
+      `Large value reference set contains at least ${existingRefs.length} references, exceeding the limit of ${MAX_LARGE_VALUE_REFERENCES_PER_SCOPE}`
+    )
+  }
+
+  await db
+    .insert(executionLargeValueReferences)
+    .values({
+      key: boundedKey,
+      workspaceId,
+      workflowId: workflowId ?? null,
+      executionId,
+      source,
+    })
+    .onConflictDoNothing()
+}
+
 export async function replaceLargeValueReferences(
   scope: LargeValueReferenceScope,
   value: unknown
@@ -283,10 +364,25 @@ async function pruneStaleReferences(workspaceIds: string[], batchSize: number): 
         SELECT ref.ctid
         FROM ${executionLargeValueReferences} AS ref
         WHERE ref.workspace_id = ANY(${workspaceIds}::text[])
-          AND NOT EXISTS (
-            SELECT 1
-            FROM ${workflowExecutionLogs} AS wel
-            WHERE wel.execution_id = ref.execution_id
+          AND (
+            (
+              ref.source = 'execution_log'
+              AND NOT EXISTS (
+                SELECT 1
+                FROM ${workflowExecutionLogs} AS wel
+                WHERE wel.execution_id = ref.execution_id
+              )
+            )
+            OR (
+              ref.source = 'paused_snapshot'
+              AND NOT EXISTS (
+                SELECT 1
+                FROM ${pausedExecutions} AS pe
+                WHERE pe.execution_id = ref.execution_id
+                  AND pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+              )
+            )
+            OR ref.source NOT IN ('execution_log', 'paused_snapshot')
           )
         LIMIT ${batchSize}
       )
@@ -417,14 +513,37 @@ export function unreferencedLargeValuePredicate() {
     NOT EXISTS (
       SELECT 1
       FROM ${executionLargeValueReferences} AS elvr
-      INNER JOIN ${workflowExecutionLogs} AS wel
-        ON wel.execution_id = elvr.execution_id
       WHERE elvr.key = ${executionLargeValues.key}
+        AND (
+          (
+            elvr.source = 'execution_log'
+            AND EXISTS (
+              SELECT 1
+              FROM ${workflowExecutionLogs} AS wel
+              WHERE wel.execution_id = elvr.execution_id
+            )
+          )
+          OR (
+            elvr.source = 'paused_snapshot'
+            AND EXISTS (
+              SELECT 1
+              FROM ${pausedExecutions} AS pe
+              WHERE pe.execution_id = elvr.execution_id
+                AND pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+            )
+          )
+        )
     )
     AND NOT EXISTS (
       SELECT 1
       FROM ${workflowExecutionLogs} AS owner_wel
       WHERE owner_wel.execution_id = ${executionLargeValues.ownerExecutionId}
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM ${pausedExecutions} AS owner_pe
+      WHERE owner_pe.execution_id = ${executionLargeValues.ownerExecutionId}
+        AND owner_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
     )
     AND NOT EXISTS (
       SELECT 1
@@ -442,10 +561,33 @@ export function unreferencedLargeValuePredicate() {
           )
           OR EXISTS (
             SELECT 1
+            FROM ${pausedExecutions} AS parent_owner_pe
+            WHERE parent_owner_pe.execution_id = parent_value.owner_execution_id
+              AND parent_owner_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+          )
+          OR EXISTS (
+            SELECT 1
             FROM ${executionLargeValueReferences} AS parent_ref
-            INNER JOIN ${workflowExecutionLogs} AS parent_ref_wel
-              ON parent_ref_wel.execution_id = parent_ref.execution_id
             WHERE parent_ref.key = parent_value.key
+              AND (
+                (
+                  parent_ref.source = 'execution_log'
+                  AND EXISTS (
+                    SELECT 1
+                    FROM ${workflowExecutionLogs} AS parent_ref_wel
+                    WHERE parent_ref_wel.execution_id = parent_ref.execution_id
+                  )
+                )
+                OR (
+                  parent_ref.source = 'paused_snapshot'
+                  AND EXISTS (
+                    SELECT 1
+                    FROM ${pausedExecutions} AS parent_ref_pe
+                    WHERE parent_ref_pe.execution_id = parent_ref.execution_id
+                      AND parent_ref_pe.status = ANY(${LIVE_PAUSED_REFERENCE_STATUSES}::text[])
+                  )
+                )
+              )
           )
         )
     )

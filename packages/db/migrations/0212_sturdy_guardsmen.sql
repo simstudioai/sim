@@ -1,3 +1,4 @@
+CREATE TYPE "public"."execution_large_value_reference_source" AS ENUM('execution_log', 'paused_snapshot');--> statement-breakpoint
 CREATE TABLE "execution_large_value_dependencies" (
 	"parent_key" text NOT NULL,
 	"child_key" text NOT NULL,
@@ -9,7 +10,7 @@ CREATE TABLE "execution_large_value_dependencies" (
 CREATE TABLE "execution_large_value_references" (
 	"key" text NOT NULL,
 	"execution_id" text NOT NULL,
-	"source" text NOT NULL,
+	"source" "execution_large_value_reference_source" NOT NULL,
 	"workspace_id" text NOT NULL,
 	"workflow_id" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -31,12 +32,9 @@ ALTER TABLE "execution_large_value_references" ADD CONSTRAINT "execution_large_v
 ALTER TABLE "execution_large_value_references" ADD CONSTRAINT "execution_large_value_references_workflow_id_workflow_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflow"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "execution_large_values" ADD CONSTRAINT "execution_large_values_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "execution_large_values" ADD CONSTRAINT "execution_large_values_workflow_id_workflow_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflow"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "execution_large_value_dependencies_child_key_idx" ON "execution_large_value_dependencies" USING btree ("child_key");--> statement-breakpoint
 CREATE INDEX "execution_large_value_dependencies_workspace_parent_key_idx" ON "execution_large_value_dependencies" USING btree ("workspace_id","parent_key");--> statement-breakpoint
 CREATE INDEX "execution_large_value_dependencies_workspace_child_key_idx" ON "execution_large_value_dependencies" USING btree ("workspace_id","child_key");--> statement-breakpoint
-CREATE INDEX "execution_large_value_references_key_idx" ON "execution_large_value_references" USING btree ("key");--> statement-breakpoint
-CREATE INDEX "execution_large_value_references_execution_id_idx" ON "execution_large_value_references" USING btree ("execution_id");--> statement-breakpoint
-CREATE INDEX "execution_large_value_references_workspace_execution_id_idx" ON "execution_large_value_references" USING btree ("workspace_id","execution_id");--> statement-breakpoint
+CREATE INDEX "execution_large_value_references_workspace_execution_source_idx" ON "execution_large_value_references" USING btree ("workspace_id","execution_id","source");--> statement-breakpoint
 CREATE INDEX "execution_large_values_owner_execution_id_idx" ON "execution_large_values" USING btree ("owner_execution_id");--> statement-breakpoint
 CREATE INDEX "execution_large_values_cleanup_idx" ON "execution_large_values" USING btree ("workspace_id","created_at","key") WHERE "execution_large_values"."deleted_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "execution_large_values_tombstone_cleanup_idx" ON "execution_large_values" USING btree ("workspace_id","deleted_at","key") WHERE "execution_large_values"."deleted_at" IS NOT NULL;

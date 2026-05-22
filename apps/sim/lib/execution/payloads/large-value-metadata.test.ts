@@ -11,6 +11,10 @@ const {
   mockExecute,
   mockInsert,
   mockOnConflictDoNothing,
+  mockSelect,
+  mockSelectFrom,
+  mockSelectLimit,
+  mockSelectWhere,
   mockTransaction,
   mockTxDelete,
   mockTxInsert,
@@ -29,6 +33,10 @@ const {
   const mockInsert = vi.fn(() => ({ values: mockValues }))
   const mockWhere = vi.fn(async () => undefined)
   const mockDelete = vi.fn(() => ({ where: mockWhere }))
+  const mockSelectLimit = vi.fn(async () => [])
+  const mockSelectWhere = vi.fn(() => ({ limit: mockSelectLimit }))
+  const mockSelectFrom = vi.fn(() => ({ where: mockSelectWhere }))
+  const mockSelect = vi.fn(() => ({ from: mockSelectFrom }))
 
   const mockTxValues = vi.fn(() => ({ onConflictDoNothing: mockOnConflictDoNothing }))
   const mockTxInsert = vi.fn(() => ({ values: mockTxValues }))
@@ -47,6 +55,10 @@ const {
     mockExecute: vi.fn(async () => [{ count: 0 }]),
     mockInsert,
     mockOnConflictDoNothing,
+    mockSelect,
+    mockSelectFrom,
+    mockSelectLimit,
+    mockSelectWhere,
     mockTransaction: vi.fn(async (callback) =>
       callback({
         delete: mockTxDelete,
@@ -74,6 +86,7 @@ vi.mock('@sim/db', () => ({
     delete: mockDelete,
     execute: mockExecute,
     insert: mockInsert,
+    select: mockSelect,
     transaction: mockTransaction,
   },
 }))
@@ -93,6 +106,11 @@ vi.mock('@sim/db/schema', () => ({
   executionLargeValues: {
     key: 'executionLargeValues.key',
     ownerExecutionId: 'executionLargeValues.ownerExecutionId',
+    workspaceId: 'executionLargeValues.workspaceId',
+  },
+  pausedExecutions: {
+    executionId: 'pausedExecutions.executionId',
+    status: 'pausedExecutions.status',
   },
   workflowExecutionLogs: {
     executionId: 'workflowExecutionLogs.executionId',
@@ -113,6 +131,7 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 import {
+  addLargeValueReference,
   MAX_LARGE_VALUE_REFERENCES_PER_SCOPE,
   pruneLargeValueMetadata,
   registerLargeValueOwner,
@@ -165,7 +184,11 @@ describe('large value metadata', () => {
   it('records dependency closure for nested large value refs', async () => {
     const directKey = largeValueKey('abcdefghijkl')
     const transitiveKey = largeValueKey('mnopqrstuvwx', 'root-execution')
-    mockTxSelectLimit.mockResolvedValueOnce([{ childKey: transitiveKey }])
+    const deepTransitiveKey = largeValueKey('deepqrstuvwx', 'deep-execution')
+    mockTxSelectLimit
+      .mockResolvedValueOnce([{ childKey: transitiveKey }])
+      .mockResolvedValueOnce([{ childKey: deepTransitiveKey }])
+      .mockResolvedValueOnce([])
 
     const registered = await registerLargeValueOwner(
       {
@@ -179,7 +202,7 @@ describe('large value metadata', () => {
     )
 
     expect(registered).toBe(true)
-    expect(mockTxSelectDistinct).toHaveBeenCalledOnce()
+    expect(mockTxSelectDistinct).toHaveBeenCalledTimes(3)
     expect(mockTxValues).toHaveBeenLastCalledWith([
       {
         parentKey: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_zyxwvutsrqpo.json',
@@ -189,6 +212,11 @@ describe('large value metadata', () => {
       {
         parentKey: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_zyxwvutsrqpo.json',
         childKey: transitiveKey,
+        workspaceId: 'workspace-1',
+      },
+      {
+        parentKey: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_zyxwvutsrqpo.json',
+        childKey: deepTransitiveKey,
         workspaceId: 'workspace-1',
       },
     ])
@@ -312,6 +340,52 @@ describe('large value metadata', () => {
     ])
   })
 
+  it('adds a materialized reference only when the scope is below the reference cap', async () => {
+    const key = largeValueKey('abcdefghijkl')
+
+    await addLargeValueReference(
+      {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-2',
+        source: 'execution_log',
+      },
+      key
+    )
+
+    expect(mockSelectLimit).toHaveBeenCalledWith(1)
+    expect(mockSelectLimit).toHaveBeenCalledWith(MAX_LARGE_VALUE_REFERENCES_PER_SCOPE + 1)
+    expect(mockValues).toHaveBeenCalledWith({
+      key,
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-2',
+      source: 'execution_log',
+    })
+  })
+
+  it('rejects materialized references once the scope reaches the reference cap', async () => {
+    mockSelectLimit.mockResolvedValueOnce([]).mockResolvedValueOnce(
+      Array.from({ length: MAX_LARGE_VALUE_REFERENCES_PER_SCOPE }, (_, index) => ({
+        key: largeValueKey(`d${index.toString(36).padStart(11, '0')}`),
+      }))
+    )
+
+    await expect(
+      addLargeValueReference(
+        {
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-2',
+          source: 'execution_log',
+        },
+        largeValueKey('zyxwvutsrqpo')
+      )
+    ).rejects.toThrow('exceeding the limit')
+
+    expect(mockInsert).not.toHaveBeenCalled()
+  })
+
   it('prunes large value metadata in bounded batches', async () => {
     mockExecute
       .mockResolvedValueOnce([{ count: 2 }])
@@ -330,5 +404,19 @@ describe('large value metadata', () => {
       dependenciesDeleted: 3,
       tombstonesDeleted: 4,
     })
+  })
+
+  it('uses source-specific liveness when pruning stale references', async () => {
+    await pruneLargeValueMetadata({
+      workspaceIds: ['workspace-1'],
+      tombstonesDeletedBefore: new Date('2026-01-01T00:00:00Z'),
+      batchSize: 10,
+      maxRowsPerTable: 100,
+    })
+
+    const [query] = mockExecute.mock.calls[0] ?? []
+    const sqlText = Array.isArray(query?.strings) ? query.strings.join(' ') : ''
+    expect(sqlText).toContain("ref.source = 'execution_log'")
+    expect(sqlText).toContain("ref.source = 'paused_snapshot'")
   })
 })

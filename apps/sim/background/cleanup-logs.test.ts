@@ -88,6 +88,16 @@ vi.mock('@sim/db', () => ({
 }))
 
 vi.mock('@sim/db/schema', () => ({
+  executionLargeValueDependencies: {
+    childKey: 'executionLargeValueDependencies.childKey',
+    parentKey: 'executionLargeValueDependencies.parentKey',
+    workspaceId: 'executionLargeValueDependencies.workspaceId',
+  },
+  executionLargeValueReferences: {
+    executionId: 'executionLargeValueReferences.executionId',
+    key: 'executionLargeValueReferences.key',
+    source: 'executionLargeValueReferences.source',
+  },
   executionLargeValues: {
     createdAt: 'executionLargeValues.createdAt',
     deletedAt: 'executionLargeValues.deletedAt',
@@ -101,6 +111,13 @@ vi.mock('@sim/db/schema', () => ({
   pausedExecutions: {
     executionId: 'pausedExecutions.executionId',
     status: 'pausedExecutions.status',
+  },
+  workspaceFiles: {
+    context: 'workspaceFiles.context',
+    deletedAt: 'workspaceFiles.deletedAt',
+    key: 'workspaceFiles.key',
+    uploadedAt: 'workspaceFiles.uploadedAt',
+    workspaceId: 'workspaceFiles.workspaceId',
   },
   workflowExecutionLogs: {
     executionData: 'workflowExecutionLogs.executionData',
@@ -131,6 +148,7 @@ vi.mock('drizzle-orm', () => ({
   lt: mockLt,
   notInArray: mockNotInArray,
   or: mockOr,
+  sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
 }))
 
 vi.mock('@/lib/cleanup/batch-delete', () => ({
@@ -238,6 +256,50 @@ describe('cleanup logs worker', () => {
 
     expect(mockMarkLargeValuesDeleted).toHaveBeenCalledWith([largeValueKey])
     expect(mockDeleteFileMetadata).toHaveBeenCalledTimes(2)
+  })
+
+  it('cleans legacy large values from file metadata without selecting execution_data', async () => {
+    const legacyKey =
+      'execution/workspace-1/workflow-1/execution-1/large-value-lv_abcdefghijkl.json'
+    mockLimit
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ key: legacyKey }])
+    mockDeleteFiles
+      .mockResolvedValueOnce({ deleted: 2, failed: [] })
+      .mockResolvedValueOnce({ deleted: 1, failed: [] })
+
+    await runCleanupLogs({
+      label: 'free/1',
+      plan: 'free',
+      retentionHours: 720,
+      workspaceIds: ['workspace-1'],
+    })
+
+    expect(mockSelect).toHaveBeenCalledWith({
+      id: 'workflowExecutionLogs.id',
+      files: 'workflowExecutionLogs.files',
+    })
+    expect(mockSelect).not.toHaveBeenCalledWith(
+      expect.objectContaining({ executionData: expect.anything() })
+    )
+    const legacyWhereArgs = mockAnd.mock.calls
+      .flat()
+      .filter((arg): arg is { strings: string[] } => {
+        return (
+          typeof arg === 'object' &&
+          arg !== null &&
+          Array.isArray((arg as { strings?: unknown }).strings)
+        )
+      })
+      .map((arg) => arg.strings.join(' '))
+      .join(' ')
+    expect(legacyWhereArgs).toContain('FROM ')
+    expect(legacyWhereArgs).toContain("ref.source = 'execution_log'")
+    expect(legacyWhereArgs).toContain("ref.source = 'paused_snapshot'")
+    expect(legacyWhereArgs).toContain('dependency.child_key')
+    expect(mockDeleteFiles).toHaveBeenLastCalledWith([legacyKey], 'execution')
+    expect(mockDeleteFileMetadata).toHaveBeenCalledWith(legacyKey)
   })
 
   it('caps Trigger.dev concurrency for log cleanup tasks', () => {

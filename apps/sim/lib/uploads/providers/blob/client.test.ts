@@ -9,6 +9,7 @@ const {
   mockUpload,
   mockDownload,
   mockDelete,
+  mockDeleteIfExists,
   mockGetBlockBlobClient,
   mockGetContainerClient,
   mockFromConnectionString,
@@ -19,6 +20,7 @@ const {
   mockUpload: vi.fn(),
   mockDownload: vi.fn(),
   mockDelete: vi.fn(),
+  mockDeleteIfExists: vi.fn(),
   mockGetBlockBlobClient: vi.fn(),
   mockGetContainerClient: vi.fn(),
   mockFromConnectionString: vi.fn(),
@@ -66,6 +68,7 @@ describe('Azure Blob Storage Client', () => {
       upload: mockUpload,
       download: mockDownload,
       delete: mockDelete,
+      deleteIfExists: mockDeleteIfExists,
       url: 'https://test.blob.core.windows.net/container/test-file',
     })
 
@@ -181,12 +184,12 @@ describe('Azure Blob Storage Client', () => {
     it('should delete a file from Azure Blob Storage', async () => {
       const testKey = 'test-file-key'
 
-      mockDelete.mockResolvedValueOnce({})
+      mockDeleteIfExists.mockResolvedValueOnce({})
 
       await deleteFromBlob(testKey)
 
       expect(mockGetBlockBlobClient).toHaveBeenCalledWith(testKey)
-      expect(mockDelete).toHaveBeenCalled()
+      expect(mockDeleteIfExists).toHaveBeenCalled()
     })
   })
 

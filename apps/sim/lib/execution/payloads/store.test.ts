@@ -17,6 +17,7 @@ import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/paylo
 import { EXECUTION_RESOURCE_LIMIT_CODE } from '@/lib/execution/resource-errors'
 
 const {
+  mockAddLargeValueReference,
   mockDeleteFileMetadata,
   mockDeleteFiles,
   mockDownloadFile,
@@ -24,6 +25,7 @@ const {
   mockUploadFile,
   mockVerifyFileAccess,
 } = vi.hoisted(() => ({
+  mockAddLargeValueReference: vi.fn(),
   mockDeleteFileMetadata: vi.fn(),
   mockDeleteFiles: vi.fn(),
   mockDownloadFile: vi.fn(),
@@ -50,6 +52,7 @@ vi.mock('@/app/api/files/authorization', () => ({
 }))
 
 vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
+  addLargeValueReference: mockAddLargeValueReference,
   registerLargeValueOwner: mockRegisterLargeValueOwner,
 }))
 
@@ -62,6 +65,7 @@ describe('large execution payload store', () => {
     vi.clearAllMocks()
     clearLargeValueCacheForTests()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
+    mockAddLargeValueReference.mockResolvedValue(undefined)
     mockRegisterLargeValueOwner.mockResolvedValue(true)
     mockDeleteFiles.mockResolvedValue({ deleted: 1, failed: [] })
     mockDeleteFileMetadata.mockResolvedValue(true)
@@ -225,6 +229,60 @@ describe('large execution payload store', () => {
         }
       )
     ).resolves.toEqual({ ok: true })
+    expect(mockAddLargeValueReference).toHaveBeenCalledWith(
+      {
+        workspaceId: 'workflow-1',
+        workflowId: 'workflow-2',
+        executionId: 'execution-1',
+        source: 'execution_log',
+      },
+      'execution/workflow-1/workflow-2/execution-1/large-value-lv_ABCDEFGHIJKL.json'
+    )
+  })
+
+  it('records a reference before returning a cached prior-execution value', async () => {
+    cacheLargeValue(
+      'lv_CACHEDREF123',
+      { cached: true },
+      16,
+      {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'source-execution',
+      },
+      { recoverable: true }
+    )
+
+    await expect(
+      materializeLargeValueRef(
+        {
+          __simLargeValueRef: true,
+          version: 1,
+          id: 'lv_CACHEDREF123',
+          kind: 'object',
+          size: 16,
+          key: 'execution/workspace-1/workflow-1/source-execution/large-value-lv_CACHEDREF123.json',
+          executionId: 'source-execution',
+        },
+        {
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'consumer-execution',
+          allowLargeValueWorkflowScope: true,
+        }
+      )
+    ).resolves.toEqual({ cached: true })
+
+    expect(mockAddLargeValueReference).toHaveBeenCalledWith(
+      {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'consumer-execution',
+        source: 'execution_log',
+      },
+      'execution/workspace-1/workflow-1/source-execution/large-value-lv_CACHEDREF123.json'
+    )
+    expect(mockDownloadFile).not.toHaveBeenCalled()
   })
 
   it('bounds durable large-value writes', async () => {

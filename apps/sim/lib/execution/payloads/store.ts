@@ -210,16 +210,27 @@ export async function materializeLargeValueRef(
   assertLargeValueRefAccess(ref, context)
   assertInlineMaterializationSize(ref.size, context.maxBytes)
 
-  const cached = materializeLargeValueRefSync(ref, context)
-  if (cached !== undefined) {
-    return cached
-  }
-
   if (!ref.key || !isValidLargeValueKey(ref)) {
-    return undefined
+    return materializeLargeValueRefSync(ref, context)
   }
 
   try {
+    const { addLargeValueReference } = await import('@/lib/execution/payloads/large-value-metadata')
+    await addLargeValueReference(
+      {
+        workspaceId: context.workspaceId,
+        workflowId: context.workflowId,
+        executionId: context.executionId,
+        source: 'execution_log',
+      },
+      ref.key
+    )
+
+    const cached = materializeLargeValueRefSync(ref, context)
+    if (cached !== undefined) {
+      return cached
+    }
+
     const value = await readLargeValueRefFromStorage(ref, {
       workspaceId: context.workspaceId,
       workflowId: context.workflowId,

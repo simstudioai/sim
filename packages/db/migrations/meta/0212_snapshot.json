@@ -1,5 +1,5 @@
 {
-  "id": "9fa833b9-eb68-4b28-a6b1-9e4436cb717c",
+  "id": "4a10cb39-814d-4555-bcd7-768a2b3bfcb3",
   "prevId": "d0a90187-fce8-43a6-9748-78637c8b18ac",
   "version": "7",
   "dialect": "postgresql",
@@ -5809,21 +5809,6 @@
         }
       },
       "indexes": {
-        "execution_large_value_dependencies_child_key_idx": {
-          "name": "execution_large_value_dependencies_child_key_idx",
-          "columns": [
-            {
-              "expression": "child_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "execution_large_value_dependencies_workspace_parent_key_idx": {
           "name": "execution_large_value_dependencies_workspace_parent_key_idx",
           "columns": [
@@ -5907,7 +5892,8 @@
         },
         "source": {
           "name": "source",
-          "type": "text",
+          "type": "execution_large_value_reference_source",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
@@ -5932,38 +5918,8 @@
         }
       },
       "indexes": {
-        "execution_large_value_references_key_idx": {
-          "name": "execution_large_value_references_key_idx",
-          "columns": [
-            {
-              "expression": "key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "execution_large_value_references_execution_id_idx": {
-          "name": "execution_large_value_references_execution_id_idx",
-          "columns": [
-            {
-              "expression": "execution_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "execution_large_value_references_workspace_execution_id_idx": {
-          "name": "execution_large_value_references_workspace_execution_id_idx",
+        "execution_large_value_references_workspace_execution_source_idx": {
+          "name": "execution_large_value_references_workspace_execution_source_idx",
           "columns": [
             {
               "expression": "workspace_id",
@@ -5973,6 +5929,12 @@
             },
             {
               "expression": "execution_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -17015,6 +16977,11 @@
       "name": "data_drain_source",
       "schema": "public",
       "values": ["workflow_logs", "job_logs", "audit_logs", "copilot_chats", "copilot_runs"]
+    },
+    "public.execution_large_value_reference_source": {
+      "name": "execution_large_value_reference_source",
+      "schema": "public",
+      "values": ["execution_log", "paused_snapshot"]
     },
     "public.invitation_kind": {
       "name": "invitation_kind",

@@ -367,6 +367,11 @@ export const workflowExecutionLogs = pgTable(
   })
 )
 
+export const executionLargeValueReferenceSourceEnum = pgEnum(
+  'execution_large_value_reference_source',
+  ['execution_log', 'paused_snapshot']
+)
+
 export const executionLargeValues = pgTable(
   'execution_large_values',
   {
@@ -398,7 +403,7 @@ export const executionLargeValueReferences = pgTable(
   {
     key: text('key').notNull(),
     executionId: text('execution_id').notNull(),
-    source: text('source').notNull(),
+    source: executionLargeValueReferenceSourceEnum('source').notNull(),
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
@@ -407,13 +412,9 @@ export const executionLargeValueReferences = pgTable(
   },
   (table) => ({
     pk: primaryKey({ columns: [table.key, table.executionId, table.source] }),
-    keyIdx: index('execution_large_value_references_key_idx').on(table.key),
-    executionIdIdx: index('execution_large_value_references_execution_id_idx').on(
-      table.executionId
-    ),
-    workspaceExecutionIdIdx: index(
-      'execution_large_value_references_workspace_execution_id_idx'
-    ).on(table.workspaceId, table.executionId),
+    workspaceExecutionSourceIdx: index(
+      'execution_large_value_references_workspace_execution_source_idx'
+    ).on(table.workspaceId, table.executionId, table.source),
   })
 )
 
@@ -429,7 +430,6 @@ export const executionLargeValueDependencies = pgTable(
   },
   (table) => ({
     pk: primaryKey({ columns: [table.parentKey, table.childKey] }),
-    childKeyIdx: index('execution_large_value_dependencies_child_key_idx').on(table.childKey),
     workspaceParentKeyIdx: index('execution_large_value_dependencies_workspace_parent_key_idx').on(
       table.workspaceId,
       table.parentKey
