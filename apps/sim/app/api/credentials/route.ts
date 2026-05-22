@@ -29,7 +29,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
 } from '@/lib/oauth/types'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { checkWorkspaceAccess, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialsAPI')
 
@@ -296,16 +296,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } = parsed.data.body
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, session.user.id)
-    if (!workspaceAccess.hasAccess) {
-      return NextResponse.json({ error: 'Workspace access required' }, { status: 403 })
-    }
-
-    const isAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
-    if (!isAdmin) {
-      return NextResponse.json(
-        { error: 'Admin permission required to manage credentials' },
-        { status: 403 }
-      )
+    if (!workspaceAccess.canWrite) {
+      return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
     }
 
     let resolvedDisplayName = displayName?.trim() ?? ''
@@ -557,7 +549,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         if (workspaceUserIds.length > 0) {
           for (const memberUserId of workspaceUserIds) {
             const wsPermission = wsPermissionByUser.get(memberUserId)
-            const isAdmin = memberUserId === workspaceRow.ownerId || wsPermission === 'admin'
+            const isAdmin =
+              memberUserId === workspaceRow.ownerId ||
+              memberUserId === session.user.id ||
+              wsPermission === 'admin'
             await tx.insert(credentialMember).values({
               id: generateId(),
               credentialId,
