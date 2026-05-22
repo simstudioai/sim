@@ -9,9 +9,14 @@ import { cn } from '@/lib/core/utils/cn'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import {
+  getActiveWorkflowSearchHighlight,
+  getWorkflowSearchLabelHighlight,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 const logger = createLogger('Table')
 
@@ -22,6 +27,7 @@ interface TableProps {
   isPreview?: boolean
   previewValue?: WorkflowTableRow[] | null
   disabled?: boolean
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 interface WorkflowTableRow {
@@ -44,6 +50,8 @@ interface TableCellProps {
   overlayRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
   accessiblePrefixes: ReturnType<typeof useAccessibleReferencePrefixes>
   workspaceId: string
+  activeSearchTarget?: ActiveSearchTarget | null
+  subBlockId: string
 }
 
 function TableCell({
@@ -61,6 +69,8 @@ function TableCell({
   overlayRefs,
   accessiblePrefixes,
   workspaceId,
+  activeSearchTarget,
+  subBlockId,
 }: TableCellProps) {
   // Defensive programming: ensure row.cells exists and has the expected structure
   const hasValidCells = row.cells && typeof row.cells === 'object'
@@ -70,6 +80,12 @@ function TableCell({
 
   const cellValue = cells[column] || ''
   const cellKey = `${rowIndex}-${column}`
+  const workflowSearchHighlight = getActiveWorkflowSearchHighlight({
+    activeSearchTarget,
+    blockId,
+    subBlockId,
+    valuePath: [rowIndex, 'cells', column],
+  })
 
   // Get field state and handlers for this cell
   const fieldState = inputController.fieldHelpers.getFieldState(cellKey)
@@ -150,6 +166,7 @@ function TableCell({
             {formatDisplayText(cellValue, {
               accessiblePrefixes,
               highlightAll: !accessiblePrefixes,
+              workflowSearchHighlight,
             })}
           </div>
         </div>
@@ -197,6 +214,7 @@ export function Table({
   isPreview = false,
   previewValue,
   disabled = false,
+  activeSearchTarget,
 }: TableProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -311,17 +329,26 @@ export function Table({
   const renderHeader = () => (
     <thead className='bg-transparent'>
       <tr className='border-[var(--border-1)] border-b bg-transparent'>
-        {columns.map((column, index) => (
-          <th
-            key={column}
-            className={cn(
-              'bg-transparent px-2.5 py-[5px] text-left font-medium text-[var(--text-tertiary)] text-sm',
-              index < columns.length - 1 && 'border-[var(--border-1)] border-r'
-            )}
-          >
-            {column}
-          </th>
-        ))}
+        {columns.map((column, index) => {
+          const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+            activeSearchTarget,
+            blockId,
+            subBlockId,
+            valuePath: ['columns', index],
+            label: column,
+          })
+          return (
+            <th
+              key={column}
+              className={cn(
+                'bg-transparent px-2.5 py-[5px] text-left font-medium text-[var(--text-tertiary)] text-sm',
+                index < columns.length - 1 && 'border-[var(--border-1)] border-r'
+              )}
+            >
+              {formatDisplayText(column, { workflowSearchHighlight })}
+            </th>
+          )
+        })}
       </tr>
     </thead>
   )
@@ -369,6 +396,8 @@ export function Table({
                     overlayRefs={overlayRefs}
                     accessiblePrefixes={accessiblePrefixes}
                     workspaceId={workspaceId}
+                    activeSearchTarget={activeSearchTarget}
+                    subBlockId={subBlockId}
                   />
                 ))}
                 {renderDeleteButton(rowIndex)}

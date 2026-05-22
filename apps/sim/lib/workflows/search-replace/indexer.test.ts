@@ -31,6 +31,24 @@ describe('indexWorkflowSearchMatches', () => {
     expect(matches.at(-1)?.reason).toBe('Block is locked')
   })
 
+  it('keeps exact ranges for duplicate matches in the same text field', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['agent-1'].subBlocks.systemPrompt.value = 'alpha beta alpha'
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'alpha',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    }).filter((match) => match.blockId === 'agent-1' && match.subBlockId === 'systemPrompt')
+
+    expect(matches.map((match) => match.range)).toEqual([
+      { start: 0, end: 5 },
+      { start: 11, end: 16 },
+    ])
+    expect(matches.map((match) => match.rawValue)).toEqual(['alpha', 'alpha'])
+  })
+
   it('finds matches in block names', () => {
     const workflow = createSearchReplaceWorkflowFixture()
 
@@ -188,6 +206,362 @@ describe('indexWorkflowSearchMatches', () => {
     }).filter((match) => match.blockId === 'evaluator-1')
 
     expect(matches).toEqual([])
+  })
+
+  it('indexes fixed option display labels as non-editable matches', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['dropdown-1'] = {
+      id: 'dropdown-1',
+      type: 'custom',
+      name: 'Dropdown Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        operation: { id: 'operation', type: 'dropdown', value: 'send_email' },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'Email',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [
+            {
+              id: 'operation',
+              title: 'Operation',
+              type: 'dropdown',
+              options: [{ id: 'send_email', label: 'Send Email' }],
+            },
+          ],
+        },
+      },
+    }).filter((match) => match.blockId === 'dropdown-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'operation',
+        valuePath: [],
+        searchText: 'send email',
+        rawValue: 'email',
+        editable: false,
+        reason: 'Display labels cannot be replaced',
+      }),
+    ])
+  })
+
+  it('indexes selected skill labels as non-editable display-label matches', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['agent-skills-1'] = {
+      id: 'agent-skills-1',
+      type: 'agent',
+      name: 'Agent Skills',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        skills: {
+          id: 'skills',
+          type: 'skill-input',
+          value: [{ skillId: 'skill-1', name: 'Sim bot' }],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'bot',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        agent: {
+          subBlocks: [{ id: 'skills', title: 'Skills', type: 'skill-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'agent-skills-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'skills',
+        valuePath: [0, 'name'],
+        searchText: 'Sim bot',
+        rawValue: 'bot',
+        editable: false,
+        reason: 'Display labels cannot be replaced',
+      }),
+    ])
+  })
+
+  it('indexes checkbox option labels as non-editable display-label matches', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['checkbox-1'] = {
+      id: 'checkbox-1',
+      type: 'custom',
+      name: 'Checkbox Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        options: { id: 'options', type: 'checkbox-list', value: null },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'Values',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [
+            {
+              id: 'options',
+              title: 'Options',
+              type: 'checkbox-list',
+              options: [{ id: 'includeValues', label: 'Include Values' }],
+            },
+          ],
+        },
+      },
+    }).filter((match) => match.blockId === 'checkbox-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'options',
+        valuePath: ['options', 0],
+        searchText: 'Include Values',
+        editable: false,
+        reason: 'Display labels cannot be replaced',
+      }),
+    ])
+  })
+
+  it('indexes table column labels alongside cell values', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['table-1'] = {
+      id: 'table-1',
+      type: 'custom',
+      name: 'Table Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        rows: { id: 'rows', type: 'table', value: [{ id: 'row-1', cells: { Email: 'owner' } }] },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'Email',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'rows', title: 'Rows', type: 'table', columns: ['Email'] }],
+        },
+      },
+    }).filter((match) => match.blockId === 'table-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        valuePath: ['columns', 0],
+        searchText: 'Email',
+        editable: false,
+      }),
+    ])
+  })
+
+  it('aligns multi-resource matches to visible occurrence paths', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['kb-1'] = {
+      id: 'kb-1',
+      type: 'custom',
+      name: 'Knowledge Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        knowledgeBase: {
+          id: 'knowledgeBase',
+          type: 'knowledge-base-selector',
+          value: 'alpha-resource,beta-resource',
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'beta-resource',
+      mode: 'resource',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [
+            {
+              id: 'knowledgeBase',
+              title: 'Knowledge Base',
+              type: 'knowledge-base-selector',
+              multiSelect: true,
+            },
+          ],
+        },
+      },
+    }).filter((match) => match.blockId === 'kb-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        valuePath: [1],
+        structuredOccurrenceIndex: 1,
+        rawValue: 'beta-resource',
+      }),
+    ])
+  })
+
+  it('indexes variables selector labels and MCP dynamic args with renderer paths', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['structured-1'] = {
+      id: 'structured-1',
+      type: 'custom',
+      name: 'Structured Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        variableAssignments: {
+          id: 'variableAssignments',
+          type: 'variables-input',
+          value: [
+            {
+              id: 'assignment-1',
+              variableId: 'var-1',
+              variableName: 'Account Name',
+              type: 'string',
+              value: 'customer',
+              isExisting: true,
+            },
+          ],
+        },
+        args: {
+          id: 'args',
+          type: 'mcp-dynamic-args',
+          value: { prompt: 'Summarize account notes' },
+        },
+      },
+    }
+
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: {
+        subBlocks: [
+          { id: 'variableAssignments', title: 'Variables', type: 'variables-input' },
+          { id: 'args', title: 'Arguments', type: 'mcp-dynamic-args' },
+        ],
+      },
+    }
+
+    const variableMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'Account',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'structured-1')
+    const mcpMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'account',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'structured-1' && match.subBlockId === 'args')
+
+    expect(variableMatches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          subBlockId: 'variableAssignments',
+          valuePath: [0, 'variableName'],
+          searchText: 'Account Name',
+          editable: false,
+        }),
+      ])
+    )
+    expect(mcpMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'args',
+        valuePath: ['prompt'],
+        searchText: 'Summarize account notes',
+      }),
+    ])
+  })
+
+  it('indexes MCP dynamic enum args as non-editable display-label matches', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['mcp-enum-1'] = {
+      id: 'mcp-enum-1',
+      type: 'mcp',
+      name: 'MCP Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        arguments: {
+          id: 'arguments',
+          type: 'mcp-dynamic-args',
+          value: { format: 'markdown', prompt: 'customer prompt' },
+        },
+        _toolSchema: {
+          id: '_toolSchema',
+          type: 'short-input',
+          value: {
+            properties: {
+              format: { type: 'string', enum: ['markdown', 'json'] },
+              prompt: { type: 'string' },
+            },
+          },
+        },
+      },
+    }
+
+    const enumMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'markdown',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        mcp: {
+          subBlocks: [{ id: 'arguments', title: 'Arguments', type: 'mcp-dynamic-args' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'mcp-enum-1')
+    const promptMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'customer',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        mcp: {
+          subBlocks: [{ id: 'arguments', title: 'Arguments', type: 'mcp-dynamic-args' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'mcp-enum-1')
+
+    expect(enumMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'arguments',
+        valuePath: ['format'],
+        searchText: 'markdown',
+        editable: false,
+        reason: 'Display labels cannot be replaced',
+      }),
+    ])
+    expect(promptMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'arguments',
+        valuePath: ['prompt'],
+        searchText: 'customer prompt',
+        editable: true,
+      }),
+    ])
   })
 
   it('uses the same mode visibility as the editor', () => {
@@ -353,7 +727,16 @@ describe('indexWorkflowSearchMatches', () => {
       },
     })
 
-    expect(matches.filter((match) => match.blockId === 'dropdown-1')).toEqual([])
+    expect(matches.filter((match) => match.blockId === 'dropdown-1')).toEqual([
+      expect.objectContaining({
+        subBlockId: 'operation',
+        valuePath: [],
+        searchText: 'send email',
+        rawValue: 'send',
+        editable: false,
+        reason: 'Display labels cannot be replaced',
+      }),
+    ])
   })
 
   it('does not index display-only subblocks that render from config', () => {
@@ -543,7 +926,15 @@ describe('indexWorkflowSearchMatches', () => {
       }),
     ])
     expect(metadataMatches).toEqual([])
-    expect(variableNameMatches).toEqual([])
+    expect(variableNameMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'assignments',
+        valuePath: [0, 'variableName'],
+        fieldTitle: 'Variable',
+        searchText: 'needleVariable',
+        editable: false,
+      }),
+    ])
   })
 
   it('indexes table cells from stringified table values without exposing row metadata', () => {
@@ -736,7 +1127,7 @@ describe('indexWorkflowSearchMatches', () => {
 
     const containsMatches = indexWorkflowSearchMatches({
       workflow,
-      query: 'contains',
+      query: 'contains visible',
       mode: 'text',
       blockConfigs,
     }).filter((match) => match.blockId === 'structured-1')
@@ -779,8 +1170,23 @@ describe('indexWorkflowSearchMatches', () => {
         searchText: 'user visible content',
       }),
     ])
-    expect(excludedMatches).toEqual([])
-    expect(timeMatches).toEqual([])
+    expect(excludedMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'skills',
+        valuePath: [0, 'name'],
+        searchText: 'Skill Hidden Name',
+        editable: false,
+      }),
+    ])
+    expect(timeMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'runAt',
+        valuePath: [],
+        searchText: '12:30 PM',
+        editable: false,
+        reason: 'Display labels cannot be replaced',
+      }),
+    ])
     expect(mappingMatches).toEqual([
       expect.objectContaining({
         subBlockId: 'mapping',
@@ -863,6 +1269,12 @@ describe('indexWorkflowSearchMatches', () => {
     expect(matches).toEqual([
       expect.objectContaining({
         subBlockId: 'variables',
+        valuePath: [0, 'variableName'],
+        searchText: 'needleVariable',
+        editable: false,
+      }),
+      expect.objectContaining({
+        subBlockId: 'variables',
         valuePath: [0, 'value'],
         searchText: 'needle assignment value',
         editable: true,
@@ -924,7 +1336,13 @@ describe('indexWorkflowSearchMatches', () => {
       },
     }).filter((match) => match.blockId === 'dynamic-1')
 
-    expect(matches).toEqual([])
+    expect(matches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'mcpArgs',
+        valuePath: ['prompt'],
+        searchText: 'customer prompt',
+      }),
+    ])
   })
 
   it('indexes only safe user-facing paths inside tool input values', () => {
@@ -1242,6 +1660,56 @@ describe('indexWorkflowSearchMatches', () => {
             excludeWorkflowId: 'workflow-1',
           }),
         }),
+      }),
+    ])
+  })
+
+  it('indexes tool-input titles as non-editable display labels', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-title-1'] = {
+      id: 'tool-title-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'slack',
+              toolId: 'slack_message',
+              operation: 'send',
+              title: 'Slack message',
+              params: { text: 'hello' },
+            },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'Slack',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'tool-title-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'tools',
+        subBlockType: 'tool-input',
+        valuePath: [0, 'title'],
+        searchText: 'Slack message',
+        editable: false,
+        reason: 'Display labels cannot be replaced',
       }),
     ])
   })

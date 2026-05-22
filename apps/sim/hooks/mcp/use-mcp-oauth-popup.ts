@@ -80,7 +80,15 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
       }
       if (data.ok) {
         queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
-        queryClient.invalidateQueries({ queryKey: mcpKeys.toolsList(workspaceId) })
+        if (data.serverId) {
+          queryClient.invalidateQueries({
+            queryKey: mcpKeys.serverToolsList(workspaceId, data.serverId),
+          })
+        } else {
+          queryClient.invalidateQueries({
+            queryKey: mcpKeys.serverToolsWorkspace(workspaceId),
+          })
+        }
         queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
         toast.success('Server authorized')
       } else {

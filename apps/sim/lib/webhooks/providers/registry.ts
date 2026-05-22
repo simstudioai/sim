@@ -18,7 +18,6 @@ import { gongHandler } from '@/lib/webhooks/providers/gong'
 import { googleFormsHandler } from '@/lib/webhooks/providers/google-forms'
 import { grainHandler } from '@/lib/webhooks/providers/grain'
 import { greenhouseHandler } from '@/lib/webhooks/providers/greenhouse'
-import { hubspotHandler } from '@/lib/webhooks/providers/hubspot'
 import { imapHandler } from '@/lib/webhooks/providers/imap'
 import { intercomHandler } from '@/lib/webhooks/providers/intercom'
 import { jiraHandler } from '@/lib/webhooks/providers/jira'
@@ -68,7 +67,6 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   fathom: fathomHandler,
   grain: grainHandler,
   greenhouse: greenhouseHandler,
-  hubspot: hubspotHandler,
   imap: imapHandler,
   intercom: intercomHandler,
   jira: jiraHandler,
