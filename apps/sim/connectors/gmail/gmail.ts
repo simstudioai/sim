@@ -114,10 +114,15 @@ function buildSearchQuery(sourceConfig: Record<string, unknown>): string {
   const customQuery = sourceConfig.query as string | undefined
   const trimmedCustom = customQuery?.trim()
   if (trimmedCustom) {
-    // Wrap the user-supplied query in parentheses so any internal OR operators
-    // bind only within the custom expression and don't combine with preceding
-    // label / category / date filters.
-    const needsGroup = /\bOR\b/i.test(trimmedCustom) && !/^\(.*\)$/.test(trimmedCustom)
+    /**
+     * Wrap the user-supplied query in parentheses whenever it contains an OR
+     * so it's AND-joined as a single clause with the preceding label / category
+     * / date filters. Always wrap (rather than try to detect existing outer
+     * parens) because a regex like /^\(.*\)$/ misclassifies inputs such as
+     * `(from:alice) OR (from:bob)` where the parens don't bracket the whole
+     * expression. Double-wrapping is a no-op in Gmail search syntax.
+     */
+    const needsGroup = /\bOR\b/i.test(trimmedCustom)
     parts.push(needsGroup ? `(${trimmedCustom})` : trimmedCustom)
   }
 
