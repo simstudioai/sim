@@ -590,7 +590,12 @@ class McpService {
         )
         deferredSideEffects.push(
           this.updateServerStatus(server.id, workspaceId, false, outcome.message),
-          this.markServerUnhealthy(workspaceId, server.id, outcome.originalError)
+          this.markServerUnhealthy(workspaceId, server.id, outcome.originalError),
+          this.cacheAdapter
+            .delete(serverCacheKey(workspaceId, server.id))
+            .catch((err) =>
+              logger.warn(`[${requestId}] Cache delete failed for ${server.name}:`, err)
+            )
         )
       })
 

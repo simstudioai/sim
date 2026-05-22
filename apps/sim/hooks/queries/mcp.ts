@@ -122,17 +122,6 @@ async function fetchMcpTools(
   }
 }
 
-export function useMcpServerTools(workspaceId: string, serverId?: string) {
-  return useQuery({
-    queryKey: mcpKeys.serverToolsList(workspaceId, serverId),
-    queryFn: ({ signal }) => fetchMcpTools(workspaceId, false, signal, serverId),
-    enabled: !!workspaceId && !!serverId,
-    retry: false,
-    staleTime: 30 * 1000,
-    refetchOnWindowFocus: false,
-  })
-}
-
 /**
  * Workspace aggregate derived from N parallel per-server queries via
  * `useQueries`. One slow server cannot block the others.
@@ -195,7 +184,9 @@ export function useForceRefreshMcpTools() {
 
   return useMutation({
     mutationFn: async (workspaceId: string) => {
-      const servers = queryClient.getQueryData<McpServer[]>(mcpKeys.serversList(workspaceId)) ?? []
+      const allServers =
+        queryClient.getQueryData<McpServer[]>(mcpKeys.serversList(workspaceId)) ?? []
+      const servers = allServers.filter((s) => s.enabled && s.workspaceId === workspaceId)
       const results = await Promise.allSettled(
         servers.map(async (server) => {
           const tools = await fetchMcpTools(workspaceId, true, undefined, server.id)
