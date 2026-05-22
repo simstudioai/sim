@@ -1,15 +1,8 @@
-/**
- * MCP Types - for connecting to external MCP servers
- */
+import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 
 export type McpTransport = 'streamable-http'
 
-/**
- * Auth mode for an outbound MCP server connection.
- * - `none`   — server requires no auth.
- * - `headers` — static header map (legacy / API-token / bearer).
- * - `oauth`  — OAuth 2.1 + PKCE via the SDK's authProvider, persisted per workspace server.
- */
+/** `oauth` uses the SDK's authProvider; `headers` is a static map; `none` is unauthenticated. */
 export type McpAuthType = 'none' | 'headers' | 'oauth'
 
 export interface McpServerStatusConfig {
@@ -72,10 +65,6 @@ export interface McpSecurityPolicy {
   auditLevel: 'none' | 'basic' | 'detailed'
 }
 
-/**
- * JSON Schema property definition for tool parameters.
- * Follows JSON Schema specification with description support.
- */
 export interface McpToolSchemaProperty {
   type?: string | string[]
   description?: string
@@ -87,10 +76,7 @@ export interface McpToolSchemaProperty {
   [key: string]: unknown
 }
 
-/**
- * JSON Schema for tool input parameters.
- * Aligns with MCP SDK's Tool.inputSchema structure.
- */
+/** Typed view of the SDK's `Tool.inputSchema` (which is `Record<string, unknown>`). */
 export interface McpToolSchema {
   type: 'object'
   properties?: Record<string, McpToolSchemaProperty>
@@ -99,13 +85,8 @@ export interface McpToolSchema {
   [key: string]: unknown
 }
 
-/**
- * MCP Tool with server context.
- * Extends the SDK's Tool type with app-specific server tracking.
- */
-export interface McpTool {
-  name: string
-  description?: string
+/** SDK `Tool` plus the server context Sim tracks. */
+export interface McpTool extends Pick<Tool, 'name' | 'description'> {
   inputSchema: McpToolSchema
   serverId: string
   serverName: string
@@ -209,9 +190,6 @@ export interface McpClientOptions {
   authProvider?: import('@modelcontextprotocol/sdk/client/auth.js').OAuthClientProvider
 }
 
-/**
- * Event emitted by the connection manager when a server's tools change.
- */
 export interface ToolsChangedEvent {
   serverId: string
   serverName: string
@@ -219,9 +197,6 @@ export interface ToolsChangedEvent {
   timestamp: number
 }
 
-/**
- * State of a managed persistent connection.
- */
 export interface ManagedConnectionState {
   serverId: string
   serverName: string
@@ -233,9 +208,6 @@ export interface ManagedConnectionState {
   lastActivity: number
 }
 
-/**
- * Event emitted when workflow CRUD modifies a workflow MCP server's tools.
- */
 export interface WorkflowToolsChangedEvent {
   serverId: string
   workspaceId: string

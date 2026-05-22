@@ -57,9 +57,7 @@ export const mcpKeys = {
 
 export type { McpServer }
 
-/**
- * Input for creating/updating an MCP server (distinct from McpServerConfig in types.ts)
- */
+/** Wire shape for create/update; distinct from runtime McpServerConfig. */
 export interface McpServerInput {
   name: string
   transport: McpTransport
@@ -265,11 +263,7 @@ export function useCreateMcpServer() {
   })
 }
 
-/**
- * Result of `useStartMcpOauth`. When `popup` is set, the caller should wait
- * for it to close (or for the `mcp-oauth` postMessage) before clearing any
- * "connecting" UI state.
- */
+/** On `redirect`, the caller must wait for `popup.closed` or the `mcp-oauth` postMessage. */
 export type StartMcpOauthMutationResult =
   | { status: 'redirect'; popup: Window }
   | { status: 'already_authorized' }
@@ -464,13 +458,7 @@ const sseConnections: Map<string, SseEntry> =
   ((globalThis as Record<string, unknown>)[SSE_KEY] as Map<string, SseEntry>) ??
   ((globalThis as Record<string, unknown>)[SSE_KEY] = new Map<string, SseEntry>())
 
-/**
- * Subscribe to MCP tool-change SSE events for a workspace.
- * On each `tools_changed` event, invalidates the relevant React Query caches
- * so the UI refreshes automatically.
- *
- * Invalidates both external MCP server keys and workflow MCP server keys.
- */
+/** Subscribes to `tools_changed` SSE events and invalidates the affected query keys. */
 export function useMcpToolsEvents(workspaceId: string) {
   const queryClient = useQueryClient()
 
@@ -598,17 +586,11 @@ export function useMcpServerTest() {
   }
 }
 
-/**
- * Fetch allowed MCP domains (admin-configured allowlist)
- */
 async function fetchAllowedMcpDomains(signal?: AbortSignal): Promise<string[] | null> {
   const data = await requestJson(getAllowedMcpDomainsContract, { signal })
   return data.allowedMcpDomains ?? null
 }
 
-/**
- * Hook to fetch allowed MCP domains
- */
 export function useAllowedMcpDomains() {
   return useQuery<string[] | null>({
     queryKey: mcpKeys.allowedDomains(),
