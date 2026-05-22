@@ -117,9 +117,10 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
 
   const chunks = chunkArray(workspaceIds, workspaceChunkSize)
   let stoppedEarly = false
+  let attempted = 0
 
   for (const [chunkIdx, chunkIds] of chunks.entries()) {
-    if (result.deleted + result.failed >= totalRowLimit) {
+    if (attempted >= totalRowLimit) {
       stoppedEarly = true
       break
     }
@@ -127,20 +128,24 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
     let batchesProcessed = 0
     let hasMore = true
 
-    while (
-      hasMore &&
-      batchesProcessed < maxBatches &&
-      result.deleted + result.failed < totalRowLimit
-    ) {
+    while (hasMore && batchesProcessed < maxBatches && attempted < totalRowLimit) {
       let rows: TRow[] = []
       try {
-        rows = await selectChunk(chunkIds, batchSize)
+        const remainingLimit = totalRowLimit - attempted
+        const effectiveBatchSize = Math.min(batchSize, remainingLimit)
+        if (effectiveBatchSize <= 0) {
+          hasMore = false
+          break
+        }
+
+        rows = await selectChunk(chunkIds, effectiveBatchSize)
 
         if (rows.length === 0) {
           hasMore = false
           break
         }
 
+        attempted += rows.length
         if (onBatch) await onBatch(rows)
 
         const ids = rows.map((r) => r.id)
@@ -150,7 +155,8 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
           .returning({ id: sql`id` })
 
         result.deleted += deleted.length
-        hasMore = rows.length === batchSize
+        result.failed += rows.length - deleted.length
+        hasMore = rows.length === effectiveBatchSize && attempted < totalRowLimit
         batchesProcessed++
       } catch (error) {
         // Count rows we tried to delete; SELECT-stage errors leave rows=[].
