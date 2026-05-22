@@ -9,12 +9,17 @@ export async function createPostgresConnection(config: PostgresConnectionConfig)
   }
 
   const resolvedHost = hostValidation.resolvedIP ?? config.host
+  const pinIP = config.ssl !== 'preferred'
 
-  const sslConfig: boolean | { rejectUnauthorized: boolean; servername?: string } =
-    config.ssl === 'disabled' ? false : { rejectUnauthorized: false, servername: config.host }
+  const sslConfig: boolean | 'prefer' | { rejectUnauthorized: boolean; servername?: string } =
+    config.ssl === 'disabled'
+      ? false
+      : config.ssl === 'preferred'
+        ? 'prefer'
+        : { rejectUnauthorized: false, servername: config.host }
 
   const sql = postgres({
-    host: resolvedHost,
+    host: pinIP ? resolvedHost : config.host,
     port: config.port,
     database: config.database,
     username: config.username,
