@@ -1,3 +1,4 @@
+import net from 'node:net'
 import mysql from 'mysql2/promise'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 
@@ -16,12 +17,20 @@ export async function createMySQLConnection(config: MySQLConnectionConfig) {
     throw new Error(hostValidation.error)
   }
 
+  const resolvedIP = hostValidation.resolvedIP ?? config.host
+
   const connectionConfig: mysql.ConnectionOptions = {
     host: config.host,
     port: config.port,
     database: config.database,
     user: config.username,
     password: config.password,
+    // Pin socket to resolved IP to prevent DNS rebinding; mysql2 still uses config.host for TLS servername.
+    stream: () => {
+      const socket = net.connect(config.port, resolvedIP)
+      socket.setNoDelay(true)
+      return socket
+    },
   }
 
   if (config.ssl === 'disabled') {

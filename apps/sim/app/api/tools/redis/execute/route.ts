@@ -36,7 +36,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: hostValidation.error }, { status: 400 })
     }
 
-    client = new Redis(url, {
+    const resolvedIP = hostValidation.resolvedIP ?? hostname
+    const tlsEnabled = parsedUrl.protocol === 'rediss:'
+    const port = parsedUrl.port ? Number(parsedUrl.port) : 6379
+    const username = parsedUrl.username ? decodeURIComponent(parsedUrl.username) : undefined
+    const password = parsedUrl.password ? decodeURIComponent(parsedUrl.password) : undefined
+    const dbIndex =
+      parsedUrl.pathname && parsedUrl.pathname.length > 1
+        ? Number.parseInt(parsedUrl.pathname.slice(1), 10)
+        : Number.NaN
+
+    // Pin to resolved IP to prevent DNS rebinding; for `rediss://`, pass original hostname as TLS servername.
+    client = new Redis({
+      host: resolvedIP,
+      port,
+      username,
+      password,
+      db: Number.isFinite(dbIndex) ? dbIndex : 0,
+      family: resolvedIP.includes(':') ? 6 : 4,
+      tls: tlsEnabled ? { servername: hostname } : undefined,
       connectTimeout: 10000,
       commandTimeout: 10000,
       maxRetriesPerRequest: 1,
