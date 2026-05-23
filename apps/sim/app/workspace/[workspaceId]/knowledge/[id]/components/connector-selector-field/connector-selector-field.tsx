@@ -72,7 +72,7 @@ export function ConnectorSelectorField({
 
   if (isLoading && isEnabled) {
     return (
-      <div className='flex items-center gap-2 rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 text-[var(--text-muted)] text-caption'>
+      <div className='flex items-center gap-2 rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-medium text-[var(--text-muted)] text-sm'>
         <Loader className='size-3.5' animate />
         Loading…
       </div>
@@ -84,7 +84,6 @@ export function ConnectorSelectorField({
     return (
       <Combobox
         multiSelect
-        size='sm'
         options={comboboxOptions}
         multiSelectValues={multiValues}
         onMultiSelectChange={(values) => onChange(values)}
@@ -106,7 +105,6 @@ export function ConnectorSelectorField({
   const singleValue = Array.isArray(value) ? value[0] : value
   return (
     <Combobox
-      size='sm'
       options={comboboxOptions}
       value={singleValue || undefined}
       onChange={(next) => onChange(next)}

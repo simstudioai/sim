@@ -388,7 +388,7 @@ function SettingsTab({
               <div className='flex items-center gap-1'>
                 <Label>
                   {field.title}
-                  {field.required && <span className='ml-0.5 text-[var(--text-error)]'>*</span>}
+                  {field.required && <span className='ml-0.5'>*</span>}
                 </Label>
                 {field.description && (
                   <Tooltip.Root>
@@ -437,7 +437,6 @@ function SettingsTab({
               />
             ) : field.type === 'dropdown' && field.options ? (
               <Combobox
-                size='sm'
                 options={field.options.map((opt) => ({
                   label: opt.label,
                   value: opt.id,
