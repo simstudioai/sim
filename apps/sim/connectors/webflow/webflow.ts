@@ -83,7 +83,7 @@ export const webflowConnector: ConnectorConfig = {
   id: 'webflow',
   name: 'Webflow',
   description:
-    'Sync CMS collection items from a Webflow site into your knowledge base. Note: Webflow OAuth tokens do not support refresh — you may need to reconnect periodically.',
+    'Sync CMS collection items from a Webflow site. Note: Webflow OAuth tokens do not support refresh — you may need to reconnect periodically.',
   version: '1.0.0',
   icon: WebflowIcon,
 

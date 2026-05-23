@@ -72,7 +72,7 @@ export function ConnectorSelectorField({
 
   if (isLoading && isEnabled) {
     return (
-      <div className='flex items-center gap-2 rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-medium text-[var(--text-muted)] text-sm'>
+      <div className='flex items-center gap-2 rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-medium text-[var(--text-muted)] text-small'>
         <Loader className='size-3.5' animate />
         Loading…
       </div>
