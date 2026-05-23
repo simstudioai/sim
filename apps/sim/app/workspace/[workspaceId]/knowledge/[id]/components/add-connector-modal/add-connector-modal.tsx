@@ -218,7 +218,10 @@ export function AddConnectorModal({
   return (
     <>
       <Modal open={open} onOpenChange={(val) => !isCreating && onOpenChange(val)}>
-        <ModalContent size='md' className='h-[80vh] max-h-[560px]'>
+        <ModalContent
+          size='md'
+          className={step === 'select-type' ? 'max-h-[520px]' : 'h-[80vh] max-h-[560px]'}
+        >
           <ModalHeader>
             {step === 'configure' && (
               <Button
@@ -240,10 +243,10 @@ export function AddConnectorModal({
               : `Configure the ${connectorConfig?.name} connector settings`}
           </ModalDescription>
 
-          <ModalBody className='pb-3'>
+          <ModalBody className={step === 'select-type' ? 'pt-2 pb-3' : 'pb-3'}>
             {step === 'select-type' ? (
-              <div className='flex min-h-0 flex-col gap-2'>
-                <div className='flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-[5px] transition-colors duration-100 hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-3)]'>
+              <div className='flex min-h-0 flex-col gap-2.5'>
+                <div className='flex h-8 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 transition-colors duration-100 hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-3)]'>
                   <Search
                     className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
                     strokeWidth={2}
@@ -252,10 +255,10 @@ export function AddConnectorModal({
                     placeholder='Search sources...'
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                    className='h-auto flex-1 border-0 bg-transparent p-0 font-medium text-small leading-none placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
                   />
                 </div>
-                <div className='min-h-[400px] overflow-y-auto [scrollbar-gutter:stable]'>
+                <div className='max-h-[390px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>
                   <div className='flex flex-col gap-0.5 pr-1'>
                     {filteredEntries.map(([type, config]) => (
                       <ConnectorTypeCard
@@ -265,7 +268,7 @@ export function AddConnectorModal({
                       />
                     ))}
                     {filteredEntries.length === 0 && (
-                      <div className='rounded-lg bg-[var(--surface-3)] px-3 py-8 text-center text-[var(--text-muted)] text-small'>
+                      <div className='rounded-lg bg-[var(--surface-3)] px-3 py-8 text-center text-[var(--text-muted)] text-caption'>
                         {CONNECTOR_ENTRIES.length === 0
                           ? 'No connectors available.'
                           : `No sources found matching "${searchTerm}"`}
@@ -301,7 +304,6 @@ export function AddConnectorModal({
                   <div className='flex flex-col gap-2'>
                     <Label>Account</Label>
                     <Combobox
-                      size='sm'
                       options={[
                         ...credentials.map(
                           (cred): ComboboxOption => ({
@@ -325,11 +327,7 @@ export function AddConnectorModal({
                       onOpenChange={(isOpen) => {
                         if (isOpen) void refetchCredentials()
                       }}
-                      placeholder={
-                        credentials.length === 0
-                          ? `No ${connectorConfig.name} accounts`
-                          : 'Select account'
-                      }
+                      placeholder={`Select ${connectorConfig.name} account`}
                       isLoading={credentialsLoading}
                     />
                   </div>
@@ -348,9 +346,7 @@ export function AddConnectorModal({
                         <div className='flex items-center gap-1'>
                           <Label>
                             {field.title}
-                            {field.required && (
-                              <span className='ml-0.5 text-[var(--text-error)]'>*</span>
-                            )}
+                            {field.required && <span className='ml-0.5'>*</span>}
                           </Label>
                           {field.description && (
                             <Tooltip.Root>
@@ -401,7 +397,6 @@ export function AddConnectorModal({
                         />
                       ) : field.type === 'dropdown' && field.options ? (
                         <Combobox
-                          size='sm'
                           options={field.options.map((opt) => ({
                             label: opt.label,
                             value: opt.id,
@@ -432,44 +427,42 @@ export function AddConnectorModal({
                 {connectorConfig.tagDefinitions && connectorConfig.tagDefinitions.length > 0 && (
                   <div className='flex flex-col gap-2'>
                     <Label>Metadata Tags</Label>
-                    <div className='flex flex-col gap-0.5 rounded-lg border border-[var(--border-muted)] bg-[var(--surface-2)] p-1'>
-                      {connectorConfig.tagDefinitions.map((tagDef) => (
-                        <div
-                          key={tagDef.id}
-                          role='checkbox'
-                          aria-checked={!disabledTagIds.has(tagDef.id)}
-                          tabIndex={0}
-                          className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-small transition-colors hover-hover:bg-[var(--surface-active)]'
-                          onClick={() => toggleTagDefinition(tagDef.id)}
-                          onKeyDown={(event) => {
-                            if (event.target !== event.currentTarget) return
-                            handleKeyboardActivation(event, () => toggleTagDefinition(tagDef.id))
+                    {connectorConfig.tagDefinitions.map((tagDef) => (
+                      <div
+                        key={tagDef.id}
+                        role='checkbox'
+                        aria-checked={!disabledTagIds.has(tagDef.id)}
+                        tabIndex={0}
+                        className='flex cursor-pointer items-center gap-2 rounded-sm p-0.5 text-small'
+                        onClick={() => toggleTagDefinition(tagDef.id)}
+                        onKeyDown={(event) => {
+                          if (event.target !== event.currentTarget) return
+                          handleKeyboardActivation(event, () => toggleTagDefinition(tagDef.id))
+                        }}
+                      >
+                        <Checkbox
+                          checked={!disabledTagIds.has(tagDef.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          onCheckedChange={(checked) => {
+                            setDisabledTagIds((prev) => {
+                              const next = new Set(prev)
+                              if (checked) {
+                                next.delete(tagDef.id)
+                              } else {
+                                next.add(tagDef.id)
+                              }
+                              return next
+                            })
                           }}
-                        >
-                          <Checkbox
-                            checked={!disabledTagIds.has(tagDef.id)}
-                            onClick={(e) => e.stopPropagation()}
-                            onCheckedChange={(checked) => {
-                              setDisabledTagIds((prev) => {
-                                const next = new Set(prev)
-                                if (checked) {
-                                  next.delete(tagDef.id)
-                                } else {
-                                  next.add(tagDef.id)
-                                }
-                                return next
-                              })
-                            }}
-                          />
-                          <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>
-                            {tagDef.displayName}
-                          </span>
-                          <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
-                            {tagDef.fieldType}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                        />
+                        <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>
+                          {tagDef.displayName}
+                        </span>
+                        <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
+                          ({tagDef.fieldType})
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
 
@@ -550,18 +543,19 @@ function ConnectorTypeCard({ config, onClick }: ConnectorTypeCardProps) {
   const Icon = config.icon
 
   return (
-    <button
+    <Button
       type='button'
-      className='group flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
+      variant='ghost'
+      className='group flex min-h-10 w-full justify-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
       onClick={onClick}
     >
-      <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--surface-4)] transition-colors group-hover:bg-[var(--surface-5)]'>
-        <Icon className='size-[18px] text-[var(--text-secondary)]' />
-      </div>
+      <Icon className='size-[18px] flex-shrink-0' />
       <div className='flex min-w-0 flex-1 flex-col gap-[1px]'>
-        <span className='truncate text-[14px] text-[var(--text-body)]'>{config.name}</span>
-        <span className='truncate text-[var(--text-muted)] text-xs'>{config.description}</span>
+        <span className='truncate font-medium text-[var(--text-body)] text-small'>
+          {config.name}
+        </span>
+        <span className='truncate text-[var(--text-muted)] text-caption'>{config.description}</span>
       </div>
-    </button>
+    </Button>
   )
 }
