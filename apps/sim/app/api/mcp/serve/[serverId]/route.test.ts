@@ -197,4 +197,51 @@ describe('MCP Serve Route', () => {
     expect(headers['X-API-Key']).toBeUndefined()
     expect(mockGenerateInternalToken).toHaveBeenCalledWith('user-1')
   })
+
+  describe('initialize protocol version negotiation', () => {
+    async function callInitialize(protocolVersion?: string) {
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        {
+          id: 'server-1',
+          name: 'Public Server',
+          workspaceId: 'ws-1',
+          isPublic: true,
+          createdBy: 'owner-1',
+        },
+      ])
+      const params: Record<string, unknown> = {
+        capabilities: {},
+        clientInfo: { name: 'test', version: '1.0.0' },
+      }
+      if (protocolVersion !== undefined) params.protocolVersion = protocolVersion
+      const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+        method: 'POST',
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params }),
+      })
+      const res = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+      return res.json() as Promise<{ result: { protocolVersion: string } }>
+    }
+
+    it('echoes a supported client protocolVersion (2025-06-18)', async () => {
+      const body = await callInitialize('2025-06-18')
+      expect(body.result.protocolVersion).toBe('2025-06-18')
+    })
+
+    it('echoes a supported client protocolVersion (2024-11-05)', async () => {
+      const body = await callInitialize('2024-11-05')
+      expect(body.result.protocolVersion).toBe('2024-11-05')
+    })
+
+    it('falls back to SDK latest when client requests unknown version', async () => {
+      const { LATEST_PROTOCOL_VERSION } = await import('@modelcontextprotocol/sdk/types.js')
+      const body = await callInitialize('2099-01-01')
+      expect(body.result.protocolVersion).toBe(LATEST_PROTOCOL_VERSION)
+    })
+
+    it('falls back to SDK latest when client omits protocolVersion', async () => {
+      const { LATEST_PROTOCOL_VERSION } = await import('@modelcontextprotocol/sdk/types.js')
+      const body = await callInitialize(undefined)
+      expect(body.result.protocolVersion).toBe(LATEST_PROTOCOL_VERSION)
+    })
+  })
 })

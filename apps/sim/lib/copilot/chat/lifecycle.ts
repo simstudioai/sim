@@ -51,6 +51,19 @@ const copilotChatDetailColumns = {
   updatedAt: copilotChats.updatedAt,
 } as const
 
+/**
+ * Column set for the legacy copilot chat detail endpoint. Extends
+ * `copilotChatDetailColumns` with `model`, `planArtifact`, and `config` — the
+ * fields the legacy `transformChat` response shape includes. Still drops
+ * `previewYaml` (JSONB), `pinned`, and `lastSeenAt`.
+ */
+const copilotChatLegacyDetailColumns = {
+  ...copilotChatDetailColumns,
+  model: copilotChats.model,
+  planArtifact: copilotChats.planArtifact,
+  config: copilotChats.config,
+} as const
+
 type CopilotChatAuthRow = Pick<
   typeof copilotChats.$inferSelect,
   'id' | 'userId' | 'workflowId' | 'workspaceId' | 'type'
@@ -70,6 +83,9 @@ export type CopilotChatDetailRow = Pick<
   | 'createdAt'
   | 'updatedAt'
 >
+
+export type CopilotChatLegacyDetailRow = CopilotChatDetailRow &
+  Pick<typeof copilotChats.$inferSelect, 'model' | 'planArtifact' | 'config'>
 
 async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
   chat: T | undefined,
@@ -130,15 +146,16 @@ export async function getAccessibleCopilotChatAuth(
 }
 
 /**
- * Load the full copilot chat row after authorization. Use this only when the
- * caller actually consumes copilot-only TOAST-able columns (`previewYaml`,
- * `planArtifact`, `config`) or other extended metadata — for example the
- * legacy copilot chat detail endpoint. Mothership chats and other consumers
- * that only need the transcript should prefer `getAccessibleCopilotChatWithMessages`.
+ * Load a copilot chat row for the legacy chat detail endpoint, including the
+ * transcript plus `model`, `planArtifact`, and `config`. Drops `previewYaml`
+ * (JSONB), `pinned`, and `lastSeenAt` — none of which the endpoint returns.
  */
-export async function getAccessibleCopilotChat(chatId: string, userId: string) {
+export async function getAccessibleCopilotChat(
+  chatId: string,
+  userId: string
+): Promise<CopilotChatLegacyDetailRow | null> {
   const [chat] = await db
-    .select()
+    .select(copilotChatLegacyDetailColumns)
     .from(copilotChats)
     .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
     .limit(1)

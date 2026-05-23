@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowLeftRight, ExternalLink, RotateCcw } from 'lucide-react'
+import { ArrowLeftRight, ExternalLink, Info, RotateCcw } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
@@ -295,7 +295,7 @@ export function EditConnectorModal({
             <ModalTabsTrigger value='documents'>Documents</ModalTabsTrigger>
           </ModalTabsList>
 
-          <ModalBody>
+          <ModalBody className='pb-3'>
             <ModalTabsContent value='settings'>
               <SettingsTab
                 connectorConfig={connectorConfig}
@@ -385,20 +385,38 @@ function SettingsTab({
         return (
           <div key={field.id} className='flex flex-col gap-2'>
             <div className='flex items-center justify-between'>
-              <Label>
-                {field.title}
-                {field.required && <span className='ml-0.5 text-[var(--text-error)]'>*</span>}
-              </Label>
+              <div className='flex items-center gap-1'>
+                <Label>
+                  {field.title}
+                  {field.required && <span className='ml-0.5'>*</span>}
+                </Label>
+                {field.description && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        className='flex size-[14px] cursor-help items-center justify-center p-0 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-secondary)]'
+                        aria-label={`About ${field.title}`}
+                      >
+                        <Info className='size-[12px]' />
+                      </Button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>{field.description}</Tooltip.Content>
+                  </Tooltip.Root>
+                )}
+              </div>
               {hasCanonicalPair && canonicalId && (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <button
+                    <Button
                       type='button'
-                      className='flex size-[18px] items-center justify-center rounded-[3px] text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
+                      variant='ghost'
+                      className='flex size-[18px] items-center justify-center rounded-[3px] p-0 text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
                       onClick={() => onToggleCanonicalMode(canonicalId)}
                     >
                       <ArrowLeftRight className='size-[12px]' />
-                    </button>
+                    </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>
                     {field.mode === 'basic' ? 'Switch to manual input' : 'Switch to selector'}
@@ -406,9 +424,6 @@ function SettingsTab({
                 </Tooltip.Root>
               )}
             </div>
-            {field.description && (
-              <p className='text-[var(--text-muted)] text-xs'>{field.description}</p>
-            )}
             {field.type === 'selector' && field.selectorKey ? (
               <ConnectorSelectorField
                 field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
@@ -422,7 +437,6 @@ function SettingsTab({
               />
             ) : field.type === 'dropdown' && field.options ? (
               <Combobox
-                size='sm'
                 options={field.options.map((opt) => ({
                   label: opt.label,
                   value: opt.id,
@@ -499,46 +513,55 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
   if (isLoading) {
     return (
       <div className='flex flex-col gap-2'>
-        <Skeleton className='h-6 w-full' />
-        <Skeleton className='h-6 w-full' />
-        <Skeleton className='h-6 w-full' />
+        <Skeleton className='h-7 w-[180px] rounded-md' />
+        <Skeleton className='h-9 w-full rounded-lg' />
+        <Skeleton className='h-9 w-full rounded-lg' />
+        <Skeleton className='h-9 w-full rounded-lg' />
       </div>
     )
   }
 
   return (
-    <div className='flex flex-col gap-4'>
+    <div className='flex flex-col gap-3'>
       <ButtonGroup value={filter} onValueChange={(val) => setFilter(val as 'active' | 'excluded')}>
         <ButtonGroupItem value='active'>Active ({counts.active})</ButtonGroupItem>
         <ButtonGroupItem value='excluded'>Excluded ({counts.excluded})</ButtonGroupItem>
       </ButtonGroup>
 
-      <div className='max-h-[320px] min-h-0 overflow-y-auto'>
+      <div className='max-h-[320px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>
         {documents.length === 0 ? (
-          <p className='py-4 text-center text-[var(--text-muted)] text-small'>
+          <p className='rounded-lg bg-[var(--surface-3)] px-3 py-8 text-center text-[var(--text-muted)] text-small'>
             {filter === 'excluded' ? 'No excluded documents' : 'No documents yet'}
           </p>
         ) : (
-          <div className='flex flex-col gap-2'>
+          <div className='flex flex-col gap-0.5 pr-1'>
             {documents.map((doc) => (
-              <div key={doc.id} className='flex items-center justify-between'>
+              <div
+                key={doc.id}
+                className='flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 transition-colors hover-hover:bg-[var(--surface-active)]'
+              >
                 <div className='flex min-w-0 items-center gap-1.5'>
                   <span className='truncate text-[var(--text-primary)] text-small'>
                     {doc.filename}
                   </span>
                   {doc.sourceUrl && (
-                    <a
-                      href={doc.sourceUrl}
-                      target='_blank'
-                      rel='noopener noreferrer'
-                      className='flex-shrink-0 text-[var(--text-muted)] hover-hover:text-[var(--text-secondary)]'
-                    >
-                      <ExternalLink className='size-3' />
-                    </a>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <a
+                          href={doc.sourceUrl}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className='flex size-5 flex-shrink-0 items-center justify-center rounded-md text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
+                        >
+                          <ExternalLink className='size-3' />
+                        </a>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>Open source document</Tooltip.Content>
+                    </Tooltip.Root>
                   )}
                 </div>
                 <Button
-                  variant='ghost'
+                  variant='ghost-secondary'
                   size='sm'
                   className='flex-shrink-0'
                   disabled={doc.userExcluded ? isRestoring : isExcluding}

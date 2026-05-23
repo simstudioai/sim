@@ -1,7 +1,3 @@
-/**
- * MCP Service - Clean stateless service for MCP operations
- */
-
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { db } from '@sim/db'
@@ -100,19 +96,12 @@ class McpService {
     }
   }
 
-  /**
-   * Dispose of the service and cleanup resources
-   */
   dispose(): void {
     this.unsubscribeConnectionManager?.()
     this.cacheAdapter.dispose()
     logger.info('MCP Service disposed')
   }
 
-  /**
-   * Resolve environment variables in server config.
-   * Uses shared utility with strict mode (throws on missing vars).
-   */
   private async resolveConfigEnvVars(
     config: McpServerConfig,
     userId: string,
@@ -126,9 +115,6 @@ class McpService {
     return { config: resolvedConfig, resolvedIP }
   }
 
-  /**
-   * Get server configuration from database
-   */
   private async getServerConfig(
     serverId: string,
     workspaceId: string
@@ -171,9 +157,6 @@ class McpService {
     }
   }
 
-  /**
-   * Get all enabled servers for a workspace
-   */
   private async getWorkspaceServers(workspaceId: string): Promise<McpServerConfig[]> {
     const whereConditions = [
       eq(mcpServers.workspaceId, workspaceId),
@@ -205,9 +188,6 @@ class McpService {
       .filter((config) => isMcpDomainAllowed(config.url))
   }
 
-  /**
-   * Create and connect to an MCP client
-   */
   private async createClient(
     config: McpServerConfig,
     resolvedIP: string | null,
@@ -320,12 +300,7 @@ class McpService {
     throw new Error(`Failed to execute tool ${toolCall.name} after ${maxRetries} attempts`)
   }
 
-  /**
-   * Detects an expired or unknown `Mcp-Session-Id` so the caller can retry.
-   * Per MCP spec, the server returns HTTP 404 for an unknown session id and
-   * may return 400 when the session header is malformed; the SDK surfaces
-   * both as `StreamableHTTPError` with a typed numeric `code` field.
-   */
+  /** MCP spec: server returns 404 for unknown session id, 400 for malformed header. */
   private isSessionError(error: unknown): boolean {
     if (error instanceof StreamableHTTPError) {
       return error.code === 404 || error.code === 400
@@ -333,9 +308,6 @@ class McpService {
     return false
   }
 
-  /**
-   * Update server connection status after discovery attempt
-   */
   private async updateServerStatus(
     serverId: string,
     workspaceId: string,
@@ -448,9 +420,6 @@ class McpService {
     }
   }
 
-  /**
-   * Discover tools from all workspace servers
-   */
   async discoverTools(
     userId: string,
     workspaceId: string,
@@ -601,9 +570,9 @@ class McpService {
 
       // Await cache writes so a follow-up discoverTools sees consistent state.
       await Promise.allSettled(cacheWrites)
-      Promise.allSettled(deferredSideEffects).catch((err) => {
-        logger.error(`[${requestId}] Error in deferred discovery work:`, err)
-      })
+      // Each deferred side-effect self-logs failures, so we just mark the
+      // promises as handled to avoid unhandled-rejection warnings.
+      for (const p of deferredSideEffects) p.catch(() => {})
 
       if (mcpConnectionManager) {
         for (const conn of liveConnections) {
@@ -744,9 +713,6 @@ class McpService {
     throw new Error(`Failed to discover tools from server ${serverId} after ${maxRetries} attempts`)
   }
 
-  /**
-   * Get server summaries for a user
-   */
   async getServerSummaries(userId: string, workspaceId: string): Promise<McpServerSummary[]> {
     const requestId = generateRequestId()
 

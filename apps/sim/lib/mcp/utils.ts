@@ -1,6 +1,11 @@
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { NextResponse } from 'next/server'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
-import type { McpApiResponse } from '@/lib/mcp/types'
+import {
+  type McpApiResponse,
+  McpConnectionError,
+  McpOauthAuthorizationRequiredError,
+} from '@/lib/mcp/types'
 import { isMcpTool, MCP } from '@/executor/constants'
 
 export const MCP_CONSTANTS = {
@@ -137,28 +142,36 @@ export function categorizeError(error: unknown): { message: string; status: numb
     return { message: 'Unknown error occurred', status: 500 }
   }
 
+  // Typed dispatch first — our own classes carry definitive intent.
+  if (error instanceof McpOauthAuthorizationRequiredError || error instanceof UnauthorizedError) {
+    return { message: 'Authentication required', status: 401 }
+  }
+  if (error instanceof McpConnectionError) {
+    if (error.message.toLowerCase().includes('cooldown')) {
+      return { message: 'Server temporarily unavailable', status: 503 }
+    }
+    return { message: 'Connection failed', status: 502 }
+  }
+
+  // Fall back to substring matching for SDK / third-party errors we don't
+  // own a typed class for.
   const msg = error.message.toLowerCase()
 
   if (msg.includes('timeout')) {
     return { message: 'Request timed out', status: 408 }
   }
-
   if (msg.includes('cooldown')) {
     return { message: 'Server temporarily unavailable', status: 503 }
   }
-
   if (msg.includes('not found') || msg.includes('not accessible')) {
     return { message: 'Resource not found', status: 404 }
   }
-
   if (msg.includes('authentication') || msg.includes('unauthorized')) {
     return { message: 'Authentication required', status: 401 }
   }
-
   if (msg.includes('invalid') || msg.includes('missing required') || msg.includes('validation')) {
     return { message: 'Invalid request parameters', status: 400 }
   }
-
   return { message: 'Internal server error', status: 500 }
 }
 

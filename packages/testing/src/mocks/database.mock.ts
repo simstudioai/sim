@@ -234,20 +234,25 @@ export const dbChainMock = {
  * Creates a mock database connection.
  */
 export function createMockDb() {
+  const fromBuilder = () => ({
+    where: vi.fn(() => ({
+      limit: vi.fn(() => Promise.resolve([])),
+      orderBy: vi.fn(() => Promise.resolve([])),
+    })),
+    leftJoin: vi.fn(() => ({
+      where: vi.fn(() => Promise.resolve([])),
+    })),
+    innerJoin: vi.fn(() => ({
+      where: vi.fn(() => Promise.resolve([])),
+    })),
+  })
+
   return {
     select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(() => Promise.resolve([])),
-          orderBy: vi.fn(() => Promise.resolve([])),
-        })),
-        leftJoin: vi.fn(() => ({
-          where: vi.fn(() => Promise.resolve([])),
-        })),
-        innerJoin: vi.fn(() => ({
-          where: vi.fn(() => Promise.resolve([])),
-        })),
-      })),
+      from: vi.fn(fromBuilder),
+    })),
+    selectDistinct: vi.fn(() => ({
+      from: vi.fn(fromBuilder),
     })),
     insert: vi.fn(() => ({
       values: vi.fn(() => ({

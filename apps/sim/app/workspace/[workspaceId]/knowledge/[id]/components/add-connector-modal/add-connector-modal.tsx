@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowLeftRight, Plus, Search } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, Info, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -218,7 +218,10 @@ export function AddConnectorModal({
   return (
     <>
       <Modal open={open} onOpenChange={(val) => !isCreating && onOpenChange(val)}>
-        <ModalContent size='md' className='h-[80vh] max-h-[560px]'>
+        <ModalContent
+          size='md'
+          className={step === 'select-type' ? 'max-h-[520px]' : 'h-[80vh] max-h-[560px]'}
+        >
           <ModalHeader>
             {step === 'configure' && (
               <Button
@@ -240,23 +243,23 @@ export function AddConnectorModal({
               : `Configure the ${connectorConfig?.name} connector settings`}
           </ModalDescription>
 
-          <ModalBody>
+          <ModalBody className={step === 'select-type' ? 'pt-2 pb-3' : 'pb-3'}>
             {step === 'select-type' ? (
-              <div className='flex flex-col gap-2'>
-                <div className='flex items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+              <div className='flex min-h-0 flex-col gap-2.5'>
+                <div className='flex h-8 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 transition-colors duration-100 hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-3)]'>
                   <Search
-                    className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+                    className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
                     strokeWidth={2}
                   />
                   <Input
                     placeholder='Search sources...'
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                    className='h-auto flex-1 border-0 bg-transparent p-0 font-medium text-small leading-none placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
                   />
                 </div>
-                <div className='min-h-[400px] overflow-y-auto'>
-                  <div className='flex flex-col gap-0.5'>
+                <div className='max-h-[390px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>
+                  <div className='flex flex-col gap-0.5 pr-1'>
                     {filteredEntries.map(([type, config]) => (
                       <ConnectorTypeCard
                         key={type}
@@ -265,7 +268,7 @@ export function AddConnectorModal({
                       />
                     ))}
                     {filteredEntries.length === 0 && (
-                      <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                      <div className='rounded-lg bg-[var(--surface-3)] px-3 py-8 text-center text-[var(--text-muted)] text-caption'>
                         {CONNECTOR_ENTRIES.length === 0
                           ? 'No connectors available.'
                           : `No sources found matching "${searchTerm}"`}
@@ -276,7 +279,6 @@ export function AddConnectorModal({
               </div>
             ) : connectorConfig ? (
               <div className='flex flex-col gap-3'>
-                {/* Auth: API key input or OAuth credential selection */}
                 {isApiKeyMode ? (
                   <div className='flex flex-col gap-2'>
                     <Label>
@@ -302,7 +304,6 @@ export function AddConnectorModal({
                   <div className='flex flex-col gap-2'>
                     <Label>Account</Label>
                     <Combobox
-                      size='sm'
                       options={[
                         ...credentials.map(
                           (cred): ComboboxOption => ({
@@ -326,17 +327,12 @@ export function AddConnectorModal({
                       onOpenChange={(isOpen) => {
                         if (isOpen) void refetchCredentials()
                       }}
-                      placeholder={
-                        credentials.length === 0
-                          ? `No ${connectorConfig.name} accounts`
-                          : 'Select account'
-                      }
+                      placeholder={`Select ${connectorConfig.name} account`}
                       isLoading={credentialsLoading}
                     />
                   </div>
                 )}
 
-                {/* Config fields */}
                 {connectorConfig.configFields.map((field) => {
                   if (!isFieldVisible(field)) return null
 
@@ -347,22 +343,38 @@ export function AddConnectorModal({
                   return (
                     <div key={field.id} className='flex flex-col gap-2'>
                       <div className='flex items-center justify-between'>
-                        <Label>
-                          {field.title}
-                          {field.required && (
-                            <span className='ml-0.5 text-[var(--text-error)]'>*</span>
+                        <div className='flex items-center gap-1'>
+                          <Label>
+                            {field.title}
+                            {field.required && <span className='ml-0.5'>*</span>}
+                          </Label>
+                          {field.description && (
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  className='flex size-[14px] cursor-help items-center justify-center p-0 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-secondary)]'
+                                  aria-label={`About ${field.title}`}
+                                >
+                                  <Info className='size-[12px]' />
+                                </Button>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content side='top'>{field.description}</Tooltip.Content>
+                            </Tooltip.Root>
                           )}
-                        </Label>
+                        </div>
                         {hasCanonicalPair && canonicalId && (
                           <Tooltip.Root>
                             <Tooltip.Trigger asChild>
-                              <button
+                              <Button
                                 type='button'
-                                className='flex size-[18px] items-center justify-center rounded-[3px] text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
+                                variant='ghost'
+                                className='flex size-[18px] items-center justify-center rounded-[3px] p-0 text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
                                 onClick={() => toggleCanonicalMode(canonicalId)}
                               >
                                 <ArrowLeftRight className='size-[12px]' />
-                              </button>
+                              </Button>
                             </Tooltip.Trigger>
                             <Tooltip.Content side='top'>
                               {field.mode === 'basic'
@@ -372,9 +384,6 @@ export function AddConnectorModal({
                           </Tooltip.Root>
                         )}
                       </div>
-                      {field.description && (
-                        <p className='text-[var(--text-muted)] text-xs'>{field.description}</p>
-                      )}
                       {field.type === 'selector' && field.selectorKey ? (
                         <ConnectorSelectorField
                           field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
@@ -388,7 +397,6 @@ export function AddConnectorModal({
                         />
                       ) : field.type === 'dropdown' && field.options ? (
                         <Combobox
-                          size='sm'
                           options={field.options.map((opt) => ({
                             label: opt.label,
                             value: opt.id,
@@ -416,7 +424,6 @@ export function AddConnectorModal({
                   )
                 })}
 
-                {/* Tag definitions (opt-out) */}
                 {connectorConfig.tagDefinitions && connectorConfig.tagDefinitions.length > 0 && (
                   <div className='flex flex-col gap-2'>
                     <Label>Metadata Tags</Label>
@@ -448,8 +455,10 @@ export function AddConnectorModal({
                             })
                           }}
                         />
-                        <span className='text-[var(--text-primary)]'>{tagDef.displayName}</span>
-                        <span className='text-[var(--text-muted)] text-xs'>
+                        <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>
+                          {tagDef.displayName}
+                        </span>
+                        <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
                           ({tagDef.fieldType})
                         </span>
                       </div>
@@ -457,7 +466,6 @@ export function AddConnectorModal({
                   </div>
                 )}
 
-                {/* Sync interval */}
                 <div className='flex flex-col gap-2'>
                   <Label>Sync Frequency</Label>
                   <ButtonGroup
@@ -535,18 +543,19 @@ function ConnectorTypeCard({ config, onClick }: ConnectorTypeCardProps) {
   const Icon = config.icon
 
   return (
-    <button
+    <Button
       type='button'
-      className='flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors hover-hover:bg-[var(--surface-3)]'
+      variant='ghost'
+      className='group flex min-h-10 w-full justify-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
       onClick={onClick}
     >
       <Icon className='size-[18px] flex-shrink-0' />
-      <div className='flex min-w-0 flex-col gap-[1px]'>
-        <span className='truncate font-medium text-[var(--text-primary)] text-small'>
+      <div className='flex min-w-0 flex-1 flex-col gap-[1px]'>
+        <span className='truncate font-medium text-[var(--text-body)] text-small'>
           {config.name}
         </span>
-        <span className='truncate text-[var(--text-muted)] text-xs'>{config.description}</span>
+        <span className='truncate text-[var(--text-muted)] text-caption'>{config.description}</span>
       </div>
-    </button>
+    </Button>
   )
 }
