@@ -137,7 +137,7 @@ function formatMessages(messages: DiscordMessage[]): string {
 export const discordConnector: ConnectorConfig = {
   id: 'discord',
   name: 'Discord',
-  description: 'Sync channel messages from Discord into your knowledge base',
+  description: 'Sync channel messages from Discord',
   version: '1.0.0',
   icon: DiscordIcon,
 

@@ -136,7 +136,7 @@ function buildListUrl(folderPath?: string): string {
 export const onedriveConnector: ConnectorConfig = {
   id: 'onedrive',
   name: 'OneDrive',
-  description: 'Sync documents from Microsoft OneDrive into your knowledge base',
+  description: 'Sync documents from Microsoft OneDrive',
   version: '1.0.0',
   icon: MicrosoftOneDriveIcon,
 

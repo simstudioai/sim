@@ -203,7 +203,7 @@ function buildIssuesQuery(
 export const linearConnector: ConnectorConfig = {
   id: 'linear',
   name: 'Linear',
-  description: 'Sync issues from Linear into your knowledge base',
+  description: 'Sync issues from Linear',
   version: '1.0.0',
   icon: LinearIcon,
 

@@ -75,7 +75,7 @@ function parseCursor(cursor?: string): string | undefined {
 export const airtableConnector: ConnectorConfig = {
   id: 'airtable',
   name: 'Airtable',
-  description: 'Sync records from an Airtable table into your knowledge base',
+  description: 'Sync records from an Airtable table',
   version: '1.0.0',
   icon: AirtableIcon,
 
