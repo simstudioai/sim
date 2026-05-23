@@ -486,7 +486,7 @@ async function buildSlackChannelDocument(
 export const slackConnector: ConnectorConfig = {
   id: 'slack',
   name: 'Slack',
-  description: 'Sync channel messages from Slack into your knowledge base',
+  description: 'Sync channel messages from Slack',
   version: '1.0.0',
   icon: SlackIcon,
 

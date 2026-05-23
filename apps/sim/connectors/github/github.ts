@@ -179,7 +179,7 @@ function treeItemToStub(
 export const githubConnector: ConnectorConfig = {
   id: 'github',
   name: 'GitHub',
-  description: 'Sync files from a GitHub repository into your knowledge base',
+  description: 'Sync files from a GitHub repository',
   version: '1.0.0',
   icon: GithubIcon,
 

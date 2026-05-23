@@ -246,7 +246,7 @@ export function AddConnectorModal({
           <ModalBody className={step === 'select-type' ? 'pt-2 pb-3' : 'pb-3'}>
             {step === 'select-type' ? (
               <div className='flex min-h-0 flex-col gap-2.5'>
-                <div className='flex h-8 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 transition-colors duration-100 hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-3)]'>
+                <div className='flex h-8 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-2 transition-colors duration-100 hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-4)]'>
                   <Search
                     className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
                     strokeWidth={2}
@@ -549,7 +549,7 @@ function ConnectorTypeCard({ config, onClick }: ConnectorTypeCardProps) {
       className='group flex min-h-10 w-full justify-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
       onClick={onClick}
     >
-      <Icon className='size-[18px] flex-shrink-0' />
+      <Icon className='size-[18px] flex-shrink-0 text-[var(--text-icon)]' />
       <div className='flex min-w-0 flex-1 flex-col gap-[1px]'>
         <span className='truncate font-medium text-[var(--text-body)] text-small'>
           {config.name}

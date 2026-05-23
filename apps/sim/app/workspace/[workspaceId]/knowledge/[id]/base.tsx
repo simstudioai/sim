@@ -886,18 +886,18 @@ export function KnowledgeBase({
           />
         </div>
         {enabledFilter.length > 0 && (
-          <button
-            type='button'
+          <Button
+            variant='ghost'
             onClick={() => {
               setEnabledFilter([])
               setCurrentPage(1)
               setSelectedDocuments(new Set())
               setIsSelectAllMode(false)
             }}
-            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+            className='h-[32px] w-full text-[var(--text-secondary)] text-caption'
           >
             Clear status filter
-          </button>
+          </Button>
         )}
         <TagFilterSection
           tagDefinitions={tagDefinitions}
@@ -1322,7 +1322,7 @@ export function KnowledgeBase({
       )}
 
       <Modal open={showConnectorsModal} onOpenChange={setShowConnectorsModal}>
-        <ModalContent size='lg'>
+        <ModalContent size='md'>
           <ModalHeader>Connected Sources</ModalHeader>
           <ModalDescription className='sr-only'>
             Manage connected data sources for this knowledge base
@@ -1535,13 +1535,13 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
             >
               <div className='flex items-center justify-between'>
                 <Label className='text-[var(--text-muted)] text-xs'>Tag</Label>
-                <button
-                  type='button'
+                <Button
+                  variant='ghost'
+                  className='size-5 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
                   onClick={() => removeFilter(entry.id)}
-                  className='text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-error)]'
                 >
                   <X className='size-3' />
-                </button>
+                </Button>
               </div>
               <Combobox
                 options={tagOptions}

@@ -179,7 +179,7 @@ function pageToStub(page: Record<string, unknown>): ExternalDocument {
 export const notionConnector: ConnectorConfig = {
   id: 'notion',
   name: 'Notion',
-  description: 'Sync pages from a Notion workspace into your knowledge base',
+  description: 'Sync pages from a Notion workspace',
   version: '1.0.0',
   icon: NotionIcon,
 

@@ -98,7 +98,7 @@ function fileToStub(entry: DropboxFileEntry): ExternalDocument {
 export const dropboxConnector: ConnectorConfig = {
   id: 'dropbox',
   name: 'Dropbox',
-  description: 'Sync text files from Dropbox into your knowledge base',
+  description: 'Sync text files from Dropbox',
   version: '1.0.0',
   icon: DropboxIcon,
 

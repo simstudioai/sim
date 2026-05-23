@@ -366,7 +366,7 @@ async function apiGetNote(
 export const evernoteConnector: ConnectorConfig = {
   id: 'evernote',
   name: 'Evernote',
-  description: 'Sync notes from Evernote into your knowledge base',
+  description: 'Sync notes from Evernote',
   version: '1.0.0',
   icon: EvernoteIcon,
 
