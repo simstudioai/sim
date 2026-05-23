@@ -215,6 +215,22 @@ const Combobox = memo(
       )
 
       /**
+       * Label rendered in the collapsed trigger for multi-select mode.
+       * Shows the single label when one value is picked, comma-joined labels
+       * for two, or "first, second +N" when more are selected. Falls back to
+       * the raw value if an option for it hasn't loaded yet.
+       */
+      const multiSelectLabel = useMemo(() => {
+        if (!multiSelect || !multiSelectValues || multiSelectValues.length === 0) return null
+        const labelFor = (v: string) => allOptions.find((opt) => opt.value === v)?.label ?? v
+        if (multiSelectValues.length === 1) return labelFor(multiSelectValues[0])
+        if (multiSelectValues.length === 2) {
+          return `${labelFor(multiSelectValues[0])}, ${labelFor(multiSelectValues[1])}`
+        }
+        return `${labelFor(multiSelectValues[0])}, ${labelFor(multiSelectValues[1])} +${multiSelectValues.length - 2}`
+      }, [multiSelect, multiSelectValues, allOptions])
+
+      /**
        * Filter options based on current value or search query
        */
       const filteredOptions = useMemo(() => {
@@ -590,11 +606,11 @@ const Combobox = memo(
                     <span
                       className={cn(
                         'flex-1 truncate',
-                        !selectedOption && 'text-[var(--text-muted)]',
+                        !selectedOption && !multiSelectLabel && 'text-[var(--text-muted)]',
                         overlayContent && 'text-transparent'
                       )}
                     >
-                      {selectedOption ? selectedOption.label : placeholder}
+                      {multiSelectLabel ?? (selectedOption ? selectedOption.label : placeholder)}
                     </span>
                     <ChevronDown
                       className={cn(

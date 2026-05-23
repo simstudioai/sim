@@ -11,8 +11,10 @@ import {
   type JSONRPCError,
   type JSONRPCMessage,
   type JSONRPCResultResponse,
+  LATEST_PROTOCOL_VERSION,
   type ListToolsResult,
   type RequestId,
+  SUPPORTED_PROTOCOL_VERSIONS,
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
@@ -35,6 +37,17 @@ import { SIM_VIA_HEADER } from '@/lib/execution/call-chain'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkflowMcpServeAPI')
+
+function negotiateProtocolVersion(rpcParams: unknown): string {
+  const requested =
+    rpcParams && typeof rpcParams === 'object' && 'protocolVersion' in rpcParams
+      ? (rpcParams as { protocolVersion?: unknown }).protocolVersion
+      : undefined
+  if (typeof requested === 'string' && SUPPORTED_PROTOCOL_VERSIONS.includes(requested)) {
+    return requested
+  }
+  return LATEST_PROTOCOL_VERSION
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -214,7 +227,7 @@ export const POST = withRouteHandler(
       switch (method) {
         case 'initialize': {
           const result: InitializeResult = {
-            protocolVersion: '2024-11-05',
+            protocolVersion: negotiateProtocolVersion(rpcParams),
             capabilities: { tools: {} },
             serverInfo: { name: server.name, version: '1.0.0' },
           }
