@@ -39,6 +39,7 @@ import type { DeletedRowSnapshot } from '@/stores/table/types'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
+  EnrichmentsSidebar,
   NewColumnDropdown,
   RowModal,
   RunStatusControl,
@@ -75,11 +76,13 @@ interface TableProps {
 type SlideoutState =
   | { kind: 'none' }
   | { kind: 'column'; config: ColumnConfig }
+  | { kind: 'enrichments' }
   | { kind: 'workflow'; config: WorkflowConfig }
   | { kind: 'execution'; executionId: string }
 
 type SlideoutAction =
   | { type: 'OPEN_COLUMN'; config: ColumnConfig }
+  | { type: 'OPEN_ENRICHMENTS' }
   | { type: 'OPEN_WORKFLOW'; config: WorkflowConfig }
   | { type: 'OPEN_EXECUTION'; executionId: string }
   | { type: 'CLOSE' }
@@ -88,6 +91,8 @@ function slideoutReducer(_state: SlideoutState, action: SlideoutAction): Slideou
   switch (action.type) {
     case 'OPEN_COLUMN':
       return { kind: 'column', config: action.config }
+    case 'OPEN_ENRICHMENTS':
+      return { kind: 'enrichments' }
     case 'OPEN_WORKFLOW':
       return { kind: 'workflow', config: action.config }
     case 'OPEN_EXECUTION':
@@ -145,6 +150,9 @@ export function Table({
   }, [])
   const onOpenWorkflowConfig = useCallback((config: WorkflowConfig) => {
     dispatch({ type: 'OPEN_WORKFLOW', config })
+  }, [])
+  const onOpenEnrichments = useCallback(() => {
+    dispatch({ type: 'OPEN_ENRICHMENTS' })
   }, [])
   const onOpenExecutionDetails = useCallback((executionId: string) => {
     dispatch({ type: 'OPEN_EXECUTION', executionId })
@@ -297,7 +305,11 @@ export function Table({
   }
 
   const handleAddWorkflowColumn = () => {
-    onOpenWorkflowConfig({ mode: 'create', proposedName: generateColumnName(columns) })
+    onOpenWorkflowConfig({
+      mode: 'create',
+      kind: 'manual',
+      proposedName: generateColumnName(columns),
+    })
   }
 
   const handleExportCsv = useCallback(async () => {
@@ -413,12 +425,13 @@ export function Table({
       disabled={false}
       onPickType={handleAddColumnOfType}
       onPickWorkflow={handleAddWorkflowColumn}
+      onPickEnrichment={onOpenEnrichments}
     />
   ) : null
 
   const logPanelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const sidebarReservedPx =
-    slideout.kind === 'column' || slideout.kind === 'workflow'
+    slideout.kind === 'column' || slideout.kind === 'workflow' || slideout.kind === 'enrichments'
       ? COLUMN_SIDEBAR_WIDTH
       : slideout.kind === 'execution'
         ? logPanelWidth
@@ -484,6 +497,7 @@ export function Table({
         sidebarReservedPx={sidebarReservedPx}
         onOpenColumnConfig={onOpenColumnConfig}
         onOpenWorkflowConfig={onOpenWorkflowConfig}
+        onOpenEnrichments={onOpenEnrichments}
         onOpenExecutionDetails={onOpenExecutionDetails}
         onOpenRowModal={onOpenRowModal}
         onRequestDeleteRows={onRequestDeleteRows}
@@ -556,6 +570,16 @@ export function Table({
             ? (columns.find((c) => c.name === columnConfig.columnName) ?? null)
             : null
         }
+        workspaceId={workspaceId}
+        tableId={tableId}
+        onColumnRename={onColumnRename}
+      />
+      <EnrichmentsSidebar
+        open={slideout.kind === 'enrichments'}
+        onClose={onCloseSlideout}
+        allColumns={columns}
+        workflowGroups={tableWorkflowGroups}
+        workflows={workflows}
         workspaceId={workspaceId}
         tableId={tableId}
         onColumnRename={onColumnRename}

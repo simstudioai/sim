@@ -180,8 +180,19 @@ async function runWorkflowAndWriteTerminal(
         .filter((c) => !ownOutputColumns.has(c.name))
         .map((c) => c.name)
 
+      // When the group has explicit input mappings, feed the workflow's
+      // Start-block fields from the mapped columns (`inputName ← row[columnName]`).
+      // Otherwise fall back to spreading every non-output column by name, so a
+      // Start field still resolves when it matches a column name. `row`/`rawRow`
+      // always carry the full row for downstream reference.
+      const inputMappings = group.inputMappings ?? []
+      const mappedInputs: Record<string, unknown> = {}
+      for (const m of inputMappings) {
+        mappedInputs[m.inputName] = inputRow[m.columnName]
+      }
+
       const input = {
-        ...inputRow,
+        ...(inputMappings.length > 0 ? mappedInputs : inputRow),
         row: inputRow,
         rawRow: inputRow,
         previousRow: null,

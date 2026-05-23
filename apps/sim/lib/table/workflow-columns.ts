@@ -657,22 +657,28 @@ export async function runWorkflowColumn(opts: {
 
 /**
 /**
- * Removes the given column names from a group's `dependencies.columns`. When
- * the resulting list is empty, drops the `dependencies` field entirely so
- * schema validation doesn't see an empty-deps object. Returns the same group
- * reference when nothing changed.
+ * Removes the given column names from a group's `dependencies.columns` and from
+ * its `inputMappings` (any mapping whose source `columnName` was removed). When
+ * either list ends up empty, drops the field entirely so schema validation
+ * doesn't see an empty object. Returns the same group reference when nothing
+ * changed.
  */
 export function stripGroupDeps(group: WorkflowGroup, removed: ReadonlySet<string>): WorkflowGroup {
-  const cols = group.dependencies?.columns
-  if (!cols || cols.length === 0) return group
-  const filtered = cols.filter((d) => !removed.has(d))
-  if (filtered.length === cols.length) return group
-  return {
-    ...group,
-    ...(filtered.length > 0
-      ? { dependencies: { columns: filtered } }
-      : { dependencies: undefined }),
+  const cols = group.dependencies?.columns ?? []
+  const mappings = group.inputMappings ?? []
+  const filteredDeps = cols.filter((d) => !removed.has(d))
+  const filteredMappings = mappings.filter((m) => !removed.has(m.columnName))
+  const depsChanged = filteredDeps.length !== cols.length
+  const mappingsChanged = filteredMappings.length !== mappings.length
+  if (!depsChanged && !mappingsChanged) return group
+  const next: WorkflowGroup = { ...group }
+  if (depsChanged) {
+    next.dependencies = filteredDeps.length > 0 ? { columns: filteredDeps } : undefined
   }
+  if (mappingsChanged) {
+    next.inputMappings = filteredMappings.length > 0 ? filteredMappings : undefined
+  }
+  return next
 }
 
 /**

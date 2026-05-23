@@ -139,6 +139,8 @@ interface TableGridProps {
    */
   onOpenColumnConfig: (cfg: ColumnConfig) => void
   onOpenWorkflowConfig: (cfg: WorkflowConfig) => void
+  /** Open the enrichments list (Clay-style catalog) slideout. */
+  onOpenEnrichments: () => void
   onOpenExecutionDetails: (executionId: string) => void
   /** Open the row-edit modal for `row`. Wrapper renders the modal. */
   onOpenRowModal: (row: TableRowType) => void
@@ -243,6 +245,7 @@ export function TableGrid({
   sidebarReservedPx,
   onOpenColumnConfig,
   onOpenWorkflowConfig,
+  onOpenEnrichments,
   onOpenExecutionDetails,
   onOpenRowModal,
   onRequestDeleteRows,
@@ -2560,7 +2563,7 @@ export function TableGrid({
 
   /** Open the workflow-config sidebar to spawn a brand-new workflow group. */
   function handleAddWorkflowColumn() {
-    onOpenWorkflowConfig({ mode: 'create', proposedName: generateColumnName() })
+    onOpenWorkflowConfig({ mode: 'create', kind: 'manual', proposedName: generateColumnName() })
   }
 
   const handleConfigureColumn = useCallback(
@@ -3229,6 +3232,7 @@ export function TableGrid({
                           disabled={addColumnMutation.isPending}
                           onPickType={handleAddColumnOfType}
                           onPickWorkflow={handleAddWorkflowColumn}
+                          onPickEnrichment={onOpenEnrichments}
                         />
                       )}
                     </tr>

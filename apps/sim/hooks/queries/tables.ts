@@ -1545,6 +1545,8 @@ interface UpdateWorkflowGroupVariables {
   outputs?: WorkflowGroupOutput[]
   newOutputColumns?: UpdateWorkflowGroupBodyInput['newOutputColumns']
   mappingUpdates?: UpdateWorkflowGroupBodyInput['mappingUpdates']
+  inputMappings?: UpdateWorkflowGroupBodyInput['inputMappings']
+  type?: UpdateWorkflowGroupBodyInput['type']
   autoRun?: boolean
 }
 

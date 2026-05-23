@@ -2676,8 +2676,8 @@ export async function renameColumn(
   const updatedColumns = schema.columns.map((c, i) =>
     i === columnIndex ? { ...c, name: data.newName } : c
   )
-  // Cascade rename into every workflow group: its output `columnName` refs
-  // and its `dependencies.columns` entries.
+  // Cascade rename into every workflow group: its output `columnName` refs,
+  // its `dependencies.columns` entries, and its `inputMappings` source columns.
   const updatedGroups = (schema.workflowGroups ?? []).map((group) => {
     const renamedOutputs = group.outputs.map((o) =>
       o.columnName === actualOldName ? { ...o, columnName: data.newName } : o
@@ -2685,10 +2685,14 @@ export async function renameColumn(
     const renamedDeps = group.dependencies?.columns?.map((d) =>
       d === actualOldName ? data.newName : d
     )
+    const renamedMappings = group.inputMappings?.map((m) =>
+      m.columnName === actualOldName ? { ...m, columnName: data.newName } : m
+    )
     return {
       ...group,
       outputs: renamedOutputs,
       ...(renamedDeps ? { dependencies: { columns: renamedDeps } } : {}),
+      ...(renamedMappings ? { inputMappings: renamedMappings } : {}),
     }
   })
   const updatedSchema: TableSchema = {
@@ -3349,6 +3353,8 @@ export async function updateWorkflowGroup(
     name: data.name ?? group.name,
     dependencies: data.dependencies ?? group.dependencies,
     outputs: newOutputs,
+    ...(data.inputMappings !== undefined ? { inputMappings: data.inputMappings } : {}),
+    ...(data.type !== undefined ? { type: data.type } : {}),
     ...(data.autoRun !== undefined ? { autoRun: data.autoRun } : {}),
   }
   // Removed outputs may be referenced as deps by sibling groups; strip those
