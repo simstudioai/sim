@@ -339,7 +339,7 @@ function threadToStub(thread: {
 export const gmailConnector: ConnectorConfig = {
   id: 'gmail',
   name: 'Gmail',
-  description: 'Sync email threads from Gmail into your knowledge base',
+  description: 'Sync email threads from Gmail',
   version: '1.0.0',
   icon: GmailIcon,
 

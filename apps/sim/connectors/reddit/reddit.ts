@@ -245,7 +245,7 @@ function resolveSortConfig(sourceConfig: Record<string, unknown>): {
 export const redditConnector: ConnectorConfig = {
   id: 'reddit',
   name: 'Reddit',
-  description: 'Sync subreddit posts and comments from Reddit into your knowledge base',
+  description: 'Sync subreddit posts and comments from Reddit',
   version: '1.0.0',
   icon: RedditIcon,
 

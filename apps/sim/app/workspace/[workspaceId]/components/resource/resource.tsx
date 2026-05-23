@@ -219,6 +219,36 @@ export const ResourceTable = memo(function ResourceTable({
     direction: 'desc',
   })
 
+  const [contextMenuRowId, setContextMenuRowId] = useState<string | null>(null)
+
+  const wrappedOnRowContextMenu = useCallback(
+    (e: React.MouseEvent, rowId: string) => {
+      setContextMenuRowId(rowId)
+      onRowContextMenu?.(e, rowId)
+    },
+    [onRowContextMenu]
+  )
+
+  useEffect(() => {
+    if (!contextMenuRowId) return
+    const clear = () => setContextMenuRowId(null)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        document.removeEventListener('keydown', handleKeyDown)
+        clear()
+      }
+    }
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('pointerdown', clear, { once: true })
+      document.addEventListener('keydown', handleKeyDown)
+    }, 0)
+    return () => {
+      clearTimeout(timeoutId)
+      document.removeEventListener('pointerdown', clear)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [contextMenuRowId])
+
   const handleSort = useCallback((column: string, direction: 'asc' | 'desc') => {
     setInternalSort({ column, direction })
   }, [])
@@ -343,7 +373,8 @@ export const ResourceTable = memo(function ResourceTable({
                 rowDragDrop={rowDragDrop}
                 onRowClick={onRowClick}
                 onRowHover={onRowHover}
-                onRowContextMenu={onRowContextMenu}
+                onRowContextMenu={onRowContextMenu ? wrappedOnRowContextMenu : undefined}
+                isContextMenuTarget={contextMenuRowId === row.id}
                 hasCheckbox={hasCheckbox}
               />
             ))}
@@ -403,17 +434,18 @@ const Pagination = memo(function Pagination({
             }
             if (page < 1 || page > totalPages) return null
             return (
-              <button
+              <Button
                 key={page}
                 type='button'
+                variant='ghost'
                 onClick={() => onPageChange(page)}
                 className={cn(
-                  'font-medium text-sm transition-colors hover-hover:text-[var(--text-body)]',
+                  'h-auto p-0 font-medium text-sm transition-colors hover-hover:bg-transparent hover-hover:text-[var(--text-body)]',
                   page === currentPage ? 'text-[var(--text-body)]' : 'text-[var(--text-secondary)]'
                 )}
               >
                 {page}
-              </button>
+              </Button>
             )
           })}
         </div>
@@ -460,6 +492,7 @@ interface DataRowProps {
   onRowClick?: (rowId: string) => void
   onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
+  isContextMenuTarget?: boolean
   hasCheckbox: boolean
 }
 
@@ -472,6 +505,7 @@ const DataRow = memo(function DataRow({
   onRowClick,
   onRowHover,
   onRowContextMenu,
+  isContextMenuTarget,
   hasCheckbox,
 }: DataRowProps) {
   const isSelected = selectable?.selectedIds.has(row.id) ?? false
@@ -554,7 +588,7 @@ const DataRow = memo(function DataRow({
         onRowClick && 'cursor-pointer',
         isDraggable && 'cursor-grab active:cursor-grabbing',
         isDropTarget && 'data-[drop-target=true]:outline-offset-[-1px]',
-        (selectedRowId === row.id || isSelected) && 'bg-[var(--surface-3)]',
+        (selectedRowId === row.id || isSelected || isContextMenuTarget) && 'bg-[var(--surface-3)]',
         isActiveDropTarget && 'bg-[var(--surface-4)] outline outline-1 outline-[var(--accent)]',
         (isDragging || (isAnyDragActive && isSelected && !isActiveDropTarget)) && 'opacity-50'
       )}

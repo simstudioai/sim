@@ -269,7 +269,7 @@ function formatConversation(
 export const outlookConnector: ConnectorConfig = {
   id: 'outlook',
   name: 'Outlook',
-  description: 'Sync email conversations from Outlook into your knowledge base',
+  description: 'Sync email conversations from Outlook',
   version: '1.0.0',
   icon: OutlookIcon,
 

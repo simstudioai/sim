@@ -146,7 +146,7 @@ function cqlResultToStub(item: Record<string, unknown>, domain: string): Externa
 export const confluenceConnector: ConnectorConfig = {
   id: 'confluence',
   name: 'Confluence',
-  description: 'Sync pages from a Confluence space into your knowledge base',
+  description: 'Sync pages from a Confluence space',
   version: '1.1.0',
   icon: ConfluenceIcon,
 

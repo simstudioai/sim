@@ -314,8 +314,7 @@ function ticketToDocument(
 export const zendeskConnector: ConnectorConfig = {
   id: 'zendesk',
   name: 'Zendesk',
-  description:
-    'Sync Help Center articles and support tickets from Zendesk into your knowledge base',
+  description: 'Sync Help Center articles and support tickets from Zendesk',
   version: '1.0.0',
   icon: ZendeskIcon,
 

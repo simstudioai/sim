@@ -734,6 +734,65 @@ describe.concurrent('Blocks Module', () => {
       expect(temperatureSubBlock?.min).toBe(0)
       expect(temperatureSubBlock?.max).toBe(2)
     })
+
+    it('should mark generator provider dropdowns as command-searchable', () => {
+      const imageGeneratorBlock = getBlock('image_generator_v2')
+      const videoGeneratorBlock = getBlock('video_generator_v3')
+
+      const imageProviderSubBlock = imageGeneratorBlock?.subBlocks.find(
+        (sb) => sb.id === 'provider'
+      )
+      const videoProviderSubBlock = videoGeneratorBlock?.subBlocks.find(
+        (sb) => sb.id === 'provider'
+      )
+      const imageProviderOptions = imageProviderSubBlock?.options
+      const videoProviderOptions = videoProviderSubBlock?.options
+
+      expect(imageGeneratorBlock?.hideFromToolbar).not.toBe(true)
+      expect(videoGeneratorBlock?.hideFromToolbar).not.toBe(true)
+      expect(imageProviderSubBlock?.commandSearchable).toBe(true)
+      expect(videoProviderSubBlock?.commandSearchable).toBe(true)
+      expect(imageProviderSubBlock?.value?.()).toBe('falai')
+      expect(videoProviderSubBlock?.value?.()).toBe('falai')
+      expect(
+        Array.isArray(imageProviderOptions) ? imageProviderOptions.map((option) => option.id) : []
+      ).toContain('falai')
+      expect(
+        Array.isArray(videoProviderOptions) ? videoProviderOptions.map((option) => option.id) : []
+      ).toContain('falai')
+      expect(getBlock('image_generator')?.hideFromToolbar).toBe(true)
+      expect(getBlock('video_generator_v2')?.hideFromToolbar).toBe(true)
+    })
+
+    it('should mark the agent model combobox as command-searchable', () => {
+      const agentBlock = getBlock('agent')
+      const modelSubBlock = agentBlock?.subBlocks.find((sb) => sb.id === 'model')
+
+      expect(agentBlock?.hideFromToolbar).not.toBe(true)
+      expect(modelSubBlock?.type).toBe('combobox')
+      expect(modelSubBlock?.commandSearchable).toBe(true)
+    })
+
+    it('should hide generator API keys on hosted only for Fal.ai providers', () => {
+      for (const blockType of ['image_generator_v2', 'video_generator_v3']) {
+        const block = getBlock(blockType)
+        const apiKeySubBlocks = block?.subBlocks.filter((sb) => sb.id === 'apiKey') ?? []
+
+        const falApiKeySubBlock = apiKeySubBlocks.find(
+          (sb) => sb.condition?.field === 'provider' && sb.condition.value === 'falai'
+        )
+        const nonFalApiKeySubBlock = apiKeySubBlocks.find(
+          (sb) =>
+            sb.condition?.field === 'provider' &&
+            sb.condition.value === 'falai' &&
+            sb.condition.not === true
+        )
+
+        expect(falApiKeySubBlock?.hideWhenHosted).toBe(true)
+        expect(nonFalApiKeySubBlock).toBeDefined()
+        expect(nonFalApiKeySubBlock?.hideWhenHosted).not.toBe(true)
+      }
+    })
   })
 
   describe('Block Consistency', () => {

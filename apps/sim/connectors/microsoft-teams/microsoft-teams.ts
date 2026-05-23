@@ -193,7 +193,7 @@ async function resolveChannel(
 export const microsoftTeamsConnector: ConnectorConfig = {
   id: 'microsoft_teams',
   name: 'Microsoft Teams',
-  description: 'Sync channel messages from Microsoft Teams into your knowledge base',
+  description: 'Sync channel messages from Microsoft Teams',
   version: '1.0.0',
   icon: MicrosoftTeamsIcon,
 

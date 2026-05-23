@@ -8,6 +8,7 @@ export type BYOKProviderId =
   | 'google'
   | 'mistral'
   | 'fireworks'
+  | 'falai'
   | 'firecrawl'
   | 'exa'
   | 'serper'
@@ -307,6 +308,8 @@ export type ToolHostingPricing<P = Record<string, unknown>> = PerRequestPricing 
  * no code changes needed.
  */
 interface ToolHostingConfig<P = Record<string, unknown>> {
+  /** Optional predicate for tools where hosted keys only apply to some parameter combinations. */
+  enabled?: (params: P) => boolean
   /**
    * Env var name prefix for hosted keys.
    * At runtime, `{envKeyPrefix}_COUNT` is read to determine how many keys exist,
