@@ -1,3 +1,4 @@
+import { FALAI_HOSTED_KEY_MARKUP_MULTIPLIER } from '@/lib/tools/falai-pricing'
 import type { ImageGenerationParams, ImageGenerationResponse } from '@/tools/image/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -113,6 +114,38 @@ export const imageGenerateTool: ToolConfig<ImageGenerationParams, ImageGeneratio
     },
   },
 
+  hosting: {
+    enabled: (params) => params.provider === 'falai',
+    envKeyPrefix: 'FALAI_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'falai',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        const providerCostDollars = output.__falaiCostDollars
+        if (typeof providerCostDollars !== 'number' || Number.isNaN(providerCostDollars)) {
+          throw new Error('Fal.ai image response missing cost data')
+        }
+
+        return {
+          cost: providerCostDollars * FALAI_HOSTED_KEY_MARKUP_MULTIPLIER,
+          metadata: {
+            ...(typeof output.__falaiBilling === 'object' && output.__falaiBilling !== null
+              ? (output.__falaiBilling as Record<string, unknown>)
+              : {}),
+            providerCostDollars,
+            markupMultiplier: FALAI_HOSTED_KEY_MARKUP_MULTIPLIER,
+          },
+        }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 40,
+      burstMultiplier: 1,
+    },
+  },
+
   request: {
     url: '/api/tools/image',
     method: 'POST',
@@ -122,6 +155,7 @@ export const imageGenerateTool: ToolConfig<ImageGenerationParams, ImageGeneratio
     body: (
       params: ImageGenerationParams & {
         _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
+        __usingHostedKey?: boolean
       }
     ) => ({
       provider: params.provider,
@@ -144,6 +178,7 @@ export const imageGenerateTool: ToolConfig<ImageGenerationParams, ImageGeneratio
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,
+      useHostedCostTracking: params.__usingHostedKey === true,
     }),
   },
 
@@ -159,6 +194,8 @@ export const imageGenerateTool: ToolConfig<ImageGenerationParams, ImageGeneratio
       provider?: string
       model?: string
       metadata?: ImageGenerationResponse['output']['metadata']
+      __falaiCostDollars?: number
+      __falaiBilling?: ImageGenerationResponse['output']['__falaiBilling']
     }
 
     if (!response.ok || data.error) {
@@ -203,6 +240,8 @@ export const imageGenerateTool: ToolConfig<ImageGenerationParams, ImageGeneratio
           model: data.model || data.metadata?.model || '',
           ...data.metadata,
         },
+        __falaiCostDollars: data.__falaiCostDollars,
+        __falaiBilling: data.__falaiBilling,
       },
     }
   },

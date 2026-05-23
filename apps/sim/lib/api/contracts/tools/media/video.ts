@@ -29,6 +29,7 @@ export const videoToolBodySchema = z
     workflowId: z.string().optional(),
     executionId: z.string().optional(),
     userId: z.string().optional(),
+    useHostedCostTracking: z.boolean().optional(),
   })
   .passthrough()
 
