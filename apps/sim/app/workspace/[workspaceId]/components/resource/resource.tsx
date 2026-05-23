@@ -431,17 +431,18 @@ const Pagination = memo(function Pagination({
             }
             if (page < 1 || page > totalPages) return null
             return (
-              <button
+              <Button
                 key={page}
                 type='button'
+                variant='ghost'
                 onClick={() => onPageChange(page)}
                 className={cn(
-                  'font-medium text-sm transition-colors hover-hover:text-[var(--text-body)]',
+                  'h-auto p-0 font-medium text-sm transition-colors hover-hover:bg-transparent hover-hover:text-[var(--text-body)]',
                   page === currentPage ? 'text-[var(--text-body)]' : 'text-[var(--text-secondary)]'
                 )}
               >
                 {page}
-              </button>
+              </Button>
             )
           })}
         </div>
