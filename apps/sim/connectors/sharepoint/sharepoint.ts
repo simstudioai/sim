@@ -279,7 +279,7 @@ function decodeCursor(cursor: string): PaginationState {
 export const sharepointConnector: ConnectorConfig = {
   id: 'sharepoint',
   name: 'SharePoint',
-  description: 'Sync documents from a SharePoint site into your knowledge base',
+  description: 'Sync documents from a SharePoint site',
   version: '1.0.0',
   icon: MicrosoftSharepointIcon,
 

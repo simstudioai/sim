@@ -106,7 +106,7 @@ function issueToFullDocument(issue: Record<string, unknown>, domain: string): Ex
 export const jiraConnector: ConnectorConfig = {
   id: 'jira',
   name: 'Jira',
-  description: 'Sync issues from a Jira project into your knowledge base',
+  description: 'Sync issues from a Jira project',
   version: '1.0.0',
   icon: JiraIcon,
 

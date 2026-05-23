@@ -269,7 +269,7 @@ function formatArticle(article: IntercomArticle): string {
 export const intercomConnector: ConnectorConfig = {
   id: 'intercom',
   name: 'Intercom',
-  description: 'Sync Help Center articles and conversations from Intercom into your knowledge base',
+  description: 'Sync Help Center articles and conversations from Intercom',
   version: '1.0.0',
   icon: IntercomIcon,
 

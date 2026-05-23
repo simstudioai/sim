@@ -246,7 +246,7 @@ function eventToDocument(
 export const googleCalendarConnector: ConnectorConfig = {
   id: 'google_calendar',
   name: 'Google Calendar',
-  description: 'Sync calendar events from Google Calendar into your knowledge base',
+  description: 'Sync calendar events from Google Calendar',
   version: '1.0.0',
   icon: GoogleCalendarIcon,
 

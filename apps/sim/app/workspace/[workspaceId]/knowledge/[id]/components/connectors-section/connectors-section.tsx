@@ -372,7 +372,7 @@ function ConnectorCard({
       <div className='flex items-center justify-between gap-2 px-2 py-2'>
         <div className='flex min-w-0 items-center gap-2.5'>
           <div className='relative flex size-9 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--surface-4)]'>
-            {Icon && <Icon className='size-5 text-[var(--text-secondary)]' />}
+            {Icon && <Icon className='size-5 text-[var(--text-icon)]' />}
             {connector.status === 'disabled' && (
               <AlertTriangle className='-right-0.5 -top-0.5 absolute size-3 text-[var(--caution)]' />
             )}
@@ -532,7 +532,7 @@ function ConnectorCard({
             </p>
             {canEdit && serviceId && providerId && (
               <Button
-                variant='active'
+                variant='primary'
                 onClick={() => {
                   if (connector.credentialId) {
                     writeOAuthReturnContext({
@@ -566,7 +566,7 @@ function ConnectorCard({
             </div>
             {canEdit && (
               <Button
-                variant='active'
+                variant='primary'
                 onClick={() => {
                   if (connector.credentialId) {
                     writeOAuthReturnContext({
