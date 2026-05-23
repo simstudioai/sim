@@ -137,6 +137,11 @@ export async function fetchExternalUrlToWorkspace(
           saveError,
         })
       }
+    } else if (permission === null) {
+      logger.warn('Skipping workspace save: user is not a workspace member', {
+        userId,
+        workspaceId,
+      })
     } else {
       logger.warn('Skipping workspace save: user lacks write permission', {
         userId,

@@ -148,6 +148,23 @@ describe('fetchExternalUrlToWorkspace', () => {
     expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
   })
 
+  it('returns parsed bytes but skips save when user is not a workspace member', async () => {
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      makeResponse('bytes', 'text/plain')
+    )
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue(null)
+
+    const result = await fetchExternalUrlToWorkspace({
+      url: 'https://example.com/file.txt',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+
+    expect(result.buffer.toString()).toBe('bytes')
+    expect(result.savedWorkspaceFile).toBeUndefined()
+    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+  })
+
   it('returns the saved workspace file when permission allows save', async () => {
     inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
       makeResponse('bytes', 'text/plain')
