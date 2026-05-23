@@ -814,15 +814,26 @@ export function KnowledgeBase({
           }
         : undefined,
       dropdownItems: [
-        ...(userPermissions.canEdit
+        ...(userPermissions.canEdit || userPermissions.isLoading
           ? [
               {
                 label: 'Rename',
                 icon: Pencil,
+                disabled: !userPermissions.canEdit,
                 onClick: () => kbRename.startRename(id, knowledgeBaseName),
               },
-              { label: 'Tags', icon: Tag, onClick: () => setShowTagsModal(true) },
-              { label: 'Delete', icon: Trash, onClick: () => setShowDeleteDialog(true) },
+              {
+                label: 'Tags',
+                icon: Tag,
+                disabled: !userPermissions.canEdit,
+                onClick: () => setShowTagsModal(true),
+              },
+              {
+                label: 'Delete',
+                icon: Trash,
+                disabled: !userPermissions.canEdit,
+                onClick: () => setShowDeleteDialog(true),
+              },
             ]
           : []),
       ],
@@ -830,8 +841,15 @@ export function KnowledgeBase({
   ]
 
   const headerActions: HeaderAction[] = [
-    ...(userPermissions.canEdit
-      ? [{ label: 'New connector', icon: Plus, onClick: () => setShowAddConnectorModal(true) }]
+    ...(userPermissions.canEdit || userPermissions.isLoading
+      ? [
+          {
+            label: 'New connector',
+            icon: Plus,
+            disabled: !userPermissions.canEdit,
+            onClick: () => setShowAddConnectorModal(true),
+          },
+        ]
       : []),
   ]
 
