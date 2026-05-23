@@ -233,7 +233,10 @@ export const ResourceTable = memo(function ResourceTable({
     if (!contextMenuRowId) return
     const clear = () => setContextMenuRowId(null)
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') clear()
+      if (e.key === 'Escape') {
+        document.removeEventListener('keydown', handleKeyDown)
+        clear()
+      }
     }
     const timeoutId = setTimeout(() => {
       document.addEventListener('pointerdown', clear, { once: true })

@@ -33,17 +33,17 @@ export function useUserPermissions(
   permissionsLoading = false,
   permissionsError: string | null = null
 ): WorkspaceUserPermissions {
-  const { data: session } = useSession()
+  const { data: session, isPending: sessionLoading } = useSession()
 
   const userPermissions = useMemo((): WorkspaceUserPermissions => {
     const sessionEmail = session?.user?.email
-    if (permissionsLoading || !sessionEmail) {
+    if (permissionsLoading || sessionLoading || !sessionEmail) {
       return {
         canRead: false,
         canEdit: false,
         canAdmin: false,
         userPermissions: 'read',
-        isLoading: permissionsLoading,
+        isLoading: permissionsLoading || sessionLoading,
         error: permissionsError,
       }
     }
@@ -99,7 +99,7 @@ export function useUserPermissions(
       isLoading: false,
       error: permissionsError,
     }
-  }, [session, workspacePermissions, permissionsLoading, permissionsError])
+  }, [session, sessionLoading, workspacePermissions, permissionsLoading, permissionsError])
 
   return userPermissions
 }
