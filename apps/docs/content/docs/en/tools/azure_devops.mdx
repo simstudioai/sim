@@ -280,7 +280,7 @@ Get the execution timeline for an Azure DevOps build — every stage, job, and t
 |     ↳ `warningCount` | number | Number of warnings |
 |     ↳ `startTime` | string | ISO 8601 start timestamp |
 |     ↳ `finishTime` | string | ISO 8601 finish timestamp |
-|   ↳ `failedRecords` | array | Subset of records where result === "failed" — use logId to fetch logs |
+|   ↳ `failedRecords` | array | Subset of records where result is failed, partiallySucceeded, or succeededWithIssues — use logId to fetch logs |
 |     ↳ `id` | string | Record GUID |
 |     ↳ `name` | string | Step name |
 |     ↳ `type` | string | Stage \| Phase \| Job \| Task |
@@ -333,7 +333,8 @@ Execute a WIQL query to search for work items in Azure DevOps and return full fi
 | --------- | ---- | ----------- |
 | `content` | string | Human-readable summary of matching work items |
 | `metadata` | object | Work items metadata |
-|   ↳ `count` | number | Number of work items returned |
+|   ↳ `count` | number | Number of work items returned \(after hydration\) |
+|   ↳ `totalMatched` | number | Total number of work items matched by the WIQL query before hydration |
 |   ↳ `workItems` | array | Array of work item details |
 |     ↳ `id` | number | Work item ID |
 |     ↳ `title` | string | Work item title |
@@ -372,7 +373,7 @@ Fetch full details of a single work item by ID from Azure DevOps, including titl
 
 ### `azure_devops_get_work_items_batch`
 
-Fetch full details for multiple work items by ID from Azure DevOps in a single call. Pass comma-separated IDs (e.g. 
+Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-separated IDs (e.g.
 
 #### Input
 
@@ -380,7 +381,7 @@ Fetch full details for multiple work items by ID from Azure DevOps in a single c
 | --------- | ---- | -------- | ----------- |
 | `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
-| `ids` | string | Yes | Comma-separated work item IDs to fetch \(e.g. "123,456,789"\). Maximum 200 IDs. |
+| `ids` | string | Yes | Comma-separated work item IDs to fetch \(e.g. "123,456,789"\). Lists longer than 200 IDs are chunked automatically. |
 
 #### Output
 
@@ -389,6 +390,7 @@ Fetch full details for multiple work items by ID from Azure DevOps in a single c
 | `content` | string | Human-readable summary of the fetched work items |
 | `metadata` | object | Work items metadata |
 |   ↳ `count` | number | Number of work items returned |
+|   ↳ `totalRequested` | number | Total number of IDs requested \(across all chunks\) |
 |   ↳ `workItems` | array | Array of work item details |
 |     ↳ `id` | number | Work item ID |
 |     ↳ `title` | string | Work item title |

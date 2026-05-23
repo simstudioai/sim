@@ -133,6 +133,7 @@ Return ONLY the JSON array.`,
       required: true,
       defaultValue: 'claude-sonnet-4-6',
       options: getModelOptions,
+      commandSearchable: true,
     },
     {
       id: 'attachmentFiles',

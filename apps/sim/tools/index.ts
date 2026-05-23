@@ -232,8 +232,15 @@ async function injectHostedKeyIfNeeded(
 ): Promise<HostedKeyInjectionResult> {
   if (!tool.hosting) return { isUsingHostedKey: false }
   if (!isHosted) return { isUsingHostedKey: false }
+  if (tool.hosting.enabled && !tool.hosting.enabled(params)) {
+    return { isUsingHostedKey: false }
+  }
 
   const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
+  const userProvidedKey = params[apiKeyParam]
+  if (typeof userProvidedKey === 'string' && userProvidedKey.trim().length > 0) {
+    return { isUsingHostedKey: false }
+  }
 
   const { workspaceId, userId, workflowId } = resolveToolScope(params, executionContext)
 
@@ -299,6 +306,7 @@ async function injectHostedKeyIfNeeded(
   }
 
   params[apiKeyParam] = acquireResult.key
+  params.__usingHostedKey = true
   logger.info(`[${requestId}] Using hosted key for ${tool.id} (${acquireResult.envVarName})`, {
     keyIndex: acquireResult.keyIndex,
     provider,

@@ -1,3 +1,4 @@
+import { FALAI_HOSTED_KEY_MARKUP_MULTIPLIER } from '@/lib/tools/falai-pricing'
 import type { ToolConfig } from '@/tools/types'
 import type { VideoParams, VideoResponse } from '@/tools/video/types'
 import { parseBooleanParam, parseBooleanParamWithDefault } from '@/tools/video/utils'
@@ -68,6 +69,37 @@ export const falaiVideoTool: ToolConfig<VideoParams, VideoResponse> = {
     },
   },
 
+  hosting: {
+    envKeyPrefix: 'FALAI_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'falai',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        const providerCostDollars = output.__falaiCostDollars
+        if (typeof providerCostDollars !== 'number' || Number.isNaN(providerCostDollars)) {
+          throw new Error('Fal.ai video response missing cost data')
+        }
+
+        return {
+          cost: providerCostDollars * FALAI_HOSTED_KEY_MARKUP_MULTIPLIER,
+          metadata: {
+            ...(typeof output.__falaiBilling === 'object' && output.__falaiBilling !== null
+              ? (output.__falaiBilling as Record<string, unknown>)
+              : {}),
+            providerCostDollars,
+            markupMultiplier: FALAI_HOSTED_KEY_MARKUP_MULTIPLIER,
+          },
+        }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 40,
+      burstMultiplier: 1,
+    },
+  },
+
   request: {
     url: '/api/tools/video',
     method: 'POST',
@@ -77,6 +109,7 @@ export const falaiVideoTool: ToolConfig<VideoParams, VideoResponse> = {
     body: (
       params: VideoParams & {
         _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
+        __usingHostedKey?: boolean
       }
     ) => ({
       provider: 'falai',
@@ -91,6 +124,7 @@ export const falaiVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,
+      useHostedCostTracking: params.__usingHostedKey === true,
     }),
   },
 
@@ -128,6 +162,8 @@ export const falaiVideoTool: ToolConfig<VideoParams, VideoResponse> = {
         provider: 'falai',
         model: data.model,
         jobId: data.jobId,
+        __falaiCostDollars: data.__falaiCostDollars,
+        __falaiBilling: data.__falaiBilling,
       },
     }
   },

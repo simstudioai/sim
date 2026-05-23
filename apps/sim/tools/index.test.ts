@@ -2797,4 +2797,128 @@ describe('Cost Field Handling', () => {
 
     Object.assign(tools, originalTools)
   })
+
+  it('should skip hosted key injection when hosting predicate is false', async () => {
+    const mockTool = {
+      id: 'test_conditional_hosting',
+      name: 'Test Conditional Hosting',
+      description: 'A test tool with conditional hosted keys',
+      version: '1.0.0',
+      params: {
+        provider: { type: 'string', required: false },
+        apiKey: { type: 'string', required: false },
+      },
+      hosting: {
+        enabled: (params: { provider?: string }) => params.provider === 'hosted-provider',
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        pricing: {
+          type: 'per_request' as const,
+          cost: 0.005,
+        },
+        rateLimit: {
+          mode: 'per_request' as const,
+          requestsPerMinute: 100,
+        },
+      },
+      request: {
+        url: '/api/test/conditional-hosting',
+        method: 'POST' as const,
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'success' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_conditional_hosting = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ success: true }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const mockContext = createToolExecutionContext({
+      userId: 'user-123',
+    } as any)
+    const result = await executeTool(
+      'test_conditional_hosting',
+      { provider: 'user-provider' },
+      { executionContext: mockContext }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+    expect(result.output.cost).toBeUndefined()
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('should skip hosted key injection when user provides an API key', async () => {
+    const mockTool = {
+      id: 'test_user_key_priority',
+      name: 'Test User Key Priority',
+      description: 'A test tool where user keys should win',
+      version: '1.0.0',
+      params: {
+        apiKey: { type: 'string', required: false },
+      },
+      hosting: {
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        pricing: {
+          type: 'per_request' as const,
+          cost: 0.005,
+        },
+        rateLimit: {
+          mode: 'per_request' as const,
+          requestsPerMinute: 100,
+        },
+      },
+      request: {
+        url: '/api/test/user-key-priority',
+        method: 'POST' as const,
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'success' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_user_key_priority = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ success: true }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const mockContext = createToolExecutionContext({
+      userId: 'user-123',
+    } as any)
+    const result = await executeTool(
+      'test_user_key_priority',
+      { apiKey: 'user-api-key' },
+      { executionContext: mockContext }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+    expect(result.output.cost).toBeUndefined()
+
+    Object.assign(tools, originalTools)
+  })
 })

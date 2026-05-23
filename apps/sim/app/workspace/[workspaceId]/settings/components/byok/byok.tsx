@@ -23,6 +23,7 @@ import {
   FireworksIcon,
   GeminiIcon,
   GoogleIcon,
+  ImageIcon,
   JinaAIIcon,
   LinkupIcon,
   MistralIcon,
@@ -84,6 +85,13 @@ const PROVIDERS: {
     icon: FireworksIcon,
     description: 'LLM calls',
     placeholder: 'Enter your Fireworks API key',
+  },
+  {
+    id: 'falai',
+    name: 'Fal.ai',
+    icon: ImageIcon,
+    description: 'Image and video generation',
+    placeholder: 'Enter your Fal.ai API key',
   },
   {
     id: 'firecrawl',

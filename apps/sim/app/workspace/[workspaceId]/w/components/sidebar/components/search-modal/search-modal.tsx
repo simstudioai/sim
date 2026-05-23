@@ -206,7 +206,10 @@ export function SearchModal({
         type === 'trigger' && block.config ? hasTriggerCapability(block.config) : false
       window.dispatchEvent(
         new CustomEvent('add-block-from-toolbar', {
-          detail: { type: block.type, enableTriggerMode },
+          detail: {
+            type: block.type,
+            enableTriggerMode,
+          },
         })
       )
       captureEvent(posthogRef.current, 'search_result_selected', {
@@ -376,12 +379,12 @@ export function SearchModal({
 
   const filteredBlocks = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndSort(blocks, (b) => `${b.name} block-${b.id}`, deferredSearch)
+    return filterAndSort(blocks, (b) => b.searchValue ?? `${b.name} block-${b.id}`, deferredSearch)
   }, [isOnWorkflowPage, blocks, deferredSearch])
 
   const filteredTools = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndSort(tools, (t) => `${t.name} tool-${t.id}`, deferredSearch)
+    return filterAndSort(tools, (t) => t.searchValue ?? `${t.name} tool-${t.id}`, deferredSearch)
   }, [isOnWorkflowPage, tools, deferredSearch])
 
   const filteredTriggers = useMemo(() => {
