@@ -31,8 +31,6 @@ const {
   mockFsWriteFile,
   mockJoin,
   actualPath,
-  mockFileExistsInWorkspace,
-  mockListWorkspaceFiles,
   mockUploadWorkspaceFile,
 } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -62,9 +60,19 @@ const {
       return actualPath.join(...args)
     }),
     actualPath,
-    mockFileExistsInWorkspace: vi.fn().mockResolvedValue(false),
-    mockListWorkspaceFiles: vi.fn().mockResolvedValue([]),
-    mockUploadWorkspaceFile: vi.fn().mockResolvedValue({}),
+    mockUploadWorkspaceFile: vi
+      .fn()
+      .mockImplementation(
+        async (workspaceId: string, _userId: string, _buffer: Buffer, fileName: string) => ({
+          id: 'wf_test',
+          name: fileName,
+          size: 0,
+          type: 'application/octet-stream',
+          url: `/api/files/serve/${workspaceId}/${fileName}`,
+          key: `${workspaceId}/${fileName}`,
+          context: 'workspace',
+        })
+      ),
   }
 })
 
@@ -110,9 +118,7 @@ vi.mock('@/lib/uploads/contexts/execution', () => ({
   uploadExecutionFile: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  fileExistsInWorkspace: mockFileExistsInWorkspace,
-  listWorkspaceFiles: mockListWorkspaceFiles,
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   uploadWorkspaceFile: mockUploadWorkspaceFile,
 }))
 
@@ -190,9 +196,7 @@ describe('File Parse API Route', () => {
     mockFsStat.mockResolvedValue({ isFile: () => true, size: 17 })
     mockFsReadFile.mockResolvedValue(Buffer.from('test file content'))
     mockIsSupportedFileType.mockReturnValue(true)
-    mockFileExistsInWorkspace.mockResolvedValue(false)
-    mockListWorkspaceFiles.mockResolvedValue([])
-    mockUploadWorkspaceFile.mockResolvedValue({})
+    mockUploadWorkspaceFile.mockClear()
     mockParseFile.mockResolvedValue({
       content: 'parsed content',
       metadata: { pageCount: 1 },
@@ -384,34 +388,32 @@ describe('File Parse API Route', () => {
     )
   })
 
-  it('should preserve the full download cap when an external URL reuses a workspace file', async () => {
+  it('should never dedup external URL fetches by path filename — two URLs sharing image.png both download', async () => {
     inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
       isValid: true,
       resolvedIP: '203.0.113.10',
     })
-    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
-      new Response('file content', {
-        status: 200,
-        headers: { 'content-type': 'text/plain' },
-      })
-    )
-    mockFileExistsInWorkspace.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
-    mockListWorkspaceFiles.mockResolvedValueOnce([
-      { name: 'file2.txt', key: 'workspace-file2.txt' },
-    ])
-
-    mockParseBuffer
-      .mockResolvedValueOnce({
-        content: 'a'.repeat(4 * 1024 * 1024),
-        metadata: { pageCount: 1 },
-      })
-      .mockResolvedValueOnce({
-        content: 'second file',
-        metadata: { pageCount: 1 },
-      })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(
+        new Response('first image bytes', {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response('second image bytes — different content', {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        })
+      )
+    mockIsSupportedFileType.mockReturnValue(false)
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
 
     const req = createMockRequest('POST', {
-      filePath: ['https://example.com/file1.txt', 'https://example.com/file2.txt'],
+      filePath: [
+        'https://files.slack.com/files-pri/T07-FAAA/download/image.png',
+        'https://files.slack.com/files-pri/T07-FBBB/download/image.png',
+      ],
       workspaceId: 'workspace-id',
     })
 
@@ -420,9 +422,21 @@ describe('File Parse API Route', () => {
 
     expect(response.status).toBe(200)
     expect(data.results).toHaveLength(2)
-    expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledWith(
-      expect.objectContaining({ key: 'workspace-file2.txt', maxBytes: 100 * 1024 * 1024 })
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(2)
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenNthCalledWith(
+      1,
+      'https://files.slack.com/files-pri/T07-FAAA/download/image.png',
+      '203.0.113.10',
+      expect.any(Object)
     )
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenNthCalledWith(
+      2,
+      'https://files.slack.com/files-pri/T07-FBBB/download/image.png',
+      '203.0.113.10',
+      expect.any(Object)
+    )
+    expect(mockUploadWorkspaceFile).toHaveBeenCalledTimes(2)
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
   })
 
   it('should stop multi-file parsing once the combined parsed output is too large', async () => {
