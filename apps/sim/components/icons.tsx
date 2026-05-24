@@ -4444,10 +4444,7 @@ export function LitellmIcon(props: SVGProps<SVGSVGElement>) {
     <svg {...props} fill='none' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>
       <title>LiteLLM</title>
       <rect width='24' height='24' rx='4' fill='#1A56DB' />
-      <path
-        d='M6 7h2v10H6V7zm4 0h2v8h4v2h-6V7z'
-        fill='white'
-      />
+      <path d='M6 7h2v10H6V7zm4 0h2v8h4v2h-6V7z' fill='white' />
     </svg>
   )
 }

@@ -753,7 +753,7 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   }
 
   const isLitellmModel =
-    provider === 'litellm' || useProvidersStore.getState().providers.litellm?.models.includes(model)
+    provider === 'litellm' || useProvidersStore.getState().providers.litellm.models.includes(model)
   if (isLitellmModel) {
     return userProvidedKey || 'empty'
   }

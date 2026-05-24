@@ -2817,7 +2817,13 @@ export function getProviderModels(providerId: string): string[] {
   return PROVIDER_DEFINITIONS[providerId]?.models.map((m) => m.id) || []
 }
 
-export const DYNAMIC_MODEL_PROVIDERS = ['ollama', 'vllm', 'litellm', 'openrouter', 'fireworks'] as const
+export const DYNAMIC_MODEL_PROVIDERS = [
+  'ollama',
+  'vllm',
+  'litellm',
+  'openrouter',
+  'fireworks',
+] as const
 
 function getAllStaticModelIds(): string[] {
   const ids: string[] = []
