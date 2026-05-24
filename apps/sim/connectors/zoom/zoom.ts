@@ -126,7 +126,9 @@ function parseVtt(vtt: string): string {
     while (i < lines.length && lines[i].trim() === '') i++
     if (i >= lines.length) break
 
-    if (/^\d+$/.test(lines[i].trim())) i++
+    if (i + 1 < lines.length && !lines[i].includes('-->') && lines[i + 1].includes('-->')) {
+      i++
+    }
 
     if (i < lines.length && lines[i].includes('-->')) {
       i++
@@ -330,15 +332,24 @@ export const zoomConnector: ConnectorConfig = {
     const meetings = data.meetings ?? []
     const nextPageToken = data.next_page_token?.trim() || undefined
 
-    const documents: ExternalDocument[] = []
+    const allDocuments: ExternalDocument[] = []
     for (const meeting of meetings) {
       if (!meeting.uuid) continue
       const transcript = findTranscriptFile(meeting.recording_files)
       if (!transcript) continue
-      documents.push(recordingToStub(meeting, transcript))
+      allDocuments.push(recordingToStub(meeting, transcript))
     }
 
-    const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+    const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
+    let documents = allDocuments
+    if (maxRecordings > 0) {
+      const remaining = Math.max(0, maxRecordings - prevFetched)
+      if (allDocuments.length > remaining) {
+        documents = allDocuments.slice(0, remaining)
+      }
+    }
+
+    const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxRecordings > 0 && totalFetched >= maxRecordings
     if (hitLimit && syncContext) syncContext.listingCapped = true
