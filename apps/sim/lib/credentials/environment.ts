@@ -37,6 +37,31 @@ export async function getWorkspaceMemberUserIds(workspaceId: string): Promise<st
   return Array.from(memberIds)
 }
 
+export async function getWorkspaceAdminUserIds(workspaceId: string): Promise<Set<string>> {
+  const [workspaceRows, adminPermissionRows] = await Promise.all([
+    db
+      .select({ ownerId: workspace.ownerId })
+      .from(workspace)
+      .where(eq(workspace.id, workspaceId))
+      .limit(1),
+    db
+      .select({ userId: permissions.userId })
+      .from(permissions)
+      .where(
+        and(
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, workspaceId),
+          eq(permissions.permissionType, 'admin')
+        )
+      ),
+  ])
+  const adminIds = new Set<string>(adminPermissionRows.map((row) => row.userId))
+  if (workspaceRows[0]?.ownerId) {
+    adminIds.add(workspaceRows[0].ownerId)
+  }
+  return adminIds
+}
+
 export async function getUserWorkspaceIds(userId: string): Promise<string[]> {
   const [permissionRows, ownedWorkspaceRows] = await Promise.all([
     db
@@ -64,7 +89,8 @@ export async function getUserWorkspaceIds(userId: string): Promise<string[]> {
 async function ensureWorkspaceCredentialMemberships(
   credentialId: string,
   memberUserIds: string[],
-  ownerUserId: string
+  ownerUserId: string,
+  adminUserIds: Set<string>
 ) {
   if (!memberUserIds.length) return
 
@@ -87,7 +113,7 @@ async function ensureWorkspaceCredentialMemberships(
   const now = new Date()
 
   for (const memberUserId of memberUserIds) {
-    const targetRole = memberUserId === ownerUserId ? 'admin' : 'member'
+    const targetRole = adminUserIds.has(memberUserId) ? 'admin' : 'member'
     const existing = byUserId.get(memberUserId)
     if (existing) {
       if (existing.status === 'revoked') {
@@ -126,13 +152,14 @@ export async function syncWorkspaceEnvCredentials(params: {
   actingUserId: string
 }) {
   const { workspaceId, envKeys, actingUserId } = params
-  const [[workspaceRow], memberUserIds] = await Promise.all([
+  const [[workspaceRow], memberUserIds, adminUserIds] = await Promise.all([
     db
       .select({ ownerId: workspace.ownerId })
       .from(workspace)
       .where(eq(workspace.id, workspaceId))
       .limit(1),
     getWorkspaceMemberUserIds(workspaceId),
+    getWorkspaceAdminUserIds(workspaceId),
   ])
 
   if (!workspaceRow) return
@@ -182,7 +209,7 @@ export async function syncWorkspaceEnvCredentials(params: {
   }
 
   for (const credentialId of credentialIdsToEnsureMembership) {
-    await ensureWorkspaceCredentialMemberships(credentialId, memberUserIds, workspaceRow.ownerId)
+    await ensureWorkspaceCredentialMemberships(credentialId, memberUserIds, workspaceRow.ownerId, adminUserIds)
   }
 
   if (normalizedKeys.length > 0) {
@@ -216,13 +243,14 @@ export async function createWorkspaceEnvCredentials(params: {
   const keys = Array.from(new Set(newKeys.filter(Boolean)))
   if (keys.length === 0) return
 
-  const [[workspaceRow], memberUserIds] = await Promise.all([
+  const [[workspaceRow], memberUserIds, adminUserIds] = await Promise.all([
     db
       .select({ ownerId: workspace.ownerId })
       .from(workspace)
       .where(eq(workspace.id, workspaceId))
       .limit(1),
     getWorkspaceMemberUserIds(workspaceId),
+    getWorkspaceAdminUserIds(workspaceId),
   ])
 
   if (!workspaceRow) return
@@ -259,7 +287,7 @@ export async function createWorkspaceEnvCredentials(params: {
       id: generateId(),
       credentialId,
       userId: memberUserId,
-      role: (memberUserId === ownerUserId ? 'admin' : 'member') as 'admin' | 'member',
+      role: (adminUserIds.has(memberUserId) ? 'admin' : 'member') as 'admin' | 'member',
       status: 'active' as const,
       joinedAt: now,
       invitedBy: ownerUserId,
