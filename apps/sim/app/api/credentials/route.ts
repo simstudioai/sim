@@ -22,7 +22,7 @@ import {
   normalizeAtlassianDomain,
   validateAtlassianServiceAccount,
 } from '@/lib/credentials/atlassian-service-account'
-import { getWorkspaceMemberUserIds } from '@/lib/credentials/environment'
+import { getWorkspaceAdminUserIds, getWorkspaceMemberUserIds } from '@/lib/credentials/environment'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import {
@@ -535,7 +535,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
 
       if ((type === 'env_workspace' || type === 'service_account') && workspaceRow?.ownerId) {
-        const workspaceUserIds = await getWorkspaceMemberUserIds(workspaceId)
+        const [workspaceUserIds, adminUserIds] = await Promise.all([
+          getWorkspaceMemberUserIds(workspaceId),
+          getWorkspaceAdminUserIds(workspaceId),
+        ])
         if (workspaceUserIds.length > 0) {
           for (const memberUserId of workspaceUserIds) {
             await tx.insert(credentialMember).values({
@@ -543,7 +546,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               credentialId,
               userId: memberUserId,
               role:
-                memberUserId === workspaceRow.ownerId || memberUserId === session.user.id
+                adminUserIds.has(memberUserId) || memberUserId === session.user.id
                   ? 'admin'
                   : 'member',
               status: 'active',
