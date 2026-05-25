@@ -17,6 +17,7 @@ import {
   FireworksIcon,
   GeminiIcon,
   GroqIcon,
+  MiniMaxIcon,
   MistralIcon,
   OllamaIcon,
   OpenAIIcon,
@@ -1621,6 +1622,75 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {},
         contextWindow: 128000,
         releaseDate: '2025-01-20',
+      },
+    ],
+  },
+  minimax: {
+    id: 'minimax',
+    name: 'MiniMax',
+    description: "MiniMax's chat models",
+    defaultModel: 'MiniMax-M2.7',
+    modelPatterns: [/^minimax/i],
+    icon: MiniMaxIcon,
+    capabilities: {
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'MiniMax-M2.7',
+        pricing: {
+          input: 0.3,
+          cachedInput: 0.06,
+          output: 1.2,
+          updatedAt: '2025-07-01',
+        },
+        capabilities: {
+          temperature: { min: 0.01, max: 1 },
+          maxOutputTokens: 192000,
+        },
+        contextWindow: 204800,
+      },
+      {
+        id: 'MiniMax-M2.7-highspeed',
+        pricing: {
+          input: 0.6,
+          cachedInput: 0.06,
+          output: 2.4,
+          updatedAt: '2025-07-01',
+        },
+        capabilities: {
+          temperature: { min: 0.01, max: 1 },
+          maxOutputTokens: 192000,
+        },
+        contextWindow: 204800,
+      },
+      {
+        id: 'MiniMax-M2.5',
+        pricing: {
+          input: 0.3,
+          cachedInput: 0.03,
+          output: 1.2,
+          updatedAt: '2025-06-01',
+        },
+        capabilities: {
+          temperature: { min: 0.01, max: 1 },
+          maxOutputTokens: 192000,
+        },
+        contextWindow: 204800,
+      },
+      {
+        id: 'MiniMax-M2.5-highspeed',
+        pricing: {
+          input: 0.6,
+          cachedInput: 0.03,
+          output: 2.4,
+          updatedAt: '2025-06-01',
+        },
+        capabilities: {
+          temperature: { min: 0.01, max: 1 },
+          maxOutputTokens: 192000,
+        },
+        contextWindow: 204800,
       },
     ],
   },
