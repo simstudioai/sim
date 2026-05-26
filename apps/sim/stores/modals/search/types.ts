@@ -11,6 +11,7 @@ export interface SearchBlockItem {
   bgColor: string
   type: string
   config?: BlockConfig
+  searchValue?: string
 }
 
 /**

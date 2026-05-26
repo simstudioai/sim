@@ -133,7 +133,7 @@ async function listWorkspaceProjects(
 export const asanaConnector: ConnectorConfig = {
   id: 'asana',
   name: 'Asana',
-  description: 'Sync tasks from Asana into your knowledge base',
+  description: 'Sync tasks from Asana',
   version: '1.0.0',
   icon: AsanaIcon,
 

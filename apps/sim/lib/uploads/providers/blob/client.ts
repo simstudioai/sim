@@ -435,7 +435,7 @@ export async function deleteFromBlob(key: string, customConfig?: BlobConfig): Pr
   const containerClient = blobServiceClient.getContainerClient(containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
-  await blockBlobClient.delete()
+  await blockBlobClient.deleteIfExists()
 }
 
 /**

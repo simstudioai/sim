@@ -524,7 +524,7 @@ export function HubspotIcon(props: SVGProps<SVGSVGElement>) {
       xmlns='http://www.w3.org/2000/svg'
       fill='currentColor'
     >
-      <path d='M18.16 7.93V5.08a2.2 2.2 0 1.27-1.98v-.067A2.2 2.2 0 17.24.845h-.067a2.2 2.2 0 00-2.19 2.19v.067a2.2 2.2 0 1.25 1.97l.13.01v2.85a6.22 6.22 0 00-2.97 1.31l.012-.01-7.83-6.09A2.5 2.5 0 104.3 4.66l-.12.01 7.7 5.99a6.18 6.18 0 00-1.04 3.45c0 1.34.425 2.59 1.15 3.61l-.013-.02-2.34 2.34a1.97 1.97 0 00-.58-.095h-.002a2.03 2.03 0 102.03 2.03 1.98 1.98 0 00-.1-.595l.5.01 2.32-2.32a6.25 6.25 0 104.78-11.13l-.036-.005zm-.964 9.38a3.21 3.21 0 113.22-3.21v.002a3.21 3.21 0 01-3.21 3.21z' />
+      <path d='M18.164 7.93V5.084a2.198 2.198 0 0 0 1.27-1.978v-.067A2.2 2.2 0 0 0 17.238.845h-.067a2.2 2.2 0 0 0-2.193 2.194v.067a2.196 2.196 0 0 0 1.27 1.978v2.85a6.21 6.21 0 0 0-2.974 1.31L5.443.515A2.5 2.5 0 1 0 4.3 4.664l-.123.013 7.728 6.013a6.182 6.182 0 0 0-1.043 3.45c0 1.336.43 2.605 1.157 3.62l-2.35 2.348a2.022 2.022 0 0 0-.585-.1 2.026 2.026 0 1 0 2.026 2.026 1.98 1.98 0 0 0-.1-.584l2.318-2.323A6.249 6.249 0 1 0 18.166 7.93Zm-.96 9.371a3.21 3.21 0 1 1 0-6.421 3.21 3.21 0 0 1 0 6.42z' />
     </svg>
   )
 }
@@ -2284,23 +2284,26 @@ export function ElevenLabsIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export function FindymailIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const gradient0 = `findymail_paint0_${id}`
+  const gradient1 = `findymail_paint1_${id}`
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 45.4462 31.2952' fill='none'>
       <path
         fillRule='evenodd'
         clipRule='evenodd'
         d='M27.7788 8.18066C26.628 8.18066 25.479 8.62026 24.6016 9.49766L22.7235 11.0666L20.8454 9.49766C19.968 8.62026 18.8189 8.18066 17.6681 8.18066C16.5191 8.18066 15.3683 8.62026 14.4909 9.49766C12.7361 11.2525 12.7361 14.0991 14.4909 15.8521L20.9722 22.0922C21.9497 23.0339 23.4972 23.0339 24.4747 22.0922L30.9578 15.8521C32.7126 14.0991 32.7126 11.2525 30.9578 9.49766C30.0804 8.62026 28.9296 8.18066 27.7788 8.18066Z'
-        fill='url(#findymail_paint0)'
+        fill={`url(#${gradient0})`}
       />
       <path
         fillRule='evenodd'
         clipRule='evenodd'
         d='M42.3815 27.2995C42.3815 27.8571 41.9312 28.3074 41.3737 28.3074H4.0725C3.51497 28.3074 3.06644 27.8571 3.06644 27.2995V7.29083C3.06644 6.39914 4.1279 5.9381 4.77835 6.54745L9.53884 11.0042C9.95341 11.3937 10.6182 11.1971 10.7718 10.6485C10.8791 10.2715 11.0167 9.90338 11.1846 9.54956C11.4062 9.08138 11.2579 8.51848 10.8791 8.16466L7.1854 4.70509C6.52958 4.09037 6.96382 2.9896 7.86445 2.9896H37.58C38.4806 2.9896 38.9166 4.09216 38.259 4.70688L34.5671 8.16109C34.1901 8.51491 34.04 9.07959 34.2633 9.54777C34.4295 9.90159 34.5671 10.2679 34.6743 10.645C34.828 11.1918 35.4928 11.3884 35.9073 11.0006L40.6678 6.54567C41.3183 5.93631 42.3815 6.39735 42.3815 7.28726V27.2995ZM42.9141 0H2.53213C1.13294 0 0 1.13294 0 2.53213V28.7631C0 30.1622 1.13294 31.2952 2.53213 31.2952H42.9141C44.3132 31.2952 45.4462 30.1622 45.4462 28.7631V2.53213C45.4462 1.13294 44.3132 0 42.9141 0Z'
-        fill='url(#findymail_paint1)'
+        fill={`url(#${gradient1})`}
       />
       <defs>
         <linearGradient
-          id='findymail_paint0'
+          id={gradient0}
           x1='20.5769'
           y1='8.68821'
           x2='24.6922'
@@ -2312,7 +2315,7 @@ export function FindymailIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#B91C1C' />
         </linearGradient>
         <linearGradient
-          id='findymail_paint1'
+          id={gradient1}
           x1='22.7231'
           y1='0'
           x2='22.7231'
@@ -3972,14 +3975,7 @@ export const SMSIcon = (props: SVGProps<SVGSVGElement>) => (
 )
 
 export const ResendIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg
-    {...props}
-    width='1800'
-    height='1800'
-    viewBox='0 0 1800 1800'
-    fill='none'
-    xmlns='http://www.w3.org/2000/svg'
-  >
+  <svg {...props} viewBox='360 360 1080 1080' fill='none' xmlns='http://www.w3.org/2000/svg'>
     <path
       d='M1000.46 450C1174.77 450 1278.43 553.67 1278.43 691.28C1278.43 828.9 1174.77 932.56 1000.46 932.56H912.38L1350 1350H1040.82L707.79 1033.48C683.94 1011.47 672.94 985.78 672.94 963.77C672.94 932.57 694.96 905.05 737.16 893.12L908.71 847.24C973.85 829.81 1018.81 779.35 1018.81 713.3C1018.8 632.57 952.75 585.78 871.1 585.78H450V450H1000.46Z'
       fill='#FDFDFD'
@@ -4439,6 +4435,20 @@ export function VllmIcon(props: SVGProps<SVGSVGElement>) {
       <title>vLLM</title>
       <path d='M0 4.97h9.32V23L0 4.97z' fill='#FDB515' />
       <path d='M13.99 4.35L22.38 0l-6.22 23H9.32l4.66-18.65z' fill='#30A2FF' />
+    </svg>
+  )
+}
+
+export function LitellmIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} fill='none' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'>
+      <title>LiteLLM</title>
+      <image
+        href='data:image/png;base64,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'
+        width='72'
+        height='72'
+        preserveAspectRatio='xMidYMid meet'
+      />
     </svg>
   )
 }

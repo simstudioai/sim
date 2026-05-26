@@ -124,6 +124,9 @@ function tool(name: string, serverId: string) {
 describe('McpService.discoverTools per-server caching', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
+    // `clearAllMocks` does not drain `.mockResolvedValueOnce` queues; reset
+    // listTools so a previous test's unconsumed mock doesn't leak into the next.
+    mockListTools.mockReset()
     mockIsDomainAllowed.mockReturnValue(true)
     mockValidateSsrf.mockResolvedValue('1.2.3.4')
     mockValidateDomain.mockImplementation(() => undefined)
@@ -162,11 +165,14 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(first.map((t) => t.name)).toEqual(['a1'])
 
     mockListTools.mockClear()
-    mockListTools.mockResolvedValueOnce([tool('b1', 'mcp-b')])
 
+    // a1's positive cache is intact (the failure didn't poison it). b is now
+    // negative-cached so it's skipped instead of re-blocking — see
+    // "negative-caches a failed server so the next discoverTools skips it"
+    // below for the full assertion.
     const second = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
-    expect(second.map((t) => t.name).sort()).toEqual(['a1', 'b1'])
-    expect(mockListTools).toHaveBeenCalledTimes(1)
+    expect(second.map((t) => t.name)).toEqual(['a1'])
+    expect(mockListTools).not.toHaveBeenCalled()
   })
 
   it("forceRefresh bypasses every server's cache", async () => {
@@ -258,5 +264,68 @@ describe('McpService.discoverTools per-server caching', () => {
     const second = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
     expect(second.map((t) => t.name)).toEqual(['a1'])
     expect(mockListTools).not.toHaveBeenCalled()
+  })
+
+  it('negative-caches a failed server so the next discoverTools skips it', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A'), dbRow('mcp-b', 'B')])
+    mockListTools
+      .mockResolvedValueOnce([tool('a1', 'mcp-a')])
+      .mockRejectedValueOnce(new Error('Request timed out'))
+
+    await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+    expect(mockListTools).toHaveBeenCalledTimes(2)
+
+    mockListTools.mockClear()
+    // Second call: a1 is success-cached, b is failure-cached. Neither should
+    // hit the live transport — the slow server no longer blocks the response.
+    const second = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+    expect(second.map((t) => t.name)).toEqual(['a1'])
+    expect(mockListTools).not.toHaveBeenCalled()
+  })
+
+  it('successful discoverServerTools clears the negative cache', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockRejectedValueOnce(new Error('Request timed out'))
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'Request timed out'
+    )
+
+    // After the failure the negative cache is set, so the next default call
+    // short-circuits without re-paying the listTools timeout.
+    mockListTools.mockClear()
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'cooldown'
+    )
+    expect(mockListTools).not.toHaveBeenCalled()
+
+    // Reconnecting via the explicit-refresh path (refresh button / OAuth
+    // callback) bypasses both caches and brings the server back to live.
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+    expect(tools.map((t) => t.name)).toEqual(['a1'])
+
+    // discoverTools now sees the cleared negative cache + primed positive cache.
+    mockListTools.mockClear()
+    const after = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+    expect(after.map((t) => t.name)).toEqual(['a1'])
+    expect(mockListTools).not.toHaveBeenCalled()
+  })
+
+  it('does not negative-cache OAuth-required errors', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockRejectedValueOnce(new McpOauthAuthorizationRequiredError('mcp-a', 'A'))
+
+    await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+    expect(mockListTools).toHaveBeenCalledTimes(1)
+
+    // Second call must still attempt the live transport — OAuth re-auth has
+    // its own pathway and a stale negative cache would make reconnects
+    // silently fail until the TTL expired.
+    mockListTools.mockClear()
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+    const after = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+    expect(after.map((t) => t.name)).toEqual(['a1'])
+    expect(mockListTools).toHaveBeenCalledTimes(1)
   })
 })

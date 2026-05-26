@@ -7,6 +7,7 @@ export const byokProviderIdSchema = z.enum([
   'google',
   'mistral',
   'fireworks',
+  'falai',
   'firecrawl',
   'exa',
   'serper',

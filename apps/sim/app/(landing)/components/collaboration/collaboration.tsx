@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useId, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -171,8 +171,8 @@ function YouCursor({ x, y, visible }: YouCursorProps) {
  * Collaboration section — team workflows and real-time collaboration.
  *
  * SEO:
- * - `<section id="collaboration" aria-labelledby="collaboration-heading">`.
- * - `<h2 id="collaboration-heading">` for the section title.
+ * - `<section id="collaboration">` is the stable anchor for in-page navigation.
+ * - The section title `<h2>` is linked via `aria-labelledby` using a `useId()`-generated id.
  * - Product visuals use `<figure>` with `<figcaption>` and descriptive `alt` text.
  *
  * GEO:
@@ -181,41 +181,17 @@ function YouCursor({ x, y, visible }: YouCursorProps) {
  * - Reference "Sim" by name per capability ("Sim's real-time collaboration").
  */
 
-const CURSOR_LERP_FACTOR = 0.3
-
 export default function Collaboration() {
+  const headingId = useId()
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 })
   const [isHovering, setIsHovering] = useState(false)
   const sectionRef = useRef<HTMLElement>(null)
-  const targetPos = useRef({ x: 0, y: 0 })
-  const animationRef = useRef<number>(0)
-
-  useEffect(() => {
-    const animate = () => {
-      setCursorPos((prev) => ({
-        x: prev.x + (targetPos.current.x - prev.x) * CURSOR_LERP_FACTOR,
-        y: prev.y + (targetPos.current.y - prev.y) * CURSOR_LERP_FACTOR,
-      }))
-      animationRef.current = requestAnimationFrame(animate)
-    }
-
-    if (isHovering) {
-      animationRef.current = requestAnimationFrame(animate)
-    }
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current)
-      }
-    }
-  }, [isHovering])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    targetPos.current = { x: e.clientX, y: e.clientY }
+    setCursorPos({ x: e.clientX, y: e.clientY })
   }, [])
 
   const handleMouseEnter = useCallback((e: React.MouseEvent) => {
-    targetPos.current = { x: e.clientX, y: e.clientY }
     setCursorPos({ x: e.clientX, y: e.clientY })
     setIsHovering(true)
   }, [])
@@ -228,7 +204,7 @@ export default function Collaboration() {
     <section
       ref={sectionRef}
       id='collaboration'
-      aria-labelledby='collaboration-heading'
+      aria-labelledby={headingId}
       className='bg-[var(--landing-bg)]'
       style={{ cursor: isHovering ? 'none' : 'auto' }}
       onMouseMove={handleMouseMove}
@@ -258,7 +234,7 @@ export default function Collaboration() {
             </Badge>
 
             <h2
-              id='collaboration-heading'
+              id={headingId}
               className='text-balance font-[430] font-season text-[32px] text-white leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
             >
               Realtime

@@ -25,7 +25,10 @@ import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/provide
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { useWorkflowResourceReplacementOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/hooks/use-workflow-resource-replacement-options'
-import { useWorkflowSearchReferenceHydration } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/hooks/use-workflow-search-reference-hydration'
+import {
+  type HydratedWorkflowSearchMatch,
+  useWorkflowSearchReferenceHydration,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/hooks/use-workflow-search-reference-hydration'
 import { ReplacementControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/replacement-controls'
 import {
   useFloatBoundarySync,
@@ -39,7 +42,8 @@ import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { usePanelEditorStore } from '@/stores/panel'
+import { usePanelEditorSearchStore, usePanelEditorStore } from '@/stores/panel'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowSearchReplaceStore } from '@/stores/workflow-search-replace/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -78,6 +82,29 @@ function constrainSearchPanelPosition(position: { x: number; y: number }, height
       Math.min(window.innerWidth - panelWidth - SEARCH_PANEL_WIDTH - 8, position.x)
     ),
     y: Math.max(8, Math.min(window.innerHeight - terminalHeight - height - 8, position.y)),
+  }
+}
+
+function createActiveSearchTarget(
+  match: HydratedWorkflowSearchMatch,
+  query: string
+): ActiveSearchTarget {
+  return {
+    matchId: match.id,
+    blockId: match.blockId,
+    subBlockId: match.subBlockId,
+    canonicalSubBlockId: match.canonicalSubBlockId,
+    valuePath: match.valuePath,
+    kind: match.kind,
+    targetKind: match.target.kind,
+    subBlockType: match.subBlockType,
+    rawValue: match.rawValue,
+    searchText: match.searchText,
+    query,
+    range: match.range,
+    structuredOccurrenceIndex: match.structuredOccurrenceIndex,
+    displayLabel: match.displayLabel,
+    resourceGroupKey: match.resource?.resourceGroupKey,
   }
 }
 
@@ -222,7 +249,7 @@ export function WorkflowSearchReplace() {
 
   useEffect(() => {
     if (!isOpen) {
-      usePanelEditorStore.getState().setActiveSearchTarget(null)
+      usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
       return
     }
     searchInputRef.current?.focus()
@@ -258,18 +285,11 @@ export function WorkflowSearchReplace() {
       const match = hydratedMatches.find((candidate) => candidate.id === matchId)
       if (!match) return
       usePanelEditorStore.getState().setCurrentBlockId(match.blockId)
-      usePanelEditorStore.getState().setActiveSearchTarget({
-        matchId: match.id,
-        blockId: match.blockId,
-        subBlockId: match.subBlockId,
-        canonicalSubBlockId: match.canonicalSubBlockId,
-        valuePath: match.valuePath,
-        kind: match.kind,
-        targetKind: match.target.kind,
-        resourceGroupKey: match.resource?.resourceGroupKey,
+      usePanelEditorSearchStore.getState().setActiveSearchTarget({
+        ...createActiveSearchTarget(match, query),
       })
     },
-    [hydratedMatches, setActiveMatchId]
+    [hydratedMatches, query, setActiveMatchId]
   )
 
   const activeMatchIndex = hydratedMatches.findIndex((match) => match.id === activeMatchId)
@@ -361,14 +381,21 @@ export function WorkflowSearchReplace() {
 
     if (hydratedMatches.length === 0) {
       if (activeMatchId) setActiveMatchId(null)
-      usePanelEditorStore.getState().setActiveSearchTarget(null)
+      usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
       return
     }
 
     if (!activeMatchId || !hydratedMatches.some((match) => match.id === activeMatchId)) {
       handleSelectMatch(hydratedMatches[0].id)
+      return
     }
-  }, [activeMatchId, handleSelectMatch, hydratedMatches, isOpen, setActiveMatchId])
+
+    const activeHydratedMatch = hydratedMatches.find((match) => match.id === activeMatchId)
+    if (!activeHydratedMatch) return
+    usePanelEditorSearchStore
+      .getState()
+      .setActiveSearchTarget(createActiveSearchTarget(activeHydratedMatch, query))
+  }, [activeMatchId, handleSelectMatch, hydratedMatches, isOpen, query, setActiveMatchId])
 
   if (!isOpen) return null
 

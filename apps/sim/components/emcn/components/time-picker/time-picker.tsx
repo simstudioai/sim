@@ -74,6 +74,8 @@ interface TimePickerProps
   disabled?: boolean
   /** Size variant */
   size?: 'default' | 'sm'
+  /** Optional rendered trigger label. */
+  overlayContent?: React.ReactNode
 }
 
 /**
@@ -125,6 +127,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
       onChange,
       placeholder = 'Select time',
       disabled = false,
+      overlayContent,
       ...props
     },
     ref
@@ -237,7 +240,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
               onKeyDown={handleKeyDown}
             >
               <span className={cn('flex-1 truncate', !displayValue && 'text-[var(--text-muted)]')}>
-                {displayValue || placeholder}
+                {overlayContent ?? (displayValue || placeholder)}
               </span>
               <ChevronDown
                 className={cn(
