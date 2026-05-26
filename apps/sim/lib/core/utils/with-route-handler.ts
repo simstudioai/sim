@@ -31,7 +31,6 @@ type RouteHandler<T = unknown> = (
 function readTypedErrorStatus(error: unknown): number | undefined {
   if (!(error instanceof HttpError)) return undefined
   const status = error.statusCode
-  if (typeof status !== 'number') return undefined
   if (status < 400 || status >= 600) return undefined
   return status
 }
