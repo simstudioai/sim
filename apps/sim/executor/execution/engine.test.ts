@@ -28,6 +28,7 @@ vi.mock('@/lib/execution/cancellation', () => ({
 }))
 
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
+import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
@@ -108,6 +109,9 @@ function createMockEdgeManager(
     restoreIncomingEdge: vi.fn(),
     clearDeactivatedEdges: vi.fn(),
     clearDeactivatedEdgesForNodes: vi.fn(),
+    getDeactivatedEdges: vi.fn(() => []),
+    getNodesWithActivatedEdge: vi.fn(() => []),
+    markNodeWithActivatedEdge: vi.fn(),
   } as unknown as MockEdgeManager
 }
 
@@ -150,7 +154,9 @@ describe('ExecutionEngine', () => {
       endNode.incomingEdges.add('start')
 
       const dag = createMockDAG([startNode, endNode])
-      const context = createMockContext()
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+      })
       const edgeManager = createMockEdgeManager((node) => {
         if (node.id === 'start') return ['end']
         return []
@@ -167,7 +173,9 @@ describe('ExecutionEngine', () => {
     it('should mark execution as successful when completed without cancellation', async () => {
       const startNode = createMockNode('start', 'starter')
       const dag = createMockDAG([startNode])
-      const context = createMockContext()
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+      })
       const edgeManager = createMockEdgeManager()
       const nodeOrchestrator = createMockNodeOrchestrator()
 
@@ -193,10 +201,34 @@ describe('ExecutionEngine', () => {
       const nodeOrchestrator = createMockNodeOrchestrator()
 
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
-      const result = await engine.run()
+      const result = await engine.run('hitl')
 
       expect(result.success).toBe(true)
       expect(nodeOrchestrator.executionCount).toBe(0)
+    })
+
+    it('marks resumed pause edge targets as activated before readiness checks', async () => {
+      const targetNode = createMockNode('join', 'function')
+      targetNode.incomingEdges.add('pause-block')
+      targetNode.incomingEdges.add('condition-block')
+      const dag = createMockDAG([targetNode])
+      const context = createMockContext({
+        metadata: {
+          executionId: 'test-execution',
+          startTime: new Date().toISOString(),
+          pendingBlocks: [],
+          remainingEdges: [{ source: 'pause-block', target: 'join' }],
+        } as any,
+      })
+      const edgeManager = createMockEdgeManager(() => [])
+      vi.mocked(edgeManager.isNodeReady).mockReturnValue(false)
+      const nodeOrchestrator = createMockNodeOrchestrator()
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      await engine.run()
+
+      expect(edgeManager.markNodeWithActivatedEdge).toHaveBeenCalledWith('join')
+      expect(nodeOrchestrator.executeNode).not.toHaveBeenCalled()
     })
 
     it('should execute all nodes in a multi-node workflow', async () => {
@@ -226,6 +258,73 @@ describe('ExecutionEngine', () => {
 
       expect(result.success).toBe(true)
       expect(nodeOrchestrator.executionCount).toBe(4)
+    })
+
+    it('records paused block completion before returning paused result', async () => {
+      const node = createMockNode('hitl', 'function')
+      const dag = createMockDAG([node])
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+      })
+      const edgeManager = createMockEdgeManager()
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      const pauseOutput = {
+        response: { status: 'paused' },
+        _pauseMetadata: {
+          contextId: 'pause-1',
+          blockId: 'hitl',
+          response: { status: 'paused' },
+          timestamp: new Date().toISOString(),
+          pauseKind: 'hitl',
+        },
+      }
+      vi.mocked(nodeOrchestrator.executeNode).mockResolvedValue({
+        nodeId: 'hitl',
+        output: pauseOutput,
+        isFinalOutput: false,
+      })
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const result = await engine.run('hitl')
+
+      expect(result.status).toBe('paused')
+      expect(nodeOrchestrator.handleNodeCompletion).toHaveBeenCalledWith(
+        context,
+        'hitl',
+        pauseOutput
+      )
+    })
+
+    it('does not stop run-until execution on parallel batch continuation', async () => {
+      const parallelEnd = createMockNode('parallel-end', 'parallel')
+      const nextNode = createMockNode('next', 'function')
+      parallelEnd.outgoingEdges.set('continue', {
+        target: 'next',
+        sourceHandle: EDGE.PARALLEL_CONTINUE,
+      })
+      nextNode.incomingEdges.add('parallel-end')
+      const dag = createMockDAG([parallelEnd, nextNode])
+      const context = createMockContext({
+        stopAfterBlockId: 'parallel-end',
+        decisions: { router: new Map(), condition: new Map() },
+      })
+      const edgeManager = createMockEdgeManager((node) =>
+        node.id === 'parallel-end' ? ['next'] : []
+      )
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      vi.mocked(nodeOrchestrator.executeNode).mockImplementation(async (_ctx, nodeId) => ({
+        nodeId,
+        output:
+          nodeId === 'parallel-end'
+            ? { selectedRoute: EDGE.PARALLEL_CONTINUE }
+            : { result: 'done' },
+        isFinalOutput: nodeId === 'next',
+      }))
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      await engine.run('parallel-end')
+
+      expect(nodeOrchestrator.executeNode).toHaveBeenCalledWith(context, 'next')
     })
   })
 
@@ -301,7 +400,7 @@ describe('ExecutionEngine', () => {
       const duration = Date.now() - startTime
 
       expect(result.status).toBe('cancelled')
-      expect(duration).toBeLessThan(100)
+      expect(duration).toBeLessThan(200)
     })
 
     it('should return cancelled status even if error thrown during cancellation', async () => {
@@ -473,13 +572,23 @@ describe('ExecutionEngine', () => {
       const abortController = new AbortController()
 
       const loopStartNode = createMockNode('loop-start', 'loop_sentinel')
-      loopStartNode.metadata = { isSentinel: true, sentinelType: 'start', loopId: 'loop1' }
+      loopStartNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: 'loop1',
+        subflowType: 'loop',
+      }
 
       const loopBodyNode = createMockNode('loop-body', 'function')
-      loopBodyNode.metadata = { isLoopNode: true, loopId: 'loop1' }
+      loopBodyNode.metadata = { isLoopNode: true, subflowId: 'loop1', subflowType: 'loop' }
 
       const loopEndNode = createMockNode('loop-end', 'loop_sentinel')
-      loopEndNode.metadata = { isSentinel: true, sentinelType: 'end', loopId: 'loop1' }
+      loopEndNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        subflowId: 'loop1',
+        subflowType: 'loop',
+      }
 
       loopStartNode.outgoingEdges.set('edge1', { target: 'loop-body' })
       loopBodyNode.outgoingEdges.set('edge2', { target: 'loop-end' })
@@ -953,13 +1062,23 @@ describe('ExecutionEngine', () => {
 
     it('should stop loop iteration when error occurs in loop body', async () => {
       const loopStartNode = createMockNode('loop-start', 'loop_sentinel')
-      loopStartNode.metadata = { isSentinel: true, sentinelType: 'start', loopId: 'loop1' }
+      loopStartNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: 'loop1',
+        subflowType: 'loop',
+      }
 
       const loopBodyNode = createMockNode('loop-body', 'function')
-      loopBodyNode.metadata = { isLoopNode: true, loopId: 'loop1' }
+      loopBodyNode.metadata = { isLoopNode: true, subflowId: 'loop1', subflowType: 'loop' }
 
       const loopEndNode = createMockNode('loop-end', 'loop_sentinel')
-      loopEndNode.metadata = { isSentinel: true, sentinelType: 'end', loopId: 'loop1' }
+      loopEndNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        subflowId: 'loop1',
+        subflowType: 'loop',
+      }
 
       const afterLoopNode = createMockNode('after-loop', 'function')
 

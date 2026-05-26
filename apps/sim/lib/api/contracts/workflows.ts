@@ -40,6 +40,10 @@ const workflowSubBlockStateSchema = z.object({
 })
 
 const workflowBlockOutputSchema = z.unknown()
+const workflowEdgeHandleSchema = z
+  .string()
+  .nullish()
+  .transform((value) => value ?? undefined)
 
 const workflowBlockStateSchema = z.object({
   id: z.string(),
@@ -61,8 +65,8 @@ const workflowEdgeSchema = z.object({
   id: z.string(),
   source: z.string(),
   target: z.string(),
-  sourceHandle: z.string().optional(),
-  targetHandle: z.string().optional(),
+  sourceHandle: workflowEdgeHandleSchema,
+  targetHandle: workflowEdgeHandleSchema,
   type: z.string().optional(),
   animated: z.boolean().optional(),
   style: z.record(z.string(), z.unknown()).optional(),

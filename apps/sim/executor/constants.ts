@@ -74,6 +74,20 @@ export const EDGE = {
   DEFAULT: 'default',
 } as const
 
+export const SUBFLOW_CONTROL_EDGE_HANDLES = new Set<string>([
+  EDGE.LOOP_CONTINUE,
+  EDGE.LOOP_CONTINUE_ALT,
+  EDGE.LOOP_EXIT,
+  EDGE.PARALLEL_CONTINUE,
+  EDGE.PARALLEL_EXIT,
+])
+
+export const CONTROL_BACK_EDGE_HANDLES = new Set<string>([
+  EDGE.LOOP_CONTINUE,
+  EDGE.LOOP_CONTINUE_ALT,
+  EDGE.PARALLEL_CONTINUE,
+])
+
 export const LOOP = {
   TYPE: {
     FOR: 'for' as LoopType,

@@ -35,8 +35,14 @@ const dbMocks = vi.hoisted(() => {
   }
 })
 
-const { completeWorkflowExecutionMock } = vi.hoisted(() => ({
+const {
+  completeWorkflowExecutionMock,
+  startWorkflowExecutionMock,
+  loadWorkflowStateForExecutionMock,
+} = vi.hoisted(() => ({
   completeWorkflowExecutionMock: vi.fn(),
+  startWorkflowExecutionMock: vi.fn(),
+  loadWorkflowStateForExecutionMock: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -55,7 +61,7 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('@/lib/logs/execution/logger', () => ({
   executionLogger: {
-    startWorkflowExecution: vi.fn(),
+    startWorkflowExecution: startWorkflowExecutionMock,
     completeWorkflowExecution: completeWorkflowExecutionMock,
   },
 }))
@@ -75,10 +81,75 @@ vi.mock('@/lib/logs/execution/logging-factory', () => ({
   createEnvironmentObject: vi.fn(),
   createTriggerObject: vi.fn(),
   loadDeployedWorkflowStateForLogging: vi.fn(),
-  loadWorkflowStateForExecution: vi.fn(),
+  loadWorkflowStateForExecution: loadWorkflowStateForExecutionMock,
 }))
 
 import { LoggingSession } from './logging-session'
+
+describe('LoggingSession start snapshots', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    startWorkflowExecutionMock.mockResolvedValue({})
+    loadWorkflowStateForExecutionMock.mockResolvedValue({
+      blocks: {
+        stale: {
+          id: 'stale',
+          type: 'function',
+          name: 'Stale',
+          position: { x: 0, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    })
+  })
+
+  it('uses the executed workflow state override for execution snapshots', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-1', 'manual', 'req-1')
+    const executedWorkflowState = {
+      blocks: {
+        loop: {
+          id: 'loop',
+          type: 'loop',
+          name: 'Loop',
+          position: { x: 0, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+        },
+        parallel: {
+          id: 'parallel',
+          type: 'parallel',
+          name: 'Parallel',
+          position: { x: 100, y: 80 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+          data: { parentId: 'loop', extent: 'parent' as const },
+        },
+      },
+      edges: [],
+      loops: { loop: { id: 'loop', nodes: ['parallel'], iterations: 1, loopType: 'for' as const } },
+      parallels: { parallel: { id: 'parallel', nodes: [], count: 1 } },
+    }
+
+    await session.start({
+      workspaceId: 'workspace-1',
+      workflowState: executedWorkflowState,
+    })
+
+    expect(loadWorkflowStateForExecutionMock).not.toHaveBeenCalled()
+    expect(startWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowState: executedWorkflowState,
+      })
+    )
+  })
+})
 
 describe('LoggingSession completion retries', () => {
   beforeEach(() => {

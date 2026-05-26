@@ -13,6 +13,7 @@ import {
   resolveBlockReferenceAsync,
 } from '@/executor/utils/block-reference'
 import { formatLiteralForCode } from '@/executor/utils/code-formatting'
+import { buildClonedSubflowId, extractOuterBranchIndex } from '@/executor/utils/subflow-utils'
 import {
   type AsyncPathNavigator,
   navigatePath,
@@ -25,6 +26,8 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 export class BlockResolver implements Resolver {
   private nameToBlockId: Map<string, string>
   private blockById: Map<string, SerializedBlock>
+  private blockIdsInSubflows: Set<string>
+  private subflowContainerIds: Set<string>
 
   constructor(
     private workflow: SerializedWorkflow,
@@ -32,10 +35,25 @@ export class BlockResolver implements Resolver {
   ) {
     this.nameToBlockId = new Map()
     this.blockById = new Map()
+    this.blockIdsInSubflows = new Set()
+    this.subflowContainerIds = new Set([
+      ...Object.keys(workflow.loops ?? {}),
+      ...Object.keys(workflow.parallels ?? {}),
+    ])
     for (const block of workflow.blocks) {
       this.blockById.set(block.id, block)
       if (block.metadata?.name) {
         this.nameToBlockId.set(normalizeName(block.metadata.name), block.id)
+      }
+    }
+    for (const loop of Object.values(workflow.loops ?? {})) {
+      for (const blockId of loop.nodes ?? []) {
+        this.blockIdsInSubflows.add(blockId)
+      }
+    }
+    for (const parallel of Object.values(workflow.parallels ?? {})) {
+      for (const blockId of parallel.nodes ?? []) {
+        this.blockIdsInSubflows.add(blockId)
       }
     }
   }
@@ -282,10 +300,36 @@ export class BlockResolver implements Resolver {
   }
 
   private getBlockOutput(blockId: string, context: ResolutionContext): any {
+    const outerBranchIndex = extractOuterBranchIndex(context.currentNodeId)
+    const mappedBranchIndex =
+      outerBranchIndex ??
+      context.executionContext.parallelBlockMapping?.get(context.currentNodeId)?.iterationIndex
+    const shouldResolveClonedSubflowOutput =
+      mappedBranchIndex !== undefined &&
+      mappedBranchIndex > 0 &&
+      this.subflowContainerIds.has(blockId)
+
+    if (shouldResolveClonedSubflowOutput) {
+      const clonedStateOutput = context.executionState.getBlockOutput(
+        buildClonedSubflowId(blockId, mappedBranchIndex)
+      )
+      if (clonedStateOutput !== undefined) {
+        return clonedStateOutput
+      }
+    }
+
     const stateOutput = context.executionState.getBlockOutput(blockId, context.currentNodeId)
     if (stateOutput !== undefined) {
       return stateOutput
     }
+
+    if (
+      shouldResolveClonedSubflowOutput ||
+      (outerBranchIndex !== undefined && this.blockIdsInSubflows.has(blockId))
+    ) {
+      return undefined
+    }
+
     const contextState = context.executionContext.blockStates?.get(blockId)
     if (contextState?.output) {
       return contextState.output

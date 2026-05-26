@@ -2,7 +2,7 @@ import { DEFAULTS } from '@/executor/constants'
 import type { NodeMetadata } from '@/executor/dag/types'
 import type { IterationContext, ParentIteration } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
-import { extractOuterBranchIndex, findEffectiveContainerId } from '@/executor/utils/subflow-utils'
+import { findEffectiveContainerId } from '@/executor/utils/subflow-utils'
 
 /** Maximum ancestor depth to prevent runaway traversal in deeply nested subflows. */
 const MAX_PARENT_DEPTH = DEFAULTS.MAX_NESTING_DEPTH
@@ -13,7 +13,7 @@ const MAX_PARENT_DEPTH = DEFAULTS.MAX_NESTING_DEPTH
  */
 export type IterationNodeMetadata = Pick<
   NodeMetadata,
-  'loopId' | 'parallelId' | 'branchIndex' | 'branchTotal' | 'isLoopNode'
+  'subflowType' | 'subflowId' | 'branchIndex' | 'branchTotal' | 'isLoopNode'
 >
 
 /**
@@ -28,27 +28,27 @@ export function getIterationContext(
   if (!metadata) return undefined
 
   if (metadata.branchIndex !== undefined && metadata.branchTotal !== undefined) {
-    const parentIterations = metadata.parallelId
-      ? buildUnifiedParentIterations(ctx, metadata.parallelId)
-      : []
+    const parallelId = metadata.subflowType === 'parallel' ? metadata.subflowId : undefined
+    const parentIterations = parallelId ? buildUnifiedParentIterations(ctx, parallelId) : []
     return {
       iterationCurrent: metadata.branchIndex,
       iterationTotal: metadata.branchTotal,
       iterationType: 'parallel',
-      iterationContainerId: metadata.parallelId,
+      iterationContainerId: parallelId,
       ...(parentIterations.length > 0 && { parentIterations }),
     }
   }
 
-  if (metadata.isLoopNode && metadata.loopId) {
-    const loopScope = ctx.loopExecutions?.get(metadata.loopId)
+  const loopId = metadata.subflowType === 'loop' ? metadata.subflowId : undefined
+  if (metadata.isLoopNode && loopId) {
+    const loopScope = ctx.loopExecutions?.get(loopId)
     if (loopScope && loopScope.iteration !== undefined) {
-      const parentIterations = buildUnifiedParentIterations(ctx, metadata.loopId)
+      const parentIterations = buildUnifiedParentIterations(ctx, loopId)
       return {
         iterationCurrent: loopScope.iteration,
         iterationTotal: loopScope.maxIterations,
         iterationType: 'loop',
-        iterationContainerId: metadata.loopId,
+        iterationContainerId: loopId,
         ...(parentIterations.length > 0 && { parentIterations }),
       }
     }
@@ -70,23 +70,15 @@ export function buildContainerIterationContext(
   if (!parentEntry) return undefined
 
   if (parentEntry.parentType === 'parallel') {
-    // Use stored parentId directly when branchIndex is available (set during expansion),
-    // otherwise fall back to findEffectiveContainerId for backward compatibility.
-    const hasBranchIndex = parentEntry.branchIndex !== undefined
-    const effectiveParentId = hasBranchIndex
-      ? parentEntry.parentId
-      : ctx.parallelExecutions
-        ? findEffectiveContainerId(parentEntry.parentId, containerId, ctx.parallelExecutions)
-        : parentEntry.parentId
-    const parentScope = ctx.parallelExecutions?.get(effectiveParentId)
-    if (parentScope) {
+    if (parentEntry.branchIndex !== undefined) {
+      const parentScope = ctx.parallelExecutions?.get(parentEntry.parentId)
+      if (!parentScope) return undefined
+
       return {
-        iterationCurrent: hasBranchIndex
-          ? parentEntry.branchIndex!
-          : (extractOuterBranchIndex(containerId) ?? 0),
+        iterationCurrent: parentEntry.branchIndex,
         iterationTotal: parentScope.totalBranches,
         iterationType: 'parallel',
-        iterationContainerId: effectiveParentId,
+        iterationContainerId: parentEntry.parentId,
       }
     }
   } else if (parentEntry.parentType === 'loop') {
@@ -150,21 +142,15 @@ export function buildUnifiedParentIterations(
         })
       }
     } else {
-      // Use stored parentId directly when branchIndex is available (set during expansion),
-      // otherwise fall back to findEffectiveContainerId for backward compatibility.
-      const hasBranchIndex = entry.branchIndex !== undefined
-      const effectiveParentId = hasBranchIndex
-        ? parentId
-        : ctx.parallelExecutions
-          ? findEffectiveContainerId(parentId, currentId, ctx.parallelExecutions)
-          : parentId
+      if (entry.branchIndex === undefined) {
+        currentId = parentId
+        continue
+      }
+      const effectiveParentId = parentId
       const parentScope = ctx.parallelExecutions?.get(effectiveParentId)
       if (parentScope) {
-        const outerBranchIndex = hasBranchIndex
-          ? entry.branchIndex!
-          : (extractOuterBranchIndex(currentId) ?? 0)
         parents.unshift({
-          iterationCurrent: outerBranchIndex,
+          iterationCurrent: entry.branchIndex,
           iterationTotal: parentScope.totalBranches,
           iterationType: 'parallel',
           iterationContainerId: effectiveParentId,

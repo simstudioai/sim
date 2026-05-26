@@ -82,6 +82,7 @@ export interface SessionStartParams {
   triggerData?: TriggerData
   skipLogCreation?: boolean // For resume executions - reuse existing log entry
   deploymentVersionId?: string // ID of the deployment version used (null for manual/editor executions)
+  workflowState?: WorkflowState
 }
 
 export interface SessionCompleteParams {
@@ -413,8 +414,15 @@ export class LoggingSession {
   }
 
   async start(params: SessionStartParams): Promise<void> {
-    const { userId, workspaceId, variables, triggerData, skipLogCreation, deploymentVersionId } =
-      params
+    const {
+      userId,
+      workspaceId,
+      variables,
+      triggerData,
+      skipLogCreation,
+      deploymentVersionId,
+      workflowState,
+    } = params
 
     try {
       this.trigger = createTriggerObject(this.triggerType, triggerData)
@@ -426,11 +434,11 @@ export class LoggingSession {
         workspaceId,
         variables
       )
-      // Use deployed state if deploymentVersionId is provided (non-manual execution)
-      // Otherwise fall back to loading from normalized tables (manual/draft execution)
-      this.workflowState = deploymentVersionId
-        ? await loadDeployedWorkflowStateForLogging(this.workflowId)
-        : await loadWorkflowStateForExecution(this.workflowId)
+      this.workflowState =
+        workflowState ??
+        (deploymentVersionId
+          ? await loadDeployedWorkflowStateForLogging(this.workflowId)
+          : await loadWorkflowStateForExecution(this.workflowId))
 
       if (!skipLogCreation) {
         await executionLogger.startWorkflowExecution({
@@ -895,7 +903,8 @@ export class LoggingSession {
 
       // Fallback: create a minimal logging session without full workflow state
       try {
-        const { userId, workspaceId, variables, triggerData, deploymentVersionId } = params
+        const { userId, workspaceId, variables, triggerData, deploymentVersionId, workflowState } =
+          params
         this.trigger = createTriggerObject(this.triggerType, triggerData)
         this.correlation = triggerData?.correlation
         this.environment = createEnvironmentObject(
@@ -905,14 +914,13 @@ export class LoggingSession {
           workspaceId,
           variables
         )
-        // Minimal workflow state when normalized/deployed data is unavailable
-        const minimalWorkflowState: WorkflowState = {
+        const fallbackWorkflowState: WorkflowState = workflowState ?? {
           blocks: {},
           edges: [],
           loops: {},
           parallels: {},
         }
-        this.workflowState = minimalWorkflowState
+        this.workflowState = fallbackWorkflowState
 
         await executionLogger.startWorkflowExecution({
           workflowId: this.workflowId,
