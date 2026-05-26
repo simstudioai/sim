@@ -2,6 +2,7 @@ import { createLogger, runWithRequestContext } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
 
 const logger = createLogger('RouteHandler')
@@ -12,21 +13,24 @@ type RouteHandler<T = unknown> = (
 ) => Promise<NextResponse | Response> | NextResponse | Response
 
 /**
- * Reads a numeric `statusCode` (4xx or 5xx) off an Error so typed domain errors
- * (e.g. `WorkspaceAccessDeniedError`, `InvalidFieldError`) map to the correct
- * HTTP status when they bubble up unhandled instead of defaulting to 500.
+ * Reads a numeric `statusCode` (4xx or 5xx) off an `HttpError` so typed domain
+ * errors (e.g. `WorkspaceAccessDeniedError`, `InvalidFieldError`) map to the
+ * correct HTTP status when they bubble up unhandled instead of defaulting to
+ * 500.
+ *
+ * Uses an `instanceof HttpError` check (not duck-typing on `statusCode`) so
+ * third-party errors that happen to carry a `statusCode`-shaped field cannot
+ * trigger this path and leak their internal `message` to the client.
  *
  * When a typed status is returned, the error's `message` is sent to the client
  * verbatim — matching the NestJS `HttpException` / Spring `ResponseStatusException`
- * convention. The safety contract is convention-based: only attach `statusCode`
- * to errors whose `message` is safe to expose to clients (no stack traces,
- * secrets, file paths, ORM internals). Untyped errors fall back to a generic
- * 500 response with no message exposure.
+ * convention. Subclasses of `HttpError` are responsible for keeping `message`
+ * safe to expose to clients (no stack traces, secrets, file paths, ORM
+ * internals).
  */
 function readTypedErrorStatus(error: unknown): number | undefined {
-  if (!(error instanceof Error)) return undefined
-  const status = (error as { statusCode?: unknown }).statusCode
-  if (typeof status !== 'number') return undefined
+  if (!(error instanceof HttpError)) return undefined
+  const status = error.statusCode
   if (status < 400 || status >= 600) return undefined
   return status
 }
