@@ -19,7 +19,10 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { performMoveWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
-import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  assertActiveWorkspaceAccess,
+  isWorkspaceAccessDeniedError,
+} from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -352,6 +355,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
   } catch (error) {
+    if (isWorkspaceAccessDeniedError(error)) {
+      return NextResponse.json(
+        { success: false, error: 'Workspace access denied' },
+        { status: 403 }
+      )
+    }
     const message = getErrorMessage(error, 'Unknown error')
     logger.error('File operation failed', { operation: body.operation, error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
