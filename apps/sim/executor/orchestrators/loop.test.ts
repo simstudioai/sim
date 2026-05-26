@@ -11,8 +11,13 @@ import type { BlockStateController } from '@/executor/execution/types'
 import { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import type { ExecutionContext } from '@/executor/types'
 
-const { mockUploadFile } = vi.hoisted(() => ({
+const { mockExecuteInIsolatedVM, mockUploadFile } = vi.hoisted(() => ({
+  mockExecuteInIsolatedVM: vi.fn(),
   mockUploadFile: vi.fn(),
+}))
+
+vi.mock('@/lib/execution/isolated-vm', () => ({
+  executeInIsolatedVM: mockExecuteInIsolatedVM,
 }))
 
 vi.mock('@/lib/uploads', () => ({
@@ -83,6 +88,7 @@ describe('LoopOrchestrator', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearLargeValueCacheForTests()
+    mockExecuteInIsolatedVM.mockResolvedValue({ result: true })
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
   })
 
@@ -275,6 +281,7 @@ describe('LoopOrchestrator', () => {
   it('marks while loops with false initial conditions as skipped at start', async () => {
     const state = createState()
     const resolver = { resolveSingleReference: vi.fn().mockResolvedValue(false) }
+    mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: false })
     const orchestrator = new LoopOrchestrator(
       { loopConfigs: new Map(), parallelConfigs: new Map(), nodes: new Map() },
       state,
@@ -294,6 +301,11 @@ describe('LoopOrchestrator', () => {
     expect(shouldExecute).toBe(false)
     expect(scope.skippedAtStart).toBe(true)
     expect(state.setBlockOutput).not.toHaveBeenCalled()
+    expect(mockExecuteInIsolatedVM).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'return Boolean(false)',
+      })
+    )
   })
 
   it('exits doWhile loops when the configured iteration cap is reached', async () => {
