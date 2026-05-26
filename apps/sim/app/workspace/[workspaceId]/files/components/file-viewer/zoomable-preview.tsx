@@ -1,7 +1,7 @@
 'use client'
 
 import type { MouseEvent, ReactNode } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { PreviewToolbar } from './preview-toolbar'
 import { bindPreviewWheelZoom } from './preview-wheel-zoom'
@@ -134,7 +134,7 @@ export function ZoomablePreview({
     applyZoom(clampZoom(zoom / ZOOM_BUTTON_FACTOR))
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const viewport = viewportRef.current
     if (!viewport) return
 
