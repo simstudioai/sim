@@ -64,4 +64,14 @@ describe('ExecutionState', () => {
 
     expect(state.getBlockOutput('producer', 'nested-condition')).toEqual({ value: 'branch-0' })
   })
+
+  it('prefers stable branch-zero aliases when later batches reuse local branch ids', () => {
+    const state = new ExecutionState()
+    state.setBlockOutput('producer__obranch-0', { value: 'global-branch-0' })
+    state.setBlockOutput('producer₍0₎', { value: 'later-batch-local-0' })
+
+    expect(state.getBlockOutput('producer', 'after-parallel')).toEqual({
+      value: 'global-branch-0',
+    })
+  })
 })

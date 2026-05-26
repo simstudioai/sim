@@ -167,7 +167,8 @@ function createTestWorkflow(
 function createTestContext(
   currentNodeId: string,
   blockOutputs: Record<string, any> = {},
-  contextBlockStates?: Map<string, { output: any }>
+  contextBlockStates?: Map<string, { output: any }>,
+  parallelBlockMapping?: Map<string, any>
 ): ResolutionContext {
   const state = new ExecutionState()
   for (const [blockId, output] of Object.entries(blockOutputs)) {
@@ -180,6 +181,7 @@ function createTestContext(
       workflowId: 'workflow-1',
       executionId: 'execution-1',
       blockStates: contextBlockStates ?? new Map(),
+      parallelBlockMapping,
     },
     executionState: state,
     currentNodeId,
@@ -276,6 +278,88 @@ describe('BlockResolver', () => {
       )
 
       expect(resolver.resolve('<source.result>', ctx)).toBe('global')
+    })
+
+    it('uses parallel block mappings to resolve cloned subflow outputs in later batches', () => {
+      const workflow = createTestWorkflow(
+        [
+          { id: 'nested-loop', name: 'Nested Loop' },
+          { id: 'consumer', name: 'Consumer' },
+        ],
+        {
+          loops: { 'nested-loop': { id: 'nested-loop', nodes: ['loop-task'] } },
+          parallels: { 'parallel-1': { id: 'parallel-1', nodes: ['nested-loop', 'consumer'] } },
+        }
+      )
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext(
+        'consumer₍0₎',
+        {
+          'nested-loop': { results: ['branch-0'] },
+          'nested-loop__obranch-2': { results: ['branch-2'] },
+        },
+        undefined,
+        new Map([
+          [
+            'consumer₍0₎',
+            { originalBlockId: 'consumer', parallelId: 'parallel-1', iterationIndex: 2 },
+          ],
+        ])
+      )
+
+      expect(resolver.resolve('<nestedloop.results>', ctx)).toEqual(['branch-2'])
+    })
+
+    it('resolves regular block outputs from the same cloned branch scope', () => {
+      const workflow = createTestWorkflow(
+        [
+          { id: 'source', name: 'Source' },
+          { id: 'consumer', name: 'Consumer' },
+        ],
+        {
+          parallels: { 'parallel-1': { id: 'parallel-1', nodes: ['source', 'consumer'] } },
+        }
+      )
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext('consumer__cloneabc__obranch-2₍0₎', {
+        'source__obranch-2': { result: 'wrong-container-alias' },
+        'source__cloneabc__obranch-2₍0₎': { result: 'same-branch' },
+      })
+
+      expect(resolver.resolve('<source.result>', ctx)).toBe('same-branch')
+    })
+
+    it('uses outer branch suffix over inner parallel mappings for cloned subflow outputs', () => {
+      const workflow = createTestWorkflow(
+        [
+          { id: 'sibling-loop', name: 'Sibling Loop' },
+          { id: 'inner-task', name: 'Inner Task' },
+        ],
+        {
+          loops: { 'sibling-loop': { id: 'sibling-loop', nodes: ['loop-task'] } },
+          parallels: {
+            'outer-parallel': { id: 'outer-parallel', nodes: ['sibling-loop', 'inner-parallel'] },
+            'inner-parallel': { id: 'inner-parallel', nodes: ['inner-task'] },
+          },
+        }
+      )
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext(
+        'inner-task__clone-inner__obranch-2₍0₎',
+        {
+          'sibling-loop__obranch-1': { results: ['inner-branch-1'] },
+          'sibling-loop__obranch-2': { results: ['outer-branch-2'] },
+        },
+        undefined,
+        new Map([
+          [
+            'inner-task__clone-inner__obranch-2₍0₎',
+            { originalBlockId: 'inner-task', parallelId: 'inner-parallel', iterationIndex: 1 },
+          ],
+        ])
+      )
+
+      expect(resolver.resolve('<siblingloop.results>', ctx)).toEqual(['outer-branch-2'])
     })
 
     it('should resolve nested scalar paths inside compacted block references', async () => {

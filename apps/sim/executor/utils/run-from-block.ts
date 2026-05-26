@@ -169,6 +169,22 @@ export function validateRunFromBlock(
   }
 
   if (isContainer) {
+    const parentLoopId = findParentLoop(blockId, dag)
+    if (parentLoopId) {
+      return {
+        valid: false,
+        error: `Cannot run from block inside loop: ${parentLoopId}`,
+      }
+    }
+
+    const parentParallelId = findParentParallel(blockId, dag)
+    if (parentParallelId) {
+      return {
+        valid: false,
+        error: `Cannot run from block inside parallel: ${parentParallelId}`,
+      }
+    }
+
     const sentinelStartId = resolveContainerToSentinelStart(blockId, dag)
     if (!sentinelStartId || !dag.nodes.has(sentinelStartId)) {
       return {
@@ -220,4 +236,22 @@ export function validateRunFromBlock(
   }
 
   return { valid: true }
+}
+
+function findParentLoop(blockId: string, dag: DAG): string | undefined {
+  for (const [loopId, config] of dag.loopConfigs) {
+    if (loopId !== blockId && config.nodes?.includes(blockId)) {
+      return loopId
+    }
+  }
+  return undefined
+}
+
+function findParentParallel(blockId: string, dag: DAG): string | undefined {
+  for (const [parallelId, config] of dag.parallelConfigs) {
+    if (parallelId !== blockId && config.nodes?.includes(blockId)) {
+      return parallelId
+    }
+  }
+  return undefined
 }

@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { DEFAULTS, LOOP, PARALLEL, REFERENCE } from '@/executor/constants'
+import { DEFAULTS, LOOP, PARALLEL } from '@/executor/constants'
 import type { ContextExtensions } from '@/executor/execution/types'
 import { type BlockLog, type ExecutionContext, getNextExecutionOrder } from '@/executor/types'
 import { buildContainerIterationContext } from '@/executor/utils/iteration-context'
-import type { VariableResolver } from '@/executor/variables/resolver'
+import type { SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('SubflowUtils')
 
@@ -108,6 +108,12 @@ export function extractOuterBranchIndex(clonedId: string): number | undefined {
   return match ? Number.parseInt(match[1], 10) : undefined
 }
 
+export function extractInnermostOuterBranchIndex(clonedId: string): number | undefined {
+  const matches = Array.from(clonedId.matchAll(/__obranch-(\d+)/g))
+  const lastMatch = matches.at(-1)
+  return lastMatch ? Number.parseInt(lastMatch[1], 10) : undefined
+}
+
 /**
  * Strips all clone suffixes (`__obranch-N`) and branch subscripts (`₍N₎`)
  * from a node ID, returning the original workflow-level block ID.
@@ -119,10 +125,17 @@ export function stripCloneSuffixes(nodeId: string): string {
 }
 
 /**
+ * Builds a stable ID for an output scoped to a global outer parallel branch.
+ */
+export function buildOuterBranchScopedId(originalId: string, branchIndex: number): string {
+  return `${originalId}__obranch-${branchIndex}`
+}
+
+/**
  * Builds a cloned subflow ID from an original ID and outer branch index.
  */
 export function buildClonedSubflowId(originalId: string, branchIndex: number): string {
-  return `${originalId}__obranch-${branchIndex}`
+  return buildOuterBranchScopedId(originalId, branchIndex)
 }
 
 /**
@@ -147,8 +160,23 @@ export function stripOuterBranchSuffix(id: string): string {
 export function findEffectiveContainerId(
   originalId: string,
   currentNodeId: string,
-  executionMap: Map<string, unknown>
+  executionMap: Map<string, unknown>,
+  mappedBranchIndex?: number
 ): string {
+  if (mappedBranchIndex !== undefined && mappedBranchIndex > 0) {
+    const cloneSuffix = `__obranch-${mappedBranchIndex}`
+    const candidateId = buildClonedSubflowId(originalId, mappedBranchIndex)
+    if (executionMap.has(candidateId)) {
+      return candidateId
+    }
+
+    for (const scopeId of executionMap.keys()) {
+      if (scopeId.endsWith(cloneSuffix) && stripOuterBranchSuffix(scopeId) === originalId) {
+        return scopeId
+      }
+    }
+  }
+
   // Prefer the cloned variant when currentNodeId carries an __obranch-N suffix.
   // During concurrent parallel-in-loop execution both the original (branch 0)
   // and cloned variants coexist in the map; the clone is the correct scope.
@@ -198,88 +226,74 @@ export function normalizeNodeId(nodeId: string): string {
   return nodeId
 }
 
-/**
- * Async variant used by execution paths that may need durable large-value or
- * explicit UserFile.base64 materialization while resolving collection inputs.
- */
-export async function resolveArrayInputAsync(
-  ctx: ExecutionContext,
-  items: any,
-  resolver: VariableResolver | null,
-  currentNodeId = ''
-): Promise<any[]> {
-  if (Array.isArray(items)) {
-    return items
-  }
+type SubflowContainerType = 'loop' | 'parallel'
 
-  if (typeof items === 'object' && items !== null) {
-    return Object.entries(items)
-  }
+function getSubflowNodes(
+  workflow: Pick<SerializedWorkflow, 'loops' | 'parallels'>,
+  type: SubflowContainerType,
+  id: string
+): string[] | undefined {
+  return type === 'loop' ? workflow.loops?.[id]?.nodes : workflow.parallels?.[id]?.nodes
+}
 
-  if (typeof items === 'string') {
-    if (items.startsWith(REFERENCE.START) && items.endsWith(REFERENCE.END) && resolver) {
-      try {
-        const resolved = await resolver.resolveSingleReference(
-          ctx,
-          currentNodeId,
-          items,
-          undefined,
-          {
-            allowLargeValueRefs: true,
-          }
-        )
-        if (Array.isArray(resolved)) {
-          return resolved
-        }
-        if (typeof resolved === 'object' && resolved !== null) {
-          return Object.entries(resolved)
-        }
-        if (resolved === null) {
-          return []
-        }
-        throw new Error(`Reference "${items}" did not resolve to an array or object`)
-      } catch (error) {
-        if (error instanceof Error && error.message.startsWith('Reference "')) {
-          throw error
-        }
-        throw new Error(`Failed to resolve reference "${items}": ${toError(error).message}`)
-      }
-    }
+export function subflowContainsBlock(
+  workflow: Pick<SerializedWorkflow, 'loops' | 'parallels'>,
+  containerType: SubflowContainerType,
+  containerId: string,
+  baseBlockId: string,
+  visited = new Set<string>()
+): boolean {
+  const visitKey = `${containerType}:${containerId}`
+  if (visited.has(visitKey)) return false
+  visited.add(visitKey)
 
-    try {
-      const normalized = items.replace(/'/g, '"')
-      const parsed = JSON.parse(normalized)
-      if (Array.isArray(parsed)) {
-        return parsed
-      }
-      if (typeof parsed === 'object' && parsed !== null) {
-        return Object.entries(parsed)
-      }
-      throw new Error(`Parsed value is not an array or object`)
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith('Parsed value')) {
-        throw error
-      }
-      throw new Error(`Failed to parse items as JSON: "${items}"`)
+  const nodes = getSubflowNodes(workflow, containerType, containerId)
+  if (!nodes) return false
+
+  for (const nodeId of nodes) {
+    if (nodeId === baseBlockId) return true
+    if (workflow.loops?.[nodeId]) {
+      if (subflowContainsBlock(workflow, 'loop', nodeId, baseBlockId, visited)) return true
+    } else if (workflow.parallels?.[nodeId]) {
+      if (subflowContainsBlock(workflow, 'parallel', nodeId, baseBlockId, visited)) return true
     }
   }
+  return false
+}
 
-  if (resolver) {
-    try {
-      const resolved = (await resolver.resolveInputs(ctx, currentNodeId, { items })).items
-      if (Array.isArray(resolved)) {
-        return resolved
+export function isSubflowNestedInside(
+  workflow: Pick<SerializedWorkflow, 'loops' | 'parallels'>,
+  childType: SubflowContainerType,
+  childId: string,
+  ancestorType: SubflowContainerType,
+  ancestorId: string,
+  visited = new Set<string>()
+): boolean {
+  const visitKey = `${ancestorType}:${ancestorId}`
+  if (visited.has(visitKey)) return false
+  visited.add(visitKey)
+
+  const nodes = getSubflowNodes(workflow, ancestorType, ancestorId)
+  if (!nodes) return false
+
+  for (const nodeId of nodes) {
+    if (
+      nodeId === childId &&
+      (childType === 'loop' ? workflow.loops?.[childId] : workflow.parallels?.[childId])
+    ) {
+      return true
+    }
+    if (workflow.loops?.[nodeId]) {
+      if (isSubflowNestedInside(workflow, childType, childId, 'loop', nodeId, visited)) {
+        return true
       }
-      throw new Error(`Resolved items is not an array`)
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith('Resolved items')) {
-        throw error
+    } else if (workflow.parallels?.[nodeId]) {
+      if (isSubflowNestedInside(workflow, childType, childId, 'parallel', nodeId, visited)) {
+        return true
       }
-      throw new Error(`Failed to resolve items: ${toError(error).message}`)
     }
   }
-
-  return []
+  return false
 }
 
 /**

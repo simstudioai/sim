@@ -36,6 +36,8 @@ import {
 import {
   extractLoopIdFromSentinel,
   extractParallelIdFromSentinel,
+  stripCloneSuffixes,
+  stripOuterBranchSuffix,
 } from '@/executor/utils/subflow-utils'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
@@ -156,13 +158,31 @@ export class DAGExecutor {
     // This preserves sibling branch outputs that dirty blocks may reference
     const filteredBlockStates: Record<string, any> = {}
     for (const [blockId, state] of Object.entries(sourceSnapshot.blockStates)) {
-      if (reachableUpstreamSet.has(blockId) || reachableContainerIds.has(blockId)) {
+      const aliasBaseId = stripOuterBranchSuffix(blockId)
+      const isReachableOuterBranchAlias =
+        aliasBaseId !== blockId &&
+        Array.from(reachableUpstreamSet).some(
+          (reachableId) => stripCloneSuffixes(reachableId) === aliasBaseId
+        )
+      if (
+        reachableUpstreamSet.has(blockId) ||
+        reachableContainerIds.has(blockId) ||
+        isReachableOuterBranchAlias
+      ) {
         filteredBlockStates[blockId] = state
       }
     }
-    const filteredExecutedBlocks = sourceSnapshot.executedBlocks.filter(
-      (id) => reachableUpstreamSet.has(id) || reachableContainerIds.has(id)
-    )
+    const filteredExecutedBlocks = sourceSnapshot.executedBlocks.filter((id) => {
+      const aliasBaseId = stripOuterBranchSuffix(id)
+      const isReachableOuterBranchAlias =
+        aliasBaseId !== id &&
+        Array.from(reachableUpstreamSet).some(
+          (reachableId) => stripCloneSuffixes(reachableId) === aliasBaseId
+        )
+      return (
+        reachableUpstreamSet.has(id) || reachableContainerIds.has(id) || isReachableOuterBranchAlias
+      )
+    })
 
     // Filter loop/parallel executions to only include reachable containers
     const filteredLoopExecutions: Record<string, any> = {}

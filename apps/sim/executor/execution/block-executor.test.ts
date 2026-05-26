@@ -126,4 +126,110 @@ describe('BlockExecutor', () => {
       totalCount: output.result.length,
     })
   })
+
+  it('persists stable outer-branch aliases for completed parallel branch outputs', async () => {
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const output = { result: 'branch-2' }
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async () => output,
+    }
+    const executor = new BlockExecutor(
+      [handler],
+      resolver,
+      {
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        metadata: {
+          requestId: 'request-1',
+          executionId: 'execution-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          userId: 'user-1',
+          triggerType: 'manual',
+          useDraftState: false,
+          startTime: new Date().toISOString(),
+        },
+      },
+      state
+    )
+    const node = createNode(block)
+    node.id = 'function-block-1₍0₎'
+    node.metadata = {
+      isParallelBranch: true,
+      subflowId: 'parallel-1',
+      subflowType: 'parallel',
+      originalBlockId: block.id,
+      branchIndex: 2,
+    }
+
+    await executor.execute(createContext(state), node, block)
+
+    expect(state.getBlockOutput('function-block-1__obranch-2')).toEqual(output)
+    expect(state.getBlockOutput('function-block-1₍2₎')).toEqual(output)
+    expect(state.getBlockOutput('function-block-1₍0₎')).toEqual(output)
+  })
+
+  it('does not write global aliases for parallel branches inside cloned outer branches', async () => {
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const output = { result: 'outer-2-inner-0' }
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async () => output,
+    }
+    const executor = new BlockExecutor(
+      [handler],
+      resolver,
+      {
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        metadata: {
+          requestId: 'request-1',
+          executionId: 'execution-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          userId: 'user-1',
+          triggerType: 'manual',
+          useDraftState: false,
+          startTime: new Date().toISOString(),
+        },
+      },
+      state
+    )
+    const node = createNode(block)
+    node.id = 'function-block-1__cloneabc__obranch-2₍0₎'
+    node.metadata = {
+      isParallelBranch: true,
+      subflowId: 'inner-parallel',
+      subflowType: 'parallel',
+      originalBlockId: block.id,
+      branchIndex: 0,
+    }
+
+    await executor.execute(createContext(state), node, block)
+
+    expect(state.getBlockOutput(node.id)).toEqual(output)
+    expect(state.getBlockOutput('function-block-1__obranch-0')).toBeUndefined()
+    expect(state.getBlockOutput('function-block-1₍0₎')).toBeUndefined()
+  })
 })

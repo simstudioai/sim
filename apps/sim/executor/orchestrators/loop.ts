@@ -27,6 +27,8 @@ import {
   buildSentinelStartId,
   emitSubflowSuccessEvents,
   extractBaseBlockId,
+  extractLoopIdFromSentinel,
+  extractParallelIdFromSentinel,
 } from '@/executor/utils/subflow-utils'
 import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
@@ -595,8 +597,8 @@ export class LoopOrchestrator {
         for (const [, edge] of potentialSourceNode.outgoingEdges) {
           if (edge.target === nodeId) {
             if (
-              edge.sourceHandle === undefined ||
-              !CONTROL_BACK_EDGE_HANDLES.has(edge.sourceHandle)
+              !this.isSubflowStartExitBypassEdge(potentialSourceId, nodeId, edge.sourceHandle) &&
+              (edge.sourceHandle === undefined || !CONTROL_BACK_EDGE_HANDLES.has(edge.sourceHandle))
             ) {
               nodeToRestore.incomingEdges.add(potentialSourceId)
             }
@@ -604,6 +606,32 @@ export class LoopOrchestrator {
         }
       }
     }
+  }
+
+  private isSubflowStartExitBypassEdge(
+    sourceId: string,
+    targetId: string,
+    sourceHandle?: string
+  ): boolean {
+    if (sourceHandle === EDGE.LOOP_EXIT) {
+      const loopId = extractLoopIdFromSentinel(sourceId)
+      return (
+        !!loopId &&
+        sourceId === buildSentinelStartId(loopId) &&
+        targetId === buildSentinelEndId(loopId)
+      )
+    }
+
+    if (sourceHandle === EDGE.PARALLEL_EXIT) {
+      const parallelId = extractParallelIdFromSentinel(sourceId)
+      return (
+        !!parallelId &&
+        sourceId === buildParallelSentinelStartId(parallelId) &&
+        targetId === buildParallelSentinelEndId(parallelId)
+      )
+    }
+
+    return false
   }
 
   getLoopScope(ctx: ExecutionContext, loopId: string): LoopScope | undefined {

@@ -1393,6 +1393,107 @@ describe('EdgeManager', () => {
       expect(readyNodes).not.toContain(target2Id)
       expect(readyNodes).toHaveLength(0)
     })
+
+    it('should handle no matching router route without queuing downstream sentinels', () => {
+      const routerId = 'router-1'
+      const routeTargetId = 'route-target'
+      const downstreamSentinelId = 'loop-downstream-sentinel-end'
+      const afterLoopId = 'after-loop'
+
+      const routerNode = createMockNode(routerId, [
+        { target: routeTargetId, sourceHandle: 'router-route1' },
+      ])
+      const routeTargetNode = createMockNode(
+        routeTargetId,
+        [{ target: downstreamSentinelId }],
+        [routerId]
+      )
+      const downstreamSentinelNode = createMockNode(
+        downstreamSentinelId,
+        [{ target: afterLoopId, sourceHandle: EDGE.LOOP_EXIT }],
+        [routeTargetId]
+      )
+      downstreamSentinelNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        subflowId: 'downstream',
+        subflowType: 'loop',
+      }
+      const afterLoopNode = createMockNode(afterLoopId, [], [downstreamSentinelId])
+
+      const nodes = new Map<string, DAGNode>([
+        [routerId, routerNode],
+        [routeTargetId, routeTargetNode],
+        [downstreamSentinelId, downstreamSentinelNode],
+        [afterLoopId, afterLoopNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+      const readyNodes = edgeManager.processOutgoingEdges(routerNode, {
+        selectedRoute: 'missing-route',
+      })
+
+      expect(readyNodes).not.toContain(routeTargetId)
+      expect(readyNodes).not.toContain(downstreamSentinelId)
+      expect(readyNodes).toHaveLength(0)
+    })
+
+    it('should allow no matching router route to queue an enclosing subflow sentinel', () => {
+      const loopId = 'loop-1'
+      const routerId = 'router-1'
+      const routeTargetId = 'route-target'
+      const loopEndId = `loop-${loopId}-sentinel-end`
+      const loopStartId = `loop-${loopId}-sentinel-start`
+
+      const routerNode = createMockNode(
+        routerId,
+        [{ target: routeTargetId, sourceHandle: 'router-route1' }],
+        [loopStartId]
+      )
+      routerNode.metadata = {
+        subflowId: loopId,
+        subflowType: 'loop',
+      }
+      const routeTargetNode = createMockNode(routeTargetId, [{ target: loopEndId }], [routerId])
+      routeTargetNode.metadata = {
+        subflowId: loopId,
+        subflowType: 'loop',
+      }
+      const loopEndNode = createMockNode(
+        loopEndId,
+        [
+          { target: loopStartId, sourceHandle: EDGE.LOOP_CONTINUE },
+          { target: 'after-loop', sourceHandle: EDGE.LOOP_EXIT },
+        ],
+        [routeTargetId]
+      )
+      loopEndNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        subflowId: loopId,
+        subflowType: 'loop',
+      }
+      const loopStartNode = createMockNode(loopStartId, [{ target: routerId }], [loopEndId])
+      const afterLoopNode = createMockNode('after-loop', [], [loopEndId])
+
+      const nodes = new Map<string, DAGNode>([
+        [routerId, routerNode],
+        [routeTargetId, routeTargetNode],
+        [loopEndId, loopEndNode],
+        [loopStartId, loopStartNode],
+        ['after-loop', afterLoopNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+      const readyNodes = edgeManager.processOutgoingEdges(routerNode, {
+        selectedRoute: 'missing-route',
+      })
+
+      expect(readyNodes).not.toContain(routeTargetId)
+      expect(readyNodes).toContain(loopEndId)
+    })
   })
 
   describe('Condition inside loop - loop control edges should not be cascade-deactivated', () => {

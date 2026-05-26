@@ -100,6 +100,36 @@ function createOrchestrator(
 }
 
 describe('NodeExecutionOrchestrator parallel sentinel batching', () => {
+  it('returns loop_exit from a loop start sentinel when the initial condition is false', async () => {
+    const startNode = {
+      ...createSentinelNode('loop-loop-1-sentinel-start', 'start'),
+      metadata: {
+        isSentinel: true,
+        sentinelType: 'start' as const,
+        subflowId: 'loop-1',
+        subflowType: 'loop' as const,
+      },
+    }
+    const dag: DAG = {
+      nodes: new Map([[startNode.id, startNode]]),
+      loopConfigs: new Map(),
+      parallelConfigs: new Map(),
+    }
+    const state = createState()
+    const loopOrchestrator = {
+      getLoopScope: vi.fn(() => ({})),
+      evaluateInitialCondition: vi.fn().mockResolvedValue(false),
+    }
+    const orchestrator = createOrchestrator(dag, state, {}, loopOrchestrator)
+
+    const result = await orchestrator.executeNode(createContext(), startNode.id)
+
+    expect(result.output).toMatchObject({
+      shouldExit: true,
+      selectedRoute: EDGE.LOOP_EXIT,
+    })
+  })
+
   it('prepares the current batch when executing a parallel start sentinel', async () => {
     const startNode = createSentinelNode('parallel-parallel-1-sentinel-start', 'start')
     const dag: DAG = {
@@ -122,6 +152,34 @@ describe('NodeExecutionOrchestrator parallel sentinel batching', () => {
       expect.any(Object),
       'parallel-1'
     )
+  })
+
+  it('returns parallel_exit from an empty parallel start sentinel without preparing a batch', async () => {
+    const startNode = createSentinelNode('parallel-parallel-1-sentinel-start', 'start')
+    const dag: DAG = {
+      nodes: new Map([[startNode.id, startNode]]),
+      loopConfigs: new Map(),
+      parallelConfigs: new Map(),
+    }
+    const state = createState()
+    const parallelOrchestrator = {
+      getParallelScope: vi.fn(() => ({
+        parallelId: 'parallel-1',
+        totalBranches: 0,
+        isEmpty: true,
+      })),
+      initializeParallelScope: vi.fn(),
+      prepareCurrentBatch: vi.fn(),
+    }
+    const orchestrator = createOrchestrator(dag, state, parallelOrchestrator)
+
+    const result = await orchestrator.executeNode(createContext(), startNode.id)
+
+    expect(result.output).toMatchObject({
+      shouldExit: true,
+      selectedRoute: EDGE.PARALLEL_EXIT,
+    })
+    expect(parallelOrchestrator.prepareCurrentBatch).not.toHaveBeenCalled()
   })
 
   it('prepares a batch continuation when parallel end selects parallel_continue', async () => {
@@ -225,6 +283,7 @@ describe('NodeExecutionOrchestrator parallel sentinel batching', () => {
     const parallelOrchestrator = {
       getParallelScope: vi.fn(),
       handleParallelBranchCompletion: vi.fn(),
+      prepareForBatchContinuation: vi.fn(),
     }
     const orchestrator = createOrchestrator(dag, state, parallelOrchestrator)
     const ctx = createContext()
@@ -245,6 +304,90 @@ describe('NodeExecutionOrchestrator parallel sentinel batching', () => {
       { results: ['loop-result'] },
       3
     )
+  })
+
+  it('does not record continuing nested parallel batches as parent parallel branch output', async () => {
+    const endNode = {
+      ...createSentinelNode('parallel-nested-parallel-sentinel-end', 'end'),
+      metadata: {
+        isSentinel: true,
+        sentinelType: 'end' as const,
+        subflowId: 'nested-parallel',
+        subflowType: 'parallel' as const,
+      },
+    }
+    const dag: DAG = {
+      nodes: new Map([[endNode.id, endNode]]),
+      loopConfigs: new Map(),
+      parallelConfigs: new Map(),
+    }
+    const state = createState()
+    const parallelOrchestrator = {
+      getParallelScope: vi.fn(),
+      handleParallelBranchCompletion: vi.fn(),
+      prepareForBatchContinuation: vi.fn(),
+    }
+    const orchestrator = createOrchestrator(dag, state, parallelOrchestrator)
+    const ctx = createContext()
+    ctx.subflowParentMap = new Map([
+      ['nested-parallel', { parentId: 'parent-parallel', parentType: 'parallel', branchIndex: 3 }],
+    ])
+
+    await orchestrator.handleNodeCompletion(ctx, endNode.id, {
+      sentinelEnd: true,
+      selectedRoute: EDGE.PARALLEL_CONTINUE,
+    })
+
+    expect(parallelOrchestrator.handleParallelBranchCompletion).not.toHaveBeenCalled()
+  })
+
+  it('writes stable outer-branch output aliases for completed parallel branch nodes', async () => {
+    const branchNode: DAGNode = {
+      id: 'worker₍0₎',
+      block: {
+        id: 'worker',
+        position: { x: 0, y: 0 },
+        enabled: true,
+        metadata: { id: 'function', name: 'Worker' },
+        config: { params: {} },
+        inputs: {},
+        outputs: {},
+      },
+      incomingEdges: new Set(),
+      outgoingEdges: new Map(),
+      metadata: {
+        isParallelBranch: true,
+        subflowId: 'parallel-1',
+        subflowType: 'parallel',
+        originalBlockId: 'worker',
+        branchIndex: 2,
+      },
+    }
+    const dag: DAG = {
+      nodes: new Map([[branchNode.id, branchNode]]),
+      loopConfigs: new Map(),
+      parallelConfigs: new Map(),
+    }
+    const state = createState()
+    const parallelOrchestrator = {
+      getParallelScope: vi.fn(() => ({ parallelId: 'parallel-1', totalBranches: 3 })),
+      initializeParallelScope: vi.fn(),
+      handleParallelBranchCompletion: vi.fn(),
+    }
+    const orchestrator = createOrchestrator(dag, state, parallelOrchestrator)
+    const output = { result: 'branch-2' }
+    const ctx = createContext()
+
+    await orchestrator.handleNodeCompletion(ctx, branchNode.id, output)
+
+    expect(parallelOrchestrator.handleParallelBranchCompletion).toHaveBeenCalledWith(
+      ctx,
+      'parallel-1',
+      branchNode.id,
+      output
+    )
+    expect(state.setBlockOutput).toHaveBeenCalledWith('worker__obranch-2', output)
+    expect(state.setBlockOutput).toHaveBeenCalledWith(branchNode.id, output)
   })
 
   it('records completed nested subflow sentinels as parent loop iteration output', async () => {
@@ -284,5 +427,38 @@ describe('NodeExecutionOrchestrator parallel sentinel batching', () => {
       'nested-parallel',
       { results: ['parallel-result'] }
     )
+  })
+
+  it('does not record continuing nested loop iterations as parent loop output', async () => {
+    const endNode = {
+      ...createSentinelNode('loop-nested-loop-sentinel-end', 'end'),
+      metadata: {
+        isSentinel: true,
+        sentinelType: 'end' as const,
+        subflowId: 'nested-loop',
+        subflowType: 'loop' as const,
+      },
+    }
+    const dag: DAG = {
+      nodes: new Map([[endNode.id, endNode]]),
+      loopConfigs: new Map(),
+      parallelConfigs: new Map(),
+    }
+    const state = createState()
+    const loopOrchestrator = {
+      storeLoopNodeOutput: vi.fn(),
+    }
+    const orchestrator = createOrchestrator(dag, state, {}, loopOrchestrator)
+    const ctx = createContext()
+    ctx.subflowParentMap = new Map([
+      ['nested-loop', { parentId: 'parent-loop', parentType: 'loop' }],
+    ])
+
+    await orchestrator.handleNodeCompletion(ctx, endNode.id, {
+      shouldContinue: true,
+      selectedRoute: EDGE.LOOP_CONTINUE,
+    })
+
+    expect(loopOrchestrator.storeLoopNodeOutput).not.toHaveBeenCalled()
   })
 })

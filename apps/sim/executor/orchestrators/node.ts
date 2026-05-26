@@ -7,6 +7,11 @@ import type { BlockStateController } from '@/executor/execution/types'
 import type { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import type { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
+import {
+  buildOuterBranchScopedId,
+  extractBaseBlockId,
+  extractOuterBranchIndex,
+} from '@/executor/utils/subflow-utils'
 
 const logger = createLogger('NodeExecutionOrchestrator')
 
@@ -280,6 +285,11 @@ export class NodeExecutionOrchestrator {
       await this.parallelOrchestrator.initializeParallelScope(ctx, parallelId)
     }
     this.parallelOrchestrator.handleParallelBranchCompletion(ctx, parallelId, node.id, output)
+    const branchIndex = node.metadata.branchIndex
+    if (branchIndex !== undefined && extractOuterBranchIndex(node.id) === undefined) {
+      const originalBlockId = node.metadata.originalBlockId ?? extractBaseBlockId(node.id)
+      this.state.setBlockOutput(buildOuterBranchScopedId(originalBlockId, branchIndex), output)
+    }
     this.state.setBlockOutput(node.id, output)
   }
 

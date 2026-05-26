@@ -17,12 +17,15 @@ export function createSubflowSentinelNode(config: SubflowSentinelNodeConfig): DA
     block: {
       id: config.id,
       enabled: true,
+      position: { x: 0, y: 0 },
       metadata: {
         id: config.blockType,
         name: config.name,
       },
-      config: { params: {} },
-    } as any,
+      config: { tool: config.blockType, params: {} },
+      inputs: {},
+      outputs: {},
+    },
     incomingEdges: new Set(),
     outgoingEdges: new Map(),
     metadata: {

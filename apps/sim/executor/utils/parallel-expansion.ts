@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { CONTROL_BACK_EDGE_HANDLES, EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
-import type { SerializedBlock } from '@/serializer/types'
 import {
   buildBranchNodeId,
   buildClonedSubflowId,
@@ -15,7 +14,8 @@ import {
   isParallelSentinelNodeId,
   normalizeNodeId,
   stripOuterBranchSuffix,
-} from './subflow-utils'
+} from '@/executor/utils/subflow-utils'
+import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('ParallelExpansion')
 
@@ -202,6 +202,7 @@ export class ParallelExpander {
     branchIndexOffset: number
   ): void {
     const topology = this.collectInternalEdgeTopology(dag, blocksInParallel, blocksSet)
+    const cleanedSourceNodes = new Set<string>()
 
     for (const edge of topology) {
       for (let i = 0; i < branchCount; i++) {
@@ -225,6 +226,11 @@ export class ParallelExpander {
 
         if (!sourceNode || !targetNode) continue
 
+        if (!cleanedSourceNodes.has(sourceNodeId)) {
+          this.clearStaleInternalEdges(dag, sourceNodeId, sourceNode, blocksSet)
+          cleanedSourceNodes.add(sourceNodeId)
+        }
+
         const edgeId = edge.sourceHandle
           ? `${sourceNodeId}→${targetNodeId}-${edge.sourceHandle}`
           : `${sourceNodeId}→${targetNodeId}`
@@ -236,6 +242,20 @@ export class ParallelExpander {
         })
         targetNode.incomingEdges.add(sourceNodeId)
       }
+    }
+  }
+
+  private clearStaleInternalEdges(
+    dag: DAG,
+    sourceNodeId: string,
+    sourceNode: DAGNode,
+    blocksSet: Set<string>
+  ): void {
+    for (const [edgeId, edge] of Array.from(sourceNode.outgoingEdges.entries())) {
+      if (!blocksSet.has(stripOuterBranchSuffix(normalizeNodeId(edge.target)))) continue
+
+      sourceNode.outgoingEdges.delete(edgeId)
+      dag.nodes.get(edge.target)?.incomingEdges.delete(sourceNodeId)
     }
   }
 
@@ -299,9 +319,10 @@ export class ParallelExpander {
       for (const [, edge] of sourceNode.outgoingEdges) {
         if (edge.sourceHandle && CONTROL_BACK_EDGE_HANDLES.has(edge.sourceHandle)) continue
 
-        const targetBlockId = stripOuterBranchSuffix(
-          extractBaseBlockId(normalizeNodeId(edge.target))
-        )
+        const targetBoundaryId = extractBaseBlockId(normalizeNodeId(edge.target))
+        const targetBlockId = blocksSet.has(targetBoundaryId)
+          ? targetBoundaryId
+          : stripOuterBranchSuffix(targetBoundaryId)
         if (!blocksSet.has(targetBlockId)) continue
 
         topology.push({

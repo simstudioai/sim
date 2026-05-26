@@ -63,7 +63,7 @@ export function updateResumeOutputInAggregationBuffers(
   stateBlockKey: string,
   pauseBlockId: string,
   contextId: string,
-  mergedOutput: Record<string, any>
+  mergedOutput: Record<string, unknown>
 ): void {
   for (const scope of Object.values(state.loopExecutions ?? {})) {
     if (!isRecord(scope) || !isRecord(scope.currentIterationOutputs)) continue
@@ -834,7 +834,7 @@ export class PauseResumeManager {
         resume: existingResponse.resume ?? existingOutput.resume,
       }
 
-      const mergedOutput: Record<string, any> = {
+      const mergedOutput: Record<string, unknown> = {
         ...existingOutput,
         response: mergedResponse,
         submission: submissionPayload,

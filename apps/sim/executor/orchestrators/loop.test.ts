@@ -98,6 +98,14 @@ describe('LoopOrchestrator', () => {
     const parallelStart = createNode(parallelStartId)
     const parallelEnd = createNode(parallelEndId)
     loopStart.outgoingEdges.set(`${loopStartId}->${parallelStartId}`, { target: parallelStartId })
+    loopStart.outgoingEdges.set(`${loopStartId}->${loopEndId}-exit`, {
+      target: loopEndId,
+      sourceHandle: EDGE.LOOP_EXIT,
+    })
+    parallelStart.outgoingEdges.set(`${parallelStartId}->${parallelEndId}-exit`, {
+      target: parallelEndId,
+      sourceHandle: EDGE.PARALLEL_EXIT,
+    })
     parallelEnd.outgoingEdges.set(`${parallelEndId}->${parallelStartId}-continue`, {
       target: parallelStartId,
       sourceHandle: EDGE.PARALLEL_CONTINUE,
@@ -128,6 +136,9 @@ describe('LoopOrchestrator', () => {
 
     expect(parallelStart.incomingEdges.has(loopStartId)).toBe(true)
     expect(parallelStart.incomingEdges.has(parallelEndId)).toBe(false)
+    expect(loopEnd.incomingEdges.has(loopStartId)).toBe(false)
+    expect(parallelEnd.incomingEdges.has(parallelStartId)).toBe(false)
+    expect(loopEnd.incomingEdges.has(parallelEndId)).toBe(true)
   })
 
   it('resolves forEach collections with the loop start sentinel scope', async () => {
@@ -203,6 +214,86 @@ describe('LoopOrchestrator', () => {
     })
     expect(resolver.resolveSingleReference).not.toHaveBeenCalled()
     expect(state.setBlockOutput).toHaveBeenCalledWith(loopId, { results: [] }, 0)
+  })
+
+  it('marks empty forEach loops as skipped at the initial condition check', async () => {
+    const { orchestrator, setBlockOutput } = createOrchestrator()
+    const scope = {
+      iteration: 0,
+      currentIterationOutputs: new Map(),
+      allIterationOutputs: [],
+      loopType: 'forEach',
+      items: [],
+      maxIterations: 0,
+      condition: '<loop.index> < 0',
+    } as { skippedAtStart?: boolean } & Record<string, unknown>
+    const ctx = createContext(scope)
+
+    const shouldExecute = await orchestrator.evaluateInitialCondition(ctx, 'loop-1')
+
+    expect(shouldExecute).toBe(false)
+    expect(scope.skippedAtStart).toBe(true)
+    expect(setBlockOutput).not.toHaveBeenCalled()
+
+    const result = await orchestrator.evaluateLoopContinuation(ctx, 'loop-1')
+
+    expect(result).toMatchObject({
+      shouldContinue: false,
+      shouldExit: true,
+      selectedRoute: EDGE.LOOP_EXIT,
+      aggregatedResults: [],
+    })
+    expect(scope.skippedAtStart).toBe(false)
+    expect(setBlockOutput).toHaveBeenCalledWith('loop-1', { results: [] }, 0)
+  })
+
+  it.each([
+    ['for loop with zero iterations', { loopType: 'for', maxIterations: 0 }],
+    ['while loop with no condition', { loopType: 'while' }],
+  ])('marks %s as skipped at the initial condition check', async (_name, overrides) => {
+    const { orchestrator, setBlockOutput } = createOrchestrator()
+    const scope = {
+      iteration: 0,
+      currentIterationOutputs: new Map(),
+      allIterationOutputs: [],
+      ...overrides,
+    } as { skippedAtStart?: boolean } & Record<string, unknown>
+    const ctx = createContext(scope)
+
+    const shouldExecute = await orchestrator.evaluateInitialCondition(ctx, 'loop-1')
+
+    expect(shouldExecute).toBe(false)
+    expect(scope.skippedAtStart).toBe(true)
+    expect(setBlockOutput).not.toHaveBeenCalled()
+
+    await orchestrator.evaluateLoopContinuation(ctx, 'loop-1')
+
+    expect(scope.skippedAtStart).toBe(false)
+    expect(setBlockOutput).toHaveBeenCalledWith('loop-1', { results: [] }, 0)
+  })
+
+  it('marks while loops with false initial conditions as skipped at start', async () => {
+    const state = createState()
+    const resolver = { resolveSingleReference: vi.fn().mockResolvedValue(false) }
+    const orchestrator = new LoopOrchestrator(
+      { loopConfigs: new Map(), parallelConfigs: new Map(), nodes: new Map() },
+      state,
+      resolver as any
+    )
+    const scope = {
+      iteration: 0,
+      currentIterationOutputs: new Map(),
+      allIterationOutputs: [],
+      loopType: 'while',
+      condition: '<condition.output>',
+    } as { skippedAtStart?: boolean } & Record<string, unknown>
+    const ctx = createContext(scope)
+
+    const shouldExecute = await orchestrator.evaluateInitialCondition(ctx, 'loop-1')
+
+    expect(shouldExecute).toBe(false)
+    expect(scope.skippedAtStart).toBe(true)
+    expect(state.setBlockOutput).not.toHaveBeenCalled()
   })
 
   it('exits doWhile loops when the configured iteration cap is reached', async () => {

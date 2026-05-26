@@ -346,7 +346,9 @@ export class EdgeConstructor {
         }
       }
 
-      this.addEdge(dag, sentinelEndId, sentinelStartId, EDGE.LOOP_CONTINUE, undefined, true)
+      this.addEdge(dag, sentinelEndId, sentinelStartId, EDGE.LOOP_CONTINUE, undefined, {
+        registerIncoming: false,
+      })
     }
   }
 
@@ -385,7 +387,9 @@ export class EdgeConstructor {
         }
       }
 
-      this.addEdge(dag, sentinelEndId, sentinelStartId, EDGE.PARALLEL_CONTINUE, undefined, true)
+      this.addEdge(dag, sentinelEndId, sentinelStartId, EDGE.PARALLEL_CONTINUE, undefined, {
+        registerIncoming: false,
+      })
     }
   }
 
@@ -730,7 +734,9 @@ export class EdgeConstructor {
       const sourceId = buildParallelSentinelStartId(subflowId)
       const targetId = buildParallelSentinelEndId(subflowId)
       if (dag.nodes.has(sourceId) && dag.nodes.has(targetId)) {
-        this.addEdge(dag, sourceId, targetId, EDGE.PARALLEL_EXIT, undefined, true, false)
+        this.addEdge(dag, sourceId, targetId, EDGE.PARALLEL_EXIT, undefined, {
+          registerIncoming: false,
+        })
       }
       return
     }
@@ -739,7 +745,9 @@ export class EdgeConstructor {
       const sourceId = buildSentinelStartId(subflowId)
       const targetId = buildSentinelEndId(subflowId)
       if (dag.nodes.has(sourceId) && dag.nodes.has(targetId)) {
-        this.addEdge(dag, sourceId, targetId, EDGE.LOOP_EXIT, undefined, true, false)
+        this.addEdge(dag, sourceId, targetId, EDGE.LOOP_EXIT, undefined, {
+          registerIncoming: false,
+        })
       }
     }
   }
@@ -750,8 +758,7 @@ export class EdgeConstructor {
     targetId: string,
     sourceHandle?: string,
     targetHandle?: string,
-    isControlBackEdge = false,
-    registerIncoming = true
+    options: { registerIncoming?: boolean } = {}
   ): void {
     const sourceNode = dag.nodes.get(sourceId)
     const targetNode = dag.nodes.get(targetId)
@@ -769,7 +776,8 @@ export class EdgeConstructor {
       targetHandle,
     })
 
-    if (!isControlBackEdge && registerIncoming) {
+    const { registerIncoming = true } = options
+    if (registerIncoming) {
       targetNode.incomingEdges.add(sourceId)
     }
   }

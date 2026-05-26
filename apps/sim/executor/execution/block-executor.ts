@@ -46,7 +46,11 @@ import {
 } from '@/executor/utils/iteration-context'
 import { isJSONString } from '@/executor/utils/json'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
-import { buildBranchNodeId } from '@/executor/utils/subflow-utils'
+import {
+  buildBranchNodeId,
+  buildOuterBranchScopedId,
+  extractOuterBranchIndex,
+} from '@/executor/utils/subflow-utils'
 import {
   FUNCTION_BLOCK_CONTEXT_VARS_KEY,
   FUNCTION_BLOCK_DISPLAY_CODE_KEY,
@@ -295,11 +299,21 @@ export class BlockExecutor {
 
     const originalBlockId = node.metadata.originalBlockId
     const branchIndex = node.metadata.branchIndex
-    if (node.metadata.isParallelBranch && originalBlockId && branchIndex !== undefined) {
+    if (
+      node.metadata.isParallelBranch &&
+      originalBlockId &&
+      branchIndex !== undefined &&
+      extractOuterBranchIndex(node.id) === undefined
+    ) {
       const globalBranchNodeId = buildBranchNodeId(originalBlockId, branchIndex)
       if (globalBranchNodeId !== node.id) {
         this.state.setBlockOutput(globalBranchNodeId, output, duration)
       }
+      this.state.setBlockOutput(
+        buildOuterBranchScopedId(originalBlockId, branchIndex),
+        output,
+        duration
+      )
     }
   }
 

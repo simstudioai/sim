@@ -188,6 +188,11 @@ describe('EdgeConstructor', () => {
         sourceHandle: 'loop_exit',
         targetHandle: undefined,
       })
+      expect(Array.from(dag.nodes.get(loopEndId)!.outgoingEdges.values())).toContainEqual({
+        target: afterTemplateId,
+        sourceHandle: 'loop_exit',
+        targetHandle: undefined,
+      })
       expect(dag.nodes.get(loopEndId)!.incomingEdges).not.toContain(loopStartId)
     })
 

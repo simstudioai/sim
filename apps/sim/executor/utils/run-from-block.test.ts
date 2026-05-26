@@ -421,6 +421,69 @@ describe('validateRunFromBlock', () => {
     expect(result.valid).toBe(true)
   })
 
+  it('rejects loop containers nested inside another loop', () => {
+    const outerLoopId = 'outer-loop'
+    const innerLoopId = 'inner-loop'
+    const innerStartId = `loop-${innerLoopId}-sentinel-start`
+    const dag = createDAG([
+      createNode(innerStartId, [], {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: innerLoopId,
+        subflowType: 'loop',
+      }),
+    ])
+    dag.loopConfigs.set(outerLoopId, {
+      id: outerLoopId,
+      nodes: [innerLoopId],
+      iterations: 2,
+      loopType: 'for',
+    } as any)
+    dag.loopConfigs.set(innerLoopId, {
+      id: innerLoopId,
+      nodes: ['B'],
+      iterations: 2,
+      loopType: 'for',
+    } as any)
+
+    const result = validateRunFromBlock(innerLoopId, dag, new Set([innerStartId]))
+
+    expect(result.valid).toBe(false)
+    expect(result.error).toContain('inside loop')
+    expect(result.error).toContain(outerLoopId)
+  })
+
+  it('rejects containers nested inside a parallel', () => {
+    const outerParallelId = 'outer-parallel'
+    const innerLoopId = 'inner-loop'
+    const innerStartId = `loop-${innerLoopId}-sentinel-start`
+    const dag = createDAG([
+      createNode(innerStartId, [], {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: innerLoopId,
+        subflowType: 'loop',
+      }),
+    ])
+    dag.parallelConfigs.set(outerParallelId, {
+      id: outerParallelId,
+      nodes: [innerLoopId],
+      count: 2,
+    } as any)
+    dag.loopConfigs.set(innerLoopId, {
+      id: innerLoopId,
+      nodes: ['B'],
+      iterations: 2,
+      loopType: 'for',
+    } as any)
+
+    const result = validateRunFromBlock(innerLoopId, dag, new Set([innerStartId]))
+
+    expect(result.valid).toBe(false)
+    expect(result.error).toContain('inside parallel')
+    expect(result.error).toContain(outerParallelId)
+  })
+
   it('accepts parallel container when executed', () => {
     // Parallel container with sentinel nodes
     const parallelId = 'parallel-container-1'

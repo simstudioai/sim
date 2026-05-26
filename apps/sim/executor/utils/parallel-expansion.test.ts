@@ -392,6 +392,139 @@ describe('Nested parallel expansion + edge resolution', () => {
     ])
   })
 
+  it('clears stale regular-to-nested edges when local branch nodes are reused in later batches', () => {
+    const outerParallelId = 'outer-parallel'
+    const innerParallelId = 'inner-parallel'
+    const prepareId = 'prepare'
+    const innerTaskId = 'inner-task'
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        createBlock('start', BlockType.STARTER),
+        createBlock(outerParallelId, BlockType.PARALLEL),
+        createBlock(prepareId, BlockType.FUNCTION),
+        createBlock(innerParallelId, BlockType.PARALLEL),
+        createBlock(innerTaskId, BlockType.FUNCTION),
+      ],
+      connections: [
+        { source: 'start', target: outerParallelId },
+        { source: outerParallelId, target: prepareId, sourceHandle: 'parallel-start-source' },
+        { source: prepareId, target: innerParallelId },
+        { source: innerParallelId, target: innerTaskId, sourceHandle: 'parallel-start-source' },
+      ],
+      loops: {},
+      parallels: {
+        [innerParallelId]: {
+          id: innerParallelId,
+          nodes: [innerTaskId],
+          count: 1,
+          parallelType: 'count',
+        },
+        [outerParallelId]: {
+          id: outerParallelId,
+          nodes: [prepareId, innerParallelId],
+          count: 5,
+          parallelType: 'count',
+        },
+      },
+    }
+
+    const dag = new DAGBuilder().build(workflow)
+    const expander = new ParallelExpander()
+    expander.expandParallel(dag, outerParallelId, 2, undefined, {
+      branchIndexOffset: 0,
+      totalBranches: 5,
+    })
+    expander.expandParallel(dag, outerParallelId, 2, undefined, {
+      branchIndexOffset: 2,
+      totalBranches: 5,
+    })
+    expander.expandParallel(dag, outerParallelId, 1, undefined, {
+      branchIndexOffset: 4,
+      totalBranches: 5,
+    })
+
+    const prepareBranchZero = dag.nodes.get(buildBranchNodeId(prepareId, 0))!
+    const originalInnerStart = buildParallelSentinelStartId(innerParallelId)
+    const staleClonedInnerStart = buildParallelSentinelStartId(`${innerParallelId}__obranch-2`)
+    const clonedInnerStart = buildParallelSentinelStartId(`${innerParallelId}__obranch-4`)
+    const prepareTargets = Array.from(prepareBranchZero.outgoingEdges.values()).map(
+      (edge) => edge.target
+    )
+
+    expect(prepareTargets).toEqual([clonedInnerStart])
+    expect(dag.nodes.get(originalInnerStart)!.incomingEdges.has(prepareBranchZero.id)).toBe(false)
+    expect(dag.nodes.get(staleClonedInnerStart)!.incomingEdges.has(prepareBranchZero.id)).toBe(
+      false
+    )
+    expect(dag.nodes.get(clonedInnerStart)!.incomingEdges.has(prepareBranchZero.id)).toBe(true)
+  })
+
+  it('preserves internal edge topology when expanding cloned nested parallels', () => {
+    const outerParallelId = 'outer-parallel'
+    const innerParallelId = 'inner-parallel'
+    const firstTaskId = 'first-task'
+    const secondTaskId = 'second-task'
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        createBlock('start', BlockType.STARTER),
+        createBlock(outerParallelId, BlockType.PARALLEL),
+        createBlock(innerParallelId, BlockType.PARALLEL),
+        createBlock(firstTaskId, BlockType.FUNCTION),
+        createBlock(secondTaskId, BlockType.FUNCTION),
+      ],
+      connections: [
+        { source: 'start', target: outerParallelId },
+        { source: outerParallelId, target: innerParallelId, sourceHandle: 'parallel-start-source' },
+        { source: innerParallelId, target: firstTaskId, sourceHandle: 'parallel-start-source' },
+        { source: firstTaskId, target: secondTaskId },
+      ],
+      loops: {},
+      parallels: {
+        [innerParallelId]: {
+          id: innerParallelId,
+          nodes: [firstTaskId, secondTaskId],
+          count: 2,
+          parallelType: 'count',
+        },
+        [outerParallelId]: {
+          id: outerParallelId,
+          nodes: [innerParallelId],
+          count: 3,
+          parallelType: 'count',
+        },
+      },
+    }
+
+    const dag = new DAGBuilder().build(workflow)
+    const expander = new ParallelExpander()
+    const outerResult = expander.expandParallel(dag, outerParallelId, 1, undefined, {
+      branchIndexOffset: 2,
+      totalBranches: 3,
+    })
+    const clonedInnerId = outerResult.clonedSubflows[0].clonedId
+    const clonedInnerConfig = dag.parallelConfigs.get(clonedInnerId)!
+    const [clonedFirstTaskId, clonedSecondTaskId] = clonedInnerConfig.nodes
+
+    const innerResult = expander.expandParallel(dag, clonedInnerId, 2)
+
+    const firstTaskBranchOneId = buildBranchNodeId(clonedFirstTaskId, 1)
+    const secondTaskBranchOneId = buildBranchNodeId(clonedSecondTaskId, 1)
+    const firstTaskBranchOne = dag.nodes.get(firstTaskBranchOneId)!
+    const secondTaskBranchOne = dag.nodes.get(secondTaskBranchOneId)!
+
+    expect(innerResult.entryNodes).toEqual([
+      buildBranchNodeId(clonedFirstTaskId, 0),
+      firstTaskBranchOneId,
+    ])
+    expect(
+      Array.from(firstTaskBranchOne.outgoingEdges.values()).map((edge) => edge.target)
+    ).toContain(secondTaskBranchOneId)
+    expect(secondTaskBranchOne.incomingEdges.has(firstTaskBranchOneId)).toBe(true)
+    expect(innerResult.entryNodes).not.toContain(secondTaskBranchOneId)
+  })
+
   it('clears stale sentinel-end incoming edges when a later batch is smaller', () => {
     const parallelId = 'parallel-1'
     const functionId = 'func-1'

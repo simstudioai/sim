@@ -13,7 +13,7 @@ import {
   resolveBlockReferenceAsync,
 } from '@/executor/utils/block-reference'
 import { formatLiteralForCode } from '@/executor/utils/code-formatting'
-import { extractOuterBranchIndex } from '@/executor/utils/subflow-utils'
+import { buildClonedSubflowId, extractOuterBranchIndex } from '@/executor/utils/subflow-utils'
 import {
   type AsyncPathNavigator,
   navigatePath,
@@ -27,6 +27,7 @@ export class BlockResolver implements Resolver {
   private nameToBlockId: Map<string, string>
   private blockById: Map<string, SerializedBlock>
   private blockIdsInSubflows: Set<string>
+  private subflowContainerIds: Set<string>
 
   constructor(
     private workflow: SerializedWorkflow,
@@ -35,6 +36,10 @@ export class BlockResolver implements Resolver {
     this.nameToBlockId = new Map()
     this.blockById = new Map()
     this.blockIdsInSubflows = new Set()
+    this.subflowContainerIds = new Set([
+      ...Object.keys(workflow.loops ?? {}),
+      ...Object.keys(workflow.parallels ?? {}),
+    ])
     for (const block of workflow.blocks) {
       this.blockById.set(block.id, block)
       if (block.metadata?.name) {
@@ -295,16 +300,36 @@ export class BlockResolver implements Resolver {
   }
 
   private getBlockOutput(blockId: string, context: ResolutionContext): any {
+    const outerBranchIndex = extractOuterBranchIndex(context.currentNodeId)
+    const mappedBranchIndex =
+      outerBranchIndex ??
+      context.executionContext.parallelBlockMapping?.get(context.currentNodeId)?.iterationIndex
+    const shouldResolveClonedSubflowOutput =
+      mappedBranchIndex !== undefined &&
+      mappedBranchIndex > 0 &&
+      this.subflowContainerIds.has(blockId)
+
+    if (shouldResolveClonedSubflowOutput) {
+      const clonedStateOutput = context.executionState.getBlockOutput(
+        buildClonedSubflowId(blockId, mappedBranchIndex)
+      )
+      if (clonedStateOutput !== undefined) {
+        return clonedStateOutput
+      }
+    }
+
     const stateOutput = context.executionState.getBlockOutput(blockId, context.currentNodeId)
     if (stateOutput !== undefined) {
       return stateOutput
     }
+
     if (
-      extractOuterBranchIndex(context.currentNodeId) !== undefined &&
-      this.blockIdsInSubflows.has(blockId)
+      shouldResolveClonedSubflowOutput ||
+      (outerBranchIndex !== undefined && this.blockIdsInSubflows.has(blockId))
     ) {
       return undefined
     }
+
     const contextState = context.executionContext.blockStates?.get(blockId)
     if (contextState?.output) {
       return contextState.output

@@ -1,6 +1,10 @@
 import type { BlockStateController } from '@/executor/execution/types'
 import type { BlockState, NormalizedBlockOutput } from '@/executor/types'
-import { extractOuterBranchIndex, stripCloneSuffixes } from '@/executor/utils/subflow-utils'
+import {
+  buildOuterBranchScopedId,
+  extractOuterBranchIndex,
+  stripCloneSuffixes,
+} from '@/executor/utils/subflow-utils'
 
 const BRANCH_SUFFIX_PATTERN = /₍\d+₎/u
 const LOOP_SUFFIX_PATTERN = /_loop\d+/
@@ -86,6 +90,13 @@ export class ExecutionState implements BlockStateController {
     }
 
     if (currentNodeId && extractBranchSuffix(currentNodeId) === '') {
+      const stableBranchZeroOutput = this.blockStates.get(
+        buildOuterBranchScopedId(blockId, 0)
+      )?.output
+      if (stableBranchZeroOutput !== undefined) {
+        return stableBranchZeroOutput
+      }
+
       const branchZeroOutput = this.blockStates.get(
         `${blockId}₍0₎${extractLoopSuffix(currentNodeId)}`
       )?.output

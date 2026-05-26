@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULTS } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
@@ -253,6 +254,25 @@ describe('ParallelOrchestrator', () => {
     )
 
     expect(oversizedBatchScope.currentBatchSize).toBe(9)
+  })
+
+  it.each([
+    ['oversized numeric batch size', 999, DEFAULTS.MAX_PARALLEL_BRANCHES],
+    ['negative batch size', -1, 1],
+    ['undefined batch size', undefined, DEFAULTS.MAX_PARALLEL_BRANCHES],
+    ['nonnumeric batch size', 'not-a-number', DEFAULTS.MAX_PARALLEL_BRANCHES],
+  ])('normalizes %s', async (_name, batchSize, expectedBatchSize) => {
+    const dag = createDag()
+    const parallelConfig = dag.parallelConfigs.get('parallel-1')!
+    parallelConfig.parallelType = 'count'
+    parallelConfig.count = DEFAULTS.MAX_PARALLEL_BRANCHES + 10
+    parallelConfig.batchSize = batchSize as never
+
+    const orchestrator = new ParallelOrchestrator(dag, createState(), null, {})
+    const scope = await orchestrator.initializeParallelScope(createContext(), 'parallel-1')
+
+    expect(scope.batchSize).toBe(expectedBatchSize)
+    expect(scope.currentBatchSize).toBe(expectedBatchSize)
   })
 
   it('advances batch state at sentinel end and prepares the next batch at sentinel start', async () => {
