@@ -130,6 +130,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'litellm',
     name: 'LiteLLM',
     icon: LitellmIcon,
+    color: '#040229',
     description: 'LiteLLM proxy with an OpenAI-compatible API',
     defaultModel: '',
     modelPatterns: [/^litellm\//],
