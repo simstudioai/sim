@@ -11,6 +11,7 @@ import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
+  createForbiddenResponse,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createUnauthorizedResponse,
@@ -21,7 +22,10 @@ import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  assertActiveWorkspaceAccess,
+  isWorkspaceAccessDeniedError,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('ForkChatAPI')
 
@@ -150,6 +154,9 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ success: true, id: newId })
     } catch (error) {
+      if (isWorkspaceAccessDeniedError(error)) {
+        return createForbiddenResponse('Workspace access denied')
+      }
       logger.error('Error forking chat:', error)
       return createInternalServerErrorResponse('Failed to fork chat')
     }

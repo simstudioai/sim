@@ -12,6 +12,19 @@ type RouteHandler<T = unknown> = (
 ) => Promise<NextResponse | Response> | NextResponse | Response
 
 /**
+ * Reads a numeric `statusCode` (4xx or 5xx) off an Error so typed domain errors
+ * (e.g. `WorkspaceAccessDeniedError`) can map to the correct HTTP status when
+ * they bubble up unhandled instead of defaulting to 500.
+ */
+function readTypedErrorStatus(error: unknown): number | undefined {
+  if (!(error instanceof Error)) return undefined
+  const status = (error as { statusCode?: unknown }).statusCode
+  if (typeof status !== 'number') return undefined
+  if (status < 400 || status >= 600) return undefined
+  return status
+}
+
+/**
  * Wraps a Next.js API route handler with centralized error reporting.
  *
  * - Generates a unique request ID and stores it in AsyncLocalStorage so every
@@ -35,8 +48,21 @@ export function withRouteHandler<T>(handler: RouteHandler<T>): RouteHandler<T> {
       } catch (error) {
         const duration = Date.now() - startTime
         const message = getErrorMessage(error, 'Unknown error')
-        logger.error('Unhandled route error', { duration, error: message })
-        response = NextResponse.json({ error: 'Internal server error', requestId }, { status: 500 })
+        const typedStatus = readTypedErrorStatus(error)
+        if (typedStatus !== undefined) {
+          if (typedStatus >= 500) {
+            logger.error('Unhandled route error', { duration, status: typedStatus, error: message })
+          } else {
+            logger.warn('Typed route error', { duration, status: typedStatus, error: message })
+          }
+          response = NextResponse.json({ error: message, requestId }, { status: typedStatus })
+        } else {
+          logger.error('Unhandled route error', { duration, error: message })
+          response = NextResponse.json(
+            { error: 'Internal server error', requestId },
+            { status: 500 }
+          )
+        }
         response?.headers?.set('x-request-id', requestId)
         return response
       }
