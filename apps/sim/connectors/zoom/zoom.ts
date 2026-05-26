@@ -120,8 +120,10 @@ function findTranscriptFile(files?: ZoomRecordingFile[]): ZoomRecordingFile | un
  * Extracts spoken text from a Zoom WebVTT transcript, stripping cue identifiers,
  * timestamps, and inline markup. Handles both Zoom's `Speaker: text` convention
  * and standard WebVTT `<v Speaker>text</v>` voice tags.
+ *
+ * Exported for unit tests; not part of the connector's public surface.
  */
-function parseVtt(vtt: string): string {
+export function parseVtt(vtt: string): string {
   const lines = vtt.split(/\r?\n/)
   const segments: string[] = []
   let i = 0
@@ -152,10 +154,13 @@ function parseVtt(vtt: string): string {
     if (textParts.length > 0) {
       const raw = textParts.join(' ')
       const withSpeakers = raw.replace(/<v(?:\.[^\s>]+)?\s+([^>]+)>([\s\S]*?)<\/v>/g, '$1: $2')
-      const stripped = withSpeakers
-        .replace(/<\/?[^>]+>/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
+      let withoutTags = withSpeakers
+      let previous: string
+      do {
+        previous = withoutTags
+        withoutTags = withoutTags.replace(/<\/?[^>]+>/g, '')
+      } while (withoutTags !== previous)
+      const stripped = withoutTags.replace(/\s+/g, ' ').trim()
       if (stripped) segments.push(stripped)
     }
   }
