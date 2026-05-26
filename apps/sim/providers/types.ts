@@ -16,6 +16,7 @@ export type ProviderId =
   | 'openrouter'
   | 'fireworks'
   | 'vllm'
+  | 'litellm'
   | 'bedrock'
 
 export interface ModelPricing {
