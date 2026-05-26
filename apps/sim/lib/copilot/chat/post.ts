@@ -44,7 +44,10 @@ import { taskPubSub } from '@/lib/copilot/tasks'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  getUserEntityPermissions,
+  isWorkspaceAccessDeniedError,
+} from '@/lib/workspaces/permissions/utils'
 import type { ChatContext } from '@/stores/panel'
 
 export const maxDuration = 3600
@@ -1037,6 +1040,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
 
     if (isZodError(error)) {
       return validationErrorResponse(error, 'Invalid request data')
+    }
+
+    if (isWorkspaceAccessDeniedError(error)) {
+      return NextResponse.json({ error: 'Workspace access denied' }, { status: 403 })
     }
 
     logger.error(`[${requestId}] Error handling unified chat request`, {

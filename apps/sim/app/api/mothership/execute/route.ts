@@ -19,6 +19,7 @@ import { buildMothershipToolsForRequest } from '@/lib/mothership/settings/runtim
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
+  isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
 
 export const maxDuration = 3600
@@ -376,6 +377,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
 
       return NextResponse.json({ error: 'Mothership execution aborted' }, { status: 499 })
+    }
+
+    if (isWorkspaceAccessDeniedError(error)) {
+      return NextResponse.json({ error: 'Workspace access denied' }, { status: 403 })
     }
 
     logger.error(
