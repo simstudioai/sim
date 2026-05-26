@@ -32,17 +32,19 @@ export interface BlockReferenceResult {
 
 export class InvalidFieldError extends Error {
   readonly statusCode = 400
+  readonly publicMessage: string
 
   constructor(
     public readonly blockName: string,
     public readonly fieldPath: string,
     public readonly availableFields: string[]
   ) {
-    super(
+    const message =
       `"${fieldPath}" doesn't exist on block "${blockName}". ` +
-        `Available fields: ${availableFields.length > 0 ? availableFields.join(', ') : 'none'}`
-    )
+      `Available fields: ${availableFields.length > 0 ? availableFields.join(', ') : 'none'}`
+    super(message)
     this.name = 'InvalidFieldError'
+    this.publicMessage = message
   }
 }
 

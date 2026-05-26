@@ -151,10 +151,13 @@ export async function checkWorkspaceAccess(
  * Thrown when a user attempts to access a workspace they don't have access to,
  * or that doesn't exist / has been archived. Carries `statusCode = 403` so route
  * handlers and the centralized route wrapper can map it to HTTP 403 instead of
- * defaulting to 500.
+ * defaulting to 500. `publicMessage` is the client-safe string the centralized
+ * wrapper exposes — the `message` (which includes the workspaceId) is kept for
+ * server-side logs only.
  */
 export class WorkspaceAccessDeniedError extends Error {
   readonly statusCode = 403
+  readonly publicMessage = 'Workspace access denied'
   readonly workspaceId: string
 
   constructor(workspaceId: string) {
