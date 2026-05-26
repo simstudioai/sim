@@ -562,6 +562,7 @@ import {
   dubUpsertLinkTool,
 } from '@/tools/dub'
 import { duckduckgoSearchTool } from '@/tools/duckduckgo'
+import {bochaSearchTool} from "@/tools/bocha"
 import {
   dynamodbDeleteTool,
   dynamodbGetTool,
@@ -4004,6 +4005,7 @@ export const tools: Record<string, ToolConfig> = {
   dub_update_link: dubUpdateLinkTool,
   dub_upsert_link: dubUpsertLinkTool,
   duckduckgo_search: duckduckgoSearchTool,
+  bocha_search: bochaSearchTool,
   dspy_predict: predictTool,
   dspy_chain_of_thought: chainOfThoughtTool,
   dspy_react: reactTool,

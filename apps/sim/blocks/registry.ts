@@ -46,6 +46,7 @@ import { DropboxBlock } from '@/blocks/blocks/dropbox'
 import { DSPyBlock } from '@/blocks/blocks/dspy'
 import { DubBlock } from '@/blocks/blocks/dub'
 import { DuckDuckGoBlock } from '@/blocks/blocks/duckduckgo'
+import {BoChaBlock} from '@/blocks/blocks/bocha.ts'
 import { DynamoDBBlock } from '@/blocks/blocks/dynamodb'
 import { ElasticsearchBlock } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock } from '@/blocks/blocks/elevenlabs'
@@ -296,6 +297,7 @@ export const registry: Record<string, BlockConfig> = {
   dspy: DSPyBlock,
   dub: DubBlock,
   duckduckgo: DuckDuckGoBlock,
+  bocha: BoChaBlock,
   dynamodb: DynamoDBBlock,
   emailbison: EmailBisonBlock,
   elasticsearch: ElasticsearchBlock,

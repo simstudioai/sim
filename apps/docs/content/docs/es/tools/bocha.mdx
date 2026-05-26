@@ -1,0 +1,48 @@
+---
+title: BoCha
+description: Buscar en la web con BoCha
+---
+
+[BoCha](https://bocha.cn/) es una API de búsqueda impulsada por IA diseñada específicamente para aplicaciones LLM. Proporciona recuperación de información en tiempo real y está optimizada para casos de uso con IA.
+
+Con BoCha en Sim, puedes:
+
+- **Buscar en la web**: Encontrar instantáneamente respuestas, hechos y resúmenes
+- **Obtener respuestas directas**: Recuperar resultados precisos para cálculos, conversiones o consultas factuales
+- **Acceder a resúmenes**: Recibir descripciones breves de temas de búsqueda
+- **Descubrir temas relacionados**: Explorar enlaces y referencias relacionadas
+
+Estas capacidades permiten a los agentes de Sim acceder automáticamente a conocimiento web actualizado, enriqueciendo flujos de trabajo, documentos y análisis.
+
+## Uso
+
+Utiliza la API de respuestas instantáneas de BoCha para buscar en la web. Devuelve respuestas directas, resúmenes y temas relacionados.
+
+## Herramienta
+
+### `bocha_search`
+
+Busca en la web utilizando la API de respuestas instantáneas de BoCha.
+
+#### Entradas
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | ---- | ----------- |
+| `query` | string | Sí | Consulta de búsqueda (ej.: "latest AI research papers 2024") |
+| `freshness` | string | No | Rango de tiempo de los resultados |
+| `summary` | boolean | No | Si se debe devolver un resumen |
+| `count` | number | No | Número máximo de resultados |
+| `include` | string | No | Dominios incluidos |
+| `exclude` | string | No | Dominios excluidos |
+
+#### Salidas
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `query` | string | Consulta ejecutada |
+| `results` | array | Resultados devueltos |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `bocha`

@@ -1,0 +1,58 @@
+---
+title: BoCha
+description: 使用 BoCha 搜索
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="bocha"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[BoCha](https://bocha.cn/) 是一款专为 LLM 应用设计的 AI 驱动搜索 API。它提供可靠的实时信息检索功能，并针对 AI 使用场景优化了功能.
+
+在 Sim 中使用 BoCha，您可以：
+
+- **搜索网页**：即时找到答案、事实和搜索查询的概述
+- **获取直接答案**：检索计算、转换或事实查询的具体响应
+- **访问摘要**：接收搜索主题的简短总结或描述
+- **获取相关主题**：发现与搜索相关的链接和参考资料
+
+这些功能使您的 Sim 代理能够自动访问最新的网络知识——从在工作流程中呈现事实，到通过最新信息丰富文档和分析。。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+使用 BoCha 即时答案 API 搜索网页。返回即时答案、摘要、相关主题等。
+
+## 工具
+
+### `bocha_search`
+
+使用 BoCha 即时答案 API 搜索网页。返回查询的即时答案、摘要和相关主题。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `query` | string | 是 | 要执行的搜索查询（例如："latest AI research papers 2024"） |
+| `freshness` | string | 否 | 指定搜索结果的时间范围（noLimit / oneDay / oneWeek / oneMonth / oneYear / YYYY-MM-DD / YYYY-MM-DD..YYYY-MM-DD） |
+| `summary` | boolean | 否 | 是否返回文本摘要 |
+| `count` | number | 否 | 返回结果的最大数量（1–50，例如：5） |
+| `include` | string | 否 | 限定搜索的网站域名范围，多个域名用 `|` 或 `,` 分隔，最多 100 个 |
+| `exclude` | string | 否 | 从搜索结果中排除指定网站域名，多个域名用 `|` 或 `,` 分隔，最多 100 个 |
+
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `query` | 字符串 | 已执行的搜索查询 |
+| `results` | 数组 | 工具输出的结果 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`bocha`
