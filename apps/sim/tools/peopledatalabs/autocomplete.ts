@@ -1,4 +1,5 @@
 import type { PdlAutocompleteParams, PdlAutocompleteResponse } from '@/tools/peopledatalabs/types'
+import { PEOPLEDATALABS_API_KEY_PREFIX } from '@/tools/peopledatalabs/types'
 import { buildQueryString } from '@/tools/peopledatalabs/utils'
 import type { OutputProperty, ToolConfig } from '@/tools/types'
 
@@ -18,6 +19,18 @@ export const autocompleteTool: ToolConfig<PdlAutocompleteParams, PdlAutocomplete
   description:
     'Get autocomplete suggestions for a PDL field (title, skill, company, industry, location, school, major, role, sub_role).',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'peopledatalabs',
+    // Autocomplete is free on PDL (rate-limited only) — no credits consumed.
+    pricing: { type: 'per_request', cost: 0 },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  },
 
   params: {
     apiKey: {

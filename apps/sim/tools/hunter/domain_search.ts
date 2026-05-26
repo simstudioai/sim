@@ -3,7 +3,11 @@ import type {
   HunterDomainSearchResponse,
   HunterEmail,
 } from '@/tools/hunter/types'
-import { EMAILS_OUTPUT } from '@/tools/hunter/types'
+import {
+  EMAILS_OUTPUT,
+  HUNTER_API_KEY_PREFIX,
+  HUNTER_SEARCH_CREDIT_USD,
+} from '@/tools/hunter/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomainSearchResponse> = {
@@ -11,6 +15,28 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
   name: 'Hunter Domain Search',
   description: 'Returns all the email addresses found using one given domain name, with sources.',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: HUNTER_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'hunter',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        const emails = output.emails
+        if (!Array.isArray(emails)) {
+          throw new Error('Hunter domain search response missing emails, cannot determine cost')
+        }
+        // Hunter counts one search credit only when a call returns at least one result.
+        const cost = emails.length > 0 ? HUNTER_SEARCH_CREDIT_USD : 0
+        return { cost, metadata: { credits: cost > 0 ? 1 : 0, emails: emails.length } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  },
 
   params: {
     domain: {

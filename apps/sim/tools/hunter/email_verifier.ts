@@ -1,5 +1,9 @@
 import type { HunterEmailVerifierParams, HunterEmailVerifierResponse } from '@/tools/hunter/types'
-import { SOURCES_OUTPUT } from '@/tools/hunter/types'
+import {
+  HUNTER_API_KEY_PREFIX,
+  HUNTER_VERIFICATION_CREDIT_USD,
+  SOURCES_OUTPUT,
+} from '@/tools/hunter/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const emailVerifierTool: ToolConfig<HunterEmailVerifierParams, HunterEmailVerifierResponse> =
@@ -9,6 +13,24 @@ export const emailVerifierTool: ToolConfig<HunterEmailVerifierParams, HunterEmai
     description:
       'Verifies the deliverability of an email address and provides detailed verification status.',
     version: '1.0.0',
+
+    hosting: {
+      envKeyPrefix: HUNTER_API_KEY_PREFIX,
+      apiKeyParam: 'apiKey',
+      byokProviderId: 'hunter',
+      pricing: {
+        type: 'custom',
+        // The verifier always consumes one verification (0.5 credit), regardless of result.
+        getCost: () => ({
+          cost: HUNTER_VERIFICATION_CREDIT_USD,
+          metadata: { verifications: 1 },
+        }),
+      },
+      rateLimit: {
+        mode: 'per_request',
+        requestsPerMinute: 60,
+      },
+    },
 
     params: {
       email: {

@@ -1,5 +1,10 @@
 import type { HunterEmailFinderParams, HunterEmailFinderResponse } from '@/tools/hunter/types'
-import { SOURCES_OUTPUT, VERIFICATION_OUTPUT } from '@/tools/hunter/types'
+import {
+  HUNTER_API_KEY_PREFIX,
+  HUNTER_SEARCH_CREDIT_USD,
+  SOURCES_OUTPUT,
+  VERIFICATION_OUTPUT,
+} from '@/tools/hunter/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFinderResponse> = {
@@ -8,6 +13,25 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
   description:
     'Finds the most likely email address for a person given their name and company domain.',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: HUNTER_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'hunter',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        // Hunter counts one search credit only when an email is found.
+        const found = typeof output.email === 'string' && output.email.length > 0
+        const cost = found ? HUNTER_SEARCH_CREDIT_USD : 0
+        return { cost, metadata: { credits: found ? 1 : 0 } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  },
 
   params: {
     domain: {

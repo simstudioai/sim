@@ -1,5 +1,5 @@
 import type { HunterDiscoverParams, HunterDiscoverResponse } from '@/tools/hunter/types'
-import { DISCOVER_RESULTS_OUTPUT } from '@/tools/hunter/types'
+import { DISCOVER_RESULTS_OUTPUT, HUNTER_API_KEY_PREFIX } from '@/tools/hunter/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverResponse> = {
@@ -7,6 +7,18 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
   name: 'Hunter Discover',
   description: 'Returns companies matching a set of criteria using Hunter.io AI-powered search.',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: HUNTER_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'hunter',
+    // Discover is free on Hunter — no credits consumed.
+    pricing: { type: 'per_request', cost: 0 },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 30,
+    },
+  },
 
   params: {
     query: {

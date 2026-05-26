@@ -2,6 +2,25 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
+ * Env var prefix for Sim-hosted Hunter.io keys.
+ * Resolved at runtime as `HUNTER_API_KEY_COUNT` + `HUNTER_API_KEY_1..N`.
+ */
+export const HUNTER_API_KEY_PREFIX = 'HUNTER_API_KEY'
+
+/**
+ * Dollar cost per Hunter.io credit when billing hosted-key usage.
+ *
+ * Hunter does not report per-call credit consumption in its responses, so cost is
+ * derived from the response: a "search" credit is consumed only when a call returns
+ * at least one result; a verification consumes half a credit.
+ *
+ * Estimate based on the Growth plan ($149/mo for 10,000 credits ≈ $0.015/credit) —
+ * see https://hunter.io/pricing. Tune if Sim's plan rate changes.
+ */
+export const HUNTER_SEARCH_CREDIT_USD = 0.015
+export const HUNTER_VERIFICATION_CREDIT_USD = 0.0075
+
+/**
  * Shared output property definitions for Hunter.io API responses.
  * These are reusable across all Hunter tools to ensure consistency.
  * Based on Hunter.io API v2 documentation: https://hunter.io/api-documentation/v2
