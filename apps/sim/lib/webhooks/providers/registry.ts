@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { airtableHandler } from '@/lib/webhooks/providers/airtable'
 import { ashbyHandler } from '@/lib/webhooks/providers/ashby'
 import { attioHandler } from '@/lib/webhooks/providers/attio'
+import { azureDevOpsHandler } from '@/lib/webhooks/providers/azure-devops'
 import { calcomHandler } from '@/lib/webhooks/providers/calcom'
 import { calendlyHandler } from '@/lib/webhooks/providers/calendly'
 import { circlebackHandler } from '@/lib/webhooks/providers/circleback'
@@ -17,7 +18,6 @@ import { gongHandler } from '@/lib/webhooks/providers/gong'
 import { googleFormsHandler } from '@/lib/webhooks/providers/google-forms'
 import { grainHandler } from '@/lib/webhooks/providers/grain'
 import { greenhouseHandler } from '@/lib/webhooks/providers/greenhouse'
-import { hubspotHandler } from '@/lib/webhooks/providers/hubspot'
 import { imapHandler } from '@/lib/webhooks/providers/imap'
 import { intercomHandler } from '@/lib/webhooks/providers/intercom'
 import { jiraHandler } from '@/lib/webhooks/providers/jira'
@@ -52,6 +52,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   airtable: airtableHandler,
   ashby: ashbyHandler,
   attio: attioHandler,
+  azure_devops: azureDevOpsHandler,
   calendly: calendlyHandler,
   calcom: calcomHandler,
   circleback: circlebackHandler,
@@ -66,7 +67,6 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   fathom: fathomHandler,
   grain: grainHandler,
   greenhouse: greenhouseHandler,
-  hubspot: hubspotHandler,
   imap: imapHandler,
   intercom: intercomHandler,
   jira: jiraHandler,

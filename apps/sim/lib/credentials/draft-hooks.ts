@@ -4,6 +4,7 @@ import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
+import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 
 const logger = createLogger('CredentialDraftHooks')
 
@@ -52,6 +53,8 @@ export async function handleCreateCredentialFromDraft(params: {
       providerId,
       accountId,
     })
+
+    await clearDeadFlag(accountId)
 
     recordAudit({
       workspaceId: draft.workspaceId,
@@ -146,6 +149,8 @@ export async function handleReconnectCredential(params: {
     oldAccountId,
     newAccountId,
   })
+
+  await clearDeadFlag(newAccountId)
 
   recordAudit({
     workspaceId,

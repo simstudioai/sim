@@ -2,6 +2,7 @@ import { gmailPollingHandler } from '@/lib/webhooks/polling/gmail'
 import { googleCalendarPollingHandler } from '@/lib/webhooks/polling/google-calendar'
 import { googleDrivePollingHandler } from '@/lib/webhooks/polling/google-drive'
 import { googleSheetsPollingHandler } from '@/lib/webhooks/polling/google-sheets'
+import { hubspotPollingHandler } from '@/lib/webhooks/polling/hubspot'
 import { imapPollingHandler } from '@/lib/webhooks/polling/imap'
 import { outlookPollingHandler } from '@/lib/webhooks/polling/outlook'
 import { rssPollingHandler } from '@/lib/webhooks/polling/rss'
@@ -12,6 +13,7 @@ const POLLING_HANDLERS: Record<string, PollingProviderHandler> = {
   'google-calendar': googleCalendarPollingHandler,
   'google-drive': googleDrivePollingHandler,
   'google-sheets': googleSheetsPollingHandler,
+  hubspot: hubspotPollingHandler,
   imap: imapPollingHandler,
   outlook: outlookPollingHandler,
   rss: rssPollingHandler,

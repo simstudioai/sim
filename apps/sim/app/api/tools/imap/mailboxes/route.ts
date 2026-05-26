@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { ImapFlow } from 'imapflow'
 import { type NextRequest, NextResponse } from 'next/server'
 import { imapMailboxesContract } from '@/lib/api/contracts/tools/imap'
@@ -93,7 +94,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       throw error
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage = getErrorMessage(error, 'Unknown error')
     logger.error('Error fetching IMAP mailboxes:', errorMessage)
 
     let userMessage = 'Failed to connect to IMAP server. Please check your connection settings.'

@@ -1,0 +1,286 @@
+---
+title: Findymail
+description: Find and verify B2B emails, phones, employees, and company data
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="findymail"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Findymail](https://findymail.com/) is a B2B contact data platform for finding and verifying work emails, phone numbers, and enriched profile data on company employees. It combines real-time email finding, deliverability verification, reverse-lookup, and technology stack detection in a single API.
+
+With Findymail, you can:
+
+- **Find work emails by name and company:** Resolve a verified work email from a person's name plus a company domain or company name.
+- **Find emails from LinkedIn:** Look up the verified work email behind any LinkedIn profile URL.
+- **Find contacts by role:** Search a company domain for verified emails matching specific target roles (e.g., CEO, Founder).
+- **Verify deliverability:** Check whether an email is deliverable and identify the underlying mail provider.
+- **Reverse-lookup profiles:** Given an email, return the matching LinkedIn URL and an optional enriched profile (job, education, skills, certificates).
+- **Enrich companies and employees:** Look up company metadata by LinkedIn URL, domain, or name, and find employees by website and target job titles.
+- **Find phone numbers:** Retrieve a contact's phone number (US-only) from a LinkedIn profile URL.
+- **Detect technology stacks:** Search the technology catalog or look up the full tech stack of a company by domain.
+
+In Sim, the Findymail integration lets your agents programmatically build verified contact lists, enrich CRMs, qualify leads, and gather technographic data without leaving your workflow. Use it to automate outbound prospecting, augment incoming form submissions, validate email captures before sending, and trigger downstream actions when a verified contact is found.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Findymail to find verified work emails by name, domain, or LinkedIn URL, verify deliverability, reverse-lookup profiles from emails, enrich company data, find employees by job title, look up phone numbers, search technology stacks, and check credit usage.
+
+
+
+## Tools
+
+### `findymail_verify_email`
+
+Verifies the deliverability of an email address. Uses one verifier credit.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | Email address to verify \(e.g., john@example.com\) |
+| `apiKey` | string | Yes | Findymail API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | The verified email address |
+| `verified` | boolean | Whether the email is verified as deliverable |
+| `provider` | string | Email service provider \(e.g., Google, Microsoft\) |
+
+### `findymail_find_email_from_name`
+
+Find someone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Person's full name \(e.g., 'John Doe'\) |
+| `domain` | string | Yes | Company domain \(preferred\) or company name \(e.g., stripe.com\) |
+| `apiKey` | string | Yes | Findymail API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | object | Contact information |
+|   ↳ `name` | string | Contact full name |
+|   ↳ `email` | string | Contact email address |
+|   ↳ `domain` | string | Email domain |
+
+### `findymail_find_emails_by_domain`
+
+Find verified contacts at a given domain matching one or more target roles (max 3 roles). Limited to 5 concurrent synchronous requests.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Company domain \(e.g., stripe.com\) |
+| `roles` | array | Yes | Target roles at the company \(max 3, e.g., \["CEO", "Founder"\]\) |
+| `items` | string | No | No description |
+| `apiKey` | string | Yes | Findymail API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | array | List of contacts found |
+|   ↳ `name` | string | Contact full name |
+|   ↳ `email` | string | Contact email address |
+|   ↳ `domain` | string | Email domain |
+
+### `findymail_find_email_from_linkedin`
+
+Find someone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `linkedin_url` | string | Yes | Person's LinkedIn URL or username \(e.g., 'https://linkedin.com/in/johndoe' or 'johndoe'\) |
+| `apiKey` | string | Yes | Findymail API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | object | Contact information |
+|   ↳ `name` | string | Contact full name |
+|   ↳ `email` | string | Contact email address |
+|   ↳ `domain` | string | Email domain |
+
+### `findymail_reverse_email_lookup`
+
+Find a business profile from an email address. Uses 1 finder credit if a profile is found, 2 credits if returning full profile data.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | Work or personal email address to look up |
+| `with_profile` | boolean | No | Whether to return enriched profile metadata \(default: false\) |
+| `apiKey` | string | Yes | Findymail API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | The email address that was looked up |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `fullName` | string | Full name from profile |
+| `username` | string | LinkedIn username |
+| `headline` | string | Profile headline |
+| `jobTitle` | string | Current job title |
+| `summary` | string | Profile summary |
+| `city` | string | City |
+| `region` | string | Region or state |
+| `country` | string | Country |
+| `companyLinkedinUrl` | string | Current company LinkedIn URL |
+| `companyName` | string | Current company name |
+| `companyWebsite` | string | Current company website |
+| `isPremium` | boolean | Whether the profile has LinkedIn Premium |
+| `isOpenProfile` | boolean | Whether the profile is an Open Profile |
+| `skills` | array | List of profile skills |
+| `jobs` | array | Job history entries |
+| `educations` | array | Education history \(school, degree, fieldOfStudy, startDate, endDate\) |
+| `certificates` | array | Certifications \(name, issuingOrganization, issueDate, expirationDate\) |
+
+### `findymail_get_company`
+
+Retrieve company information from a LinkedIn URL, domain, or company name. Uses 1 finder credit per successful response.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `linkedin_url` | string | No | Company LinkedIn URL \(e.g., https://www.linkedin.com/company/stripe/\) |
+| `domain` | string | No | Company domain \(e.g., stripe.com\) |
+| `name` | string | No | Company name \(e.g., Stripe\) |
+| `apiKey` | string | Yes | Findymail API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Company name |
+| `domain` | string | Company domain |
+| `company_size` | string | Employee headcount range \(e.g., 1001-5000\) |
+| `industry` | string | Industry classification |
+| `linkedin_url` | string | Company LinkedIn URL |
+| `description` | string | Company description |
+
+### `findymail_find_employees`
+
+Find employees at a company by website and target job titles. Uses 1 credit per found contact. Does not return email addresses.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `website` | string | Yes | Company website or domain \(e.g., google.com\) |
+| `job_titles` | array | Yes | Target job titles to search for \(max 10, e.g., \["Software Engineer", "CEO"\]\) |
+| `items` | string | No | No description |
+| `count` | number | No | Number of contacts to return \(max 5, default 1\) |
+| `apiKey` | string | Yes | Findymail API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `employees` | array | List of employees matching the search criteria |
+|   ↳ `name` | string | Employee full name |
+|   ↳ `linkedinUrl` | string | LinkedIn profile URL |
+|   ↳ `companyWebsite` | string | Company website |
+|   ↳ `companyName` | string | Company name |
+|   ↳ `jobTitle` | string | Job title |
+
+### `findymail_find_phone`
+
+Find someone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `linkedin_url` | string | Yes | Person's LinkedIn URL or username \(e.g., 'https://linkedin.com/in/johndoe' or 'johndoe'\) |
+| `apiKey` | string | Yes | Findymail API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `phone` | string | Phone number in E.164 format. Only available for US numbers. |
+| `line_type` | string | Phone line type \(e.g., "Mobile", "Landline"\) |
+
+### `findymail_search_technologies`
+
+Search the technology catalog by name. Returns up to 25 technologies. Free endpoint, rate limited to 10 requests per minute.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Yes | Search term \(min 2 characters, e.g., "React"\) |
+| `apiKey` | string | Yes | Findymail API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `technologies` | array | List of technologies |
+|   ↳ `name` | string | Technology name |
+|   ↳ `category` | string | Technology category |
+|   ↳ `subcategory` | string | Technology subcategory |
+|   ↳ `last_detected_at` | string | Last detection timestamp \(ISO 8601\) |
+
+### `findymail_lookup_technologies`
+
+Get the technology stack for a company by domain. Optionally filter by technology names. 1 finder credit if technologies are found, free otherwise.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Company domain to look up \(e.g., stripe.com\) |
+| `technologies` | array | No | Filter by technology names, case-insensitive \(e.g., \["React", "TypeScript"\]\) |
+| `items` | string | No | No description |
+| `apiKey` | string | Yes | Findymail API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `technologies` | array | List of technologies |
+|   ↳ `name` | string | Technology name |
+|   ↳ `category` | string | Technology category |
+|   ↳ `subcategory` | string | Technology subcategory |
+|   ↳ `last_detected_at` | string | Last detection timestamp \(ISO 8601\) |
+| `domain` | string | The resolved company domain |
+
+### `findymail_get_credits`
+
+Retrieve the remaining finder and verifier credits for the authenticated account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Findymail API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits` | number | Remaining finder credits |
+| `verifier_credits` | number | Remaining verifier credits |
+
+

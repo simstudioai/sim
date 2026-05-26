@@ -91,12 +91,9 @@ describe('FunctionBlockHandler', () => {
 
     const result = await handler.execute(mockContext, mockBlock, inputs)
 
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'function_execute',
-      expectedToolParams,
-      false,
-      mockContext
-    )
+    expect(mockExecuteTool).toHaveBeenCalledWith('function_execute', expectedToolParams, {
+      executionContext: mockContext,
+    })
     expect(result).toEqual(expectedOutput)
   })
 
@@ -132,12 +129,9 @@ describe('FunctionBlockHandler', () => {
 
     const result = await handler.execute(mockContext, mockBlock, inputs)
 
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'function_execute',
-      expectedToolParams,
-      false,
-      mockContext
-    )
+    expect(mockExecuteTool).toHaveBeenCalledWith('function_execute', expectedToolParams, {
+      executionContext: mockContext,
+    })
     expect(result).toEqual(expectedOutput)
   })
 
@@ -165,12 +159,9 @@ describe('FunctionBlockHandler', () => {
 
     await handler.execute(mockContext, mockBlock, inputs)
 
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'function_execute',
-      expectedToolParams,
-      false, // skipPostProcess
-      mockContext // execution context
-    )
+    expect(mockExecuteTool).toHaveBeenCalledWith('function_execute', expectedToolParams, {
+      executionContext: mockContext,
+    })
   })
 
   it('should handle execution errors from the tool', async () => {
@@ -197,8 +188,7 @@ describe('FunctionBlockHandler', () => {
       expect.objectContaining({
         contextVariables,
       }),
-      false,
-      mockContext
+      { executionContext: mockContext }
     )
   })
 
@@ -217,8 +207,7 @@ describe('FunctionBlockHandler', () => {
         code: 'retur globalThis["__blockRef_0"]',
         sourceCode: 'retur "value"',
       }),
-      false,
-      mockContext
+      { executionContext: mockContext }
     )
   })
 
@@ -239,8 +228,7 @@ describe('FunctionBlockHandler', () => {
         workflowVariables: { 'var-1': legacyVariable },
         contextVariables: {},
       }),
-      false,
-      mockContext
+      { executionContext: mockContext }
     )
   })
 

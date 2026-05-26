@@ -159,7 +159,7 @@ export async function validateFormAuth(
       const allowedEmails: string[] = deployment.allowedEmails || []
 
       if (isEmailAllowed(email, allowedEmails)) {
-        return { authorized: true }
+        return { authorized: false, error: 'otp_required' }
       }
 
       return { authorized: false, error: 'Email not authorized for this form' }

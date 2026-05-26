@@ -10,15 +10,22 @@ interface RunSettingsSectionProps {
   /** Column names this group waits on. */
   deps: string[]
   onChangeDeps: (next: string[]) => void
+  /** Inline validation error rendered under the picker. */
+  error?: string | null
 }
 
 /**
  * "Run after" picker: which upstream columns must be filled before this group
  * fires. Workflow output columns count the same as plain columns — once a
- * column is non-empty, the dep is satisfied. Empty selection = the group fires
- * on any row change.
+ * column is non-empty, the dep is satisfied. At least one dep is required
+ * when auto-run is on.
  */
-export function RunSettingsSection({ depOptions, deps, onChangeDeps }: RunSettingsSectionProps) {
+export function RunSettingsSection({
+  depOptions,
+  deps,
+  onChangeDeps,
+  error,
+}: RunSettingsSectionProps) {
   const options = depOptions.map((c) => ({ label: c.name, value: c.name }))
 
   return (
@@ -38,11 +45,12 @@ export function RunSettingsSection({ depOptions, deps, onChangeDeps }: RunSettin
         multiSelectValues={deps}
         onMultiSelectChange={onChangeDeps}
         overlayContent={
-          <span className='truncate text-[var(--text-primary)]'>
-            {deps.length === 0 ? 'Any row change' : `${deps.length} selected`}
+          <span className='truncate text-[var(--text-tertiary)]'>
+            {deps.length === 0 ? 'Select at least one column' : `${deps.length} selected`}
           </span>
         }
       />
+      {error && <p className='pl-0.5 text-[var(--text-danger)] text-xs'>{error}</p>}
     </div>
   )
 }

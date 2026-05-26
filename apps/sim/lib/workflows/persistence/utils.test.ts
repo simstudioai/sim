@@ -767,7 +767,7 @@ describe('Database Helpers', () => {
 
       mockDb.transaction = mockTransaction
 
-      const staleWorkflowState = JSON.parse(JSON.stringify(mockWorkflowState))
+      const staleWorkflowState = structuredClone(mockWorkflowState)
       staleWorkflowState.loops = {}
       staleWorkflowState.parallels = {}
 

@@ -1,3 +1,5 @@
+import { randomItem } from '@sim/utils/random'
+
 /** Color palette for workspace accents, aligned with the workflow color family. */
 export const WORKSPACE_COLORS = [
   '#2ABBF8', // Blue
@@ -11,7 +13,7 @@ export const WORKSPACE_COLORS = [
 
 /** Picks a random workspace color from the hero palette. */
 export function getRandomWorkspaceColor(): string {
-  return WORKSPACE_COLORS[Math.floor(Math.random() * WORKSPACE_COLORS.length)]
+  return randomItem(WORKSPACE_COLORS)
 }
 
 const APP_COLORS = [

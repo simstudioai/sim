@@ -13,12 +13,14 @@ export interface ToolCatalogEntry {
     | 'context_write'
     | 'crawl_website'
     | 'create_file'
+    | 'create_file_folder'
     | 'create_folder'
     | 'create_job'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
     | 'debug'
     | 'delete_file'
+    | 'delete_file_folder'
     | 'delete_folder'
     | 'delete_workflow'
     | 'delete_workspace_mcp_server'
@@ -49,6 +51,7 @@ export interface ToolCatalogEntry {
     | 'job'
     | 'knowledge'
     | 'knowledge_base'
+    | 'list_file_folders'
     | 'list_folders'
     | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
@@ -58,6 +61,8 @@ export interface ToolCatalogEntry {
     | 'manage_mcp_tool'
     | 'manage_skill'
     | 'materialize_file'
+    | 'move_file'
+    | 'move_file_folder'
     | 'move_folder'
     | 'move_workflow'
     | 'oauth_get_auth_link'
@@ -66,6 +71,7 @@ export interface ToolCatalogEntry {
     | 'read'
     | 'redeploy'
     | 'rename_file'
+    | 'rename_file_folder'
     | 'rename_workflow'
     | 'research'
     | 'respond'
@@ -103,12 +109,14 @@ export interface ToolCatalogEntry {
     | 'context_write'
     | 'crawl_website'
     | 'create_file'
+    | 'create_file_folder'
     | 'create_folder'
     | 'create_job'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
     | 'debug'
     | 'delete_file'
+    | 'delete_file_folder'
     | 'delete_folder'
     | 'delete_workflow'
     | 'delete_workspace_mcp_server'
@@ -139,6 +147,7 @@ export interface ToolCatalogEntry {
     | 'job'
     | 'knowledge'
     | 'knowledge_base'
+    | 'list_file_folders'
     | 'list_folders'
     | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
@@ -148,6 +157,8 @@ export interface ToolCatalogEntry {
     | 'manage_mcp_tool'
     | 'manage_skill'
     | 'materialize_file'
+    | 'move_file'
+    | 'move_file_folder'
     | 'move_folder'
     | 'move_workflow'
     | 'oauth_get_auth_link'
@@ -156,6 +167,7 @@ export interface ToolCatalogEntry {
     | 'read'
     | 'redeploy'
     | 'rename_file'
+    | 'rename_file_folder'
     | 'rename_workflow'
     | 'research'
     | 'respond'
@@ -184,7 +196,7 @@ export interface ToolCatalogEntry {
     | 'workflow'
     | 'workspace_file'
   parameters: unknown
-  requiredPermission?: 'admin' | 'write'
+  requiredPermission?: 'admin' | 'read' | 'write'
   requiresConfirmation?: boolean
   resultSchema?: unknown
   route: 'client' | 'go' | 'sim' | 'subagent'
@@ -326,7 +338,7 @@ export const CreateFile: ToolCatalogEntry = {
       fileName: {
         type: 'string',
         description:
-          'Plain workspace filename including extension, e.g. "main.py" or "report.md". Must not contain slashes.',
+          'Workspace filename or slash-separated file path including extension, e.g. "main.py", "report.md", or "Reports/2026/report.md".',
       },
     },
     required: ['fileName'],
@@ -339,6 +351,26 @@ export const CreateFile: ToolCatalogEntry = {
       success: { type: 'boolean', description: 'Whether the file was created.' },
     },
     required: ['success', 'message'],
+  },
+  requiredPermission: 'write',
+}
+
+export const CreateFileFolder: ToolCatalogEntry = {
+  id: 'create_file_folder',
+  name: 'create_file_folder',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'Folder name.' },
+      parentId: { type: 'string', description: 'Optional parent file-folder ID.' },
+      workspaceId: {
+        type: 'string',
+        description: 'Optional workspace ID. Defaults to the current workspace.',
+      },
+    },
+    required: ['name'],
   },
   requiredPermission: 'write',
 }
@@ -441,8 +473,21 @@ export const CreateWorkspaceMcpServer: ToolCatalogEntry = {
     type: 'object',
     properties: {
       description: { type: 'string', description: 'Optional description for the server' },
+      isPublic: {
+        type: 'boolean',
+        description: 'Whether the workflow MCP server is publicly accessible',
+      },
       name: { type: 'string', description: 'Required: server name' },
-      workspaceId: { type: 'string', description: 'Workspace ID (defaults to current workspace)' },
+      workflowIds: {
+        type: 'array',
+        description: 'Optional deployed workflow IDs to publish as tools on the new server',
+        items: { type: 'string' },
+      },
+      workspaceId: {
+        type: 'string',
+        description:
+          'Workspace ID. Required when no current workspace context is available, such as headless MCP calls.',
+      },
     },
     required: ['name'],
   },
@@ -499,6 +544,26 @@ export const DeleteFile: ToolCatalogEntry = {
     },
     required: ['success', 'message'],
   },
+  requiredPermission: 'write',
+}
+
+export const DeleteFileFolder: ToolCatalogEntry = {
+  id: 'delete_file_folder',
+  name: 'delete_file_folder',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      folderIds: {
+        type: 'array',
+        description: 'The workspace file-folder IDs to delete.',
+        items: { type: 'string' },
+      },
+    },
+    required: ['folderIds'],
+  },
+  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -1000,7 +1065,7 @@ export const FunctionExecute: ToolCatalogEntry = {
       inputFiles: {
         type: 'array',
         description:
-          'Canonical workspace file IDs to mount in the sandbox. Discover IDs via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json"). Mounted path: /home/user/files/{fileId}/{originalName}. Example: ["wf_123"]',
+          'Canonical workspace file IDs to mount in the sandbox. Discover IDs via read("files/{path}/{name}/meta.json") or glob("files/**/meta.json") / glob("files/by-id/*/meta.json"). Mounted path: /home/user/files/{fileId}/{originalName}. Example: ["wf_123"]',
         items: { type: 'string' },
       },
       inputTables: {
@@ -1028,7 +1093,7 @@ export const FunctionExecute: ToolCatalogEntry = {
       outputPath: {
         type: 'string',
         description:
-          'Pipe output directly to a NEW workspace file instead of returning in context. ALWAYS use this instead of a separate workspace_file write call. Use a flat path like "files/result.json" — nested paths are not supported.',
+          'Pipe output directly to a NEW workspace file instead of returning in context. ALWAYS use this instead of a separate workspace_file write call. Use a root path like "files/result.json" — nested output paths are not supported.',
       },
       outputSandboxPath: {
         type: 'string',
@@ -1039,11 +1104,6 @@ export const FunctionExecute: ToolCatalogEntry = {
         type: 'string',
         description:
           'Table ID to overwrite with the code\'s return value. Code MUST return an array of objects where keys match column names. All existing rows are replaced. Example: "tbl_abc123"',
-      },
-      timeout: {
-        type: 'number',
-        description:
-          'Optional maximum execution time in seconds. If omitted, Copilot sends 10 seconds by default. Override when needed; capped at the default execution limit.',
       },
     },
     required: ['code'],
@@ -1090,7 +1150,7 @@ export const GenerateImage: ToolCatalogEntry = {
       fileName: {
         type: 'string',
         description:
-          'Output file name. Defaults to "generated-image.png". Workspace files are flat, so pass a plain file name, not a nested path.',
+          'Output file name. Defaults to "generated-image.png". New generated images currently create root workspace files, so pass a plain file name, not a nested path.',
       },
       overwriteFileId: {
         type: 'string',
@@ -1130,12 +1190,12 @@ export const GenerateVisualization: ToolCatalogEntry = {
       fileName: {
         type: 'string',
         description:
-          'Output file name. Defaults to "chart.png". Workspace files are flat, so pass a plain file name, not a nested path.',
+          'Output file name. Defaults to "chart.png". New visualization outputs currently create root workspace files, so pass a plain file name, not a nested path.',
       },
       inputFiles: {
         type: 'array',
         description:
-          'Canonical workspace file IDs to mount in the sandbox. Discover IDs via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json"). Mounted path: /home/user/files/{fileId}/{originalName}.',
+          'Canonical workspace file IDs to mount in the sandbox. Discover IDs via read("files/{path}/{name}/meta.json") or glob("files/**/meta.json") / glob("files/by-id/*/meta.json"). Mounted path: /home/user/files/{fileId}/{originalName}.',
         items: { type: 'string' },
       },
       inputTables: {
@@ -1537,7 +1597,7 @@ export const KnowledgeBase: ToolCatalogEntry = {
           fileIds: {
             type: 'array',
             description:
-              'Canonical workspace file IDs to add as documents (for add_file). Discover via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json").',
+              'Canonical workspace file IDs to add as documents (for add_file). Discover via read("files/{path}/{name}/meta.json") or glob("files/**/meta.json") / glob("files/by-id/*/meta.json").',
             items: { type: 'string' },
           },
           filename: {
@@ -1634,6 +1694,23 @@ export const KnowledgeBase: ToolCatalogEntry = {
   requiresConfirmation: true,
 }
 
+export const ListFileFolders: ToolCatalogEntry = {
+  id: 'list_file_folders',
+  name: 'list_file_folders',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      workspaceId: {
+        type: 'string',
+        description: 'Optional workspace ID. Defaults to the current workspace.',
+      },
+    },
+  },
+  requiredPermission: 'read',
+}
+
 export const ListFolders: ToolCatalogEntry = {
   id: 'list_folders',
   name: 'list_folders',
@@ -1663,7 +1740,11 @@ export const ListWorkspaceMcpServers: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
-      workspaceId: { type: 'string', description: 'Workspace ID (defaults to current workspace)' },
+      workspaceId: {
+        type: 'string',
+        description:
+          'Workspace ID. Required when no current workspace context is available, such as headless MCP calls.',
+      },
     },
   },
 }
@@ -1949,6 +2030,49 @@ export const MaterializeFile: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
+export const MoveFile: ToolCatalogEntry = {
+  id: 'move_file',
+  name: 'move_file',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      fileIds: {
+        type: 'array',
+        description: 'Canonical workspace file IDs to move.',
+        items: { type: 'string' },
+      },
+      folderId: {
+        type: 'string',
+        description: 'Target file-folder ID. Omit or pass empty string to move to workspace root.',
+      },
+    },
+    required: ['fileIds'],
+  },
+  requiredPermission: 'write',
+}
+
+export const MoveFileFolder: ToolCatalogEntry = {
+  id: 'move_file_folder',
+  name: 'move_file_folder',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      folderId: { type: 'string', description: 'The workspace file-folder ID to move.' },
+      parentId: {
+        type: 'string',
+        description:
+          'Target parent file-folder ID. Omit or pass empty string to move to workspace root.',
+      },
+    },
+    required: ['folderId'],
+  },
+  requiredPermission: 'write',
+}
+
 export const MoveFolder: ToolCatalogEntry = {
   id: 'move_folder',
   name: 'move_folder',
@@ -2043,7 +2167,11 @@ export const OpenResource: ToolCatalogEntry = {
         items: {
           type: 'object',
           properties: {
-            id: { type: 'string', description: 'The resource ID.' },
+            id: {
+              type: 'string',
+              description:
+                'Canonical resource ID. For type "file" this must be a UUID from the workspace file meta.json "id" field—never a VFS path or display name.',
+            },
             type: {
               type: 'string',
               description: 'The resource type.',
@@ -2160,7 +2288,7 @@ export const RenameFile: ToolCatalogEntry = {
       newName: {
         type: 'string',
         description:
-          'New filename including extension, e.g. "draft_v2.md". Must not contain slashes.',
+          'New filename including extension, e.g. "draft_v2.md". Use move_file to move files between folders.',
       },
     },
     required: ['fileId', 'newName'],
@@ -2173,6 +2301,22 @@ export const RenameFile: ToolCatalogEntry = {
       success: { type: 'boolean', description: 'Whether the rename succeeded.' },
     },
     required: ['success', 'message'],
+  },
+  requiredPermission: 'write',
+}
+
+export const RenameFileFolder: ToolCatalogEntry = {
+  id: 'rename_file_folder',
+  name: 'rename_file_folder',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      folderId: { type: 'string', description: 'The workspace file-folder ID to rename.' },
+      name: { type: 'string', description: 'New folder name.' },
+    },
+    required: ['folderId', 'name'],
   },
   requiredPermission: 'write',
 }
@@ -2242,7 +2386,7 @@ export const RestoreResource: ToolCatalogEntry = {
       type: {
         type: 'string',
         description: 'The resource type to restore.',
-        enum: ['workflow', 'table', 'file', 'knowledgebase', 'folder'],
+        enum: ['workflow', 'table', 'file', 'knowledgebase', 'folder', 'file_folder'],
       },
     },
     required: ['type', 'id'],
@@ -2841,7 +2985,7 @@ export const UserTable: ToolCatalogEntry = {
           fileId: {
             type: 'string',
             description:
-              'Canonical workspace file ID for create_from_file/import_file. Discover via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json").',
+              'Canonical workspace file ID for create_from_file/import_file. Discover via read("files/{path}/{name}/meta.json") or glob("files/**/meta.json") / glob("files/by-id/*/meta.json").',
           },
           filePath: {
             type: 'string',
@@ -2922,7 +3066,7 @@ export const UserTable: ToolCatalogEntry = {
           outputPath: {
             type: 'string',
             description:
-              'Pipe query_rows results directly to a NEW workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use .csv for tabular exports. Use a flat path like "files/export.csv" — nested paths are not supported.',
+              'Pipe query_rows results directly to a NEW workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use a root output path like "files/export.csv" — nested output paths are not supported.',
           },
           outputs: {
             type: 'array',
@@ -3466,12 +3610,14 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ContextWrite.id]: ContextWrite,
   [CrawlWebsite.id]: CrawlWebsite,
   [CreateFile.id]: CreateFile,
+  [CreateFileFolder.id]: CreateFileFolder,
   [CreateFolder.id]: CreateFolder,
   [CreateJob.id]: CreateJob,
   [CreateWorkflow.id]: CreateWorkflow,
   [CreateWorkspaceMcpServer.id]: CreateWorkspaceMcpServer,
   [Debug.id]: Debug,
   [DeleteFile.id]: DeleteFile,
+  [DeleteFileFolder.id]: DeleteFileFolder,
   [DeleteFolder.id]: DeleteFolder,
   [DeleteWorkflow.id]: DeleteWorkflow,
   [DeleteWorkspaceMcpServer.id]: DeleteWorkspaceMcpServer,
@@ -3502,6 +3648,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Job.id]: Job,
   [Knowledge.id]: Knowledge,
   [KnowledgeBase.id]: KnowledgeBase,
+  [ListFileFolders.id]: ListFileFolders,
   [ListFolders.id]: ListFolders,
   [ListUserWorkspaces.id]: ListUserWorkspaces,
   [ListWorkspaceMcpServers.id]: ListWorkspaceMcpServers,
@@ -3511,6 +3658,8 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ManageMcpTool.id]: ManageMcpTool,
   [ManageSkill.id]: ManageSkill,
   [MaterializeFile.id]: MaterializeFile,
+  [MoveFile.id]: MoveFile,
+  [MoveFileFolder.id]: MoveFileFolder,
   [MoveFolder.id]: MoveFolder,
   [MoveWorkflow.id]: MoveWorkflow,
   [OauthGetAuthLink.id]: OauthGetAuthLink,
@@ -3519,6 +3668,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Read.id]: Read,
   [Redeploy.id]: Redeploy,
   [RenameFile.id]: RenameFile,
+  [RenameFileFolder.id]: RenameFileFolder,
   [RenameWorkflow.id]: RenameWorkflow,
   [Research.id]: Research,
   [Respond.id]: Respond,

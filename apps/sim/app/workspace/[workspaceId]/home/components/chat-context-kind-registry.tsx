@@ -69,6 +69,10 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
     label: 'Folder',
     renderIcon: ({ className }) => <FolderIcon className={className} />,
   },
+  filefolder: {
+    label: 'File folder',
+    renderIcon: ({ className }) => <FolderIcon className={className} />,
+  },
   past_chat: {
     label: 'Past chat',
     renderIcon: ({ className }) => <Blimp className={className} />,

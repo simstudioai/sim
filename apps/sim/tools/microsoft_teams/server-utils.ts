@@ -7,6 +7,7 @@ import type { Logger } from '@sim/logger'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { FileAccessDeniedError, verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 import type { GraphApiErrorResponse, GraphDriveItem } from '@/tools/microsoft_teams/types'
 
@@ -45,8 +46,9 @@ export async function uploadFilesForTeamsMessage(params: {
   accessToken: string
   requestId: string
   logger: Logger
+  userId: string
 }): Promise<TeamsFileUploadResult> {
-  const { rawFiles, accessToken, requestId, logger: log } = params
+  const { rawFiles, accessToken, requestId, logger: log, userId } = params
   const attachments: TeamsAttachmentRef[] = []
   const filesOutput: TeamsFileOutput[] = []
 
@@ -71,6 +73,11 @@ export async function uploadFilesForTeamsMessage(params: {
     }
 
     log.info(`[${requestId}] Uploading file to Teams: ${file.name} (${file.size} bytes)`)
+
+    const hasAccess = await verifyFileAccess(file.key, userId)
+    if (!hasAccess) {
+      throw new FileAccessDeniedError()
+    }
 
     // Download file from storage
     const buffer = await downloadFileFromStorage(file, requestId, log)

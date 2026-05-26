@@ -1,5 +1,6 @@
 import { db, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
@@ -162,7 +163,7 @@ export async function createSchedulesForDeploy(
     logger.error(`Failed to create schedules for workflow ${workflowId}`, error)
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to create schedules',
+      error: getErrorMessage(error, 'Failed to create schedules'),
     }
   }
 

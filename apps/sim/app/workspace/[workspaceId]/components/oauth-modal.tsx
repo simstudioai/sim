@@ -11,6 +11,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
@@ -230,6 +231,9 @@ export function OAuthModal(props: OAuthModalProps) {
       <ModalContent size='md'>
         <ModalHeader>Connect {providerName}</ModalHeader>
         <ModalBody>
+          <ModalDescription className='sr-only'>
+            Connect your {providerName} account to grant access
+          </ModalDescription>
           <div className='flex flex-col gap-4'>
             <div className='flex items-center gap-3'>
               <div className='flex size-[40px] flex-shrink-0 items-center justify-center rounded-lg bg-[var(--surface-5)]'>

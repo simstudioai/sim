@@ -1,6 +1,13 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { getErrorMessage } from '@sim/utils/errors'
+import {
+  keepPreviousData,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -15,37 +22,52 @@ import {
   type McpServerTestResult,
   type RefreshMcpServerResult,
   refreshMcpServerContract,
+  startMcpOauthContract,
   testMcpServerConnectionContract,
   updateMcpServerContract,
 } from '@/lib/api/contracts/mcp'
+import { isLoopbackHostname } from '@/lib/core/utils/urls'
 import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/shared'
-import type { McpTool, McpTransport, StoredMcpTool } from '@/lib/mcp/types'
+import type {
+  McpAuthType,
+  McpServerStatusConfig,
+  McpTool,
+  McpTransport,
+  StoredMcpTool,
+} from '@/lib/mcp/types'
 import { workflowMcpServerKeys } from '@/hooks/queries/workflow-mcp-servers'
 
 const logger = createLogger('McpQueries')
 
-export type { McpTool, StoredMcpTool }
+export type { McpServerStatusConfig, McpTool, StoredMcpTool }
 
 export const mcpKeys = {
   all: ['mcp'] as const,
-  servers: (workspaceId: string) => [...mcpKeys.all, 'servers', workspaceId] as const,
-  tools: (workspaceId: string) => [...mcpKeys.all, 'tools', workspaceId] as const,
-  storedTools: (workspaceId: string) => [...mcpKeys.all, 'stored', workspaceId] as const,
+  servers: () => [...mcpKeys.all, 'servers'] as const,
+  serversList: (workspaceId?: string) => [...mcpKeys.servers(), workspaceId ?? ''] as const,
+  serverTools: () => [...mcpKeys.all, 'serverTools'] as const,
+  serverToolsWorkspace: (workspaceId?: string) =>
+    [...mcpKeys.serverTools(), workspaceId ?? ''] as const,
+  serverToolsList: (workspaceId?: string, serverId?: string) =>
+    [...mcpKeys.serverToolsWorkspace(workspaceId), serverId ?? ''] as const,
+  storedTools: () => [...mcpKeys.all, 'storedTools'] as const,
+  storedToolsList: (workspaceId?: string) => [...mcpKeys.storedTools(), workspaceId ?? ''] as const,
   allowedDomains: () => [...mcpKeys.all, 'allowedDomains'] as const,
 }
 
 export type { McpServer }
 
-/**
- * Input for creating/updating an MCP server (distinct from McpServerConfig in types.ts)
- */
-interface McpServerInput {
+/** Wire shape for create/update; distinct from runtime McpServerConfig. */
+export interface McpServerInput {
   name: string
   transport: McpTransport
   url?: string
   timeout: number
   headers?: Record<string, string>
   enabled: boolean
+  oauthClientId?: string
+  oauthClientSecret?: string
+  authType?: McpAuthType
 }
 
 async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promise<McpServer[]> {
@@ -65,7 +87,7 @@ async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promi
 
 export function useMcpServers(workspaceId: string) {
   return useQuery({
-    queryKey: mcpKeys.servers(workspaceId),
+    queryKey: mcpKeys.serversList(workspaceId),
     queryFn: ({ signal }) => fetchMcpServers(workspaceId, signal),
     enabled: !!workspaceId,
     retry: false,
@@ -77,11 +99,16 @@ export function useMcpServers(workspaceId: string) {
 async function fetchMcpTools(
   workspaceId: string,
   forceRefresh = false,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  serverId?: string
 ): Promise<McpTool[]> {
   try {
     const data = await requestJson(discoverMcpToolsContract, {
-      query: { workspaceId, refresh: forceRefresh || undefined },
+      query: {
+        workspaceId,
+        refresh: forceRefresh || undefined,
+        ...(serverId ? { serverId } : {}),
+      },
       signal,
     })
     return data.data.tools
@@ -93,25 +120,97 @@ async function fetchMcpTools(
   }
 }
 
+/**
+ * Workspace aggregate derived from N parallel per-server queries via
+ * `useQueries`. One slow server cannot block the others.
+ */
 export function useMcpToolsQuery(workspaceId: string) {
-  return useQuery({
-    queryKey: mcpKeys.tools(workspaceId),
-    queryFn: ({ signal }) => fetchMcpTools(workspaceId, false, signal),
-    enabled: !!workspaceId,
-    retry: false,
-    staleTime: 30 * 1000,
-    placeholderData: keepPreviousData,
+  const { data: servers, isLoading: serversLoading } = useMcpServers(workspaceId)
+
+  // Skip disabled rows (would 404 → negative-cache) and rows from a previous
+  // workspace (keepPreviousData on useMcpServers).
+  const serverIds = useMemo(
+    () =>
+      servers
+        ? servers
+            .filter((s) => s.enabled && s.workspaceId === workspaceId)
+            .map((s) => s.id)
+            .sort()
+        : [],
+    [servers, workspaceId]
+  )
+
+  const results = useQueries({
+    queries: serverIds.map((serverId) => ({
+      queryKey: mcpKeys.serverToolsList(workspaceId, serverId),
+      queryFn: ({ signal }: { signal?: AbortSignal }) =>
+        fetchMcpTools(workspaceId, false, signal, serverId),
+      enabled: !!workspaceId,
+      retry: false,
+      staleTime: 30 * 1000,
+      refetchOnWindowFocus: false,
+    })),
   })
+
+  return useMemo(() => {
+    const tools: McpTool[] = []
+    let hasData = false
+    let anyServerLoading = false
+    let firstError: Error | null = null
+    for (const result of results) {
+      // Drop stale data from servers whose latest refetch errored.
+      if (result.data && !result.isError) {
+        tools.push(...result.data)
+        hasData = true
+      }
+      if (result.isLoading) anyServerLoading = true
+      if (!firstError && result.error instanceof Error) firstError = result.error
+    }
+    return {
+      data: tools,
+      isLoading: (serversLoading || anyServerLoading) && !hasData,
+      isFetching: serversLoading || results.some((r) => r.isFetching),
+      // Suppress when any healthy server rendered; per-server errors live in `perServer`.
+      error: hasData ? null : firstError,
+      perServer: results,
+    }
+  }, [results, serversLoading])
 }
 
 export function useForceRefreshMcpTools() {
   const queryClient = useQueryClient()
 
-  return async (workspaceId: string) => {
-    const freshTools = await fetchMcpTools(workspaceId, true)
-    queryClient.setQueryData(mcpKeys.tools(workspaceId), freshTools)
-    return freshTools
-  }
+  return useMutation({
+    mutationFn: async (workspaceId: string) => {
+      const allServers =
+        queryClient.getQueryData<McpServer[]>(mcpKeys.serversList(workspaceId)) ?? []
+      const servers = allServers.filter((s) => s.enabled && s.workspaceId === workspaceId)
+      const results = await Promise.allSettled(
+        servers.map(async (server) => {
+          const tools = await fetchMcpTools(workspaceId, true, undefined, server.id)
+          queryClient.setQueryData(mcpKeys.serverToolsList(workspaceId, server.id), tools)
+          return tools
+        })
+      )
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const failedServer = servers[index]
+          if (failedServer) {
+            queryClient.invalidateQueries({
+              queryKey: mcpKeys.serverToolsList(workspaceId, failedServer.id),
+            })
+          }
+        }
+      })
+      return results
+        .filter((r): r is PromiseFulfilledResult<McpTool[]> => r.status === 'fulfilled')
+        .flatMap((r) => r.value)
+    },
+    onSettled: (_data, _error, workspaceId) => {
+      queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
+    },
+  })
 }
 
 interface CreateMcpServerParams {
@@ -137,6 +236,7 @@ export function useCreateMcpServer() {
 
       const serverId = data.data.serverId
       const wasUpdated = data.data.updated === true
+      const authType = data.data.authType
 
       logger.info(
         wasUpdated
@@ -144,50 +244,57 @@ export function useCreateMcpServer() {
           : `Created MCP server: ${config.name} (ID: ${serverId})`
       )
 
+      const { oauthClientSecret: _omitSecret, ...safeServerData } = serverData
       return {
-        ...serverData,
+        ...safeServerData,
         id: serverId,
-        connectionStatus: 'connected' as const,
+        connectionStatus: authType === 'oauth' ? ('disconnected' as const) : ('connected' as const),
         serverId,
         updated: wasUpdated,
+        authType,
       }
     },
-    onSuccess: async (data, variables) => {
-      const freshTools = await fetchMcpTools(variables.workspaceId, true)
-
-      const previousServers = queryClient.getQueryData<McpServer[]>(
-        mcpKeys.servers(variables.workspaceId)
-      )
-      if (previousServers) {
-        const newServer: McpServer = {
-          id: data.id,
-          workspaceId: variables.workspaceId,
-          name: variables.config.name,
-          transport: variables.config.transport,
-          url: variables.config.url,
-          timeout: variables.config.timeout || 30000,
-          headers: variables.config.headers,
-          enabled: variables.config.enabled,
-          connectionStatus: 'connected',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-
-        const serverExists = previousServers.some((s) => s.id === data.id)
-        queryClient.setQueryData<McpServer[]>(
-          mcpKeys.servers(variables.workspaceId),
-          serverExists
-            ? previousServers.map((s) => (s.id === data.id ? { ...s, ...newServer } : s))
-            : [...previousServers, newServer]
-        )
-      }
-
-      queryClient.setQueryData(mcpKeys.tools(variables.workspaceId), freshTools)
-    },
-    onSettled: (_, __, variables) => {
-      queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(variables.workspaceId) })
+      queryClient.invalidateQueries({
+        queryKey: mcpKeys.serverToolsWorkspace(variables.workspaceId),
+      })
     },
   })
+}
+
+/** On `redirect`, the caller must wait for `popup.closed` or the `mcp-oauth` postMessage. */
+export type StartMcpOauthMutationResult =
+  | { status: 'redirect'; popup: Window }
+  | { status: 'already_authorized' }
+
+export function useStartMcpOauth() {
+  return useMutation<StartMcpOauthMutationResult, Error, { serverId: string; workspaceId: string }>(
+    {
+      mutationFn: async ({ serverId, workspaceId }) => {
+        const result = await requestJson(startMcpOauthContract, {
+          query: { serverId, workspaceId },
+        })
+        if (result.status === 'already_authorized') return { status: 'already_authorized' }
+
+        const parsedUrl = new URL(result.authorizationUrl)
+        const isLoopbackHttp =
+          parsedUrl.protocol === 'http:' && isLoopbackHostname(parsedUrl.hostname)
+        if (parsedUrl.protocol !== 'https:' && !isLoopbackHttp) {
+          throw new Error('Authorization URL must use HTTPS')
+        }
+        const popup = window.open(
+          result.authorizationUrl,
+          `mcp-oauth-${serverId}`,
+          'width=560,height=720,resizable=yes,scrollbars=yes'
+        )
+        if (!popup) {
+          throw new Error('Popup blocked. Please allow popups for this site and retry.')
+        }
+        return { status: 'redirect', popup }
+      },
+    }
+  )
 }
 
 interface DeleteMcpServerParams {
@@ -207,9 +314,12 @@ export function useDeleteMcpServer() {
       logger.info(`Deleted MCP server: ${serverId} from workspace: ${workspaceId}`)
       return data
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
-      queryClient.invalidateQueries({ queryKey: mcpKeys.tools(variables.workspaceId) })
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(variables.workspaceId) })
+      queryClient.removeQueries({
+        queryKey: mcpKeys.serverToolsList(variables.workspaceId, variables.serverId),
+      })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(variables.workspaceId) })
     },
   })
 }
@@ -241,16 +351,23 @@ export function useUpdateMcpServer() {
       return data.data.server
     },
     onMutate: async ({ workspaceId, serverId, updates }) => {
-      await queryClient.cancelQueries({ queryKey: mcpKeys.servers(workspaceId) })
+      await queryClient.cancelQueries({ queryKey: mcpKeys.serversList(workspaceId) })
 
-      const previousServers = queryClient.getQueryData<McpServer[]>(mcpKeys.servers(workspaceId))
+      const previousServers = queryClient.getQueryData<McpServer[]>(
+        mcpKeys.serversList(workspaceId)
+      )
 
       if (previousServers) {
+        const { oauthClientSecret: _omitSecret, oauthClientId, ...rest } = updates
+        const safeUpdates: Partial<McpServer> = { ...rest }
+        if (oauthClientId !== undefined) {
+          safeUpdates.oauthClientId = oauthClientId || undefined
+        }
         queryClient.setQueryData<McpServer[]>(
-          mcpKeys.servers(workspaceId),
+          mcpKeys.serversList(workspaceId),
           previousServers.map((server) =>
             server.id === serverId
-              ? { ...server, ...updates, updatedAt: new Date().toISOString() }
+              ? { ...server, ...safeUpdates, updatedAt: new Date().toISOString() }
               : server
           )
         )
@@ -260,12 +377,17 @@ export function useUpdateMcpServer() {
     },
     onError: (_err, variables, context) => {
       if (context?.previousServers) {
-        queryClient.setQueryData(mcpKeys.servers(variables.workspaceId), context.previousServers)
+        queryClient.setQueryData(
+          mcpKeys.serversList(variables.workspaceId),
+          context.previousServers
+        )
       }
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
-      queryClient.invalidateQueries({ queryKey: mcpKeys.tools(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(variables.workspaceId) })
+      queryClient.invalidateQueries({
+        queryKey: mcpKeys.serverToolsList(variables.workspaceId, variables.serverId),
+      })
     },
   })
 }
@@ -293,11 +415,12 @@ export function useRefreshMcpServer() {
       logger.info(`Refreshed MCP server: ${serverId}`)
       return data.data
     },
-    onSuccess: async (_data, variables) => {
-      const freshTools = await fetchMcpTools(variables.workspaceId, true)
-      queryClient.setQueryData(mcpKeys.tools(variables.workspaceId), freshTools)
-      await queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
-      await queryClient.refetchQueries({ queryKey: mcpKeys.storedTools(variables.workspaceId) })
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(variables.workspaceId) })
+      queryClient.invalidateQueries({
+        queryKey: mcpKeys.serverToolsList(variables.workspaceId, variables.serverId),
+      })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(variables.workspaceId) })
     },
   })
 }
@@ -315,7 +438,7 @@ async function fetchStoredMcpTools(
 
 export function useStoredMcpTools(workspaceId: string) {
   return useQuery({
-    queryKey: mcpKeys.storedTools(workspaceId),
+    queryKey: mcpKeys.storedToolsList(workspaceId),
     queryFn: ({ signal }) => fetchStoredMcpTools(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: 60 * 1000,
@@ -335,23 +458,23 @@ const sseConnections: Map<string, SseEntry> =
   ((globalThis as Record<string, unknown>)[SSE_KEY] as Map<string, SseEntry>) ??
   ((globalThis as Record<string, unknown>)[SSE_KEY] = new Map<string, SseEntry>())
 
-/**
- * Subscribe to MCP tool-change SSE events for a workspace.
- * On each `tools_changed` event, invalidates the relevant React Query caches
- * so the UI refreshes automatically.
- *
- * Invalidates both external MCP server keys and workflow MCP server keys.
- */
+/** Subscribes to `tools_changed` SSE events and invalidates the affected query keys. */
 export function useMcpToolsEvents(workspaceId: string) {
   const queryClient = useQueryClient()
 
   useEffect(() => {
     if (!workspaceId) return
 
-    const invalidate = () => {
-      queryClient.invalidateQueries({ queryKey: mcpKeys.tools(workspaceId) })
-      queryClient.invalidateQueries({ queryKey: mcpKeys.servers(workspaceId) })
-      queryClient.invalidateQueries({ queryKey: mcpKeys.storedTools(workspaceId) })
+    const invalidate = (serverId?: string) => {
+      if (serverId) {
+        queryClient.invalidateQueries({
+          queryKey: mcpKeys.serverToolsList(workspaceId, serverId),
+        })
+      } else {
+        queryClient.invalidateQueries({ queryKey: mcpKeys.serverToolsWorkspace(workspaceId) })
+      }
+      queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
       queryClient.invalidateQueries({ queryKey: workflowMcpServerKeys.all })
     }
 
@@ -360,8 +483,15 @@ export function useMcpToolsEvents(workspaceId: string) {
     if (!entry) {
       const source = new EventSource(`/api/mcp/events?workspaceId=${workspaceId}`)
 
-      source.addEventListener('tools_changed', () => {
-        invalidate()
+      source.addEventListener('tools_changed', (e) => {
+        let serverId: string | undefined
+        try {
+          const parsed = JSON.parse((e as MessageEvent).data) as { serverId?: string }
+          serverId = parsed.serverId
+        } catch {
+          // Non-JSON payload → workspace-wide fallback.
+        }
+        invalidate(serverId)
       })
 
       source.onerror = () => {
@@ -436,7 +566,7 @@ export function useMcpServerTest() {
       logger.info(`MCP server test ${result.success ? 'passed' : 'failed'}:`, variables.name)
     },
     onError: (error) => {
-      logger.error('MCP server test failed:', error instanceof Error ? error.message : error)
+      logger.error('MCP server test failed:', getErrorMessage(error))
     },
   })
 
@@ -447,8 +577,7 @@ export function useMcpServerTest() {
         ? ({
             success: false,
             message: 'Connection failed',
-            error:
-              mutation.error instanceof Error ? mutation.error.message : 'Unknown error occurred',
+            error: getErrorMessage(mutation.error, 'Unknown error occurred'),
           } as McpServerTestResult)
         : null),
     isTestingConnection: mutation.isPending,
@@ -457,17 +586,11 @@ export function useMcpServerTest() {
   }
 }
 
-/**
- * Fetch allowed MCP domains (admin-configured allowlist)
- */
 async function fetchAllowedMcpDomains(signal?: AbortSignal): Promise<string[] | null> {
   const data = await requestJson(getAllowedMcpDomainsContract, { signal })
   return data.allowedMcpDomains ?? null
 }
 
-/**
- * Hook to fetch allowed MCP domains
- */
 export function useAllowedMcpDomains() {
   return useQuery<string[] | null>({
     queryKey: mcpKeys.allowedDomains(),

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
@@ -77,7 +77,7 @@ export async function executeVfsGrep(
       path: params.path,
       error: toError(err).message,
     })
-    return { success: false, error: err instanceof Error ? err.message : 'vfs_grep failed' }
+    return { success: false, error: getErrorMessage(err, 'vfs_grep failed') }
   }
 }
 
@@ -112,7 +112,7 @@ export async function executeVfsGlob(
       pattern,
       error: toError(err).message,
     })
-    return { success: false, error: err instanceof Error ? err.message : 'vfs_glob failed' }
+    return { success: false, error: getErrorMessage(err, 'vfs_glob failed') }
   }
 }
 
@@ -267,7 +267,7 @@ export async function executeVfsRead(
       path,
       error: toError(err).message,
     })
-    return { success: false, error: err instanceof Error ? err.message : 'vfs_read failed' }
+    return { success: false, error: getErrorMessage(err, 'vfs_read failed') }
   }
 }
 
@@ -295,6 +295,6 @@ async function executeVfsList(
       path,
       error: toError(err).message,
     })
-    return { success: false, error: err instanceof Error ? err.message : 'vfs_list failed' }
+    return { success: false, error: getErrorMessage(err, 'vfs_list failed') }
   }
 }

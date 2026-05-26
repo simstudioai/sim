@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -212,7 +213,7 @@ export const POST = withRouteHandler(
           )
         } catch (error) {
           logger.warn(`[${requestId}] Failed to calculate cost for chunk upload`, {
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: getErrorMessage(error, 'Unknown error'),
           })
           // Continue without cost information rather than failing the upload
         }

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { generateRandomString } from '@sim/utils/random'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleSlidesCreateShapeTool')
@@ -271,7 +272,7 @@ export const createShapeTool: ToolConfig<CreateShapeParams, CreateShapeResponse>
       }
 
       // Generate a unique object ID for the new shape
-      const shapeObjectId = `shape_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+      const shapeObjectId = `shape_${Date.now()}_${generateRandomString(7)}`
 
       // Convert points to EMU
       const widthEmu = (params.width || 200) * PT_TO_EMU

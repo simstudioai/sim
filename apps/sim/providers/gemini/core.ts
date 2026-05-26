@@ -12,7 +12,7 @@ import {
   type ToolConfig,
 } from '@google/genai'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
@@ -129,7 +129,9 @@ async function executeToolCallsBatch(
 
     try {
       const { toolParams, executionParams } = prepareToolExecution(tool, args, request)
-      const result = await executeTool(toolName, executionParams)
+      const result = await executeTool(toolName, executionParams, {
+        signal: request.abortSignal,
+      })
       const toolCallEndTime = Date.now()
       const duration = toolCallEndTime - toolCallStartTime
 
@@ -162,7 +164,7 @@ async function executeToolCallsBatch(
         args,
         resultContent: {
           error: true,
-          message: error instanceof Error ? error.message : 'Tool execution failed',
+          message: getErrorMessage(error, 'Tool execution failed'),
           tool: toolName,
         },
         toolParams: {},
@@ -917,7 +919,7 @@ export async function executeGeminiRequest(
   const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
   try {
-    const { contents, tools, systemInstruction } = convertToGeminiFormat(request)
+    const { contents, tools, systemInstruction } = convertToGeminiFormat(request, providerType)
 
     // Build configuration
     const geminiConfig: GenerateContentConfig = {}

@@ -7,7 +7,7 @@ import { Input, InputOTP, InputOTPGroup, InputOTPSlot, Label, Loader } from '@/c
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
+import { AUTH_SUBMIT_BTN, AUTH_TEXT_LINK } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
 import { useChatEmailOtpRequest, useChatEmailOtpVerify } from '@/hooks/queries/chats'
@@ -123,7 +123,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
+                <h1 className='text-balance font-[430] font-season text-[40px] text-[var(--landing-text)] leading-[110%] tracking-[-0.02em]'>
                   {showOtpVerification ? 'Verify Your Email' : 'Email Verification'}
                 </h1>
                 <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
@@ -159,11 +159,11 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                         className={cn(
                           showEmailValidationError &&
                             emailErrors.length > 0 &&
-                            'border-red-500 focus:border-red-500'
+                            'border-[var(--text-error)] focus:border-[var(--text-error)]'
                         )}
                       />
                       {showEmailValidationError && emailErrors.length > 0 && (
-                        <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                        <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>
                           {emailErrors.map((error) => (
                             <p key={error}>{error}</p>
                           ))}
@@ -211,7 +211,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                             <InputOTPSlot
                               key={index}
                               index={index}
-                              className={cn(authError && 'border-red-500')}
+                              className={cn(authError && 'border-[var(--text-error)]')}
                             />
                           ))}
                         </InputOTPGroup>
@@ -219,7 +219,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                     </div>
 
                     {authError && (
-                      <div className='mt-1 space-y-1 text-center text-red-400 text-xs'>
+                      <div className='mt-1 space-y-1 text-center text-[var(--text-error)] text-xs'>
                         <p>{authError}</p>
                       </div>
                     )}
@@ -251,7 +251,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                           </span>
                         ) : (
                           <button
-                            className='font-medium text-[var(--brand-link)] underline-offset-4 transition hover:text-[var(--brand-link-hover)] hover:underline'
+                            className={AUTH_TEXT_LINK}
                             onClick={handleResendOtp}
                             disabled={verifyOtp.isPending || requestOtp.isPending}
                           >
@@ -268,7 +268,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                           setOtpValue('')
                           setAuthError(null)
                         }}
-                        className='font-medium text-[var(--brand-link)] underline-offset-4 transition hover:text-[var(--brand-link-hover)] hover:underline'
+                        className={AUTH_TEXT_LINK}
                       >
                         Change email
                       </button>

@@ -8,6 +8,7 @@ import {
   copilotRuns,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { filterUndefined } from '@sim/utils/object'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
@@ -40,7 +41,7 @@ async function withDbSpan<T>(
       [TraceAttr.DbSystem]: 'postgresql',
       [TraceAttr.DbOperation]: op,
       [TraceAttr.DbSqlTable]: table,
-      ...Object.fromEntries(Object.entries(attrs).filter(([, v]) => v !== undefined)),
+      ...filterUndefined(attrs),
     },
   })
   try {
@@ -185,7 +186,11 @@ export async function getRunSegment(runId: string) {
     'copilot_runs',
     { [TraceAttr.RunId]: runId },
     async () => {
-      const [run] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId)).limit(1)
+      const [run] = await db
+        .select({ id: copilotRuns.id, userId: copilotRuns.userId })
+        .from(copilotRuns)
+        .where(eq(copilotRuns.id, runId))
+        .limit(1)
       return run ?? null
     }
   )

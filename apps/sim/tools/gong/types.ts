@@ -14,6 +14,30 @@ export interface GongListCallsParams extends GongBaseParams {
   workspaceId?: string
 }
 
+/** Create Call */
+export interface GongCreateCallParams extends GongBaseParams {
+  clientUniqueId: string
+  actualStart: string
+  primaryUser: string
+  parties: unknown
+  direction: string
+  downloadMediaUrl: string
+  title?: string
+  workspaceId?: string
+  disposition?: string
+  purpose?: string
+  context?: unknown
+  callProviderCode?: string
+}
+
+export interface GongCreateCallResponse extends ToolResponse {
+  output: {
+    callId: string
+    requestId: string
+    url: string | null
+  }
+}
+
 interface GongCallBasic {
   id: string
   title: string | null
@@ -52,9 +76,12 @@ interface GongParty {
 
 export interface GongListCallsResponse extends ToolResponse {
   output: {
+    requestId: string | null
     calls: GongCallBasic[]
     cursor: string | null
     totalRecords: number
+    currentPageSize: number | null
+    currentPageNumber: number | null
   }
 }
 
@@ -168,6 +195,7 @@ interface GongUser {
 
 export interface GongListUsersResponse extends ToolResponse {
   output: {
+    requestId: string | null
     users: GongUser[]
     cursor: string | null
     totalRecords: number | null
@@ -585,6 +613,7 @@ export interface GongLookupPhoneResponse extends ToolResponse {
 /** Union type for all Gong responses */
 export type GongResponse =
   | GongListCallsResponse
+  | GongCreateCallResponse
   | GongGetCallResponse
   | GongGetCallTranscriptResponse
   | GongGetExtensiveCallsResponse

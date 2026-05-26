@@ -39,7 +39,7 @@ export default async function ResumeExecutionPageWrapper({
   return (
     <ResumeExecutionPage
       params={resolvedParams}
-      initialExecutionDetail={detail ? JSON.parse(JSON.stringify(detail)) : null}
+      initialExecutionDetail={detail ? structuredClone(detail) : null}
       initialContextId={initialContextId}
     />
   )

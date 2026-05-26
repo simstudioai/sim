@@ -104,6 +104,8 @@ export const functionExecuteContract = defineRouteContract({
     workflowId: z.string().optional(),
     executionId: z.string().optional(),
     largeValueExecutionIds: z.array(z.string()).optional(),
+    largeValueKeys: z.array(z.string()).optional(),
+    fileKeys: z.array(z.string()).optional(),
     allowLargeValueWorkflowScope: z.boolean().optional(),
     workspaceId: z.string().optional(),
     userId: z.string().optional(),

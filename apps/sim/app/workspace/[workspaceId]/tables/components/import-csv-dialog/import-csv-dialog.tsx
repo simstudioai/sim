@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   Button,
   ButtonGroup,
@@ -12,6 +13,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Table,
@@ -171,7 +173,7 @@ export function ImportCsvDialog({
       })
       setMapping(autoMapping)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to parse CSV'
+      const message = getErrorMessage(err, 'Failed to parse CSV')
       logger.error('CSV parse failed', err)
       setParseError(message)
     } finally {
@@ -326,7 +328,7 @@ export function ImportCsvDialog({
       })
       onOpenChange(false)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to import CSV'
+      const message = getErrorMessage(err, 'Failed to import CSV')
       setSubmitError(summarizeImportError(message))
       logger.error('CSV import into existing table failed', err)
     }
@@ -343,6 +345,9 @@ export function ImportCsvDialog({
       <ModalContent size='lg'>
         <ModalHeader>Import CSV into {table.name}</ModalHeader>
         <ModalBody>
+          <ModalDescription className='sr-only'>
+            Upload and map a CSV file to import rows into the table
+          </ModalDescription>
           {!parsed ? (
             <div className='flex flex-col gap-2'>
               <Label>Import CSV</Label>

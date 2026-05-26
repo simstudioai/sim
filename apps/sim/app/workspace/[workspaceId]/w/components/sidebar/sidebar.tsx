@@ -104,6 +104,7 @@ import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
+import { useProvidersStore } from '@/stores/providers'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
@@ -360,10 +361,18 @@ export const Sidebar = memo(function Sidebar() {
   const { config: permissionConfig, filterBlocks } = usePermissionConfig()
   const { navigateToSettings, getSettingsHref } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
+  const providers = useProvidersStore((state) => state.providers)
+  const providerModelSignature = useMemo(
+    () =>
+      Object.values(providers)
+        .map((provider) => provider.models.join('\x00'))
+        .join('\x01'),
+    [providers]
+  )
 
   useEffect(() => {
     initializeSearchData(filterBlocks)
-  }, [initializeSearchData, filterBlocks])
+  }, [initializeSearchData, filterBlocks, providerModelSignature])
 
   const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
   const isCollapsed = useSidebarStore((state) => state.isCollapsed)
@@ -753,9 +762,9 @@ export const Sidebar = memo(function Sidebar() {
       ].filter((item) => !item.hidden),
     [
       workspaceId,
+      permissionConfig.hideFilesTab,
       permissionConfig.hideKnowledgeBaseTab,
       permissionConfig.hideTablesTab,
-      permissionConfig.hideFilesTab,
     ]
   )
 
@@ -826,6 +835,7 @@ export const Sidebar = memo(function Sidebar() {
             id: f.id,
             name: f.name,
             href: `/workspace/${workspaceId}/files/${f.id}`,
+            folderPath: f.folderPath ? f.folderPath.split('/').filter(Boolean) : undefined,
           })),
     [fetchedFiles, workspaceId, permissionConfig.hideFilesTab]
   )
@@ -1118,28 +1128,19 @@ export const Sidebar = memo(function Sidebar() {
     [workspaces, handleLeaveWorkspace]
   )
 
-  const tasksCollapsedIcon = useMemo(
-    () => <Blimp className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />,
-    []
+  const tasksCollapsedIcon = <Blimp className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+
+  const workflowsCollapsedIcon = (
+    <div
+      className='size-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
+      style={WORKFLOW_ICON_STYLE}
+    />
   )
 
-  const workflowsCollapsedIcon = useMemo(
-    () => (
-      <div
-        className='size-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
-        style={WORKFLOW_ICON_STYLE}
-      />
-    ),
-    []
-  )
-
-  const workflowsPrimaryAction = useMemo(
-    () => ({
-      label: 'New workflow',
-      onSelect: handleCreateWorkflow,
-    }),
-    [handleCreateWorkflow]
-  )
+  const workflowsPrimaryAction = {
+    label: 'New workflow',
+    onSelect: handleCreateWorkflow,
+  }
 
   const handleExpandSidebar = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -1160,13 +1161,10 @@ export const Sidebar = memo(function Sidebar() {
     }
   }, [workspaceId, navigateToPage])
 
-  const tasksPrimaryAction = useMemo(
-    () => ({
-      label: 'New task',
-      onSelect: handleNewTask,
-    }),
-    [handleNewTask]
-  )
+  const tasksPrimaryAction = {
+    label: 'New task',
+    onSelect: handleNewTask,
+  }
 
   const handleSeeMoreTasks = () => setVisibleTaskCount((prev) => prev + 5)
 

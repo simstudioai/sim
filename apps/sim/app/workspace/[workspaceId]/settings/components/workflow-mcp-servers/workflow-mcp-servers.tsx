@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Check, Clipboard, Plus, Search, Server } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -17,6 +18,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Skeleton,
@@ -624,13 +626,13 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         <ModalContent size='sm'>
           <ModalHeader>Remove Workflow</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to remove{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {toolToDelete?.toolName}
               </span>{' '}
               from this server? The workflow will remain deployed and can be added back later.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setToolToDelete(null)}>
@@ -660,6 +662,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         <ModalContent size='md'>
           <ModalHeader>{toolToView?.toolName}</ModalHeader>
           <ModalBody>
+            <ModalDescription className='sr-only'>
+              Edit the description and parameter descriptions for this workflow tool.
+            </ModalDescription>
             <div className='flex flex-col gap-4.5'>
               <div>
                 <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-sm'>
@@ -810,10 +815,10 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         <ModalContent size='sm'>
           <ModalHeader>Add Workflow</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Select a deployed workflow to add to this MCP server. The workflow will be available
               as a tool.
-            </p>
+            </ModalDescription>
 
             <div className='mt-4 flex flex-col gap-2'>
               <Label className='font-medium text-[var(--text-secondary)] text-sm'>
@@ -875,6 +880,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         <ModalContent size='lg'>
           <ModalHeader>Edit Server</ModalHeader>
           <ModalBody>
+            <ModalDescription className='sr-only'>
+              Update the name, description, and access settings for this MCP server.
+            </ModalDescription>
             <div className='flex flex-col gap-3'>
               <FormField label='Server Name'>
                 <EmcnInput
@@ -1037,7 +1045,7 @@ export function WorkflowMcpServers() {
           {error ? (
             <div className='flex h-full flex-col items-center justify-center gap-2'>
               <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
-                {error instanceof Error ? error.message : 'Failed to load MCP servers'}
+                {getErrorMessage(error, 'Failed to load MCP servers')}
               </p>
             </div>
           ) : isLoading ? (
@@ -1108,11 +1116,11 @@ export function WorkflowMcpServers() {
         <ModalContent size='sm'>
           <ModalHeader>Delete MCP Server</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{serverToDelete?.name}</span>
               ? This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setServerToDelete(null)}>

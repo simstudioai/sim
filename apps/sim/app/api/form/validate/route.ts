@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { formIdentifierValidationQuerySchema } from '@/lib/api/contracts/forms'
@@ -58,7 +59,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       error: isAvailable ? null : 'This identifier is already in use',
     })
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to validate identifier'
+    const message = getErrorMessage(error, 'Failed to validate identifier')
     logger.error('Error validating form identifier:', error)
     return createErrorResponse(message, 500)
   }

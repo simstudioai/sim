@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { ECharts } from 'echarts'
 import { buildPresentation, type PresentationData } from '../model/presentation'
 import type { ZipParseLimits } from '../parser/zip-parser'
@@ -661,7 +662,7 @@ export class PptxViewer extends EventTarget {
       wrapper.style.border = '2px dashed #ff6b6b'
       wrapper.style.color = '#cc0000'
       wrapper.style.fontSize = '14px'
-      wrapper.textContent = `Slide ${index + 1}: Render Error - ${e instanceof Error ? e.message : String(e)}`
+      wrapper.textContent = `Slide ${index + 1}: Render Error - ${getErrorMessage(e)}`
     }
   }
 
@@ -881,7 +882,7 @@ export class PptxViewer extends EventTarget {
       wrapper.style.border = '2px dashed #ff6b6b'
       wrapper.style.color = '#cc0000'
       wrapper.style.fontSize = '14px'
-      wrapper.textContent = `Slide ${this.currentSlide + 1}: Render Error - ${e instanceof Error ? e.message : String(e)}`
+      wrapper.textContent = `Slide ${this.currentSlide + 1}: Render Error - ${getErrorMessage(e)}`
     }
 
     this.container.appendChild(wrapper)

@@ -17,7 +17,6 @@ const {
   mockMergeSubBlockValues,
   mockValidateAuthToken,
   mockSetDeploymentAuthCookie,
-  mockAddCorsHeaders,
   mockIsEmailAllowed,
   mockGetSession,
 } = vi.hoisted(() => ({
@@ -25,7 +24,6 @@ const {
   mockMergeSubBlockValues: vi.fn().mockReturnValue({}),
   mockValidateAuthToken: vi.fn().mockReturnValue(false),
   mockSetDeploymentAuthCookie: vi.fn(),
-  mockAddCorsHeaders: vi.fn((response: unknown) => response),
   mockIsEmailAllowed: vi.fn(),
   mockGetSession: vi.fn(),
 }))
@@ -57,7 +55,6 @@ vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/core/security/deployment', () => ({
   validateAuthToken: mockValidateAuthToken,
   setDeploymentAuthCookie: mockSetDeploymentAuthCookie,
-  addCorsHeaders: mockAddCorsHeaders,
   isEmailAllowed: mockIsEmailAllowed,
 }))
 

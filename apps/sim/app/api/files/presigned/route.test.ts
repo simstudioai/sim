@@ -107,7 +107,7 @@ vi.mock('@/lib/uploads', () => ({
   isUsingCloudStorage: mockIsUsingCloudStorageUploads,
 }))
 
-import { OPTIONS, POST } from '@/app/api/files/presigned/route'
+import { POST } from '@/app/api/files/presigned/route'
 
 const defaultMockUser = {
   id: 'test-user-id',
@@ -825,18 +825,6 @@ describe('/api/files/presigned', () => {
       expect(response.status).toBe(200)
       expect(mockValidateFileType).toHaveBeenCalledWith('doc.pdf', 'application/pdf')
       expect(mockValidateAttachmentFileType).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('OPTIONS', () => {
-    it('should handle CORS preflight requests', async () => {
-      const response = await OPTIONS()
-
-      expect(response.status).toBe(200)
-      expect(response.headers.get('Access-Control-Allow-Methods')).toBe('POST, OPTIONS')
-      expect(response.headers.get('Access-Control-Allow-Headers')).toBe(
-        'Content-Type, Authorization'
-      )
     })
   })
 })

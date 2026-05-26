@@ -1,6 +1,7 @@
 'use client'
 
 import type React from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { parse } from 'tldts'
 import { Badge, Checkbox, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -60,6 +61,14 @@ export function resolveCellRender({
     if (!isNull) return { kind: 'value', text: stringifyValue(value) }
 
     if (inFlight && !(groupHasBlockErrors && !blockRunning)) {
+      // A `pending` cell whose jobId starts with `paused-` is mid-pause
+      // (workflow yielded for human-in-the-loop). Render as Pending rather
+      // than Queued so the user can tell it's not just waiting to start.
+      const isPaused =
+        exec?.status === 'pending' &&
+        typeof exec.jobId === 'string' &&
+        exec.jobId.startsWith('paused-')
+      if (isPaused) return { kind: 'pending-upstream' }
       if (exec?.status === 'queued' || exec?.status === 'pending') return { kind: 'queued' }
       return { kind: 'pending-upstream' }
     }
@@ -119,6 +128,9 @@ interface CellRenderProps {
 }
 
 export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactElement | null {
+  const valueText = kind.kind === 'value' ? kind.text : null
+  const revealedValueText = useTypewriter(valueText)
+
   switch (kind.kind) {
     case 'value':
       return (
@@ -128,7 +140,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
             isEditing && 'invisible'
           )}
         >
-          {kind.text}
+          {revealedValueText ?? kind.text}
         </span>
       )
 
@@ -274,4 +286,53 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
 function Wrap({ isEditing, children }: { isEditing: boolean; children: React.ReactNode }) {
   if (!isEditing) return <>{children}</>
   return <div className='invisible'>{children}</div>
+}
+
+const TYPEWRITER_MS_PER_CHAR = 15
+
+/**
+ * Reveals `text` character-by-character when it changes after the first render;
+ * the initial render (mount / scroll-in) shows it statically. The slice is
+ * derived from elapsed time during render rather than held in state, so it is
+ * never `null` and never the full string on the frame `text` changes — which is
+ * what prevents the caller's `?? kind.text` fallback from flashing the whole
+ * value for a frame. `prevText` is state (not a ref) so a discarded render rolls
+ * it back and re-detects the change on the committed render.
+ */
+function useTypewriter(text: string | null): string | null {
+  const [prevText, setPrevText] = useState<string | null>(text)
+  const [, forceFrame] = useState(0)
+  const mountedRef = useRef(false)
+  // Reveal-clock start; 0 = show statically (mount / cleared / empty).
+  const startRef = useRef(0)
+
+  if (prevText !== text) {
+    setPrevText(text)
+    startRef.current =
+      mountedRef.current && text !== null && text.length > 0 ? performance.now() : 0
+  }
+
+  useEffect(() => {
+    mountedRef.current = true
+  }, [])
+
+  useEffect(() => {
+    if (startRef.current === 0 || text === null) return
+    let raf = 0
+    const tick = () => {
+      const chars = Math.floor((performance.now() - startRef.current) / TYPEWRITER_MS_PER_CHAR)
+      forceFrame((f) => f + 1)
+      if (chars < text.length) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [text])
+
+  if (text === null) return null
+  if (startRef.current === 0) return text
+  const chars = Math.min(
+    text.length,
+    Math.floor((performance.now() - startRef.current) / TYPEWRITER_MS_PER_CHAR)
+  )
+  return text.slice(0, chars)
 }

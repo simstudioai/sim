@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { RequestTraceV1Outcome as RequestTraceOutcome } from '@/lib/copilot/generated/request-trace-v1'
 import {
@@ -97,7 +98,7 @@ export async function runHeadlessCopilotLifecycle(
           logger.warn('Failed to report headless trace', {
             simRequestId,
             chatId: result?.chatId ?? options.chatId,
-            error: error instanceof Error ? error.message : String(error),
+            error: getErrorMessage(error),
           })
         }
       }

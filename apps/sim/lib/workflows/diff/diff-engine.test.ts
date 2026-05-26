@@ -136,7 +136,7 @@ describe('WorkflowDiffEngine', () => {
   describe('hasBlockChanged detection', () => {
     describe('locked state changes', () => {
       it.concurrent(
-        'should detect when block locked state changes from false to true',
+        'should NOT detect a diff when only the locked state changes (false -> true)',
         async () => {
           const freshEngine = new WorkflowDiffEngine()
           const baseline = createMockWorkflowState({
@@ -154,7 +154,10 @@ describe('WorkflowDiffEngine', () => {
           )
 
           expect(result.success).toBe(true)
-          expect(result.diff?.diffAnalysis?.edited_blocks).toContain('block-1')
+          expect(result.diff?.diffAnalysis?.edited_blocks ?? []).not.toContain('block-1')
+          expect(
+            result.diff?.diffAnalysis?.field_diffs?.['block-1']?.changed_fields ?? []
+          ).not.toContain('locked')
         }
       )
 
@@ -171,43 +174,57 @@ describe('WorkflowDiffEngine', () => {
         const result = await freshEngine.createDiffFromWorkflowState(proposed, undefined, baseline)
 
         expect(result.success).toBe(true)
-        expect(result.diff?.diffAnalysis?.edited_blocks).not.toContain('block-1')
+        expect(result.diff?.diffAnalysis?.edited_blocks ?? []).not.toContain('block-1')
       })
 
-      it.concurrent('should detect change when locked goes from undefined to true', async () => {
-        const freshEngine = new WorkflowDiffEngine()
-        const baseline = createMockWorkflowState({
-          'block-1': createMockBlock({ id: 'block-1' }), // locked undefined
-        })
+      it.concurrent(
+        'should NOT detect a diff when locked goes from undefined to true',
+        async () => {
+          const freshEngine = new WorkflowDiffEngine()
+          const baseline = createMockWorkflowState({
+            'block-1': createMockBlock({ id: 'block-1' }),
+          })
 
-        const proposed = createMockWorkflowState({
-          'block-1': createMockBlock({ id: 'block-1', locked: true }),
-        })
+          const proposed = createMockWorkflowState({
+            'block-1': createMockBlock({ id: 'block-1', locked: true }),
+          })
 
-        const result = await freshEngine.createDiffFromWorkflowState(proposed, undefined, baseline)
+          const result = await freshEngine.createDiffFromWorkflowState(
+            proposed,
+            undefined,
+            baseline
+          )
 
-        expect(result.success).toBe(true)
-        // The hasBlockChanged function uses !!locked for comparison
-        // so undefined -> true should be detected as a change
-        expect(result.diff?.diffAnalysis?.edited_blocks).toContain('block-1')
-      })
+          expect(result.success).toBe(true)
+          expect(result.diff?.diffAnalysis?.edited_blocks ?? []).not.toContain('block-1')
+        }
+      )
 
-      it.concurrent('should not detect change when both locked states are falsy', async () => {
-        const freshEngine = new WorkflowDiffEngine()
-        const baseline = createMockWorkflowState({
-          'block-1': createMockBlock({ id: 'block-1' }), // locked undefined
-        })
+      it.concurrent(
+        'should still detect real edits on a block whose locked state also changed',
+        async () => {
+          const freshEngine = new WorkflowDiffEngine()
+          const baseline = createMockWorkflowState({
+            'block-1': createMockBlock({ id: 'block-1', enabled: true, locked: false }),
+          })
 
-        const proposed = createMockWorkflowState({
-          'block-1': createMockBlock({ id: 'block-1', locked: false }), // locked false
-        })
+          const proposed = createMockWorkflowState({
+            'block-1': createMockBlock({ id: 'block-1', enabled: false, locked: true }),
+          })
 
-        const result = await freshEngine.createDiffFromWorkflowState(proposed, undefined, baseline)
+          const result = await freshEngine.createDiffFromWorkflowState(
+            proposed,
+            undefined,
+            baseline
+          )
 
-        expect(result.success).toBe(true)
-        // undefined and false should both be falsy, so !! comparison makes them equal
-        expect(result.diff?.diffAnalysis?.edited_blocks).not.toContain('block-1')
-      })
+          expect(result.success).toBe(true)
+          expect(result.diff?.diffAnalysis?.edited_blocks).toContain('block-1')
+          const changed = result.diff?.diffAnalysis?.field_diffs?.['block-1']?.changed_fields ?? []
+          expect(changed).toContain('enabled')
+          expect(changed).not.toContain('locked')
+        }
+      )
     })
 
     describe('parent scope changes', () => {

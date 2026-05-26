@@ -13,6 +13,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Switch,
@@ -509,11 +510,11 @@ export function General() {
         <ModalContent size='sm'>
           <ModalHeader>Reset Password</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               A password reset link will be sent to{' '}
               <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>.
               Click the link in the email to create a new password.
-            </p>
+            </ModalDescription>
             {resetPassword.error && (
               <p className='mt-2 text-[var(--text-error)] text-small'>
                 {resetPassword.error.message}

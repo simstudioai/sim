@@ -182,7 +182,9 @@ describe('ParallelOrchestrator', () => {
     expect(resolver.resolveSingleReference).toHaveBeenCalledWith(
       expect.any(Object),
       'parallel-parallel-1-sentinel-start',
-      '<Producer.items>'
+      '<Producer.items>',
+      undefined,
+      { allowLargeValueRefs: true }
     )
     expect(scope.totalBranches).toBe(2)
   })

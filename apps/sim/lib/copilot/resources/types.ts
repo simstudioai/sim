@@ -4,6 +4,7 @@ export const MothershipResourceType = {
   workflow: 'workflow',
   knowledgebase: 'knowledgebase',
   folder: 'folder',
+  filefolder: 'filefolder',
   task: 'task',
   log: 'log',
   generic: 'generic',

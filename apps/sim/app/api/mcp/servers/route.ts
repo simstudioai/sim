@@ -1,29 +1,19 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createMcpServerBodySchema, deleteMcpServerByQuerySchema } from '@/lib/api/contracts/mcp'
 import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  McpDnsResolutionError,
-  McpDomainNotAllowedError,
-  McpSsrfError,
-  validateMcpDomain,
-  validateMcpServerSsrf,
-} from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
-import { mcpService } from '@/lib/mcp/service'
+import { performCreateMcpServer, performDeleteMcpServer } from '@/lib/mcp/orchestration'
 import {
   createMcpErrorResponse,
   createMcpSuccessResponse,
-  generateMcpServerId,
+  mcpOrchestrationStatus,
 } from '@/lib/mcp/utils'
-import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('McpServersAPI')
 
@@ -37,10 +27,15 @@ export const GET = withRouteHandler(
     try {
       logger.info(`[${requestId}] Listing MCP servers for workspace ${workspaceId}`)
 
-      const servers = await db
+      const rows = await db
         .select()
         .from(mcpServers)
         .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
+
+      const servers = rows.map(({ oauthClientSecret: _secret, ...rest }) => ({
+        ...rest,
+        hasOauthClientSecret: !!_secret,
+      }))
 
       logger.info(
         `[${requestId}] Listed ${servers.length} MCP servers for workspace ${workspaceId}`
@@ -55,13 +50,6 @@ export const GET = withRouteHandler(
 
 /**
  * POST - Register a new MCP server for the workspace (requires write permission)
- *
- * Uses deterministic server IDs based on URL hash to ensure that re-adding
- * the same server produces the same ID. This prevents "server not found" errors
- * when workflows reference the old server ID after delete/re-add cycles.
- *
- * If a server with the same ID already exists (same URL in same workspace),
- * it will be updated instead of creating a duplicate.
  */
 export const POST = withRouteHandler(
   withMcpAuth('write')(
@@ -82,142 +70,55 @@ export const POST = withRouteHandler(
           workspaceId,
         })
 
-        try {
-          validateMcpDomain(body.url)
-        } catch (e) {
-          if (e instanceof McpDomainNotAllowedError) {
-            return createMcpErrorResponse(e, e.message, 403)
-          }
-          throw e
-        }
-
-        try {
-          await validateMcpServerSsrf(body.url)
-        } catch (e) {
-          if (e instanceof McpDnsResolutionError) {
-            return createMcpErrorResponse(e, e.message, 502)
-          }
-          if (e instanceof McpSsrfError) {
-            return createMcpErrorResponse(e, e.message, 403)
-          }
-          throw e
-        }
-
-        const serverId = body.url ? generateMcpServerId(workspaceId, body.url) : generateId()
-
-        const [existingServer] = await db
-          .select({ id: mcpServers.id, deletedAt: mcpServers.deletedAt })
-          .from(mcpServers)
-          .where(and(eq(mcpServers.id, serverId), eq(mcpServers.workspaceId, workspaceId)))
-          .limit(1)
-
-        if (existingServer) {
-          logger.info(
-            `[${requestId}] Server with ID ${serverId} already exists, updating instead of creating`
-          )
-
-          await db
-            .update(mcpServers)
-            .set({
-              name: body.name,
-              description: body.description,
-              transport: body.transport,
-              url: body.url,
-              headers: body.headers || {},
-              timeout: body.timeout || 30000,
-              retries: body.retries || 3,
-              enabled: body.enabled !== false,
-              connectionStatus: 'connected',
-              lastConnected: new Date(),
-              updatedAt: new Date(),
-              deletedAt: null,
-            })
-            .where(eq(mcpServers.id, serverId))
-
-          await mcpService.clearCache(workspaceId)
-
-          logger.info(
-            `[${requestId}] Successfully updated MCP server: ${body.name} (ID: ${serverId})`
-          )
-
-          return createMcpSuccessResponse({ serverId, updated: true }, 200)
-        }
-
-        await db
-          .insert(mcpServers)
-          .values({
-            id: serverId,
-            workspaceId,
-            createdBy: userId,
-            name: body.name,
-            description: body.description,
-            transport: body.transport,
-            url: body.url,
-            headers: body.headers || {},
-            timeout: body.timeout || 30000,
-            retries: body.retries || 3,
-            enabled: body.enabled !== false,
-            connectionStatus: 'connected',
-            lastConnected: new Date(),
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .returning()
-
-        await mcpService.clearCache(workspaceId)
-
-        logger.info(
-          `[${requestId}] Successfully registered MCP server: ${body.name} (ID: ${serverId})`
-        )
-
-        try {
-          const { PlatformEvents } = await import('@/lib/core/telemetry')
-          PlatformEvents.mcpServerAdded({
-            serverId,
-            serverName: body.name,
-            transport: body.transport,
-            workspaceId,
-          })
-        } catch (_e) {
-          // Silently fail
-        }
-
         const sourceParam = body.source as string | undefined
         const source =
           sourceParam === 'settings' || sourceParam === 'tool_input' ? sourceParam : undefined
-
-        captureServerEvent(
-          userId,
-          'mcp_server_connected',
-          { workspace_id: workspaceId, server_name: body.name, transport: body.transport, source },
-          {
-            groups: { workspace: workspaceId },
-            setOnce: { first_mcp_connected_at: new Date().toISOString() },
-          }
-        )
-
-        recordAudit({
+        if (!body.url) {
+          return createMcpErrorResponse(
+            new Error('url is required'),
+            'Missing required parameter',
+            400
+          )
+        }
+        const result = await performCreateMcpServer({
           workspaceId,
-          actorId: userId,
+          userId,
           actorName: userName,
           actorEmail: userEmail,
-          action: AuditAction.MCP_SERVER_ADDED,
-          resourceType: AuditResourceType.MCP_SERVER,
-          resourceId: serverId,
-          resourceName: body.name,
-          description: `Added MCP server "${body.name}"`,
-          metadata: {
-            serverName: body.name,
-            transport: body.transport,
-            url: body.url,
-            timeout: body.timeout || 30000,
-            retries: body.retries || 3,
-            source: source,
-          },
+          name: body.name,
+          description: body.description,
+          transport: body.transport,
+          url: body.url,
+          headers: body.headers,
+          timeout: body.timeout,
+          retries: body.retries,
+          enabled: body.enabled,
+          source,
+          authType: body.authType,
+          oauthClientId: body.oauthClientId || null,
+          oauthClientIdProvided: body.oauthClientId !== undefined,
+          oauthClientSecret: body.oauthClientSecret,
+          oauthClientSecretProvided: body.oauthClientSecret !== undefined,
           request,
         })
+        if (!result.success || !result.serverId) {
+          return createMcpErrorResponse(
+            new Error(result.error || 'Failed to register MCP server'),
+            result.error || 'Failed to register MCP server',
+            mcpOrchestrationStatus(result.errorCode)
+          )
+        }
 
-        return createMcpSuccessResponse({ serverId }, 201)
+        logger.info(
+          `[${requestId}] Successfully registered MCP server: ${body.name} (ID: ${result.serverId})`
+        )
+
+        return createMcpSuccessResponse(
+          result.updated
+            ? { serverId: result.serverId, updated: true, authType: result.authType }
+            : { serverId: result.serverId, authType: result.authType },
+          result.updated ? 200 : 201
+        )
       } catch (error) {
         logger.error(`[${requestId}] Error registering MCP server:`, error)
         return createMcpErrorResponse(toError(error), 'Failed to register MCP server', 500)
@@ -256,48 +157,24 @@ export const DELETE = withRouteHandler(
           `[${requestId}] Deleting MCP server: ${serverId} from workspace: ${workspaceId}`
         )
 
-        const [deletedServer] = await db
-          .delete(mcpServers)
-          .where(and(eq(mcpServers.id, serverId), eq(mcpServers.workspaceId, workspaceId)))
-          .returning()
-
-        if (!deletedServer) {
+        const result = await performDeleteMcpServer({
+          workspaceId,
+          userId,
+          actorName: userName,
+          actorEmail: userEmail,
+          serverId,
+          source,
+          request,
+        })
+        if (!result.success || !result.server) {
           return createMcpErrorResponse(
-            new Error('Server not found or access denied'),
-            'Server not found',
-            404
+            new Error(result.error || 'Failed to delete MCP server'),
+            result.error || 'Failed to delete MCP server',
+            mcpOrchestrationStatus(result.errorCode)
           )
         }
 
-        await mcpService.clearCache(workspaceId)
-
         logger.info(`[${requestId}] Successfully deleted MCP server: ${serverId}`)
-
-        captureServerEvent(
-          userId,
-          'mcp_server_disconnected',
-          { workspace_id: workspaceId, server_name: deletedServer.name, source },
-          { groups: { workspace: workspaceId } }
-        )
-
-        recordAudit({
-          workspaceId,
-          actorId: userId,
-          actorName: userName,
-          actorEmail: userEmail,
-          action: AuditAction.MCP_SERVER_REMOVED,
-          resourceType: AuditResourceType.MCP_SERVER,
-          resourceId: serverId!,
-          resourceName: deletedServer.name,
-          description: `Removed MCP server "${deletedServer.name}"`,
-          metadata: {
-            serverName: deletedServer.name,
-            transport: deletedServer.transport,
-            url: deletedServer.url,
-            source,
-          },
-          request,
-        })
 
         return createMcpSuccessResponse({ message: `Server ${serverId} deleted successfully` })
       } catch (error) {

@@ -386,7 +386,7 @@ export function normalizeBlockData(
 
 /**
  * Extracts block fields for comparison, excluding visual-only and runtime fields.
- * Excludes: position, layout, height, outputs, is_diff, field_diffs
+ * Excludes: position, layout, height, outputs, is_diff, field_diffs, locked
  *
  * @param block - The block state
  * @returns Extracted fields suitable for comparison
@@ -401,6 +401,7 @@ export function extractBlockFieldsForComparison(block: BlockState): ExtractedBlo
     outputs: _outputs,
     is_diff: _isDiff,
     field_diffs: _fieldDiffs,
+    locked: _locked,
     ...blockRest
   } = blockWithDiff
 
@@ -503,7 +504,7 @@ export function extractSubBlockRest(subBlock: Record<string, unknown>): Record<s
 
 /**
  * Normalizes a workflow state for comparison or hashing.
- * Excludes non-functional fields (position, layout, height, outputs, diff markers)
+ * Excludes non-functional fields (position, layout, height, outputs, diff markers, locked)
  * and system/trigger runtime subBlocks.
  *
  * @param state - The workflow state to normalize

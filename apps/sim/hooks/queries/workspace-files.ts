@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
@@ -31,13 +32,23 @@ type WorkspaceFileQueryScope = 'active' | 'archived' | 'all'
 export const workspaceFilesKeys = {
   all: ['workspaceFiles'] as const,
   lists: () => [...workspaceFilesKeys.all, 'list'] as const,
+  workspaceLists: (workspaceId: string) => [...workspaceFilesKeys.lists(), workspaceId] as const,
   list: (workspaceId: string, scope: WorkspaceFileQueryScope = 'active') =>
-    [...workspaceFilesKeys.lists(), workspaceId, scope] as const,
+    [...workspaceFilesKeys.workspaceLists(workspaceId), scope] as const,
   contents: () => [...workspaceFilesKeys.all, 'content'] as const,
   contentFile: (workspaceId: string, fileId: string) =>
     [...workspaceFilesKeys.contents(), workspaceId, fileId] as const,
-  content: (workspaceId: string, fileId: string, mode: 'text' | 'raw' | 'binary' = 'text') =>
-    [...workspaceFilesKeys.contentFile(workspaceId, fileId), mode] as const,
+  content: (
+    workspaceId: string,
+    fileId: string,
+    mode: 'text' | 'raw' | 'binary' = 'text',
+    storageKey?: string
+  ) =>
+    [
+      ...workspaceFilesKeys.contentFile(workspaceId, fileId),
+      mode,
+      ...(storageKey ? [storageKey] : []),
+    ] as const,
   storageInfo: () => [...workspaceFilesKeys.all, 'storageInfo'] as const,
 }
 
@@ -118,7 +129,7 @@ async function fetchWorkspaceFileContent(
 
 /**
  * Hook to fetch workspace file content as text.
- * `key` (the storage object key) is included in the query key so that a new
+ * `key` (the storage object key) is forwarded into the query key factory so that a new
  * storage key (e.g. after a file is re-uploaded) correctly busts the cache.
  */
 export function useWorkspaceFileContent(
@@ -128,7 +139,7 @@ export function useWorkspaceFileContent(
   raw?: boolean
 ) {
   return useQuery({
-    queryKey: [...workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text'), key],
+    queryKey: workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text', key),
     queryFn: ({ signal }) => fetchWorkspaceFileContent(key, signal, raw),
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: 30 * 1000,
@@ -146,12 +157,12 @@ async function fetchWorkspaceFileBinary(key: string, signal?: AbortSignal): Prom
 
 /**
  * Hook to fetch workspace file content as binary (ArrayBuffer).
- * `key` (the storage object key) is included in the query key so that a new
+ * `key` (the storage object key) is forwarded into the query key factory so that a new
  * storage key (e.g. after a file is re-uploaded) correctly busts the cache.
  */
 export function useWorkspaceFileBinary(workspaceId: string, fileId: string, key: string) {
   return useQuery({
-    queryKey: [...workspaceFilesKeys.content(workspaceId, fileId, 'binary'), key],
+    queryKey: workspaceFilesKeys.content(workspaceId, fileId, 'binary', key),
     queryFn: ({ signal }) => fetchWorkspaceFileBinary(key, signal),
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: 30 * 1000,
@@ -203,6 +214,7 @@ export function useStorageInfo(enabled = true) {
 interface UploadFileParams {
   workspaceId: string
   file: File
+  folderId?: string | null
   onProgress?: (event: UploadProgressEvent) => void
   signal?: AbortSignal
   skipToast?: boolean
@@ -217,10 +229,12 @@ interface UploadFileResponse {
 async function uploadViaApiFallback(
   workspaceId: string,
   file: File,
+  folderId?: string | null,
   signal?: AbortSignal
 ): Promise<UploadFileResponse> {
   const formData = new FormData()
   formData.append('file', file)
+  if (folderId) formData.append('folderId', folderId)
 
   // boundary-raw-fetch: multipart/form-data fallback upload, requestJson only supports JSON bodies
   const response = await fetch(`/api/workspaces/${workspaceId}/files`, {
@@ -250,6 +264,7 @@ async function parseUploadResponse(
 async function uploadWorkspaceFile(
   workspaceId: string,
   file: File,
+  folderId?: string | null,
   onProgress?: (event: UploadProgressEvent) => void,
   signal?: AbortSignal
 ): Promise<UploadFileResponse> {
@@ -258,6 +273,7 @@ async function uploadWorkspaceFile(
     result = await runUploadStrategy({
       file,
       presignedEndpoint: `/api/workspaces/${workspaceId}/files/presigned`,
+      presignedBody: { folderId },
       workspaceId,
       context: 'workspace',
       onProgress,
@@ -265,12 +281,12 @@ async function uploadWorkspaceFile(
     })
   } catch (error) {
     if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
-      return uploadViaApiFallback(workspaceId, file, signal)
+      return uploadViaApiFallback(workspaceId, file, folderId, signal)
     }
     throw error
   }
 
-  const data = await registerWithRetry(workspaceId, result, signal)
+  const data = await registerWithRetry(workspaceId, result, folderId, signal)
 
   if (!data.success || !data.file) {
     throw new Error(data.error || 'Failed to register file')
@@ -289,6 +305,7 @@ const REGISTER_RETRY_DELAY_MS = 500
 async function registerWithRetry(
   workspaceId: string,
   result: { key: string; name: string; contentType: string },
+  folderId?: string | null,
   signal?: AbortSignal
 ) {
   let lastError: unknown
@@ -300,6 +317,7 @@ async function registerWithRetry(
           key: result.key,
           name: result.name,
           contentType: result.contentType,
+          folderId,
         },
         signal,
       })
@@ -319,11 +337,13 @@ export function useUploadWorkspaceFile() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ workspaceId, file, onProgress, signal }: UploadFileParams) =>
-      uploadWorkspaceFile(workspaceId, file, onProgress, signal),
+    mutationFn: ({ workspaceId, file, folderId, onProgress, signal }: UploadFileParams) =>
+      uploadWorkspaceFile(workspaceId, file, folderId, onProgress, signal),
     onSettled: (_data, _error, variables) => {
       if (variables.skipInvalidation) return
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
+      })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
     onSuccess: (_data, variables) => {
@@ -366,7 +386,9 @@ export function useUpdateWorkspaceFileContent() {
       queryClient.invalidateQueries({
         queryKey: workspaceFilesKeys.contentFile(variables.workspaceId, variables.fileId),
       })
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
+      })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
     onError: (error) => {
@@ -393,11 +415,32 @@ export function useRenameWorkspaceFile() {
         params: { id: workspaceId, fileId },
         body: { name },
       }),
-    onError: (error) => {
+    onMutate: async ({ workspaceId, fileId, name }) => {
+      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
+      const previous = queryClient.getQueryData<WorkspaceFileRecord[]>(
+        workspaceFilesKeys.list(workspaceId, 'active')
+      )
+      if (previous) {
+        queryClient.setQueryData<WorkspaceFileRecord[]>(
+          workspaceFilesKeys.list(workspaceId, 'active'),
+          previous.map((f) => (f.id === fileId ? { ...f, name } : f))
+        )
+      }
+      return { previous }
+    },
+    onError: (error, variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          workspaceFilesKeys.list(variables.workspaceId, 'active'),
+          context.previous
+        )
+      }
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
+      })
     },
   })
 }
@@ -419,7 +462,7 @@ export function useDeleteWorkspaceFile() {
         params: { id: workspaceId, fileId },
       }),
     onMutate: async ({ workspaceId, fileId }) => {
-      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.lists() })
+      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
 
       const previousFiles = queryClient.getQueryData<WorkspaceFileRecord[]>(
         workspaceFilesKeys.list(workspaceId, 'active')
@@ -442,9 +485,15 @@ export function useDeleteWorkspaceFile() {
         )
       }
       logger.error('Failed to delete file')
+      toast.error(toError(_err).message)
+    },
+    onSuccess: () => {
+      toast.success('File moved to trash')
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
+      })
       queryClient.removeQueries({
         queryKey: workspaceFilesKeys.contentFile(variables.workspaceId, variables.fileId),
       })
@@ -461,8 +510,16 @@ export function useRestoreWorkspaceFile() {
       requestJson(restoreWorkspaceFileContract, {
         params: { id: workspaceId, fileId },
       }),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+    onSuccess: () => {
+      toast.success('File restored')
+    },
+    onError: (err) => {
+      toast.error(toError(err).message)
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
+      })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
   })

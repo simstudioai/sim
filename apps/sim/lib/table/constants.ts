@@ -2,6 +2,7 @@
  * Limits and constants for user-defined tables.
  */
 
+import { randomInt, randomItem } from '@sim/utils/random'
 import { env, envNumber } from '@/lib/core/config/env'
 
 export const TABLE_LIMITS = {
@@ -23,6 +24,8 @@ export const TABLE_LIMITS = {
   MAX_BATCH_INSERT_SIZE: 1000,
   /** Maximum rows per bulk update/delete operation */
   MAX_BULK_OPERATION_SIZE: 1000,
+  /** Maximum rows a single clipboard copy/cut serializes; beyond this the user is steered to Export. */
+  MAX_COPY_ROWS: 50000,
 } as const
 
 /**
@@ -311,14 +314,14 @@ export function generateUniqueTableName(existingNames: string[]): string {
   const maxAttempts = 50
 
   for (let i = 0; i < maxAttempts; i++) {
-    const adj = TABLE_NAME_ADJECTIVES[Math.floor(Math.random() * TABLE_NAME_ADJECTIVES.length)]
-    const noun = TABLE_NAME_NOUNS[Math.floor(Math.random() * TABLE_NAME_NOUNS.length)]
+    const adj = randomItem(TABLE_NAME_ADJECTIVES)
+    const noun = randomItem(TABLE_NAME_NOUNS)
     const name = `${adj.toLowerCase()}_${noun.toLowerCase()}`
     if (!taken.has(name)) return name
   }
 
-  const adj = TABLE_NAME_ADJECTIVES[Math.floor(Math.random() * TABLE_NAME_ADJECTIVES.length)]
-  const noun = TABLE_NAME_NOUNS[Math.floor(Math.random() * TABLE_NAME_NOUNS.length)]
-  const suffix = Math.floor(Math.random() * 900) + 100
+  const adj = randomItem(TABLE_NAME_ADJECTIVES)
+  const noun = randomItem(TABLE_NAME_NOUNS)
+  const suffix = randomInt(100, 1000)
   return `${adj.toLowerCase()}_${noun.toLowerCase()}_${suffix}`
 }

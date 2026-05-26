@@ -105,10 +105,6 @@ vi.mock('@/triggers/github/utils', () => ({
   isGitHubEventMatch: vi.fn().mockReturnValue(true),
 }))
 
-vi.mock('@/triggers/hubspot/utils', () => ({
-  isHubSpotContactEventMatch: vi.fn().mockReturnValue(true),
-}))
-
 vi.mock('@/triggers/jira/utils', () => ({
   isJiraEventMatch: vi.fn().mockReturnValue(true),
 }))

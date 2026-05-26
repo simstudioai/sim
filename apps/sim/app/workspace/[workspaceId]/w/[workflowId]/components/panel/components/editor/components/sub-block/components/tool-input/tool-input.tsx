@@ -33,6 +33,7 @@ import {
   LongInput,
   ShortInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   type CustomTool,
   CustomToolModal,
@@ -46,11 +47,16 @@ import {
   isMcpToolAlreadySelected,
   isWorkflowAlreadySelected,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/utils'
+import {
+  getActiveWorkflowSearchHighlight,
+  getWorkflowSearchLabelHighlight,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import { getAllBlocks } from '@/blocks'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 import { BUILT_IN_TOOL_TYPES } from '@/blocks/utils'
+import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import {
@@ -72,6 +78,7 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import {
@@ -129,6 +136,7 @@ function WorkflowInputMapperInput({
   onChange,
   disabled,
   workflowId,
+  activeSearchTarget,
 }: {
   blockId: string
   paramId: string
@@ -136,6 +144,7 @@ function WorkflowInputMapperInput({
   onChange: (value: string) => void
   disabled: boolean
   workflowId: string
+  activeSearchTarget?: ActiveSearchTarget | null
 }) {
   const { data: workflowState, isLoading } = useWorkflowState(workflowId)
   const inputFields = useMemo(
@@ -185,22 +194,35 @@ function WorkflowInputMapperInput({
 
   return (
     <div className='space-y-3'>
-      {inputFields.map((field: { name: string; type: string }) => (
-        <ShortInput
-          key={field.name}
-          blockId={blockId}
-          subBlockId={`${paramId}-${field.name}`}
-          placeholder={`Enter ${field.name}${field.type !== 'string' ? ` (${field.type})` : ''}`}
-          value={String(parsedValue[field.name] ?? '')}
-          onChange={(newValue: string) => handleFieldChange(field.name, newValue)}
-          disabled={disabled}
-          config={{
-            id: `${paramId}-${field.name}`,
-            type: 'short-input',
-            title: field.name,
-          }}
-        />
-      ))}
+      {inputFields.map((field: { name: string; type: string }) => {
+        const syntheticId = `${paramId}-${field.name}`
+        const fieldActiveSearchTarget =
+          activeSearchTarget?.valuePath[0] === field.name
+            ? {
+                ...activeSearchTarget,
+                subBlockId: syntheticId,
+                canonicalSubBlockId: syntheticId,
+                valuePath: [],
+              }
+            : null
+        return (
+          <ShortInput
+            key={field.name}
+            blockId={blockId}
+            subBlockId={syntheticId}
+            placeholder={`Enter ${field.name}${field.type !== 'string' ? ` (${field.type})` : ''}`}
+            value={String(parsedValue[field.name] ?? '')}
+            onChange={(newValue: string) => handleFieldChange(field.name, newValue)}
+            disabled={disabled}
+            activeSearchTarget={fieldActiveSearchTarget}
+            config={{
+              id: syntheticId,
+              type: 'short-input',
+              title: field.name,
+            }}
+          />
+        )
+      })}
     </div>
   )
 }
@@ -212,7 +234,7 @@ function WorkflowToolDeployBadge({
   workflowId: string
   onDeploySuccess?: () => void
 }) {
-  const { data, isLoading } = useDeploymentInfo(workflowId, { refetchOnMount: 'always' })
+  const { data, isLoading } = useDeploymentInfo(workflowId)
   const { mutate, isPending: isDeploying } = useDeployWorkflow()
   const userPermissions = useUserPermissionsContext()
 
@@ -288,6 +310,7 @@ interface ToolInputProps {
   disabled?: boolean
   /** Allow expanding tools in preview mode */
   allowExpandInPreview?: boolean
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -416,6 +439,18 @@ function createToolIcon(
  * - Allows drag-and-drop reordering of selected tools
  * - Supports tool usage control (auto/force/none) for compatible LLM providers
  */
+
+function IconComponent({
+  icon: Icon,
+  className,
+}: {
+  icon?: React.ComponentType<{ className?: string }>
+  className?: string
+}) {
+  if (!Icon) return null
+  return <Icon className={className} />
+}
+
 export const ToolInput = memo(function ToolInput({
   blockId,
   subBlockId,
@@ -423,6 +458,7 @@ export const ToolInput = memo(function ToolInput({
   previewValue,
   disabled = false,
   allowExpandInPreview,
+  activeSearchTarget,
 }: ToolInputProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -502,10 +538,11 @@ export const ToolInput = memo(function ToolInput({
 
   const { data: mcpServers = [], isLoading: mcpServersLoading } = useMcpServers(workspaceId)
   const { data: storedMcpTools = [] } = useStoredMcpTools(workspaceId)
-  const forceRefreshMcpTools = useForceRefreshMcpTools()
+  const forceRefreshMcpTools = useForceRefreshMcpTools().mutate
   useMcpToolsEvents(workspaceId)
   const { navigateToSettings } = useSettingsNavigation()
   const createMcpServer = useCreateMcpServer()
+  const { startOauthForServer } = useMcpOauthPopup({ workspaceId })
   const { data: allowedMcpDomains = null } = useAllowedMcpDomains()
   const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
   const mcpDataLoading = mcpLoading || mcpServersLoading
@@ -1071,17 +1108,6 @@ export const ToolInput = memo(function ToolInput({
     setDragOverIndex(null)
   }
 
-  const IconComponent = ({
-    icon: Icon,
-    className,
-  }: {
-    icon?: React.ComponentType<{ className?: string }>
-    className?: string
-  }) => {
-    if (!Icon) return null
-    return <Icon className={className} />
-  }
-
   const evaluateParameterCondition = (param: ToolParameterConfig, tool: StoredTool): boolean => {
     if (!('uiComponent' in param) || !param.uiComponent?.condition) return true
     const currentValues: Record<string, unknown> = { operation: tool.operation, ...tool.params }
@@ -1090,6 +1116,32 @@ export const ToolInput = memo(function ToolInput({
       currentValues
     )
   }
+
+  const getParamActiveSearchTarget = (
+    toolIndex: number | undefined,
+    paramId: string,
+    syntheticSubBlockId: string
+  ): ActiveSearchTarget | null => {
+    if (toolIndex === undefined || activeSearchTarget?.subBlockId !== subBlockId) return null
+    const [activeToolIndex, paramsKey, activeParamId, ...leafPath] = activeSearchTarget.valuePath
+    if (activeToolIndex !== toolIndex || paramsKey !== 'params' || activeParamId !== paramId) {
+      return null
+    }
+    return {
+      ...activeSearchTarget,
+      subBlockId: syntheticSubBlockId,
+      canonicalSubBlockId: syntheticSubBlockId,
+      valuePath: leafPath,
+    }
+  }
+
+  const getToolTitleSearchHighlight = (toolIndex: number) =>
+    getActiveWorkflowSearchHighlight({
+      activeSearchTarget,
+      blockId,
+      subBlockId,
+      valuePath: [toolIndex, 'title'],
+    })
 
   /**
    * Renders a parameter input for custom tools, MCP tools, and legacy registry
@@ -1109,6 +1161,11 @@ export const ToolInput = memo(function ToolInput({
       toolIndex !== undefined
         ? `${subBlockId}-tool-${toolIndex}-${param.id}`
         : `${subBlockId}-${param.id}`
+    const paramActiveSearchTarget = getParamActiveSearchTarget(
+      toolIndex,
+      param.id,
+      uniqueSubBlockId
+    )
     const uiComponent = param.uiComponent
 
     if (!uiComponent) {
@@ -1127,28 +1184,45 @@ export const ToolInput = memo(function ToolInput({
           onChange={onChange}
           wandControlRef={wandControlRef}
           hideInternalWand={true}
+          activeSearchTarget={paramActiveSearchTarget}
         />
       )
     }
 
     switch (uiComponent.type) {
-      case 'dropdown':
+      case 'dropdown': {
+        const options =
+          (uiComponent.options as { id?: string; label: string; value?: string }[] | undefined)
+            ?.filter((option) => (option.id ?? option.value) !== '')
+            .map((option) => ({
+              label: option.label,
+              value: option.id ?? option.value ?? '',
+            })) || []
+        const selectedLabel = options.find((option) => option.value === value)?.label ?? ''
+        const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+          activeSearchTarget: paramActiveSearchTarget,
+          blockId,
+          subBlockId: uniqueSubBlockId,
+          valuePath: [],
+          label: selectedLabel,
+        })
         return (
           <Combobox
-            options={
-              (uiComponent.options as { id?: string; label: string; value?: string }[] | undefined)
-                ?.filter((option) => (option.id ?? option.value) !== '')
-                .map((option) => ({
-                  label: option.label,
-                  value: option.id ?? option.value ?? '',
-                })) || []
-            }
+            options={options}
             value={value}
             onChange={onChange}
             placeholder={uiComponent.placeholder || 'Select option'}
             disabled={disabled}
+            overlayContent={
+              workflowSearchHighlight ? (
+                <span className='truncate text-[var(--text-primary)]'>
+                  {formatDisplayText(selectedLabel, { workflowSearchHighlight })}
+                </span>
+              ) : undefined
+            }
           />
         )
+      }
 
       case 'switch':
         return (
@@ -1174,6 +1248,7 @@ export const ToolInput = memo(function ToolInput({
             onChange={onChange}
             wandControlRef={wandControlRef}
             hideInternalWand={true}
+            activeSearchTarget={paramActiveSearchTarget}
           />
         )
 
@@ -1195,18 +1270,22 @@ export const ToolInput = memo(function ToolInput({
             disabled={disabled}
             wandControlRef={wandControlRef}
             hideInternalWand={true}
+            activeSearchTarget={paramActiveSearchTarget}
           />
         )
 
       case 'oauth-input':
         return (
           <ToolCredentialSelector
+            blockId={blockId}
+            subBlockId={uniqueSubBlockId}
             value={value}
             onChange={onChange}
             provider={getProviderIdFromServiceId(uiComponent.serviceId || '') as OAuthProvider}
             serviceId={uiComponent.serviceId as OAuthService}
             disabled={disabled}
             requiredScopes={uiComponent.requiredScopes || []}
+            activeSearchTarget={paramActiveSearchTarget}
           />
         )
 
@@ -1220,6 +1299,7 @@ export const ToolInput = memo(function ToolInput({
             onChange={onChange}
             disabled={disabled}
             workflowId={selectedWorkflowId}
+            activeSearchTarget={paramActiveSearchTarget}
           />
         )
       }
@@ -1240,6 +1320,7 @@ export const ToolInput = memo(function ToolInput({
             onChange={onChange}
             wandControlRef={wandControlRef}
             hideInternalWand={true}
+            activeSearchTarget={paramActiveSearchTarget}
           />
         )
     }
@@ -1660,10 +1741,14 @@ export const ToolInput = memo(function ToolInput({
             : displayParams.filter((param) => evaluateParameterCondition(param, tool)).length > 0
           const hasToolBody = hasOperations || hasParams
 
+          const isSearchExpanded =
+            activeSearchTarget?.subBlockId === subBlockId &&
+            activeSearchTarget.valuePath[0] === toolIndex &&
+            activeSearchTarget.valuePath[1] === 'params'
           const isExpandedForDisplay = hasToolBody
             ? isPreview || disabled
-              ? (localExpanded[toolIndex] ?? !!tool.isExpanded)
-              : !!tool.isExpanded
+              ? isSearchExpanded || (localExpanded[toolIndex] ?? !!tool.isExpanded)
+              : isSearchExpanded || !!tool.isExpanded
             : false
 
           return (
@@ -1731,7 +1816,9 @@ export const ToolInput = memo(function ToolInput({
                     )}
                   </div>
                   <span className='truncate font-medium text-[var(--text-primary)] text-small'>
-                    {isCustomTool ? customToolTitle : tool.title}
+                    {formatDisplayText((isCustomTool ? customToolTitle : tool.title) ?? '', {
+                      workflowSearchHighlight: getToolTitleSearchHighlight(toolIndex),
+                    })}
                   </span>
                   {isMcpTool &&
                     !mcpDataLoading &&
@@ -1970,6 +2057,11 @@ export const ToolInput = memo(function ToolInput({
                           onParamChange={handleParamChange}
                           disabled={disabled}
                           canonicalToggle={canonicalToggleProp}
+                          activeSearchTarget={getParamActiveSearchTarget(
+                            toolIndex,
+                            effectiveParamId,
+                            `${subBlockId}-tool-${toolIndex}-${effectiveParamId}`
+                          )}
                         />
                       )
                     }
@@ -2113,7 +2205,13 @@ export const ToolInput = memo(function ToolInput({
         onOpenChange={setMcpModalOpen}
         mode='add'
         onSubmit={async (config) => {
-          await createMcpServer.mutateAsync({ workspaceId, config: { ...config, enabled: true } })
+          const result = await createMcpServer.mutateAsync({
+            workspaceId,
+            config: { ...config, enabled: true },
+          })
+          if (result.authType === 'oauth') {
+            await startOauthForServer(result.serverId)
+          }
         }}
         workspaceId={workspaceId}
         availableEnvVars={availableEnvVars}

@@ -10,20 +10,24 @@ import {
   defineRouteContract,
 } from '@/lib/api/contracts/types'
 
-const mongoConnectionBodySchema = z
-  .object({
-    host: z.string().min(1, 'Host is required'),
-    port: z.coerce.number().int().positive('Port must be a positive integer'),
-    database: z.string().min(1, 'Database name is required'),
-    username: z.string().min(1, 'Username is required').optional(),
-    password: z.string().min(1, 'Password is required').optional(),
-    authSource: z.string().optional(),
-    ssl: sslModeSchema,
-  })
-  .refine((data) => Boolean(data.username) === Boolean(data.password), {
-    message: 'Username and password must be provided together',
-    path: ['password'],
-  })
+// Un-refined base so the downstream operation schemas can .extend it; each
+// reattaches mongoUsernamePasswordPaired after its own .extend.
+const mongoConnectionBaseSchema = z.object({
+  host: z.string().min(1, 'Host is required'),
+  port: z.coerce.number().int().positive('Port must be a positive integer'),
+  database: z.string().min(1, 'Database name is required'),
+  username: z.string().min(1, 'Username is required').optional(),
+  password: z.string().min(1, 'Password is required').optional(),
+  authSource: z.string().optional(),
+  ssl: sslModeSchema,
+})
+
+const mongoUsernamePasswordPaired = (data: { username?: string; password?: string }) =>
+  Boolean(data.username) === Boolean(data.password)
+const mongoUsernamePasswordPairedError = {
+  message: 'Username and password must be provided together',
+  path: ['password' as const],
+}
 
 const mongoJsonStringOrObjectSchema = (message: string) =>
   z
@@ -45,92 +49,102 @@ const booleanStringSchema = z
     return false
   })
 
-export const mongodbQueryBodySchema = mongoConnectionBodySchema.extend({
-  collection: z.string().min(1, 'Collection name is required'),
-  query: z
-    .union([z.string(), z.object({}).passthrough()])
-    .optional()
-    .default('{}')
-    .transform((val) => {
-      if (typeof val === 'object' && val !== null) {
-        return JSON.stringify(val)
-      }
-      return val || '{}'
-    }),
-  limit: z
-    .union([z.coerce.number().int().positive(), z.literal(''), z.undefined()])
-    .optional()
-    .transform((val) => {
-      if (val === '' || val === undefined || val === null) {
-        return 100
-      }
-      return val
-    }),
-  sort: z
-    .union([z.string(), z.object({}).passthrough(), z.null()])
-    .optional()
-    .transform((val) => {
-      if (typeof val === 'object' && val !== null) {
-        return JSON.stringify(val)
-      }
-      return val
-    }),
-})
-
-export const mongodbExecuteBodySchema = mongoConnectionBodySchema.extend({
-  collection: z.string().min(1, 'Collection name is required'),
-  pipeline: z
-    .union([z.string(), z.array(z.object({}).passthrough())])
-    .transform((val) => {
-      if (Array.isArray(val)) {
-        return JSON.stringify(val)
-      }
-      return val
-    })
-    .refine((val) => val && val.trim() !== '', {
-      message: 'Pipeline is required',
-    }),
-})
-
-export const mongodbInsertBodySchema = mongoConnectionBodySchema.extend({
-  collection: z.string().min(1, 'Collection name is required'),
-  documents: z
-    .union([z.array(z.record(z.string(), z.unknown())), z.string()])
-    .transform((val) => {
-      if (typeof val === 'string') {
-        try {
-          const parsed = JSON.parse(val)
-          return Array.isArray(parsed) ? parsed : [parsed]
-        } catch {
-          throw new Error('Invalid JSON in documents field')
+export const mongodbQueryBodySchema = mongoConnectionBaseSchema
+  .extend({
+    collection: z.string().min(1, 'Collection name is required'),
+    query: z
+      .union([z.string(), z.object({}).passthrough()])
+      .optional()
+      .default('{}')
+      .transform((val) => {
+        if (typeof val === 'object' && val !== null) {
+          return JSON.stringify(val)
         }
-      }
-      return val
-    })
-    .refine((val) => Array.isArray(val) && val.length > 0, {
-      message: 'At least one document is required',
-    }),
-})
+        return val || '{}'
+      }),
+    limit: z
+      .union([z.coerce.number().int().positive(), z.literal(''), z.undefined()])
+      .optional()
+      .transform((val) => {
+        if (val === '' || val === undefined || val === null) {
+          return 100
+        }
+        return val
+      }),
+    sort: z
+      .union([z.string(), z.object({}).passthrough(), z.null()])
+      .optional()
+      .transform((val) => {
+        if (typeof val === 'object' && val !== null) {
+          return JSON.stringify(val)
+        }
+        return val
+      }),
+  })
+  .refine(mongoUsernamePasswordPaired, mongoUsernamePasswordPairedError)
 
-export const mongodbUpdateBodySchema = mongoConnectionBodySchema.extend({
-  collection: z.string().min(1, 'Collection name is required'),
-  filter: mongoJsonStringOrObjectSchema('Filter is required for MongoDB Update').refine(
-    (val) => val !== '{}',
-    { message: 'Filter is required for MongoDB Update' }
-  ),
-  update: mongoJsonStringOrObjectSchema('Update is required'),
-  upsert: booleanStringSchema,
-  multi: booleanStringSchema,
-})
+export const mongodbExecuteBodySchema = mongoConnectionBaseSchema
+  .extend({
+    collection: z.string().min(1, 'Collection name is required'),
+    pipeline: z
+      .union([z.string(), z.array(z.object({}).passthrough())])
+      .transform((val) => {
+        if (Array.isArray(val)) {
+          return JSON.stringify(val)
+        }
+        return val
+      })
+      .refine((val) => val && val.trim() !== '', {
+        message: 'Pipeline is required',
+      }),
+  })
+  .refine(mongoUsernamePasswordPaired, mongoUsernamePasswordPairedError)
 
-export const mongodbDeleteBodySchema = mongoConnectionBodySchema.extend({
-  collection: z.string().min(1, 'Collection name is required'),
-  filter: mongoJsonStringOrObjectSchema('Filter is required for MongoDB Delete').refine(
-    (val) => val !== '{}',
-    { message: 'Filter is required for MongoDB Delete' }
-  ),
-  multi: booleanStringSchema,
-})
+export const mongodbInsertBodySchema = mongoConnectionBaseSchema
+  .extend({
+    collection: z.string().min(1, 'Collection name is required'),
+    documents: z
+      .union([z.array(z.record(z.string(), z.unknown())), z.string()])
+      .transform((val) => {
+        if (typeof val === 'string') {
+          try {
+            const parsed = JSON.parse(val)
+            return Array.isArray(parsed) ? parsed : [parsed]
+          } catch {
+            throw new Error('Invalid JSON in documents field')
+          }
+        }
+        return val
+      })
+      .refine((val) => Array.isArray(val) && val.length > 0, {
+        message: 'At least one document is required',
+      }),
+  })
+  .refine(mongoUsernamePasswordPaired, mongoUsernamePasswordPairedError)
+
+export const mongodbUpdateBodySchema = mongoConnectionBaseSchema
+  .extend({
+    collection: z.string().min(1, 'Collection name is required'),
+    filter: mongoJsonStringOrObjectSchema('Filter is required for MongoDB Update').refine(
+      (val) => val !== '{}',
+      { message: 'Filter is required for MongoDB Update' }
+    ),
+    update: mongoJsonStringOrObjectSchema('Update is required'),
+    upsert: booleanStringSchema,
+    multi: booleanStringSchema,
+  })
+  .refine(mongoUsernamePasswordPaired, mongoUsernamePasswordPairedError)
+
+export const mongodbDeleteBodySchema = mongoConnectionBaseSchema
+  .extend({
+    collection: z.string().min(1, 'Collection name is required'),
+    filter: mongoJsonStringOrObjectSchema('Filter is required for MongoDB Delete').refine(
+      (val) => val !== '{}',
+      { message: 'Filter is required for MongoDB Delete' }
+    ),
+    multi: booleanStringSchema,
+  })
+  .refine(mongoUsernamePasswordPaired, mongoUsernamePasswordPairedError)
 
 export const mongodbIntrospectBodySchema = z
   .object({

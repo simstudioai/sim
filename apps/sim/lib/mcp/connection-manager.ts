@@ -13,9 +13,11 @@
 import { createLogger } from '@sim/logger'
 import { isTest } from '@/lib/core/config/feature-flags'
 import { McpClient } from '@/lib/mcp/client'
+import { getOrCreateOauthRow, loadPreregisteredClient, SimMcpOauthProvider } from '@/lib/mcp/oauth'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import type {
   ManagedConnectionState,
+  McpClientOptions,
   McpServerConfig,
   McpToolsChangedCallback,
   ToolsChangedEvent,
@@ -30,6 +32,15 @@ const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 const IDLE_CHECK_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
 type ToolsChangedListener = (event: ToolsChangedEvent) => void
+
+/**
+ * Cache key for managed connections.
+ * MCP servers are workspace-owned, so OAuth/header/no-auth connections are
+ * keyed by server and share the same workspace-scoped server credentials.
+ */
+function connectionKey(config: McpServerConfig): string {
+  return config.id
+}
 
 export class McpConnectionManager {
   private connections = new Map<string, McpClient>()
@@ -71,18 +82,19 @@ export class McpConnectionManager {
   async connect(
     config: McpServerConfig,
     userId: string,
-    workspaceId: string
+    workspaceId: string,
+    resolvedIP?: string | null
   ): Promise<{ supportsListChanged: boolean }> {
     if (this.disposed) {
       logger.warn('Connection manager is disposed, ignoring connect request')
       return { supportsListChanged: false }
     }
 
-    const serverId = config.id
+    const key = connectionKey(config)
 
-    if (this.connections.has(serverId) || this.connectingServers.has(serverId)) {
+    if (this.connections.has(key) || this.connectingServers.has(key)) {
       logger.info(`[${config.name}] Already has a managed connection or is connecting, skipping`)
-      const state = this.states.get(serverId)
+      const state = this.states.get(key)
       return { supportsListChanged: state?.supportsListChanged ?? false }
     }
 
@@ -91,11 +103,28 @@ export class McpConnectionManager {
       return { supportsListChanged: false }
     }
 
-    this.connectingServers.add(serverId)
+    this.connectingServers.add(key)
 
     try {
-      const onToolsChanged: McpToolsChangedCallback = (sid) => {
-        this.handleToolsChanged(sid)
+      const onToolsChanged: McpToolsChangedCallback = () => {
+        this.handleToolsChanged(key)
+      }
+
+      let authProvider: McpClientOptions['authProvider']
+      if (config.authType === 'oauth') {
+        const row = await getOrCreateOauthRow({
+          mcpServerId: config.id,
+          userId,
+          workspaceId,
+        })
+        if (!row.tokens) {
+          logger.info(
+            `[${config.name}] OAuth server has no workspace tokens — skipping persistent connection until authorized`
+          )
+          return { supportsListChanged: false }
+        }
+        const preregistered = await loadPreregisteredClient(config.id)
+        authProvider = new SimMcpOauthProvider({ row, preregistered })
       }
 
       const client = new McpClient({
@@ -106,6 +135,8 @@ export class McpConnectionManager {
           maxToolExecutionsPerHour: 1000,
         },
         onToolsChanged,
+        resolvedIP: resolvedIP ?? undefined,
+        authProvider,
       })
 
       try {
@@ -125,11 +156,11 @@ export class McpConnectionManager {
         return { supportsListChanged: false }
       }
 
-      this.clearReconnectTimer(serverId)
+      this.clearReconnectTimer(key)
 
-      this.connections.set(serverId, client)
-      this.states.set(serverId, {
-        serverId,
+      this.connections.set(key, client)
+      this.states.set(key, {
+        serverId: config.id,
         serverName: config.name,
         workspaceId,
         userId,
@@ -148,42 +179,49 @@ export class McpConnectionManager {
       logger.info(`[${config.name}] Persistent connection established (listChanged supported)`)
       return { supportsListChanged: true }
     } finally {
-      this.connectingServers.delete(serverId)
+      this.connectingServers.delete(key)
     }
   }
 
   /**
-   * Disconnect a managed connection.
+   * Disconnect a managed connection by internal cache key.
    */
-  async disconnect(serverId: string): Promise<void> {
-    this.clearReconnectTimer(serverId)
+  private async disconnectByKey(key: string): Promise<void> {
+    this.clearReconnectTimer(key)
 
-    const client = this.connections.get(serverId)
+    const client = this.connections.get(key)
     if (client) {
       try {
         await client.disconnect()
       } catch (error) {
-        logger.warn(`Error disconnecting managed client ${serverId}:`, error)
+        logger.warn(`Error disconnecting managed client ${key}:`, error)
       }
-      this.connections.delete(serverId)
+      this.connections.delete(key)
     }
 
-    this.states.delete(serverId)
-    logger.info(`Managed connection removed: ${serverId}`)
+    this.states.delete(key)
+    logger.info(`Managed connection removed: ${key}`)
+  }
+
+  /**
+   * Disconnect the managed connection for the given server.
+   */
+  async disconnectServer(serverId: string): Promise<void> {
+    const keys: string[] = []
+    for (const [key, state] of this.states) {
+      if (state.serverId === serverId) keys.push(key)
+    }
+    await Promise.all(keys.map((key) => this.disconnectByKey(key)))
   }
 
   /**
    * Check whether a managed connection exists for the given server.
    */
   hasConnection(serverId: string): boolean {
-    return this.connections.has(serverId)
-  }
-
-  /**
-   * Get connection state for a server.
-   */
-  getState(serverId: string): ManagedConnectionState | undefined {
-    return this.states.get(serverId)
+    for (const state of this.states.values()) {
+      if (state.serverId === serverId) return true
+    }
+    return false
   }
 
   /**
@@ -247,14 +285,14 @@ export class McpConnectionManager {
    * Handle a tools/list_changed notification from an external MCP server.
    * Publishes to pub/sub so all processes are notified.
    */
-  private handleToolsChanged(serverId: string): void {
-    const state = this.states.get(serverId)
+  private handleToolsChanged(key: string): void {
+    const state = this.states.get(key)
     if (!state) return
 
     state.lastActivity = Date.now()
 
     const event: ToolsChangedEvent = {
-      serverId,
+      serverId: state.serverId,
       serverName: state.serverName,
       workspaceId: state.workspaceId,
       timestamp: Date.now(),
@@ -266,13 +304,13 @@ export class McpConnectionManager {
   }
 
   private handleDisconnect(config: McpServerConfig, userId: string, workspaceId: string): void {
-    const serverId = config.id
-    const state = this.states.get(serverId)
+    const key = connectionKey(config)
+    const state = this.states.get(key)
 
     if (!state || this.disposed) return
 
     state.connected = false
-    this.connections.delete(serverId)
+    this.connections.delete(key)
 
     logger.warn(`[${config.name}] Persistent connection lost, scheduling reconnect`)
 
@@ -280,8 +318,8 @@ export class McpConnectionManager {
   }
 
   private scheduleReconnect(config: McpServerConfig, userId: string, workspaceId: string): void {
-    const serverId = config.id
-    const state = this.states.get(serverId)
+    const key = connectionKey(config)
+    const state = this.states.get(key)
 
     if (!state || this.disposed) return
 
@@ -289,7 +327,7 @@ export class McpConnectionManager {
       logger.error(
         `[${config.name}] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached — giving up`
       )
-      this.states.delete(serverId)
+      this.states.delete(key)
       return
     }
 
@@ -300,14 +338,14 @@ export class McpConnectionManager {
       `[${config.name}] Reconnecting in ${delay}ms (attempt ${state.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`
     )
 
-    this.clearReconnectTimer(serverId)
+    this.clearReconnectTimer(key)
 
     const timer = setTimeout(async () => {
-      this.reconnectTimers.delete(serverId)
+      this.reconnectTimers.delete(key)
 
       if (this.disposed) return
 
-      const currentState = this.states.get(serverId)
+      const currentState = this.states.get(key)
       if (currentState?.connected) {
         logger.info(
           `[${config.name}] Connection already re-established externally, skipping reconnect`
@@ -316,8 +354,8 @@ export class McpConnectionManager {
       }
 
       const attempts = state.reconnectAttempts
-      this.connections.delete(serverId)
-      this.states.delete(serverId)
+      this.connections.delete(key)
+      this.states.delete(key)
 
       try {
         const result = await this.connect(config, userId, workspaceId)
@@ -334,14 +372,14 @@ export class McpConnectionManager {
       }
     }, delay)
 
-    this.reconnectTimers.set(serverId, timer)
+    this.reconnectTimers.set(key, timer)
   }
 
-  private clearReconnectTimer(serverId: string): void {
-    const timer = this.reconnectTimers.get(serverId)
+  private clearReconnectTimer(key: string): void {
+    const timer = this.reconnectTimers.get(key)
     if (timer) {
       clearTimeout(timer)
-      this.reconnectTimers.delete(serverId)
+      this.reconnectTimers.delete(key)
     }
   }
 
@@ -354,8 +392,9 @@ export class McpConnectionManager {
     workspaceId: string,
     reconnectAttempts: number
   ): void {
-    if (!this.states.has(config.id)) {
-      this.states.set(config.id, {
+    const key = connectionKey(config)
+    if (!this.states.has(key)) {
+      this.states.set(key, {
         serverId: config.id,
         serverName: config.name,
         workspaceId,
@@ -373,12 +412,12 @@ export class McpConnectionManager {
 
     this.idleCheckTimer = setInterval(() => {
       const now = Date.now()
-      for (const [serverId, state] of this.states) {
+      for (const [key, state] of this.states) {
         if (now - state.lastActivity > IDLE_TIMEOUT_MS) {
           logger.info(
             `[${state.serverName}] Idle timeout reached, disconnecting managed connection`
           )
-          this.disconnect(serverId)
+          this.disconnectByKey(key)
         }
       }
 

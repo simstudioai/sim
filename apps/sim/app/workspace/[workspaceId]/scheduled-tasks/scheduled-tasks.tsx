@@ -10,6 +10,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
@@ -21,7 +22,11 @@ import type {
   ResourceRow,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
+import {
+  EMPTY_CELL_PLACEHOLDER,
+  Resource,
+  timeCell,
+} from '@/app/workspace/[workspaceId]/components'
 import { ScheduleModal } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/create-schedule-modal'
 import { ScheduleContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-context-menu'
 import { ScheduleListContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-list-context-menu'
@@ -43,12 +48,12 @@ function getScheduleDescription(s: WorkspaceScheduleData) {
     const timing = parseCronToHumanReadable(s.cronExpression, s.timezone)
     return `Recurring, ${timing.charAt(0).toLowerCase()}${timing.slice(1)}`
   }
-  return '-  -  -'
+  return EMPTY_CELL_PLACEHOLDER
 }
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'task', header: 'Task' },
-  { id: 'schedule', header: 'Schedule', widthMultiplier: 1.5 },
+  { id: 'schedule', header: 'Schedule' },
   { id: 'nextRun', header: 'Next Run' },
   { id: 'lastRun', header: 'Last Run' },
 ]
@@ -447,13 +452,13 @@ export function ScheduledTasks() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Scheduled Task</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {activeTask?.jobTitle || 'this task'}
               </span>
               ? This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

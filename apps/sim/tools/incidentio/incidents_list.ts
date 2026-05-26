@@ -38,6 +38,18 @@ export const incidentsListTool: ToolConfig<
       description:
         'Pagination cursor to fetch the next page of results (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
+    sort_by: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Sort order for incidents: created_at_newest_first or created_at_oldest_first',
+    },
+    filter_mode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'How to combine filters: all or any',
+    },
   },
 
   request: {
@@ -49,7 +61,15 @@ export const incidentsListTool: ToolConfig<
       }
 
       if (params.after) {
-        url.searchParams.append('after', params.after)
+        url.searchParams.append('after', params.after.trim())
+      }
+
+      if (params.sort_by) {
+        url.searchParams.append('sort_by', params.sort_by)
+      }
+
+      if (params.filter_mode) {
+        url.searchParams.append('filter_mode', params.filter_mode)
       }
 
       return url.toString()

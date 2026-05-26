@@ -98,7 +98,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
             <Button
               key={tag.label}
               variant='subtle'
-              className='max-w-[200px] px-2 py-1 text-caption'
+              className='max-w-[280px] px-2 py-1 text-caption'
               onClick={tag.onRemove}
             >
               <span className='truncate'>{tag.label}</span>

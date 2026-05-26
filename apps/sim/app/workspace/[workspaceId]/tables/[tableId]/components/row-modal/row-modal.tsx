@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -12,6 +13,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -119,7 +121,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
       onSuccess()
     } catch (err) {
       logger.error(`Failed to ${mode} row:`, err)
-      setError(err instanceof Error ? err.message : `Failed to ${mode} row`)
+      setError(getErrorMessage(err, `Failed to ${mode} row`))
     }
   }
 
@@ -138,7 +140,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
       onSuccess()
     } catch (err) {
       logger.error('Failed to delete row(s):', err)
-      setError(err instanceof Error ? err.message : 'Failed to delete row(s)')
+      setError(getErrorMessage(err, 'Failed to delete row(s)'))
     }
   }
 
@@ -162,14 +164,14 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
                 {error}
               </div>
             )}
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               {isSingleRow ? 'this row' : `these ${deleteCount} rows`}?{' '}
               <span className='text-[var(--text-error)]'>
                 This will permanently remove all data in {isSingleRow ? 'this row' : 'these rows'}.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={handleClose} disabled={isSubmitting}>
@@ -198,6 +200,9 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
           </div>
         </ModalHeader>
         <ModalBody className='max-h-[60vh] overflow-y-auto'>
+          <ModalDescription className='sr-only'>
+            {isAddMode ? 'Fill in values to add a new row' : 'Update values for the selected row'}
+          </ModalDescription>
           <form onSubmit={handleFormSubmit} className='flex flex-col gap-4'>
             <ErrorMessage error={error} />
 

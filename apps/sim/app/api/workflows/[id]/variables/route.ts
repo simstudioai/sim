@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   assertWorkflowMutable,
   authorizeWorkflowByWorkspacePermission,
@@ -168,7 +169,7 @@ export const GET = withRouteHandler(
       )
     } catch (error) {
       logger.error(`[${requestId}] Workflow variables fetch error`, error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = getErrorMessage(error, 'Unknown error')
       return NextResponse.json({ error: errorMessage }, { status: 500 })
     }
   }

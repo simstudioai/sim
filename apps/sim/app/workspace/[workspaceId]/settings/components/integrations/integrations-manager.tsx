@@ -2,6 +2,7 @@
 
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { AlertTriangle, Check, Clipboard, Plus, Search, Share2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -16,6 +17,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Skeleton,
@@ -277,7 +279,7 @@ export function IntegrationsManager() {
         if (isDescriptionDirty) setSelectedDescriptionDraft((v) => v.trim())
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to save changes'
+      const message = getErrorMessage(error, 'Failed to save changes')
       setDetailsError(message)
       logger.error('Failed to save credential details', error)
     }
@@ -454,7 +456,7 @@ export function IntegrationsManager() {
         callbackURL: window.location.href,
       })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to start OAuth connection'
+      const message = getErrorMessage(error, 'Failed to start OAuth connection')
       setCreateError(message)
       logger.error('Failed to connect OAuth service', error)
     }
@@ -504,7 +506,7 @@ export function IntegrationsManager() {
       setShowDeleteConfirmDialog(false)
       setCredentialToDelete(null)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to disconnect integration'
+      const message = getErrorMessage(error, 'Failed to disconnect integration')
       setDeleteError(message)
       logger.error('Failed to disconnect integration', error)
     }
@@ -529,7 +531,7 @@ export function IntegrationsManager() {
         })
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to share with workspace'
+      const message = getErrorMessage(error, 'Failed to share with workspace')
       setDetailsError(message)
       logger.error('Failed to share credential with workspace', error)
     } finally {
@@ -575,7 +577,7 @@ export function IntegrationsManager() {
         callbackURL: window.location.href,
       })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to start reconnect'
+      const message = getErrorMessage(error, 'Failed to start reconnect')
       setDetailsError(message)
       logger.error('Failed to reconnect OAuth credential', error)
     }
@@ -663,6 +665,9 @@ export function IntegrationsManager() {
           <>
             <ModalHeader>Connect Integration</ModalHeader>
             <ModalBody>
+              <ModalDescription className='sr-only'>
+                Select a service to connect an integration
+              </ModalDescription>
               <div className='flex flex-col gap-3'>
                 <div className='flex items-center gap-2 rounded-[8px] border border-[var(--border)] bg-transparent px-2 py-[5px]'>
                   <Search
@@ -743,6 +748,9 @@ export function IntegrationsManager() {
               </div>
             </ModalHeader>
             <ModalBody>
+              <ModalDescription className='sr-only'>
+                Connect your OAuth account for this integration
+              </ModalDescription>
               {(createError || existingOAuthDisplayName) && (
                 <div className='mb-3 flex flex-col gap-2'>
                   {createError && (
@@ -891,13 +899,13 @@ export function IntegrationsManager() {
       <ModalContent size='sm'>
         <ModalHeader>Disconnect Integration</ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
+          <ModalDescription className='text-[var(--text-secondary)]'>
             Are you sure you want to disconnect{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {credentialToDelete?.displayName}
             </span>
             ? This action cannot be undone.
-          </p>
+          </ModalDescription>
           {deleteError && (
             <div className='mt-3 rounded-lg border border-[color-mix(in_srgb,var(--text-error)_40%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] p-3'>
               <div className='flex items-start gap-2.5'>
@@ -930,9 +938,9 @@ export function IntegrationsManager() {
       <ModalContent size='sm'>
         <ModalHeader>Unsaved Changes</ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
+          <ModalDescription className='text-[var(--text-secondary)]'>
             You have unsaved changes. Are you sure you want to discard them?
-          </p>
+          </ModalDescription>
         </ModalBody>
         <ModalFooter>
           <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>

@@ -1,7 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
+import {
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn'
 
 interface DeleteModalProps {
   /**
@@ -249,12 +257,12 @@ export function DeleteModal({
       <ModalContent size='sm'>
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
+          <ModalDescription className='text-[var(--text-secondary)]'>
             {renderDescription()}{' '}
             {restorableTypes.has(itemType)
               ? 'You can restore it from Recently Deleted in Settings.'
               : 'This action cannot be undone.'}
-          </p>
+          </ModalDescription>
           {isWorkspace && workspaceName && (
             <div className='mt-3'>
               <label

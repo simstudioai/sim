@@ -243,7 +243,7 @@ export const sshReadFileContentBodySchema = requirePasswordOrPrivateKey(
     ...connectionFields,
     path: z.string().min(1, 'Path is required'),
     encoding: z.string().default('utf-8'),
-    maxSize: z.coerce.number().default(10),
+    maxSize: z.coerce.number().min(0.01).max(50).default(10),
   })
 )
 
@@ -290,6 +290,7 @@ export const fileDownloadBodySchema = z
     isExecutionFile: z.boolean().optional(),
     context: downloadContextSchema.optional(),
     url: z
+      .string()
       .url()
       .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
         message: 'URL must use http or https',
@@ -300,8 +301,11 @@ export const fileDownloadBodySchema = z
 
 export const fileParseBodySchema = z
   .object({
-    filePath: z.union([z.string(), z.array(z.string())]).optional(),
+    filePath: z
+      .union([z.string(), z.array(z.string()).max(10, 'At most 10 files can be parsed at once')])
+      .optional(),
     fileType: z.string().optional().default(''),
+    headers: z.record(z.string(), z.string()).optional(),
     workspaceId: z.string().optional().default(''),
     workflowId: z.string().optional(),
     executionId: z.string().optional(),

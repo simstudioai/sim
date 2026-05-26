@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { generateShortId } from '@sim/utils/id'
 import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDate, formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
@@ -30,7 +31,7 @@ function LineChartComponent({
   series?: LineChartMultiSeries[]
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const uniqueId = useRef(`chart-${Math.random().toString(36).substring(2, 9)}`).current
+  const uniqueId = useRef(`chart-${generateShortId(7)}`).current
   const [containerWidth, setContainerWidth] = useState<number | null>(null)
   const width = containerWidth ?? 0
   const height = 166

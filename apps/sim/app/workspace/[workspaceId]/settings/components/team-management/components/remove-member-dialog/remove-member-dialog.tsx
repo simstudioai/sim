@@ -4,6 +4,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
@@ -48,7 +49,7 @@ export function RemoveMemberDialog({
       <ModalContent size='sm'>
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
+          <ModalDescription className='text-[var(--text-secondary)]'>
             {isSelfRemoval ? (
               'Are you sure you want to leave this organization? You will lose access to all team resources.'
             ) : isExternalRemoval ? (
@@ -66,7 +67,7 @@ export function RemoveMemberDialog({
               </>
             )}{' '}
             This action cannot be undone.
-          </p>
+          </ModalDescription>
 
           {!isSelfRemoval && !isExternalRemoval && canReduceSeats && (
             <div className='mt-4'>

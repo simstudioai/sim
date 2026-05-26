@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   Button,
   Input,
@@ -9,6 +10,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
@@ -72,7 +74,7 @@ export function RenameDocumentModal({
       onOpenChange(false)
     } catch (err) {
       logger.error('Error renaming document:', err)
-      setError(err instanceof Error ? err.message : 'Failed to rename document')
+      setError(getErrorMessage(err, 'Failed to rename document'))
     } finally {
       setIsSubmitting(false)
     }
@@ -82,6 +84,7 @@ export function RenameDocumentModal({
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='sm'>
         <ModalHeader>Rename Document</ModalHeader>
+        <ModalDescription className='sr-only'>Enter a new name for this document</ModalDescription>
         <form onSubmit={handleSubmit} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody className='!pb-4'>
             <div className='space-y-3'>

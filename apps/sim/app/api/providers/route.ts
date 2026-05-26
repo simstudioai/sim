@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { executeProviderContract } from '@/lib/api/contracts/providers'
@@ -167,7 +167,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         hasVertexCredential: !!vertexCredential,
       })
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Credential error' },
+        { error: getErrorMessage(error, 'Credential error') },
         { status: 400 }
       )
     }

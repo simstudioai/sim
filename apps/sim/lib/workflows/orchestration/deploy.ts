@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
@@ -457,78 +458,87 @@ export async function performRevertToVersion(
   const versionLabel = String(version)
 
   const lastSaved = Date.now()
-  const saveResult = await db.transaction(async (tx) => {
-    await tx
-      .select({ id: workflowTable.id })
-      .from(workflowTable)
-      .where(eq(workflowTable.id, workflowId))
-      .limit(1)
-      .for('update')
+  let saveResult: { success: boolean; error?: string; errorCode?: OrchestrationErrorCode }
+  try {
+    await assertWorkflowMutable(workflowId)
+    saveResult = await db.transaction(async (tx) => {
+      await tx
+        .select({ id: workflowTable.id })
+        .from(workflowTable)
+        .where(eq(workflowTable.id, workflowId))
+        .limit(1)
+        .for('update')
 
-    const [stateRow] =
-      version === 'active'
-        ? await tx
-            .select({ state: workflowDeploymentVersion.state })
-            .from(workflowDeploymentVersion)
-            .where(
-              and(
-                eq(workflowDeploymentVersion.workflowId, workflowId),
-                eq(workflowDeploymentVersion.isActive, true)
+      const [stateRow] =
+        version === 'active'
+          ? await tx
+              .select({ state: workflowDeploymentVersion.state })
+              .from(workflowDeploymentVersion)
+              .where(
+                and(
+                  eq(workflowDeploymentVersion.workflowId, workflowId),
+                  eq(workflowDeploymentVersion.isActive, true)
+                )
               )
-            )
-            .limit(1)
-        : await tx
-            .select({ state: workflowDeploymentVersion.state })
-            .from(workflowDeploymentVersion)
-            .where(
-              and(
-                eq(workflowDeploymentVersion.workflowId, workflowId),
-                eq(workflowDeploymentVersion.version, version)
+              .limit(1)
+          : await tx
+              .select({ state: workflowDeploymentVersion.state })
+              .from(workflowDeploymentVersion)
+              .where(
+                and(
+                  eq(workflowDeploymentVersion.workflowId, workflowId),
+                  eq(workflowDeploymentVersion.version, version)
+                )
               )
-            )
-            .limit(1)
+              .limit(1)
 
-    if (!stateRow?.state) {
-      return { success: false, error: 'Deployment version not found' }
+      if (!stateRow?.state) {
+        return { success: false, error: 'Deployment version not found' }
+      }
+
+      const deployedState = stateRow.state as {
+        blocks?: Record<string, unknown>
+        edges?: unknown[]
+        loops?: Record<string, unknown>
+        parallels?: Record<string, unknown>
+        variables?: WorkflowState['variables']
+      }
+      if (!deployedState.blocks || !deployedState.edges) {
+        return { success: false, error: 'Invalid deployed state structure' }
+      }
+
+      const hasDeploymentVariables = Object.hasOwn(deployedState, 'variables')
+      const restoredState: WorkflowState = {
+        blocks: deployedState.blocks,
+        edges: deployedState.edges,
+        loops: deployedState.loops || {},
+        parallels: deployedState.parallels || {},
+        lastSaved,
+      } as WorkflowState
+      if (hasDeploymentVariables) {
+        restoredState.variables = deployedState.variables || {}
+      }
+
+      const result = await saveWorkflowToNormalizedTables(workflowId, restoredState, tx)
+      if (!result.success) return result
+
+      await tx
+        .update(workflowTable)
+        .set({
+          ...(hasDeploymentVariables ? { variables: deployedState.variables || {} } : {}),
+          lastSynced: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(workflowTable.id, workflowId))
+
+      return result
+    })
+  } catch (error) {
+    if (error instanceof WorkflowLockedError) {
+      return { success: false, error: error.message, errorCode: 'validation' }
     }
-
-    const deployedState = stateRow.state as {
-      blocks?: Record<string, unknown>
-      edges?: unknown[]
-      loops?: Record<string, unknown>
-      parallels?: Record<string, unknown>
-      variables?: WorkflowState['variables']
-    }
-    if (!deployedState.blocks || !deployedState.edges) {
-      return { success: false, error: 'Invalid deployed state structure' }
-    }
-
-    const hasDeploymentVariables = Object.hasOwn(deployedState, 'variables')
-    const restoredState: WorkflowState = {
-      blocks: deployedState.blocks,
-      edges: deployedState.edges,
-      loops: deployedState.loops || {},
-      parallels: deployedState.parallels || {},
-      lastSaved,
-    } as WorkflowState
-    if (hasDeploymentVariables) {
-      restoredState.variables = deployedState.variables || {}
-    }
-
-    const result = await saveWorkflowToNormalizedTables(workflowId, restoredState, tx)
-    if (!result.success) return result
-
-    await tx
-      .update(workflowTable)
-      .set({
-        ...(hasDeploymentVariables ? { variables: deployedState.variables || {} } : {}),
-        lastSynced: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(workflowTable.id, workflowId))
-
-    return result
-  })
+    throw error
+  }
 
   if (!saveResult.success) {
     return {

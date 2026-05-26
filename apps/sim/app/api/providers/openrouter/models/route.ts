@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   openRouterUpstreamResponseSchema,
@@ -94,7 +95,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
     return NextResponse.json(providerModelsResponseSchema.parse({ models, modelInfo }))
   } catch (error) {
     logger.error('Error fetching OpenRouter models', {
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
     })
     return NextResponse.json({ models: [], modelInfo: {} })
   }

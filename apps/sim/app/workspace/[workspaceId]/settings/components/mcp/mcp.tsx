@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { ChevronDown, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -10,6 +11,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Tooltip,
@@ -25,6 +27,7 @@ import {
   type McpToolIssue,
 } from '@/lib/mcp/tool-validation'
 import type { McpTransport } from '@/lib/mcp/types'
+import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 import {
   type McpServer,
   type McpTool,
@@ -100,7 +103,10 @@ function ServerListItem({
           <span className='text-[var(--text-secondary)] text-sm'>({transportLabel})</span>
         </div>
         <p
-          className={`truncate text-sm ${isError ? 'text-red-500 dark:text-red-400' : 'text-[var(--text-muted)]'}`}
+          className={cn(
+            'truncate text-sm',
+            isError ? 'text-[var(--text-error)]' : 'text-[var(--text-muted)]'
+          )}
         >
           {isRefreshing
             ? 'Refreshing...'
@@ -121,14 +127,29 @@ function ServerListItem({
   )
 }
 
+function buildEditInitialData(server: McpServer) {
+  const entries: { key: string; value: string }[] = server.headers
+    ? Object.entries(server.headers).map(([key, value]) => ({ key, value }))
+    : []
+  if (entries.length === 0) entries.push({ key: '', value: '' })
+  const last = entries[entries.length - 1]
+  if (last.key !== '' || last.value !== '') entries.push({ key: '', value: '' })
+
+  return {
+    name: server.name || '',
+    transport: (server.transport as McpTransport) || 'streamable-http',
+    url: server.url || '',
+    timeout: 30000,
+    headers: entries,
+    oauthClientId: server.oauthClientId || undefined,
+    hasOauthClientSecret: server.hasOauthClientSecret === true,
+  }
+}
+
 interface MCPProps {
   initialServerId?: string | null
 }
 
-/**
- * MCP Settings component for managing Model Context Protocol servers.
- * Handles server CRUD operations, connection testing, and environment variable integration.
- */
 export function MCP({ initialServerId }: MCPProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -145,7 +166,8 @@ export function MCP({ initialServerId }: MCPProps) {
     isFetching: toolsFetching,
   } = useMcpToolsQuery(workspaceId)
   const { data: storedTools = [], refetch: refetchStoredTools } = useStoredMcpTools(workspaceId)
-  const forceRefreshTools = useForceRefreshMcpTools()
+  const forceRefreshToolsMutation = useForceRefreshMcpTools()
+  const forceRefreshTools = forceRefreshToolsMutation.mutate
   const createServerMutation = useCreateMcpServer()
   const deleteServerMutation = useDeleteMcpServer()
   const refreshServerMutation = useRefreshMcpServer()
@@ -154,23 +176,16 @@ export function MCP({ initialServerId }: MCPProps) {
   const { data: allowedMcpDomains = null } = useAllowedMcpDomains()
 
   const [showAddModal, setShowAddModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [editInitialData, setEditInitialData] = useState<
-    | {
-        name: string
-        transport: McpTransport
-        url?: string
-        timeout?: number
-        headers?: { key: string; value: string }[]
-      }
-    | undefined
-  >(undefined)
+  const [editingServerId, setEditingServerId] = useState<string | null>(null)
 
   const [searchTerm, setSearchTerm] = useState('')
   const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
+  const { connectingServers: connectingOauthServers, startOauthForServer } = useMcpOauthPopup({
+    workspaceId,
+  })
 
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [serverToDelete, setServerToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [serverToDeleteId, setServerToDeleteId] = useState<string | null>(null)
+  const showDeleteDialog = serverToDeleteId !== null
 
   const [selectedServerId, setSelectedServerId] = useState<string | null>(initialServerId ?? null)
 
@@ -183,28 +198,23 @@ export function MCP({ initialServerId }: MCPProps) {
     }
   }, [])
 
-  const [refreshingServers, setRefreshingServers] = useState<
-    Record<string, { status: 'refreshing' | 'refreshed'; workflowsUpdated?: number }>
-  >({})
   const [expandedTools, setExpandedTools] = useState<Set<string>>(() => new Set())
 
-  const handleRemoveServer = useCallback((serverId: string, serverName: string) => {
-    setServerToDelete({ id: serverId, name: serverName })
-    setShowDeleteDialog(true)
-  }, [])
+  const handleRemoveServer = (serverId: string) => {
+    setServerToDeleteId(serverId)
+  }
 
-  const confirmDeleteServer = useCallback(async () => {
-    if (!serverToDelete) return
+  const confirmDeleteServer = async () => {
+    if (!serverToDeleteId) return
 
-    setShowDeleteDialog(false)
-    const { id: serverId, name: serverName } = serverToDelete
-    setServerToDelete(null)
+    const serverId = serverToDeleteId
+    setServerToDeleteId(null)
 
     setDeletingServers((prev) => new Set(prev).add(serverId))
 
     try {
       await deleteServerMutation.mutateAsync({ workspaceId, serverId })
-      logger.info(`Removed MCP server: ${serverName}`)
+      logger.info(`Removed MCP server: ${serverId}`)
     } catch (error) {
       logger.error('Failed to remove MCP server:', error)
     } finally {
@@ -214,43 +224,36 @@ export function MCP({ initialServerId }: MCPProps) {
         return newSet
       })
     }
-  }, [serverToDelete, deleteServerMutation, workspaceId])
+  }
 
-  const toolsByServer = useMemo(() => {
-    return (mcpToolsData || []).reduce(
-      (acc, tool) => {
-        if (!tool?.serverId) return acc
-        if (!acc[tool.serverId]) {
-          acc[tool.serverId] = []
-        }
-        acc[tool.serverId].push(tool)
-        return acc
-      },
-      {} as Record<string, typeof mcpToolsData>
-    )
-  }, [mcpToolsData])
-
-  const filteredServers = useMemo(() => {
-    return (servers || []).filter((server) =>
-      server.name?.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  }, [servers, searchTerm])
-
-  const handleViewDetails = useCallback(
-    (serverId: string) => {
-      setSelectedServerId(serverId)
-      forceRefreshTools(workspaceId)
-      refetchStoredTools()
+  const toolsByServer = (mcpToolsData || []).reduce(
+    (acc, tool) => {
+      if (!tool?.serverId) return acc
+      if (!acc[tool.serverId]) {
+        acc[tool.serverId] = []
+      }
+      acc[tool.serverId].push(tool)
+      return acc
     },
-    [workspaceId, forceRefreshTools, refetchStoredTools]
+    {} as Record<string, typeof mcpToolsData>
   )
 
-  const handleBackToList = useCallback(() => {
+  const filteredServers = (servers || []).filter((server) =>
+    server.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  const handleViewDetails = (serverId: string) => {
+    setSelectedServerId(serverId)
+    forceRefreshTools(workspaceId)
+    refetchStoredTools()
+  }
+
+  const handleBackToList = () => {
     setSelectedServerId(null)
     setExpandedTools(new Set())
-  }, [])
+  }
 
-  const toggleToolExpanded = useCallback((toolName: string) => {
+  const toggleToolExpanded = (toolName: string) => {
     setExpandedTools((prev) => {
       const newSet = new Set(prev)
       if (newSet.has(toolName)) {
@@ -260,131 +263,109 @@ export function MCP({ initialServerId }: MCPProps) {
       }
       return newSet
     })
-  }, [])
+  }
 
-  const handleRefreshServer = useCallback(
-    async (serverId: string) => {
-      try {
-        setRefreshingServers((prev) => ({ ...prev, [serverId]: { status: 'refreshing' } }))
-        const result = await refreshServerMutation.mutateAsync({ workspaceId, serverId })
-        logger.info(
-          `Refreshed MCP server: ${serverId}, workflows updated: ${result.workflowsUpdated}`
-        )
+  const handleRefreshServer = async (serverId: string) => {
+    try {
+      const result = await refreshServerMutation.mutateAsync({ workspaceId, serverId })
+      logger.info(
+        `Refreshed MCP server: ${serverId}, workflows updated: ${result.workflowsUpdated}`
+      )
 
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        if (activeWorkflowId && result.updatedWorkflowIds?.includes(activeWorkflowId)) {
-          logger.info(`Active workflow ${activeWorkflowId} was updated, reloading subblock values`)
-          try {
-            const { data: workflowData } = await requestJson(getWorkflowStateContract, {
-              params: { id: activeWorkflowId },
-            })
-            if (workflowData?.state?.blocks) {
-              useSubBlockStore
-                .getState()
-                .initializeFromWorkflow(
-                  activeWorkflowId,
-                  workflowData.state.blocks as Record<string, BlockState>
-                )
-            }
-          } catch (reloadError) {
-            logger.warn('Failed to reload workflow subblock values:', reloadError)
-          }
-        }
-
-        setRefreshingServers((prev) => ({
-          ...prev,
-          [serverId]: { status: 'refreshed', workflowsUpdated: result.workflowsUpdated },
-        }))
-        setTimeout(() => {
-          setRefreshingServers((prev) => {
-            const newState = { ...prev }
-            delete newState[serverId]
-            return newState
+      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+      if (activeWorkflowId && result.updatedWorkflowIds?.includes(activeWorkflowId)) {
+        logger.info(`Active workflow ${activeWorkflowId} was updated, reloading subblock values`)
+        try {
+          const { data: workflowData } = await requestJson(getWorkflowStateContract, {
+            params: { id: activeWorkflowId },
           })
-        }, 3000)
-      } catch (error) {
-        logger.error('Failed to refresh MCP server:', error)
-        setRefreshingServers((prev) => {
-          const newState = { ...prev }
-          delete newState[serverId]
-          return newState
-        })
+          if (workflowData?.state?.blocks) {
+            useSubBlockStore
+              .getState()
+              .initializeFromWorkflow(
+                activeWorkflowId,
+                workflowData.state.blocks as Record<string, BlockState>
+              )
+          }
+        } catch (reloadError) {
+          logger.warn('Failed to reload workflow subblock values:', reloadError)
+        }
       }
-    },
-    [refreshServerMutation, workspaceId]
-  )
-
-  const handleOpenEditModal = useCallback((server: McpServer) => {
-    const headers: { key: string; value: string }[] = server.headers
-      ? Object.entries(server.headers).map(([key, value]) => ({ key, value }))
-      : [{ key: '', value: '' }]
-    if (headers.length === 0) headers.push({ key: '', value: '' })
-
-    const lastHeader = headers[headers.length - 1]
-    if (lastHeader.key !== '' || lastHeader.value !== '') {
-      headers.push({ key: '', value: '' })
+    } catch (error) {
+      logger.error('Failed to refresh MCP server:', error)
     }
+  }
 
-    setEditInitialData({
-      name: server.name || '',
-      transport: (server.transport as McpTransport) || 'streamable-http',
-      url: server.url || '',
-      timeout: 30000,
-      headers,
-    })
-    setShowEditModal(true)
-  }, [])
+  useEffect(() => {
+    if (!refreshServerMutation.isSuccess) return
+    const timeout = window.setTimeout(() => refreshServerMutation.reset(), 3000)
+    return () => window.clearTimeout(timeout)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation object is unstable; isSuccess flag is the trigger
+  }, [refreshServerMutation.isSuccess])
 
-  const selectedServer = useMemo(() => {
+  const refreshingServerId = refreshServerMutation.isPending
+    ? refreshServerMutation.variables?.serverId
+    : null
+  const refreshedServerId = refreshServerMutation.isSuccess
+    ? refreshServerMutation.variables?.serverId
+    : null
+  const refreshedWorkflowsUpdated = refreshServerMutation.data?.workflowsUpdated
+
+  const editingServer = editingServerId
+    ? (servers.find((s) => s.id === editingServerId) as McpServer | undefined)
+    : undefined
+  const editInitialData = editingServer ? buildEditInitialData(editingServer) : undefined
+
+  const selectedServer = (() => {
     if (!selectedServerId) return null
     const server = servers.find((s) => s.id === selectedServerId) as McpServer | undefined
     if (!server) return null
     const serverTools = (toolsByServer[selectedServerId] || []) as McpTool[]
     return { server, tools: serverTools }
-  }, [selectedServerId, servers, toolsByServer])
+  })()
 
-  const getStoredToolIssues = useCallback(
-    (serverId: string, toolName: string): { issue: McpToolIssue; workflowName: string }[] => {
-      const relevantStoredTools = storedTools.filter(
-        (st) => st.serverId === serverId && st.toolName === toolName
+  const getStoredToolIssues = (
+    serverId: string,
+    toolName: string
+  ): { issue: McpToolIssue; workflowName: string }[] => {
+    const relevantStoredTools = storedTools.filter(
+      (st) => st.serverId === serverId && st.toolName === toolName
+    )
+
+    const serverStates = servers.map((s) => ({
+      id: s.id,
+      url: s.url,
+      connectionStatus: s.connectionStatus,
+      lastError: s.lastError || undefined,
+    }))
+
+    const discoveredTools = mcpToolsData.map((t) => ({
+      serverId: t.serverId,
+      name: t.name,
+      inputSchema: t.inputSchema,
+    }))
+
+    const issues: { issue: McpToolIssue; workflowName: string }[] = []
+
+    for (const storedTool of relevantStoredTools) {
+      const issue = getMcpToolIssue(
+        {
+          serverId: storedTool.serverId,
+          serverUrl: storedTool.serverUrl,
+          toolName: storedTool.toolName,
+          schema: storedTool.schema,
+        },
+        serverStates,
+        discoveredTools
       )
 
-      const serverStates = servers.map((s) => ({
-        id: s.id,
-        url: s.url,
-        connectionStatus: s.connectionStatus,
-        lastError: s.lastError || undefined,
-      }))
-
-      const discoveredTools = mcpToolsData.map((t) => ({
-        serverId: t.serverId,
-        name: t.name,
-        inputSchema: t.inputSchema,
-      }))
-
-      const issues: { issue: McpToolIssue; workflowName: string }[] = []
-
-      for (const storedTool of relevantStoredTools) {
-        const issue = getMcpToolIssue(
-          {
-            serverId: storedTool.serverId,
-            serverUrl: storedTool.serverUrl,
-            toolName: storedTool.toolName,
-            schema: storedTool.schema,
-          },
-          serverStates,
-          discoveredTools
-        )
-
-        if (issue) {
-          issues.push({ issue, workflowName: storedTool.workflowName })
-        }
+      if (issue) {
+        issues.push({ issue, workflowName: storedTool.workflowName })
       }
+    }
 
-      return issues
-    },
-    [storedTools, servers, mcpToolsData]
-  )
+    return issues
+  }
 
   const error = toolsError || serversError
   const hasServers = servers && servers.length > 0
@@ -420,9 +401,29 @@ export function MCP({ initialServerId }: MCPProps) {
             {server.connectionStatus === 'error' && (
               <div className='flex flex-col gap-2'>
                 <span className='font-medium text-[var(--text-primary)] text-sm'>Status</span>
-                <p className='text-base text-red-500 dark:text-red-400'>
+                <p className='text-[var(--text-error)] text-base'>
                   {server.lastError || 'Unable to connect'}
                 </p>
+              </div>
+            )}
+
+            {server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
+              <div className='flex flex-col gap-2'>
+                <span className='font-medium text-[var(--text-primary)] text-sm'>
+                  Authentication
+                </span>
+                <div>
+                  <Button
+                    variant='primary'
+                    size='sm'
+                    disabled={connectingOauthServers.has(server.id)}
+                    onClick={async () => {
+                      await startOauthForServer(server.id)
+                    }}
+                  >
+                    {connectingOauthServers.has(server.id) ? 'Connecting…' : 'Connect with OAuth'}
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -448,11 +449,12 @@ export function MCP({ initialServerId }: MCPProps) {
                         key={tool.name}
                         className='overflow-hidden rounded-md border bg-[var(--surface-3)]'
                       >
-                        <button
+                        <Button
                           type='button'
+                          variant='ghost'
                           onClick={() => hasParams && toggleToolExpanded(tool.name)}
                           className={cn(
-                            'flex w-full items-start justify-between px-2.5 py-2 text-left',
+                            'flex h-auto w-full items-start justify-between rounded-none px-2.5 py-2 text-left text-sm',
                             hasParams && 'cursor-pointer hover-hover:bg-[var(--surface-4)]'
                           )}
                           disabled={!hasParams}
@@ -489,12 +491,12 @@ export function MCP({ initialServerId }: MCPProps) {
                           {hasParams && (
                             <ChevronDown
                               className={cn(
-                                'mt-0.5 h-[14px] w-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
+                                'mt-0.5 size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
                                 isExpanded && 'rotate-180'
                               )}
                             />
                           )}
-                        </button>
+                        </Button>
 
                         {isExpanded && hasParams && (
                           <div className='border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 py-2'>
@@ -561,25 +563,27 @@ export function MCP({ initialServerId }: MCPProps) {
             <Button
               onClick={() => handleRefreshServer(server.id)}
               variant='default'
-              disabled={!!refreshingServers[server.id]}
+              disabled={refreshingServerId === server.id || refreshedServerId === server.id}
             >
-              {refreshingServers[server.id]?.status === 'refreshing'
+              {refreshingServerId === server.id
                 ? 'Refreshing...'
-                : refreshingServers[server.id]?.status === 'refreshed'
-                  ? refreshingServers[server.id].workflowsUpdated
-                    ? `Synced (${refreshingServers[server.id].workflowsUpdated} workflow${refreshingServers[server.id].workflowsUpdated === 1 ? '' : 's'})`
+                : refreshedServerId === server.id
+                  ? refreshedWorkflowsUpdated
+                    ? `Synced (${refreshedWorkflowsUpdated} workflow${refreshedWorkflowsUpdated === 1 ? '' : 's'})`
                     : 'Refreshed'
                   : 'Refresh Tools'}
             </Button>
-            <Button onClick={() => handleOpenEditModal(server)} variant='default'>
+            <Button onClick={() => setEditingServerId(server.id)} variant='default'>
               Edit
             </Button>
           </div>
         </div>
 
         <McpServerFormModal
-          open={showEditModal}
-          onOpenChange={setShowEditModal}
+          open={editingServerId !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditingServerId(null)
+          }}
           mode='edit'
           initialData={editInitialData}
           onSubmit={async (config) => {
@@ -618,7 +622,7 @@ export function MCP({ initialServerId }: MCPProps) {
             />
           </div>
           <Button onClick={() => setShowAddModal(true)} variant='primary' disabled={serversLoading}>
-            <Plus className='mr-1.5 size-[13px]' />
+            <Plus className='mr-1.5 size-[14px]' />
             Add
           </Button>
         </div>
@@ -626,8 +630,8 @@ export function MCP({ initialServerId }: MCPProps) {
         <div className='min-h-0 flex-1 overflow-y-auto'>
           {error ? (
             <div className='flex h-full flex-col items-center justify-center gap-2'>
-              <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
-                {error instanceof Error ? error.message : 'Failed to load MCP servers'}
+              <p className='text-[var(--text-error)] text-xs leading-tight'>
+                {getErrorMessage(error, 'Failed to load MCP servers')}
               </p>
             </div>
           ) : serversLoading ? (
@@ -654,8 +658,8 @@ export function MCP({ initialServerId }: MCPProps) {
                     tools={tools}
                     isDeleting={deletingServers.has(server.id)}
                     isLoadingTools={isLoadingTools}
-                    isRefreshing={refreshingServers[server.id]?.status === 'refreshing'}
-                    onRemove={() => handleRemoveServer(server.id, server.name || 'this server')}
+                    isRefreshing={refreshingServerId === server.id}
+                    onRemove={() => handleRemoveServer(server.id)}
                     onViewDetails={() => handleViewDetails(server.id)}
                   />
                 )
@@ -675,28 +679,38 @@ export function MCP({ initialServerId }: MCPProps) {
         onOpenChange={setShowAddModal}
         mode='add'
         onSubmit={async (config) => {
-          await createServerMutation.mutateAsync({
+          const result = await createServerMutation.mutateAsync({
             workspaceId,
             config: { ...config, enabled: true },
           })
+          if (result.authType === 'oauth') {
+            await startOauthForServer(result.serverId)
+          }
         }}
         workspaceId={workspaceId}
         availableEnvVars={availableEnvVars}
         allowedMcpDomains={allowedMcpDomains}
       />
 
-      <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <Modal
+        open={showDeleteDialog}
+        onOpenChange={(open) => {
+          if (!open) setServerToDeleteId(null)
+        }}
+      >
         <ModalContent size='sm'>
           <ModalHeader>Delete MCP Server</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{serverToDelete?.name}</span>
+              <span className='font-medium text-[var(--text-primary)]'>
+                {servers.find((s) => s.id === serverToDeleteId)?.name || 'this server'}
+              </span>
               ? This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
-            <Button variant='default' onClick={() => setShowDeleteDialog(false)}>
+            <Button variant='default' onClick={() => setServerToDeleteId(null)}>
               Cancel
             </Button>
             <Button variant='destructive' onClick={confirmDeleteServer}>

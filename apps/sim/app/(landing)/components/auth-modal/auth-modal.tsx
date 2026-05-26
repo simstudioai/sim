@@ -10,6 +10,7 @@ import {
   Modal,
   ModalClose,
   ModalContent,
+  ModalDescription,
   ModalTitle,
   ModalTrigger,
 } from '@/components/emcn'
@@ -134,6 +135,9 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
         <ModalTitle className='sr-only'>
           {view === 'login' ? 'Log in' : 'Create account'}
         </ModalTitle>
+        <ModalDescription className='sr-only'>
+          {view === 'login' ? 'Sign in to your account' : 'Create a new account'}
+        </ModalDescription>
 
         <div className='relative px-6 pt-6 pb-6'>
           <ModalClose className='absolute top-6 right-6 rounded-sm opacity-70 transition-opacity hover:opacity-100'>

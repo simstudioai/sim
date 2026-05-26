@@ -25,6 +25,7 @@ const { queryClient, cacheStore } = vi.hoisted(() => {
           .filter(([k]) => k.startsWith(prefix))
           .map(([k, v]) => [JSON.parse(k), v])
       }),
+      removeQueries: vi.fn(),
     },
   }
 })
@@ -86,6 +87,7 @@ import {
   tableRowsInfiniteOptions,
   tableRowsParamsKey,
   useDeleteColumn,
+  useRestoreTable,
   useUpdateColumn,
 } from '@/hooks/queries/tables'
 
@@ -233,6 +235,45 @@ describe('useUpdateColumn optimistic update', () => {
     )
     expect(rows?.rows[0]?.data).toEqual({ years: 30 })
     expect(rows?.rows[1]?.data).toEqual({ years: 40 })
+  })
+})
+
+describe('useRestoreTable cache invalidation', () => {
+  it('primes the table detail cache and clears stale rows for the restored table', () => {
+    const hook = useRestoreTable()
+    const table = {
+      id: TABLE_ID,
+      name: 'Restored table',
+      schema: { columns: [{ name: 'name', type: 'string' }] },
+      rowCount: 1,
+      maxRows: 100,
+      workspaceId: WORKSPACE_ID,
+      createdBy: 'user-1',
+      archivedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+
+    hook.onSuccess?.({ success: true, data: { table } }, TABLE_ID, undefined)
+
+    expect(getCache(tableKeys.detail(TABLE_ID))).toEqual(table)
+    expect(queryClient.removeQueries).toHaveBeenCalledWith({
+      queryKey: tableKeys.rowsRoot(TABLE_ID),
+    })
+  })
+
+  it('invalidates lists, table detail, and row data for the restored table', () => {
+    const hook = useRestoreTable()
+    hook.onSettled?.(undefined, null, TABLE_ID, undefined)
+
+    const calls = queryClient.invalidateQueries.mock.calls.map((c) => c[0]?.queryKey)
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        tableKeys.lists(),
+        tableKeys.detail(TABLE_ID),
+        tableKeys.rowsRoot(TABLE_ID),
+      ])
+    )
   })
 })
 

@@ -302,6 +302,8 @@ export function createBlockEventHandlers(
     updateConsole(
       data.blockId,
       {
+        blockName: data.blockName,
+        blockType: data.blockType,
         executionOrder: data.executionOrder,
         input: data.input || {},
         replaceOutput: data.output,
@@ -320,6 +322,8 @@ export function createBlockEventHandlers(
     updateConsole(
       data.blockId,
       {
+        blockName: data.blockName,
+        blockType: data.blockType,
         executionOrder: data.executionOrder,
         input: data.input || {},
         replaceOutput: {},
@@ -493,6 +497,8 @@ export function reconcileFinalBlockLogs(
         log.blockId,
         {
           executionOrder: log.executionOrder,
+          blockName: log.blockName,
+          blockType: log.blockType,
           replaceOutput: (log.output ?? {}) as Record<string, unknown>,
           ...(log.input ? { input: log.input } : {}),
           success: log.success,
@@ -576,6 +582,8 @@ function spanConsoleIdentity(span: TraceSpan, childWorkflowInstanceId: string): 
   const iterationContainerId = span.loopId ?? span.parallelId
   const iterationType = span.loopId ? 'loop' : span.parallelId ? 'parallel' : undefined
   return {
+    blockName: span.name,
+    blockType: span.type,
     ...(span.executionOrder !== undefined && { executionOrder: span.executionOrder }),
     ...(span.iterationIndex !== undefined && { iterationCurrent: span.iterationIndex }),
     ...(iterationType !== undefined && { iterationType }),
@@ -903,6 +911,7 @@ export async function executeWorkflowWithFullLogging(
     triggerType: options.overrideTriggerType || 'manual',
     useDraftState: options.useDraftState ?? true,
     isClientSession: true,
+    ...(options.executionId ? { executionId: options.executionId } : {}),
     ...(options.triggerBlockId ? { triggerBlockId: options.triggerBlockId } : {}),
     ...(options.stopAfterBlockId ? { stopAfterBlockId: options.stopAfterBlockId } : {}),
     ...(options.runFromBlock

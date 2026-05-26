@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Info } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -12,6 +13,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Skeleton,
@@ -502,7 +504,7 @@ export function Subscription() {
           ...(seats ? { seats } : {}),
         })
       } catch (error) {
-        alert(error instanceof Error ? error.message : 'Unknown error occurred')
+        alert(getErrorMessage(error, 'Unknown error occurred'))
       }
     },
     [handleUpgrade, isAnnual]
@@ -734,9 +736,7 @@ export function Subscription() {
                               handleSwitchInterval(isAnnual ? 'year' : 'month')
                                 .then(() => setManagePlanModalOpen(false))
                                 .catch((e) =>
-                                  alert(
-                                    e instanceof Error ? e.message : 'Failed to switch interval'
-                                  )
+                                  alert(getErrorMessage(e, 'Failed to switch interval'))
                                 )
                           : () => doUpgrade('pro', PRO_TIER.credits)
                     }
@@ -771,7 +771,7 @@ export function Subscription() {
                       : isOnMaxTier && wantsIntervalSwitch
                         ? () =>
                             handleSwitchInterval(isAnnual ? 'year' : 'month').catch((e) =>
-                              alert(e instanceof Error ? e.message : 'Failed to switch interval')
+                              alert(getErrorMessage(e, 'Failed to switch interval'))
                             )
                         : subscription.isPaid
                           ? async () => {
@@ -785,7 +785,7 @@ export function Subscription() {
                                 })
                                 await refetchSubscription()
                               } catch (e) {
-                                alert(e instanceof Error ? e.message : 'Failed to upgrade')
+                                alert(getErrorMessage(e, 'Failed to upgrade'))
                               }
                             }
                           : () => doUpgrade('pro', MAX_TIER.credits)
@@ -861,7 +861,7 @@ export function Subscription() {
             await refetchSubscription()
             setManagePlanModalOpen(false)
           } catch (e) {
-            alert(e instanceof Error ? e.message : 'Failed to switch plan')
+            alert(getErrorMessage(e, 'Failed to switch plan'))
           }
         }}
         onUpgradeToCurrentTier={async () => {
@@ -878,7 +878,7 @@ export function Subscription() {
             await refetchSubscription()
             setManagePlanModalOpen(false)
           } catch (e) {
-            alert(e instanceof Error ? e.message : 'Failed to migrate plan')
+            alert(getErrorMessage(e, 'Failed to migrate plan'))
           }
         }}
         onGetForTeam={() => {
@@ -910,7 +910,7 @@ export function Subscription() {
             await betterAuthSubscription.cancel({ returnUrl, referenceId })
           } catch (e) {
             logger.error('Failed to cancel subscription', { error: e })
-            alert(e instanceof Error ? e.message : 'Failed to cancel subscription')
+            alert(getErrorMessage(e, 'Failed to cancel subscription'))
           }
         }}
         onRestore={async () => {
@@ -932,7 +932,7 @@ export function Subscription() {
             setManagePlanModalOpen(false)
           } catch (e) {
             logger.error('Failed to restore subscription', { error: e })
-            alert(e instanceof Error ? e.message : 'Failed to restore subscription')
+            alert(getErrorMessage(e, 'Failed to restore subscription'))
           }
         }}
       />
@@ -1147,9 +1147,9 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
       <ModalContent size='sm'>
         <ModalHeader>Get For Team</ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
+          <ModalDescription className='text-[var(--text-secondary)]'>
             Choose a plan and number of seats for your team. Credits are pooled across all members.
-          </p>
+          </ModalDescription>
 
           {/* Plan toggle */}
           <div className='mt-4 flex flex-col gap-1'>
@@ -1305,7 +1305,7 @@ function ManagePlanModal({
     try {
       await onSwitchInterval(targetInterval)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to switch interval')
+      setError(getErrorMessage(e, 'Failed to switch interval'))
     } finally {
       setIsSwitching(false)
     }
@@ -1360,7 +1360,7 @@ function ManagePlanModal({
           Manage {currentTier.name} Plan{isTeamPlan ? ' (Team)' : ''}
         </ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
+          <ModalDescription className='text-[var(--text-secondary)]'>
             You're on the{' '}
             <span className='font-medium text-[var(--text-primary)]'>{currentTier.name}</span> plan
             {isTeamPlan ? ' for your team' : ''}, billed{' '}
@@ -1368,7 +1368,7 @@ function ManagePlanModal({
               ? `$${currentPlanDollars}/mo${perUnit}`
               : `$${actualAnnualTotal}/yr${perUnit} ($${actualDiscountedMonthly}/mo${perUnit})`}
             .
-          </p>
+          </ModalDescription>
 
           {isLegacyPlan && (
             <Badge variant='amber' size='lg' dot className='mt-2'>

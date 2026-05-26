@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { EVALUATOR } from '@/executor/constants'
 
 const logger = createLogger('JSONUtils')
@@ -19,7 +20,7 @@ export function parseJSONOrThrow(value: string): any {
   try {
     return JSON.parse(value.trim())
   } catch (error) {
-    throw new Error(`Invalid JSON: ${error instanceof Error ? error.message : 'Parse error'}`)
+    throw new Error(`Invalid JSON: ${getErrorMessage(error, 'Parse error')}`)
   }
 }
 

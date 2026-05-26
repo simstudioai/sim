@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { userTableRows } from '@sim/db/schema'
+import { tableRowExecutions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   type BatchInsertTableRowsBodyInput,
@@ -17,7 +17,14 @@ import { isZodError, validationErrorResponse } from '@/lib/api/server/validation
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { Filter, RowData, Sort, TableSchema } from '@/lib/table'
+import type {
+  Filter,
+  RowData,
+  RowExecutionMetadata,
+  RowExecutions,
+  Sort,
+  TableSchema,
+} from '@/lib/table'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -266,8 +273,14 @@ export const GET = withRouteHandler(
         eq(userTableRows.workspaceId, validated.workspaceId),
       ]
 
+      const schema = table.schema as TableSchema
+
       if (validated.filter) {
-        const filterClause = buildFilterClause(validated.filter as Filter, USER_TABLE_ROWS_SQL_NAME)
+        const filterClause = buildFilterClause(
+          validated.filter as Filter,
+          USER_TABLE_ROWS_SQL_NAME,
+          schema.columns
+        )
         if (filterClause) {
           baseConditions.push(filterClause)
         }
@@ -277,7 +290,6 @@ export const GET = withRouteHandler(
         .select({
           id: userTableRows.id,
           data: userTableRows.data,
-          executions: userTableRows.executions,
           position: userTableRows.position,
           createdAt: userTableRows.createdAt,
           updatedAt: userTableRows.updatedAt,
@@ -286,7 +298,6 @@ export const GET = withRouteHandler(
         .where(and(...baseConditions))
 
       if (validated.sort) {
-        const schema = table.schema as TableSchema
         const sortClause = buildSortClause(validated.sort, USER_TABLE_ROWS_SQL_NAME, schema.columns)
         if (sortClause) {
           query = query.orderBy(sortClause) as typeof query
@@ -308,6 +319,41 @@ export const GET = withRouteHandler(
 
       const rows = await query.limit(validated.limit).offset(validated.offset)
 
+      // Sidecar: fetch per-(row, group) execution state and group into a map
+      // so the response preserves the legacy `row.executions[groupId]` wire
+      // shape. One indexed-IN scan against table_row_executions.
+      const executionsByRow = new Map<string, RowExecutions>()
+      if (rows.length > 0) {
+        const execRows = await db
+          .select()
+          .from(tableRowExecutions)
+          .where(
+            inArray(
+              tableRowExecutions.rowId,
+              rows.map((r) => r.id)
+            )
+          )
+        for (const e of execRows) {
+          const existing = executionsByRow.get(e.rowId) ?? {}
+          const meta: RowExecutionMetadata = {
+            status: e.status as RowExecutionMetadata['status'],
+            executionId: e.executionId ?? null,
+            jobId: e.jobId ?? null,
+            workflowId: e.workflowId,
+            error: e.error ?? null,
+            ...(e.runningBlockIds && e.runningBlockIds.length > 0
+              ? { runningBlockIds: e.runningBlockIds }
+              : {}),
+            ...(e.blockErrors && Object.keys(e.blockErrors as Record<string, string>).length > 0
+              ? { blockErrors: e.blockErrors as Record<string, string> }
+              : {}),
+            ...(e.cancelledAt ? { cancelledAt: e.cancelledAt.toISOString() } : {}),
+          }
+          existing[e.groupId] = meta
+          executionsByRow.set(e.rowId, existing)
+        }
+      }
+
       logger.info(
         `[${requestId}] Queried ${rows.length} rows from table ${tableId} (total: ${totalCount ?? 'n/a'})`
       )
@@ -318,7 +364,7 @@ export const GET = withRouteHandler(
           rows: rows.map((r) => ({
             id: r.id,
             data: r.data,
-            executions: r.executions ?? {},
+            executions: executionsByRow.get(r.id) ?? {},
             position: r.position,
             createdAt:
               r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
@@ -388,14 +434,12 @@ export const PUT = withRouteHandler(
       }
 
       const result = await updateRowsByFilter(
+        table,
         {
-          tableId,
           filter: validated.filter as Filter,
           data: validated.data as RowData,
           limit: validated.limit,
-          workspaceId: validated.workspaceId,
         },
-        table,
         requestId
       )
 
@@ -503,11 +547,10 @@ export const DELETE = withRouteHandler(
       }
 
       const result = await deleteRowsByFilter(
+        table,
         {
-          tableId,
           filter: validated.filter as Filter,
           limit: validated.limit,
-          workspaceId: validated.workspaceId,
         },
         requestId
       )

@@ -12,7 +12,6 @@ import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
   createErrorResponse,
-  createOptionsResponse,
   createSuccessResponse,
   extractFilename,
   FileNotFoundError,
@@ -119,10 +118,3 @@ function extractStorageKeyFromPath(filePath: string): string {
 
   return extractFilename(filePath)
 }
-
-/**
- * Handle CORS preflight requests
- */
-export const OPTIONS = withRouteHandler(async () => {
-  return createOptionsResponse()
-})

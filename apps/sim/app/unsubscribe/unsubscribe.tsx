@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useSearchParams } from 'next/navigation'
 import { Loader } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
@@ -34,7 +35,7 @@ function UnsubscribeContent() {
         setData(response)
       })
       .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : 'Failed to validate unsubscribe link'
+        const message = getErrorMessage(err, 'Failed to validate unsubscribe link')
         setError(message)
       })
       .finally(() => {
@@ -80,7 +81,7 @@ function UnsubscribeContent() {
         }
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to process unsubscribe request'
+      const message = getErrorMessage(err, 'Failed to process unsubscribe request')
       setError(message)
     } finally {
       setProcessing(false)

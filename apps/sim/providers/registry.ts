@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { anthropicProvider } from '@/providers/anthropic'
 import { azureAnthropicProvider } from '@/providers/azure-anthropic'
 import { azureOpenAIProvider } from '@/providers/azure-openai'
@@ -8,6 +9,7 @@ import { deepseekProvider } from '@/providers/deepseek'
 import { fireworksProvider } from '@/providers/fireworks'
 import { googleProvider } from '@/providers/google'
 import { groqProvider } from '@/providers/groq'
+import { litellmProvider } from '@/providers/litellm'
 import { mistralProvider } from '@/providers/mistral'
 import { ollamaProvider } from '@/providers/ollama'
 import { openaiProvider } from '@/providers/openai'
@@ -30,6 +32,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   cerebras: cerebrasProvider,
   groq: groqProvider,
   vllm: vllmProvider,
+  litellm: litellmProvider,
   mistral: mistralProvider,
   'azure-openai': azureOpenAIProvider,
   openrouter: openRouterProvider,
@@ -57,7 +60,7 @@ export async function initializeProviders(): Promise<void> {
         logger.info(`Initialized provider: ${id}`)
       } catch (error) {
         logger.error(`Failed to initialize ${id} provider`, {
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: getErrorMessage(error, 'Unknown error'),
         })
       }
     }

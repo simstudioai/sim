@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   INTROSPECT_TABLE_OUTPUT_PROPERTIES,
   type SupabaseColumnSchema,
@@ -435,7 +436,7 @@ export const introspectTool: ToolConfig<SupabaseIntrospectParams, SupabaseIntros
       }
     } catch (error) {
       logger.error('Supabase introspection failed', { error })
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      const errorMessage = getErrorMessage(error, 'Unknown error occurred')
       return {
         success: false,
         output: {

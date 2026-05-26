@@ -1,4 +1,5 @@
 import { createLogger, runWithRequestContext } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -33,7 +34,7 @@ export function withRouteHandler<T>(handler: RouteHandler<T>): RouteHandler<T> {
         response = await handler(request, context)
       } catch (error) {
         const duration = Date.now() - startTime
-        const message = error instanceof Error ? error.message : 'Unknown error'
+        const message = getErrorMessage(error, 'Unknown error')
         logger.error('Unhandled route error', { duration, error: message })
         response = NextResponse.json({ error: 'Internal server error', requestId }, { status: 500 })
         response?.headers?.set('x-request-id', requestId)

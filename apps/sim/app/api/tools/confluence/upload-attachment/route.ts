@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { confluenceUploadAttachmentContract } from '@/lib/api/contracts/selectors/confluence'
 import { parseRequest } from '@/lib/api/server'
@@ -7,6 +8,7 @@ import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processSingleFileToUserFile, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
@@ -75,10 +77,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userFile = processSingleFileToUserFile(fileToProcess, 'confluence-upload', logger)
     } catch (error) {
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to process file' },
+        { error: getErrorMessage(error, 'Failed to process file') },
         { status: 400 }
       )
     }
+
+    const denied = await assertToolFileAccess(
+      userFile.key,
+      auth.userId,
+      'confluence-upload',
+      logger
+    )
+    if (denied) return denied
 
     let fileBuffer: Buffer
     try {
@@ -87,7 +97,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       logger.error('Failed to download file from storage:', error)
       return NextResponse.json(
         {
-          error: `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          error: `Failed to download file: ${getErrorMessage(error, 'Unknown error')}`,
         },
         { status: 500 }
       )

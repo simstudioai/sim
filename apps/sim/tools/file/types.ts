@@ -1,10 +1,11 @@
 import type { UserFile } from '@/executor/types'
-import type { ToolResponse } from '@/tools/types'
+import type { TableRow, ToolResponse } from '@/tools/types'
 
 export interface FileParserInput {
   filePath?: string | string[]
   file?: UserFile | UserFile[] | FileUploadInput | FileUploadInput[]
   fileType?: string
+  headers?: TableRow[] | Record<string, unknown> | string | null
   workspaceId?: string
   workflowId?: string
   executionId?: string

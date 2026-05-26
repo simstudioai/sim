@@ -59,10 +59,7 @@ export const intercomHandler: WebhookProviderHandler = {
     }
 
     if (!validateIntercomSignature(secret, signature, rawBody)) {
-      logger.warn(`[${requestId}] Intercom signature verification failed`, {
-        signatureLength: signature.length,
-        secretLength: secret.length,
-      })
+      logger.warn(`[${requestId}] Intercom signature verification failed`)
       return new NextResponse('Unauthorized - Invalid Intercom signature', { status: 401 })
     }
 

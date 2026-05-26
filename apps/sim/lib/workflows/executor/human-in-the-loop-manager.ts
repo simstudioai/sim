@@ -13,9 +13,14 @@ import {
   resetExecutionStreamBuffer,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
+import {
+  collectLargeValueReferenceKeys,
+  replaceLargeValueReferenceKeysWithClient,
+} from '@/lib/execution/payloads/large-value-metadata'
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -97,6 +102,21 @@ export function updateResumeOutputInAggregationBuffers(
       }
     }
   }
+}
+
+function parseSnapshotForReferenceTracking(snapshotSeed: SerializedSnapshot): unknown {
+  try {
+    return { ...snapshotSeed, snapshot: JSON.parse(snapshotSeed.snapshot) }
+  } catch {
+    return snapshotSeed
+  }
+}
+
+function getSnapshotWorkspaceId(snapshotValue: unknown): string | undefined {
+  if (!isRecord(snapshotValue)) return undefined
+  const metadata = snapshotValue.metadata
+  if (!isRecord(metadata)) return undefined
+  return typeof metadata.workspaceId === 'string' ? metadata.workspaceId : undefined
 }
 
 function isResumablePausedStatus(status: string): boolean {
@@ -220,6 +240,13 @@ export function computeEarliestResumeAt(
 export class PauseResumeManager {
   static async persistPauseResult(args: PersistPauseResultArgs): Promise<void> {
     const { workflowId, executionId, pausePoints, snapshotSeed, executorUserId } = args
+    const snapshotReferenceValue = parseSnapshotForReferenceTracking(snapshotSeed)
+    const snapshotWorkspaceId = getSnapshotWorkspaceId(
+      isRecord(snapshotReferenceValue) ? snapshotReferenceValue.snapshot : undefined
+    )
+    const snapshotReferenceKeys = snapshotWorkspaceId
+      ? collectLargeValueReferenceKeys(snapshotReferenceValue, snapshotWorkspaceId)
+      : []
 
     const pausePointsRecord = pausePoints.reduce<Record<string, any>>((acc, point) => {
       acc[point.contextId] = {
@@ -271,6 +298,18 @@ export class PauseResumeManager {
           updatedAt: now,
           nextResumeAt,
         })
+        if (snapshotWorkspaceId) {
+          await replaceLargeValueReferenceKeysWithClient(
+            tx,
+            {
+              workspaceId: snapshotWorkspaceId,
+              workflowId,
+              executionId,
+              source: 'paused_snapshot',
+            },
+            snapshotReferenceKeys
+          )
+        }
         return
       }
 
@@ -315,6 +354,19 @@ export class PauseResumeManager {
           nextResumeAt: mergedNextResumeAt,
         })
         .where(eq(pausedExecutions.id, existing.id))
+
+      if (snapshotWorkspaceId) {
+        await replaceLargeValueReferenceKeysWithClient(
+          tx,
+          {
+            workspaceId: snapshotWorkspaceId,
+            workflowId,
+            executionId,
+            source: 'paused_snapshot',
+          },
+          snapshotReferenceKeys
+        )
+      }
     })
 
     await PauseResumeManager.processQueuedResumes(executionId, workflowId)
@@ -496,7 +548,9 @@ export class PauseResumeManager {
           })
           await LoggingSession.markExecutionAsFailed(
             effectiveExecutionId,
-            'Missing snapshot seed for paused execution'
+            'Missing snapshot seed for paused execution',
+            undefined,
+            pausedExecution.workflowId
           )
         } else {
           try {
@@ -514,7 +568,9 @@ export class PauseResumeManager {
             })
             await LoggingSession.markExecutionAsFailed(
               effectiveExecutionId,
-              `Failed to persist pause state: ${toError(pauseError).message}`
+              `Failed to persist pause state: ${toError(pauseError).message}`,
+              undefined,
+              pausedExecution.workflowId
             )
           }
         }
@@ -1418,6 +1474,7 @@ export class PauseResumeManager {
           })
         })
       }
+      void cleanupExecutionBase64Cache(resumeExecutionId)
     }
 
     if (executionError || !result) {
@@ -1449,7 +1506,7 @@ export class PauseResumeManager {
       await tx
         .update(pausedExecutions)
         .set({
-          pausePoints: sql`jsonb_set(jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"resumed"'::jsonb), ARRAY[${contextId}, 'resumedAt'], '"${sql.raw(now.toISOString())}"'::jsonb)`,
+          pausePoints: sql`jsonb_set(jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"resumed"'::jsonb), ARRAY[${contextId}, 'resumedAt'], ${JSON.stringify(now.toISOString())}::jsonb)`,
           resumedCount: sql`resumed_count + 1`,
           status: sql`CASE WHEN status = 'cancelling' THEN 'cancelling' WHEN resumed_count + 1 >= total_pause_count THEN 'fully_resumed' ELSE 'partially_resumed' END`,
           updatedAt: now,
@@ -1621,14 +1678,34 @@ export class PauseResumeManager {
       snapshot: JSON.stringify(snapshotData),
       triggerIds: currentSnapshot.triggerIds,
     }
+    const snapshotWorkspaceId = getSnapshotWorkspaceId(snapshotData)
+    const snapshotReferenceValue = { ...updatedSnapshot, snapshot: snapshotData }
+    const snapshotReferenceKeys = snapshotWorkspaceId
+      ? collectLargeValueReferenceKeys(snapshotReferenceValue, snapshotWorkspaceId)
+      : []
 
-    await db
-      .update(pausedExecutions)
-      .set({
-        executionSnapshot: updatedSnapshot,
-        updatedAt: new Date(),
-      })
-      .where(eq(pausedExecutions.id, pausedExecutionId))
+    await db.transaction(async (tx) => {
+      await tx
+        .update(pausedExecutions)
+        .set({
+          executionSnapshot: updatedSnapshot,
+          updatedAt: new Date(),
+        })
+        .where(eq(pausedExecutions.id, pausedExecutionId))
+
+      if (snapshotWorkspaceId) {
+        await replaceLargeValueReferenceKeysWithClient(
+          tx,
+          {
+            workspaceId: snapshotWorkspaceId,
+            workflowId: pausedExecution.workflowId,
+            executionId: pausedExecution.executionId,
+            source: 'paused_snapshot',
+          },
+          snapshotReferenceKeys
+        )
+      }
+    })
 
     logger.info('Updated snapshot after resume', {
       pausedExecutionId,
@@ -1825,9 +1902,11 @@ export class PauseResumeManager {
   }
 
   /**
-   * Updates `next_resume_at` only when the row is still `status='paused'`.
+   * Updates `next_resume_at` only when the row is still in a poll-eligible state.
    * Guard prevents the cron poller from clobbering a freshly-written value when a
-   * concurrent manual resume has already advanced the row's state.
+   * concurrent manual resume has already advanced the row's state. `partially_resumed`
+   * rows must also be writable so the cron poller can null out their `nextResumeAt`
+   * after dispatch; otherwise the row keeps reappearing in every poll batch.
    */
   static async setNextResumeAt(args: {
     pausedExecutionId: string
@@ -1837,7 +1916,10 @@ export class PauseResumeManager {
       .update(pausedExecutions)
       .set({ nextResumeAt: args.nextResumeAt })
       .where(
-        and(eq(pausedExecutions.id, args.pausedExecutionId), eq(pausedExecutions.status, 'paused'))
+        and(
+          eq(pausedExecutions.id, args.pausedExecutionId),
+          inArray(pausedExecutions.status, ['paused', 'partially_resumed'])
+        )
       )
   }
 

@@ -265,6 +265,8 @@ interface ExecutionMetadata {
   context?: ExecutionContext
   workflowConnections?: Array<{ source: string; target: string }>
   credentialAccountUserId?: string
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   status?: 'running' | 'paused' | 'completed'
   pausePoints?: string[]
   resumeChain?: {
@@ -291,6 +293,8 @@ export interface ExecutionContext {
   workspaceId?: string
   executionId?: string
   largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
   isDeployedContext?: boolean

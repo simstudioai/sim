@@ -34,6 +34,12 @@ import {
   googleTasksTaskListsSelectorContract,
 } from '@/lib/api/contracts/selectors/google'
 import {
+  hubspotListsSelectorContract,
+  hubspotOwnersSelectorContract,
+  hubspotPipelinesSelectorContract,
+  hubspotPropertiesSelectorContract,
+} from '@/lib/api/contracts/selectors/hubspot'
+import {
   jiraIssueSelectorContract,
   jiraIssuesSelectorContract,
   jiraProjectSelectorContract,
@@ -104,6 +110,7 @@ export * from '@/lib/api/contracts/selectors/calcom'
 export * from '@/lib/api/contracts/selectors/cloudwatch'
 export * from '@/lib/api/contracts/selectors/confluence'
 export * from '@/lib/api/contracts/selectors/google'
+export * from '@/lib/api/contracts/selectors/hubspot'
 export * from '@/lib/api/contracts/selectors/jira'
 export * from '@/lib/api/contracts/selectors/jsm'
 export * from '@/lib/api/contracts/selectors/knowledge'
@@ -149,6 +156,10 @@ export const selectorContractsByPath = {
   '/api/tools/slack/users:detail': slackUserSelectorContract,
   '/api/tools/gmail/labels': gmailLabelsSelectorContract,
   '/api/tools/gmail/label': gmailLabelSelectorContract,
+  '/api/tools/hubspot/properties': hubspotPropertiesSelectorContract,
+  '/api/tools/hubspot/lists': hubspotListsSelectorContract,
+  '/api/tools/hubspot/pipelines': hubspotPipelinesSelectorContract,
+  '/api/tools/hubspot/owners': hubspotOwnersSelectorContract,
   '/api/tools/outlook/folders': outlookFoldersSelectorContract,
   '/api/tools/google_calendar/calendars': googleCalendarSelectorContract,
   '/api/tools/microsoft-teams/teams': microsoftTeamsSelectorContract,

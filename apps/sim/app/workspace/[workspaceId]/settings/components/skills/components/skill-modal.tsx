@@ -10,6 +10,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
@@ -239,7 +240,12 @@ export function SkillModal({
         {isEditing ? (
           <>
             <ModalHeader>Edit Skill</ModalHeader>
-            <ModalBody>{createForm}</ModalBody>
+            <ModalBody>
+              <ModalDescription className='sr-only'>
+                Edit an existing skill definition.
+              </ModalDescription>
+              {createForm}
+            </ModalBody>
             {footer}
           </>
         ) : (
@@ -255,6 +261,9 @@ export function SkillModal({
                 <ModalTabsTrigger value='import'>Import</ModalTabsTrigger>
               </ModalTabsList>
               <ModalBody>
+                <ModalDescription className='sr-only'>
+                  Create a new skill or import one from a file.
+                </ModalDescription>
                 <ModalTabsContent value='create'>{createForm}</ModalTabsContent>
                 <ModalTabsContent value='import'>
                   <SkillImport onImport={handleImport} />

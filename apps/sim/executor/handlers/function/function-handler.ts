@@ -5,6 +5,7 @@ import {
 } from '@/lib/core/utils/records'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
+import { mergeFileKeys, mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
@@ -69,6 +70,8 @@ export class FunctionBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
         executionId: ctx.executionId,
         largeValueExecutionIds: ctx.largeValueExecutionIds,
+        largeValueKeys: ctx.largeValueKeys,
+        fileKeys: ctx.fileKeys,
         allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
         userId: ctx.userId,
         isDeployedContext: ctx.isDeployedContext,
@@ -76,11 +79,14 @@ export class FunctionBlockHandler implements BlockHandler {
       },
     }
 
-    const result = await executeTool('function_execute', toolParams, false, ctx)
+    const result = await executeTool('function_execute', toolParams, { executionContext: ctx })
 
     if (!result.success) {
       throw new Error(result.error || 'Function execution failed')
     }
+
+    mergeLargeValueKeys(ctx, result.largeValueKeys ?? [])
+    mergeFileKeys(ctx, result.fileKeys ?? [])
 
     return result.output
   }

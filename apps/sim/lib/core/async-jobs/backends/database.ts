@@ -1,7 +1,7 @@
 import { asyncJobs, db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
+import { generateShortId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import {
   type EnqueueOptions,
@@ -37,7 +37,16 @@ function rowToJob(row: AsyncJobRow): Job {
 
 const inlineAbortControllers = new Map<string, AbortController>()
 
+/**
+ * Per-cancel-key abort controllers for the `batchEnqueueAndWait` direct-call
+ * path. Distinct from `inlineAbortControllers` (which keys by jobId) — this
+ * map keys by the domain `cancelKey` callers pass in, since the await-blocking
+ * path skips `async_jobs` entirely and has no jobId to cancel by.
+ */
+const inlineCancelKeyControllers = new Map<string, AbortController>()
+
 interface Semaphore {
+  limit: number
   available: number
   waiters: Array<() => void>
 }
@@ -46,7 +55,7 @@ const semaphores = new Map<string, Semaphore>()
 async function acquireSlot(key: string, limit: number): Promise<void> {
   let s = semaphores.get(key)
   if (!s) {
-    s = { available: limit, waiters: [] }
+    s = { limit, available: limit, waiters: [] }
     semaphores.set(key, s)
   }
   if (s.available > 0) {
@@ -65,6 +74,9 @@ function releaseSlot(key: string): void {
     return
   }
   s.available += 1
+  if (s.available === s.limit) {
+    semaphores.delete(key)
+  }
 }
 
 export class DatabaseJobQueue implements JobQueueBackend {
@@ -73,7 +85,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
     payload: TPayload,
     options?: EnqueueOptions
   ): Promise<string> {
-    const jobId = options?.jobId ?? `run_${generateId().replace(/-/g, '').slice(0, 20)}`
+    const jobId = options?.jobId ?? `run_${generateShortId(20)}`
     const now = new Date()
 
     await db
@@ -112,7 +124,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
     if (items.length === 0) return []
     const now = new Date()
     const rows = items.map(({ payload, options }) => ({
-      id: `run_${generateId().replace(/-/g, '').slice(0, 20)}`,
+      id: `run_${generateShortId(20)}`,
       type,
       payload: payload as Record<string, unknown>,
       status: JOB_STATUS.PENDING,
@@ -142,6 +154,44 @@ export class DatabaseJobQueue implements JobQueueBackend {
     }
 
     return rows.map((r) => r.id)
+  }
+
+  /** Skips `async_jobs` entirely — ids are returned empty since callers can't
+   *  look up rows that don't exist. Cancel goes through `cancelByKey`. */
+  async batchEnqueueAndWait<TPayload>(
+    type: JobType,
+    items: Array<{ payload: TPayload; options?: EnqueueOptions }>
+  ): Promise<string[]> {
+    if (items.length === 0) return []
+    const tracked: Array<{ key: string; controller: AbortController }> = []
+    const runs = items.map((item) => {
+      const runner = item.options?.runner
+      if (!runner) return Promise.resolve()
+      const controller = new AbortController()
+      const cancelKey = item.options?.cancelKey
+      if (cancelKey) {
+        inlineCancelKeyControllers.set(cancelKey, controller)
+        tracked.push({ key: cancelKey, controller })
+      }
+      return runner(item.payload, controller.signal).catch((err) => {
+        logger.error(`[${type}] Inline run failed`, {
+          cancelKey,
+          error: toError(err).message,
+        })
+      })
+    })
+    try {
+      await Promise.all(runs)
+    } finally {
+      // Compare-and-delete guards against a re-enqueue under the same key
+      // racing with our cleanup.
+      for (const t of tracked) {
+        if (inlineCancelKeyControllers.get(t.key) === t.controller) {
+          inlineCancelKeyControllers.delete(t.key)
+        }
+      }
+    }
+    return items.map(() => '')
   }
 
   async getJob(jobId: string): Promise<Job | null> {
@@ -222,6 +272,14 @@ export class DatabaseJobQueue implements JobQueueBackend {
       .where(eq(asyncJobs.id, jobId))
 
     logger.debug('Marked job as cancelled (DB queue)', { jobId, abortedInline: aborted })
+  }
+
+  cancelByKey(cancelKey: string): boolean {
+    const controller = inlineCancelKeyControllers.get(cancelKey)
+    if (!controller) return false
+    controller.abort('Cancelled')
+    inlineCancelKeyControllers.delete(cancelKey)
+    return true
   }
 
   /**

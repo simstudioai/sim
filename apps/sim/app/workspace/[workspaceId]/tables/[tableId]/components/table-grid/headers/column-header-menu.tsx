@@ -89,12 +89,12 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     ? workflows?.find((w) => w.id === ownGroup.workflowId)
     : undefined
   // Workflow-output column with siblings → "Hide column" (non-destructive,
-  // re-addable from sidebar). Last output of a group → "Delete workflow"
+  // re-addable from sidebar). Last output of a group → "Delete column"
   // (removes the entire group). Plain column → undefined (default "Delete column").
   const deleteLabel = ownGroup
     ? ownGroup.outputs.length > 1
       ? 'Hide column'
-      : 'Delete workflow'
+      : 'Delete column'
     : undefined
   useEffect(() => {
     if (isRenaming && renameInputRef.current) {

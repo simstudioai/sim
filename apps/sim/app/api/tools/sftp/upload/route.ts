@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sftpUploadContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
@@ -27,7 +28,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized SFTP upload attempt: ${authResult.error}`)
       return NextResponse.json(
         { success: false, error: authResult.error || 'Authentication required' },
@@ -143,9 +144,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           } catch (error) {
             logger.error(`[${requestId}] Failed to upload file ${file.name}:`, error)
             throw new Error(
-              `Failed to upload file "${file.name}": ${
-                error instanceof Error ? error.message : 'Unknown error'
-              }`
+              `Failed to upload file "${file.name}": ${getErrorMessage(error, 'Unknown error')}`
             )
           }
         }
@@ -210,7 +209,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.end()
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] SFTP upload failed:`, error)
 
     return NextResponse.json({ error: `SFTP upload failed: ${errorMessage}` }, { status: 500 })

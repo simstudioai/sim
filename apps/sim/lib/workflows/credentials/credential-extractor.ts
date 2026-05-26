@@ -238,7 +238,7 @@ export function sanitizeWorkflowForSharing(
     preserveEnvVars?: boolean // Keep {{VAR}} references for export
   } = {}
 ): SanitizedWorkflowState {
-  const sanitized = JSON.parse(JSON.stringify(state)) as SanitizedWorkflowState // Deep clone
+  const sanitized = structuredClone(state) as SanitizedWorkflowState
 
   if (!sanitized?.blocks) {
     return sanitized

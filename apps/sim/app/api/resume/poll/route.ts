@@ -3,7 +3,7 @@ import { pausedExecutions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, asc, eq, isNotNull, lte } from 'drizzle-orm'
+import { and, asc, inArray, isNotNull, lte } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
@@ -62,7 +62,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .from(pausedExecutions)
       .where(
         and(
-          eq(pausedExecutions.status, 'paused'),
+          // 'partially_resumed' rows occur when a chained-pause workflow advanced past
+          // an earlier wait — e.g. wait1 → agent → wait2 — and now wait2's time pause
+          // is the one waiting for the cron. Include it alongside fresh 'paused' rows.
+          inArray(pausedExecutions.status, ['paused', 'partially_resumed']),
           isNotNull(pausedExecutions.nextResumeAt),
           lte(pausedExecutions.nextResumeAt, now)
         )
@@ -136,13 +139,21 @@ async function dispatchRow(row: DueRow, now: Date): Promise<RowResult> {
       })
 
       if (enqueueResult.status === 'starting') {
-        PauseResumeManager.startResumeExecution({
+        // Route through `executeResumeJob` (not `PauseResumeManager.startResumeExecution`
+        // directly) so cell-context restoration + cascade-loop continuation
+        // fires. This is the same primitive the trigger.dev `resumeExecutionTask`
+        // wraps — calling it directly handles both trigger.dev-disabled local
+        // dev and trigger.dev-enabled prod identically.
+        const { executeResumeJob } = await import('@/background/resume-execution')
+        void executeResumeJob({
           resumeEntryId: enqueueResult.resumeEntryId,
           resumeExecutionId: enqueueResult.resumeExecutionId,
-          pausedExecution: enqueueResult.pausedExecution,
+          pausedExecutionId: enqueueResult.pausedExecution.id,
           contextId: enqueueResult.contextId,
           resumeInput: enqueueResult.resumeInput,
           userId: enqueueResult.userId,
+          workflowId: row.workflowId,
+          parentExecutionId: row.executionId,
         }).catch((error) => {
           logger.error('Background time-pause resume failed', {
             executionId: row.executionId,

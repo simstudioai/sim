@@ -367,7 +367,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const table = await getTableById(args.tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
 
@@ -418,7 +418,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const table = await getTableById(args.tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
 
@@ -474,10 +474,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
+          const table = await getTableById(args.tableId)
+          if (!table || table.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+
           const requestId = generateId().slice(0, 8)
           const result = await queryRows(
-            args.tableId,
-            workspaceId,
+            table,
             {
               filter: args.filter,
               sort: args.sort,
@@ -509,7 +513,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const table = await getTableById(args.tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
 
@@ -525,6 +529,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             // doesn't, so the guard never trips here. Defensive narrowing.
             return { success: false, message: 'Row update was skipped' }
           }
+          // Auto-dispatch for user edits is handled inside `updateRow`
+          // (mode: 'new' for newly-cleared groups + cancel+rerun for in-flight
+          // downstream groups). Firing a second mode: 'incomplete' dispatch
+          // here would race with the internal one AND bulk-clear sibling-group
+          // outputs (mode: 'incomplete' wipes terminal-state cells in scope).
 
           return {
             success: true,
@@ -569,21 +578,19 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const table = await getTableById(args.tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const result = await updateRowsByFilter(
+            table,
             {
-              tableId: args.tableId,
               filter: args.filter,
               data: args.data,
               limit: args.limit,
-              workspaceId,
             },
-            table,
             requestId
           )
 
@@ -605,14 +612,18 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
+          const table = await getTableById(args.tableId)
+          if (!table || table.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const result = await deleteRowsByFilter(
+            table,
             {
-              tableId: args.tableId,
               filter: args.filter,
               limit: args.limit,
-              workspaceId,
             },
             requestId
           )
@@ -664,7 +675,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const table = await getTableById(args.tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
 
@@ -1089,11 +1100,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const table = await getTableById(args.tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-          if (table.workspaceId !== workspaceId) {
-            return { success: false, message: 'Table not found' }
           }
 
           const requestId = generateId().slice(0, 8)
@@ -1415,24 +1423,19 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          // Dispatch in the background — large fan-outs (thousands of rows)
-          // issue sequential trigger.dev calls and would otherwise hold the
-          // tool span open for minutes, blocking the chat connection.
-          void runWorkflowColumn({
+          const { dispatchId } = await runWorkflowColumn({
             tableId: args.tableId,
             workspaceId,
             groupIds,
             mode: runMode,
             rowIds,
             requestId,
-          }).catch((err) => {
-            logger.error(`[${requestId}] run_column dispatch failed`, err)
           })
           const scopeLabel = rowIds ? `${rowIds.length} row(s) by id` : runMode
           return {
             success: true,
             message: `Started running ${groupIds.length} column(s) (${scopeLabel}). Cells will populate as workflows complete.`,
-            data: { triggered: null },
+            data: { dispatchId },
           }
         }
 

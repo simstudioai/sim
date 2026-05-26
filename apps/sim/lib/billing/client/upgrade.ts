@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -103,7 +104,7 @@ export function useSubscriptionUpgrade() {
             } catch (error) {
               logger.warn('Failed to set organization as active, proceeding with upgrade', {
                 organizationId: referenceId,
-                error: error instanceof Error ? error.message : 'Unknown error',
+                error: getErrorMessage(error, 'Unknown error'),
               })
             }
           } else if (orgsData.isMemberOfAnyOrg) {
@@ -202,7 +203,7 @@ export function useSubscriptionUpgrade() {
         }
 
         throw new Error(
-          `Failed to upgrade subscription: ${error instanceof Error ? error.message : 'Unknown error'}`
+          `Failed to upgrade subscription: ${getErrorMessage(error, 'Unknown error')}`
         )
       }
     },

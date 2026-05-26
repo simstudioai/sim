@@ -1,5 +1,6 @@
 import { type SQL, sql } from 'drizzle-orm'
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -12,6 +13,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -365,6 +367,80 @@ export const workflowExecutionLogs = pgTable(
   })
 )
 
+export const executionLargeValueReferenceSourceEnum = pgEnum(
+  'execution_large_value_reference_source',
+  ['execution_log', 'paused_snapshot']
+)
+
+export const executionLargeValues = pgTable(
+  'execution_large_values',
+  {
+    key: text('key').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
+    ownerExecutionId: text('owner_execution_id').notNull(),
+    size: integer('size').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at'),
+  },
+  (table) => ({
+    ownerExecutionIdIdx: index('execution_large_values_owner_execution_id_idx').on(
+      table.ownerExecutionId
+    ),
+    cleanupIdx: index('execution_large_values_cleanup_idx')
+      .on(table.workspaceId, table.createdAt, table.key)
+      .where(sql`${table.deletedAt} IS NULL`),
+    tombstoneCleanupIdx: index('execution_large_values_tombstone_cleanup_idx')
+      .on(table.workspaceId, table.deletedAt, table.key)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
+  })
+)
+
+export const executionLargeValueReferences = pgTable(
+  'execution_large_value_references',
+  {
+    key: text('key').notNull(),
+    executionId: text('execution_id').notNull(),
+    source: executionLargeValueReferenceSourceEnum('source').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.key, table.executionId, table.source] }),
+    workspaceExecutionSourceIdx: index(
+      'execution_large_value_references_workspace_execution_source_idx'
+    ).on(table.workspaceId, table.executionId, table.source),
+  })
+)
+
+export const executionLargeValueDependencies = pgTable(
+  'execution_large_value_dependencies',
+  {
+    parentKey: text('parent_key').notNull(),
+    childKey: text('child_key').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.parentKey, table.childKey] }),
+    workspaceParentKeyIdx: index('execution_large_value_dependencies_workspace_parent_key_idx').on(
+      table.workspaceId,
+      table.parentKey
+    ),
+    workspaceChildKeyIdx: index('execution_large_value_dependencies_workspace_child_key_idx').on(
+      table.workspaceId,
+      table.childKey
+    ),
+  })
+)
+
 export const pausedExecutions = pgTable(
   'paused_executions',
   {
@@ -565,6 +641,9 @@ export const workflowSchedule = pgTable(
       archivedAtPartialIdx: index('workflow_schedule_archived_at_partial_idx')
         .on(table.archivedAt)
         .where(sql`${table.archivedAt} IS NOT NULL`),
+      sourceWorkspaceSourceTypeIdx: index(
+        'idx_workflow_schedule_on_source_workspace_id_source_t_c07f3bba6'
+      ).on(table.sourceWorkspaceId, table.sourceType, table.archivedAt, table.status),
     }
   }
 )
@@ -649,6 +728,14 @@ export const webhook = pgTable(
       archivedAtPartialIdx: index('webhook_archived_at_partial_idx')
         .on(table.archivedAt)
         .where(sql`${table.archivedAt} IS NOT NULL`),
+      providerActiveWorkflowDeploymentIdx: index(
+        'idx_webhook_on_provider_is_active_workflow_id_deploym_bdeed5468'
+      ).on(table.provider, table.isActive, table.workflowId, table.deploymentVersionId),
+      workflowBlockUpdatedDescIdx: index('idx_webhook_on_workflow_id_block_id_updated_at_desc').on(
+        table.workflowId,
+        table.blockId,
+        table.updatedAt.desc()
+      ),
     }
   }
 )
@@ -949,6 +1036,10 @@ export const chat = pgTable(
       archivedAtPartialIdx: index('chat_archived_at_partial_idx')
         .on(table.archivedAt)
         .where(sql`${table.archivedAt} IS NOT NULL`),
+      workflowArchivedAtIdx: index('idx_chat_on_workflow_id_archived_at').on(
+        table.workflowId,
+        table.archivedAt
+      ),
     }
   }
 )
@@ -1167,6 +1258,46 @@ export const workspaceFile = pgTable(
   })
 )
 
+export const workspaceFileFolder = pgTable(
+  'workspace_file_folders',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    parentId: text('parent_id').references((): AnyPgColumn => workspaceFileFolder.id, {
+      onDelete: 'set null',
+    }),
+    sortOrder: integer('sort_order').notNull().default(0),
+    deletedAt: timestamp('deleted_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceParentIdx: index('workspace_file_folders_workspace_parent_idx').on(
+      table.workspaceId,
+      table.parentId
+    ),
+    parentSortIdx: index('workspace_file_folders_parent_sort_idx').on(
+      table.parentId,
+      table.sortOrder
+    ),
+    deletedAtIdx: index('workspace_file_folders_deleted_at_idx').on(table.deletedAt),
+    workspaceDeletedAtPartialIdx: index('workspace_file_folders_workspace_deleted_partial_idx')
+      .on(table.workspaceId, table.deletedAt)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
+    workspaceParentNameActiveUnique: uniqueIndex(
+      'workspace_file_folders_workspace_parent_name_active_unique'
+    )
+      .on(table.workspaceId, sql`coalesce(${table.parentId}, '')`, table.name)
+      .where(sql`${table.deletedAt} IS NULL`),
+  })
+)
+
 export const workspaceFiles = pgTable(
   'workspace_files',
   {
@@ -1176,6 +1307,9 @@ export const workspaceFiles = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    folderId: text('folder_id').references(() => workspaceFileFolder.id, {
+      onDelete: 'set null',
+    }),
     context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
     originalName: text('original_name').notNull(),
@@ -1199,9 +1333,10 @@ export const workspaceFiles = pgTable(
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
       .on(table.key)
       .where(sql`${table.deletedAt} IS NULL`),
-    /** One active display name per workspace for workspace-scoped files (VFS / file picker). */
-    workspaceOriginalNameActiveUnique: uniqueIndex('workspace_files_workspace_name_active_unique')
-      .on(table.workspaceId, table.originalName)
+    workspaceFolderOriginalNameActiveUnique: uniqueIndex(
+      'workspace_files_workspace_folder_name_active_unique'
+    )
+      .on(table.workspaceId, sql`coalesce(${table.folderId}, '')`, table.originalName)
       .where(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
       ),
@@ -1219,6 +1354,7 @@ export const workspaceFiles = pgTable(
     keyIdx: index('workspace_files_key_idx').on(table.key),
     userIdIdx: index('workspace_files_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workspace_files_workspace_id_idx').on(table.workspaceId),
+    folderIdIdx: index('workspace_files_folder_id_idx').on(table.folderId),
     contextIdx: index('workspace_files_context_idx').on(table.context),
     chatIdIdx: index('workspace_files_chat_id_idx').on(table.chatId),
     deletedAtIdx: index('workspace_files_deleted_at_idx').on(table.deletedAt),
@@ -2164,6 +2300,14 @@ export const mcpServers = pgTable(
     transport: text('transport').notNull(),
     url: text('url'),
 
+    authType: text('auth_type').notNull().default('headers'),
+    /**
+     * Optional pre-registered OAuth credentials for servers that don't
+     * support Dynamic Client Registration (RFC 7591). When set, these
+     * shortcut the SDK's DCR step. `oauthClientSecret` is encrypted.
+     */
+    oauthClientId: text('oauth_client_id'),
+    oauthClientSecret: text('oauth_client_secret'),
     headers: json('headers').default('{}'),
     timeout: integer('timeout').default(30000),
     retries: integer('retries').default(3),
@@ -2196,6 +2340,60 @@ export const mcpServers = pgTable(
     workspaceDeletedIdx: index('mcp_servers_workspace_deleted_partial_idx')
       .on(table.workspaceId, table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+  })
+)
+
+/**
+ * Workspace-scoped OAuth state for an outbound MCP server.
+ *
+ * Holds the SDK-managed OAuth artifacts needed to drive the standard MCP
+ * OAuth 2.1 + PKCE + dynamic-client-registration flow against a remote MCP
+ * server. One row per MCP server; workspace members share the authorized
+ * connection just like they share the MCP server definition.
+ */
+export const mcpServerOauth = pgTable(
+  'mcp_server_oauth',
+  {
+    id: text('id').primaryKey(),
+    mcpServerId: text('mcp_server_id')
+      .notNull()
+      .references(() => mcpServers.id, { onDelete: 'cascade' }),
+    /** Last workspace user who initiated/completed authorization. */
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+
+    /**
+     * Encrypted JSON of the RFC 7591 dynamic client registration result.
+     * Encrypted because some authorization servers may issue a client_secret
+     * even for clients advertising `token_endpoint_auth_method: 'none'`.
+     */
+    clientInformation: text('client_information'),
+
+    /** Encrypted JSON of the OAuth tokens (access + refresh). */
+    tokens: text('tokens'),
+
+    /** PKCE verifier held only between /authorize and /callback. */
+    codeVerifier: text('code_verifier'),
+
+    /** Opaque state mint to correlate the callback. */
+    state: text('state'),
+
+    /**
+     * When `state` was minted. Used to expire the active-flow window and the
+     * state replay window independently of `updatedAt`, which is touched by
+     * token refreshes and other writes.
+     */
+    stateCreatedAt: timestamp('state_created_at'),
+
+    lastRefreshedAt: timestamp('last_refreshed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    serverUnique: uniqueIndex('mcp_server_oauth_server_unique').on(table.mcpServerId),
+    stateIdx: index('mcp_server_oauth_state_idx').on(table.state),
   })
 )
 
@@ -2943,13 +3141,6 @@ export const userTableRows = pgTable(
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
     data: jsonb('data').notNull(),
-    /**
-     * Per-row workflow-group execution state, keyed by `WorkflowGroup.id`.
-     * Each entry holds status / executionId / jobId / blockErrors /
-     * runningBlockIds for one group's run on this row. Empty `{}` means no
-     * group has run for this row yet.
-     */
-    executions: jsonb('executions').notNull().default({}),
     position: integer('position').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -2963,6 +3154,91 @@ export const userTableRows = pgTable(
       table.tableId
     ),
     tablePositionIdx: index('user_table_rows_table_position_idx').on(table.tableId, table.position),
+  })
+)
+
+/**
+ * Per-row workflow-group execution state. One row per (rowId, groupId) — the
+ * group's run metadata (status, executionId, jobId, blockErrors, etc.) for
+ * one row of one user-defined table.
+ *
+ * Lives in a sidecar table (not a JSONB column on `user_table_rows`) so the
+ * dispatcher and "X running" counter can hit `(table_id, status)` and
+ * `(table_id, group_id)` indexes directly instead of walking JSONB blobs, and
+ * so each cell-write rewrites only its own row instead of the whole
+ * executions object on the parent row tuple.
+ */
+export const tableRowExecutions = pgTable(
+  'table_row_executions',
+  {
+    tableId: text('table_id')
+      .notNull()
+      .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),
+    rowId: text('row_id')
+      .notNull()
+      .references(() => userTableRows.id, { onDelete: 'cascade' }),
+    groupId: text('group_id').notNull(),
+    status: text('status').notNull(),
+    executionId: text('execution_id'),
+    jobId: text('job_id'),
+    workflowId: text('workflow_id').notNull(),
+    error: text('error'),
+    runningBlockIds: text('running_block_ids').array().notNull().default(sql`'{}'::text[]`),
+    blockErrors: jsonb('block_errors').notNull().default({}),
+    cancelledAt: timestamp('cancelled_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.rowId, table.groupId] }),
+    tableStatusInFlightIdx: index('table_row_executions_table_status_idx')
+      .on(table.tableId, table.status)
+      .where(sql`${table.status} IN ('queued', 'running', 'pending')`),
+    executionIdIdx: index('table_row_executions_execution_id_idx')
+      .on(table.executionId)
+      .where(sql`${table.executionId} IS NOT NULL`),
+    tableGroupIdx: index('table_row_executions_table_group_idx').on(table.tableId, table.groupId),
+  })
+)
+
+/**
+ * One row per "Run column / Run row / Run all rows" gesture on a user table.
+ * The dispatcher task walks the table in row-position windows, advancing
+ * `cursor` as it enqueues cells into trigger.dev. Cancel flips `status` to
+ * `'cancelled'` in one write; the dispatcher bails at the next iteration and
+ * a bulk-SQL cell-cancel sweep neuters anything still in trigger.dev's queue
+ * (workers no-op on pickup via the cancel-sticky guard).
+ */
+export const tableRunDispatches = pgTable(
+  'table_run_dispatches',
+  {
+    id: text('id').primaryKey(),
+    tableId: text('table_id')
+      .notNull()
+      .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    requestId: text('request_id').notNull(),
+    /** `'all'` re-runs completed cells; `'incomplete'` skips them. */
+    mode: text('mode').notNull(),
+    /** `{ groupIds: string[], rowIds?: string[] }` — the run's scope. */
+    scope: jsonb('scope').notNull(),
+    /** `pending` → `dispatching` → `complete` | `cancelled`. */
+    status: text('status').notNull().default('pending'),
+    /** Highest `user_table_rows.position` we've already enqueued cells for. */
+    cursor: integer('cursor').notNull().default(0),
+    /** When true, eligibility bypasses `autoRun: false` skip and treats
+     *  terminal states as re-runnable. Auto-fire paths (row inserts,
+     *  CSV import, addWorkflowGroup) set this to false so the dispatch
+     *  honors the autoRun toggle. */
+    isManualRun: boolean('is_manual_run').notNull().default(true),
+    requestedAt: timestamp('requested_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+    cancelledAt: timestamp('cancelled_at'),
+  },
+  (table) => ({
+    activeIdx: index('table_run_dispatches_active_idx').on(table.tableId, table.status),
+    watchdogIdx: index('table_run_dispatches_watchdog_idx').on(table.status, table.requestedAt),
   })
 )
 

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type { ParallelDeepResearchParams } from '@/tools/parallel/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
@@ -202,7 +203,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
         },
       }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error('Error fetching research task result:', {
         message: errorMessage,
         runId,

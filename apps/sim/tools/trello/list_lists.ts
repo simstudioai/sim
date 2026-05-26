@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import {
   extractTrelloErrorMessage,
@@ -102,7 +103,7 @@ export const trelloListListsTool: ToolConfig<TrelloListListsParams, TrelloListLi
         },
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to parse Trello lists'
+      const message = getErrorMessage(error, 'Failed to parse Trello lists')
 
       return {
         success: false,

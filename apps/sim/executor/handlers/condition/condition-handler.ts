@@ -54,8 +54,7 @@ async function evaluateConditionExpression(
           enforceCredentialAccess: ctx.enforceCredentialAccess,
         },
       },
-      false,
-      ctx
+      { executionContext: ctx }
     )
 
     if (!result.success) {

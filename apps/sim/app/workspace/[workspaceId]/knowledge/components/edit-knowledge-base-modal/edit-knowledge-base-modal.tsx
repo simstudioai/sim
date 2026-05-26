@@ -3,6 +3,7 @@
 import { memo, useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
@@ -12,6 +13,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -93,7 +95,7 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
       onOpenChange(false)
     } catch (err) {
       logger.error('Error updating knowledge base:', err)
-      setError(err instanceof Error ? err.message : 'Failed to update knowledge base')
+      setError(getErrorMessage(err, 'Failed to update knowledge base'))
     } finally {
       setIsSubmitting(false)
     }
@@ -103,6 +105,9 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='sm'>
         <ModalHeader>Edit Knowledge Base</ModalHeader>
+        <ModalDescription className='sr-only'>
+          Update the name and description of this knowledge base
+        </ModalDescription>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody>

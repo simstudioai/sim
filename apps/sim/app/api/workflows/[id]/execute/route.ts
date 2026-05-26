@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId, isValidUuid } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
@@ -359,6 +359,7 @@ async function handleExecutePost(
       includeFileBase64,
       base64MaxBytes,
       workflowStateOverride,
+      executionId: requestedExecutionId,
       triggerBlockId: parsedTriggerBlockId,
       startBlockId,
       stopAfterBlockId,
@@ -398,7 +399,11 @@ async function handleExecutePost(
 
     // Resolve runFromBlock snapshot from executionId if needed
     let resolvedRunFromBlock:
-      | { startBlockId: string; sourceSnapshot: SerializableExecutionState }
+      | {
+          startBlockId: string
+          sourceSnapshot: SerializableExecutionState
+          sourceExecutionId?: string
+        }
       | undefined
     if (rawRunFromBlock) {
       if (rawRunFromBlock.sourceSnapshot && auth.authType === 'api_key') {
@@ -423,13 +428,16 @@ async function handleExecutePost(
           sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
         }
       } else if (rawRunFromBlock.executionId) {
-        const { getExecutionStateForWorkflow, getLatestExecutionState } = await import(
-          '@/lib/workflows/executor/execution-state'
-        )
-        const snapshot =
+        const { getExecutionStateForWorkflow, getLatestExecutionStateWithExecutionId } =
+          await import('@/lib/workflows/executor/execution-state')
+        const sourceExecution =
           rawRunFromBlock.executionId === 'latest'
-            ? await getLatestExecutionState(workflowId)
-            : await getExecutionStateForWorkflow(rawRunFromBlock.executionId, workflowId)
+            ? await getLatestExecutionStateWithExecutionId(workflowId)
+            : {
+                executionId: rawRunFromBlock.executionId,
+                state: await getExecutionStateForWorkflow(rawRunFromBlock.executionId, workflowId),
+              }
+        const snapshot = sourceExecution?.state
         if (!snapshot) {
           return NextResponse.json(
             {
@@ -441,6 +449,7 @@ async function handleExecutePost(
         resolvedRunFromBlock = {
           startBlockId: rawRunFromBlock.startBlockId,
           sourceSnapshot: snapshot,
+          sourceExecutionId: sourceExecution.executionId,
         }
       } else {
         return NextResponse.json(
@@ -508,7 +517,8 @@ async function handleExecutePost(
       )
     }
 
-    const executionId = generateId()
+    const executionId =
+      isClientSession && requestedExecutionId ? requestedExecutionId : generateId()
     reqLogger = reqLogger.withMetadata({ userId, executionId })
 
     reqLogger.info('Starting server-side execution', {
@@ -669,7 +679,7 @@ async function handleExecutePost(
 
       await loggingSession.safeCompleteWithError({
         error: {
-          message: `File processing failed: ${fileError instanceof Error ? fileError.message : 'Unable to process input files'}`,
+          message: `File processing failed: ${getErrorMessage(fileError, 'Unable to process input files')}`,
           stackTrace: fileError instanceof Error ? fileError.stack : undefined,
         },
         traceSpans: [],
@@ -677,7 +687,7 @@ async function handleExecutePost(
 
       return NextResponse.json(
         {
-          error: `File processing failed: ${fileError instanceof Error ? fileError.message : 'Unable to process input files'}`,
+          error: `File processing failed: ${getErrorMessage(fileError, 'Unable to process input files')}`,
         },
         { status: 400 }
       )
@@ -685,6 +695,12 @@ async function handleExecutePost(
 
     const effectiveWorkflowStateOverride =
       sanitizedWorkflowStateOverride || cachedWorkflowData || undefined
+    const largeValueExecutionIds = [executionId]
+    const largeValueKeys: string[] = []
+    const fileKeys: string[] = []
+    const allowLargeValueWorkflowScope = Boolean(
+      resolvedRunFromBlock?.sourceSnapshot && !resolvedRunFromBlock.sourceExecutionId
+    )
 
     if (!enableSSE) {
       reqLogger.info('Using non-SSE execution (direct JSON response)')
@@ -703,6 +719,10 @@ async function handleExecutePost(
         isClientSession,
         enforceCredentialAccess: useAuthenticatedUserAsActor,
         workflowStateOverride: effectiveWorkflowStateOverride,
+        largeValueExecutionIds,
+        largeValueKeys,
+        fileKeys,
+        allowLargeValueWorkflowScope,
         callChain,
         executionMode: 'sync',
       }
@@ -771,20 +791,47 @@ async function handleExecutePost(
           )
         }
 
+        const outputLargeValueKeys = result.metadata?.largeValueKeys ?? largeValueKeys
+        const outputFileKeys = result.metadata?.fileKeys ?? fileKeys
+
         const outputWithBase64 = includeFileBase64
           ? ((await hydrateUserFilesWithBase64(result.output, {
               requestId,
               workspaceId,
               workflowId,
               executionId,
-              allowLargeValueWorkflowScope: Boolean(resolvedRunFromBlock?.sourceSnapshot),
+              largeValueExecutionIds,
+              largeValueKeys: outputLargeValueKeys,
+              fileKeys: outputFileKeys,
+              allowLargeValueWorkflowScope,
               userId: actorUserId,
               maxBytes: base64MaxBytes,
+              preserveLargeValueMetadata: true,
             })) as NormalizedBlockOutput)
           : result.output
 
         if (auth.authType !== AuthType.INTERNAL_JWT && workflowHasResponseBlock(result)) {
-          return createHttpResponseFromBlock({ ...result, output: outputWithBase64 })
+          const compactResponseBlockOutput = await compactRoutePayload(outputWithBase64, {
+            workspaceId,
+            workflowId,
+            executionId,
+            userId: actorUserId,
+            preserveUserFileBase64: true,
+            preserveRoot: true,
+          })
+          return await createHttpResponseFromBlock(
+            { ...result, output: compactResponseBlockOutput },
+            {
+              workspaceId,
+              workflowId,
+              executionId,
+              largeValueExecutionIds,
+              largeValueKeys: outputLargeValueKeys,
+              fileKeys: outputFileKeys,
+              userId: actorUserId,
+              allowLargeValueWorkflowScope,
+            }
+          )
         }
 
         const compactOutput = await compactRoutePayload(outputWithBase64, {
@@ -812,7 +859,7 @@ async function handleExecutePost(
 
         return NextResponse.json(filteredResult)
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        const errorMessage = getErrorMessage(error, 'Unknown error')
 
         reqLogger.error(`Non-SSE execution failed: ${errorMessage}`)
 
@@ -882,10 +929,13 @@ async function handleExecutePost(
           timeoutMs: preprocessResult.executionTimeout?.sync,
         },
         executionId,
+        largeValueExecutionIds,
+        largeValueKeys,
+        fileKeys,
         workspaceId,
         workflowId,
         userId: actorUserId,
-        allowLargeValueWorkflowScope: Boolean(resolvedRunFromBlock?.sourceSnapshot),
+        allowLargeValueWorkflowScope,
         executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
           executeWorkflow(
             streamWorkflow,
@@ -904,6 +954,8 @@ async function handleExecutePost(
               base64MaxBytes,
               abortSignal,
               executionMode: 'stream',
+              largeValueKeys,
+              fileKeys,
               stopAfterBlockId,
               runFromBlock: resolvedRunFromBlock,
             },
@@ -1183,6 +1235,10 @@ async function handleExecutePost(
             isClientSession,
             enforceCredentialAccess: useAuthenticatedUserAsActor,
             workflowStateOverride: effectiveWorkflowStateOverride,
+            largeValueExecutionIds,
+            largeValueKeys,
+            fileKeys,
+            allowLargeValueWorkflowScope,
             callChain,
             executionMode: 'sync',
           }
@@ -1307,15 +1363,22 @@ async function handleExecutePost(
             return
           }
 
+          const outputLargeValueKeys = result.metadata?.largeValueKeys ?? largeValueKeys
+          const outputFileKeys = result.metadata?.fileKeys ?? fileKeys
+
           const sseOutput = includeFileBase64
             ? await hydrateUserFilesWithBase64(result.output, {
                 requestId,
                 workspaceId,
                 workflowId,
                 executionId,
-                allowLargeValueWorkflowScope: Boolean(resolvedRunFromBlock?.sourceSnapshot),
+                largeValueExecutionIds,
+                largeValueKeys: outputLargeValueKeys,
+                fileKeys: outputFileKeys,
+                allowLargeValueWorkflowScope,
                 userId: actorUserId,
                 maxBytes: base64MaxBytes,
+                preserveLargeValueMetadata: true,
               })
             : result.output
           const compactSseOutput = await compactRoutePayload(sseOutput, {
@@ -1369,9 +1432,7 @@ async function handleExecutePost(
           const isTimeout = isTimeoutError(error) || timeoutController.isTimedOut()
           const errorMessage = isTimeout
             ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
-            : error instanceof Error
-              ? error.message
-              : 'Unknown error'
+            : getErrorMessage(error, 'Unknown error')
 
           reqLogger.error(`SSE execution failed: ${errorMessage}`, { isTimeout })
 
@@ -1431,7 +1492,7 @@ async function handleExecutePost(
             await eventWriter.close().catch((closeError) => {
               reqLogger.warn('Failed to close execution event writer after terminal publish', {
                 executionId,
-                error: closeError instanceof Error ? closeError.message : String(closeError),
+                error: getErrorMessage(closeError),
               })
             })
           } else {

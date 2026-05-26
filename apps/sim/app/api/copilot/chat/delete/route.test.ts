@@ -7,14 +7,16 @@ import { authMockFns, dbChainMock, dbChainMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetAccessibleCopilotChat } = vi.hoisted(() => ({
+const { mockGetAccessibleCopilotChat, mockGetAccessibleCopilotChatAuth } = vi.hoisted(() => ({
   mockGetAccessibleCopilotChat: vi.fn(),
+  mockGetAccessibleCopilotChatAuth: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
+  getAccessibleCopilotChatAuth: mockGetAccessibleCopilotChatAuth,
 }))
 
 vi.mock('@/lib/copilot/tasks', () => ({
@@ -39,6 +41,7 @@ describe('Copilot Chat Delete API Route', () => {
 
     dbChainMockFns.returning.mockResolvedValue([{ workspaceId: 'ws-1' }])
     mockGetAccessibleCopilotChat.mockResolvedValue({ id: 'chat-123', userId: 'user-123' })
+    mockGetAccessibleCopilotChatAuth.mockResolvedValue({ id: 'chat-123', userId: 'user-123' })
   })
 
   afterEach(() => {
@@ -140,7 +143,7 @@ describe('Copilot Chat Delete API Route', () => {
     it('should delete chat even if it does not exist (idempotent)', async () => {
       authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      mockGetAccessibleCopilotChat.mockResolvedValueOnce(null)
+      mockGetAccessibleCopilotChatAuth.mockResolvedValueOnce(null)
 
       const req = createMockRequest('DELETE', {
         chatId: 'non-existent-chat',

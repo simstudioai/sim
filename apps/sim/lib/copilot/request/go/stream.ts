@@ -1,5 +1,6 @@
 import { type Context, SpanStatusCode } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
   type MothershipStreamV1EventType,
@@ -334,7 +335,7 @@ export async function runStreamLoop(
         } catch (error) {
           logger.warn('Failed to forward stream event', {
             type: streamEvent.type,
-            error: error instanceof Error ? error.message : String(error),
+            error: getErrorMessage(error),
           })
         }
 
@@ -451,7 +452,7 @@ export async function runStreamLoop(
       } catch (error) {
         logger.warn('Failed to read abort marker at body close', {
           streamId: context.messageId,
-          error: error instanceof Error ? error.message : String(error),
+          error: getErrorMessage(error),
         })
       }
 

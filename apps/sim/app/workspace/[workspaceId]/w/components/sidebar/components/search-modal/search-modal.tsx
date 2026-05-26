@@ -34,14 +34,21 @@ import {
   WorkflowsGroup,
   WorkspacesGroup,
 } from './components/search-groups'
-import type { PageItem, SearchModalProps, TaskItem, WorkflowItem, WorkspaceItem } from './utils'
+import type {
+  FileItem,
+  PageItem,
+  SearchModalProps,
+  TaskItem,
+  WorkflowItem,
+  WorkspaceItem,
+} from './utils'
 import { filterAndSort } from './utils'
 
 const EMPTY_WORKFLOWS: WorkflowItem[] = []
 const EMPTY_WORKSPACES: WorkspaceItem[] = []
 const EMPTY_TASKS: TaskItem[] = []
 const EMPTY_TABLES: TaskItem[] = []
-const EMPTY_FILES: TaskItem[] = []
+const EMPTY_FILES: FileItem[] = []
 const EMPTY_KNOWLEDGE_BASES: TaskItem[] = []
 
 export type { SearchModalProps } from './utils'
@@ -199,7 +206,10 @@ export function SearchModal({
         type === 'trigger' && block.config ? hasTriggerCapability(block.config) : false
       window.dispatchEvent(
         new CustomEvent('add-block-from-toolbar', {
-          detail: { type: block.type, enableTriggerMode },
+          detail: {
+            type: block.type,
+            enableTriggerMode,
+          },
         })
       )
       captureEvent(posthogRef.current, 'search_result_selected', {
@@ -289,7 +299,7 @@ export function SearchModal({
   )
 
   const handleFileSelect = useCallback(
-    (item: TaskItem) => {
+    (item: FileItem) => {
       routerRef.current.push(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'file',
@@ -369,12 +379,12 @@ export function SearchModal({
 
   const filteredBlocks = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndSort(blocks, (b) => `${b.name} block-${b.id}`, deferredSearch)
+    return filterAndSort(blocks, (b) => b.searchValue ?? `${b.name} block-${b.id}`, deferredSearch)
   }, [isOnWorkflowPage, blocks, deferredSearch])
 
   const filteredTools = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndSort(tools, (t) => `${t.name} tool-${t.id}`, deferredSearch)
+    return filterAndSort(tools, (t) => t.searchValue ?? `${t.name} tool-${t.id}`, deferredSearch)
   }, [isOnWorkflowPage, tools, deferredSearch])
 
   const filteredTriggers = useMemo(() => {
@@ -401,7 +411,12 @@ export function SearchModal({
     [tables, deferredSearch]
   )
   const filteredFiles = useMemo(
-    () => filterAndSort(files, (f) => `${f.name} file-${f.id}`, deferredSearch),
+    () =>
+      filterAndSort(
+        files,
+        (f) => `${f.name} ${f.folderPath?.join(' / ') ?? ''} file-${f.id}`,
+        deferredSearch
+      ),
     [files, deferredSearch]
   )
   const filteredKnowledgeBases = useMemo(

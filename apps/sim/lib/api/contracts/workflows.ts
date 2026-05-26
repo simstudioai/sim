@@ -3,6 +3,14 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 
 const subBlockValuesSchema = z.record(z.string(), z.record(z.string(), z.unknown()))
+const executionIdSchema = z
+  .string()
+  .min(1, 'Invalid execution ID')
+  .max(128, 'Execution ID too long')
+  .regex(
+    /^[A-Za-z0-9._:-]+$/,
+    'Execution ID can only contain letters, numbers, dots, underscores, colons, and hyphens'
+  )
 
 const workflowPositionSchema = z.object({
   x: z.number(),
@@ -336,6 +344,7 @@ export const executeWorkflowBodySchema = z.object({
   includeFileBase64: z.boolean().optional().default(true),
   base64MaxBytes: z.number().int().positive().optional(),
   workflowStateOverride: workflowStateSchema.optional(),
+  executionId: executionIdSchema.optional(),
   triggerBlockId: z.string().optional(),
   startBlockId: z.string().optional(),
   stopAfterBlockId: z.string().optional(),
@@ -502,6 +511,61 @@ const pausedWorkflowExecutionsResponseSchema = z.object({
 const pausedWorkflowExecutionDetailSchema = pausedWorkflowExecutionSummarySchema.extend({
   executionSnapshot: z.unknown(),
   queue: z.array(z.record(z.string(), z.unknown())),
+})
+
+const workflowExecutionStatusEnum = z.enum([
+  'pending',
+  'running',
+  'paused',
+  'completed',
+  'failed',
+  'cancelled',
+])
+
+const workflowExecutionPausedDetailSchema = z.object({
+  pausedAt: z.string(),
+  resumeAt: z.string().nullable(),
+  pauseKind: z.enum(['time', 'human']).nullable(),
+  blockedOnBlockId: z.string().nullable(),
+  pausedExecutionId: z.string(),
+  pausePointCount: z.number(),
+  resumedCount: z.number(),
+})
+
+const workflowExecutionStatusResponseSchema = z.object({
+  executionId: z.string(),
+  workflowId: z.string(),
+  status: workflowExecutionStatusEnum,
+  trigger: z.string(),
+  level: z.string(),
+  startedAt: z.string(),
+  endedAt: z.string().nullable(),
+  totalDurationMs: z.number().nullable(),
+  paused: workflowExecutionPausedDetailSchema.nullable(),
+  cost: z.object({ total: z.number() }).nullable(),
+  error: z.string().nullable(),
+  finalOutput: z.unknown().nullable(),
+  blockOutputs: z.record(z.string(), z.unknown()).nullable(),
+})
+
+export type WorkflowExecutionStatusResponse = z.output<typeof workflowExecutionStatusResponseSchema>
+
+const workflowExecutionStatusQuerySchema = z.object({
+  includeOutput: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((value) => value === 'true'),
+  selectedOutputs: z
+    .string()
+    .optional()
+    .transform((value) =>
+      value
+        ? value
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : []
+    ),
 })
 
 const cancelWorkflowExecutionResponseSchema = z.object({
@@ -785,6 +849,17 @@ export const cancelWorkflowExecutionContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: cancelWorkflowExecutionResponseSchema,
+  },
+})
+
+export const getWorkflowExecutionContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workflows/[id]/executions/[executionId]',
+  params: workflowExecutionParamsSchema,
+  query: workflowExecutionStatusQuerySchema,
+  response: {
+    mode: 'json',
+    schema: workflowExecutionStatusResponseSchema,
   },
 })
 

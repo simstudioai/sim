@@ -47,7 +47,8 @@ vi.mock('drizzle-orm', () => ({
 vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
 
 vi.mock('@/lib/copilot/chat/lifecycle', () => ({
-  getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
+  getAccessibleCopilotChatAuth: mockGetAccessibleCopilotChat,
+  getAccessibleCopilotChatWithMessages: mockGetAccessibleCopilotChat,
 }))
 
 vi.mock('@/lib/copilot/chat/stream-liveness', () => ({

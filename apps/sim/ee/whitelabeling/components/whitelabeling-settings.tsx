@@ -55,7 +55,7 @@ function DropZone({ onDrop, children, className }: DropZoneProps) {
     >
       {children}
       {isDragging && (
-        <div className='pointer-events-none absolute inset-0 z-10 rounded-lg border-[1.5px] border-[var(--brand)] border-dashed bg-[color-mix(in_srgb,var(--brand)_8%,transparent)]' />
+        <div className='pointer-events-none absolute inset-0 z-10 rounded-lg border-[1.5px] border-[var(--brand-accent)] border-dashed bg-[color-mix(in_srgb,var(--brand-accent)_8%,transparent)]' />
       )}
     </div>
   )
@@ -103,7 +103,7 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
       </div>
       {!isValidHex && (
         <p className='text-[12px] text-[var(--text-error)]'>
-          Must be a valid hex color (e.g. #701ffc)
+          Must be a valid hex color (e.g. #33c482)
         </p>
       )}
     </div>
@@ -236,7 +236,7 @@ export function WhitelabelingSettings() {
 
     for (const [fieldName, value] of colorFields) {
       if (value && !HEX_COLOR_REGEX.test(value)) {
-        toast.error(`${fieldName} must be a valid hex color (e.g. #701ffc)`)
+        toast.error(`${fieldName} must be a valid hex color (e.g. #33c482)`)
         return
       }
     }
@@ -462,25 +462,25 @@ export function WhitelabelingSettings() {
             label='Primary color'
             value={primaryColor}
             onChange={setPrimaryColor}
-            placeholder='#701ffc'
+            placeholder='#33c482'
           />
           <ColorInput
             label='Primary hover color'
             value={primaryHoverColor}
             onChange={setPrimaryHoverColor}
-            placeholder='#802fff'
+            placeholder='#2dac72'
           />
           <ColorInput
             label='Accent color'
             value={accentColor}
             onChange={setAccentColor}
-            placeholder='#9d54ff'
+            placeholder='#33b4ff'
           />
           <ColorInput
             label='Accent hover color'
             value={accentHoverColor}
             onChange={setAccentHoverColor}
-            placeholder='#a66fff'
+            placeholder='#29a0e8'
           />
         </div>
       </section>

@@ -8,5 +8,15 @@ export {
   performFullUndeploy,
   performRevertToVersion,
 } from './deploy'
-export { performDeleteFolder } from './folder-lifecycle'
-export { performDeleteWorkflow } from './workflow-lifecycle'
+export {
+  performCreateFolder,
+  performDeleteFolder,
+  performRestoreFolder,
+  performUpdateFolder,
+} from './folder-lifecycle'
+export {
+  performCreateWorkflow,
+  performDeleteWorkflow,
+  performRestoreWorkflow,
+  performUpdateWorkflow,
+} from './workflow-lifecycle'

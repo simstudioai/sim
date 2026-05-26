@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { format } from 'date-fns'
 import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
@@ -19,6 +20,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Tooltip,
@@ -26,6 +28,7 @@ import {
 } from '@/components/emcn'
 import { Database, DatabaseX } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
+import { cn } from '@/lib/core/utils/cn'
 import { ADD_CONNECTOR_SEARCH_PARAM } from '@/lib/credentials/client-state'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
@@ -83,12 +86,12 @@ const logger = createLogger('KnowledgeBase')
 const DOCUMENTS_PER_PAGE = 50
 
 const DOCUMENT_COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name' },
-  { id: 'size', header: 'Size' },
-  { id: 'tokens', header: 'Tokens' },
-  { id: 'chunks', header: 'Chunks' },
+  { id: 'name', header: 'Name', widthMultiplier: 0.8 },
+  { id: 'size', header: 'Size', widthMultiplier: 0.75 },
+  { id: 'tokens', header: 'Tokens', widthMultiplier: 0.75 },
+  { id: 'chunks', header: 'Chunks', widthMultiplier: 0.75 },
   { id: 'uploaded', header: 'Uploaded' },
-  { id: 'status', header: 'Status' },
+  { id: 'status', header: 'Status', widthMultiplier: 0.75 },
   { id: 'tags', header: 'Tags' },
 ]
 
@@ -467,8 +470,7 @@ export function KnowledgeBase({
           logger.error('Error retrying document:', err)
           updateDocument(docId, {
             processingStatus: 'failed',
-            processingError:
-              err instanceof Error ? err.message : 'Failed to retry document processing',
+            processingError: getErrorMessage(err, 'Failed to retry document processing'),
           })
         },
       }
@@ -812,15 +814,26 @@ export function KnowledgeBase({
           }
         : undefined,
       dropdownItems: [
-        ...(userPermissions.canEdit
+        ...(userPermissions.canEdit || userPermissions.isLoading
           ? [
               {
                 label: 'Rename',
                 icon: Pencil,
+                disabled: !userPermissions.canEdit,
                 onClick: () => kbRename.startRename(id, knowledgeBaseName),
               },
-              { label: 'Tags', icon: Tag, onClick: () => setShowTagsModal(true) },
-              { label: 'Delete', icon: Trash, onClick: () => setShowDeleteDialog(true) },
+              {
+                label: 'Tags',
+                icon: Tag,
+                disabled: !userPermissions.canEdit,
+                onClick: () => setShowTagsModal(true),
+              },
+              {
+                label: 'Delete',
+                icon: Trash,
+                disabled: !userPermissions.canEdit,
+                onClick: () => setShowDeleteDialog(true),
+              },
             ]
           : []),
       ],
@@ -828,8 +841,15 @@ export function KnowledgeBase({
   ]
 
   const headerActions: HeaderAction[] = [
-    ...(userPermissions.canEdit
-      ? [{ label: 'New connector', icon: Plus, onClick: () => setShowAddConnectorModal(true) }]
+    ...(userPermissions.canEdit || userPermissions.isLoading
+      ? [
+          {
+            label: 'New connector',
+            icon: Plus,
+            disabled: !userPermissions.canEdit,
+            onClick: () => setShowAddConnectorModal(true),
+          },
+        ]
       : []),
   ]
 
@@ -884,18 +904,18 @@ export function KnowledgeBase({
           />
         </div>
         {enabledFilter.length > 0 && (
-          <button
-            type='button'
+          <Button
+            variant='ghost'
             onClick={() => {
               setEnabledFilter([])
               setCurrentPage(1)
               setSelectedDocuments(new Set())
               setIsSelectAllMode(false)
             }}
-            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+            className='h-[32px] w-full text-[var(--text-secondary)] text-caption'
           >
             Clear status filter
-          </button>
+          </Button>
         )}
         <TagFilterSection
           tagDefinitions={tagDefinitions}
@@ -919,19 +939,35 @@ export function KnowledgeBase({
           const def = CONNECTOR_REGISTRY[connector.connectorType]
           const ConnectorIcon = def?.icon
           return (
-            <button
+            <Button
               key={connector.id}
               type='button'
+              variant='ghost'
+              size='sm'
               onClick={() => setShowConnectorsModal(true)}
-              className='flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption shadow-[inset_0_0_0_1px_var(--border)] transition-colors hover-hover:bg-[var(--surface-3)]'
+              className='h-7 max-w-[180px] shrink-0 justify-start gap-1.5 rounded-lg border border-[var(--border-muted)] bg-[var(--surface-2)] px-2 text-[var(--text-secondary)] text-caption hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
             >
-              {connector.status === 'syncing' ? (
-                <Loader className='size-[14px]' animate />
-              ) : (
-                ConnectorIcon && <ConnectorIcon className='size-[14px]' />
-              )}
-              {def?.name || connector.connectorType}
-            </button>
+              <span className='relative flex size-4 flex-shrink-0 items-center justify-center'>
+                {connector.status === 'syncing' ? (
+                  <Loader className='size-[14px]' animate />
+                ) : (
+                  ConnectorIcon && <ConnectorIcon className='size-[14px]' />
+                )}
+                {connector.status !== 'active' && connector.status !== 'syncing' && (
+                  <span
+                    className={cn(
+                      '-right-0.5 -top-0.5 absolute size-1.5 rounded-xs border border-[var(--surface-2)]',
+                      connector.status === 'error'
+                        ? 'bg-[var(--text-error)]'
+                        : connector.status === 'disabled'
+                          ? 'bg-[var(--caution)]'
+                          : 'bg-[var(--text-muted)]'
+                    )}
+                  />
+                )}
+              </span>
+              <span className='truncate'>{def?.name || connector.connectorType}</span>
+            </Button>
           )
         })}
       </>
@@ -1177,7 +1213,7 @@ export function KnowledgeBase({
         <ModalContent size='sm'>
           <ModalHeader>Delete Knowledge Base</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
               <span className='text-[var(--text-error)]'>
@@ -1185,7 +1221,7 @@ export function KnowledgeBase({
                 {pagination.total === 1 ? '' : 's'} within it will be removed.
               </span>{' '}
               You can restore it from Recently Deleted in Settings.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button
@@ -1209,7 +1245,7 @@ export function KnowledgeBase({
             {(() => {
               const docToDelete = documents.find((doc) => doc.id === documentToDelete)
               return (
-                <p className='text-[var(--text-secondary)]'>
+                <ModalDescription className='text-[var(--text-secondary)]'>
                   Are you sure you want to delete{' '}
                   <span className='font-medium text-[var(--text-primary)]'>
                     {docToDelete?.filename ?? 'this document'}
@@ -1228,7 +1264,7 @@ export function KnowledgeBase({
                       This action cannot be undone.
                     </>
                   )}
-                </p>
+                </ModalDescription>
               )
             })()}
           </ModalBody>
@@ -1253,7 +1289,7 @@ export function KnowledgeBase({
         <ModalContent size='sm'>
           <ModalHeader>Delete Documents</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete {selectedDocuments.size} document
               {selectedDocuments.size === 1 ? '' : 's'}?{' '}
               <span className='text-[var(--text-error)]'>
@@ -1261,7 +1297,7 @@ export function KnowledgeBase({
                 {selectedDocuments.size === 1 ? '' : 's'}.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowBulkDeleteModal(false)}>
@@ -1304,8 +1340,11 @@ export function KnowledgeBase({
       )}
 
       <Modal open={showConnectorsModal} onOpenChange={setShowConnectorsModal}>
-        <ModalContent size='lg'>
+        <ModalContent size='md'>
           <ModalHeader>Connected Sources</ModalHeader>
+          <ModalDescription className='sr-only'>
+            Manage connected data sources for this knowledge base
+          </ModalDescription>
           <ModalBody>
             <ConnectorsSection
               workspaceId={workspaceId}
@@ -1313,6 +1352,7 @@ export function KnowledgeBase({
               connectors={connectors}
               isLoading={isLoadingConnectors}
               canEdit={userPermissions.canEdit}
+              className='mt-0'
             />
           </ModalBody>
         </ModalContent>
@@ -1513,13 +1553,13 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
             >
               <div className='flex items-center justify-between'>
                 <Label className='text-[var(--text-muted)] text-xs'>Tag</Label>
-                <button
-                  type='button'
+                <Button
+                  variant='ghost'
+                  className='size-5 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
                   onClick={() => removeFilter(entry.id)}
-                  className='text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-error)]'
                 >
                   <X className='size-3' />
-                </button>
+                </Button>
               </div>
               <Combobox
                 options={tagOptions}

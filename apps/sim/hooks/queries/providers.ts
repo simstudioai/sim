@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   getBaseProviderModelsContract,
   getFireworksProviderModelsContract,
+  getLitellmProviderModelsContract,
   getOllamaProviderModelsContract,
   getOpenRouterProviderModelsContract,
   getVllmProviderModelsContract,
@@ -35,7 +37,7 @@ async function fetchProviderModels(
     }
   } catch (error) {
     logger.warn(`Failed to fetch ${provider} models`, {
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
     })
     throw error
   }
@@ -53,6 +55,8 @@ async function requestProviderModels(
       return requestJson(getOllamaProviderModelsContract, { signal })
     case 'vllm':
       return requestJson(getVllmProviderModelsContract, { signal })
+    case 'litellm':
+      return requestJson(getLitellmProviderModelsContract, { signal })
     case 'openrouter':
       return requestJson(getOpenRouterProviderModelsContract, { signal })
     case 'fireworks':

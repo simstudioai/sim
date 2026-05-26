@@ -38,6 +38,8 @@ export interface ConsoleUpdate {
   content?: string
   output?: Partial<NormalizedBlockOutput>
   replaceOutput?: NormalizedBlockOutput
+  blockName?: string
+  blockType?: string
   executionOrder?: number
   error?: string | Error | null
   warning?: string

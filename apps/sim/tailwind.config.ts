@@ -88,10 +88,6 @@ export default {
           '4': 'hsl(var(--chart-4))',
           '5': 'hsl(var(--chart-5))',
         },
-        gradient: {
-          primary: 'hsl(var(--gradient-primary))',
-          secondary: 'hsl(var(--gradient-secondary))',
-        },
         gray: {
           50: '#fafafa',
           100: '#f5f5f5',
@@ -123,7 +119,6 @@ export default {
         overlay: 'var(--shadow-overlay)',
         kbd: 'var(--shadow-kbd)',
         'kbd-sm': 'var(--shadow-kbd-sm)',
-        'brand-inset': 'var(--shadow-brand-inset)',
         card: 'var(--shadow-card)',
       },
       dropShadow: {

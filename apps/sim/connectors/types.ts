@@ -74,6 +74,14 @@ export interface ConnectorConfigField {
   mode?: 'basic' | 'advanced'
   /** Links selector + manual input fields that resolve to the same config key */
   canonicalParamId?: string
+
+  /**
+   * When true, the field accepts multiple values.
+   * - For `selector` fields, renders the picker in multi-select mode and persists `string[]` to sourceConfig.
+   * - For `short-input` fields, accepts a comma-separated list and persists `string[]` to sourceConfig.
+   * Connector handlers receive `string | string[]` and should normalize via `parseMultiValue`.
+   */
+  multi?: boolean
 }
 
 /**

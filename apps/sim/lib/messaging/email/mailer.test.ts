@@ -251,5 +251,19 @@ describe('mailer', () => {
 
       expect(isUnsubscribed).not.toHaveBeenCalled()
     })
+
+    it('should degrade isUnsubscribed rejections to per-entry failures', async () => {
+      ;(isUnsubscribed as Mock).mockRejectedValue(new Error('Database connection failed'))
+
+      const result = await sendBatchEmails({
+        emails: [
+          { ...testEmailOptions, to: 'user1@example.com', emailType: 'marketing' as EmailType },
+          { ...testEmailOptions, to: 'user2@example.com', emailType: 'marketing' as EmailType },
+        ],
+      })
+
+      expect(result.results).toHaveLength(2)
+      expect(result.results.every((r) => r.success === false)).toBe(true)
+    })
   })
 })

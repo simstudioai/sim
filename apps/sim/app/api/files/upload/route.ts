@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sanitizeFileName } from '@/executor/constants'
 import '@/lib/uploads/core/setup.server'
@@ -9,10 +10,17 @@ import {
 } from '@/lib/api/contracts/storage-transfer'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import {
+  assertKnownSizeWithinLimit,
+  isPayloadSizeLimitError,
+  readFileToBufferWithLimit,
+  readFormDataWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { MAX_WORKSPACE_FORMDATA_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
 import {
   SUPPORTED_ATTACHMENT_EXTENSIONS,
@@ -20,13 +28,10 @@ import {
   validateFileType,
 } from '@/lib/uploads/utils/validation'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import {
-  createErrorResponse,
-  createOptionsResponse,
-  InvalidRequestError,
-} from '@/app/api/files/utils'
+import { createErrorResponse, InvalidRequestError } from '@/app/api/files/utils'
 
 const ALLOWED_EXTENSIONS = new Set<string>(SUPPORTED_ATTACHMENT_EXTENSIONS)
+const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 function validateFileExtension(filename: string): boolean {
   const extension = filename.split('.').pop()?.toLowerCase()
@@ -45,7 +50,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const formData = await request.formData()
+    const formData = await readFormDataWithLimit(request, {
+      maxBytes: MAX_WORKSPACE_FORMDATA_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES,
+      label: 'multipart upload body',
+    })
 
     const rawFiles = formData.getAll('file')
     const filesResult = uploadFilesFormFilesSchema.safeParse(rawFiles)
@@ -53,6 +61,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       throw new InvalidRequestError('No files provided')
     }
     const files = filesResult.data
+    const totalFileSize = files.reduce((total, file) => total + file.size, 0)
+    assertKnownSizeWithinLimit(totalFileSize, MAX_WORKSPACE_FORMDATA_FILE_SIZE, 'uploaded files')
 
     const formFieldsResult = uploadFilesFormFieldsSchema.safeParse({
       workflowId: formData.get('workflowId'),
@@ -93,8 +103,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
-      const bytes = await file.arrayBuffer()
-      const buffer = Buffer.from(bytes)
+      const buffer = await readFileToBufferWithLimit(file, {
+        maxBytes: MAX_WORKSPACE_FORMDATA_FILE_SIZE,
+        label: 'uploaded file',
+      })
 
       // Handle execution context
       if (context === 'execution') {
@@ -218,8 +230,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           uploadResults.push(userFile)
           continue
         } catch (workspaceError) {
-          const errorMessage =
-            workspaceError instanceof Error ? workspaceError.message : 'Upload failed'
+          const errorMessage = getErrorMessage(workspaceError, 'Upload failed')
           const isDuplicate = errorMessage.includes('already exists')
           const isStorageLimitError =
             errorMessage.includes('Storage limit exceeded') ||
@@ -427,10 +438,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ files: uploadResults })
   } catch (error) {
     logger.error('Error in file upload:', error)
+    if (isPayloadSizeLimitError(error)) {
+      return NextResponse.json(
+        {
+          error: 'PayloadSizeLimitError',
+          message: `File exceeds the server upload limit of ${Math.round(error.maxBytes / (1024 * 1024))}MB. Use direct upload for larger workspace files.`,
+        },
+        { status: 413 }
+      )
+    }
     return createErrorResponse(error instanceof Error ? error : new Error('File upload failed'))
   }
-})
-
-export const OPTIONS = withRouteHandler(async () => {
-  return createOptionsResponse()
 })

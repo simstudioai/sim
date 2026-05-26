@@ -12,7 +12,10 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { buildEffectiveChatTranscript } from '@/lib/copilot/chat/effective-transcript'
-import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
+import {
+  getAccessibleCopilotChatAuth,
+  getAccessibleCopilotChatWithMessages,
+} from '@/lib/copilot/chat/lifecycle'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
 import {
@@ -42,7 +45,7 @@ export const GET = withRouteHandler(
       if (!paramsResult.success) return paramsResult.response
       const { chatId } = paramsResult.data.params
 
-      const chat = await getAccessibleCopilotChat(chatId, userId)
+      const chat = await getAccessibleCopilotChatWithMessages(chatId, userId)
       if (!chat || chat.type !== 'mothership') {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
@@ -238,7 +241,7 @@ export const DELETE = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { chatId } = parsed.data.params
 
-      const chat = await getAccessibleCopilotChat(chatId, userId)
+      const chat = await getAccessibleCopilotChatAuth(chatId, userId)
       if (!chat || chat.type !== 'mothership') {
         return NextResponse.json({ success: true })
       }

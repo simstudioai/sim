@@ -5,6 +5,7 @@ import {
   documentNumberFieldSchema,
   documentTagFieldSchema,
   knowledgeBaseParamsSchema,
+  knowledgeDocumentFileUrlSchema,
   knowledgeDocumentParamsSchema,
   nullableWireDateSchema,
   paginationSchema,
@@ -55,7 +56,7 @@ export const listKnowledgeDocumentsQuerySchema = z.object({
 
 export const createDocumentBodySchema = z.object({
   filename: z.string().min(1, 'Filename is required'),
-  fileUrl: z.string().url('File URL must be valid'),
+  fileUrl: knowledgeDocumentFileUrlSchema,
   fileSize: z.number().min(1, 'File size must be greater than 0'),
   mimeType: z.string().min(1, 'MIME type is required'),
   tag1: z.string().optional(),
@@ -101,7 +102,7 @@ export type SingleCreateDocumentBody = z.input<typeof singleCreateDocumentBodySc
 export const upsertDocumentBodySchema = z.object({
   documentId: z.string().optional(),
   filename: z.string().min(1, 'Filename is required'),
-  fileUrl: z.string().min(1, 'File URL is required'),
+  fileUrl: knowledgeDocumentFileUrlSchema,
   fileSize: z.number().min(1, 'File size must be greater than 0'),
   mimeType: z.string().min(1, 'MIME type is required'),
   documentTagsData: z.string().optional(),

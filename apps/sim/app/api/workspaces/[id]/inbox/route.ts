@@ -1,5 +1,6 @@
 import { db, mothershipInboxTask, workspace } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateInboxConfigContract } from '@/lib/api/contracts/inbox'
@@ -128,10 +129,10 @@ export const PATCH = withRouteHandler(
     } catch (error) {
       logger.error('Inbox config update failed', {
         workspaceId,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
       })
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to update inbox' },
+        { error: getErrorMessage(error, 'Failed to update inbox') },
         { status: 500 }
       )
     }

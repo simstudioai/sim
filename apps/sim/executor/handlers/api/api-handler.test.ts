@@ -116,8 +116,7 @@ describe('ApiBlockHandler', () => {
         body: { key: 'value' }, // Expect parsed body
         _context: { workflowId: 'test-workflow-id' },
       },
-      false, // skipPostProcess
-      mockContext // execution context
+      { executionContext: mockContext }
     )
     expect(result).toEqual(expectedOutput)
   })
@@ -177,8 +176,7 @@ describe('ApiBlockHandler', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'http_request',
       expect.objectContaining({ body: expectedParsedBody }),
-      false, // skipPostProcess
-      mockContext // execution context
+      { executionContext: mockContext }
     )
   })
 
@@ -193,8 +191,7 @@ describe('ApiBlockHandler', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'http_request',
       expect.objectContaining({ body: 'This is plain text' }),
-      false, // skipPostProcess
-      mockContext // execution context
+      { executionContext: mockContext }
     )
   })
 
@@ -209,8 +206,7 @@ describe('ApiBlockHandler', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'http_request',
       expect.objectContaining({ body: undefined }),
-      false, // skipPostProcess
-      mockContext // execution context
+      { executionContext: mockContext }
     )
   })
 

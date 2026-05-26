@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { crowdstrikeQueryContract } from '@/lib/api/contracts/tools/crowdstrike'
@@ -405,7 +406,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output: normalizeAggregatesOutput(aggregateData),
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    const message = toError(error).message
     logger.error(`[${requestId}] CrowdStrike request failed`, { error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }

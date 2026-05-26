@@ -7,7 +7,7 @@ export interface ElevenLabsTtsParams {
   voiceId: string
   modelId?: string
   stability?: number
-  similarity?: number
+  similarityBoost?: number
 }
 
 export interface ElevenLabsTtsResponse extends ToolResponse {
@@ -17,9 +17,4 @@ export interface ElevenLabsTtsResponse extends ToolResponse {
   }
 }
 
-export interface ElevenLabsBlockResponse extends ToolResponse {
-  output: {
-    audioUrl: string
-    audioFile?: UserFile
-  }
-}
+export type ElevenLabsBlockResponse = ElevenLabsTtsResponse

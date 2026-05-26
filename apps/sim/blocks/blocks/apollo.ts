@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { ApolloIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -1041,7 +1042,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
             parseJsonField(field)
           }
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error)
+          const message = getErrorMessage(error)
           throw new Error(`Invalid JSON input: ${message}`)
         }
 

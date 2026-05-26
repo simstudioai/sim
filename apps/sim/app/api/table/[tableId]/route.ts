@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getTableQuerySchema, renameTableContract } from '@/lib/api/contracts/tables'
 import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
@@ -127,7 +128,7 @@ export const PATCH = withRouteHandler(
 
       logger.error(`[${requestId}] Error renaming table:`, error)
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to rename table' },
+        { error: getErrorMessage(error, 'Failed to rename table') },
         { status: 500 }
       )
     }

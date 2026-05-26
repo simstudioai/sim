@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
   getLargeValueMaterializationError,
@@ -25,6 +26,8 @@ export interface ExecutionMaterializationContext {
   workspaceId?: string
   executionId?: string
   largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
   requestId?: string
@@ -84,6 +87,7 @@ export function assertLargeValueRefAccess(
     context.executionId,
     ...(context.largeValueExecutionIds ?? []),
   ])
+  const allowedKeys = new Set(context.largeValueKeys ?? [])
 
   const parts = ref.key?.split('/') ?? []
   const [, workspaceId, workflowId, executionId] = parts
@@ -101,16 +105,19 @@ export function assertLargeValueRefAccess(
     context.allowLargeValueWorkflowScope &&
     context.workspaceId === workspaceId &&
     context.workflowId === workflowId
-  if (ref.executionId && !allowedExecutionIds.has(ref.executionId) && !workflowScopeAllowed) {
-    throw new Error('Large execution value is not available in this execution.')
-  }
-  if (!allowedExecutionIds.has(executionId) && !workflowScopeAllowed) {
-    throw new Error('Large execution value is not available in this execution.')
-  }
   if (context.workspaceId && workspaceId !== context.workspaceId) {
     throw new Error('Large execution value is not available in this execution.')
   }
   if (context.workflowId && workflowId !== context.workflowId) {
+    throw new Error('Large execution value is not available in this execution.')
+  }
+  if (allowedKeys.has(ref.key)) {
+    return
+  }
+  if (ref.executionId && !allowedExecutionIds.has(ref.executionId) && !workflowScopeAllowed) {
+    throw new Error('Large execution value is not available in this execution.')
+  }
+  if (!allowedExecutionIds.has(executionId) && !workflowScopeAllowed) {
     throw new Error('Large execution value is not available in this execution.')
   }
 }
@@ -126,22 +133,31 @@ export async function readLargeValueRefFromStorage(
 
   assertLargeValueRefAccess(ref, options)
   assertInlineMaterializationSize(ref.size, options.maxBytes)
+  const maxBytes = options.maxBytes ?? MAX_INLINE_MATERIALIZATION_BYTES
 
   try {
     const { StorageService } = await import('@/lib/uploads')
     const buffer = await StorageService.downloadFile({
       key: ref.key,
       context: 'execution',
+      maxBytes,
     })
-    if (buffer.length > (options.maxBytes ?? MAX_INLINE_MATERIALIZATION_BYTES)) {
+    if (buffer.length > maxBytes) {
       throw new ExecutionResourceLimitError({
         resource: 'execution_payload_bytes',
         attemptedBytes: buffer.length,
-        limitBytes: options.maxBytes ?? MAX_INLINE_MATERIALIZATION_BYTES,
+        limitBytes: maxBytes,
       })
     }
     return JSON.parse(buffer.toString('utf8'))
   } catch (error) {
+    if (isPayloadSizeLimitError(error)) {
+      throw new ExecutionResourceLimitError({
+        resource: 'execution_payload_bytes',
+        attemptedBytes: error.observedBytes ?? maxBytes + 1,
+        limitBytes: maxBytes,
+      })
+    }
     if (error instanceof ExecutionResourceLimitError) {
       throw error
     }
@@ -191,22 +207,28 @@ function assertExecutionFileScope(key: string, options: ExecutionMaterialization
     options.executionId,
     ...(options.largeValueExecutionIds ?? []),
   ])
+  const allowedFileKeys = new Set(options.fileKeys ?? [])
   const workflowScopeAllowed =
     options.allowLargeValueWorkflowScope &&
     options.workspaceId === parts.workspaceId &&
     options.workflowId === parts.workflowId
-  if (
-    !options.executionId ||
-    (!allowedExecutionIds.has(parts.executionId) && !workflowScopeAllowed)
-  ) {
-    throw new Error('File is not available in this execution.')
-  }
 
   if (options.workspaceId && parts.workspaceId !== options.workspaceId) {
     throw new Error('File is not available in this execution.')
   }
 
   if (options.workflowId && parts.workflowId !== options.workflowId) {
+    throw new Error('File is not available in this execution.')
+  }
+
+  if (allowedFileKeys.has(key)) {
+    return
+  }
+
+  if (
+    !options.executionId ||
+    (!allowedExecutionIds.has(parts.executionId) && !workflowScopeAllowed)
+  ) {
     throw new Error('File is not available in this execution.')
   }
 }
@@ -268,7 +290,18 @@ export async function readUserFileContent(
   const log = getLogger(options)
   const requestId = options.requestId ?? 'unknown'
 
-  buffer = await downloadFileFromStorage(file, requestId, log)
+  try {
+    buffer = await downloadFileFromStorage(file, requestId, log, { maxBytes: maxSourceBytes })
+  } catch (error) {
+    if (isPayloadSizeLimitError(error)) {
+      throw new ExecutionResourceLimitError({
+        resource: 'execution_payload_bytes',
+        attemptedBytes: error.observedBytes ?? maxSourceBytes + 1,
+        limitBytes: maxSourceBytes,
+      })
+    }
+    throw error
+  }
 
   if (!buffer) {
     throw new Error(`File content for ${file.name} is unavailable.`)

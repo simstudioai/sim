@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { formatDateTime } from '@sim/utils/formatting'
 import { Cron } from 'croner'
 import cronstrue from 'cronstrue'
@@ -45,7 +45,7 @@ export function validateCronExpression(
   } catch (error) {
     return {
       isValid: false,
-      error: error instanceof Error ? error.message : 'Invalid cron expression syntax',
+      error: getErrorMessage(error, 'Invalid cron expression syntax'),
     }
   }
 }

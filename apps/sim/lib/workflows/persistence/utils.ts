@@ -1,6 +1,7 @@
 import { db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { getActiveWorkflowContext } from '@sim/workflow-authz'
 import {
@@ -470,7 +471,7 @@ export async function saveWorkflowToNormalizedTables(
       return saveWorkflowToNormalizedTablesRaw(workflowId, state, tx)
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to save workflow state'
+    const message = getErrorMessage(error, 'Failed to save workflow state')
     logger.error(`Error saving workflow ${workflowId} to normalized tables:`, error)
     return { success: false, error: message }
   }
@@ -659,7 +660,7 @@ export async function deployWorkflow(params: {
     logger.error(`Error deploying workflow ${workflowId}:`, error)
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
     }
   }
 }
@@ -716,7 +717,7 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
     const newBlock: BlockState = {
       ...block,
       id: newId,
-      subBlocks: JSON.parse(JSON.stringify(block.subBlocks)),
+      subBlocks: structuredClone(block.subBlocks),
       locked: false,
     }
 
@@ -864,7 +865,7 @@ export async function undeployWorkflow(params: {
     logger.error(`Error undeploying workflow ${workflowId}:`, error)
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to undeploy workflow',
+      error: getErrorMessage(error, 'Failed to undeploy workflow'),
     }
   }
 }
@@ -970,7 +971,7 @@ export async function activateWorkflowVersion(params: {
     logger.error(`Error activating version ${version} for workflow ${workflowId}:`, error)
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to activate version',
+      error: getErrorMessage(error, 'Failed to activate version'),
     }
   }
 }
@@ -1065,7 +1066,7 @@ async function activateWorkflowVersionById(params: {
     )
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to activate version',
+      error: getErrorMessage(error, 'Failed to activate version'),
     }
   }
 }

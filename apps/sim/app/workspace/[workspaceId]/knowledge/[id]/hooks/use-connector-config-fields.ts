@@ -4,42 +4,75 @@ import { useCallback, useMemo, useState } from 'react'
 import { getDependsOnFields } from '@/blocks/utils'
 import type { ConnectorConfig, ConnectorConfigField } from '@/connectors/types'
 
+export type ConfigFieldValue = string | string[]
+export type ConfigFieldMap = Record<string, ConfigFieldValue>
+
 export interface UseConnectorConfigFieldsOptions {
   connectorConfig: ConnectorConfig | null
-  initialSourceConfig?: Record<string, string>
+  initialSourceConfig?: ConfigFieldMap
   initialCanonicalModes?: Record<string, 'basic' | 'advanced'>
 }
 
 export interface UseConnectorConfigFieldsResult {
-  sourceConfig: Record<string, string>
-  setSourceConfig: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  sourceConfig: ConfigFieldMap
+  setSourceConfig: React.Dispatch<React.SetStateAction<ConfigFieldMap>>
   canonicalModes: Record<string, 'basic' | 'advanced'>
   setCanonicalModes: React.Dispatch<React.SetStateAction<Record<string, 'basic' | 'advanced'>>>
   canonicalGroups: Map<string, ConnectorConfigField[]>
   isFieldVisible: (field: ConnectorConfigField) => boolean
-  handleFieldChange: (fieldId: string, value: string) => void
+  isFieldPopulated: (field: ConnectorConfigField) => boolean
+  handleFieldChange: (fieldId: string, value: ConfigFieldValue) => void
   toggleCanonicalMode: (canonicalId: string) => void
-  resolveSourceConfig: () => Record<string, string>
+  resolveSourceConfig: () => Record<string, unknown>
+}
+
+function isMultiField(field: ConnectorConfigField | undefined): boolean {
+  return Boolean(field?.multi)
+}
+
+function emptyValue(field: ConnectorConfigField | undefined): ConfigFieldValue {
+  return isMultiField(field) ? [] : ''
+}
+
+/**
+ * Coerces a stored value to the shape expected by the field (string vs string[]).
+ * Multi fields accept either a string[] or a CSV string from advanced mode.
+ */
+function coerceForField(field: ConnectorConfigField, raw: unknown): ConfigFieldValue {
+  if (isMultiField(field)) {
+    if (Array.isArray(raw)) return raw.filter((v): v is string => typeof v === 'string')
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim()
+      if (!trimmed) return []
+      return trimmed
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    }
+    return []
+  }
+  if (Array.isArray(raw)) {
+    return raw.filter((v): v is string => typeof v === 'string').join(',')
+  }
+  return raw == null ? '' : String(raw)
+}
+
+function isValuePopulated(value: ConfigFieldValue): boolean {
+  if (Array.isArray(value)) return value.length > 0
+  return value.trim().length > 0
 }
 
 /**
  * Shared state and helpers for connector configuration fields that support
- * canonical pairs (selector + manual input sharing a `canonicalParamId`).
- *
- * - Tracks current field values and active mode (basic/advanced) per canonical group.
- * - Computes the dependency graph including canonical-sibling expansion so that
- *   changing a dependency clears both siblings of any dependent canonical pair.
- * - Returns `resolveSourceConfig` which collapses the per-field map back to a
- *   canonical-keyed object ready to submit.
+ * canonical pairs (selector + manual input sharing a `canonicalParamId`) and
+ * multi-value fields (selector or short-input with `multi: true`).
  */
 export function useConnectorConfigFields({
   connectorConfig,
   initialSourceConfig,
   initialCanonicalModes,
 }: UseConnectorConfigFieldsOptions): UseConnectorConfigFieldsResult {
-  const [sourceConfig, setSourceConfig] = useState<Record<string, string>>(
-    () => initialSourceConfig ?? {}
-  )
+  const [sourceConfig, setSourceConfig] = useState<ConfigFieldMap>(() => initialSourceConfig ?? {})
   const [canonicalModes, setCanonicalModes] = useState<Record<string, 'basic' | 'advanced'>>(
     () => initialCanonicalModes ?? {}
   )
@@ -54,6 +87,13 @@ export function useConnectorConfigFields({
       else groups.set(field.canonicalParamId, [field])
     }
     return groups
+  }, [connectorConfig])
+
+  const fieldsById = useMemo(() => {
+    const map = new Map<string, ConnectorConfigField>()
+    if (!connectorConfig) return map
+    for (const field of connectorConfig.configFields) map.set(field.id, field)
+    return map
   }, [connectorConfig])
 
   const dependentFieldIds = useMemo(() => {
@@ -104,12 +144,18 @@ export function useConnectorConfigFields({
     [canonicalModes]
   )
 
-  const handleFieldChange = (fieldId: string, value: string) => {
+  const isFieldPopulated = useCallback(
+    (field: ConnectorConfigField): boolean =>
+      isValuePopulated(sourceConfig[field.id] ?? emptyValue(field)),
+    [sourceConfig]
+  )
+
+  const handleFieldChange = (fieldId: string, value: ConfigFieldValue) => {
     setSourceConfig((prev) => {
-      const next = { ...prev, [fieldId]: value }
+      const next: ConfigFieldMap = { ...prev, [fieldId]: value }
       const toClear = dependentFieldIds.get(fieldId)
       if (toClear) {
-        for (const depId of toClear) next[depId] = ''
+        for (const depId of toClear) next[depId] = emptyValue(fieldsById.get(depId))
       }
       return next
     })
@@ -122,8 +168,8 @@ export function useConnectorConfigFields({
     }))
   }
 
-  const resolveSourceConfig = useCallback((): Record<string, string> => {
-    const resolved: Record<string, string> = {}
+  const resolveSourceConfig = useCallback((): Record<string, unknown> => {
+    const resolved: Record<string, unknown> = {}
     const processed = new Set<string>()
     if (!connectorConfig) return resolved
 
@@ -135,9 +181,11 @@ export function useConnectorConfigFields({
         if (!group) continue
         const activeMode = canonicalModes[field.canonicalParamId] ?? 'basic'
         const activeField = group.find((f) => f.mode === activeMode) ?? group[0]
-        resolved[field.canonicalParamId] = sourceConfig[activeField.id] ?? ''
+        const raw = sourceConfig[activeField.id] ?? emptyValue(activeField)
+        resolved[field.canonicalParamId] = coerceForField(activeField, raw)
       } else {
-        resolved[field.id] = sourceConfig[field.id] ?? ''
+        const raw = sourceConfig[field.id] ?? emptyValue(field)
+        resolved[field.id] = coerceForField(field, raw)
       }
     }
     return resolved
@@ -150,6 +198,7 @@ export function useConnectorConfigFields({
     setCanonicalModes,
     canonicalGroups,
     isFieldVisible,
+    isFieldPopulated,
     handleFieldChange,
     toggleCanonicalMode,
     resolveSourceConfig,

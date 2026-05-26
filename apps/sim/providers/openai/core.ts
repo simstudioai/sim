@@ -1,5 +1,5 @@
 import type { Logger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import type OpenAI from 'openai'
 import type { IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -133,7 +133,7 @@ export async function executeResponsesProviderRequest(
     allMessages.push(...request.messages)
   }
 
-  const initialInput = buildResponsesInputFromMessages(allMessages)
+  const initialInput = buildResponsesInputFromMessages(allMessages, config.providerId)
 
   const basePayload: Record<string, unknown> = {
     model: config.modelName,
@@ -476,7 +476,9 @@ export async function executeResponsesProviderRequest(
           }
 
           const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-          const result = await executeTool(toolName, executionParams)
+          const result = await executeTool(toolName, executionParams, {
+            signal: request.abortSignal,
+          })
           const toolCallEndTime = Date.now()
 
           return {
@@ -499,7 +501,7 @@ export async function executeResponsesProviderRequest(
             result: {
               success: false,
               output: undefined,
-              error: error instanceof Error ? error.message : 'Tool execution failed',
+              error: getErrorMessage(error, 'Tool execution failed'),
             },
             startTime: toolCallStartTime,
             endTime: toolCallEndTime,

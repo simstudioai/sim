@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { noInputSchema } from '@/lib/api/contracts/primitives'
@@ -60,7 +61,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       {
         success: false,
         message: 'Inactivity alert polling failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
         requestId,
       },
       { status: 500 }

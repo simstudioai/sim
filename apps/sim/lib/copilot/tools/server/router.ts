@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import {
   CreateFile,
+  CreateFileFolder,
   DeleteFile,
+  DeleteFileFolder,
   DownloadToWorkspaceFile,
   GenerateImage,
   GenerateVisualization,
@@ -11,7 +13,10 @@ import {
   ManageCustomTool,
   ManageMcpTool,
   ManageSkill,
+  MoveFile,
+  MoveFileFolder,
   RenameFile,
+  RenameFileFolder,
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -27,6 +32,14 @@ import { createFileServerTool } from '@/lib/copilot/tools/server/files/create-fi
 import { deleteFileServerTool } from '@/lib/copilot/tools/server/files/delete-file'
 import { downloadToWorkspaceFileServerTool } from '@/lib/copilot/tools/server/files/download-to-workspace-file'
 import { editContentServerTool } from '@/lib/copilot/tools/server/files/edit-content'
+import {
+  createFileFolderServerTool,
+  deleteFileFolderServerTool,
+  listFileFoldersServerTool,
+  moveFileFolderServerTool,
+  moveFileServerTool,
+  renameFileFolderServerTool,
+} from '@/lib/copilot/tools/server/files/file-folders'
 import { renameFileServerTool } from '@/lib/copilot/tools/server/files/rename-file'
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
@@ -94,6 +107,11 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [CreateFile.id]: ['*'],
   [RenameFile.id]: ['*'],
   [DeleteFile.id]: ['*'],
+  [MoveFile.id]: ['*'],
+  [CreateFileFolder.id]: ['*'],
+  [RenameFileFolder.id]: ['*'],
+  [MoveFileFolder.id]: ['*'],
+  [DeleteFileFolder.id]: ['*'],
   [DownloadToWorkspaceFile.id]: ['*'],
   [GenerateVisualization.id]: ['generate'],
   [GenerateImage.id]: ['generate'],
@@ -103,17 +121,12 @@ function isWritePermission(userPermission: string): boolean {
   return userPermission === 'write' || userPermission === 'admin'
 }
 
-function isActionAllowed(
-  toolName: string,
-  action: string | undefined,
-  userPermission: string
-): boolean {
+function isWriteAction(toolName: string, action: string | undefined): boolean {
   const writeActions = WRITE_ACTIONS[toolName]
-  if (!writeActions) return true
+  if (!writeActions) return false
   // '*' means the tool is always a write operation regardless of action field
-  if (writeActions.includes('*')) return isWritePermission(userPermission)
-  if (action && writeActions.includes(action)) return isWritePermission(userPermission)
-  return true
+  if (writeActions.includes('*')) return true
+  return Boolean(action && writeActions.includes(action))
 }
 
 /** Registry of all server tools. Tools self-declare their validation schemas. */
@@ -135,6 +148,12 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [createFileServerTool.name]: createFileServerTool,
   [renameFileServerTool.name]: renameFileServerTool,
   [deleteFileServerTool.name]: deleteFileServerTool,
+  [moveFileServerTool.name]: moveFileServerTool,
+  [listFileFoldersServerTool.name]: listFileFoldersServerTool,
+  [createFileFolderServerTool.name]: createFileFolderServerTool,
+  [renameFileFolderServerTool.name]: renameFileFolderServerTool,
+  [moveFileFolderServerTool.name]: moveFileFolderServerTool,
+  [deleteFileFolderServerTool.name]: deleteFileFolderServerTool,
   [downloadToWorkspaceFileServerTool.name]: downloadToWorkspaceFileServerTool,
   [generateVisualizationServerTool.name]: generateVisualizationServerTool,
   [generateImageServerTool.name]: generateImageServerTool,
@@ -160,13 +179,13 @@ export async function routeExecution(
   )
 
   // Action-level permission enforcement for mixed read/write tools
-  if (context?.userPermission && WRITE_ACTIONS[toolName]) {
+  if (WRITE_ACTIONS[toolName]) {
     const p = payload as Record<string, unknown>
     const action = (p?.operation ?? p?.action) as string | undefined
-    if (!isActionAllowed(toolName, action, context.userPermission)) {
+    if (isWriteAction(toolName, action) && !isWritePermission(context?.userPermission ?? '')) {
       const actionLabel = action ? `'${action}' on ` : ''
       throw new Error(
-        `Permission denied: ${actionLabel}${toolName} requires write access. You have '${context.userPermission}' permission.`
+        `Permission denied: ${actionLabel}${toolName} requires write access. You have '${context?.userPermission ?? 'none'}' permission.`
       )
     }
   }

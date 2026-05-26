@@ -3,6 +3,7 @@ import {
   DescribeStackDriftDetectionStatusCommand,
 } from '@aws-sdk/client-cloudformation'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsCloudformationDescribeStackDriftDetectionStatusContract } from '@/lib/api/contracts/tools/aws/cloudformation-describe-stack-drift-detection-status'
 import { parseToolRequest } from '@/lib/api/server'
@@ -56,8 +57,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to describe stack drift detection status'
+    const errorMessage = getErrorMessage(error, 'Failed to describe stack drift detection status')
     logger.error('DescribeStackDriftDetectionStatus failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }

@@ -1,14 +1,20 @@
 import { createLogger } from '@sim/logger'
+import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   getWorkspaceFileByName,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { inferContentType, validateFlatWorkspaceFileName } from './workspace-file'
+import {
+  inferContentType,
+  splitWorkspaceFilePath,
+  validateFlatWorkspaceFileName,
+} from './workspace-file'
 
 const logger = createLogger('CreateFileServerTool')
 const CREATE_FILE_TOOL_ID = 'create_file'
@@ -39,6 +45,7 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
     const nested = params.args
     const fileName = params.fileName || (nested?.fileName as string) || ''
@@ -47,12 +54,18 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     const nameError = validateFlatWorkspaceFileName(fileName)
     if (nameError) return { success: false, message: nameError }
 
-    const existingFile = await getWorkspaceFileByName(workspaceId, fileName)
+    const { folderSegments, leafName } = splitWorkspaceFilePath(fileName)
+    const folderId = await ensureWorkspaceFileFolderPath({
+      workspaceId,
+      userId: context.userId,
+      pathSegments: folderSegments,
+    })
+    const existingFile = await getWorkspaceFileByName(workspaceId, leafName, { folderId })
     if (existingFile) {
       return { success: false, message: `File "${fileName}" already exists` }
     }
 
-    const contentType = inferContentType(fileName, explicitType)
+    const contentType = inferContentType(leafName, explicitType)
     const emptyBuffer = Buffer.from('', 'utf-8')
 
     assertServerToolNotAborted(context)
@@ -60,8 +73,9 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
       workspaceId,
       context.userId,
       emptyBuffer,
-      fileName,
-      contentType
+      leafName,
+      contentType,
+      { folderId }
     )
 
     logger.info('File created via create_file', {

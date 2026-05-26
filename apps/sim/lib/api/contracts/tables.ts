@@ -387,7 +387,7 @@ export const restoreTableContract = defineRouteContract({
   params: tableIdParamsSchema,
   response: {
     mode: 'json',
-    schema: z.object({ success: z.literal(true) }),
+    schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),
   },
 })
 
@@ -898,11 +898,13 @@ export const runColumnContract = defineRouteContract({
   response: {
     mode: 'json',
     /**
-     * `triggered` is `null` when the dispatcher runs in the background — the
-     * actual count is only known after a fan-out that may be tens of thousands
-     * of rows, and we don't hold the HTTP response open for that long.
+     * `dispatchId` is the id of the `table_run_dispatches` row created for
+     * this run. The dispatcher task picks it up and crawls the table row by
+     * row; clients receive cell + dispatch events via SSE. Null when
+     * trigger.dev is disabled — in that mode cells run inline in-process and
+     * no dispatch row is created.
      */
-    schema: successResponseSchema(z.object({ triggered: z.number().nullable() })),
+    schema: successResponseSchema(z.object({ dispatchId: z.string().min(1).nullable() })),
   },
 })
 
@@ -914,6 +916,47 @@ export type RunColumnBodyInput = z.input<typeof runColumnBodySchema>
 /** Shared `runMode` union — used by every UI / hook / Mothership site that
  *  builds a run-column payload. Single source of truth for the literal pair. */
 export type RunMode = NonNullable<RunColumnBodyInput['runMode']>
+
+/**
+ * Active dispatch overlay: rows in the scope ahead of `cursor` render as
+ * `pending` on refresh, so a long Run-all doesn't lose its queued indicators.
+ * Returned by `GET /api/table/[tableId]/dispatches`; mirrored client-side via
+ * `kind: 'dispatch'` SSE events.
+ */
+export const activeDispatchSchema = z.object({
+  id: z.string(),
+  status: z.enum(['pending', 'dispatching']),
+  mode: z.enum(['all', 'incomplete', 'new']),
+  isManualRun: z.boolean(),
+  cursor: z.number().int(),
+  scope: z.object({
+    groupIds: z.array(z.string()),
+    rowIds: z.array(z.string()).optional(),
+  }),
+})
+
+export const listActiveDispatchesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/dispatches',
+  params: tableIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        dispatches: z.array(activeDispatchSchema),
+        /** Total cells across the table whose `status === 'running'`. The
+         *  client maintains this incrementally via cell SSE events; this
+         *  field is the bootstrap snapshot on mount. */
+        runningCellCount: z.number().int().nonnegative(),
+        /** Map rowId → number of running cells on that row. Drives the
+         *  per-row badge next to the Stop button. */
+        runningByRowId: z.record(z.string(), z.number().int().positive()),
+      })
+    ),
+  },
+})
+
+export type ActiveDispatch = z.output<typeof activeDispatchSchema>
 
 export const tableEventStreamQuerySchema = z.object({
   from: z.preprocess((value) => {

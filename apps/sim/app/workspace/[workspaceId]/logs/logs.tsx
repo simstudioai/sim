@@ -91,6 +91,7 @@ import {
   DELETED_WORKFLOW_LABEL,
   extractRetryInput,
   formatDate,
+  formatDateShort,
   getDisplayStatus,
   type LogStatus,
   parseDuration,
@@ -102,6 +103,8 @@ import {
 const LOGS_PER_PAGE = 50 as const
 const SORTABLE_COLUMNS: readonly LogSortBy[] = ['date', 'duration', 'cost', 'status'] as const
 const REFRESH_SPINNER_DURATION_MS = 1000 as const
+const LIVE_REFRESH_INTERVAL_MS = 10_000 as const
+const ACTIVE_RUN_DETAIL_REFRESH_MS = 3_000 as const
 
 const LOG_COLUMNS: ResourceColumn[] = [
   { id: 'workflow', header: 'Workflow' },
@@ -203,25 +206,6 @@ function getTriggerIcon(
 
 function SpinningRefreshCw(props: React.SVGProps<SVGSVGElement>) {
   return <RefreshCw {...props} animate />
-}
-
-function formatDateShort(dateStr: string): string {
-  const date = new Date(dateStr)
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ]
-  return `${months[date.getMonth()]} ${date.getDate()}`
 }
 
 /**
@@ -335,7 +319,7 @@ export default function Logs() {
     (query: { state: { data?: WorkflowLogDetail } }) => {
       if (!isLive) return false
       const status = query.state.data?.status
-      return status === 'running' || status === 'pending' ? 3000 : false
+      return status === 'running' || status === 'pending' ? ACTIVE_RUN_DETAIL_REFRESH_MS : false
     },
     [isLive]
   )
@@ -383,7 +367,7 @@ export default function Logs() {
   )
 
   const logsQuery = useLogsList(workspaceId, logFilters, {
-    refetchInterval: isLive ? 3000 : false,
+    refetchInterval: isLive ? LIVE_REFRESH_INTERVAL_MS : false,
   })
 
   const dashboardFilters = useMemo(
@@ -401,7 +385,7 @@ export default function Logs() {
   )
 
   const dashboardStatsQuery = useDashboardStats(workspaceId, dashboardFilters, {
-    refetchInterval: isLive ? 3000 : false,
+    refetchInterval: isLive ? LIVE_REFRESH_INTERVAL_MS : false,
   })
 
   const logs = useMemo(() => {
@@ -866,7 +850,7 @@ export default function Logs() {
       tags.push({
         label:
           timeRange === 'Custom range' && startDate && endDate
-            ? `${startDate} – ${endDate}`
+            ? `${formatDateShort(startDate)} – ${formatDateShort(endDate)}`
             : timeRange,
         onRemove: () => {
           clearDateRange()
@@ -1519,10 +1503,12 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             }
             size='sm'
             className='h-[32px] w-full rounded-md'
+            maxHeight={320}
           />
           <DatePicker
             mode='range'
             showTrigger={false}
+            showTime
             open={datePickerOpen}
             onOpenChange={(isOpen) => {
               if (!isOpen) {

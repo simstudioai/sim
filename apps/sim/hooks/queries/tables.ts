@@ -19,6 +19,7 @@ import { isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
+  type ActiveDispatch,
   type AddWorkflowGroupBodyInput,
   addTableColumnContract,
   addWorkflowGroupContract,
@@ -38,6 +39,7 @@ import {
   deleteWorkflowGroupContract,
   getTableContract,
   type InsertTableRowBodyInput,
+  listActiveDispatchesContract,
   listTableRowsContract,
   listTablesContract,
   type RunMode,
@@ -69,7 +71,12 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table'
-import { areOutputsFilled, optimisticallyScheduleNewlyEligibleGroups } from '@/lib/table/deps'
+import { TABLE_LIMITS } from '@/lib/table/constants'
+import {
+  areGroupDepsSatisfied,
+  isExecInFlight,
+  optimisticallyScheduleNewlyEligibleGroups,
+} from '@/lib/table/deps'
 
 const logger = createLogger('TableQueries')
 
@@ -86,6 +93,8 @@ export const tableKeys = {
   infiniteRows: (tableId: string, paramsKey: string) =>
     [...tableKeys.rowsRoot(tableId), 'infinite', paramsKey] as const,
   rowWrites: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'write'] as const,
+  activeDispatches: (tableId: string) =>
+    [...tableKeys.detail(tableId), 'active-dispatches'] as const,
 }
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
@@ -153,10 +162,6 @@ async function fetchTableRows({
   return { rows, totalCount }
 }
 
-function invalidateRowData(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
-  queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-}
-
 function invalidateRowCount(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
@@ -198,6 +203,94 @@ export function useTable(workspaceId: string | undefined, tableId: string | unde
     queryKey: tableKeys.detail(tableId ?? ''),
     queryFn: ({ signal }) => fetchTable(workspaceId as string, tableId as string, signal),
     enabled: Boolean(workspaceId && tableId),
+    staleTime: 30 * 1000,
+  })
+}
+
+export interface TableRunState {
+  dispatches: ActiveDispatch[]
+  runningCellCount: number
+  runningByRowId: Record<string, number>
+}
+
+async function fetchTableRunState(tableId: string, signal?: AbortSignal): Promise<TableRunState> {
+  const response = await requestJson(listActiveDispatchesContract, {
+    params: { tableId },
+    signal,
+  })
+  return {
+    dispatches: response.data.dispatches,
+    runningCellCount: response.data.runningCellCount,
+    runningByRowId: response.data.runningByRowId,
+  }
+}
+
+/** Count groups flipped to in-flight (`pending`) by an optimistic schedule that
+ *  weren't in-flight before — the delta to add to the run-state counter. */
+function countNewlyInFlight(before: RowExecutions, after: RowExecutions): number {
+  let n = 0
+  for (const gid of Object.keys(after)) {
+    if (after[gid]?.status === 'pending' && !isExecInFlight(before[gid])) n++
+  }
+  return n
+}
+
+/** The table's maintained, unfiltered `rowCount` from the detail cache (or
+ *  `null` when the detail hasn't loaded). This is the right scope for a Run-all
+ *  estimate: the dispatcher runs every row regardless of the active view
+ *  filter, whereas the rows query's `totalCount` is filter-scoped. */
+function readTableRowCount(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string
+): number | null {
+  const def = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+  return typeof def?.rowCount === 'number' ? def.rowCount : null
+}
+
+/** Optimistically reflect a run on the "X running" badge + per-row gutter Stop
+ *  instantly (the optimistic stamp eats the dispatcher's `pending` SSE, so
+ *  `applyCell` never bumps the count, and the server's dispatch-scope count
+ *  isn't live until the first window). `stampedByRow` drives the per-row gutter
+ *  (loaded rows only); `cellCountDelta` is the badge delta — pass the full run
+ *  scope (rows × groups) for Run-all so it matches the server, or omit to use
+ *  the stamped total. Returns the prior snapshot for rollback. */
+function bumpRunState(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string,
+  stampedByRow: Record<string, number>,
+  cellCountDelta?: number
+): { snapshot: TableRunState | undefined } | null {
+  const stampedTotal = Object.values(stampedByRow).reduce((s, n) => s + n, 0)
+  const countDelta = cellCountDelta ?? stampedTotal
+  if (countDelta === 0 && stampedTotal === 0) return null
+  const snapshot = queryClient.getQueryData<TableRunState>(tableKeys.activeDispatches(tableId))
+  queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
+    const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
+    const nextByRow = { ...base.runningByRowId }
+    for (const [rid, n] of Object.entries(stampedByRow)) {
+      nextByRow[rid] = (nextByRow[rid] ?? 0) + n
+    }
+    return {
+      ...base,
+      runningCellCount: base.runningCellCount + countDelta,
+      runningByRowId: nextByRow,
+    }
+  })
+  return { snapshot }
+}
+
+/**
+ * Aggregate live state for a table: active dispatches (drives the "about to
+ * run" overlay), the running-cell count (top-right counter), and per-row
+ * running counts (per-row badge). Bootstrap snapshot fetched once on mount;
+ * SSE `kind: 'cell'` and `kind: 'dispatch'` events incrementally update the
+ * same cache.
+ */
+export function useTableRunState(tableId: string | undefined) {
+  return useQuery({
+    queryKey: tableKeys.activeDispatches(tableId ?? ''),
+    queryFn: ({ signal }) => fetchTableRunState(tableId as string, signal),
+    enabled: Boolean(tableId),
     staleTime: 30 * 1000,
   })
 }
@@ -409,7 +502,16 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       const row = response.data.row
       if (!row) return
 
-      reconcileCreatedRow(queryClient, tableId, row)
+      const groups =
+        queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
+          .workflowGroups ?? []
+      const stamped = withOptimisticAutoFireExec(groups, row)
+      reconcileCreatedRow(queryClient, tableId, stamped)
+      // Bump the run-state counter for any auto-fire groups stamped pending so
+      // the "X running" badge + gutter Stop show immediately (the row had no
+      // prior executions, so the stamped set is the full delta).
+      const stampedCount = countNewlyInFlight({}, stamped.executions ?? {})
+      if (stampedCount > 0) bumpRunState(queryClient, tableId, { [row.id]: stampedCount })
     },
     onError: (error) => {
       if (isValidationError(error)) return
@@ -419,6 +521,19 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       invalidateRowCount(queryClient, tableId)
     },
   })
+}
+
+/**
+ * Pre-stamp `pending` for any auto-fire-eligible workflow groups on a row that
+ * was just inserted server-side. Mirrors the server's `mode: 'new'` dispatch:
+ * the server will fire these groups in the background; the optimistic stamp
+ * shows the user a `queued` badge immediately rather than waiting ~1s for the
+ * first SSE event.
+ */
+function withOptimisticAutoFireExec(groups: WorkflowGroup[], row: TableRow): TableRow {
+  const nextExecutions = optimisticallyScheduleNewlyEligibleGroups(groups, row, {})
+  if (!nextExecutions) return row
+  return { ...row, executions: nextExecutions }
 }
 
 /**
@@ -562,10 +677,14 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
         queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
           .workflowGroups ?? []
 
+      const stampedByRow: Record<string, number> = {}
       patchCachedRows(queryClient, tableId, (row) => {
         if (row.id !== rowId) return row
         const patch = data as Partial<RowData>
         const nextExecutions = optimisticallyScheduleNewlyEligibleGroups(groups, row, patch)
+        if (nextExecutions) {
+          stampedByRow[row.id] = countNewlyInFlight(row.executions ?? {}, nextExecutions)
+        }
         return {
           ...row,
           data: { ...row.data, ...patch } as RowData,
@@ -573,7 +692,12 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
         }
       })
 
-      return { previousQueries }
+      const bumped = bumpRunState(queryClient, tableId, stampedByRow)
+      return {
+        previousQueries,
+        runStateSnapshot: bumped?.snapshot,
+        didBumpRunState: bumped !== null,
+      }
     },
     onSuccess: (response, { rowId, data: mutatedData }) => {
       const serverRow = response.data.row
@@ -599,13 +723,11 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
           queryClient.setQueryData(queryKey, data)
         }
       }
+      if (context?.didBumpRunState) {
+        queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
+      }
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
-    },
-    onSettled: () => {
-      if (queryClient.isMutating({ mutationKey: tableKeys.rowWrites(tableId) }) === 1) {
-        invalidateRowData(queryClient, tableId)
-      }
     },
   })
 }
@@ -643,11 +765,15 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
         queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
           .workflowGroups ?? []
 
+      const stampedByRow: Record<string, number> = {}
       patchCachedRows(queryClient, tableId, (row) => {
         const raw = updateMap.get(row.id)
         if (!raw) return row
         const patch = raw as Partial<RowData>
         const nextExecutions = optimisticallyScheduleNewlyEligibleGroups(groups, row, patch)
+        if (nextExecutions) {
+          stampedByRow[row.id] = countNewlyInFlight(row.executions ?? {}, nextExecutions)
+        }
         return {
           ...row,
           data: { ...row.data, ...patch } as RowData,
@@ -655,7 +781,12 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
         }
       })
 
-      return { previousQueries }
+      const bumped = bumpRunState(queryClient, tableId, stampedByRow)
+      return {
+        previousQueries,
+        runStateSnapshot: bumped?.snapshot,
+        didBumpRunState: bumped !== null,
+      }
     },
     onError: (error, _vars, context) => {
       if (context?.previousQueries) {
@@ -663,13 +794,11 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
           queryClient.setQueryData(queryKey, data)
         }
       }
+      if (context?.didBumpRunState) {
+        queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
+      }
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
-    },
-    onSettled: () => {
-      if (queryClient.isMutating({ mutationKey: tableKeys.rowWrites(tableId) }) === 1) {
-        invalidateRowData(queryClient, tableId)
-      }
     },
   })
 }
@@ -708,17 +837,24 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
     mutationFn: async (rowIds: string[]): Promise<TableRowsDeleteResult> => {
       const uniqueRowIds = Array.from(new Set(rowIds))
 
-      const response = await requestJson(deleteTableRowsContract, {
-        params: { tableId },
-        body: { workspaceId, rowIds: uniqueRowIds },
-      })
-
-      const deletedRowIds = response.data.deletedRowIds || []
-      const missingRowIds = response.data.missingRowIds || []
+      // The delete contract caps `rowIds` at MAX_BULK_OPERATION_SIZE, so large
+      // selections (e.g. "select all") are sent as sequential chunks.
+      const chunkSize = TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
+      const deletedRowIds: string[] = []
+      const missingRowIds: string[] = []
+      for (let i = 0; i < uniqueRowIds.length; i += chunkSize) {
+        const chunk = uniqueRowIds.slice(i, i + chunkSize)
+        const response = await requestJson(deleteTableRowsContract, {
+          params: { tableId },
+          body: { workspaceId, rowIds: chunk },
+        })
+        deletedRowIds.push(...(response.data.deletedRowIds || []))
+        missingRowIds.push(...(response.data.missingRowIds || []))
+      }
 
       if (missingRowIds.length > 0) {
         const failureCount = missingRowIds.length
-        const totalCount = response.data.requestedCount ?? uniqueRowIds.length
+        const totalCount = uniqueRowIds.length
         const successCount = deletedRowIds.length
         const firstMissing = missingRowIds[0]
         throw new Error(
@@ -869,13 +1005,19 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
         const nextExecutions: RowExecutions = { ...executions }
         for (const gid in executions) {
           const exec = executions[gid]
-          if (!isOptimisticInFlight(exec)) continue
-          // Preserve blockErrors so cells that already errored keep their
-          // Error rendering after the stop — only cells without a value or
-          // error should flip to "Cancelled".
+          if (!isExecInFlight(exec)) continue
+          if (exec.executionId == null) {
+            // Optimistic-only or dispatcher-pre-stamp pending — server has not
+            // claimed the cell yet, so no SSE will arrive to reconcile a
+            // `cancelled` stamp. Strip the entry instead and let the renderer
+            // fall through to the cell's prior state (value / empty / etc.).
+            delete nextExecutions[gid]
+            rowTouched = true
+            continue
+          }
           nextExecutions[gid] = {
             status: 'cancelled',
-            executionId: exec.executionId ?? null,
+            executionId: exec.executionId,
             jobId: null,
             workflowId: exec.workflowId,
             error: 'Cancelled',
@@ -892,6 +1034,11 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      // Refetch the run-state snapshot — server re-derives runningCellCount +
+      // runningByRowId from the freshly-updated sidecar via countRunningCells.
+      // Without this, the counter and row gutter button stay stale until the
+      // user refetches manually.
+      queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
     },
   })
 }
@@ -912,8 +1059,16 @@ export function useRestoreTable() {
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    onSuccess: (response, tableId) => {
+      queryClient.setQueryData(tableKeys.detail(tableId), response.data.table)
+      queryClient.removeQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    },
+    onSettled: (_data, _error, tableId) => {
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: tableKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) }),
+        queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) }),
+      ])
     },
   })
 }
@@ -1243,14 +1398,6 @@ function buildPendingExec(
   }
 }
 
-/** Broader sibling of `isExecInFlight` from `lib/table/deps`: treats any
- *  `pending` (with or without a jobId) as in-flight. The optimistic-patch
- *  context uses this to avoid re-marking a cell we just flipped optimistically.
- *  The eligibility predicate uses the stricter version. */
-function isOptimisticInFlight(exec: RowExecutionMetadata | undefined): boolean {
-  return exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending'
-}
-
 /**
  * The single canonical run mutation. Every UI gesture (single cell, per-row
  * Play, action-bar Play/Refresh, column-header menu) maps to a `groupIds` +
@@ -1279,37 +1426,90 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
           .workflowGroups ?? []
       const groupsById = new Map(groups.map((g) => [g.id, g]))
+      // Tally cells stamped per row to bump the run-state counter in lockstep.
+      const stampedByRow: Record<string, number> = {}
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
         if (targetRowIds && !targetRowIds.has(r.id)) return null
         const executions = r.executions ?? {}
-        let changed = false
+        let stamped = 0
         const next: RowExecutions = { ...executions }
+        const nextData = { ...r.data }
         for (const groupId of targetGroupIds) {
           const exec = executions[groupId] as RowExecutionMetadata | undefined
-          if (isOptimisticInFlight(exec)) continue
-          // Mirror server eligibility for `mode: 'incomplete'`: skip cells whose
-          // outputs are filled, regardless of exec status. A cancelled/error
-          // cell with a leftover value from a prior run was rendering as filled
-          // but flipping to "queued" optimistically here even though the server
-          // would skip it.
-          if (runMode === 'incomplete') {
-            const group = groupsById.get(groupId)
-            if (group && areOutputsFilled(group, r)) continue
-          }
+          if (isExecInFlight(exec)) continue
+          const group = groupsById.get(groupId)
+          // Mirror server eligibility: rows with unmet deps are skipped by the
+          // dispatcher regardless of mode. Stamping pending here would leave
+          // the cell flashing Queued indefinitely (no SSE event will arrive).
+          if (group && !areGroupDepsSatisfied(group, r)) continue
+          // Mirror server eligibility for manual `mode: 'incomplete'`: a
+          // `completed` group is done (even with a blank output) — only "Run
+          // all" re-runs it. error/cancelled/never-run cells still re-run.
+          if (runMode === 'incomplete' && exec?.status === 'completed') continue
           next[groupId] = buildPendingExec(exec)
-          changed = true
+          // Mirror the server-side bulk clear: wipe output values so the cell
+          // doesn't render the stale completed value behind a pending badge.
+          // Without this the cell-render path's "value wins" branch keeps
+          // showing the previous run's output and the Queued/Running pill
+          // never appears.
+          if (group) {
+            for (const o of group.outputs) {
+              if (o.columnName in nextData) nextData[o.columnName] = null
+            }
+          }
+          stamped++
         }
-        if (!changed) return null
-        return { ...r, executions: next }
+        if (stamped === 0) return null
+        stampedByRow[r.id] = stamped
+        return { ...r, data: nextData, executions: next }
       })
-      return { snapshots }
+
+      // Badge counts the whole run scope (rows × groups), matching the server's
+      // dispatch-scope count — not just the loaded rows we could stamp. For
+      // Run-all that's the table's totalCount; for a scoped run, the rowIds.
+      const scopeRowCount = targetRowIds
+        ? targetRowIds.size
+        : (readTableRowCount(queryClient, tableId) ?? Object.keys(stampedByRow).length)
+      const cellCountDelta = scopeRowCount * targetGroupIds.size
+      const bumped = bumpRunState(queryClient, tableId, stampedByRow, cellCountDelta)
+      return { snapshots, runStateSnapshot: bumped?.snapshot, didBumpRunState: bumped !== null }
     },
     onError: (_err, _variables, context) => {
       if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
+      // Roll back the optimistic counter bump (snapshot may be undefined).
+      if (context?.didBumpRunState) {
+        queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
+      }
     },
-    // No reconciliation here — useTableEventStream is the source of truth for
-    // post-mutation cache state, and a refetch would race its incremental
-    // patches.
+    onSuccess: (data, { groupIds, runMode = 'all', rowIds }, context) => {
+      // Seed the dispatch into the overlay (drives resolveCellExec for
+      // ahead-of-cursor rows) from the response — refetching would reset the
+      // optimistic counter to the server's still-zero count.
+      const dispatchId = data?.data?.dispatchId
+      if (!dispatchId) {
+        // No dispatch created → no SSE to reconcile the bump; roll it back.
+        if (context?.didBumpRunState) {
+          queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
+        }
+        return
+      }
+      queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
+        const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
+        if (base.dispatches.some((d) => d.id === dispatchId)) return base
+        const dispatch: ActiveDispatch = {
+          id: dispatchId,
+          status: 'pending',
+          mode: runMode,
+          isManualRun: true,
+          cursor: -1,
+          scope: {
+            groupIds,
+            ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
+          },
+        }
+        return { ...base, dispatches: [...base.dispatches, dispatch] }
+      })
+    },
   })
 }
 

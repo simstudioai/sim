@@ -1,6 +1,10 @@
 import type { BlobServiceClient as BlobServiceClientType } from '@azure/storage-blob'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import {
+  assertKnownSizeWithinLimit,
+  readNodeStreamToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { BLOB_CONFIG } from '@/lib/uploads/config'
 import type {
   AzureMultipartPart,
@@ -267,7 +271,17 @@ export async function downloadFromBlob(key: string): Promise<Buffer>
  */
 export async function downloadFromBlob(key: string, customConfig: BlobConfig): Promise<Buffer>
 
-export async function downloadFromBlob(key: string, customConfig?: BlobConfig): Promise<Buffer> {
+export async function downloadFromBlob(
+  key: string,
+  customConfig: BlobConfig,
+  maxBytes: number
+): Promise<Buffer>
+
+export async function downloadFromBlob(
+  key: string,
+  customConfig?: BlobConfig,
+  maxBytes?: number
+): Promise<Buffer> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientType
   let containerName: string
@@ -297,10 +311,32 @@ export async function downloadFromBlob(key: string, customConfig?: BlobConfig): 
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
   const downloadBlockBlobResponse = await blockBlobClient.download()
+  if (maxBytes !== undefined && downloadBlockBlobResponse.contentLength !== undefined) {
+    try {
+      assertKnownSizeWithinLimit(
+        downloadBlockBlobResponse.contentLength,
+        maxBytes,
+        'storage download'
+      )
+    } catch (error) {
+      const stream = downloadBlockBlobResponse.readableStreamBody as
+        | { destroy?: (error?: Error) => void }
+        | undefined
+      stream?.destroy?.(error instanceof Error ? error : undefined)
+      throw error
+    }
+  }
+
   if (!downloadBlockBlobResponse.readableStreamBody) {
     throw new Error('Failed to get readable stream from blob download')
   }
-  const downloaded = await streamToBuffer(downloadBlockBlobResponse.readableStreamBody)
+  const downloaded = await readNodeStreamToBufferWithLimit(
+    downloadBlockBlobResponse.readableStreamBody,
+    {
+      maxBytes: maxBytes ?? Number.MAX_SAFE_INTEGER,
+      label: 'storage download',
+    }
+  )
 
   return downloaded
 }
@@ -399,23 +435,7 @@ export async function deleteFromBlob(key: string, customConfig?: BlobConfig): Pr
   const containerClient = blobServiceClient.getContainerClient(containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
-  await blockBlobClient.delete()
-}
-
-/**
- * Helper function to convert a readable stream to a Buffer
- */
-async function streamToBuffer(readableStream: NodeJS.ReadableStream): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    readableStream.on('data', (data) => {
-      chunks.push(data instanceof Buffer ? data : Buffer.from(data))
-    })
-    readableStream.on('end', () => {
-      resolve(Buffer.concat(chunks))
-    })
-    readableStream.on('error', reject)
-  })
+  await blockBlobClient.deleteIfExists()
 }
 
 /**

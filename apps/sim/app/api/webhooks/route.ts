@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { permissions, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
 import {
   assertWorkflowMutable,
@@ -487,7 +488,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           return NextResponse.json(
             {
               error: `Failed to configure ${provider} webhook`,
-              details: err instanceof Error ? err.message : 'Unknown error',
+              details: getErrorMessage(err, 'Unknown error'),
             },
             { status: 500 }
           )
@@ -542,7 +543,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json(
           {
             error: 'Failed to create external webhook subscription',
-            details: err instanceof Error ? err.message : 'Unknown error',
+            details: getErrorMessage(err, 'Unknown error'),
           },
           { status: 500 }
         )
@@ -669,7 +670,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           return NextResponse.json(
             {
               error: `Failed to configure ${provider} webhook`,
-              details: err instanceof Error ? err.message : 'Unknown error',
+              details: getErrorMessage(err, 'Unknown error'),
             },
             { status: 500 }
           )

@@ -22,6 +22,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { appendFileSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { index, json, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
@@ -323,10 +324,6 @@ function mergeStats(target: MigrationStats, source: MigrationStats) {
   target.skippedExisting += source.skippedExisting
   target.errors += source.errors
   target.envVarFailures += source.envVarFailures
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 async function resolveKey(

@@ -2,8 +2,9 @@
  * Tests for workflow normalization utilities
  */
 import { describe, expect, it } from 'vitest'
-import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
+import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 import {
+  extractBlockFieldsForComparison,
   filterSubBlockIds,
   normalizedStringify,
   normalizeEdge,
@@ -827,6 +828,47 @@ describe('Workflow Normalization Utilities', () => {
       expect(normalized.id).toBe('signingSecret')
       expect(normalized.type).toBe('short-input')
       expect(normalized.placeholder).toBe('Enter signing secret')
+    })
+  })
+
+  describe('extractBlockFieldsForComparison', () => {
+    function createBlock(overrides: Partial<BlockState> = {}): BlockState {
+      return {
+        id: 'block-1',
+        type: 'agent',
+        name: 'Test',
+        enabled: true,
+        position: { x: 0, y: 0 },
+        subBlocks: {},
+        outputs: {},
+        ...overrides,
+      } as BlockState
+    }
+
+    it.concurrent('should strip the locked field from blockRest', () => {
+      const { blockRest } = extractBlockFieldsForComparison(createBlock({ locked: true }))
+      expect((blockRest as Record<string, unknown>).locked).toBeUndefined()
+    })
+
+    it.concurrent(
+      'should yield identical blockRest when only locked differs between two blocks',
+      () => {
+        const lockedBlock = createBlock({ locked: true })
+        const unlockedBlock = createBlock({ locked: false })
+        const { blockRest: lockedRest } = extractBlockFieldsForComparison(lockedBlock)
+        const { blockRest: unlockedRest } = extractBlockFieldsForComparison(unlockedBlock)
+        expect(normalizedStringify(lockedRest)).toBe(normalizedStringify(unlockedRest))
+      }
+    )
+
+    it.concurrent('should keep functional fields like name and enabled', () => {
+      const { blockRest } = extractBlockFieldsForComparison(
+        createBlock({ name: 'A', enabled: false, locked: true })
+      )
+      const rest = blockRest as Record<string, unknown>
+      expect(rest.name).toBe('A')
+      expect(rest.enabled).toBe(false)
+      expect(rest.locked).toBeUndefined()
     })
   })
 })

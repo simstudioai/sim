@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { ConfluenceIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
 import { getConfluenceCloudId, normalizeConfluenceDomainHost } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceConnector')
@@ -13,6 +13,18 @@ const logger = createLogger('ConfluenceConnector')
  */
 export function escapeCql(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+/**
+ * Builds a CQL clause restricting content to the given space keys.
+ * Single key uses `space = "X"`; multiple keys use `space in ("X","Y")`.
+ */
+function buildSpaceClause(spaceKeys: string[]): string {
+  if (spaceKeys.length === 1) {
+    return `space="${escapeCql(spaceKeys[0])}"`
+  }
+  const list = spaceKeys.map((k) => `"${escapeCql(k)}"`).join(',')
+  return `space in (${list})`
 }
 
 /**
@@ -134,7 +146,7 @@ function cqlResultToStub(item: Record<string, unknown>, domain: string): Externa
 export const confluenceConnector: ConnectorConfig = {
   id: 'confluence',
   name: 'Confluence',
-  description: 'Sync pages from a Confluence space into your knowledge base',
+  description: 'Sync pages from a Confluence space',
   version: '1.1.0',
   icon: ConfluenceIcon,
 
@@ -162,22 +174,24 @@ export const confluenceConnector: ConnectorConfig = {
     },
     {
       id: 'spaceSelector',
-      title: 'Space',
+      title: 'Spaces',
       type: 'selector',
       selectorKey: 'confluence.spaces',
       canonicalParamId: 'spaceKey',
       mode: 'basic',
+      multi: true,
       dependsOn: ['domain'],
-      placeholder: 'Select a space',
+      placeholder: 'Select one or more spaces',
       required: true,
     },
     {
       id: 'spaceKey',
-      title: 'Space Key',
+      title: 'Space Keys',
       type: 'short-input',
       canonicalParamId: 'spaceKey',
       mode: 'advanced',
-      placeholder: 'e.g. ENG, PRODUCT',
+      multi: true,
+      placeholder: 'e.g. ENG, PRODUCT (comma-separated for multiple)',
       required: true,
     },
     {
@@ -214,10 +228,14 @@ export const confluenceConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
-    const spaceKey = sourceConfig.spaceKey as string
+    const spaceKeys = parseMultiValue(sourceConfig.spaceKey)
     const contentType = (sourceConfig.contentType as string) || 'page'
     const labelFilter = (sourceConfig.labelFilter as string) || ''
     const maxPages = sourceConfig.maxPages ? Number(sourceConfig.maxPages) : 0
+
+    if (spaceKeys.length === 0) {
+      throw new Error('At least one space key is required')
+    }
 
     let cloudId = syncContext?.cloudId as string | undefined
     if (!cloudId) {
@@ -225,12 +243,17 @@ export const confluenceConnector: ConnectorConfig = {
       if (syncContext) syncContext.cloudId = cloudId
     }
 
-    if (labelFilter.trim()) {
+    /**
+     * Route through CQL when a label filter is set or when multiple spaces are
+     * selected — the v2 `/spaces/{spaceId}/pages` endpoint is single-space only,
+     * but CQL natively supports `space in (...)`.
+     */
+    if (labelFilter.trim() || spaceKeys.length > 1) {
       return listDocumentsViaCql(
         cloudId,
         accessToken,
         domain,
-        spaceKey,
+        spaceKeys,
         contentType,
         labelFilter,
         maxPages,
@@ -239,6 +262,7 @@ export const confluenceConnector: ConnectorConfig = {
       )
     }
 
+    const spaceKey = spaceKeys[0]
     let spaceId = syncContext?.spaceId as string | undefined
     if (!spaceId) {
       spaceId = await resolveSpaceId(cloudId, accessToken, spaceKey)
@@ -333,10 +357,10 @@ export const confluenceConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const domain = sourceConfig.domain as string
-    const spaceKey = sourceConfig.spaceKey as string
+    const spaceKeys = parseMultiValue(sourceConfig.spaceKey)
 
-    if (!domain || !spaceKey) {
-      return { valid: false, error: 'Domain and space key are required' }
+    if (!domain || spaceKeys.length === 0) {
+      return { valid: false, error: 'Domain and at least one space key are required' }
     }
 
     const maxPages = sourceConfig.maxPages as string | undefined
@@ -346,7 +370,10 @@ export const confluenceConnector: ConnectorConfig = {
 
     try {
       const cloudId = await getConfluenceCloudId(domain, accessToken, VALIDATE_RETRY_OPTIONS)
-      const spaceUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces?keys=${encodeURIComponent(spaceKey)}&limit=1`
+      const params = new URLSearchParams()
+      for (const key of spaceKeys) params.append('keys', key)
+      params.append('limit', String(Math.max(spaceKeys.length, 1)))
+      const spaceUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces?${params.toString()}`
       const response = await fetchWithRetry(
         spaceUrl,
         {
@@ -359,11 +386,17 @@ export const confluenceConnector: ConnectorConfig = {
         VALIDATE_RETRY_OPTIONS
       )
       if (!response.ok) {
-        return { valid: false, error: `Failed to validate space: ${response.status}` }
+        return { valid: false, error: `Failed to validate spaces: ${response.status}` }
       }
       const data = await response.json()
-      if (!data.results?.length) {
-        return { valid: false, error: `Space "${spaceKey}" not found` }
+      const results = (data.results as Array<Record<string, unknown>> | undefined) ?? []
+      const foundKeys = new Set(results.map((r) => String(r.key)))
+      const missing = spaceKeys.filter((k) => !foundKeys.has(k))
+      if (missing.length > 0) {
+        return {
+          valid: false,
+          error: `Space${missing.length > 1 ? 's' : ''} not found: ${missing.join(', ')}`,
+        }
       }
       return { valid: true }
     } catch (error) {
@@ -562,7 +595,7 @@ async function listDocumentsViaCql(
   cloudId: string,
   accessToken: string,
   domain: string,
-  spaceKey: string,
+  spaceKeys: string[],
   contentType: string,
   labelFilter: string,
   maxPages: number,
@@ -575,7 +608,7 @@ async function listDocumentsViaCql(
     .filter(Boolean)
 
   // Build CQL query
-  let cql = `space="${escapeCql(spaceKey)}"`
+  let cql = buildSpaceClause(spaceKeys)
 
   if (contentType === 'blogpost') {
     cql += ' AND type="blogpost"'

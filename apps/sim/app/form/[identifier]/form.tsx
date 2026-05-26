@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Loader } from '@/components/emcn'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import AuthBackground from '@/app/(auth)/components/auth-background'
@@ -9,6 +10,7 @@ import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
 import {
+  EmailAuth,
   FormErrorState,
   FormField,
   FormLoadingState,
@@ -137,7 +139,7 @@ export default function Form({ identifier }: { identifier: string }) {
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return
         logger.error('Error fetching form config:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load form')
+        setError(getErrorMessage(err, 'Failed to load form'))
       } finally {
         setIsLoading(false)
       }
@@ -189,7 +191,7 @@ export default function Form({ identifier }: { identifier: string }) {
         setIsSubmitted(true)
       } catch (err: unknown) {
         logger.error('Error submitting form:', err)
-        setError(err instanceof Error ? err.message : 'Failed to submit form')
+        setError(getErrorMessage(err, 'Failed to submit form'))
       } finally {
         setIsSubmitting(false)
       }
@@ -219,7 +221,7 @@ export default function Form({ identifier }: { identifier: string }) {
         await fetchFormConfig()
       } catch (err: unknown) {
         logger.error('Error authenticating:', err)
-        setError(err instanceof Error ? err.message : 'Invalid password')
+        setError(getErrorMessage(err, 'Invalid password'))
         setIsLoading(false)
       }
     },
@@ -238,6 +240,10 @@ export default function Form({ identifier }: { identifier: string }) {
 
   if (authRequired === 'password') {
     return <PasswordAuth onSubmit={handlePasswordAuth} error={error} />
+  }
+
+  if (authRequired === 'email') {
+    return <EmailAuth identifier={identifier} onAuthenticated={() => fetchFormConfig()} />
   }
 
   if (isSubmitted && thankYouData) {

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { SFTPWrapper } from 'ssh2'
 import { sftpMkdirContract } from '@/lib/api/contracts/storage-transfer'
@@ -137,7 +138,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.end()
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] SFTP mkdir failed:`, error)
 
     return NextResponse.json({ error: `SFTP mkdir failed: ${errorMessage}` }, { status: 500 })

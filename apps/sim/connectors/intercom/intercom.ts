@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { z } from 'zod'
 import { IntercomIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
@@ -269,7 +269,7 @@ function formatArticle(article: IntercomArticle): string {
 export const intercomConnector: ConnectorConfig = {
   id: 'intercom',
   name: 'Intercom',
-  description: 'Sync Help Center articles and conversations from Intercom into your knowledge base',
+  description: 'Sync Help Center articles and conversations from Intercom',
   version: '1.0.0',
   icon: IntercomIcon,
 
@@ -511,7 +511,7 @@ export const intercomConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       return { valid: false, error: message }
     }
   },

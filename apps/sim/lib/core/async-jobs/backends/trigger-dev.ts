@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { taskContext } from '@trigger.dev/core/v3'
 import { runs, type TriggerOptions, tasks } from '@trigger.dev/sdk'
 import {
   type EnqueueOptions,
@@ -103,6 +104,50 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     return ids
   }
 
+  async batchEnqueueAndWait<TPayload>(
+    type: JobType,
+    items: Array<{ payload: TPayload; options?: EnqueueOptions }>
+  ): Promise<string[]> {
+    if (items.length === 0) return []
+    // The SDK's checkpoint-and-resume requires task runtime context. The only
+    // caller (`dispatcherStep` invoked by `tableRunDispatcherTask.run`) is
+    // always inside a task; check defensively so misuse fails at the boundary
+    // instead of as a confusing SDK internal error.
+    if (!taskContext.isInsideTask) {
+      throw new Error(
+        'batchEnqueueAndWait requires trigger.dev task runtime context — call from within a registered task'
+      )
+    }
+
+    const taskId = JOB_TYPE_TO_TASK_ID[type]
+    if (!taskId) throw new Error(`Unknown job type: ${type}`)
+
+    const batchItems = items.map(({ payload, options }) => {
+      const enrichedPayload =
+        options?.metadata && typeof payload === 'object' && payload !== null
+          ? { ...payload, ...options.metadata }
+          : payload
+      const tags = buildTags(options)
+      const batchItem: {
+        payload: unknown
+        options?: { concurrencyKey?: string; tags?: string[] }
+      } = { payload: enrichedPayload }
+      const batchOpts: { concurrencyKey?: string; tags?: string[] } = {}
+      if (options?.concurrencyKey) batchOpts.concurrencyKey = options.concurrencyKey
+      if (tags.length > 0) batchOpts.tags = tags
+      if (Object.keys(batchOpts).length > 0) batchItem.options = batchOpts
+      return batchItem
+    })
+
+    const result = await tasks.batchTriggerAndWait(taskId, batchItems)
+    logger.debug('batchTriggerAndWait completed', {
+      type,
+      taskId,
+      runCount: result.runs.length,
+    })
+    return result.runs.map((r) => r.id)
+  }
+
   async getJob(jobId: string): Promise<Job | null> {
     try {
       const run = await runs.retrieve(jobId)
@@ -167,6 +212,13 @@ export class TriggerDevJobQueue implements JobQueueBackend {
       logger.error('Failed to cancel trigger.dev run', { jobId, error })
       throw error
     }
+  }
+
+  cancelByKey(_cancelKey: string): boolean {
+    // No in-process AbortControllers to abort — trigger.dev runs are cancelled
+    // by jobId or via tag sweep (see `cancelCellRunsByTags`). Callers that
+    // need both surfaces should fan out themselves.
+    return false
   }
 }
 

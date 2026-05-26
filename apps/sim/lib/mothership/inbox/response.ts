@@ -2,6 +2,7 @@ import { type ComponentType, type CSSProperties, createElement, type ReactNode }
 import { Body, Head, Html, Link, Markdown, Section, Text } from '@react-email/components'
 import { render } from '@react-email/render'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { replaceUntilStable } from '@/lib/mothership/inbox/format'
@@ -54,7 +55,7 @@ export async function sendInboxResponse(
   } catch (error) {
     logger.error('Failed to send inbox response email', {
       taskId: inboxTask.id,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
     })
     return null
   }

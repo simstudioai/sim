@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  type CSSProperties,
   createContext,
   type ReactNode,
   useCallback,
@@ -17,7 +18,8 @@ import { cn } from '@/lib/core/utils/cn'
 
 const AUTO_DISMISS_MS = 5000
 const EXIT_ANIMATION_MS = 200
-const MAX_VISIBLE = 20
+const MAX_VISIBLE = 4
+const STACK_OFFSET_PX = 3
 
 const RING_RADIUS = 5.5
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
@@ -127,7 +129,15 @@ function CountdownRing({ duration }: { duration: number }) {
   )
 }
 
-function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: string) => void }) {
+function ToastItem({
+  toast: t,
+  stackOffset,
+  onDismiss,
+}: {
+  toast: ToastData
+  stackOffset: number
+  onDismiss: (id: string) => void
+}) {
   const [exiting, setExiting] = useState(false)
   const pausedRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -168,8 +178,9 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
     <div
       onMouseEnter={hasDuration ? handleMouseEnter : undefined}
       onMouseLeave={hasDuration ? handleMouseLeave : undefined}
+      style={{ '--stack-offset': `${stackOffset}px` } as CSSProperties}
       className={cn(
-        'pointer-events-auto flex flex-col gap-2 overflow-hidden rounded-lg border px-3 py-2.5 shadow-md transition-[transform,opacity]',
+        'pointer-events-auto flex flex-col gap-2 overflow-hidden rounded-lg border px-3 py-2.5 shadow-md transition-[transform,opacity] [grid-area:1/1]',
         t.variant === 'error' ? 'w-[min(100vw-2rem,400px)]' : 'w-[min(100vw-2rem,320px)]',
         VARIANT_STYLES[t.variant],
         exiting
@@ -283,11 +294,20 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
           <div
             aria-live='polite'
             aria-label='Notifications'
-            className='pointer-events-none fixed right-[16px] bottom-4 z-[var(--z-toast)] flex flex-col-reverse items-end gap-2'
+            className='pointer-events-none fixed right-6 bottom-6 z-[var(--z-toast)] grid justify-items-end'
           >
-            {toasts.map((t) => (
-              <ToastItem key={t.id} toast={t} onDismiss={dismissToast} />
-            ))}
+            {toasts.map((t, index) => {
+              const depth = toasts.length - index - 1
+
+              return (
+                <ToastItem
+                  key={t.id}
+                  toast={t}
+                  stackOffset={depth * STACK_OFFSET_PX}
+                  onDismiss={dismissToast}
+                />
+              )
+            })}
           </div>,
           document.body
         )}

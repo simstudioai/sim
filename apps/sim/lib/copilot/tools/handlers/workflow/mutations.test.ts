@@ -3,10 +3,20 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { ensureWorkflowAccessMock, setWorkflowVariablesMock, recordAuditMock } = vi.hoisted(() => ({
+const {
+  ensureWorkflowAccessMock,
+  setWorkflowVariablesMock,
+  recordAuditMock,
+  executeWorkflowMock,
+  getExecutionStateForWorkflowMock,
+  getLatestExecutionStateWithExecutionIdMock,
+} = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
   setWorkflowVariablesMock: vi.fn(),
   recordAuditMock: vi.fn(),
+  executeWorkflowMock: vi.fn(),
+  getExecutionStateForWorkflowMock: vi.fn(),
+  getLatestExecutionStateWithExecutionIdMock: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -20,8 +30,8 @@ vi.mock('@sim/db', () => ({
   workflow: {},
 }))
 
-vi.mock('@/lib/api-key/auth', () => ({
-  createWorkspaceApiKey: vi.fn(),
+vi.mock('@/lib/api-key/orchestration', () => ({
+  performCreateWorkspaceApiKey: vi.fn(),
 }))
 
 vi.mock('@/lib/core/config/env', () => ({
@@ -37,17 +47,21 @@ vi.mock('@/lib/core/utils/urls', () => ({
 }))
 
 vi.mock('@/lib/workflows/executor/execute-workflow', () => ({
-  executeWorkflow: vi.fn(),
+  executeWorkflow: executeWorkflowMock,
 }))
 
 vi.mock('@/lib/workflows/executor/execution-state', () => ({
-  getExecutionState: vi.fn(),
-  getLatestExecutionState: vi.fn(),
+  getExecutionStateForWorkflow: getExecutionStateForWorkflowMock,
+  getLatestExecutionStateWithExecutionId: getLatestExecutionStateWithExecutionIdMock,
 }))
 
 vi.mock('@/lib/workflows/orchestration', () => ({
+  performCreateFolder: vi.fn(),
+  performCreateWorkflow: vi.fn(),
   performDeleteFolder: vi.fn(),
   performDeleteWorkflow: vi.fn(),
+  performUpdateFolder: vi.fn(),
+  performUpdateWorkflow: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
@@ -60,13 +74,8 @@ vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
 }))
 
 vi.mock('@/lib/workflows/utils', () => ({
-  checkForCircularReference: vi.fn(),
-  createFolderRecord: vi.fn(),
-  createWorkflowRecord: vi.fn(),
   listFolders: vi.fn(),
   setWorkflowVariables: setWorkflowVariablesMock,
-  updateFolderRecord: vi.fn(),
-  updateWorkflowRecord: vi.fn(),
   verifyFolderWorkspace: vi.fn(),
 }))
 
@@ -80,7 +89,7 @@ vi.mock('../access', () => ({
   getDefaultWorkspaceId: vi.fn(),
 }))
 
-import { executeSetGlobalWorkflowVariables } from './mutations'
+import { executeRunFromBlock, executeSetGlobalWorkflowVariables } from './mutations'
 
 describe('executeSetGlobalWorkflowVariables', () => {
   beforeEach(() => {
@@ -123,5 +132,73 @@ describe('executeSetGlobalWorkflowVariables', () => {
       body: JSON.stringify({ workflowId: 'workflow-1' }),
     })
     expect(recordAuditMock).toHaveBeenCalled()
+  })
+})
+
+describe('executeRunFromBlock', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ensureWorkflowAccessMock.mockResolvedValue({
+      workflow: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+    })
+    executeWorkflowMock.mockResolvedValue({
+      success: true,
+      output: {},
+      logs: [],
+      metadata: { executionId: 'new-execution-1' },
+    })
+  })
+
+  it('passes source execution lineage for stored run-from-block snapshots', async () => {
+    const sourceSnapshot = {
+      blockStates: {
+        upstream: {
+          output: {
+            __simLargeValueRef: true,
+            version: 1,
+            id: 'lv_ABCDEFGHIJKL',
+            kind: 'object',
+            size: 10,
+            key: 'execution/workspace-1/workflow-1/source-execution-1/large-value-lv_ABCDEFGHIJKL.json',
+            executionId: 'source-execution-1',
+          },
+        },
+      },
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: {},
+      completedLoops: [],
+      activeExecutionPath: [],
+    }
+    getExecutionStateForWorkflowMock.mockResolvedValue(sourceSnapshot)
+
+    const result = await executeRunFromBlock(
+      {
+        workflowId: 'workflow-1',
+        startBlockId: 'agent-1',
+        executionId: 'source-execution-1',
+      },
+      { userId: 'user-1' } as any
+    )
+
+    expect(result.success).toBe(true)
+    expect(executeWorkflowMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      'request-1',
+      undefined,
+      'user-1',
+      expect.objectContaining({
+        runFromBlock: {
+          startBlockId: 'agent-1',
+          sourceSnapshot,
+          sourceExecutionId: 'source-execution-1',
+        },
+      })
+    )
   })
 })

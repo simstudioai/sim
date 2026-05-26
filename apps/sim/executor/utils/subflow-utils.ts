@@ -219,7 +219,15 @@ export async function resolveArrayInputAsync(
   if (typeof items === 'string') {
     if (items.startsWith(REFERENCE.START) && items.endsWith(REFERENCE.END) && resolver) {
       try {
-        const resolved = await resolver.resolveSingleReference(ctx, currentNodeId, items)
+        const resolved = await resolver.resolveSingleReference(
+          ctx,
+          currentNodeId,
+          items,
+          undefined,
+          {
+            allowLargeValueRefs: true,
+          }
+        )
         if (Array.isArray(resolved)) {
           return resolved
         }

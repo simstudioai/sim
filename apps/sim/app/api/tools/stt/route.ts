@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -17,6 +18,7 @@ import {
   downloadFileFromStorage,
   resolveInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { TranscriptSegment } from '@/tools/stt/types'
 
 const logger = createLogger('SttProxyAPI')
@@ -31,7 +33,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -79,6 +81,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const file = Array.isArray(body.audioFile) ? body.audioFile[0] : body.audioFile
       logger.info(`[${requestId}] Processing uploaded file: ${file.name}`)
 
+      const deniedAudio = await assertToolFileAccess(file.key, userId, requestId, logger)
+      if (deniedAudio) return deniedAudio
       audioBuffer = await downloadFileFromStorage(file, requestId, logger)
       audioFileName = file.name
       // file.type may be missing if the file came from a block that doesn't preserve it
@@ -97,6 +101,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         : body.audioFileReference
       logger.info(`[${requestId}] Processing referenced file: ${file.name}`)
 
+      const deniedRef = await assertToolFileAccess(file.key, userId, requestId, logger)
+      if (deniedRef) return deniedRef
       audioBuffer = await downloadFileFromStorage(file, requestId, logger)
       audioFileName = file.name
 
@@ -171,7 +177,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         logger.error(`[${requestId}] Video extraction failed:`, error)
         return NextResponse.json(
           {
-            error: `Failed to extract audio from video: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            error: `Failed to extract audio from video: ${getErrorMessage(error, 'Unknown error')}`,
           },
           { status: 500 }
         )
@@ -268,7 +274,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     } catch (error) {
       logger.error(`[${requestId}] Transcription failed:`, error)
-      const errorMessage = error instanceof Error ? error.message : 'Transcription failed'
+      const errorMessage = getErrorMessage(error, 'Transcription failed')
       return NextResponse.json({ error: errorMessage }, { status: 500 })
     }
 
@@ -286,7 +292,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(response)
   } catch (error) {
     logger.error(`[${requestId}] STT proxy error:`, error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage = getErrorMessage(error, 'Unknown error')
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 })

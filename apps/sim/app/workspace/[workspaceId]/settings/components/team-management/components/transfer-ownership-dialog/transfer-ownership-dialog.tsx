@@ -12,6 +12,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Skeleton,
@@ -90,6 +91,9 @@ export function TransferOwnershipDialog({
       <ModalContent size='md'>
         <ModalHeader>Leave organization</ModalHeader>
         <ModalBody>
+          <ModalDescription className='sr-only'>
+            Transfer ownership to another member before leaving the organization.
+          </ModalDescription>
           {isLoadingMembers ? (
             <div className='space-y-3'>
               <Skeleton className='h-4 w-3/4' />

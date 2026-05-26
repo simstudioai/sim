@@ -72,8 +72,7 @@ export class GenericBlockHandler implements BlockHandler {
             enforceCredentialAccess: ctx.enforceCredentialAccess,
           },
         },
-        false,
-        ctx
+        { executionContext: ctx }
       )
 
       if (!result.success) {

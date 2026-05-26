@@ -580,9 +580,7 @@ export async function duplicateWorkflow(
             | LoopConfig
             | ParallelConfig
           if (subflow.config && typeof subflow.config === 'object') {
-            updatedConfig = JSON.parse(JSON.stringify(subflow.config)) as
-              | LoopConfig
-              | ParallelConfig
+            updatedConfig = structuredClone(subflow.config) as LoopConfig | ParallelConfig
 
             // Update the config ID to match the new subflow ID
 

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -6,14 +7,52 @@ import { videoProviders, videoToolContract } from '@/lib/api/contracts/tools/med
 import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import {
+  assertKnownSizeWithinLimit,
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  isPayloadSizeLimitError,
+  PayloadSizeLimitError,
+  readResponseJsonWithLimit,
+  readResponseTextWithLimit,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('VideoProxyAPI')
+const MAX_VIDEO_OUTPUT_BYTES = 250 * 1024 * 1024
+const MAX_VIDEO_REFERENCE_IMAGE_BYTES = 25 * 1024 * 1024
+const MAX_VIDEO_JSON_BYTES = 2 * 1024 * 1024
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 600 // 10 minutes for video generation
+
+async function readVideoResponseBuffer(response: Response, label: string): Promise<Buffer> {
+  return readResponseToBufferWithLimit(response, {
+    maxBytes: MAX_VIDEO_OUTPUT_BYTES,
+    label,
+  })
+}
+
+async function readVideoJson<T = Record<string, unknown>>(
+  response: Response,
+  label: string
+): Promise<T> {
+  return readResponseJsonWithLimit<T>(response, {
+    maxBytes: MAX_VIDEO_JSON_BYTES,
+    label,
+  })
+}
+
+async function readVideoErrorText(response: Response, label: string): Promise<string> {
+  return readResponseTextWithLimit(response, {
+    maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+    label,
+  }).catch(() => '')
+}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId()
@@ -21,7 +60,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -82,13 +121,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    // Validate aspect ratio (Veo only supports 16:9 and 9:16)
-    const validAspectRatios = provider === 'veo' ? ['16:9', '9:16'] : ['16:9', '9:16', '1:1']
-    if (aspectRatio && !validAspectRatios.includes(aspectRatio)) {
-      return NextResponse.json(
-        { error: `Aspect ratio must be ${validAspectRatios.join(', ')}` },
-        { status: 400 }
-      )
+    if (provider !== 'falai') {
+      const validAspectRatios = provider === 'veo' ? ['16:9', '9:16'] : ['16:9', '9:16', '1:1']
+      if (aspectRatio && !validAspectRatios.includes(aspectRatio)) {
+        return NextResponse.json(
+          { error: `Aspect ratio must be ${validAspectRatios.join(', ')}` },
+          { status: 400 }
+        )
+      }
     }
 
     logger.info(`[${requestId}] Generating video with ${provider}, model: ${model || 'default'}`)
@@ -99,6 +139,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let height: number | undefined
     let jobId: string | undefined
     let actualDuration: number | undefined
+    let falaiCost: FalAICostMetadata | undefined
+
+    if (body.visualReference) {
+      const denied = await assertToolFileAccess(
+        body.visualReference.key,
+        authResult.userId,
+        requestId,
+        logger
+      )
+      if (denied) return denied
+    }
 
     try {
       if (provider === 'runway') {
@@ -154,10 +205,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       } else if (provider === 'minimax') {
         const result = await generateWithMiniMax(
           apiKey,
-          model || 'hailuo-02',
+          model || 'hailuo-2.3',
           prompt,
           duration || 6,
-          body.promptOptimizer !== false, // Default true
+          body.promptOptimizer !== false,
+          body.endpoint,
           requestId,
           logger
         )
@@ -173,6 +225,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             { status: 400 }
           )
         }
+        const validationError = getFalAIValidationError(model, duration, aspectRatio, resolution)
+        if (validationError) {
+          return NextResponse.json({ error: validationError }, { status: 400 })
+        }
         const result = await generateWithFalAI(
           apiKey,
           model,
@@ -181,6 +237,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           aspectRatio,
           resolution,
           body.promptOptimizer,
+          body.generateAudio,
+          body.useHostedCostTracking === true,
           requestId,
           logger
         )
@@ -189,13 +247,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         height = result.height
         jobId = result.jobId
         actualDuration = result.duration
+        falaiCost = result.falaiCost
       } else {
         return NextResponse.json({ error: `Unknown provider: ${provider}` }, { status: 400 })
       }
     } catch (error) {
       logger.error(`[${requestId}] Video generation failed:`, error)
-      const errorMessage = error instanceof Error ? error.message : 'Video generation failed'
-      return NextResponse.json({ error: errorMessage }, { status: 500 })
+      const errorMessage = getErrorMessage(error, 'Video generation failed')
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: isPayloadSizeLimitError(error) ? 413 : 500 }
+      )
     }
 
     const executionContext =
@@ -231,9 +293,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
       } catch (error) {
         logger.error(`[${requestId}] Failed to upload video file:`, error)
-        throw new Error(
-          `Failed to store video: ${error instanceof Error ? error.message : 'Unknown error'}`
-        )
+        throw new Error(`Failed to store video: ${getErrorMessage(error, 'Unknown error')}`)
       }
 
       return NextResponse.json({
@@ -245,6 +305,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         provider,
         model: model || 'default',
         jobId,
+        __falaiCostDollars: falaiCost?.costDollars,
+        __falaiBilling: falaiCost,
       })
     }
 
@@ -264,9 +326,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       videoUrl = `${getBaseUrl()}${fileInfo.path}`
     } catch (error) {
       logger.error(`[${requestId}] Failed to upload video file (fallback):`, error)
-      throw new Error(
-        `Failed to store video: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
+      throw new Error(`Failed to store video: ${getErrorMessage(error, 'Unknown error')}`)
     }
 
     logger.info(`[${requestId}] Video generation completed successfully`)
@@ -279,11 +339,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       provider,
       model: model || 'default',
       jobId,
+      __falaiCostDollars: falaiCost?.costDollars,
+      __falaiBilling: falaiCost,
     })
   } catch (error) {
     logger.error(`[${requestId}] Video proxy error:`, error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    const errorMessage = getErrorMessage(error, 'Unknown error')
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: isPayloadSizeLimitError(error) ? 413 : 500 }
+    )
   }
 })
 
@@ -318,7 +383,21 @@ async function generateWithRunway(
   }
 
   if (visualReference) {
-    const refBuffer = await downloadFileFromStorage(visualReference, requestId, logger)
+    if (visualReference.size > MAX_VIDEO_REFERENCE_IMAGE_BYTES) {
+      throw new PayloadSizeLimitError({
+        label: 'video visual reference',
+        maxBytes: MAX_VIDEO_REFERENCE_IMAGE_BYTES,
+        observedBytes: visualReference.size,
+      })
+    }
+    const refBuffer = await downloadFileFromStorage(visualReference, requestId, logger, {
+      maxBytes: MAX_VIDEO_REFERENCE_IMAGE_BYTES,
+    })
+    assertKnownSizeWithinLimit(
+      refBuffer.length,
+      MAX_VIDEO_REFERENCE_IMAGE_BYTES,
+      'video visual reference'
+    )
     const refBase64 = refBuffer.toString('base64')
     createPayload.promptImage = `data:${visualReference.type};base64,${refBase64}` // Use promptImage
   }
@@ -334,11 +413,11 @@ async function generateWithRunway(
   })
 
   if (!createResponse.ok) {
-    const error = await createResponse.text()
+    const error = await readVideoErrorText(createResponse, 'Runway create error response')
     throw new Error(`Runway API error: ${createResponse.status} - ${error}`)
   }
 
-  const createData = await createResponse.json()
+  const createData = await readVideoJson<{ id: string }>(createResponse, 'Runway create response')
   const taskId = createData.id
 
   logger.info(`[${requestId}] Runway task created: ${taskId}`)
@@ -358,24 +437,32 @@ async function generateWithRunway(
     })
 
     if (!statusResponse.ok) {
-      await statusResponse.text().catch(() => {})
+      await readVideoErrorText(statusResponse, 'Runway status error response')
       throw new Error(`Runway status check failed: ${statusResponse.status}`)
     }
 
-    const statusData = await statusResponse.json()
+    const statusData = await readVideoJson<{
+      status?: string
+      output?: string[]
+      failure?: string
+    }>(statusResponse, 'Runway status response')
 
     if (statusData.status === 'SUCCEEDED') {
       logger.info(`[${requestId}] Runway generation completed after ${attempts * 5}s`)
 
-      const videoResponse = await fetch(statusData.output[0])
+      const videoUrl = statusData.output?.[0]
+      if (!videoUrl) {
+        throw new Error('No video URL in response')
+      }
+
+      const videoResponse = await fetch(videoUrl)
       if (!videoResponse.ok) {
-        await videoResponse.text().catch(() => {})
+        await readVideoErrorText(videoResponse, 'Runway video error response')
         throw new Error(`Failed to download video: ${videoResponse.status}`)
       }
 
-      const arrayBuffer = await videoResponse.arrayBuffer()
       return {
-        buffer: Buffer.from(arrayBuffer),
+        buffer: await readVideoResponseBuffer(videoResponse, 'Runway video response'),
         width: dimensions.width,
         height: dimensions.height,
         jobId: taskId,
@@ -440,11 +527,11 @@ async function generateWithVeo(
   )
 
   if (!createResponse.ok) {
-    const error = await createResponse.text()
+    const error = await readVideoErrorText(createResponse, 'Veo create error response')
     throw new Error(`Veo API error: ${createResponse.status} - ${error}`)
   }
 
-  const createData = await createResponse.json()
+  const createData = await readVideoJson<{ name: string }>(createResponse, 'Veo create response')
   const operationName = createData.name
 
   logger.info(`[${requestId}] Veo operation created: ${operationName}`)
@@ -466,11 +553,17 @@ async function generateWithVeo(
     )
 
     if (!statusResponse.ok) {
-      await statusResponse.text().catch(() => {})
+      await readVideoErrorText(statusResponse, 'Veo status error response')
       throw new Error(`Veo status check failed: ${statusResponse.status}`)
     }
 
-    const statusData = await statusResponse.json()
+    const statusData = await readVideoJson<{
+      done?: boolean
+      error?: { message?: string }
+      response?: {
+        generateVideoResponse?: { generatedSamples?: Array<{ video?: { uri?: string } }> }
+      }
+    }>(statusResponse, 'Veo status response')
 
     if (statusData.done) {
       if (statusData.error) {
@@ -491,13 +584,12 @@ async function generateWithVeo(
       })
 
       if (!videoResponse.ok) {
-        await videoResponse.text().catch(() => {})
+        await readVideoErrorText(videoResponse, 'Veo video error response')
         throw new Error(`Failed to download video: ${videoResponse.status}`)
       }
 
-      const arrayBuffer = await videoResponse.arrayBuffer()
       return {
-        buffer: Buffer.from(arrayBuffer),
+        buffer: await readVideoResponseBuffer(videoResponse, 'Veo video response'),
         width: dimensions.width,
         height: dimensions.height,
         jobId: operationName,
@@ -555,11 +647,11 @@ async function generateWithLuma(
   })
 
   if (!createResponse.ok) {
-    const error = await createResponse.text()
+    const error = await readVideoErrorText(createResponse, 'Luma create error response')
     throw new Error(`Luma API error: ${createResponse.status} - ${error}`)
   }
 
-  const createData = await createResponse.json()
+  const createData = await readVideoJson<{ id: string }>(createResponse, 'Luma create response')
   const generationId = createData.id
 
   logger.info(`[${requestId}] Luma generation created: ${generationId}`)
@@ -581,11 +673,15 @@ async function generateWithLuma(
     )
 
     if (!statusResponse.ok) {
-      await statusResponse.text().catch(() => {})
+      await readVideoErrorText(statusResponse, 'Luma status error response')
       throw new Error(`Luma status check failed: ${statusResponse.status}`)
     }
 
-    const statusData = await statusResponse.json()
+    const statusData = await readVideoJson<{
+      state?: string
+      failure_reason?: string
+      assets?: { video?: string }
+    }>(statusResponse, 'Luma status response')
 
     if (statusData.state === 'completed') {
       logger.info(`[${requestId}] Luma generation completed after ${attempts * 5}s`)
@@ -597,13 +693,12 @@ async function generateWithLuma(
 
       const videoResponse = await fetch(videoUrl)
       if (!videoResponse.ok) {
-        await videoResponse.text().catch(() => {})
+        await readVideoErrorText(videoResponse, 'Luma video error response')
         throw new Error(`Failed to download video: ${videoResponse.status}`)
       }
 
-      const arrayBuffer = await videoResponse.arrayBuffer()
       return {
-        buffer: Buffer.from(arrayBuffer),
+        buffer: await readVideoResponseBuffer(videoResponse, 'Luma video response'),
         width: dimensions.width,
         height: dimensions.height,
         jobId: generationId,
@@ -627,27 +722,25 @@ async function generateWithMiniMax(
   prompt: string,
   duration: number,
   promptOptimizer: boolean,
+  endpoint: string | undefined,
   requestId: string,
   logger: ReturnType<typeof createLogger>
 ): Promise<{ buffer: Buffer; width: number; height: number; jobId: string; duration: number }> {
   logger.info(`[${requestId}] Starting MiniMax Hailuo generation via MiniMax Platform API`)
   logger.info(
-    `[${requestId}] Request params - model: ${model}, duration: ${duration}, promptOptimizer: ${promptOptimizer}`
+    `[${requestId}] Request params - model: ${model}, duration: ${duration}, endpoint: ${endpoint || 'standard'}, promptOptimizer: ${promptOptimizer}`
   )
 
-  // Determine resolution and dimensions based on duration
-  // MiniMax-Hailuo-02 supports 768P (6s) or 1080P (10s)
-  const resolution = duration === 10 ? '1080P' : '768P'
-  const dimensions = duration === 10 ? { width: 1920, height: 1080 } : { width: 1360, height: 768 }
+  const useProResolution = endpoint === 'pro' && duration === 6
+  const resolution = useProResolution ? '1080P' : '768P'
+  const dimensions = useProResolution ? { width: 1920, height: 1080 } : { width: 1360, height: 768 }
 
   logger.info(
     `[${requestId}] Using resolution: ${resolution}, dimensions: ${dimensions.width}x${dimensions.height}`
   )
 
-  // Map our model ID to MiniMax model name
   const minimaxModel = model === 'hailuo-02' ? 'MiniMax-Hailuo-02' : 'MiniMax-Hailuo-2.3'
 
-  // Create video generation request via MiniMax Platform API
   const createResponse = await fetch('https://api.minimax.io/v1/video_generation', {
     method: 'POST',
     headers: {
@@ -664,7 +757,7 @@ async function generateWithMiniMax(
   })
 
   if (!createResponse.ok) {
-    const errorText = await createResponse.text()
+    const errorText = await readVideoErrorText(createResponse, 'MiniMax create error response')
     if (createResponse.status === 401 || createResponse.status === 1004) {
       throw new Error(
         `MiniMax API authentication failed (${createResponse.status}). Please ensure you're using a valid MiniMax API key from platform.minimax.io. Error: ${errorText}`
@@ -673,7 +766,10 @@ async function generateWithMiniMax(
     throw new Error(`MiniMax API error: ${createResponse.status} - ${errorText}`)
   }
 
-  const createData = await createResponse.json()
+  const createData = await readVideoJson<{
+    base_resp?: { status_code?: number; status_msg?: string }
+    task_id?: string
+  }>(createResponse, 'MiniMax create response')
 
   // Check for error in response
   if (createData.base_resp?.status_code !== 0) {
@@ -681,6 +777,9 @@ async function generateWithMiniMax(
   }
 
   const taskId = createData.task_id
+  if (!taskId) {
+    throw new Error('MiniMax response missing task_id')
+  }
 
   logger.info(`[${requestId}] MiniMax task created: ${taskId}`)
 
@@ -701,11 +800,16 @@ async function generateWithMiniMax(
     )
 
     if (!statusResponse.ok) {
-      await statusResponse.text().catch(() => {})
+      await readVideoErrorText(statusResponse, 'MiniMax status error response')
       throw new Error(`MiniMax status check failed: ${statusResponse.status}`)
     }
 
-    const statusData = await statusResponse.json()
+    const statusData = await readVideoJson<{
+      base_resp?: { status_code?: number; status_msg?: string }
+      status?: string
+      file_id?: string
+      error?: string
+    }>(statusResponse, 'MiniMax status response')
 
     if (
       statusData.base_resp?.status_code !== 0 &&
@@ -735,11 +839,14 @@ async function generateWithMiniMax(
       )
 
       if (!fileResponse.ok) {
-        await fileResponse.text().catch(() => {})
+        await readVideoErrorText(fileResponse, 'MiniMax file error response')
         throw new Error(`Failed to download video: ${fileResponse.status}`)
       }
 
-      const fileData = await fileResponse.json()
+      const fileData = await readVideoJson<{ file?: { download_url?: string } }>(
+        fileResponse,
+        'MiniMax file response'
+      )
       const videoUrl = fileData.file?.download_url
 
       if (!videoUrl) {
@@ -749,13 +856,12 @@ async function generateWithMiniMax(
       // Download the actual video file
       const videoResponse = await fetch(videoUrl)
       if (!videoResponse.ok) {
-        await videoResponse.text().catch(() => {})
+        await readVideoErrorText(videoResponse, 'MiniMax video error response')
         throw new Error(`Failed to download video from URL: ${videoResponse.status}`)
       }
 
-      const arrayBuffer = await videoResponse.arrayBuffer()
       return {
-        buffer: Buffer.from(arrayBuffer),
+        buffer: await readVideoResponseBuffer(videoResponse, 'MiniMax video response'),
         width: dimensions.width,
         height: dimensions.height,
         jobId: taskId,
@@ -774,32 +880,290 @@ async function generateWithMiniMax(
   throw new Error('MiniMax generation timed out')
 }
 
-// Helper function to strip subpaths from Fal.ai model IDs for status/result endpoints
-function getBaseModelId(fullModelId: string): string {
-  const parts = fullModelId.split('/')
-  // Keep only the first two parts (e.g., "fal-ai/sora-2" from "fal-ai/sora-2/text-to-video")
-  if (parts.length > 2) {
-    return parts.slice(0, 2).join('/')
-  }
-  return fullModelId
+type FalAIDurationFormat = 'number' | 'seconds' | 'string'
+
+interface FalAIModelConfig {
+  endpoint: string
+  durationFormat?: FalAIDurationFormat
+  durationOptions?: readonly number[]
+  supportsAspectRatio?: boolean
+  aspectRatioOptions?: readonly string[]
+  supportsResolution?: boolean
+  resolutionOptions?: readonly string[]
+  supportsPromptOptimizer?: boolean
+  supportsGenerateAudio?: boolean
 }
 
-// Helper function to format duration based on model requirements
-function formatDuration(model: string, duration: number | undefined): string | number | undefined {
-  if (duration === undefined) return undefined
+interface FalAIRequestBody {
+  prompt: string
+  duration?: number | string
+  aspect_ratio?: string
+  resolution?: string
+  prompt_optimizer?: boolean
+  generate_audio?: boolean
+}
 
-  // Veo 3.1 requires duration with "s" suffix (e.g., "8s")
-  if (model === 'veo-3.1') {
-    return `${duration}s`
-  }
+const FALAI_MODEL_CONFIGS: Record<string, FalAIModelConfig> = {
+  'veo-3.1': {
+    endpoint: 'fal-ai/veo3.1',
+    durationFormat: 'seconds',
+    durationOptions: [4, 6, 8],
+    supportsAspectRatio: true,
+    aspectRatioOptions: ['16:9', '9:16'],
+    supportsResolution: true,
+    resolutionOptions: ['720p', '1080p', '4k'],
+    supportsGenerateAudio: true,
+  },
+  'veo-3.1-fast': {
+    endpoint: 'fal-ai/veo3.1/fast',
+    durationFormat: 'seconds',
+    durationOptions: [4, 6, 8],
+    supportsAspectRatio: true,
+    aspectRatioOptions: ['16:9', '9:16'],
+    supportsResolution: true,
+    resolutionOptions: ['720p', '1080p', '4k'],
+    supportsGenerateAudio: true,
+  },
+  'sora-2': {
+    endpoint: 'fal-ai/sora-2/text-to-video',
+    durationFormat: 'number',
+    durationOptions: [4, 8, 12, 16, 20],
+    supportsAspectRatio: true,
+    aspectRatioOptions: ['16:9', '9:16'],
+    supportsResolution: true,
+    resolutionOptions: ['720p'],
+  },
+  'sora-2-pro': {
+    endpoint: 'fal-ai/sora-2/text-to-video/pro',
+    durationFormat: 'number',
+    durationOptions: [4, 8, 12, 16, 20],
+    supportsAspectRatio: true,
+    aspectRatioOptions: ['16:9', '9:16'],
+    supportsResolution: true,
+    resolutionOptions: ['720p', '1080p', 'true_1080p'],
+  },
+  'seedance-2.0': {
+    endpoint: 'bytedance/seedance-2.0/text-to-video',
+    durationFormat: 'string',
+    durationOptions: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    supportsAspectRatio: true,
+    aspectRatioOptions: ['auto', '21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
+    supportsResolution: true,
+    resolutionOptions: ['480p', '720p', '1080p'],
+    supportsGenerateAudio: true,
+  },
+  'seedance-2.0-fast': {
+    endpoint: 'bytedance/seedance-2.0/fast/text-to-video',
+    durationFormat: 'string',
+    durationOptions: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    supportsAspectRatio: true,
+    aspectRatioOptions: ['auto', '21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
+    supportsResolution: true,
+    resolutionOptions: ['480p', '720p'],
+    supportsGenerateAudio: true,
+  },
+  'kling-v3-pro': {
+    endpoint: 'fal-ai/kling-video/v3/pro/text-to-video',
+    durationFormat: 'string',
+    durationOptions: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    supportsAspectRatio: true,
+    aspectRatioOptions: ['16:9', '9:16', '1:1'],
+    supportsGenerateAudio: true,
+  },
+  'kling-v3-4k': {
+    endpoint: 'fal-ai/kling-video/v3/4k/text-to-video',
+    durationFormat: 'string',
+    durationOptions: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    supportsAspectRatio: true,
+    aspectRatioOptions: ['16:9', '9:16', '1:1'],
+    supportsGenerateAudio: true,
+  },
+  'kling-o3-pro': {
+    endpoint: 'fal-ai/kling-video/o3/pro/text-to-video',
+    durationFormat: 'string',
+    durationOptions: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    supportsAspectRatio: true,
+    aspectRatioOptions: ['16:9', '9:16', '1:1'],
+    supportsGenerateAudio: true,
+  },
+  'kling-o3-4k': {
+    endpoint: 'fal-ai/kling-video/o3/4k/text-to-video',
+    durationFormat: 'string',
+    durationOptions: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    supportsAspectRatio: true,
+    aspectRatioOptions: ['16:9', '9:16', '1:1'],
+    supportsGenerateAudio: true,
+  },
+  'kling-2.5-turbo-pro': {
+    endpoint: 'fal-ai/kling-video/v2.5-turbo/pro/text-to-video',
+    durationFormat: 'string',
+    supportsAspectRatio: true,
+    supportsResolution: true,
+  },
+  'kling-2.1-pro': {
+    endpoint: 'fal-ai/kling-video/v2.1/master/text-to-video',
+    durationFormat: 'string',
+    supportsAspectRatio: true,
+    supportsResolution: true,
+  },
+  'minimax-hailuo-2.3-pro': {
+    endpoint: 'fal-ai/minimax/hailuo-2.3/pro/text-to-video',
+    supportsPromptOptimizer: true,
+  },
+  'minimax-hailuo-2.3-standard': {
+    endpoint: 'fal-ai/minimax/hailuo-2.3/standard/text-to-video',
+    durationFormat: 'string',
+    durationOptions: [6, 10],
+    supportsPromptOptimizer: true,
+  },
+  'minimax-hailuo-02-pro': {
+    endpoint: 'fal-ai/minimax/hailuo-02/pro/text-to-video',
+    durationFormat: 'string',
+    supportsAspectRatio: true,
+    supportsResolution: true,
+    supportsPromptOptimizer: true,
+  },
+  'minimax-hailuo-02-standard': {
+    endpoint: 'fal-ai/minimax/hailuo-02/standard/text-to-video',
+    durationFormat: 'string',
+    supportsAspectRatio: true,
+    supportsResolution: true,
+    supportsPromptOptimizer: true,
+  },
+  'wan-2.2-a14b-turbo': {
+    endpoint: 'fal-ai/wan/v2.2-a14b/text-to-video/turbo',
+    supportsAspectRatio: true,
+    aspectRatioOptions: ['16:9', '9:16', '1:1'],
+    supportsResolution: true,
+    resolutionOptions: ['480p', '580p', '720p'],
+  },
+  'wan-2.1': {
+    endpoint: 'fal-ai/wan-t2v',
+  },
+  'ltx-2.3': {
+    endpoint: 'fal-ai/ltx-2.3/text-to-video',
+    durationFormat: 'number',
+    durationOptions: [6, 8, 10],
+    supportsAspectRatio: true,
+    aspectRatioOptions: ['16:9', '9:16'],
+    supportsResolution: true,
+    resolutionOptions: ['1080p', '1440p', '2160p'],
+    supportsGenerateAudio: true,
+  },
+  'ltx-2.3-fast': {
+    endpoint: 'fal-ai/ltx-2.3/text-to-video/fast',
+    durationFormat: 'number',
+    durationOptions: [6, 8, 10, 12, 14, 16, 18, 20],
+    supportsAspectRatio: true,
+    aspectRatioOptions: ['16:9', '9:16'],
+    supportsResolution: true,
+    resolutionOptions: ['1080p', '1440p', '2160p'],
+    supportsGenerateAudio: true,
+  },
+  'ltxv-0.9.8': {
+    endpoint: 'fal-ai/ltxv-13b-098-distilled',
+  },
+}
 
-  // Sora 2 requires numeric duration
-  if (model === 'sora-2') {
-    return duration
-  }
+function formatFalAIDuration(
+  format: FalAIDurationFormat | undefined,
+  duration: number | undefined
+): string | number | undefined {
+  if (!format || duration === undefined) return undefined
 
-  // Other models use string format
+  if (format === 'number') return duration
+  if (format === 'seconds') return `${duration}s`
   return String(duration)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getStringProperty(
+  record: Record<string, unknown> | undefined,
+  key: string
+): string | undefined {
+  const value = record?.[key]
+  return typeof value === 'string' ? value : undefined
+}
+
+function getNumberProperty(
+  record: Record<string, unknown> | undefined,
+  key: string
+): number | undefined {
+  const value = record?.[key]
+  return typeof value === 'number' ? value : undefined
+}
+
+function formatAllowedValues(allowed: readonly (number | string)[]): string {
+  return allowed.map(String).join(', ')
+}
+
+function getFalAIValidationError(
+  model: string,
+  duration: number | undefined,
+  aspectRatio: string | undefined,
+  resolution: string | undefined
+): string | undefined {
+  const modelConfig = FALAI_MODEL_CONFIGS[model]
+  if (!modelConfig) {
+    return `Unknown Fal.ai model: ${model}`
+  }
+
+  if (
+    duration !== undefined &&
+    modelConfig.durationOptions &&
+    !modelConfig.durationOptions.includes(duration)
+  ) {
+    return `Invalid duration for Fal.ai model ${model}. Supported durations: ${formatAllowedValues(modelConfig.durationOptions)}`
+  }
+
+  if (aspectRatio) {
+    if (!modelConfig.supportsAspectRatio) {
+      return `Fal.ai model ${model} does not support aspect ratio`
+    }
+
+    if (modelConfig.aspectRatioOptions && !modelConfig.aspectRatioOptions.includes(aspectRatio)) {
+      return `Invalid aspect ratio for Fal.ai model ${model}. Supported aspect ratios: ${formatAllowedValues(modelConfig.aspectRatioOptions)}`
+    }
+  }
+
+  if (resolution) {
+    if (!modelConfig.supportsResolution) {
+      return `Fal.ai model ${model} does not support resolution`
+    }
+
+    if (modelConfig.resolutionOptions && !modelConfig.resolutionOptions.includes(resolution)) {
+      return `Invalid resolution for Fal.ai model ${model}. Supported resolutions: ${formatAllowedValues(modelConfig.resolutionOptions)}`
+    }
+  }
+
+  if (
+    model === 'ltx-2.3-fast' &&
+    duration !== undefined &&
+    duration > 10 &&
+    resolution &&
+    resolution !== '1080p'
+  ) {
+    return 'Fal.ai model ltx-2.3-fast only supports durations over 10 seconds with 1080p resolution'
+  }
+
+  return undefined
+}
+
+function getFalAIErrorMessage(error: unknown): string {
+  if (typeof error === 'string') return error
+  if (isRecord(error)) return getStringProperty(error, 'message') || JSON.stringify(error)
+  return 'Unknown error'
+}
+
+function buildFalAIQueueUrl(
+  endpoint: string,
+  requestId: string,
+  path: 'response' | 'status'
+): string {
+  return `https://queue.fal.run/${endpoint}/requests/${requestId}/${path}`
 }
 
 async function generateWithFalAI(
@@ -810,64 +1174,49 @@ async function generateWithFalAI(
   aspectRatio: string | undefined,
   resolution: string | undefined,
   promptOptimizer: boolean | undefined,
+  generateAudio: boolean | undefined,
+  useHostedCostTracking: boolean,
   requestId: string,
   logger: ReturnType<typeof createLogger>
-): Promise<{ buffer: Buffer; width: number; height: number; jobId: string; duration: number }> {
+): Promise<{
+  buffer: Buffer
+  width: number
+  height: number
+  jobId: string
+  duration: number
+  falaiCost?: FalAICostMetadata
+}> {
   logger.info(`[${requestId}] Starting Fal.ai generation with model: ${model}`)
 
-  // Map our model IDs to Fal.ai model paths
-  const modelMap: { [key: string]: string } = {
-    'veo-3.1': 'fal-ai/veo3.1',
-    'sora-2': 'fal-ai/sora-2/text-to-video',
-    'kling-2.5-turbo-pro': 'fal-ai/kling-video/v2.5-turbo/pro/text-to-video',
-    'kling-2.1-pro': 'fal-ai/kling-video/v2.1/master/text-to-video',
-    'minimax-hailuo-2.3-pro': 'fal-ai/minimax/hailuo-02/pro/text-to-video',
-    'minimax-hailuo-2.3-standard': 'fal-ai/minimax/hailuo-02/standard/text-to-video',
-    'wan-2.1': 'fal-ai/wan-t2v',
-    'ltxv-0.9.8': 'fal-ai/ltxv-13b-098-distilled',
-  }
-
-  const falModelId = modelMap[model]
-  if (!falModelId) {
+  const modelConfig = FALAI_MODEL_CONFIGS[model]
+  if (!modelConfig) {
     throw new Error(`Unknown Fal.ai model: ${model}`)
   }
 
-  // Build request body based on model requirements
-  const requestBody: any = { prompt }
+  const requestBody: FalAIRequestBody = { prompt }
+  const formattedDuration = formatFalAIDuration(modelConfig.durationFormat, duration)
 
-  // Models that support duration and aspect_ratio parameters
-  const supportsStandardParams = [
-    'kling-2.5-turbo-pro',
-    'kling-2.1-pro',
-    'minimax-hailuo-2.3-pro',
-    'minimax-hailuo-2.3-standard',
-  ]
-
-  // Models that only need prompt (minimal params)
-  const minimalParamModels = ['ltxv-0.9.8', 'wan-2.1', 'veo-3.1', 'sora-2']
-
-  if (supportsStandardParams.includes(model)) {
-    // Kling and MiniMax models support duration and aspect_ratio
-    const formattedDuration = formatDuration(model, duration)
-    if (formattedDuration !== undefined) {
-      requestBody.duration = formattedDuration
-    }
-
-    if (aspectRatio) {
-      requestBody.aspect_ratio = aspectRatio
-    }
-
-    if (resolution) {
-      requestBody.resolution = resolution
-    }
+  if (formattedDuration !== undefined) {
+    requestBody.duration = formattedDuration
   }
 
-  // MiniMax models support prompt optimizer
-  if (model.startsWith('minimax-hailuo') && promptOptimizer !== undefined) {
+  if (modelConfig.supportsAspectRatio && aspectRatio) {
+    requestBody.aspect_ratio = aspectRatio
+  }
+
+  if (modelConfig.supportsResolution && resolution) {
+    requestBody.resolution = resolution
+  }
+
+  if (modelConfig.supportsPromptOptimizer && promptOptimizer !== undefined) {
     requestBody.prompt_optimizer = promptOptimizer
   }
 
-  const createResponse = await fetch(`https://queue.fal.run/${falModelId}`, {
+  if (modelConfig.supportsGenerateAudio && generateAudio !== undefined) {
+    requestBody.generate_audio = generateAudio
+  }
+
+  const createResponse = await fetch(`https://queue.fal.run/${modelConfig.endpoint}`, {
     method: 'POST',
     headers: {
       Authorization: `Key ${apiKey}`,
@@ -877,17 +1226,28 @@ async function generateWithFalAI(
   })
 
   if (!createResponse.ok) {
-    const error = await createResponse.text()
+    const error = await readVideoErrorText(createResponse, 'Fal.ai create error response')
     throw new Error(`Fal.ai API error: ${createResponse.status} - ${error}`)
   }
 
-  const createData = await createResponse.json()
-  const requestIdFal = createData.request_id
+  const createData = await readVideoJson<unknown>(createResponse, 'Fal.ai queue response')
+  if (!isRecord(createData)) {
+    throw new Error('Invalid Fal.ai queue response')
+  }
+
+  const requestIdFal = getStringProperty(createData, 'request_id')
+  if (!requestIdFal) {
+    throw new Error('Fal.ai queue response missing request_id')
+  }
+
+  const statusUrl =
+    getStringProperty(createData, 'status_url') ||
+    buildFalAIQueueUrl(modelConfig.endpoint, requestIdFal, 'status')
+  const responseUrl =
+    getStringProperty(createData, 'response_url') ||
+    buildFalAIQueueUrl(modelConfig.endpoint, requestIdFal, 'response')
 
   logger.info(`[${requestId}] Fal.ai request created: ${requestIdFal}`)
-
-  // Get base model ID (without subpath) for status and result endpoints
-  const baseModelId = getBaseModelId(falModelId)
 
   const pollIntervalMs = 5000
   const maxAttempts = Math.ceil(getMaxExecutionTimeout() / pollIntervalMs)
@@ -896,27 +1256,32 @@ async function generateWithFalAI(
   while (attempts < maxAttempts) {
     await sleep(pollIntervalMs)
 
-    const statusResponse = await fetch(
-      `https://queue.fal.run/${baseModelId}/requests/${requestIdFal}/status`,
-      {
-        headers: {
-          Authorization: `Key ${apiKey}`,
-        },
-      }
-    )
+    const statusResponse = await fetch(statusUrl, {
+      headers: {
+        Authorization: `Key ${apiKey}`,
+      },
+    })
 
     if (!statusResponse.ok) {
-      await statusResponse.text().catch(() => {})
+      await readVideoErrorText(statusResponse, 'Fal.ai status error response')
       throw new Error(`Fal.ai status check failed: ${statusResponse.status}`)
     }
 
-    const statusData = await statusResponse.json()
+    const statusData = await readVideoJson<unknown>(statusResponse, 'Fal.ai status response')
+    if (!isRecord(statusData)) {
+      throw new Error('Invalid Fal.ai status response')
+    }
 
-    if (statusData.status === 'COMPLETED') {
+    if (getStringProperty(statusData, 'status') === 'COMPLETED') {
+      const statusError = statusData.error
+      if (statusError) {
+        throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusError)}`)
+      }
+
       logger.info(`[${requestId}] Fal.ai generation completed after ${attempts * 5}s`)
 
       const resultResponse = await fetch(
-        `https://queue.fal.run/${baseModelId}/requests/${requestIdFal}`,
+        getStringProperty(statusData, 'response_url') || responseUrl,
         {
           headers: {
             Authorization: `Key ${apiKey}`,
@@ -925,46 +1290,56 @@ async function generateWithFalAI(
       )
 
       if (!resultResponse.ok) {
-        await resultResponse.text().catch(() => {})
+        await readVideoErrorText(resultResponse, 'Fal.ai result error response')
         throw new Error(`Failed to fetch result: ${resultResponse.status}`)
       }
 
-      const resultData = await resultResponse.json()
+      const resultData = await readVideoJson<unknown>(resultResponse, 'Fal.ai result response')
+      if (!isRecord(resultData)) {
+        throw new Error('Invalid Fal.ai result response')
+      }
 
-      const videoUrl = resultData.video?.url || resultData.output?.url
+      const videoOutput = isRecord(resultData.video) ? resultData.video : undefined
+      const fallbackOutput = isRecord(resultData.output) ? resultData.output : undefined
+      const videoUrl =
+        getStringProperty(videoOutput, 'url') || getStringProperty(fallbackOutput, 'url')
       if (!videoUrl) {
         throw new Error('No video URL in response')
       }
 
       const videoResponse = await fetch(videoUrl)
       if (!videoResponse.ok) {
-        await videoResponse.text().catch(() => {})
+        await readVideoErrorText(videoResponse, 'Fal.ai video error response')
         throw new Error(`Failed to download video: ${videoResponse.status}`)
       }
 
-      const arrayBuffer = await videoResponse.arrayBuffer()
+      let width = getNumberProperty(videoOutput, 'width') || 1920
+      let height = getNumberProperty(videoOutput, 'height') || 1080
 
-      // Try to get dimensions from response, or calculate from aspect ratio
-      let width = resultData.video?.width || 1920
-      let height = resultData.video?.height || 1080
-
-      if (!resultData.video?.width && aspectRatio) {
+      if (!getNumberProperty(videoOutput, 'width') && aspectRatio?.includes(':')) {
         const dims = getVideoDimensions(aspectRatio, resolution || '1080p')
         width = dims.width
         height = dims.height
       }
 
       return {
-        buffer: Buffer.from(arrayBuffer),
+        buffer: await readVideoResponseBuffer(videoResponse, 'Fal.ai video response'),
         width,
         height,
         jobId: requestIdFal,
-        duration: duration || 5,
+        duration: getNumberProperty(videoOutput, 'duration') || duration || 5,
+        falaiCost: useHostedCostTracking
+          ? await getFalAICostMetadata({
+              apiKey,
+              endpointId: modelConfig.endpoint,
+              requestId: requestIdFal,
+            })
+          : undefined,
       }
     }
 
-    if (statusData.status === 'FAILED') {
-      throw new Error(`Fal.ai generation failed: ${statusData.error || 'Unknown error'}`)
+    if (['ERROR', 'FAILED', 'CANCELLED'].includes(getStringProperty(statusData, 'status') || '')) {
+      throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusData.error)}`)
     }
 
     attempts++
@@ -978,13 +1353,20 @@ function getVideoDimensions(
   resolution: string
 ): { width: number; height: number } {
   let height: number
-  if (resolution === '4k') {
+  if (resolution === '4k' || resolution === '2160p') {
     height = 2160
+  } else if (resolution === 'true_1080p') {
+    height = 1080
   } else {
-    height = Number.parseInt(resolution.replace('p', ''))
+    const parsedHeight = Number.parseInt(resolution.replace('p', ''))
+    height = Number.isFinite(parsedHeight) ? parsedHeight : 1080
   }
 
   const [ratioW, ratioH] = aspectRatio.split(':').map(Number)
+  if (!Number.isFinite(ratioW) || !Number.isFinite(ratioH) || ratioH === 0) {
+    return { width: Math.round((height * 16) / 9), height }
+  }
+
   const width = Math.round((height * ratioW) / ratioH)
 
   return { width, height }

@@ -195,7 +195,7 @@ export function generateWorkflowDiffSummary(
           newValue: currentBlock.enabled,
         })
       }
-      const blockFields = ['horizontalHandles', 'advancedMode', 'triggerMode', 'locked'] as const
+      const blockFields = ['horizontalHandles', 'advancedMode', 'triggerMode'] as const
       for (const field of blockFields) {
         if (!!currentBlock[field] !== !!previousBlock[field]) {
           changes.push({

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotTrainingDataContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
@@ -85,7 +86,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     logger.error('Failed to send training data to agent indexer', { error })
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Failed to send training data',
+        error: getErrorMessage(error, 'Failed to send training data'),
       },
       { status: 502 }
     )
