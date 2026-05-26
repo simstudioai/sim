@@ -132,6 +132,7 @@ function buildProviderMetadata(providerId: ProviderId): ProviderMetadata {
 export const providers: Record<ProviderId, ProviderMetadata> = {
   ollama: buildProviderMetadata('ollama'),
   vllm: buildProviderMetadata('vllm'),
+  litellm: buildProviderMetadata('litellm'),
   openai: {
     ...buildProviderMetadata('openai'),
     computerUseModels: ['computer-use-preview'],
@@ -167,6 +168,12 @@ export function updateVLLMProviderModels(models: string[]): void {
   providers.vllm.models = getProviderModelsFromDefinitions('vllm')
 }
 
+export function updateLiteLLMProviderModels(models: string[]): void {
+  const { updateLiteLLMModels } = require('@/providers/models')
+  updateLiteLLMModels(models)
+  providers.litellm.models = getProviderModelsFromDefinitions('litellm')
+}
+
 export async function updateOpenRouterProviderModels(models: string[]): Promise<void> {
   const { updateOpenRouterModels } = await import('@/providers/models')
   updateOpenRouterModels(models)
@@ -185,6 +192,7 @@ export function getBaseModelProviders(): Record<string, ProviderId> {
       ([providerId]) =>
         providerId !== 'ollama' &&
         providerId !== 'vllm' &&
+        providerId !== 'litellm' &&
         providerId !== 'openrouter' &&
         providerId !== 'fireworks'
     )
@@ -741,6 +749,12 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   const isVllmModel =
     provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
   if (isVllmModel) {
+    return userProvidedKey || 'empty'
+  }
+
+  const isLitellmModel =
+    provider === 'litellm' || useProvidersStore.getState().providers.litellm.models.includes(model)
+  if (isLitellmModel) {
     return userProvidedKey || 'empty'
   }
 

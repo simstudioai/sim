@@ -768,6 +768,7 @@ function callOptionsWithFallback(
       base: { models: staticModels.map((m) => m.id) },
       ollama: { models: [] },
       vllm: { models: [] },
+      litellm: { models: [] },
       openrouter: { models: [] },
       fireworks: { models: [] },
     },

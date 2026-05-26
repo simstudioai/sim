@@ -376,6 +376,7 @@ export async function executeWorkflowCore(
       triggerData: metadata.correlation ? { correlation: metadata.correlation } : undefined,
       skipLogCreation,
       deploymentVersionId,
+      workflowState: { blocks, edges, loops, parallels },
     })
 
     // Use edges directly - trigger-to-trigger edges are prevented at creation time

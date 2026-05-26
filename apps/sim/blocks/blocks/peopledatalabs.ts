@@ -397,6 +397,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
       placeholder: 'Enter your People Data Labs API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
 

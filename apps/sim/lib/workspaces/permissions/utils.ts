@@ -8,6 +8,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
+import { HttpError } from '@/lib/core/utils/http-error'
 
 export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 export interface WorkspaceBasic {
@@ -147,13 +148,34 @@ export async function checkWorkspaceAccess(
   return { exists: true, hasAccess: true, canWrite, workspace: ws }
 }
 
+/**
+ * Thrown when a user attempts to access a workspace they don't have access to,
+ * or that doesn't exist / has been archived. Carries `statusCode = 403` so the
+ * centralized route wrapper maps it to HTTP 403 instead of defaulting to 500.
+ * The `message` is intentionally client-safe and is exposed to API responses.
+ */
+export class WorkspaceAccessDeniedError extends HttpError {
+  readonly statusCode = 403
+  readonly workspaceId: string
+
+  constructor(workspaceId: string) {
+    super(`Workspace access denied: ${workspaceId}`)
+    this.name = 'WorkspaceAccessDeniedError'
+    this.workspaceId = workspaceId
+  }
+}
+
+export function isWorkspaceAccessDeniedError(error: unknown): error is WorkspaceAccessDeniedError {
+  return error instanceof WorkspaceAccessDeniedError
+}
+
 export async function assertActiveWorkspaceAccess(
   workspaceId: string,
   userId: string
 ): Promise<WorkspaceAccess> {
   const access = await checkWorkspaceAccess(workspaceId, userId)
   if (!access.exists || !access.hasAccess) {
-    throw new Error(`Active workspace access denied: ${workspaceId}`)
+    throw new WorkspaceAccessDeniedError(workspaceId)
   }
   return access
 }

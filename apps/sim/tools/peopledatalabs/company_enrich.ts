@@ -1,5 +1,9 @@
 import type { PdlCompanyEnrichParams, PdlCompanyEnrichResponse } from '@/tools/peopledatalabs/types'
-import { PDL_COMPANY_OUTPUT_PROPERTIES } from '@/tools/peopledatalabs/types'
+import {
+  PDL_COMPANY_OUTPUT_PROPERTIES,
+  PDL_CREDIT_USD,
+  PEOPLEDATALABS_API_KEY_PREFIX,
+} from '@/tools/peopledatalabs/types'
 import { buildQueryString, projectCompany } from '@/tools/peopledatalabs/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +13,24 @@ export const companyEnrichTool: ToolConfig<PdlCompanyEnrichParams, PdlCompanyEnr
   description:
     'Enrich a single company using People Data Labs. Match by name, website, LinkedIn URL, ticker, or PDL ID.',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'peopledatalabs',
+    pricing: {
+      type: 'custom',
+      // PDL charges 1 credit per matched request; misses (404) are free.
+      getCost: (_params, output) => {
+        const cost = output.matched === true ? PDL_CREDIT_USD : 0
+        return { cost, metadata: { credits: output.matched === true ? 1 : 0 } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  },
 
   params: {
     apiKey: {

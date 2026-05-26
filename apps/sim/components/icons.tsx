@@ -4439,6 +4439,20 @@ export function VllmIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function LitellmIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} fill='none' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'>
+      <title>LiteLLM</title>
+      <image
+        href='data:image/png;base64,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'
+        width='72'
+        height='72'
+        preserveAspectRatio='xMidYMid meet'
+      />
+    </svg>
+  )
+}
+
 export function PosthogIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -4635,16 +4649,9 @@ export function ZendeskIcon(props: SVGProps<SVGSVGElement>) {
 
 export function ZoomIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      {...props}
-      fill='currentColor'
-      width='800px'
-      height='800px'
-      viewBox='-1 9.5 34 13'
-      version='1.1'
-      xmlns='http://www.w3.org/2000/svg'
-    >
-      <path d='M19.28 17.4c-0.37 0.37-0.88 0.61-1.44 0.61-1.12 0-2.02-0.91-2.02-2.02s0.91-2.02 2.02-2.02c0.93 0 1.71 0.63 1.95 1.48l0 0.01c0.05 0.16 0.07 0.34 0.07 0.53 0 0.55-0.22 1.05-0.58 1.42l0-0zM15.47 13.59c-0.65 0.62-1.05 1.48-1.05 2.45 0 1.86 1.51 3.37 3.37 3.37s3.37-1.51 3.37-3.37c0-1.54-1.03-2.84-2.44-3.24l-0.02-0.01c-0.27-0.08-0.58-0.12-0.9-0.12-0.9 0-1.72 0.35-2.32 0.93l00zM28.3 12.6c-0.8 0-1.52 0.35-2.02 0.91l0 0c-0.5-0.56-1.22-0.91-2.02-0.91-0.56 0-1.09 0.17-1.52 0.47l0.01-0.01c-0.32-0.28-0.73-0.45-1.18-0.46l0-0v6.74l0.34-0.02c0.54-0.01 0.98-0.45 1-0.99l00 0.02-0.34v-2.36l0.02-0.34c00 00 00 0-0.24 0.06-0.48 0.17-0.68l0 0.01c0.24-0.4 0.67-0.67 1.17-0.67s0.93 0.27 1.16 0.66l0 0.01c0.1 0.2 0.16 0.43 0.17 0.68v0l0.02 0.34v2.36l0.02 0.34c0.02 0.54 0.45 0.97 0.99 1l0 0 0.34 0.02v-3.71l0.02-0.34c00 00 00 0-0.25 0.06-0.48 0.17-0.68l0 0.01c0.24-0.4 0.67-0.67 1.17-0.67 0.5 0 0.93 0.27 1.16 0.67l0 0.01c0.1 0.2 0.16 0.43 0.16 0.67 0 0 0 0 0 0v-0l0.02 0.34v2.36l0.02 0.34c0.02 0.54 0.45 0.98 0.99 1l0 0 0.34 0.02v-4.04c0-1.49-1.21-2.69-2.7-2.690 00 00 0h0zM12.21 17.4c-0.37 0.39-0.89 0.64-1.47 0.64-1.12 0-2.02-0.91-2.02-2.02s0.91-2.02 2.02-2.02c0.92 0 1.7 0.62 1.95 1.47l0 0.01c0.05 0.16 0.08 0.35 0.08 0.54 0 0.54-0.21 1.02-0.55 1.39l00zM10.78 12.6h0c-1.86 0-3.37 1.51-3.37 3.37s1.51 3.37 3.37 3.37 3.37-1.51 3.37-3.37c0-1.86-1.51-3.37-3.37-3.37h-0zM6.73 18.01l-0.34-0.01h-3.03l4.04-4.04-0.02-0.34c-0.01-0.54-0.45-0.98-0.99-0.99l0-0-0.34-0.02h-5.05l0.02 0.34c0.03 0.54 0.46 0.97 0.99 1l0 0 0.34 0.02h3.04l-4.05 4.05 0.02 0.34c0.02 0.54 0.45 0.98 0.99 1l0 0 0.34 0.02h5.06l-0.02-0.34c-0.02-0.54-0.45-0.97-0.99-0.99l0-0z' />
+    <svg {...props} viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' aria-hidden='true'>
+      <rect x='2' y='6' width='14' height='12' rx='2.5' fill='#0B5CFF' />
+      <path d='M16 9 L22 6 V18 L16 15 Z' fill='#0B5CFF' />
     </svg>
   )
 }

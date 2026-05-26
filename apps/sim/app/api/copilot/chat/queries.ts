@@ -12,13 +12,17 @@ import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
+  createForbiddenResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { readFilePreviewSessions } from '@/lib/copilot/request/session'
 import { readEvents } from '@/lib/copilot/request/session/buffer'
 import { toStreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  assertActiveWorkspaceAccess,
+  isWorkspaceAccessDeniedError,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -196,6 +200,9 @@ export async function GET(req: NextRequest) {
       chats: chats.map(transformChatListItem),
     })
   } catch (error) {
+    if (isWorkspaceAccessDeniedError(error)) {
+      return createForbiddenResponse('Workspace access denied')
+    }
     logger.error('Error fetching copilot chats:', error)
     return createInternalServerErrorResponse('Failed to fetch chats')
   }

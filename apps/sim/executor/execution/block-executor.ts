@@ -47,6 +47,11 @@ import {
 import { isJSONString } from '@/executor/utils/json'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import {
+  buildBranchNodeId,
+  buildOuterBranchScopedId,
+  extractOuterBranchIndex,
+} from '@/executor/utils/subflow-utils'
+import {
   FUNCTION_BLOCK_CONTEXT_VARS_KEY,
   FUNCTION_BLOCK_DISPLAY_CODE_KEY,
   type VariableResolver,
@@ -98,10 +103,12 @@ export class BlockExecutor {
     const startTime = performance.now()
 
     let blockLog: BlockLog | undefined
+    let blockStartPromise: Promise<void> | undefined
     if (!isSentinel) {
       blockLog = this.createBlockLog(ctx, node.id, block, node, startedAt)
       ctx.blockLogs.push(blockLog)
-      this.fireBlockStartCallback(ctx, node, block, blockLog.executionOrder)
+      blockStartPromise = this.fireBlockStartCallback(ctx, node, block, blockLog.executionOrder)
+      await blockStartPromise
     }
 
     let resolvedInputs: Record<string, any> = {}
@@ -156,6 +163,7 @@ export class BlockExecutor {
         ctx,
         node,
         block,
+        blockStartPromise,
         startTime,
         blockLog,
         inputsForLog,
@@ -234,7 +242,7 @@ export class BlockExecutor {
       }
 
       const { childTraceSpans: _traces, ...outputForState } = normalizedOutput
-      this.state.setBlockOutput(node.id, outputForState as NormalizedBlockOutput, duration)
+      this.setNodeOutput(node, outputForState as NormalizedBlockOutput, duration)
 
       if (!isSentinel && blockLog) {
         const childWorkflowInstanceId =
@@ -245,6 +253,7 @@ export class BlockExecutor {
           block,
         })
         this.fireBlockCompleteCallback(
+          blockStartPromise,
           ctx,
           node,
           block,
@@ -265,6 +274,7 @@ export class BlockExecutor {
         ctx,
         node,
         block,
+        blockStartPromise,
         startTime,
         blockLog,
         inputsForLog,
@@ -278,12 +288,37 @@ export class BlockExecutor {
     const metadata = node?.metadata ?? {}
     return {
       nodeId: node.id,
-      loopId: metadata.loopId,
-      parallelId: metadata.parallelId,
+      loopId: metadata.subflowType === 'loop' ? metadata.subflowId : undefined,
+      parallelId: metadata.subflowType === 'parallel' ? metadata.subflowId : undefined,
+      subflowId: metadata.subflowId,
+      subflowType: metadata.subflowType,
       branchIndex: metadata.branchIndex,
       branchTotal: metadata.branchTotal,
       originalBlockId: metadata.originalBlockId,
       isLoopNode: metadata.isLoopNode,
+    }
+  }
+
+  private setNodeOutput(node: DAGNode, output: NormalizedBlockOutput, duration = 0): void {
+    this.state.setBlockOutput(node.id, output, duration)
+
+    const originalBlockId = node.metadata.originalBlockId
+    const branchIndex = node.metadata.branchIndex
+    if (
+      node.metadata.isParallelBranch &&
+      originalBlockId &&
+      branchIndex !== undefined &&
+      extractOuterBranchIndex(node.id) === undefined
+    ) {
+      const globalBranchNodeId = buildBranchNodeId(originalBlockId, branchIndex)
+      if (globalBranchNodeId !== node.id) {
+        this.state.setBlockOutput(globalBranchNodeId, output, duration)
+      }
+      this.state.setBlockOutput(
+        buildOuterBranchScopedId(originalBlockId, branchIndex),
+        output,
+        duration
+      )
     }
   }
 
@@ -296,6 +331,7 @@ export class BlockExecutor {
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
+    blockStartPromise: Promise<void> | undefined,
     startTime: number,
     blockLog: BlockLog | undefined,
     inputsForLog: Record<string, any>,
@@ -322,7 +358,7 @@ export class BlockExecutor {
       }
     }
 
-    this.state.setBlockOutput(node.id, errorOutput, duration)
+    this.setNodeOutput(node, errorOutput, duration)
 
     if (blockLog) {
       blockLog.endedAt = endedAt
@@ -352,6 +388,7 @@ export class BlockExecutor {
         : undefined
       const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
       this.fireBlockCompleteCallback(
+        blockStartPromise,
         ctx,
         node,
         block,
@@ -412,12 +449,20 @@ export class BlockExecutor {
     let iterationIndex: number | undefined
 
     if (node?.metadata) {
-      if (node.metadata.branchIndex !== undefined && node.metadata.parallelId) {
+      if (
+        node.metadata.branchIndex !== undefined &&
+        node.metadata.subflowType === 'parallel' &&
+        node.metadata.subflowId
+      ) {
         blockName = `${blockName} (iteration ${node.metadata.branchIndex})`
         iterationIndex = node.metadata.branchIndex
-        parallelId = node.metadata.parallelId
-      } else if (node.metadata.isLoopNode && node.metadata.loopId) {
-        loopId = node.metadata.loopId
+        parallelId = node.metadata.subflowId
+      } else if (
+        node.metadata.isLoopNode &&
+        node.metadata.subflowType === 'loop' &&
+        node.metadata.subflowId
+      ) {
+        loopId = node.metadata.subflowId
         const loopScope = ctx.loopExecutions?.get(loopId)
         if (loopScope && loopScope.iteration !== undefined) {
           blockName = `${blockName} (iteration ${loopScope.iteration})`
@@ -510,23 +555,23 @@ export class BlockExecutor {
   }
 
   /**
-   * Fires the `onBlockStart` progress callback without blocking block execution.
-   * Any error is logged and swallowed so callback I/O never stalls the critical path.
+   * Fires the `onBlockStart` progress callback before block execution continues.
+   * Returning the promise lets completion callbacks preserve lifecycle ordering.
    */
   private fireBlockStartCallback(
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
     executionOrder: number
-  ): void {
-    if (!this.contextExtensions.onBlockStart) return
+  ): Promise<void> | undefined {
+    if (!this.contextExtensions.onBlockStart) return undefined
 
     const blockId = node.metadata?.originalBlockId ?? node.id
     const blockName = block.metadata?.name ?? blockId
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
     const iterationContext = getIterationContext(ctx, node?.metadata)
 
-    void this.contextExtensions
+    return this.contextExtensions
       .onBlockStart(
         blockId,
         blockName,
@@ -546,10 +591,11 @@ export class BlockExecutor {
 
   /**
    * Fires the `onBlockComplete` progress callback without blocking subsequent blocks.
-   * The callback typically performs DB writes for progress markers — awaiting it would
-   * add latency between blocks and skew wall-clock timing in the trace view.
+   * Completion is chained behind the matching start callback so SSE/log consumers
+   * never observe `block:completed` before `block:started` for the same execution.
    */
   private fireBlockCompleteCallback(
+    blockStartPromise: Promise<void> | undefined,
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
@@ -568,8 +614,9 @@ export class BlockExecutor {
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
     const iterationContext = getIterationContext(ctx, node?.metadata)
 
-    void this.contextExtensions
-      .onBlockComplete(
+    void (async () => {
+      await blockStartPromise
+      await this.contextExtensions.onBlockComplete?.(
         blockId,
         blockName,
         blockType,
@@ -585,13 +632,13 @@ export class BlockExecutor {
         iterationContext,
         ctx.childWorkflowContext
       )
-      .catch((error) => {
-        this.execLogger.warn('Block completion callback failed', {
-          blockId,
-          blockType,
-          error: toError(error).message,
-        })
+    })().catch((error) => {
+      this.execLogger.warn('Block completion callback failed', {
+        blockId,
+        blockType,
+        error: toError(error).message,
       })
+    })
   }
 
   private preparePauseResumeSelfReference(

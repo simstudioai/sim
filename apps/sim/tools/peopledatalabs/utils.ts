@@ -6,6 +6,20 @@ import type {
 } from '@/tools/peopledatalabs/types'
 
 /**
+ * Count matched records in a bulk enrich output `results` array.
+ * PDL charges one credit per matched record, so this drives both hosted-key
+ * cost and the post-execution credit rate-limit dimension.
+ */
+export function countBulkMatched(output: Record<string, unknown>): number {
+  const results = output.results
+  if (!Array.isArray(results)) return 0
+  return results.reduce((count, item) => {
+    const matched = (item as { matched?: unknown }).matched
+    return matched === true ? count + 1 : count
+  }, 0)
+}
+
+/**
  * Build a query string from non-empty params.
  */
 export function buildQueryString(params: Record<string, unknown>): string {

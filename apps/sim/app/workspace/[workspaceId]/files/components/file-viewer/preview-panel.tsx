@@ -1071,16 +1071,24 @@ const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) 
 })
 
 function SvgPreview({ content }: { content: string }) {
-  const wrappedContent = `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:transparent;}svg{max-width:100%;max-height:100vh;}</style></head><body>${content}</body></html>`
+  const [blobUrl, setBlobUrl] = useState('')
+
+  useEffect(() => {
+    const url = URL.createObjectURL(new Blob([content], { type: 'image/svg+xml' }))
+    setBlobUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [content])
 
   return (
     <ZoomablePreview className='h-full' contentClassName='h-full w-full'>
-      <iframe
-        srcDoc={wrappedContent}
-        sandbox=''
-        title='SVG Preview'
-        className='h-full w-full border-0'
-      />
+      {blobUrl && (
+        <img
+          src={blobUrl}
+          alt='SVG preview'
+          className='max-h-full max-w-full select-none object-contain'
+          draggable={false}
+        />
+      )}
     </ZoomablePreview>
   )
 }

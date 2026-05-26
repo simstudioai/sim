@@ -1,5 +1,8 @@
 import type { PdlCleanCompanyParams, PdlCleanCompanyResponse } from '@/tools/peopledatalabs/types'
-import { PDL_COMPANY_OUTPUT_PROPERTIES } from '@/tools/peopledatalabs/types'
+import {
+  PDL_COMPANY_OUTPUT_PROPERTIES,
+  PEOPLEDATALABS_API_KEY_PREFIX,
+} from '@/tools/peopledatalabs/types'
 import { projectCompany } from '@/tools/peopledatalabs/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +12,18 @@ export const cleanCompanyTool: ToolConfig<PdlCleanCompanyParams, PdlCleanCompany
   description:
     'Normalize a company string into a canonical company record. Provide at least one of name, website, or profile (LinkedIn URL).',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'peopledatalabs',
+    // Cleaner APIs are free on PDL (rate-limited only) — no credits consumed.
+    pricing: { type: 'per_request', cost: 0 },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  },
 
   params: {
     apiKey: {

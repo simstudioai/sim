@@ -74,6 +74,12 @@ export async function getApiKeyWithBYOK(
     return { apiKey: userProvidedKey || env.VLLM_API_KEY || 'empty', isBYOK: false }
   }
 
+  const isLitellmModel =
+    provider === 'litellm' || useProvidersStore.getState().providers.litellm.models.includes(model)
+  if (isLitellmModel) {
+    return { apiKey: userProvidedKey || env.LITELLM_API_KEY || 'empty', isBYOK: false }
+  }
+
   const isFireworksModel =
     provider === 'fireworks' ||
     useProvidersStore.getState().providers.fireworks.models.includes(model)

@@ -29,6 +29,7 @@ import type { ConnectorRegistry } from '@/connectors/types'
 import { webflowConnector } from '@/connectors/webflow'
 import { wordpressConnector } from '@/connectors/wordpress'
 import { zendeskConnector } from '@/connectors/zendesk'
+import { zoomConnector } from '@/connectors/zoom'
 
 export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   airtable: airtableConnector,
@@ -61,4 +62,5 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   webflow: webflowConnector,
   wordpress: wordpressConnector,
   zendesk: zendeskConnector,
+  zoom: zoomConnector,
 }

@@ -5,7 +5,7 @@ import {
   isExecutionCancelled,
   isRedisCancellationEnabled,
 } from '@/lib/execution/cancellation'
-import { BlockType } from '@/executor/constants'
+import { BlockType, EDGE } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
@@ -290,6 +290,9 @@ export class ExecutionEngine {
         if (targetNode) {
           const hadEdge = targetNode.incomingEdges.has(edge.source)
           targetNode.incomingEdges.delete(edge.source)
+          if (hadEdge) {
+            this.edgeManager.markNodeWithActivatedEdge(targetNode.id)
+          }
 
           if (this.edgeManager.isNodeReady(targetNode)) {
             this.execLogger.info('Node became ready after edge removal', { nodeId: targetNode.id })
@@ -399,6 +402,8 @@ export class ExecutionEngine {
     }
 
     if (output._pauseMetadata) {
+      await this.nodeOrchestrator.handleNodeCompletion(this.context, nodeId, output)
+
       const pauseMetadata = output._pauseMetadata
       this.pausedBlocks.set(pauseMetadata.contextId, pauseMetadata)
       this.context.metadata.status = 'paused'
@@ -426,8 +431,9 @@ export class ExecutionEngine {
     if (this.context.stopAfterBlockId === nodeId) {
       // For loop/parallel sentinels, only stop if the subflow has fully exited (all iterations done)
       // shouldContinue: true means more iterations, shouldExit: true means loop is done
-      const shouldContinueLoop = output.shouldContinue === true
-      if (!shouldContinueLoop) {
+      const shouldContinue =
+        output.shouldContinue === true || output.selectedRoute === EDGE.PARALLEL_CONTINUE
+      if (!shouldContinue) {
         this.execLogger.info('Stopping execution after target block', { nodeId })
         this.stoppedEarlyFlag = true
         return
@@ -437,13 +443,6 @@ export class ExecutionEngine {
     const readyNodes = this.edgeManager.processOutgoingEdges(node, output, false)
 
     this.addMultipleToQueue(readyNodes)
-
-    if (this.context.pendingDynamicNodes && this.context.pendingDynamicNodes.length > 0) {
-      const dynamicNodes = this.context.pendingDynamicNodes
-      this.context.pendingDynamicNodes = []
-      this.execLogger.info('Adding dynamically expanded parallel nodes', { dynamicNodes })
-      this.addMultipleToQueue(dynamicNodes)
-    }
   }
 
   private buildPausedResult(startTime: number): ExecutionResult {
@@ -452,7 +451,7 @@ export class ExecutionEngine {
     this.context.metadata.duration = endTime - startTime
     this.context.metadata.status = 'paused'
 
-    const snapshotSeed = serializePauseSnapshot(this.context, [], this.dag)
+    const snapshotSeed = serializePauseSnapshot(this.context, [], this.dag, this.edgeManager)
     const pausePoints: PausePoint[] = Array.from(this.pausedBlocks.values()).map((pause) => ({
       contextId: pause.contextId,
       blockId: pause.blockId,
@@ -484,7 +483,8 @@ export class ExecutionEngine {
   }): SerializableExecutionState | undefined {
     try {
       const serializedSnapshot =
-        snapshotSeed?.snapshot ?? serializePauseSnapshot(this.context, [], this.dag).snapshot
+        snapshotSeed?.snapshot ??
+        serializePauseSnapshot(this.context, [], this.dag, this.edgeManager).snapshot
       const parsedSnapshot = JSON.parse(serializedSnapshot) as {
         state?: SerializableExecutionState
       }
