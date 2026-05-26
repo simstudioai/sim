@@ -176,12 +176,41 @@ describe('undo-redo IndexedDB storage adapter', () => {
       expect(idbStore.get(MIGRATION_KEY)).toBe(true)
     })
 
-    it('swallows IndexedDB errors so sign-out does not crash', async () => {
+    it('propagates IndexedDB errors so callers can surface the failure', async () => {
       const { clearPersistedUndoRedo, migrationReady } = await loadFreshModule()
       await migrationReady
 
       idbDel.mockRejectedValueOnce(new Error('idb delete failed'))
-      await expect(clearPersistedUndoRedo()).resolves.toBeUndefined()
+      await expect(clearPersistedUndoRedo()).rejects.toThrow('idb delete failed')
+    })
+  })
+
+  describe('hydration race', () => {
+    it('blocks setItem until the first getItem resolves', async () => {
+      const { indexedDBStorage, migrationReady } = await loadFreshModule()
+      await migrationReady
+      idbStore.set(STORE_KEY, 'persisted-snapshot')
+
+      let releaseRead: ((value: 'persisted-snapshot') => void) | null = null
+      idbGet.mockImplementationOnce(
+        () =>
+          new Promise<'persisted-snapshot'>((resolve) => {
+            releaseRead = resolve
+          })
+      )
+
+      const readPromise = indexedDBStorage.getItem(STORE_KEY)
+      const writePromise = indexedDBStorage.setItem(STORE_KEY, 'empty-state')
+
+      // Give the microtask queue a chance to process; the write must still be pending.
+      await Promise.resolve()
+      expect(idbStore.get(STORE_KEY)).toBe('persisted-snapshot')
+
+      releaseRead?.('persisted-snapshot')
+      await readPromise
+      await writePromise
+
+      expect(idbStore.get(STORE_KEY)).toBe('empty-state')
     })
   })
 })

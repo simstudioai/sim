@@ -10,6 +10,14 @@ const MIGRATION_KEY = 'workflow-undo-redo-migrated'
 let migrationPromiseInternal: Promise<void> | null = null
 
 /**
+ * Resolves with the first `getItem` result that goes through the adapter.
+ * Used to gate writes until the initial rehydration read completes — without
+ * this, a `setItem` triggered before the async `getItem` returns would
+ * overwrite the IndexedDB snapshot with an empty in-memory state.
+ */
+let hydrationReadPromise: Promise<string | null> | null = null
+
+/**
  * Migrates existing undo/redo data from localStorage to IndexedDB.
  * Runs once on first load; subsequent loads short-circuit on MIGRATION_KEY.
  *
@@ -55,11 +63,23 @@ async function awaitMigration(): Promise<void> {
   }
 }
 
+async function awaitHydrationRead(): Promise<void> {
+  if (hydrationReadPromise) {
+    try {
+      await hydrationReadPromise
+    } catch {
+      // The read promise already swallowed its own errors; ignore here.
+    }
+  }
+}
+
 /**
  * Removes the persisted undo/redo payload from IndexedDB.
  *
  * Called from `clearUserData` on sign-out so undo history does not
- * survive across user sessions on the same device.
+ * survive across user sessions on the same device. Errors are
+ * propagated so callers can decide how to react (the default
+ * `clearUserData` already wraps this call in a try/catch).
  */
 export async function clearPersistedUndoRedo(): Promise<void> {
   if (typeof window === 'undefined') return
@@ -69,6 +89,7 @@ export async function clearPersistedUndoRedo(): Promise<void> {
     await del(STORE_KEY)
   } catch (error) {
     logger.warn('Failed to clear persisted undo-redo', { error })
+    throw error
   }
 }
 
@@ -77,18 +98,28 @@ export const indexedDBStorage: StateStorage = {
     if (typeof window === 'undefined') return null
     await awaitMigration()
 
-    try {
-      const value = await get<string>(name)
-      return value ?? null
-    } catch (error) {
-      logger.warn('IndexedDB read failed', { name, error })
-      return null
+    const readPromise = (async () => {
+      try {
+        const value = await get<string>(name)
+        return value ?? null
+      } catch (error) {
+        logger.warn('IndexedDB read failed', { name, error })
+        return null
+      }
+    })()
+
+    // Record the first read so concurrent writes can wait for it to complete.
+    if (!hydrationReadPromise) {
+      hydrationReadPromise = readPromise
     }
+
+    return await readPromise
   },
 
   setItem: async (name: string, value: string): Promise<void> => {
     if (typeof window === 'undefined') return
     await awaitMigration()
+    await awaitHydrationRead()
 
     try {
       await set(name, value)
@@ -100,6 +131,7 @@ export const indexedDBStorage: StateStorage = {
   removeItem: async (name: string): Promise<void> => {
     if (typeof window === 'undefined') return
     await awaitMigration()
+    await awaitHydrationRead()
 
     try {
       await del(name)
