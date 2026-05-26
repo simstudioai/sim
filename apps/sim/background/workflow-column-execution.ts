@@ -114,6 +114,94 @@ async function runWorkflowAndWriteTerminal(
     const writeState = (executionState: RowExecutionMetadata, dataPatch?: RowData) =>
       writeWorkflowGroupState(cellCtx, { executionState, dataPatch })
 
+    // Enrichment groups call a registry function directly instead of running a
+    // workflow, reusing the same pickup → run → terminal-write status flow.
+    if (group.type === 'enrichment') {
+      const { getEnrichment } = await import('@/enrichments/registry')
+      const enrichment = getEnrichment(group.enrichmentId)
+      // `tableRowExecutions.workflowId` is an opaque id for status; use the
+      // enrichment id for enrichment cells.
+      const statusId = group.enrichmentId ?? ''
+      if (!enrichment) {
+        await writeState({
+          status: 'error',
+          executionId,
+          jobId: null,
+          workflowId: statusId,
+          error: `Unknown enrichment "${group.enrichmentId ?? ''}"`,
+        })
+        return 'error'
+      }
+
+      const row = await getRowById(tableId, rowId, workspaceId)
+      if (!row) {
+        logger.warn(`Row ${rowId} vanished before enrichment`)
+        return 'error'
+      }
+
+      const pickedUp = await markWorkflowGroupPickedUp(cellCtx, {
+        workflowId: statusId,
+        jobId: null,
+      })
+      if (pickedUp === 'skipped') return 'error'
+
+      // Map table columns → enrichment input ids (skip this group's own outputs).
+      const ownOutputColumns = new Set(group.outputs.map((o) => o.columnName))
+      const enrichInputs: Record<string, unknown> = {}
+      for (const m of group.inputMappings ?? []) {
+        if (ownOutputColumns.has(m.columnName)) continue
+        enrichInputs[m.inputName] = row.data[m.columnName]
+      }
+
+      // Skip (don't error) rows missing a required input — common when a table
+      // is partially filled. The cell completes empty and re-runs once the
+      // input columns fill (if they're dependencies).
+      const isEmpty = (v: unknown) => v === undefined || v === null || v === ''
+      const missingRequired = enrichment.inputs.some(
+        (i) => i.required && isEmpty(enrichInputs[i.id])
+      )
+      if (missingRequired) {
+        await writeState({
+          status: 'completed',
+          executionId,
+          jobId: null,
+          workflowId: statusId,
+          error: null,
+        })
+        return 'completed'
+      }
+
+      try {
+        if (signal?.aborted) return 'error'
+        const result = await enrichment.enrich(enrichInputs, {
+          tableId,
+          rowId,
+          workspaceId,
+          signal,
+        })
+        const dataPatch: RowData = {}
+        for (const out of group.outputs) {
+          if (!out.outputId) continue
+          const value = result[out.outputId]
+          if (value !== undefined) dataPatch[out.columnName] = value as RowData[string]
+        }
+        await writeState(
+          { status: 'completed', executionId, jobId: null, workflowId: statusId, error: null },
+          dataPatch
+        )
+        return 'completed'
+      } catch (err) {
+        await writeState({
+          status: 'error',
+          executionId,
+          jobId: null,
+          workflowId: statusId,
+          error: toError(err).message,
+        })
+        return 'error'
+      }
+    }
+
     const blockErrors: Record<string, string> = {}
     let writeChain: Promise<void> = Promise.resolve()
     let terminalWritten = false

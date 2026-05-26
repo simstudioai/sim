@@ -578,11 +578,8 @@ export function Table({
         open={slideout.kind === 'enrichments'}
         onClose={onCloseSlideout}
         allColumns={columns}
-        workflowGroups={tableWorkflowGroups}
-        workflows={workflows}
         workspaceId={workspaceId}
         tableId={tableId}
-        onColumnRename={onColumnRename}
       />
       <WorkflowSidebar
         config={workflowConfig}

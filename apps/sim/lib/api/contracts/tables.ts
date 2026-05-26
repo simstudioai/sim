@@ -716,8 +716,11 @@ export const deleteTableRowsContract = defineRouteContract({
 // ============================================================================
 
 const workflowGroupOutputSchema = z.object({
-  blockId: z.string().min(1),
-  path: z.string().min(1),
+  // Workflow outputs carry blockId/path; enrichment outputs carry outputId and
+  // leave these empty. `.default('')` keeps the parsed value a plain string.
+  blockId: z.string().default(''),
+  path: z.string().default(''),
+  outputId: z.string().optional(),
   columnName: z.string().min(1),
 })
 
@@ -749,7 +752,10 @@ export const addWorkflowGroupBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   group: z.object({
     id: z.string().min(1),
-    workflowId: z.string().min(1),
+    /** Workflow id for manual groups; `''` (or omitted) for enrichment groups. */
+    workflowId: z.string().default(''),
+    /** Registry enrichment id for enrichment groups. */
+    enrichmentId: z.string().min(1).optional(),
     name: z.string().optional(),
     /** Provenance of the group; defaults to `'manual'` when omitted. */
     type: workflowGroupTypeSchema.optional(),

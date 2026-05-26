@@ -194,6 +194,7 @@ export function buildPendingRuns(
         rowId: row.id,
         groupId: group.id,
         workflowId: group.workflowId,
+        ...(group.enrichmentId ? { enrichmentId: group.enrichmentId } : {}),
         workspaceId: table.workspaceId,
         executionId: generateId(),
       })
@@ -311,7 +312,10 @@ export interface WorkflowGroupCellPayload {
   tableName: string
   rowId: string
   groupId: string
+  /** Backing workflow id for manual groups; `''` for enrichment groups. */
   workflowId: string
+  /** Registry enrichment id for enrichment groups. */
+  enrichmentId?: string
   workspaceId: string
   executionId: string
 }
