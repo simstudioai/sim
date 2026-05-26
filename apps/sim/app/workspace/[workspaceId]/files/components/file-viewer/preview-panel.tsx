@@ -1081,12 +1081,14 @@ function SvgPreview({ content }: { content: string }) {
 
   return (
     <ZoomablePreview className='h-full' contentClassName='h-full w-full'>
-      <img
-        src={blobUrl}
-        alt='SVG preview'
-        className='max-h-full max-w-full select-none object-contain'
-        draggable={false}
-      />
+      {blobUrl && (
+        <img
+          src={blobUrl}
+          alt='SVG preview'
+          className='max-h-full max-w-full select-none object-contain'
+          draggable={false}
+        />
+      )}
     </ZoomablePreview>
   )
 }
