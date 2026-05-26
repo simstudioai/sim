@@ -12,7 +12,13 @@ const PAGE_SIZE = 300
 const WINDOW_DAYS = 30
 const DEFAULT_LOOKBACK_DAYS = 180
 const MAX_LOOKBACK_DAYS = 180
-const INCREMENTAL_OVERLAP_DAYS = 7
+/**
+ * Days of overlap added when computing the incremental sync window. Zoom transcript
+ * generation is usually fast, but AI Companion / audio transcription can lag hours to
+ * days for large accounts. A 30-day overlap catches late-arriving transcripts at the
+ * cost of at most one extra 30-day window per sync.
+ */
+const INCREMENTAL_OVERLAP_DAYS = 30
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 interface ZoomRecordingFile {
