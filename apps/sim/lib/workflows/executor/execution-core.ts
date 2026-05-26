@@ -5,6 +5,7 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { filterUndefined } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
@@ -38,6 +39,45 @@ import { Serializer } from '@/serializer'
 const logger = createLogger('ExecutionCore')
 
 const EnvVarsSchema = z.record(z.string(), z.string())
+
+/**
+ * Surfaces the underlying driver error from a wrapped error chain.
+ *
+ * Drizzle wraps the original `postgres`/Node driver error as `error.cause`,
+ * which the logger's Error serializer drops (it only emits own-enumerable
+ * keys). Walking the `cause` chain and preferring the first error carrying a
+ * `code` exposes the diagnostic fields — notably the Postgres `code` — that
+ * distinguish a connection drop (`08006`), a rejected connection (`53300`),
+ * and a statement timeout (`57014`) behind an opaque "Failed query" message.
+ */
+function describeErrorCause(error: unknown): Record<string, unknown> | undefined {
+  try {
+    let current: unknown = error instanceof Error ? error.cause : undefined
+    let driver: (Error & Record<string, unknown>) | undefined
+    for (let depth = 0; depth < 10 && current instanceof Error; depth++) {
+      const candidate = current as Error & Record<string, unknown>
+      if (!driver) driver = candidate
+      if (candidate.code !== undefined) {
+        driver = candidate
+        break
+      }
+      current = candidate.cause
+    }
+    if (!driver) return undefined
+    return filterUndefined({
+      name: driver.name,
+      message: driver.message,
+      code: driver.code,
+      severity: driver.severity,
+      detail: driver.detail,
+      routine: driver.routine,
+      errno: driver.errno,
+      syscall: driver.syscall,
+    })
+  } catch {
+    return undefined
+  }
+}
 
 export interface ExecuteWorkflowCoreOptions {
   snapshot: ExecutionSnapshot
@@ -681,7 +721,7 @@ export async function executeWorkflowCore(
 
     return result
   } catch (error: unknown) {
-    logger.error(`[${requestId}] Execution failed:`, error)
+    logger.error(`[${requestId}] Execution failed:`, error, { cause: describeErrorCause(error) })
 
     await waitForLifecycleCallbacks()
 
