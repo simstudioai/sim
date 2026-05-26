@@ -1,5 +1,5 @@
 import type { HunterEmailCountParams, HunterEmailCountResponse } from '@/tools/hunter/types'
-import { DEPARTMENT_OUTPUT, SENIORITY_OUTPUT } from '@/tools/hunter/types'
+import { DEPARTMENT_OUTPUT, HUNTER_API_KEY_PREFIX, SENIORITY_OUTPUT } from '@/tools/hunter/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCountResponse> = {
@@ -7,6 +7,18 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
   name: 'Hunter Email Count',
   description: 'Returns the total number of email addresses found for a domain or company.',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: HUNTER_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'hunter',
+    // Email Count is free on Hunter — no credits consumed.
+    pricing: { type: 'per_request', cost: 0 },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  },
 
   params: {
     domain: {
