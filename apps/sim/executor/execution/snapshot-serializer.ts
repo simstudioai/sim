@@ -1,5 +1,6 @@
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import type { DAG } from '@/executor/dag/builder'
+import type { EdgeManager } from '@/executor/execution/edge-manager'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionContext, SerializedSnapshot } from '@/executor/types'
@@ -184,7 +185,8 @@ function serializeParallelExecutions(
 export function serializePauseSnapshot(
   context: ExecutionContext,
   triggerBlockIds: string[],
-  dag?: DAG
+  dag?: DAG,
+  edgeManager?: EdgeManager
 ): SerializedSnapshot {
   const metadataFromContext = context.metadata as ExecutionMetadata | undefined
   let useDraftState: boolean
@@ -220,6 +222,8 @@ export function serializePauseSnapshot(
     activeExecutionPath: Array.from(context.activeExecutionPath),
     pendingQueue: triggerBlockIds,
     dagIncomingEdges,
+    deactivatedEdges: edgeManager?.getDeactivatedEdges(),
+    nodesWithActivatedEdge: edgeManager?.getNodesWithActivatedEdge(),
   }
 
   assertSnapshotValueIsCompact(context.workflowVariables, 'workflow variables')

@@ -52,6 +52,58 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
+function isPausedOutputForContext(output: unknown, contextId: string): boolean {
+  if (!isRecord(output)) return false
+  const metadata = output._pauseMetadata
+  return isRecord(metadata) && metadata.contextId === contextId
+}
+
+export function updateResumeOutputInAggregationBuffers(
+  state: SerializableExecutionState,
+  stateBlockKey: string,
+  pauseBlockId: string,
+  contextId: string,
+  mergedOutput: Record<string, unknown>
+): void {
+  for (const scope of Object.values(state.loopExecutions ?? {})) {
+    if (!isRecord(scope) || !isRecord(scope.currentIterationOutputs)) continue
+
+    const outputs = scope.currentIterationOutputs
+    const pausedEntry =
+      outputs[stateBlockKey] !== undefined
+        ? stateBlockKey
+        : outputs[pauseBlockId] !== undefined
+          ? pauseBlockId
+          : undefined
+
+    if (pausedEntry !== undefined && isPausedOutputForContext(outputs[pausedEntry], contextId)) {
+      if (pausedEntry !== stateBlockKey) {
+        delete outputs[pausedEntry]
+      }
+      outputs[stateBlockKey] = mergedOutput
+    }
+  }
+
+  for (const scope of Object.values(state.parallelExecutions ?? {})) {
+    if (!isRecord(scope) || !isRecord(scope.branchOutputs)) continue
+
+    for (const [branchIndex, branchOutputs] of Object.entries(scope.branchOutputs)) {
+      if (!Array.isArray(branchOutputs)) continue
+
+      const outputIndex = branchOutputs.findIndex((output) =>
+        isPausedOutputForContext(output, contextId)
+      )
+      if (outputIndex !== -1) {
+        scope.branchOutputs[branchIndex] = [
+          ...branchOutputs.slice(0, outputIndex),
+          mergedOutput,
+          ...branchOutputs.slice(outputIndex + 1),
+        ]
+      }
+    }
+  }
+}
+
 function parseSnapshotForReferenceTracking(snapshotSeed: SerializedSnapshot): unknown {
   try {
     return { ...snapshotSeed, snapshot: JSON.parse(snapshotSeed.snapshot) }
@@ -782,7 +834,7 @@ export class PauseResumeManager {
         resume: existingResponse.resume ?? existingOutput.resume,
       }
 
-      const mergedOutput: Record<string, any> = {
+      const mergedOutput: Record<string, unknown> = {
         ...existingOutput,
         response: mergedResponse,
         submission: submissionPayload,
@@ -827,6 +879,13 @@ export class PauseResumeManager {
       }
 
       stateCopy.blockStates[stateBlockKey] = pauseBlockState
+      updateResumeOutputInAggregationBuffers(
+        stateCopy,
+        stateBlockKey,
+        pauseBlockId,
+        contextId,
+        mergedOutput
+      )
 
       // Update the block log entry with the merged output so logs show the submission data
       if (Array.isArray(stateCopy.blockLogs)) {

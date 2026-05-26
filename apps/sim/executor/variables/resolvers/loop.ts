@@ -3,9 +3,13 @@ import { assertNoLargeValueRefs } from '@/lib/execution/payloads/large-value-ref
 import { isReference, normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
 import { InvalidFieldError } from '@/executor/utils/block-reference'
 import {
+  extractInnermostOuterBranchIndex,
+  extractOuterBranchIndex,
   findEffectiveContainerId,
+  isSubflowNestedInside,
   stripCloneSuffixes,
   stripOuterBranchSuffix,
+  subflowContainsBlock,
 } from '@/executor/utils/subflow-utils'
 import {
   type AsyncPathNavigator,
@@ -98,10 +102,16 @@ export class LoopResolver implements Resolver {
 
     // Resolve the effective (possibly cloned) loop ID for scope/output lookups
     if (targetLoopId && context.executionContext.loopExecutions) {
+      const mappedBranchIndex =
+        (isGenericRef
+          ? extractInnermostOuterBranchIndex(context.currentNodeId)
+          : extractOuterBranchIndex(context.currentNodeId)) ??
+        context.executionContext.parallelBlockMapping?.get(context.currentNodeId)?.iterationIndex
       targetLoopId = findEffectiveContainerId(
         targetLoopId,
         context.currentNodeId,
-        context.executionContext.loopExecutions
+        context.executionContext.loopExecutions,
+        mappedBranchIndex
       )
     }
 
@@ -243,7 +253,7 @@ export class LoopResolver implements Resolver {
     const baseId = stripCloneSuffixes(blockId)
     const loops = this.workflow.loops || {}
     const candidateLoopIds = Object.keys(loops).filter((loopId) =>
-      loops[loopId].nodes.includes(baseId)
+      subflowContainsBlock(this.workflow, 'loop', loopId, baseId)
     )
     if (candidateLoopIds.length === 0) return undefined
     if (candidateLoopIds.length === 1) return candidateLoopIds[0]
@@ -252,7 +262,9 @@ export class LoopResolver implements Resolver {
     // In a valid DAG, exactly one candidate will satisfy this (circular containment is impossible).
     return candidateLoopIds.find((candidateId) =>
       candidateLoopIds.every(
-        (otherId) => otherId === candidateId || !loops[candidateId].nodes.includes(otherId)
+        (otherId) =>
+          otherId === candidateId ||
+          !isSubflowNestedInside(this.workflow, 'loop', otherId, 'loop', candidateId)
       )
     )
   }
@@ -260,46 +272,7 @@ export class LoopResolver implements Resolver {
   private isBlockInLoopOrDescendant(blockId: string, targetLoopId: string): boolean {
     const baseId = stripCloneSuffixes(blockId)
     const originalLoopId = stripOuterBranchSuffix(targetLoopId)
-    const targetLoop = this.workflow.loops?.[originalLoopId]
-    if (!targetLoop) {
-      return false
-    }
-    if (targetLoop.nodes.includes(baseId)) {
-      return true
-    }
-    const directLoopId = this.findInnermostLoopForBlock(blockId)
-    if (!directLoopId) {
-      return false
-    }
-    if (directLoopId === originalLoopId) {
-      return true
-    }
-    return this.isLoopNestedInside(directLoopId, originalLoopId)
-  }
-
-  private isLoopNestedInside(
-    childLoopId: string,
-    ancestorLoopId: string,
-    visited = new Set<string>()
-  ): boolean {
-    if (visited.has(ancestorLoopId)) return false
-    visited.add(ancestorLoopId)
-
-    const ancestorLoop = this.workflow.loops?.[ancestorLoopId]
-    if (!ancestorLoop) {
-      return false
-    }
-    if (ancestorLoop.nodes.includes(childLoopId)) {
-      return true
-    }
-    for (const nodeId of ancestorLoop.nodes) {
-      if (this.workflow.loops[nodeId]) {
-        if (this.isLoopNestedInside(childLoopId, nodeId, visited)) {
-          return true
-        }
-      }
-    }
-    return false
+    return subflowContainsBlock(this.workflow, 'loop', originalLoopId, baseId)
   }
 
   private isForEachLoop(loopId: string): boolean {

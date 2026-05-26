@@ -215,6 +215,49 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     )
   })
 
+  it('starts logging with the workflow state that will be executed', async () => {
+    const executedWorkflowState = {
+      blocks: {
+        loop: { id: 'loop', type: 'loop', name: 'Loop', subBlocks: {} },
+        parallel: {
+          id: 'parallel',
+          type: 'parallel',
+          name: 'Parallel',
+          subBlocks: {},
+          data: { parentId: 'loop', extent: 'parent' },
+        },
+      },
+      edges: [],
+      loops: { loop: { id: 'loop', nodes: ['parallel'], iterations: 1, loopType: 'for' } },
+      parallels: { parallel: { id: 'parallel', nodes: [], count: 1 } },
+    }
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: {
+        ...createSnapshot(),
+        metadata: {
+          ...createSnapshot().metadata,
+          workflowStateOverride: executedWorkflowState,
+        },
+      } as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(safeStartMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowState: executedWorkflowState,
+      })
+    )
+  })
+
   it('uses external trigger selection for webhook executions without an explicit triggerBlockId', async () => {
     executorExecuteMock.mockResolvedValue({
       success: true,
