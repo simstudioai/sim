@@ -168,6 +168,19 @@ describe('getApiKey', () => {
       expect(key2).toBe('user-key')
     }
   )
+
+  it.concurrent(
+    'should return empty or user-provided key for litellm provider without requiring API key',
+    () => {
+      isHostedSpy.mockReturnValue(false)
+
+      const key = getApiKey('litellm', 'litellm/anthropic/claude-sonnet-4-6')
+      expect(key).toBe('empty')
+
+      const key2 = getApiKey('litellm', 'litellm/openai/gpt-4', 'user-key')
+      expect(key2).toBe('user-key')
+    }
+  )
 })
 
 describe('Model Capabilities', () => {
