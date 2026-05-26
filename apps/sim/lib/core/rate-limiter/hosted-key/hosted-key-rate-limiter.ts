@@ -54,6 +54,28 @@ const MIN_QUEUE_RETRY_DELAY_MS = 50
 const QUEUE_HEAD_POLL_MS = 200
 
 /**
+ * Sleep for `ms`, resolving early if `signal` aborts. Cleans up its own timer and listener
+ * so neither leaks. Callers don't need to distinguish an early (aborted) return from a normal
+ * one — the surrounding wait loop re-checks its budget immediately after and bails when the
+ * signal has fired. Falls back to a plain sleep when no signal is provided.
+ */
+function interruptibleSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return sleep(ms)
+  if (signal.aborted) return Promise.resolve()
+  return new Promise<void>((resolve) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+/**
  * Resolves env var names for a numbered key prefix using a `{PREFIX}_COUNT` env var.
  * E.g. with `EXA_API_KEY_COUNT=5`, returns `['EXA_API_KEY_1', ..., 'EXA_API_KEY_5']`.
  */
@@ -416,21 +438,24 @@ export class HostedKeyRateLimiter {
    * is capped at {@link HEARTBEAT_REFRESH_INTERVAL_MS} so that no single wait can outlive the
    * heartbeat TTL — even when the bucket reports a long `retryAfterMs` (e.g. low-RPM
    * providers). Without this cap a multi-second sleep could let the heartbeat lapse, the
-   * head get reaped as dead, and a second caller advance and race us for the bucket.
+   * head get reaped as dead, and a second caller advance and race us for the bucket. The
+   * sleep also resolves early if `signal` aborts, so a cancelled/timed-out run stops waiting
+   * promptly rather than overshooting by up to the cap.
    */
   private async heartbeatAwareSleep(
     provider: string,
     billingActorId: string,
     ticketId: string,
     desiredMs: number,
-    waitState: WaitState
+    waitState: WaitState,
+    signal?: AbortSignal
   ): Promise<void> {
     await this.maybeRefreshHeartbeat(provider, billingActorId, ticketId, waitState)
     const sleepMs = Math.min(
       Math.max(MIN_QUEUE_RETRY_DELAY_MS, desiredMs),
       HEARTBEAT_REFRESH_INTERVAL_MS
     )
-    await sleep(sleepMs)
+    await interruptibleSleep(sleepMs, signal)
   }
 
   /**
@@ -463,7 +488,7 @@ export class HostedKeyRateLimiter {
       }
 
       await this.maybeRefreshHeartbeat(provider, billingActorId, ticketId, waitState)
-      await sleep(QUEUE_HEAD_POLL_MS)
+      await interruptibleSleep(QUEUE_HEAD_POLL_MS, signal)
     }
   }
 
@@ -507,7 +532,8 @@ export class HostedKeyRateLimiter {
         billingActorId,
         ticketId,
         result.retryAfterMs,
-        waitState
+        waitState,
+        signal
       )
     }
   }
@@ -558,7 +584,8 @@ export class HostedKeyRateLimiter {
         billingActorId,
         ticketId,
         result.retryAfterMs,
-        waitState
+        waitState,
+        signal
       )
     }
   }

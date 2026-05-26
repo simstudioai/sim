@@ -393,6 +393,36 @@ describe('HostedKeyRateLimiter', () => {
       expect(mockAdapter.consumeTokens).toHaveBeenCalledTimes(1)
     })
 
+    it('stops waiting promptly when the signal aborts mid-sleep', async () => {
+      // Bucket reports a long refill, so the wait sleeps up to the heartbeat cap (10s).
+      // Aborting mid-sleep must wake the wait within a tick, not after the full interval.
+      const blocked: ConsumeResult = {
+        allowed: false,
+        tokensRemaining: 0,
+        resetAt: new Date(Date.now() + 10_000),
+      }
+      mockAdapter.consumeTokens.mockResolvedValue(blocked)
+
+      const controller = new AbortController()
+      const start = Date.now()
+      const promise = rateLimiter.acquireKey(
+        testProvider,
+        envKeyPrefix,
+        perRequestRateLimit,
+        'workspace-1',
+        controller.signal
+      )
+      // Let the first bucket check run and the sleep begin, then abort.
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      controller.abort()
+      const result = await promise
+
+      expect(result.success).toBe(false)
+      expect(result.billingActorRateLimited).toBe(true)
+      // Resolved well before the 10s capped sleep would otherwise have elapsed.
+      expect(Date.now() - start).toBeLessThan(2000)
+    })
+
     it('keeps waiting past the no-signal fallback cap while the signal is live', async () => {
       // A live (non-aborted) signal means the run still has budget, so the wait must not
       // 429 at the 5-minute MAX_QUEUE_WAIT_MS fallback. The bucket frees up after ~7 min.
