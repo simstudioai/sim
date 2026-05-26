@@ -1,3 +1,4 @@
+import { HttpError } from '@/lib/core/utils/http-error'
 import { USER_FILE_ACCESSIBLE_PROPERTIES } from '@/lib/workflows/types'
 import { normalizeName } from '@/executor/constants'
 import {
@@ -30,7 +31,7 @@ export interface BlockReferenceResult {
   blockId: string
 }
 
-export class InvalidFieldError extends Error {
+export class InvalidFieldError extends HttpError {
   readonly statusCode = 400
 
   constructor(
