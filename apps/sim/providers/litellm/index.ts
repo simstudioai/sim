@@ -67,7 +67,8 @@ export const litellmProvider: ProviderConfig = {
         return
       }
 
-      const data = (await response.json()) as { data: Array<{ id: string }> }
+      const { vllmUpstreamResponseSchema } = await import('@/lib/api/contracts/providers')
+      const data = vllmUpstreamResponseSchema.parse(await response.json())
       const models = data.data.map((model) => `litellm/${model.id}`)
 
       this.models = models
