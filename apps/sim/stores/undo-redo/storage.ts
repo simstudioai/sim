@@ -17,7 +17,7 @@ let migrationPromiseInternal: Promise<void> | null = null
  * for the other persisted Zustand stores that share it.
  */
 async function migrateFromLocalStorage(): Promise<void> {
-  if (typeof localStorage === 'undefined') return
+  if (typeof window === 'undefined') return
 
   try {
     const migrated = await get<boolean>(MIGRATION_KEY)
@@ -36,7 +36,7 @@ async function migrateFromLocalStorage(): Promise<void> {
   }
 }
 
-if (typeof localStorage !== 'undefined') {
+if (typeof window !== 'undefined') {
   migrationPromiseInternal = migrateFromLocalStorage().finally(() => {
     migrationPromiseInternal = null
   })
@@ -44,18 +44,21 @@ if (typeof localStorage !== 'undefined') {
 
 /**
  * Resolves when the one-time localStorage → IndexedDB migration finishes.
- * Exposed for tests; production code reads through `indexedDBStorage.getItem`
- * which already awaits this promise.
+ * Exposed for tests; production code reads through `indexedDBStorage`
+ * methods which already await this promise.
  */
 export const migrationReady: Promise<void> = migrationPromiseInternal ?? Promise.resolve()
 
+async function awaitMigration(): Promise<void> {
+  if (migrationPromiseInternal) {
+    await migrationPromiseInternal
+  }
+}
+
 export const indexedDBStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
-    if (typeof localStorage === 'undefined') return null
-
-    if (migrationPromiseInternal) {
-      await migrationPromiseInternal
-    }
+    if (typeof window === 'undefined') return null
+    await awaitMigration()
 
     try {
       const value = await get<string>(name)
@@ -67,7 +70,9 @@ export const indexedDBStorage: StateStorage = {
   },
 
   setItem: async (name: string, value: string): Promise<void> => {
-    if (typeof localStorage === 'undefined') return
+    if (typeof window === 'undefined') return
+    await awaitMigration()
+
     try {
       await set(name, value)
     } catch (error) {
@@ -76,7 +81,9 @@ export const indexedDBStorage: StateStorage = {
   },
 
   removeItem: async (name: string): Promise<void> => {
-    if (typeof localStorage === 'undefined') return
+    if (typeof window === 'undefined') return
+    await awaitMigration()
+
     try {
       await del(name)
     } catch (error) {

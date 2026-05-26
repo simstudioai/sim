@@ -1,5 +1,5 @@
 /**
- * @vitest-environment node
+ * @vitest-environment jsdom
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -135,6 +135,14 @@ describe('undo-redo IndexedDB storage adapter', () => {
 
       await indexedDBStorage.removeItem(STORE_KEY)
       expect(idbStore.has(STORE_KEY)).toBe(false)
+    })
+
+    it('removeItem swallows IndexedDB errors', async () => {
+      const { indexedDBStorage, migrationReady } = await loadFreshModule()
+      await migrationReady
+
+      idbDel.mockRejectedValueOnce(new Error('idb delete failed'))
+      await expect(indexedDBStorage.removeItem(STORE_KEY)).resolves.toBeUndefined()
     })
 
     it('getItem swallows IndexedDB read errors and returns null', async () => {
