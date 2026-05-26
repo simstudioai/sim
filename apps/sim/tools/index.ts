@@ -257,7 +257,8 @@ async function injectHostedKeyIfNeeded(
     provider,
     envKeyPrefix,
     rateLimit,
-    billingActorId
+    billingActorId,
+    executionContext?.abortSignal
   )
 
   if (!acquireResult.success && acquireResult.billingActorRateLimited) {
@@ -327,7 +328,8 @@ async function reacquireHostedKey(
     provider,
     envKeyPrefix,
     rateLimit,
-    workspaceId
+    workspaceId,
+    executionContext?.abortSignal
   )
 
   if (!acquireResult.success || !acquireResult.key) {

@@ -5,7 +5,7 @@ import type {
   TokenStatus,
 } from '@/lib/core/rate-limiter/storage'
 import { HostedKeyRateLimiter } from './hosted-key-rate-limiter'
-import type { HostedKeyQueue } from './queue'
+import { HEARTBEAT_REFRESH_INTERVAL_MS, type HostedKeyQueue } from './queue'
 import type { CustomRateLimit, PerRequestRateLimit } from './types'
 
 /** Force the queue wait to give up on the first iteration by reporting a retry time
@@ -367,6 +367,102 @@ describe('HostedKeyRateLimiter', () => {
       )
 
       expect(result.success).toBe(true)
+    })
+  })
+
+  describe('execution-budget-bounded waits', () => {
+    it('bails immediately when the execution signal is already aborted', async () => {
+      const blocked: ConsumeResult = {
+        allowed: false,
+        tokensRemaining: 0,
+        resetAt: new Date(Date.now() + 100),
+      }
+      mockAdapter.consumeTokens.mockResolvedValue(blocked)
+
+      const result = await rateLimiter.acquireKey(
+        testProvider,
+        envKeyPrefix,
+        perRequestRateLimit,
+        'workspace-1',
+        AbortSignal.abort()
+      )
+
+      expect(result.success).toBe(false)
+      expect(result.billingActorRateLimited).toBe(true)
+      // Aborted budget => give up on the first bucket check rather than looping.
+      expect(mockAdapter.consumeTokens).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps waiting past the no-signal fallback cap while the signal is live', async () => {
+      // A live (non-aborted) signal means the run still has budget, so the wait must not
+      // 429 at the 5-minute MAX_QUEUE_WAIT_MS fallback. The bucket frees up after ~7 min.
+      const blocked: ConsumeResult = {
+        allowed: false,
+        tokensRemaining: 0,
+        resetAt: new Date(Date.now() + 10_000),
+      }
+      const allowedResult: ConsumeResult = {
+        allowed: true,
+        tokensRemaining: 9,
+        resetAt: new Date(Date.now() + 60_000),
+      }
+      mockAdapter.consumeTokens.mockResolvedValue(blocked)
+
+      vi.useFakeTimers()
+      try {
+        const promise = rateLimiter.acquireKey(
+          testProvider,
+          envKeyPrefix,
+          perRequestRateLimit,
+          'workspace-1',
+          new AbortController().signal
+        )
+        // Burn well past the 5-minute fallback cap — without a signal this would have 429'd.
+        await vi.advanceTimersByTimeAsync(7 * 60 * 1000)
+        mockAdapter.consumeTokens.mockResolvedValue(allowedResult)
+        await vi.advanceTimersByTimeAsync(HEARTBEAT_REFRESH_INTERVAL_MS)
+        const result = await promise
+
+        expect(result.success).toBe(true)
+        expect(result.key).toBe('test-key-1')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('refreshes the heartbeat during a long low-RPM bucket wait', async () => {
+      // Provider with a long refill (retryAfterMs >> heartbeat TTL). The sleep must be
+      // capped so the heartbeat is renewed and the head is not reaped mid-wait.
+      const blocked: ConsumeResult = {
+        allowed: false,
+        tokensRemaining: 0,
+        resetAt: new Date(Date.now() + 60_000),
+      }
+      const allowedResult: ConsumeResult = {
+        allowed: true,
+        tokensRemaining: 0,
+        resetAt: new Date(Date.now() + 60_000),
+      }
+      mockAdapter.consumeTokens.mockResolvedValue(blocked)
+
+      vi.useFakeTimers()
+      try {
+        const promise = rateLimiter.acquireKey(
+          testProvider,
+          envKeyPrefix,
+          perRequestRateLimit,
+          'workspace-1',
+          new AbortController().signal
+        )
+        await vi.advanceTimersByTimeAsync(3 * HEARTBEAT_REFRESH_INTERVAL_MS)
+        mockAdapter.consumeTokens.mockResolvedValue(allowedResult)
+        await vi.advanceTimersByTimeAsync(HEARTBEAT_REFRESH_INTERVAL_MS)
+        await promise
+
+        expect(mockQueue.refreshHeartbeat).toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 
