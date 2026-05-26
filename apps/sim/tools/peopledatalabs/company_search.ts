@@ -1,5 +1,9 @@
 import type { PdlCompanySearchParams, PdlCompanySearchResponse } from '@/tools/peopledatalabs/types'
-import { PDL_COMPANY_OUTPUT_PROPERTIES } from '@/tools/peopledatalabs/types'
+import {
+  PDL_COMPANY_OUTPUT_PROPERTIES,
+  PDL_CREDIT_USD,
+  PEOPLEDATALABS_API_KEY_PREFIX,
+} from '@/tools/peopledatalabs/types'
 import { projectCompany } from '@/tools/peopledatalabs/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +13,35 @@ export const companySearchTool: ToolConfig<PdlCompanySearchParams, PdlCompanySea
   description:
     'Search the People Data Labs company dataset using SQL or Elasticsearch DSL. Returns up to 100 matching companies per call.',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'peopledatalabs',
+    pricing: {
+      type: 'custom',
+      // PDL Search charges 1 credit per company returned (up to the requested size).
+      getCost: (_params, output) => {
+        const results = output.results
+        if (!Array.isArray(results)) {
+          throw new Error('PDL company search response missing results, cannot determine cost')
+        }
+        return { cost: results.length * PDL_CREDIT_USD, metadata: { credits: results.length } }
+      },
+    },
+    rateLimit: {
+      mode: 'custom',
+      requestsPerMinute: 30,
+      dimensions: [
+        {
+          name: 'credits',
+          limitPerMinute: 600,
+          extractUsage: (_params, response) =>
+            Array.isArray(response.results) ? response.results.length : 0,
+        },
+      ],
+    },
+  },
 
   params: {
     apiKey: {

@@ -3,7 +3,8 @@ import type {
   PdlBulkCompanyEnrichResponse,
   PdlBulkCompanyResultItem,
 } from '@/tools/peopledatalabs/types'
-import { projectCompany } from '@/tools/peopledatalabs/utils'
+import { PDL_CREDIT_USD, PEOPLEDATALABS_API_KEY_PREFIX } from '@/tools/peopledatalabs/types'
+import { countBulkMatched, projectCompany } from '@/tools/peopledatalabs/utils'
 import type { OutputProperty, ToolConfig } from '@/tools/types'
 
 const BULK_COMPANY_RESULT_PROPERTIES = {
@@ -31,6 +32,31 @@ export const bulkCompanyEnrichTool: ToolConfig<
   description:
     'Enrich up to 100 companies in a single call. Provide a JSON array of request objects, each with a `params` object. Reference: https://docs.peopledatalabs.com/docs/bulk-company-enrichment-api',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'peopledatalabs',
+    pricing: {
+      type: 'custom',
+      // PDL charges 1 credit per matched record; unmatched records in the batch are free.
+      getCost: (_params, output) => {
+        const matched = countBulkMatched(output)
+        return { cost: matched * PDL_CREDIT_USD, metadata: { credits: matched } }
+      },
+    },
+    rateLimit: {
+      mode: 'custom',
+      requestsPerMinute: 10,
+      dimensions: [
+        {
+          name: 'credits',
+          limitPerMinute: 600,
+          extractUsage: (_params, response) => countBulkMatched(response),
+        },
+      ],
+    },
+  },
 
   params: {
     apiKey: {

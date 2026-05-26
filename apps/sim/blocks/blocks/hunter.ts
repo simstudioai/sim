@@ -256,6 +256,7 @@ Return ONLY the search query text - no explanations.`,
       required: true,
       placeholder: 'Enter your Hunter.io API key',
       password: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {

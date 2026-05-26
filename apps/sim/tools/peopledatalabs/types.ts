@@ -1,6 +1,25 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
+ * Env var prefix for Sim-hosted People Data Labs keys.
+ * Resolved at runtime as `PEOPLEDATALABS_API_KEY_COUNT` + `PEOPLEDATALABS_API_KEY_1..N`.
+ */
+export const PEOPLEDATALABS_API_KEY_PREFIX = 'PEOPLEDATALABS_API_KEY'
+
+/**
+ * Dollar cost per People Data Labs credit when billing hosted-key usage.
+ *
+ * PDL does not report credits in its responses, so cost is derived from match counts:
+ * enrich/identify consume 1 credit per matched request, search consumes 1 credit per
+ * profile returned, and bulk consumes 1 credit per matched record. Misses (HTTP 404)
+ * are not charged. Cleaner and autocomplete endpoints are free (rate-limited only).
+ *
+ * Estimate based on the self-serve Pro plan (~$0.28/credit) — see
+ * https://www.peopledatalabs.com/pricing. Tune if Sim's plan rate changes.
+ */
+export const PDL_CREDIT_USD = 0.28
+
+/**
  * Output property definitions for People Data Labs API responses.
  * Reference: https://docs.peopledatalabs.com/docs
  */
