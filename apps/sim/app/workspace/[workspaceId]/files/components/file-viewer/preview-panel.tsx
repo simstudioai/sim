@@ -1071,12 +1071,13 @@ const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) 
 })
 
 function SvgPreview({ content }: { content: string }) {
-  const blobUrl = useMemo(
-    () => URL.createObjectURL(new Blob([content], { type: 'image/svg+xml' })),
-    [content]
-  )
+  const [blobUrl, setBlobUrl] = useState('')
 
-  useEffect(() => () => URL.revokeObjectURL(blobUrl), [blobUrl])
+  useEffect(() => {
+    const url = URL.createObjectURL(new Blob([content], { type: 'image/svg+xml' }))
+    setBlobUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [content])
 
   return (
     <ZoomablePreview className='h-full' contentClassName='h-full w-full'>
