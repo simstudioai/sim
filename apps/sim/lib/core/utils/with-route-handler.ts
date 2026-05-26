@@ -11,36 +11,24 @@ type RouteHandler<T = unknown> = (
   context: T
 ) => Promise<NextResponse | Response> | NextResponse | Response
 
-function defaultMessageForStatus(status: number): string {
-  if (status >= 500) return 'Internal server error'
-  if (status === 401) return 'Unauthorized'
-  if (status === 403) return 'Forbidden'
-  if (status === 404) return 'Not Found'
-  if (status === 409) return 'Conflict'
-  return 'Request failed'
-}
-
 /**
  * Reads a numeric `statusCode` (4xx or 5xx) off an Error so typed domain errors
- * (e.g. `WorkspaceAccessDeniedError`) can map to the correct HTTP status when
- * they bubble up unhandled instead of defaulting to 500. Returns both the
- * status and a client-safe message: the error's own `publicMessage` if it
- * opted in, otherwise a generic per-status string. The raw `error.message` is
- * never exposed by this fallback — domain errors must explicitly mark their
- * message as safe to expose, preventing accidental leakage of internal details
- * from typed errors that didn't intend to be user-facing.
+ * (e.g. `WorkspaceAccessDeniedError`, `InvalidFieldError`) map to the correct
+ * HTTP status when they bubble up unhandled instead of defaulting to 500.
+ *
+ * When a typed status is returned, the error's `message` is sent to the client
+ * verbatim — matching the NestJS `HttpException` / Spring `ResponseStatusException`
+ * convention. The safety contract is convention-based: only attach `statusCode`
+ * to errors whose `message` is safe to expose to clients (no stack traces,
+ * secrets, file paths, ORM internals). Untyped errors fall back to a generic
+ * 500 response with no message exposure.
  */
-function readTypedErrorResponse(error: unknown): { status: number; message: string } | undefined {
+function readTypedErrorStatus(error: unknown): number | undefined {
   if (!(error instanceof Error)) return undefined
-  const typed = error as { statusCode?: unknown; publicMessage?: unknown }
-  const status = typed.statusCode
+  const status = (error as { statusCode?: unknown }).statusCode
   if (typeof status !== 'number') return undefined
   if (status < 400 || status >= 600) return undefined
-  const message =
-    typeof typed.publicMessage === 'string' && typed.publicMessage.length > 0
-      ? typed.publicMessage
-      : defaultMessageForStatus(status)
-  return { status, message }
+  return status
 }
 
 /**
@@ -66,28 +54,17 @@ export function withRouteHandler<T>(handler: RouteHandler<T>): RouteHandler<T> {
         response = await handler(request, context)
       } catch (error) {
         const duration = Date.now() - startTime
-        const rawMessage = getErrorMessage(error, 'Unknown error')
-        const typed = readTypedErrorResponse(error)
-        if (typed !== undefined) {
-          if (typed.status >= 500) {
-            logger.error('Unhandled route error', {
-              duration,
-              status: typed.status,
-              error: rawMessage,
-            })
+        const message = getErrorMessage(error, 'Unknown error')
+        const typedStatus = readTypedErrorStatus(error)
+        if (typedStatus !== undefined) {
+          if (typedStatus >= 500) {
+            logger.error('Unhandled route error', { duration, status: typedStatus, error: message })
           } else {
-            logger.warn('Typed route error', {
-              duration,
-              status: typed.status,
-              error: rawMessage,
-            })
+            logger.warn('Typed route error', { duration, status: typedStatus, error: message })
           }
-          response = NextResponse.json(
-            { error: typed.message, requestId },
-            { status: typed.status }
-          )
+          response = NextResponse.json({ error: message, requestId }, { status: typedStatus })
         } else {
-          logger.error('Unhandled route error', { duration, error: rawMessage })
+          logger.error('Unhandled route error', { duration, error: message })
           response = NextResponse.json(
             { error: 'Internal server error', requestId },
             { status: 500 }
