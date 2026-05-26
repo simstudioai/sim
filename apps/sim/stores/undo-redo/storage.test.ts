@@ -154,4 +154,34 @@ describe('undo-redo IndexedDB storage adapter', () => {
       expect(value).toBeNull()
     })
   })
+
+  describe('clearPersistedUndoRedo', () => {
+    it('deletes the undo-redo key from IndexedDB', async () => {
+      const { clearPersistedUndoRedo, migrationReady } = await loadFreshModule()
+      await migrationReady
+      idbStore.set(STORE_KEY, 'present')
+
+      await clearPersistedUndoRedo()
+
+      expect(idbStore.has(STORE_KEY)).toBe(false)
+    })
+
+    it('leaves the migration flag intact so migration does not re-run', async () => {
+      const { clearPersistedUndoRedo, migrationReady } = await loadFreshModule()
+      await migrationReady
+      idbStore.set(STORE_KEY, 'present')
+
+      await clearPersistedUndoRedo()
+
+      expect(idbStore.get(MIGRATION_KEY)).toBe(true)
+    })
+
+    it('swallows IndexedDB errors so sign-out does not crash', async () => {
+      const { clearPersistedUndoRedo, migrationReady } = await loadFreshModule()
+      await migrationReady
+
+      idbDel.mockRejectedValueOnce(new Error('idb delete failed'))
+      await expect(clearPersistedUndoRedo()).resolves.toBeUndefined()
+    })
+  })
 })

@@ -55,6 +55,23 @@ async function awaitMigration(): Promise<void> {
   }
 }
 
+/**
+ * Removes the persisted undo/redo payload from IndexedDB.
+ *
+ * Called from `clearUserData` on sign-out so undo history does not
+ * survive across user sessions on the same device.
+ */
+export async function clearPersistedUndoRedo(): Promise<void> {
+  if (typeof window === 'undefined') return
+  await awaitMigration()
+
+  try {
+    await del(STORE_KEY)
+  } catch (error) {
+    logger.warn('Failed to clear persisted undo-redo', { error })
+  }
+}
+
 export const indexedDBStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
     if (typeof window === 'undefined') return null
