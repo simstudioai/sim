@@ -2,7 +2,11 @@ import type {
   PdlPersonIdentifyParams,
   PdlPersonIdentifyResponse,
 } from '@/tools/peopledatalabs/types'
-import { PDL_PERSON_OUTPUT_PROPERTIES } from '@/tools/peopledatalabs/types'
+import {
+  PDL_CREDIT_USD,
+  PDL_PERSON_OUTPUT_PROPERTIES,
+  PEOPLEDATALABS_API_KEY_PREFIX,
+} from '@/tools/peopledatalabs/types'
 import { buildQueryString, projectPerson } from '@/tools/peopledatalabs/utils'
 import type { OutputProperty, ToolConfig } from '@/tools/types'
 
@@ -27,6 +31,28 @@ export const personIdentifyTool: ToolConfig<PdlPersonIdentifyParams, PdlPersonId
   description:
     'Return up to 20 candidate person matches with confidence scores. Useful when you want to see all plausible matches rather than the single best one. Reference: https://docs.peopledatalabs.com/docs/identify-api-quickstart',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'peopledatalabs',
+    pricing: {
+      type: 'custom',
+      // PDL Identify charges 1 credit per call that returns matches, regardless of count.
+      getCost: (_params, output) => {
+        const matches = output.matches
+        if (!Array.isArray(matches)) {
+          throw new Error('PDL identify response missing matches, cannot determine cost')
+        }
+        const cost = matches.length > 0 ? PDL_CREDIT_USD : 0
+        return { cost, metadata: { credits: matches.length > 0 ? 1 : 0 } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  },
 
   params: {
     apiKey: {

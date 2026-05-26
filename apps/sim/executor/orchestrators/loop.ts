@@ -5,7 +5,13 @@ import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/executio
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
-import { buildLoopIndexCondition, DEFAULTS, EDGE, PARALLEL } from '@/executor/constants'
+import {
+  buildLoopIndexCondition,
+  CONTROL_BACK_EDGE_HANDLES,
+  DEFAULTS,
+  EDGE,
+  PARALLEL,
+} from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
@@ -19,9 +25,10 @@ import {
   buildParallelSentinelStartId,
   buildSentinelEndId,
   buildSentinelStartId,
-  emitEmptySubflowEvents,
   emitSubflowSuccessEvents,
   extractBaseBlockId,
+  extractLoopIdFromSentinel,
+  extractParallelIdFromSentinel,
 } from '@/executor/utils/subflow-utils'
 import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
@@ -134,7 +141,12 @@ export class LoopOrchestrator {
         }
         let items: any[]
         try {
-          items = await resolveArrayInputAsync(ctx, loopConfig.forEachItems, this.resolver)
+          items = await resolveArrayInputAsync(
+            ctx,
+            loopConfig.forEachItems,
+            this.resolver,
+            buildSentinelStartId(loopId)
+          )
         } catch (error) {
           const errorMessage = `ForEach loop resolution failed: ${toError(error).message}`
           logger.error(errorMessage, { loopId, forEachItems: loopConfig.forEachItems })
@@ -240,6 +252,11 @@ export class LoopOrchestrator {
     }
     if (isCancelled) {
       logger.info('Loop execution cancelled', { loopId, iteration: scope.iteration })
+      return await this.createExitResult(ctx, loopId, scope)
+    }
+
+    if (scope.skippedAtStart) {
+      scope.skippedAtStart = false
       return await this.createExitResult(ctx, loopId, scope)
     }
 
@@ -579,17 +596,42 @@ export class LoopOrchestrator {
 
         for (const [, edge] of potentialSourceNode.outgoingEdges) {
           if (edge.target === nodeId) {
-            const isBackwardEdge =
-              edge.sourceHandle === EDGE.LOOP_CONTINUE ||
-              edge.sourceHandle === EDGE.LOOP_CONTINUE_ALT
-
-            if (!isBackwardEdge) {
+            if (
+              !this.isSubflowStartExitBypassEdge(potentialSourceId, nodeId, edge.sourceHandle) &&
+              (edge.sourceHandle === undefined || !CONTROL_BACK_EDGE_HANDLES.has(edge.sourceHandle))
+            ) {
               nodeToRestore.incomingEdges.add(potentialSourceId)
             }
           }
         }
       }
     }
+  }
+
+  private isSubflowStartExitBypassEdge(
+    sourceId: string,
+    targetId: string,
+    sourceHandle?: string
+  ): boolean {
+    if (sourceHandle === EDGE.LOOP_EXIT) {
+      const loopId = extractLoopIdFromSentinel(sourceId)
+      return (
+        !!loopId &&
+        sourceId === buildSentinelStartId(loopId) &&
+        targetId === buildSentinelEndId(loopId)
+      )
+    }
+
+    if (sourceHandle === EDGE.PARALLEL_EXIT) {
+      const parallelId = extractParallelIdFromSentinel(sourceId)
+      return (
+        !!parallelId &&
+        sourceId === buildParallelSentinelStartId(parallelId) &&
+        targetId === buildParallelSentinelEndId(parallelId)
+      )
+    }
+
+    return false
   }
 
   getLoopScope(ctx: ExecutionContext, loopId: string): LoopScope | undefined {
@@ -615,8 +657,7 @@ export class LoopOrchestrator {
     if (scope.loopType === 'forEach') {
       if (!scope.items || scope.items.length === 0) {
         logger.info('ForEach loop has empty collection, skipping loop body', { loopId })
-        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
+        scope.skippedAtStart = true
         return false
       }
       return true
@@ -625,8 +666,7 @@ export class LoopOrchestrator {
     if (scope.loopType === 'for') {
       if (scope.maxIterations === 0) {
         logger.info('For loop has 0 iterations, skipping loop body', { loopId })
-        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
+        scope.skippedAtStart = true
         return false
       }
       return true
@@ -639,8 +679,7 @@ export class LoopOrchestrator {
     if (scope.loopType === 'while') {
       if (!scope.condition) {
         logger.warn('No condition defined for while loop', { loopId })
-        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
+        scope.skippedAtStart = true
         return false
       }
 
@@ -652,8 +691,8 @@ export class LoopOrchestrator {
       })
 
       if (!result) {
-        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
+        logger.info('While loop initial condition is false, skipping loop body', { loopId })
+        scope.skippedAtStart = true
       }
 
       return result

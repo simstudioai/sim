@@ -1,5 +1,9 @@
 import type { PdlPersonSearchParams, PdlPersonSearchResponse } from '@/tools/peopledatalabs/types'
-import { PDL_PERSON_OUTPUT_PROPERTIES } from '@/tools/peopledatalabs/types'
+import {
+  PDL_CREDIT_USD,
+  PDL_PERSON_OUTPUT_PROPERTIES,
+  PEOPLEDATALABS_API_KEY_PREFIX,
+} from '@/tools/peopledatalabs/types'
 import { projectPerson } from '@/tools/peopledatalabs/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +13,35 @@ export const personSearchTool: ToolConfig<PdlPersonSearchParams, PdlPersonSearch
   description:
     'Search the People Data Labs person dataset using SQL or Elasticsearch DSL. Returns up to 100 matching records per call.',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'peopledatalabs',
+    pricing: {
+      type: 'custom',
+      // PDL Search charges 1 credit per profile returned (up to the requested size).
+      getCost: (_params, output) => {
+        const results = output.results
+        if (!Array.isArray(results)) {
+          throw new Error('PDL person search response missing results, cannot determine cost')
+        }
+        return { cost: results.length * PDL_CREDIT_USD, metadata: { credits: results.length } }
+      },
+    },
+    rateLimit: {
+      mode: 'custom',
+      requestsPerMinute: 30,
+      dimensions: [
+        {
+          name: 'credits',
+          limitPerMinute: 600,
+          extractUsage: (_params, response) =>
+            Array.isArray(response.results) ? response.results.length : 0,
+        },
+      ],
+    },
+  },
 
   params: {
     apiKey: {

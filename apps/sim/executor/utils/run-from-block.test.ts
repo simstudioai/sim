@@ -287,7 +287,13 @@ describe('validateRunFromBlock', () => {
   })
 
   it('rejects blocks inside loops', () => {
-    const dag = createDAG([createNode('A', [], { isLoopNode: true, loopId: 'loop-1' })])
+    const dag = createDAG([
+      createNode('A', [], {
+        isLoopNode: true,
+        subflowId: 'loop-1',
+        subflowType: 'loop',
+      }),
+    ])
     const executedBlocks = new Set(['A'])
 
     const result = validateRunFromBlock('A', dag, executedBlocks)
@@ -299,7 +305,11 @@ describe('validateRunFromBlock', () => {
 
   it('rejects blocks inside parallels', () => {
     const dag = createDAG([
-      createNode('A', [], { isParallelBranch: true, parallelId: 'parallel-1' }),
+      createNode('A', [], {
+        isParallelBranch: true,
+        subflowId: 'parallel-1',
+        subflowType: 'parallel',
+      }),
     ])
     const executedBlocks = new Set(['A'])
 
@@ -387,13 +397,19 @@ describe('validateRunFromBlock', () => {
       createNode(sentinelStartId, [{ target: 'B' }], {
         isSentinel: true,
         sentinelType: 'start',
-        loopId,
+        subflowId: loopId,
+        subflowType: 'loop',
       }),
-      createNode('B', [{ target: sentinelEndId }], { isLoopNode: true, loopId }),
+      createNode('B', [{ target: sentinelEndId }], {
+        isLoopNode: true,
+        subflowId: loopId,
+        subflowType: 'loop',
+      }),
       createNode(sentinelEndId, [{ target: 'C' }], {
         isSentinel: true,
         sentinelType: 'end',
-        loopId,
+        subflowId: loopId,
+        subflowType: 'loop',
       }),
       createNode('C'),
     ])
@@ -403,6 +419,69 @@ describe('validateRunFromBlock', () => {
     const result = validateRunFromBlock(loopId, dag, executedBlocks)
 
     expect(result.valid).toBe(true)
+  })
+
+  it('rejects loop containers nested inside another loop', () => {
+    const outerLoopId = 'outer-loop'
+    const innerLoopId = 'inner-loop'
+    const innerStartId = `loop-${innerLoopId}-sentinel-start`
+    const dag = createDAG([
+      createNode(innerStartId, [], {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: innerLoopId,
+        subflowType: 'loop',
+      }),
+    ])
+    dag.loopConfigs.set(outerLoopId, {
+      id: outerLoopId,
+      nodes: [innerLoopId],
+      iterations: 2,
+      loopType: 'for',
+    } as any)
+    dag.loopConfigs.set(innerLoopId, {
+      id: innerLoopId,
+      nodes: ['B'],
+      iterations: 2,
+      loopType: 'for',
+    } as any)
+
+    const result = validateRunFromBlock(innerLoopId, dag, new Set([innerStartId]))
+
+    expect(result.valid).toBe(false)
+    expect(result.error).toContain('inside loop')
+    expect(result.error).toContain(outerLoopId)
+  })
+
+  it('rejects containers nested inside a parallel', () => {
+    const outerParallelId = 'outer-parallel'
+    const innerLoopId = 'inner-loop'
+    const innerStartId = `loop-${innerLoopId}-sentinel-start`
+    const dag = createDAG([
+      createNode(innerStartId, [], {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: innerLoopId,
+        subflowType: 'loop',
+      }),
+    ])
+    dag.parallelConfigs.set(outerParallelId, {
+      id: outerParallelId,
+      nodes: [innerLoopId],
+      count: 2,
+    } as any)
+    dag.loopConfigs.set(innerLoopId, {
+      id: innerLoopId,
+      nodes: ['B'],
+      iterations: 2,
+      loopType: 'for',
+    } as any)
+
+    const result = validateRunFromBlock(innerLoopId, dag, new Set([innerStartId]))
+
+    expect(result.valid).toBe(false)
+    expect(result.error).toContain('inside parallel')
+    expect(result.error).toContain(outerParallelId)
   })
 
   it('accepts parallel container when executed', () => {
@@ -415,13 +494,19 @@ describe('validateRunFromBlock', () => {
       createNode(sentinelStartId, [{ target: 'B₍0₎' }], {
         isSentinel: true,
         sentinelType: 'start',
-        parallelId,
+        subflowId: parallelId,
+        subflowType: 'parallel',
       }),
-      createNode('B₍0₎', [{ target: sentinelEndId }], { isParallelBranch: true, parallelId }),
+      createNode('B₍0₎', [{ target: sentinelEndId }], {
+        isParallelBranch: true,
+        subflowId: parallelId,
+        subflowType: 'parallel',
+      }),
       createNode(sentinelEndId, [{ target: 'C' }], {
         isSentinel: true,
         sentinelType: 'end',
-        parallelId,
+        subflowId: parallelId,
+        subflowType: 'parallel',
       }),
       createNode('C'),
     ])
@@ -433,13 +518,40 @@ describe('validateRunFromBlock', () => {
     expect(result.valid).toBe(true)
   })
 
+  it('rejects container when sentinel-start upstream dependency was not executed', () => {
+    const loopId = 'loop-container-1'
+    const sentinelStartId = `loop-${loopId}-sentinel-start`
+    const dag = createDAG([
+      createNode('A', [{ target: sentinelStartId }]),
+      createNode('X', [{ target: 'B' }]),
+      createNode('B', [{ target: sentinelStartId }]),
+      createNode(sentinelStartId, [], {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: loopId,
+        subflowType: 'loop',
+      }),
+    ])
+    dag.loopConfigs.set(loopId, { id: loopId, nodes: [], iterations: 3, loopType: 'for' } as any)
+
+    const result = validateRunFromBlock(loopId, dag, new Set(['A']))
+
+    expect(result.valid).toBe(false)
+    expect(result.error).toContain('Upstream dependency not executed: B')
+  })
+
   it('allows loop container with no upstream dependencies', () => {
     // Loop containers are validated via their sentinel nodes, not incoming edges on the container itself
     // If the loop has no upstream dependencies, it should be valid
     const loopId = 'loop-container-1'
     const sentinelStartId = `loop-${loopId}-sentinel-start`
     const dag = createDAG([
-      createNode(sentinelStartId, [], { isSentinel: true, sentinelType: 'start', loopId }),
+      createNode(sentinelStartId, [], {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: loopId,
+        subflowType: 'loop',
+      }),
     ])
     dag.loopConfigs.set(loopId, { id: loopId, nodes: [], iterations: 3, loopType: 'for' } as any)
     const executedBlocks = new Set<string>() // Nothing executed but loop has no deps
@@ -463,13 +575,19 @@ describe('computeDirtySet with containers', () => {
       createNode(sentinelStartId, [{ target: 'B' }], {
         isSentinel: true,
         sentinelType: 'start',
-        loopId,
+        subflowId: loopId,
+        subflowType: 'loop',
       }),
-      createNode('B', [{ target: sentinelEndId }], { isLoopNode: true, loopId }),
+      createNode('B', [{ target: sentinelEndId }], {
+        isLoopNode: true,
+        subflowId: loopId,
+        subflowType: 'loop',
+      }),
       createNode(sentinelEndId, [{ target: 'C' }], {
         isSentinel: true,
         sentinelType: 'end',
-        loopId,
+        subflowId: loopId,
+        subflowType: 'loop',
       }),
       createNode('C'),
     ])
@@ -497,13 +615,19 @@ describe('computeDirtySet with containers', () => {
       createNode(sentinelStartId, [{ target: 'B₍0₎' }], {
         isSentinel: true,
         sentinelType: 'start',
-        parallelId,
+        subflowId: parallelId,
+        subflowType: 'parallel',
       }),
-      createNode('B₍0₎', [{ target: sentinelEndId }], { isParallelBranch: true, parallelId }),
+      createNode('B₍0₎', [{ target: sentinelEndId }], {
+        isParallelBranch: true,
+        subflowId: parallelId,
+        subflowType: 'parallel',
+      }),
       createNode(sentinelEndId, [{ target: 'C' }], {
         isSentinel: true,
         sentinelType: 'end',
-        parallelId,
+        subflowId: parallelId,
+        subflowType: 'parallel',
       }),
       createNode('C'),
     ])
@@ -999,28 +1123,33 @@ describe('run from subflow (loop) scenarios', () => {
       createNode(outerStartId, [{ target: innerStartId }], {
         isSentinel: true,
         sentinelType: 'start',
-        loopId: outerLoopId,
+        subflowId: outerLoopId,
+        subflowType: 'loop',
       }),
       createNode(innerStartId, [{ target: 'B' }], {
         isSentinel: true,
         sentinelType: 'start',
-        loopId: innerLoopId,
+        subflowId: innerLoopId,
+        subflowType: 'loop',
         isLoopNode: true,
       }),
       createNode('B', [{ target: innerEndId }], {
         isLoopNode: true,
-        loopId: innerLoopId,
+        subflowId: innerLoopId,
+        subflowType: 'loop',
       }),
       createNode(innerEndId, [{ target: outerEndId }], {
         isSentinel: true,
         sentinelType: 'end',
-        loopId: innerLoopId,
+        subflowId: innerLoopId,
+        subflowType: 'loop',
         isLoopNode: true,
       }),
       createNode(outerEndId, [{ target: 'C' }], {
         isSentinel: true,
         sentinelType: 'end',
-        loopId: outerLoopId,
+        subflowId: outerLoopId,
+        subflowType: 'loop',
       }),
       createNode('C'),
     ])

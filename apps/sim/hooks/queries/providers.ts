@@ -5,6 +5,7 @@ import { requestJson } from '@/lib/api/client/request'
 import {
   getBaseProviderModelsContract,
   getFireworksProviderModelsContract,
+  getLitellmProviderModelsContract,
   getOllamaProviderModelsContract,
   getOpenRouterProviderModelsContract,
   getVllmProviderModelsContract,
@@ -54,6 +55,8 @@ async function requestProviderModels(
       return requestJson(getOllamaProviderModelsContract, { signal })
     case 'vllm':
       return requestJson(getVllmProviderModelsContract, { signal })
+    case 'litellm':
+      return requestJson(getLitellmProviderModelsContract, { signal })
     case 'openrouter':
       return requestJson(getOpenRouterProviderModelsContract, { signal })
     case 'fireworks':

@@ -1,5 +1,8 @@
 import type { PdlCleanLocationParams, PdlCleanLocationResponse } from '@/tools/peopledatalabs/types'
-import { PDL_LOCATION_OUTPUT_PROPERTIES } from '@/tools/peopledatalabs/types'
+import {
+  PDL_LOCATION_OUTPUT_PROPERTIES,
+  PEOPLEDATALABS_API_KEY_PREFIX,
+} from '@/tools/peopledatalabs/types'
 import { projectLocation } from '@/tools/peopledatalabs/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +12,18 @@ export const cleanLocationTool: ToolConfig<PdlCleanLocationParams, PdlCleanLocat
   description:
     'Normalize a freeform location string into a structured locality/region/country record with coordinates.',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'peopledatalabs',
+    // Cleaner APIs are free on PDL (rate-limited only) — no credits consumed.
+    pricing: { type: 'per_request', cost: 0 },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  },
 
   params: {
     apiKey: {
