@@ -103,10 +103,12 @@ export class BlockExecutor {
     const startTime = performance.now()
 
     let blockLog: BlockLog | undefined
+    let blockStartPromise: Promise<void> | undefined
     if (!isSentinel) {
       blockLog = this.createBlockLog(ctx, node.id, block, node, startedAt)
       ctx.blockLogs.push(blockLog)
-      this.fireBlockStartCallback(ctx, node, block, blockLog.executionOrder)
+      blockStartPromise = this.fireBlockStartCallback(ctx, node, block, blockLog.executionOrder)
+      await blockStartPromise
     }
 
     let resolvedInputs: Record<string, any> = {}
@@ -161,6 +163,7 @@ export class BlockExecutor {
         ctx,
         node,
         block,
+        blockStartPromise,
         startTime,
         blockLog,
         inputsForLog,
@@ -250,6 +253,7 @@ export class BlockExecutor {
           block,
         })
         this.fireBlockCompleteCallback(
+          blockStartPromise,
           ctx,
           node,
           block,
@@ -270,6 +274,7 @@ export class BlockExecutor {
         ctx,
         node,
         block,
+        blockStartPromise,
         startTime,
         blockLog,
         inputsForLog,
@@ -326,6 +331,7 @@ export class BlockExecutor {
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
+    blockStartPromise: Promise<void> | undefined,
     startTime: number,
     blockLog: BlockLog | undefined,
     inputsForLog: Record<string, any>,
@@ -382,6 +388,7 @@ export class BlockExecutor {
         : undefined
       const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
       this.fireBlockCompleteCallback(
+        blockStartPromise,
         ctx,
         node,
         block,
@@ -548,23 +555,23 @@ export class BlockExecutor {
   }
 
   /**
-   * Fires the `onBlockStart` progress callback without blocking block execution.
-   * Any error is logged and swallowed so callback I/O never stalls the critical path.
+   * Fires the `onBlockStart` progress callback before block execution continues.
+   * Returning the promise lets completion callbacks preserve lifecycle ordering.
    */
   private fireBlockStartCallback(
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
     executionOrder: number
-  ): void {
-    if (!this.contextExtensions.onBlockStart) return
+  ): Promise<void> | undefined {
+    if (!this.contextExtensions.onBlockStart) return undefined
 
     const blockId = node.metadata?.originalBlockId ?? node.id
     const blockName = block.metadata?.name ?? blockId
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
     const iterationContext = getIterationContext(ctx, node?.metadata)
 
-    void this.contextExtensions
+    return this.contextExtensions
       .onBlockStart(
         blockId,
         blockName,
@@ -584,10 +591,11 @@ export class BlockExecutor {
 
   /**
    * Fires the `onBlockComplete` progress callback without blocking subsequent blocks.
-   * The callback typically performs DB writes for progress markers — awaiting it would
-   * add latency between blocks and skew wall-clock timing in the trace view.
+   * Completion is chained behind the matching start callback so SSE/log consumers
+   * never observe `block:completed` before `block:started` for the same execution.
    */
   private fireBlockCompleteCallback(
+    blockStartPromise: Promise<void> | undefined,
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
@@ -606,8 +614,9 @@ export class BlockExecutor {
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
     const iterationContext = getIterationContext(ctx, node?.metadata)
 
-    void this.contextExtensions
-      .onBlockComplete(
+    void (async () => {
+      await blockStartPromise
+      await this.contextExtensions.onBlockComplete?.(
         blockId,
         blockName,
         blockType,
@@ -623,13 +632,13 @@ export class BlockExecutor {
         iterationContext,
         ctx.childWorkflowContext
       )
-      .catch((error) => {
-        this.execLogger.warn('Block completion callback failed', {
-          blockId,
-          blockType,
-          error: toError(error).message,
-        })
+    })().catch((error) => {
+      this.execLogger.warn('Block completion callback failed', {
+        blockId,
+        blockType,
+        error: toError(error).message,
       })
+    })
   }
 
   private preparePauseResumeSelfReference(
