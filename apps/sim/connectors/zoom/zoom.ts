@@ -152,10 +152,13 @@ function parseVtt(vtt: string): string {
     if (textParts.length > 0) {
       const raw = textParts.join(' ')
       const withSpeakers = raw.replace(/<v(?:\.[^\s>]+)?\s+([^>]+)>([\s\S]*?)<\/v>/g, '$1: $2')
-      const stripped = withSpeakers
-        .replace(/<\/?[^>]+>/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
+      let withoutTags = withSpeakers
+      let previous: string
+      do {
+        previous = withoutTags
+        withoutTags = withoutTags.replace(/<\/?[^>]+>/g, '')
+      } while (withoutTags !== previous)
+      const stripped = withoutTags.replace(/\s+/g, ' ').trim()
       if (stripped) segments.push(stripped)
     }
   }
