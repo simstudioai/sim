@@ -10,6 +10,7 @@ import {
 } from '@/lib/core/outbox/service'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { setWorkflowMcpTransactionLockTimeout } from '@/lib/mcp/server-locks'
 import {
   notifyMcpToolServers,
   removeMcpToolsForWorkflow,
@@ -450,12 +451,14 @@ async function removeMcpToolsIfStillUndeployed(
   requestId: string
 ): Promise<void> {
   const tools = await db.transaction(async (tx) => {
+    await setWorkflowMcpTransactionLockTimeout(tx)
+
     const [workflowRecord] = await tx
       .select({ id: workflowTable.id, isDeployed: workflowTable.isDeployed })
       .from(workflowTable)
       .where(eq(workflowTable.id, workflowId))
-      .limit(1)
       .for('update')
+      .limit(1)
 
     if (!workflowRecord || workflowRecord.isDeployed) return []
     return removeMcpToolsForWorkflow(workflowId, requestId, tx, false, true)
@@ -497,12 +500,14 @@ async function syncMcpToolsIfStillActive(params: {
   state: { blocks?: Record<string, unknown> }
 }): Promise<void> {
   const tools = await db.transaction(async (tx) => {
+    await setWorkflowMcpTransactionLockTimeout(tx)
+
     const [workflowRecord] = await tx
       .select({ id: workflowTable.id })
       .from(workflowTable)
       .where(eq(workflowTable.id, params.workflowId))
-      .limit(1)
       .for('update')
+      .limit(1)
 
     if (!workflowRecord) return []
 

@@ -7,7 +7,11 @@ import type { NextRequest } from 'next/server'
 import { createMcpServerBodySchema, deleteMcpServerByQuerySchema } from '@/lib/api/contracts/mcp'
 import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import {
+  mcpBodyReadErrorResponse,
+  readMcpJsonBodyWithLimit,
+  withMcpAuth,
+} from '@/lib/mcp/middleware'
 import { performCreateMcpServer, performDeleteMcpServer } from '@/lib/mcp/orchestration'
 import {
   createMcpErrorResponse,
@@ -55,7 +59,7 @@ export const POST = withRouteHandler(
   withMcpAuth('write')(
     async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
       try {
-        const rawBody = getParsedBody(request) ?? (await request.json())
+        const rawBody = await readMcpJsonBodyWithLimit(request)
         const parsedBody = createMcpServerBodySchema.safeParse(rawBody)
 
         if (!parsedBody.success) {
@@ -120,6 +124,8 @@ export const POST = withRouteHandler(
           result.updated ? 200 : 201
         )
       } catch (error) {
+        const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+        if (bodyErrorResponse) return bodyErrorResponse
         logger.error(`[${requestId}] Error registering MCP server:`, error)
         return createMcpErrorResponse(toError(error), 'Failed to register MCP server', 500)
       }

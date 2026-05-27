@@ -11,6 +11,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { isTest } from '@/lib/core/config/feature-flags'
 import { McpClient } from '@/lib/mcp/client'
 import { getOrCreateOauthRow, loadPreregisteredClient, SimMcpOauthProvider } from '@/lib/mcp/oauth'
@@ -28,10 +29,36 @@ const logger = createLogger('McpConnectionManager')
 const MAX_CONNECTIONS = 50
 const MAX_RECONNECT_ATTEMPTS = 10
 const BASE_RECONNECT_DELAY_MS = 1000
+const CONNECT_TIMEOUT_MS = 15_000
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 const IDLE_CHECK_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
 type ToolsChangedListener = (event: ToolsChangedEvent) => void
+
+async function withConnectTimeout(client: McpClient, serverName: string): Promise<void> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  let timedOut = false
+  const connectPromise = client.connect({ isCancelled: () => timedOut })
+  try {
+    await Promise.race([
+      connectPromise,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          timedOut = true
+          reject(new Error(`Timed out connecting to MCP server ${serverName}`))
+        }, CONNECT_TIMEOUT_MS)
+      }),
+    ])
+  } catch (error) {
+    if (timedOut) {
+      void connectPromise.catch(() => {})
+    }
+    await client.disconnect().catch(() => {})
+    throw error
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
 
 /**
  * Cache key for managed connections.
@@ -140,7 +167,7 @@ export class McpConnectionManager {
       })
 
       try {
-        await client.connect()
+        await withConnectTimeout(client, config.name)
       } catch (error) {
         logger.error(`[${config.name}] Failed to connect for persistent monitoring:`, error)
         return { supportsListChanged: false }
@@ -191,15 +218,17 @@ export class McpConnectionManager {
 
     const client = this.connections.get(key)
     if (client) {
+      this.connections.delete(key)
+      this.states.delete(key)
       try {
         await client.disconnect()
       } catch (error) {
         logger.warn(`Error disconnecting managed client ${key}:`, error)
       }
-      this.connections.delete(key)
+    } else {
+      this.states.delete(key)
     }
 
-    this.states.delete(key)
     logger.info(`Managed connection removed: ${key}`)
   }
 
@@ -331,8 +360,11 @@ export class McpConnectionManager {
       return
     }
 
-    const delay = Math.min(BASE_RECONNECT_DELAY_MS * 2 ** state.reconnectAttempts, 60_000)
     state.reconnectAttempts++
+    const delay = backoffWithJitter(state.reconnectAttempts, null, {
+      baseMs: BASE_RECONNECT_DELAY_MS,
+      maxMs: 60_000,
+    })
 
     logger.info(
       `[${config.name}] Reconnecting in ${delay}ms (attempt ${state.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`
