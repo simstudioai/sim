@@ -140,7 +140,7 @@ function EnrichmentsSidebarBody({
                       <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                         {enrichment.name}
                       </span>
-                      <span className='truncate text-[var(--text-tertiary)] text-caption'>
+                      <span className='whitespace-normal break-words text-[var(--text-tertiary)] text-caption'>
                         {enrichment.description}
                       </span>
                     </span>
