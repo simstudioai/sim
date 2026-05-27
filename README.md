@@ -74,6 +74,12 @@ docker compose -f docker-compose.prod.yml up -d
 
 Open [http://localhost:3000](http://localhost:3000)
 
+Check the running app version and build metadata:
+
+```bash
+curl http://localhost:3000/api/health
+```
+
 Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https://docs.vllm.ai/) — see the [Docker self-hosting docs](https://docs.sim.ai/self-hosting/docker) for setup details.
 
 ### Self-hosted: Manual Setup

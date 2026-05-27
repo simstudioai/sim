@@ -88,6 +88,8 @@ RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.nex
 FROM base AS runner
 WORKDIR /app
 
+ARG APP_VERSION="0.1.0"
+ARG GIT_SHA=""
 # Node.js 22, Python, ffmpeg, etc. are already installed in base stage
 ENV NODE_ENV=production
 
@@ -134,6 +136,8 @@ USER nextjs
 
 EXPOSE 3000
 ENV PORT=3000 \
-    HOSTNAME="0.0.0.0"
+    HOSTNAME="0.0.0.0" \
+    APP_VERSION=${APP_VERSION} \
+    GIT_SHA=${GIT_SHA}
 
 CMD ["bun", "apps/sim/server.js"]
