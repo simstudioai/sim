@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { TABLE_LIMITS } from '../constants'
 import {
   type ColumnDefinition,
+  coerceRowToSchema,
   getUniqueColumns,
   type TableSchema,
   validateColumnDefinition,
@@ -274,6 +275,77 @@ describe('Validation', () => {
       const result = validateRowAgainstSchema(data, schema)
       expect(result.valid).toBe(false)
       expect(result.errors[0]).toContain('exceeds max string length')
+    })
+  })
+
+  describe('coerceRowToSchema', () => {
+    const schema: TableSchema = {
+      columns: [
+        { name: 'name', type: 'string', required: true },
+        { name: 'age', type: 'number' },
+        { name: 'founded', type: 'number', required: true },
+        { name: 'active', type: 'boolean' },
+        { name: 'created', type: 'date' },
+        { name: 'metadata', type: 'json' },
+      ],
+    }
+
+    it('coerces a numeric string to a number in place', () => {
+      const data = { name: 'Acme', founded: '1999' }
+      const result = coerceRowToSchema(data, schema)
+      expect(result.valid).toBe(true)
+      expect(data.founded).toBe(1999)
+    })
+
+    it('nulls an un-coercible value for an optional number column', () => {
+      const data = { name: 'Acme', founded: 2000, age: 'unknown' }
+      const result = coerceRowToSchema(data, schema)
+      expect(result.valid).toBe(true)
+      expect(data.age).toBeNull()
+    })
+
+    it('rejects an un-coercible value for a required number column', () => {
+      const data = { name: 'Acme', founded: 'unknown' }
+      const result = coerceRowToSchema(data, schema)
+      expect(result.valid).toBe(false)
+      expect(result.errors[0]).toContain('founded must be number')
+      expect(data.founded).toBe('unknown')
+    })
+
+    it('coerces a number to a string for a string column', () => {
+      const data = { name: 12345, founded: 2000 }
+      const result = coerceRowToSchema(data, schema)
+      expect(result.valid).toBe(true)
+      expect(data.name).toBe('12345')
+    })
+
+    it('coerces "true"/"false" strings to booleans', () => {
+      const data = { name: 'Acme', founded: 2000, active: 'false' }
+      const result = coerceRowToSchema(data, schema)
+      expect(result.valid).toBe(true)
+      expect(data.active).toBe(false)
+    })
+
+    it('coerces an epoch number to an ISO date string', () => {
+      const epoch = Date.parse('2024-01-15T00:00:00Z')
+      const data = { name: 'Acme', founded: 2000, created: epoch }
+      const result = coerceRowToSchema(data, schema)
+      expect(result.valid).toBe(true)
+      expect(data.created).toBe(new Date(epoch).toISOString())
+    })
+
+    it('leaves already-correct values untouched and passes through json', () => {
+      const data = { name: 'Acme', founded: 2000, metadata: { k: 'v' } }
+      const result = coerceRowToSchema(data, schema)
+      expect(result.valid).toBe(true)
+      expect(data).toEqual({ name: 'Acme', founded: 2000, metadata: { k: 'v' } })
+    })
+
+    it('still rejects a missing required field', () => {
+      const data = { name: 'Acme' }
+      const result = coerceRowToSchema(data, schema)
+      expect(result.valid).toBe(false)
+      expect(result.errors).toContain('Missing required field: founded')
     })
   })
 

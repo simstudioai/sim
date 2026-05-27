@@ -7,7 +7,7 @@ import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from './constants'
-import type { ColumnDefinition, RowData, TableSchema, ValidationResult } from './types'
+import type { ColumnDefinition, JsonValue, RowData, TableSchema, ValidationResult } from './types'
 
 export type { ColumnDefinition, TableSchema, ValidationResult }
 
@@ -57,7 +57,7 @@ export async function validateRowData(
     }
   }
 
-  const schemaValidation = validateRowAgainstSchema(rowData, schema)
+  const schemaValidation = coerceRowToSchema(rowData, schema)
   if (!schemaValidation.valid) {
     return {
       valid: false,
@@ -105,7 +105,7 @@ export async function validateBatchRows(
       continue
     }
 
-    const schemaValidation = validateRowAgainstSchema(rowData, schema)
+    const schemaValidation = coerceRowToSchema(rowData, schema)
     if (!schemaValidation.valid) {
       errors.push({ row: i, errors: schemaValidation.errors })
     }
@@ -253,6 +253,80 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
   }
 
   return { valid: errors.length === 0, errors }
+}
+
+/**
+ * Attempts to coerce a non-null value to a column's declared type. Returns the
+ * coerced value when the value already matches or can be converted without
+ * ambiguity (e.g. the string `"1999"` to the number `1999`), and `ok: false`
+ * when no safe conversion exists.
+ */
+function coerceValueToColumnType(
+  value: JsonValue,
+  type: ColumnDefinition['type']
+): { ok: true; value: JsonValue } | { ok: false } {
+  switch (type) {
+    case 'string':
+      if (typeof value === 'string') return { ok: true, value }
+      if (typeof value === 'number' || typeof value === 'boolean') {
+        return { ok: true, value: String(value) }
+      }
+      return { ok: false }
+    case 'number':
+      if (typeof value === 'number') {
+        return Number.isFinite(value) ? { ok: true, value } : { ok: false }
+      }
+      if (typeof value === 'string' && value.trim() !== '') {
+        const parsed = Number(value)
+        return Number.isFinite(parsed) ? { ok: true, value: parsed } : { ok: false }
+      }
+      return { ok: false }
+    case 'boolean':
+      if (typeof value === 'boolean') return { ok: true, value }
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase()
+        if (normalized === 'true') return { ok: true, value: true }
+        if (normalized === 'false') return { ok: true, value: false }
+      }
+      return { ok: false }
+    case 'date':
+      if (value instanceof Date) return { ok: true, value }
+      if (typeof value === 'string' && !Number.isNaN(Date.parse(value))) return { ok: true, value }
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return { ok: true, value: new Date(value).toISOString() }
+      }
+      return { ok: false }
+    default:
+      return { ok: true, value }
+  }
+}
+
+/**
+ * Coerces each value in `data` toward its column's declared type **in place**,
+ * then validates the result. Values that already match are untouched;
+ * unambiguous conversions (e.g. `"1999"` → `1999`) are applied; values that
+ * cannot be coerced are set to `null` when the column is optional, or left in
+ * place to fail validation when the column is required.
+ *
+ * This is the write-path entry point — callers that persist rows use it instead
+ * of {@link validateRowAgainstSchema} so a single off-type field (a tool
+ * returning `"unknown"` for a numeric column, say) nulls that one cell rather
+ * than failing the entire row write.
+ */
+export function coerceRowToSchema(data: RowData, schema: TableSchema): ValidationResult {
+  for (const column of schema.columns) {
+    const value = data[column.name]
+    if (value === null || value === undefined) continue
+
+    const coerced = coerceValueToColumnType(value, column.type)
+    if (coerced.ok) {
+      data[column.name] = coerced.value
+    } else if (!column.required) {
+      data[column.name] = null
+    }
+  }
+
+  return validateRowAgainstSchema(data, schema)
 }
 
 /** Validates row data size is within limits. */

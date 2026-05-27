@@ -61,8 +61,8 @@ import type {
 import {
   checkBatchUniqueConstraintsDb,
   checkUniqueConstraintsDb,
+  coerceRowToSchema,
   getUniqueColumns,
-  validateRowAgainstSchema,
   validateRowSize,
   validateTableName,
   validateTableSchema,
@@ -913,7 +913,7 @@ export async function insertRow(
   }
 
   // Validate against schema
-  const schemaValidation = validateRowAgainstSchema(data.data, table.schema)
+  const schemaValidation = coerceRowToSchema(data.data, table.schema)
   if (!schemaValidation.valid) {
     throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
   }
@@ -1060,7 +1060,7 @@ export async function batchInsertRowsWithTx(
       throw new Error(`Row ${i + 1}: ${sizeValidation.errors.join(', ')}`)
     }
 
-    const schemaValidation = validateRowAgainstSchema(row, table.schema)
+    const schemaValidation = coerceRowToSchema(row, table.schema)
     if (!schemaValidation.valid) {
       throw new Error(`Row ${i + 1}: ${schemaValidation.errors.join(', ')}`)
     }
@@ -1201,7 +1201,7 @@ export async function replaceTableRowsWithTx(
       throw new Error(`Row ${i + 1}: ${sizeValidation.errors.join(', ')}`)
     }
 
-    const schemaValidation = validateRowAgainstSchema(row, table.schema)
+    const schemaValidation = coerceRowToSchema(row, table.schema)
     if (!schemaValidation.valid) {
       throw new Error(`Row ${i + 1}: ${schemaValidation.errors.join(', ')}`)
     }
@@ -1342,7 +1342,7 @@ export async function upsertRow(
     throw new Error(sizeValidation.errors.join(', '))
   }
 
-  const schemaValidation = validateRowAgainstSchema(data.data, schema)
+  const schemaValidation = coerceRowToSchema(data.data, schema)
   if (!schemaValidation.valid) {
     throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
   }
@@ -1957,7 +1957,7 @@ export async function updateRow(
   }
 
   // Validate against schema
-  const schemaValidation = validateRowAgainstSchema(mergedData, table.schema)
+  const schemaValidation = coerceRowToSchema(mergedData, table.schema)
   if (!schemaValidation.valid) {
     throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
   }
@@ -2176,7 +2176,7 @@ export async function updateRowsByFilter(
       throw new Error(`Row ${row.id}: ${sizeValidation.errors.join(', ')}`)
     }
 
-    const schemaValidation = validateRowAgainstSchema(mergedData, table.schema)
+    const schemaValidation = coerceRowToSchema(mergedData, table.schema)
     if (!schemaValidation.valid) {
       throw new Error(`Row ${row.id}: ${schemaValidation.errors.join(', ')}`)
     }
@@ -2334,7 +2334,7 @@ export async function batchUpdateRows(
       throw new Error(`Row ${update.rowId}: ${sizeValidation.errors.join(', ')}`)
     }
 
-    const schemaValidation = validateRowAgainstSchema(merged, table.schema)
+    const schemaValidation = coerceRowToSchema(merged, table.schema)
     if (!schemaValidation.valid) {
       throw new Error(`Row ${update.rowId}: ${schemaValidation.errors.join(', ')}`)
     }
@@ -3247,8 +3247,8 @@ export async function updateWorkflowGroup(
 
     // Resolve the new leaf type for each remap so the column's declared type
     // matches what the new mapping produces. Without this, a string→number
-    // remap would keep `type: 'string'` and validateRowAgainstSchema would
-    // reject every backfilled value.
+    // remap would keep `type: 'string'` and coerceRowToSchema would coerce
+    // every backfilled value toward the wrong type.
     try {
       const [
         { loadWorkflowFromNormalizedTables },
