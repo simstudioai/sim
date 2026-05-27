@@ -6,7 +6,6 @@ import type { ColumnDefinition, TableDefinition, TableRow, WorkflowGroup } from 
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
-import { getEnrichment } from '@/enrichments/registry'
 import {
   tableRowsInfiniteOptions,
   useInfiniteTableRows,
@@ -190,19 +189,10 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
   const columnSourceInfo = useMemo<Map<string, ColumnSourceInfo>>(() => {
     const map = new Map<string, ColumnSourceInfo>()
     for (const group of tableWorkflowGroups) {
-      // Enrichment groups have no workflow blocks — source the icon/name from
-      // the enrichment registry so every output column shows the enrichment's
-      // own icon (e.g. Mail for work-email) instead of the generic play icon.
-      if (group.type === 'enrichment') {
-        const enrichment = getEnrichment(group.enrichmentId)
-        const blockIconInfo: BlockIconInfo | undefined = enrichment?.icon
-          ? { icon: enrichment.icon, color: '#6B7280' }
-          : undefined
-        for (const out of group.outputs) {
-          map.set(out.columnName, { blockIconInfo, blockName: enrichment?.name })
-        }
-        continue
-      }
+      // Enrichment groups have no workflow blocks; their output columns render
+      // with the standard column-type icon (the meta-header already carries the
+      // enrichment's icon), so we skip building source info for them.
+      if (group.type === 'enrichment') continue
       const state = workflowStates.get(group.workflowId)
       const blocks = (state as { blocks?: Record<string, FlattenOutputsBlockInput> } | null)?.blocks
       for (const out of group.outputs) {

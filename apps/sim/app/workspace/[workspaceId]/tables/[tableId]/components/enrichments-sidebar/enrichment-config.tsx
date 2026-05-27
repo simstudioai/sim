@@ -21,7 +21,11 @@ import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition, WorkflowGroup, WorkflowGroupOutput } from '@/lib/table'
 import { deriveOutputColumnName } from '@/lib/table/column-naming'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
-import { useAddWorkflowGroup, useUpdateWorkflowGroup } from '@/hooks/queries/tables'
+import {
+  useAddWorkflowGroup,
+  useUpdateColumn,
+  useUpdateWorkflowGroup,
+} from '@/hooks/queries/tables'
 import { RunSettingsSection } from '../workflow-sidebar/run-settings-section'
 
 interface EnrichmentConfigProps {
@@ -32,8 +36,7 @@ interface EnrichmentConfigProps {
   onBack: () => void
   onClose: () => void
   /** When set, the panel edits this existing enrichment group (pre-filled,
-   *  updates instead of creating). Output columns already exist and are shown
-   *  read-only. */
+   *  updates instead of creating; changed output names rename their columns). */
   existingGroup?: WorkflowGroup
 }
 
@@ -66,7 +69,12 @@ export function EnrichmentConfig({
 }: EnrichmentConfigProps) {
   const addWorkflowGroup = useAddWorkflowGroup({ workspaceId, tableId })
   const updateWorkflowGroup = useUpdateWorkflowGroup({ workspaceId, tableId })
+  const updateColumn = useUpdateColumn({ workspaceId, tableId })
   const isEditing = Boolean(existingGroup)
+
+  /** Output column's persisted name (edit mode), used to detect renames. */
+  const originalOutputName = (outputId: string): string | undefined =>
+    existingGroup?.outputs.find((o) => o.outputId === outputId)?.columnName
 
   const [inputMappings, setInputMappings] = useState<Record<string, string>>(() => {
     if (existingGroup) {
@@ -81,8 +89,8 @@ export function EnrichmentConfig({
     }
     return seed
   })
-  // Per-output column names. Edit mode reflects the existing columns (read-only);
-  // create mode seeds deduped defaults the user can rename.
+  // Per-output column names. Editable in both modes — edit mode seeds the
+  // existing column names and renames changed ones on save.
   const [outputNames, setOutputNames] = useState<Record<string, string>>(() => {
     const seed: Record<string, string> = {}
     if (existingGroup) {
@@ -108,22 +116,29 @@ export function EnrichmentConfig({
   const missingRequired = enrichment.inputs.some((i) => i.required && !inputMappings[i.id])
   const depsValid = !autoRun || deps.length > 0
 
-  /** Per-output name validation (create mode only — edit mode columns exist). */
+  /** Per-output column-name validation (both modes). Excludes the output's own
+   *  current column so renaming to its existing name isn't flagged. */
   function outputNameError(outputId: string): string | null {
-    if (isEditing) return null
     const value = (outputNames[outputId] ?? '').trim()
     if (!value) return 'Required'
     const lower = value.toLowerCase()
-    if (allColumns.some((c) => c.name.toLowerCase() === lower)) return 'Column already exists'
+    const ownOriginal = originalOutputName(outputId)?.toLowerCase()
+    if (
+      allColumns.some((c) => c.name.toLowerCase() === lower && c.name.toLowerCase() !== ownOriginal)
+    )
+      return 'Column already exists'
     const dup = enrichment.outputs.some(
       (o) => o.id !== outputId && (outputNames[o.id] ?? '').trim().toLowerCase() === lower
     )
     return dup ? 'Duplicate name' : null
   }
-  const outputsInvalid =
-    !isEditing && enrichment.outputs.some((o) => outputNameError(o.id) !== null)
+  const outputsInvalid = enrichment.outputs.some((o) => outputNameError(o.id) !== null)
   const saveDisabled =
-    addWorkflowGroup.isPending || updateWorkflowGroup.isPending || !depsValid || outputsInvalid
+    addWorkflowGroup.isPending ||
+    updateWorkflowGroup.isPending ||
+    updateColumn.isPending ||
+    !depsValid ||
+    outputsInvalid
 
   async function handleSave() {
     if (missingRequired || (autoRun && deps.length === 0) || outputsInvalid) {
@@ -136,6 +151,15 @@ export function EnrichmentConfig({
 
     if (existingGroup) {
       try {
+        // Rename any output columns the user changed first; the rename cascades
+        // into the group's output refs server-side.
+        for (const o of enrichment.outputs) {
+          const original = originalOutputName(o.id)
+          const next = (outputNames[o.id] ?? '').trim()
+          if (original && next && next !== original) {
+            await updateColumn.mutateAsync({ columnName: original, updates: { name: next } })
+          }
+        }
         await updateWorkflowGroup.mutateAsync({
           groupId: existingGroup.id,
           name: enrichment.name,
@@ -298,7 +322,6 @@ export function EnrichmentConfig({
                     onChange={(e) =>
                       setOutputNames((prev) => ({ ...prev, [output.id]: e.target.value }))
                     }
-                    disabled={isEditing}
                     spellCheck={false}
                     autoComplete='off'
                     className={cn(outErr && 'border-[var(--text-error)]')}
