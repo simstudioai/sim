@@ -99,8 +99,17 @@ export async function readStreamToBufferWithLimit(
   const reader = stream.getReader()
   const chunks: Buffer[] = []
   let totalBytes = 0
+  const abortFromSignal = () => {
+    void reader.cancel(options.signal?.reason).catch(() => {})
+  }
 
   try {
+    if (options.signal?.aborted) {
+      await reader.cancel(options.signal.reason).catch(() => {})
+      throw toError(options.signal.reason ?? new Error('Aborted'))
+    }
+    options.signal?.addEventListener('abort', abortFromSignal, { once: true })
+
     while (true) {
       if (options.signal?.aborted) {
         await reader.cancel(options.signal.reason).catch(() => {})
@@ -108,6 +117,9 @@ export async function readStreamToBufferWithLimit(
       }
 
       const { done, value } = await reader.read()
+      if (options.signal?.aborted) {
+        throw toError(options.signal.reason ?? new Error('Aborted'))
+      }
       if (done) break
       if (!value) continue
 
@@ -125,6 +137,7 @@ export async function readStreamToBufferWithLimit(
       chunks.push(Buffer.from(value))
     }
   } finally {
+    options.signal?.removeEventListener('abort', abortFromSignal)
     reader.releaseLock()
   }
 

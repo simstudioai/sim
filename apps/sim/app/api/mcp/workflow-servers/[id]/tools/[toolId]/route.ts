@@ -9,9 +9,17 @@ import {
   workflowMcpToolParamsSchema,
 } from '@/lib/api/contracts/workflow-mcp-servers'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import {
+  mcpBodyReadErrorResponse,
+  readMcpJsonBodyWithLimit,
+  withMcpAuth,
+} from '@/lib/mcp/middleware'
 import { performDeleteWorkflowMcpTool, performUpdateWorkflowMcpTool } from '@/lib/mcp/orchestration'
-import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import {
+  createMcpErrorResponse,
+  createMcpSuccessResponse,
+  mcpOrchestrationStatus,
+} from '@/lib/mcp/utils'
 
 const logger = createLogger('WorkflowMcpToolAPI')
 
@@ -86,7 +94,7 @@ export const PATCH = withRouteHandler(
     ) => {
       try {
         const { id: serverId, toolId } = workflowMcpToolParamsSchema.parse(await params)
-        const rawBody = getParsedBody(request) ?? (await request.json())
+        const rawBody = await readMcpJsonBodyWithLimit(request)
         const parsedBody = updateWorkflowMcpToolBodySchema.safeParse(rawBody)
 
         if (!parsedBody.success) {
@@ -109,12 +117,10 @@ export const PATCH = withRouteHandler(
           parameterSchema: body.parameterSchema,
         })
         if (!result.success || !result.tool) {
-          const status =
-            result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
           return createMcpErrorResponse(
             new Error(result.error || 'Failed to update tool'),
             result.error || 'Failed to update tool',
-            status
+            mcpOrchestrationStatus(result.errorCode)
           )
         }
 
@@ -124,6 +130,8 @@ export const PATCH = withRouteHandler(
 
         return createMcpSuccessResponse({ tool: updatedTool })
       } catch (error) {
+        const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+        if (bodyErrorResponse) return bodyErrorResponse
         logger.error(`[${requestId}] Error updating tool:`, error)
         return createMcpErrorResponse(toError(error), 'Failed to update tool', 500)
       }
@@ -158,7 +166,7 @@ export const DELETE = withRouteHandler(
           return createMcpErrorResponse(
             new Error(result.error || 'Tool not found'),
             result.error || 'Tool not found',
-            result.errorCode === 'not_found' ? 404 : 500
+            mcpOrchestrationStatus(result.errorCode)
           )
         }
         const deletedTool = result.tool

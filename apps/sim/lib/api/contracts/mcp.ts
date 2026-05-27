@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import type { McpToolSchema, McpToolSchemaProperty } from '@/lib/mcp/types'
 
+const MAX_MCP_REFRESH_SERVER_IDS = 100
+
 const dateStringSchema = z.preprocess(
   (value) => (value instanceof Date ? value.toISOString() : value),
   z.string()
@@ -160,7 +162,17 @@ export const discoverMcpToolsQuerySchema = mcpWorkspaceQuerySchema.extend({
 })
 
 export const refreshMcpToolsBodySchema = z.object({
-  serverIds: z.array(z.string()),
+  serverIds: z
+    .array(z.string().min(1))
+    .transform((serverIds) => [...new Set(serverIds)])
+    .pipe(
+      z
+        .array(z.string())
+        .max(
+          MAX_MCP_REFRESH_SERVER_IDS,
+          `At most ${MAX_MCP_REFRESH_SERVER_IDS} MCP servers can be refreshed at once`
+        )
+    ),
 })
 
 export const mcpEventsQuerySchema = z.object({

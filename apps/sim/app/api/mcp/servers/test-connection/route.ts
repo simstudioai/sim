@@ -11,7 +11,11 @@ import {
   validateMcpDomain,
   validateMcpServerSsrf,
 } from '@/lib/mcp/domain-check'
-import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import {
+  mcpBodyReadErrorResponse,
+  readMcpJsonBodyWithLimit,
+  withMcpAuth,
+} from '@/lib/mcp/middleware'
 import { detectMcpAuthType } from '@/lib/mcp/oauth'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
@@ -64,7 +68,7 @@ function sanitizeConnectionError(error: unknown): string {
 export const POST = withRouteHandler(
   withMcpAuth('write')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
-      const rawBody = getParsedBody(request) ?? (await request.json())
+      const rawBody = await readMcpJsonBodyWithLimit(request)
       const parsedBody = mcpServerTestBodySchema.safeParse(rawBody)
 
       if (!parsedBody.success) {
@@ -235,6 +239,8 @@ export const POST = withRouteHandler(
 
       return createMcpSuccessResponse(result, result.success ? 200 : 400)
     } catch (error) {
+      const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+      if (bodyErrorResponse) return bodyErrorResponse
       logger.error(`[${requestId}] Error testing MCP server connection:`, error)
       return createMcpErrorResponse(toError(error), 'Failed to test server connection', 500)
     }
