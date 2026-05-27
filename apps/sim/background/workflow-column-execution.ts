@@ -70,6 +70,8 @@ export async function executeWorkflowGroupCellJob(
       ...currentPayload,
       groupId: next.id,
       workflowId: next.workflowId,
+      // Re-derive so a workflow group after an enrichment group doesn't keep a stale enrichmentId.
+      enrichmentId: next.enrichmentId,
       executionId: generateId(),
     }
   }
