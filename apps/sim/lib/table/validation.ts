@@ -289,13 +289,17 @@ function coerceValueToColumnType(
         if (normalized === 'false') return { ok: true, value: false }
       }
       return { ok: false }
-    case 'date':
-      if (value instanceof Date) return { ok: true, value: value.toISOString() }
+    case 'date': {
       if (typeof value === 'string' && !Number.isNaN(Date.parse(value))) return { ok: true, value }
-      if (typeof value === 'number' && Number.isFinite(value)) {
-        return { ok: true, value: new Date(value).toISOString() }
-      }
+      // Date instances and epoch numbers may still be out of the representable
+      // range (>±8.64e15ms) — guard `toISOString()`, which throws RangeError on
+      // an Invalid Date, so an over-range value degrades to `{ ok: false }`
+      // rather than crashing the write.
+      const date =
+        value instanceof Date ? value : typeof value === 'number' ? new Date(value) : null
+      if (date && !Number.isNaN(date.getTime())) return { ok: true, value: date.toISOString() }
       return { ok: false }
+    }
     default:
       return { ok: true, value }
   }

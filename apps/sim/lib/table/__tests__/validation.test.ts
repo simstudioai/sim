@@ -343,6 +343,20 @@ describe('Validation', () => {
       expect(data.created).toBe(date.toISOString())
     })
 
+    it('nulls an out-of-range epoch number for an optional date column without throwing', () => {
+      const data = { name: 'Acme', founded: 2000, created: 1e20 }
+      const result = coerceRowToSchema(data, schema)
+      expect(result.valid).toBe(true)
+      expect(data.created).toBeNull()
+    })
+
+    it('nulls an invalid Date instance for an optional date column without throwing', () => {
+      const data = { name: 'Acme', founded: 2000, created: new Date('not-a-date') }
+      const result = coerceRowToSchema(data, schema)
+      expect(result.valid).toBe(true)
+      expect(data.created).toBeNull()
+    })
+
     it('leaves already-correct values untouched and passes through json', () => {
       const data = { name: 'Acme', founded: 2000, metadata: { k: 'v' } }
       const result = coerceRowToSchema(data, schema)
