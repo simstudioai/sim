@@ -7034,7 +7034,7 @@
     "name": "Instantly",
     "description": "Manage Instantly leads, campaigns, emails, and lead lists",
     "longDescription": "Integrate Instantly API V2 into workflows. Create and list leads, manage lead interest status, delete leads in bulk, list and create campaigns, reply to emails, and manage lead lists.",
-    "bgColor": "#FF6B35",
+    "bgColor": "#FFFFFF",
     "iconName": "InstantlyIcon",
     "docsUrl": "https://docs.sim.ai/tools/instantly",
     "operations": [

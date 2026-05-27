@@ -55,7 +55,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Email,
   tags: ['sales-engagement', 'email-marketing', 'automation'],
-  bgColor: '#FF6B35',
+  bgColor: '#FFFFFF',
   icon: InstantlyIcon,
   authMode: AuthMode.ApiKey,
   subBlocks: [
