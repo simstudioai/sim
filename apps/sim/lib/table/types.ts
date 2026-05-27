@@ -33,13 +33,15 @@ export interface ColumnDefinition {
   workflowGroupId?: string
 }
 
-/** One workflow output → one plain column. */
+/** One group output → one plain column. */
 export interface WorkflowGroupOutput {
-  /** Source block id within the configured workflow. */
+  /** Source block id within the configured workflow. `''` for enrichment groups. */
   blockId: string
-  /** Dot-path into that block's output (e.g. `summary`, `result.items[0]`). */
+  /** Dot-path into that block's output. `''` for enrichment groups. */
   path: string
-  /** Plain column in `schema.columns` that receives the plucked value. */
+  /** Enrichment output id this column receives (enrichment groups only). */
+  outputId?: string
+  /** Plain column in `schema.columns` that receives the produced value. */
   columnName: string
 }
 
@@ -53,13 +55,39 @@ export interface WorkflowGroupDependencies {
   columns?: string[]
 }
 
+/**
+ * How the group was created. `'manual'` groups are user-built workflow columns;
+ * `'enrichment'` groups are spawned from a shared enrichment template and hide
+ * launch / input-editing affordances in the config sidebar. Defaults to
+ * `'manual'` when absent (pre-feature groups).
+ */
+export type WorkflowGroupType = 'manual' | 'enrichment'
+
+/** One workflow Start-block input field ← one table column. */
+export interface WorkflowGroupInputMapping {
+  /** `inputFormat` field name on the workflow's Start block. */
+  inputName: string
+  /** Table column whose per-row value feeds that input. */
+  columnName: string
+}
+
 export interface WorkflowGroup {
   id: string
+  /** Backing workflow id for `manual` groups. `''` for enrichment groups. */
   workflowId: string
-  /** Display name; defaults to the workflow's name. */
+  /** Registry enrichment id for `enrichment` groups. */
+  enrichmentId?: string
+  /** Display name; defaults to the workflow's / enrichment's name. */
   name?: string
+  /** Provenance of the group. Defaults to `'manual'` when absent. */
+  type?: WorkflowGroupType
   dependencies?: WorkflowGroupDependencies
   outputs: WorkflowGroupOutput[]
+  /**
+   * Maps the workflow's Start-block input fields to the table columns that
+   * supply each per-row value. Absent / empty means no mapping configured yet.
+   */
+  inputMappings?: WorkflowGroupInputMapping[]
   /**
    * When `false`, the group never auto-fires from the scheduler — it can only
    * be triggered manually via the "Run" actions. Defaults to `true` so
@@ -414,6 +442,10 @@ export interface UpdateWorkflowGroupData {
    * source.
    */
   mappingUpdates?: Array<{ columnName: string; blockId: string; path: string }>
+  /** Replace the group's input mappings. Omit to leave them unchanged. */
+  inputMappings?: WorkflowGroupInputMapping[]
+  /** Update the group's provenance. Omit to leave it unchanged. */
+  type?: WorkflowGroupType
   /** Toggle the group's auto-run flag. Omit to leave it unchanged. */
   autoRun?: boolean
 }

@@ -332,6 +332,12 @@ export const DataRow = React.memo(function DataRow({
                     ? (waitingByGroupId?.get(column.workflowGroupId) ?? undefined)
                     : undefined
                 }
+                isEnrichmentOutput={
+                  column.workflowGroupId
+                    ? workflowGroups.find((g) => g.id === column.workflowGroupId)?.type ===
+                      'enrichment'
+                    : false
+                }
               />
             </div>
           </td>

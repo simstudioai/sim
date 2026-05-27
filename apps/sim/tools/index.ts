@@ -1240,6 +1240,18 @@ export async function executeTool(
 
     if (error instanceof Error) {
       errorMessage = error.message || `Error executing tool ${toolId}`
+      // HTTP errors are thrown as Error instances carrying `status`/`statusText`/
+      // `data` (see createTransformedErrorFromErrorInfo). Surface them on the
+      // output so callers can branch on the status (e.g. treat 404 as a clean
+      // no-match) — the object branch below only ran for non-Error throws.
+      const httpStatus = (error as { status?: unknown }).status
+      if (typeof httpStatus === 'number') {
+        errorDetails = {
+          status: httpStatus,
+          statusText: (error as { statusText?: string }).statusText,
+          data: (error as { data?: unknown }).data,
+        }
+      }
     } else if (typeof error === 'string') {
       errorMessage = error
     } else if (error && typeof error === 'object') {

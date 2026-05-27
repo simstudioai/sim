@@ -1,10 +1,12 @@
 'use client'
 
+import { Sparkles } from 'lucide-react'
 import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { Plus } from '@/components/emcn/icons'
@@ -28,18 +30,20 @@ interface NewColumnDropdownProps {
   disabled: boolean
   onPickType: (type: ColumnDefinition['type']) => void
   onPickWorkflow: () => void
+  onPickEnrichment: () => void
 }
 
 /**
  * "+ New column" dropdown — the single entry point for creating a column.
- * Lists every column type plus "Workflow"; picking a type opens the right
- * sidebar pre-seeded.
+ * Lists every column type plus "Workflow" and "Enrichments"; picking a type
+ * opens the right sidebar pre-seeded.
  */
 export function NewColumnDropdown({
   trigger,
   disabled,
   onPickType,
   onPickWorkflow,
+  onPickEnrichment,
 }: NewColumnDropdownProps) {
   const menu = (
     <DropdownMenu>
@@ -61,6 +65,15 @@ export function NewColumnDropdown({
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
+        {isWorkflowColumnsEnabledClient && (
+          <>
+            <DropdownMenuItem onSelect={onPickEnrichment}>
+              <Sparkles className='size-[14px] text-[var(--text-icon)]' />
+              Enrichments
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {VISIBLE_COLUMN_TYPE_OPTIONS.map((option) => {
           const Icon = option.icon
           const onSelect =
