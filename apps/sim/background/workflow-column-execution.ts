@@ -254,11 +254,15 @@ async function runWorkflowAndWriteTerminal(
           }
         }
 
+        // Write every output column: the result value when present, else clear
+        // it. A partial/empty result must blank the columns it didn't fill so a
+        // re-run that finds less than before doesn't leave stale values.
         const dataPatch: RowData = {}
         for (const out of group.outputs) {
           if (!out.outputId) continue
           const value = result[out.outputId]
-          if (value !== undefined) dataPatch[out.columnName] = value as RowData[string]
+          dataPatch[out.columnName] =
+            value === undefined || value === null ? '' : (value as RowData[string])
         }
         await writeState(
           { status: 'completed', executionId, jobId: null, workflowId: statusId, error: null },

@@ -3293,7 +3293,12 @@ export async function updateWorkflowGroup(
   // If the caller passed `outputs`, that's the new full set. If only
   // `mappingUpdates` was sent, the new set is the remapped old set.
   const newOutputs = data.outputs ?? oldOutputs
-  const oldKey = (o: WorkflowGroupOutput) => `${o.blockId}::${o.path}`
+  // Enrichment outputs all share empty `blockId`/`path`, so keying on those
+  // alone collapses every sibling to one entry (dropping columns on diff). Key
+  // on the registry `outputId` when present; fall back to `blockId::path` for
+  // workflow outputs.
+  const oldKey = (o: WorkflowGroupOutput) =>
+    o.outputId ? `out::${o.outputId}` : `${o.blockId}::${o.path}`
   const oldByKey = new Map(oldOutputs.map((o) => [oldKey(o), o]))
   const newByKey = new Map(newOutputs.map((o) => [oldKey(o), o]))
 

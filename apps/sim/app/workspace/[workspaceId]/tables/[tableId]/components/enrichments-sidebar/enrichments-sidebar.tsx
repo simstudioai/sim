@@ -68,6 +68,32 @@ function EnrichmentsSidebarBody({
       />
     )
   }
+  // Editing a group whose enrichment was removed from the registry — surface it
+  // rather than silently dropping into the "new enrichment" catalog.
+  if (editGroup && !editEnrichment) {
+    return (
+      <div className='flex h-full flex-col'>
+        <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+          <h2 className='font-medium text-[var(--text-primary)] text-small'>Enrichment</h2>
+          <Button
+            variant='ghost'
+            size='sm'
+            onClick={onClose}
+            className='!p-1 size-7 flex-none'
+            aria-label='Close'
+          >
+            <X className='size-[14px]' />
+          </Button>
+        </div>
+        <div className='flex flex-1 items-center justify-center px-6 text-center'>
+          <p className='text-[var(--text-tertiary)] text-small'>
+            This enrichment ("{editGroup.enrichmentId}") is no longer available. Delete the column
+            and add a current enrichment.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   if (selected) {
     return (
