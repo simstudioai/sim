@@ -20,7 +20,6 @@ function getAppCommit(): string | null {
 export async function GET(request: NextRequest): Promise<Response> {
   const parsed = await parseRequest(healthContract, request, {})
   if (!parsed.success) return parsed.response
-
   return NextResponse.json(
     {
       status: 'ok',

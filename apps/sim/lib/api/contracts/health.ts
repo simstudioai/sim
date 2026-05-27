@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { noInputSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
+const healthQuerySchema = z.object({}).passthrough()
 export const healthResponseSchema = z.object({
   status: z.literal('ok'),
   timestamp: z.string(),
@@ -14,7 +14,7 @@ export type HealthResponse = z.output<typeof healthResponseSchema>
 export const healthContract = defineRouteContract({
   method: 'GET',
   path: '/api/health',
-  query: noInputSchema,
+  query: healthQuerySchema,
   response: {
     mode: 'json',
     schema: healthResponseSchema,

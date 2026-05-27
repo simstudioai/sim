@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import appPackage from '@/package.json'
 import { NextRequest } from 'next/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import { GET } from '@/app/api/health/route'
@@ -29,6 +30,12 @@ describe('GET /api/health', () => {
     })
   })
 
+  it('accepts query parameters from health-checking clients', async () => {
+    const response = await GET(new NextRequest('http://localhost/api/health?_=123'))
+
+    expect(response.status).toBe(200)
+  })
+
   it('falls back to the package version when runtime metadata is not provided', async () => {
     process.env.APP_VERSION = ''
     process.env.NEXT_PUBLIC_APP_VERSION = ''
@@ -42,7 +49,7 @@ describe('GET /api/health', () => {
     await expect(response.json()).resolves.toEqual({
       status: 'ok',
       timestamp: expect.any(String),
-      version: '0.1.0',
+      version: appPackage.version,
       commit: null,
     })
   })
