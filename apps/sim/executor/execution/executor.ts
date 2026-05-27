@@ -21,7 +21,7 @@ import { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { BlockState, ExecutionContext, ExecutionResult } from '@/executor/types'
-import { ParallelExpander } from '@/executor/utils/parallel-expansion'
+import { type ClonedSubflowInfo, ParallelExpander } from '@/executor/utils/parallel-expansion'
 import {
   computeExecutionSets,
   type RunFromBlockContext,
@@ -36,6 +36,8 @@ import {
 import {
   extractLoopIdFromSentinel,
   extractParallelIdFromSentinel,
+  stripCloneSuffixes,
+  stripOuterBranchSuffix,
 } from '@/executor/utils/subflow-utils'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
@@ -43,6 +45,10 @@ import type { SerializedWorkflow } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DAGExecutor')
+
+interface RestoredClonedSubflowInfo extends ClonedSubflowInfo {
+  parentParallelId: string
+}
 
 export interface DAGExecutorOptions {
   workflow: SerializedWorkflow
@@ -83,10 +89,14 @@ export class DAGExecutor {
       triggerBlockId,
       savedIncomingEdges,
     })
-    this.restoreSnapshotParallelBatches(dag, this.contextExtensions.snapshotState)
+    const restoredClonedSubflows = this.restoreSnapshotParallelBatches(
+      dag,
+      this.contextExtensions.snapshotState
+    )
     this.restoreSavedIncomingEdges(dag, savedIncomingEdges)
     const { context, state } = this.createExecutionContext(workflowId, triggerBlockId)
     context.subflowParentMap = this.buildSubflowParentMap(dag)
+    this.registerRestoredClonedSubflows(context.subflowParentMap, restoredClonedSubflows)
 
     const engine = this.buildExecutionPipeline(context, dag, state)
     return await engine.run(triggerBlockId)
@@ -148,13 +158,31 @@ export class DAGExecutor {
     // This preserves sibling branch outputs that dirty blocks may reference
     const filteredBlockStates: Record<string, any> = {}
     for (const [blockId, state] of Object.entries(sourceSnapshot.blockStates)) {
-      if (reachableUpstreamSet.has(blockId) || reachableContainerIds.has(blockId)) {
+      const aliasBaseId = stripOuterBranchSuffix(blockId)
+      const isReachableOuterBranchAlias =
+        aliasBaseId !== blockId &&
+        Array.from(reachableUpstreamSet).some(
+          (reachableId) => stripCloneSuffixes(reachableId) === aliasBaseId
+        )
+      if (
+        reachableUpstreamSet.has(blockId) ||
+        reachableContainerIds.has(blockId) ||
+        isReachableOuterBranchAlias
+      ) {
         filteredBlockStates[blockId] = state
       }
     }
-    const filteredExecutedBlocks = sourceSnapshot.executedBlocks.filter(
-      (id) => reachableUpstreamSet.has(id) || reachableContainerIds.has(id)
-    )
+    const filteredExecutedBlocks = sourceSnapshot.executedBlocks.filter((id) => {
+      const aliasBaseId = stripOuterBranchSuffix(id)
+      const isReachableOuterBranchAlias =
+        aliasBaseId !== id &&
+        Array.from(reachableUpstreamSet).some(
+          (reachableId) => stripCloneSuffixes(reachableId) === aliasBaseId
+        )
+      return (
+        reachableUpstreamSet.has(id) || reachableContainerIds.has(id) || isReachableOuterBranchAlias
+      )
+    })
 
     // Filter loop/parallel executions to only include reachable containers
     const filteredLoopExecutions: Record<string, any> = {}
@@ -227,7 +255,7 @@ export class DAGExecutor {
     mergeFileKeys(context, filteredFileKeys)
     context.subflowParentMap = this.buildSubflowParentMap(dag)
 
-    const engine = this.buildExecutionPipeline(context, dag, state)
+    const engine = this.buildExecutionPipeline(context, dag, state, filteredSnapshot)
     const result = await engine.run()
     if (result.metadata) {
       result.metadata.largeValueKeys = context.largeValueKeys
@@ -250,10 +278,11 @@ export class DAGExecutor {
   private restoreSnapshotParallelBatches(
     dag: DAG,
     snapshotState?: SerializableExecutionState
-  ): void {
-    if (!snapshotState?.parallelExecutions) return
+  ): RestoredClonedSubflowInfo[] {
+    if (!snapshotState?.parallelExecutions) return []
 
     const expander = new ParallelExpander()
+    const clonedSubflows: RestoredClonedSubflowInfo[] = []
     for (const [parallelId, scope] of Object.entries(snapshotState.parallelExecutions)) {
       const currentBatchSize = Number(scope.currentBatchSize ?? 0)
       if (!Number.isFinite(currentBatchSize) || currentBatchSize <= 0) continue
@@ -264,14 +293,62 @@ export class DAGExecutor {
         ? scope.items.slice(currentBatchStart, currentBatchStart + currentBatchSize)
         : undefined
 
-      expander.expandParallel(dag, parallelId, currentBatchSize, items, {
+      const restoredBatch = expander.expandParallel(dag, parallelId, currentBatchSize, items, {
         branchIndexOffset: currentBatchStart,
         totalBranches,
+      })
+      clonedSubflows.push(
+        ...restoredBatch.clonedSubflows.map((clone) => ({
+          ...clone,
+          parentParallelId: parallelId,
+        }))
+      )
+    }
+
+    return clonedSubflows
+  }
+
+  private registerRestoredClonedSubflows(
+    parentMap: Map<string, { parentId: string; parentType: SubflowType; branchIndex?: number }>,
+    clonedSubflows: RestoredClonedSubflowInfo[]
+  ): void {
+    const branchCloneMaps = new Map<string, Map<number, Map<string, string>>>()
+
+    for (const clone of clonedSubflows) {
+      let parallelBranchMaps = branchCloneMaps.get(clone.parentParallelId)
+      if (!parallelBranchMaps) {
+        parallelBranchMaps = new Map()
+        branchCloneMaps.set(clone.parentParallelId, parallelBranchMaps)
+      }
+
+      let cloneMap = parallelBranchMaps.get(clone.outerBranchIndex)
+      if (!cloneMap) {
+        cloneMap = new Map()
+        parallelBranchMaps.set(clone.outerBranchIndex, cloneMap)
+      }
+
+      cloneMap.set(clone.originalId, clone.clonedId)
+    }
+
+    for (const clone of clonedSubflows) {
+      const originalEntry = parentMap.get(clone.originalId)
+      const cloneMap = branchCloneMaps.get(clone.parentParallelId)?.get(clone.outerBranchIndex)
+      const clonedParentId = originalEntry ? cloneMap?.get(originalEntry.parentId) : undefined
+
+      parentMap.set(clone.clonedId, {
+        parentId: clonedParentId ?? clone.parentParallelId,
+        parentType: clonedParentId && originalEntry ? originalEntry.parentType : 'parallel',
+        branchIndex: clonedParentId ? 0 : clone.outerBranchIndex,
       })
     }
   }
 
-  private buildExecutionPipeline(context: ExecutionContext, dag: DAG, state: ExecutionState) {
+  private buildExecutionPipeline(
+    context: ExecutionContext,
+    dag: DAG,
+    state: ExecutionState,
+    snapshotState = this.contextExtensions.snapshotState
+  ) {
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state, {
       navigatePathAsync,
     })
@@ -289,7 +366,12 @@ export class DAGExecutor {
       dag,
       state,
       resolver,
-      this.contextExtensions
+      this.contextExtensions,
+      edgeManager
+    )
+    edgeManager.restoreDeactivatedEdges(
+      snapshotState?.deactivatedEdges,
+      snapshotState?.nodesWithActivatedEdge
     )
     const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,
@@ -460,8 +542,11 @@ export class DAGExecutor {
    */
   private buildSubflowParentMap(
     dag: DAG
-  ): Map<string, { parentId: string; parentType: SubflowType }> {
-    const parentMap = new Map<string, { parentId: string; parentType: SubflowType }>()
+  ): Map<string, { parentId: string; parentType: SubflowType; branchIndex?: number }> {
+    const parentMap = new Map<
+      string,
+      { parentId: string; parentType: SubflowType; branchIndex?: number }
+    >()
 
     // Scan loop configs: children can be loops or parallels
     for (const [loopId, config] of dag.loopConfigs) {
@@ -476,7 +561,7 @@ export class DAGExecutor {
     for (const [parallelId, config] of dag.parallelConfigs) {
       for (const nodeId of config.nodes ?? []) {
         if (dag.parallelConfigs.has(nodeId) || dag.loopConfigs.has(nodeId)) {
-          parentMap.set(nodeId, { parentId: parallelId, parentType: 'parallel' })
+          parentMap.set(nodeId, { parentId: parallelId, parentType: 'parallel', branchIndex: 0 })
         }
       }
     }

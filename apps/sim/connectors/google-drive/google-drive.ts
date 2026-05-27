@@ -171,7 +171,7 @@ function fileToStub(file: DriveFile): ExternalDocument {
 export const googleDriveConnector: ConnectorConfig = {
   id: 'google_drive',
   name: 'Google Drive',
-  description: 'Sync documents from Google Drive into your knowledge base',
+  description: 'Sync documents from Google Drive',
   version: '1.0.0',
   icon: GoogleDriveIcon,
 

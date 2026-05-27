@@ -64,6 +64,10 @@ export async function withLeaderLock<T>(opts: LeaderLockOptions<T>): Promise<T |
     if (value !== null) return value
   }
 
+  // The leader may have persisted between our final poll and now; one last check.
+  const lastChance = await onFollower()
+  if (lastChance !== null) return lastChance
+
   logger.warn('Follower timed out waiting for leader', { key, maxWaitMs })
   return null
 }

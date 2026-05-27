@@ -51,6 +51,7 @@ export function getModelOptions() {
   const baseModels = providersState.providers.base.models
   const ollamaModels = providersState.providers.ollama.models
   const vllmModels = providersState.providers.vllm.models
+  const litellmModels = providersState.providers.litellm.models
   const openrouterModels = providersState.providers.openrouter.models
   const fireworksModels = providersState.providers.fireworks.models
   const allModels = Array.from(
@@ -58,6 +59,7 @@ export function getModelOptions() {
       ...baseModels,
       ...ollamaModels,
       ...vllmModels,
+      ...litellmModels,
       ...openrouterModels,
       ...fireworksModels,
     ])
@@ -160,12 +162,13 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   ) {
     return false
   }
-  if (normalizedModel.startsWith('vllm/')) {
+  if (normalizedModel.startsWith('vllm/') || normalizedModel.startsWith('litellm/')) {
     return false
   }
 
   const storeProvider = getProviderFromStore(normalizedModel)
-  if (storeProvider === 'ollama' || storeProvider === 'vllm') return false
+  if (storeProvider === 'ollama' || storeProvider === 'vllm' || storeProvider === 'litellm')
+    return false
   if (storeProvider) return true
 
   if (isOllamaConfigured) {

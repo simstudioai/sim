@@ -123,7 +123,7 @@ function formatTranscriptContent(transcript: FirefliesTranscript): string {
 export const firefliesConnector: ConnectorConfig = {
   id: 'fireflies',
   name: 'Fireflies',
-  description: 'Sync meeting transcripts from Fireflies.ai into your knowledge base',
+  description: 'Sync meeting transcripts from Fireflies.ai',
   version: '1.0.0',
   icon: FirefliesIcon,
 

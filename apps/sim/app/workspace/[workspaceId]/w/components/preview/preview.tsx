@@ -34,6 +34,15 @@ interface BlockExecutionData {
   childWorkflowSnapshotId?: string
 }
 
+function isPauseOutput(output: unknown): boolean {
+  return (
+    output !== null &&
+    typeof output === 'object' &&
+    '_pauseMetadata' in output &&
+    (output as Record<string, unknown>)._pauseMetadata !== undefined
+  )
+}
+
 /** Represents a level in the workflow navigation stack */
 interface WorkflowStackEntry {
   workflowState: WorkflowState
@@ -91,7 +100,7 @@ export function buildBlockExecutions(spans: TraceSpan[]): Record<string, BlockEx
       blockExecutionMap[span.blockId] = {
         input: redactApiKeys(span.input || {}),
         output: redactApiKeys(span.output || {}),
-        status: span.status || 'unknown',
+        status: isPauseOutput(span.output) ? 'pending' : span.status || 'unknown',
         durationMs: span.duration || 0,
         children: span.children,
         childWorkflowSnapshotId: span.childWorkflowSnapshotId,

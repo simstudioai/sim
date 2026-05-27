@@ -36,5 +36,16 @@ export interface ImageGenerationResponse extends ToolResponse {
       jobId?: string
       contentType?: string
     }
+    __falaiCostDollars?: number
+    __falaiBilling?: {
+      endpointId: string
+      requestId: string
+      source: 'billing_events' | 'historical_estimate' | 'fallback_floor'
+      outputUnits?: number | null
+      unitPrice?: number | null
+      percentDiscount?: number | null
+      currency?: string
+      error?: string
+    }
   }
 }

@@ -1,1 +1,6 @@
-export { type WorkflowConfig, WorkflowSidebar } from './workflow-sidebar'
+export {
+  type WorkflowConfig,
+  WorkflowSidebar,
+  WorkflowSidebarBody,
+  type WorkflowSidebarBodyProps,
+} from './workflow-sidebar'

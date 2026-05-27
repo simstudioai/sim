@@ -10,21 +10,15 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { fileParseContract } from '@/lib/api/contracts/storage-transfer'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import {
-  secureFetchWithPinnedIP,
-  validateUrlWithDNS,
-} from '@/lib/core/security/input-validation.server'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
-import {
-  assertKnownSizeWithinLimit,
-  DEFAULT_MAX_ERROR_BODY_BYTES,
-  isPayloadSizeLimitError,
-  readResponseTextWithLimit,
-  readResponseToBufferWithLimit,
-} from '@/lib/core/utils/stream-limits'
+import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
+import {
+  ExternalUrlValidationError,
+  fetchExternalUrlToWorkspace,
+} from '@/lib/uploads/contexts/workspace'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import {
@@ -36,7 +30,6 @@ import {
   inferContextFromKey,
   isInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 import '@/lib/uploads/core/setup.server'
@@ -453,9 +446,16 @@ function validateFilePath(filePath: string): { isValid: boolean; error?: string 
 }
 
 /**
- * Handle external URL
- * If workspaceId is provided, checks if file already exists and saves to workspace if not
- * If executionContext is provided, also stores the file in execution storage and returns UserFile
+ * Handle external URL.
+ *
+ * Always fetches the URL fresh — there is no filename-based dedup. Distinct URLs
+ * commonly share a path tail (e.g. every Slack clipboard paste is `image.png`),
+ * so keying a cache by filename returns stale bytes. `fetchExternalUrlToWorkspace`
+ * delegates to `uploadWorkspaceFile`, which suffix-disambiguates collisions on save.
+ *
+ * Workspace save is skipped when the URL already points at our execution-files
+ * bucket (re-uploading our own bytes is wasteful and would generate `image (1).png`
+ * style aliases for files we already own).
  */
 async function handleExternalUrl(
   url: string,
@@ -470,23 +470,6 @@ async function handleExternalUrl(
 ): Promise<ParseResult> {
   try {
     logger.info('Fetching external URL:', url)
-    logger.info('WorkspaceId for URL save:', workspaceId)
-
-    const urlValidation = await validateUrlWithDNS(url, 'fileUrl')
-    if (!urlValidation.isValid) {
-      logger.warn(`Blocked external URL request: ${urlValidation.error}`)
-      return {
-        success: false,
-        error: urlValidation.error || 'Invalid external URL',
-        filePath: url,
-      }
-    }
-
-    const urlPath = new URL(url).pathname
-    const filename = urlPath.split('/').pop() || 'download'
-    const extension = path.extname(filename).toLowerCase().substring(1)
-
-    logger.info(`Extracted filename: ${filename}, workspaceId: ${workspaceId}`)
 
     const {
       S3_EXECUTION_FILES_CONFIG,
@@ -511,104 +494,27 @@ async function handleExternalUrl(
       isExecutionFile = false
     }
 
-    // Only apply workspace deduplication if:
-    // 1. WorkspaceId is provided
-    // 2. URL is NOT from execution files bucket/container
-    const shouldCheckWorkspace = workspaceId && !isExecutionFile
-
-    if (shouldCheckWorkspace) {
-      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (permission === null) {
-        logger.warn('User does not have workspace access for file parse', {
-          userId,
-          workspaceId,
-          filename,
-        })
-        return {
-          success: false,
-          error: 'File not found',
-          filePath: url,
-        }
-      }
-
-      const { fileExistsInWorkspace, listWorkspaceFiles } = await import(
-        '@/lib/uploads/contexts/workspace'
-      )
-      const exists = await fileExistsInWorkspace(workspaceId, filename)
-
-      if (exists) {
-        logger.info(`File ${filename} already exists in workspace, using existing file`)
-        const workspaceFiles = await listWorkspaceFiles(workspaceId)
-        const existingFile = workspaceFiles.find((f) => f.name === filename)
-
-        if (existingFile) {
-          const storageFilePath = `/api/files/serve/${existingFile.key}`
-          return handleCloudFile(
-            storageFilePath,
-            fileType,
-            'workspace',
-            userId,
-            executionContext,
-            maxDownloadBytes,
-            maxParsedOutputBytes
-          )
-        }
-      }
-    }
-
-    const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, {
-      timeout: DOWNLOAD_TIMEOUT_MS,
-      maxResponseBytes: maxDownloadBytes,
+    const { filename, buffer, mimeType } = await fetchExternalUrlToWorkspace({
+      url,
+      userId,
+      workspaceId: workspaceId || undefined,
+      saveToWorkspace: Boolean(workspaceId) && !isExecutionFile,
+      headers,
       signal,
-      ...(headers && Object.keys(headers).length > 0 && { headers }),
+      maxDownloadBytes,
+      timeoutMs: DOWNLOAD_TIMEOUT_MS,
     })
-    if (!response.ok) {
-      await readResponseTextWithLimit(response, {
-        maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
-        label: 'file download error response',
-        signal,
-      }).catch(() => '')
-      throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`)
-    }
-
-    const buffer = await readResponseToBufferWithLimit(response, {
-      maxBytes: maxDownloadBytes,
-      label: 'file download',
-      signal,
-    })
+    const extension = path.extname(filename).toLowerCase().substring(1)
 
     logger.info(`Downloaded file from URL: ${url}, size: ${buffer.length} bytes`)
 
     let userFile: UserFile | undefined
-    const mimeType = response.headers.get('content-type') || getMimeTypeFromExtension(extension)
-
     if (executionContext) {
       try {
         userFile = await uploadExecutionFile(executionContext, buffer, filename, mimeType, userId)
         logger.info(`Stored file in execution storage: ${filename}`, { key: userFile.key })
       } catch (uploadError) {
-        logger.warn(`Failed to store file in execution storage:`, uploadError)
-        // Continue without userFile - parsing can still work
-      }
-    }
-
-    if (shouldCheckWorkspace) {
-      try {
-        const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-        if (permission !== 'admin' && permission !== 'write') {
-          logger.warn('User does not have write permission for workspace file save', {
-            userId,
-            workspaceId,
-            filename,
-            permission,
-          })
-        } else {
-          const { uploadWorkspaceFile } = await import('@/lib/uploads/contexts/workspace')
-          await uploadWorkspaceFile(workspaceId, userId, buffer, filename, mimeType)
-          logger.info(`Saved URL file to workspace storage: ${filename}`)
-        }
-      } catch (saveError) {
-        logger.warn(`Failed to save URL file to workspace:`, saveError)
+        logger.warn('Failed to store file in execution storage:', uploadError)
       }
     }
 
@@ -653,6 +559,15 @@ async function handleExternalUrl(
             : `File is too large to parse safely. Maximum supported download size is ${prettySize(
                 error.maxBytes
               )}.`,
+        filePath: url,
+      }
+    }
+
+    if (error instanceof ExternalUrlValidationError) {
+      logger.warn(`Blocked external URL request: ${error.message}`)
+      return {
+        success: false,
+        error: error.message,
         filePath: url,
       }
     }

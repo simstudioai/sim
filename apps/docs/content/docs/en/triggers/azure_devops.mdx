@@ -31,7 +31,7 @@ Trigger workflow when an Azure DevOps build fails, is canceled, or partially suc
 | `branch` | string | Source branch name \(refs/heads/ prefix stripped\) |
 | `commitSha` | string | Source commit SHA |
 | `triggeredBy` | string | Display name of the person who triggered the build |
-| `triggeredByEmail` | string | Email/unique name of the person who triggered the build |
+| `triggeredByEmail` | string | Email/unique name of the person who triggered the build, or null if not set |
 | `startTime` | string | Build start time \(ISO 8601\) |
 | `finishTime` | string | Build finish time \(ISO 8601\) |
 | `buildUrl` | string | API URL for the build resource |
@@ -72,12 +72,12 @@ Trigger workflow when a work item is created in Azure DevOps
 | `workItemType` | string | Work item type for Basic process \(e.g. Issue, Task, Epic\) |
 | `title` | string | Work item title |
 | `state` | string | Work item state for Basic process \(e.g. To Do, Doing, Done\) |
-| `createdBy` | string | Display name of the creator |
-| `assignedTo` | string | Assignee display name, or empty string if unassigned |
+| `createdBy` | string | Display name of the creator, or null if not set |
+| `assignedTo` | string | Assignee display name, or null if unassigned |
 | `priority` | number | Priority \(1–4\), or 0 if not set |
 | `areaPath` | string | Area path |
 | `iterationPath` | string | Iteration path |
-| `description` | string | Work item description \(HTML\), or empty string if not set |
+| `description` | string | Work item description \(HTML\), or null if not set |
 | `projectName` | string | Azure DevOps project name |
 | `workItemUrl` | string | API URL for the work item resource |
 

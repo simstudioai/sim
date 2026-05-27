@@ -189,6 +189,10 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
   const columnSourceInfo = useMemo<Map<string, ColumnSourceInfo>>(() => {
     const map = new Map<string, ColumnSourceInfo>()
     for (const group of tableWorkflowGroups) {
+      // Enrichment groups have no workflow blocks; their output columns render
+      // with the standard column-type icon (the meta-header already carries the
+      // enrichment's icon), so we skip building source info for them.
+      if (group.type === 'enrichment') continue
       const state = workflowStates.get(group.workflowId)
       const blocks = (state as { blocks?: Record<string, FlattenOutputsBlockInput> } | null)?.blocks
       for (const out of group.outputs) {

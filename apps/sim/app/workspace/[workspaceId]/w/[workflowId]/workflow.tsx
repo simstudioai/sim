@@ -204,6 +204,12 @@ interface BlockData {
   position: { x: number; y: number }
 }
 
+interface AddBlockFromToolbarDetail {
+  type?: unknown
+  enableTriggerMode?: unknown
+  presetOperation?: unknown
+}
+
 /**
  * Main workflow canvas content component.
  * Renders the ReactFlow canvas with blocks, edges, and all interactive features.
@@ -2004,7 +2010,7 @@ const WorkflowContent = React.memo(
 
     /** Handles toolbar block click events to add blocks to the canvas. */
     useEffect(() => {
-      const handleAddBlockFromToolbar = (event: CustomEvent) => {
+      const handleAddBlockFromToolbar = (event: CustomEvent<AddBlockFromToolbarDetail>) => {
         // Check if user has permission to interact with blocks
         if (!effectivePermissions.canEdit) {
           return
@@ -2012,7 +2018,7 @@ const WorkflowContent = React.memo(
 
         const { type, enableTriggerMode, presetOperation } = event.detail
 
-        if (!type) return
+        if (typeof type !== 'string' || !type) return
         if (type === 'connectionBlock') return
 
         const basePosition = getViewportCenter()
@@ -2070,8 +2076,10 @@ const WorkflowContent = React.memo(
           undefined,
           undefined,
           autoConnectEdge,
-          enableTriggerMode,
-          presetOperation ? { operation: presetOperation } : undefined
+          enableTriggerMode === true,
+          typeof presetOperation === 'string' && presetOperation
+            ? { operation: presetOperation }
+            : undefined
         )
       }
 

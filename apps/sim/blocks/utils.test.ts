@@ -27,6 +27,7 @@ const { mockProviders } = vi.hoisted(() => ({
       base: { models: [] as string[], isLoading: false },
       ollama: { models: [] as string[], isLoading: false },
       vllm: { models: [] as string[], isLoading: false },
+      litellm: { models: [] as string[], isLoading: false },
       openrouter: { models: [] as string[], isLoading: false },
       fireworks: { models: [] as string[], isLoading: false },
     },
@@ -101,6 +102,7 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
       base: { models: [], isLoading: false },
       ollama: { models: [], isLoading: false },
       vllm: { models: [], isLoading: false },
+      litellm: { models: [], isLoading: false },
       openrouter: { models: [], isLoading: false },
       fireworks: { models: [], isLoading: false },
     }
@@ -183,6 +185,11 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     it('does not require API key when model is in the vLLM store bucket', () => {
       mockProviders.value.vllm.models = ['my-custom-model']
       expect(evaluateCondition('my-custom-model')).toBe(false)
+    })
+
+    it('does not require API key when model is in the LiteLLM store bucket', () => {
+      mockProviders.value.litellm.models = ['litellm/anthropic/claude-sonnet-4-6']
+      expect(evaluateCondition('litellm/anthropic/claude-sonnet-4-6')).toBe(false)
     })
 
     it('requires API key when model is in the fireworks store bucket', () => {

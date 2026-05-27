@@ -3,7 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { NotionIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { joinTagArray, parseTagDate } from '@/connectors/utils'
+import { joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('NotionConnector')
 
@@ -179,7 +179,7 @@ function pageToStub(page: Record<string, unknown>): ExternalDocument {
 export const notionConnector: ConnectorConfig = {
   id: 'notion',
   name: 'Notion',
-  description: 'Sync pages from a Notion workspace into your knowledge base',
+  description: 'Sync pages from a Notion workspace',
   version: '1.0.0',
   icon: NotionIcon,
 
@@ -199,22 +199,24 @@ export const notionConnector: ConnectorConfig = {
     },
     {
       id: 'databaseSelector',
-      title: 'Database',
+      title: 'Databases',
       type: 'selector',
       selectorKey: 'notion.databases',
       canonicalParamId: 'databaseId',
       mode: 'basic',
-      placeholder: 'Select a database',
+      multi: true,
+      placeholder: 'Select one or more databases',
       required: false,
     },
     {
       id: 'databaseId',
-      title: 'Database ID',
+      title: 'Database IDs',
       type: 'short-input',
       canonicalParamId: 'databaseId',
       mode: 'advanced',
+      multi: true,
       required: false,
-      placeholder: 'e.g. 8a3b5f6e-1234-5678-abcd-ef0123456789',
+      placeholder: 'e.g. 8a3b5f6e-..., 9c4d6e7f-... (comma-separated for multiple)',
     },
     {
       id: 'rootPageId',
@@ -246,12 +248,12 @@ export const notionConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const scope = (sourceConfig.scope as string) || 'workspace'
-    const databaseId = (sourceConfig.databaseId as string)?.trim()
+    const databaseIds = parseMultiValue(sourceConfig.databaseId)
     const rootPageId = (sourceConfig.rootPageId as string)?.trim()
     const maxPages = sourceConfig.maxPages ? Number(sourceConfig.maxPages) : 0
 
-    if (scope === 'database' && databaseId) {
-      return listFromDatabase(accessToken, databaseId, maxPages, cursor, syncContext)
+    if (scope === 'database' && databaseIds.length > 0) {
+      return listFromDatabases(accessToken, databaseIds, maxPages, cursor, syncContext)
     }
 
     if (scope === 'page' && rootPageId) {
@@ -304,7 +306,7 @@ export const notionConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const scope = (sourceConfig.scope as string) || 'workspace'
-    const databaseId = (sourceConfig.databaseId as string)?.trim()
+    const databaseIds = parseMultiValue(sourceConfig.databaseId)
     const rootPageId = (sourceConfig.rootPageId as string)?.trim()
     const maxPages = sourceConfig.maxPages as string | undefined
 
@@ -312,8 +314,11 @@ export const notionConnector: ConnectorConfig = {
       return { valid: false, error: 'Max pages must be a positive number' }
     }
 
-    if (scope === 'database' && !databaseId) {
-      return { valid: false, error: 'Database ID is required when scope is "Specific database"' }
+    if (scope === 'database' && databaseIds.length === 0) {
+      return {
+        valid: false,
+        error: 'At least one database is required when scope is "Specific database"',
+      }
     }
 
     if (scope === 'page' && !rootPageId) {
@@ -322,21 +327,26 @@ export const notionConnector: ConnectorConfig = {
 
     try {
       // Verify the token works
-      if (scope === 'database' && databaseId) {
-        // Verify database is accessible
-        const response = await fetchWithRetry(
-          `${NOTION_BASE_URL}/databases/${databaseId}`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Notion-Version': NOTION_API_VERSION,
+      if (scope === 'database' && databaseIds.length > 0) {
+        // Verify every database is accessible
+        for (const databaseId of databaseIds) {
+          const response = await fetchWithRetry(
+            `${NOTION_BASE_URL}/databases/${databaseId}`,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Notion-Version': NOTION_API_VERSION,
+              },
             },
-          },
-          VALIDATE_RETRY_OPTIONS
-        )
-        if (!response.ok) {
-          return { valid: false, error: `Cannot access database: ${response.status}` }
+            VALIDATE_RETRY_OPTIONS
+          )
+          if (!response.ok) {
+            return {
+              valid: false,
+              error: `Cannot access database ${databaseId}: ${response.status}`,
+            }
+          }
         }
       } else if (scope === 'page' && rootPageId) {
         // Verify page is accessible
@@ -467,58 +477,131 @@ async function listFromWorkspace(
 }
 
 /**
- * Lists pages from a specific Notion database.
+ * Lists pages from one or more Notion databases.
+ *
+ * Notion's `/v1/databases/{database_id}/query` endpoint is per-database — there
+ * is no batch query endpoint — so multiple databases are walked sequentially.
+ *
+ * Cursor format:
+ * - Single database: the Notion `start_cursor` string directly, or undefined.
+ * - Multiple databases: JSON-encoded `{ databaseIndex, cursor }` where
+ *   `databaseIndex` is the position into `databaseIds` currently being drained
+ *   and `cursor` is the Notion `start_cursor` for that database (or undefined
+ *   when starting a fresh database).
+ *
+ * Page IDs returned by Notion are globally-unique UUIDs, so each page's
+ * `externalId` does not need to be namespaced by database.
  */
-async function listFromDatabase(
+async function listFromDatabases(
   accessToken: string,
-  databaseId: string,
+  databaseIds: string[],
   maxPages: number,
   cursor?: string,
   syncContext?: Record<string, unknown>
 ): Promise<ExternalDocumentList> {
-  const body: Record<string, unknown> = {
-    page_size: 100,
-  }
+  let databaseIndex = 0
+  let startCursor: string | undefined
 
   if (cursor) {
-    body.start_cursor = cursor
+    if (databaseIds.length === 1) {
+      // Single-database path: cursor is always a bare Notion `next_cursor` string,
+      // matching the legacy pre-multi-select format. Never JSON-decode here.
+      startCursor = cursor
+    } else {
+      try {
+        const parsed = JSON.parse(cursor) as unknown
+        if (
+          parsed &&
+          typeof parsed === 'object' &&
+          typeof (parsed as { databaseIndex?: unknown }).databaseIndex === 'number'
+        ) {
+          const compound = parsed as { databaseIndex: number; cursor?: string }
+          databaseIndex = compound.databaseIndex
+          startCursor = typeof compound.cursor === 'string' ? compound.cursor : undefined
+        } else {
+          // Legacy single-DB cursor carried forward into a now-multi-DB config:
+          // treat it as the start cursor for the first database.
+          startCursor = cursor
+        }
+      } catch {
+        startCursor = cursor
+      }
+    }
   }
 
-  logger.info('Querying Notion database', { databaseId, cursor })
+  const documents: ExternalDocument[] = []
+  let nextCursor: string | undefined
+  let hasMore = false
 
-  const response = await fetchWithRetry(`${NOTION_BASE_URL}/databases/${databaseId}/query`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Notion-Version': NOTION_API_VERSION,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
+  while (databaseIndex < databaseIds.length) {
+    const databaseId = databaseIds[databaseIndex]
+    const body: Record<string, unknown> = { page_size: 100 }
+    if (startCursor) body.start_cursor = startCursor
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    logger.error('Failed to query Notion database', { status: response.status, error: errorText })
-    throw new Error(`Failed to query Notion database: ${response.status}`)
+    logger.info('Querying Notion database', {
+      databaseId,
+      databaseIndex,
+      databaseCount: databaseIds.length,
+      startCursor,
+    })
+
+    const response = await fetchWithRetry(`${NOTION_BASE_URL}/databases/${databaseId}/query`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Notion-Version': NOTION_API_VERSION,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      logger.error('Failed to query Notion database', {
+        databaseId,
+        status: response.status,
+        error: errorText,
+      })
+      throw new Error(`Failed to query Notion database ${databaseId}: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const results = (data.results || []) as Record<string, unknown>[]
+    const pages = results.filter((r) => r.object === 'page' && !(r.archived as boolean))
+    documents.push(...pages.map(pageToStub))
+
+    if (data.has_more === true && typeof data.next_cursor === 'string') {
+      const nextStart = data.next_cursor as string
+      nextCursor =
+        databaseIds.length === 1 ? nextStart : JSON.stringify({ databaseIndex, cursor: nextStart })
+      hasMore = true
+      break
+    }
+
+    databaseIndex++
+    startCursor = undefined
+
+    if (databaseIndex < databaseIds.length) {
+      nextCursor =
+        databaseIds.length === 1 ? undefined : JSON.stringify({ databaseIndex, cursor: undefined })
+      hasMore = true
+      break
+    }
   }
-
-  const data = await response.json()
-  const results = (data.results || []) as Record<string, unknown>[]
-  const pages = results.filter((r) => r.object === 'page' && !(r.archived as boolean))
-
-  const documents = pages.map(pageToStub)
 
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
-  if (hitLimit && syncContext) syncContext.listingCapped = true
-
-  const nextCursor = hitLimit ? undefined : ((data.next_cursor as string) ?? undefined)
+  if (hitLimit) {
+    if (syncContext) syncContext.listingCapped = true
+    hasMore = false
+    nextCursor = undefined
+  }
 
   return {
     documents,
-    nextCursor,
-    hasMore: hitLimit ? false : data.has_more === true,
+    nextCursor: hasMore ? nextCursor : undefined,
+    hasMore,
   }
 }
 

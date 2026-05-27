@@ -23,11 +23,14 @@ import {
   FireworksIcon,
   GeminiIcon,
   GoogleIcon,
+  HunterIOIcon,
+  ImageIcon,
   JinaAIIcon,
   LinkupIcon,
   MistralIcon,
   OpenAIIcon,
   ParallelIcon,
+  PeopleDataLabsIcon,
   PerplexityIcon,
   SerperIcon,
 } from '@/components/icons'
@@ -84,6 +87,13 @@ const PROVIDERS: {
     icon: FireworksIcon,
     description: 'LLM calls',
     placeholder: 'Enter your Fireworks API key',
+  },
+  {
+    id: 'falai',
+    name: 'Fal.ai',
+    icon: ImageIcon,
+    description: 'Image and video generation',
+    placeholder: 'Enter your Fal.ai API key',
   },
   {
     id: 'firecrawl',
@@ -147,6 +157,20 @@ const PROVIDERS: {
     icon: BrandfetchIcon,
     description: 'Brand assets, logos, colors, and company info',
     placeholder: 'Enter your Brandfetch API key',
+  },
+  {
+    id: 'hunter',
+    name: 'Hunter',
+    icon: HunterIOIcon,
+    description: 'Email finder, verification, and domain search',
+    placeholder: 'Enter your Hunter.io API key',
+  },
+  {
+    id: 'peopledatalabs',
+    name: 'People Data Labs',
+    icon: PeopleDataLabsIcon,
+    description: 'Person and company enrichment, search, and identity',
+    placeholder: 'Enter your People Data Labs API key',
   },
 ]
 

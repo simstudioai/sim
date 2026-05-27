@@ -109,7 +109,7 @@ export const VisionV2Block: BlockConfig<VisionResponse> = {
   type: 'vision_v2',
   name: 'Vision',
   description: 'Analyze images with vision models',
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   tools: {
     access: ['vision_tool_v2'],
     config: {

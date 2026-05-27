@@ -7,10 +7,13 @@ import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
 import { AgentSkillsIcon } from '@/components/icons'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { SkillModal } from '@/app/workspace/[workspaceId]/settings/components/skills/components/skill-modal'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useSkills } from '@/hooks/queries/skills'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface StoredSkill {
   skillId: string
@@ -23,6 +26,7 @@ interface SkillInputProps {
   isPreview?: boolean
   previewValue?: unknown
   disabled?: boolean
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function SkillInput({
@@ -31,6 +35,7 @@ export function SkillInput({
   isPreview,
   previewValue,
   disabled,
+  activeSearchTarget,
 }: SkillInputProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -134,8 +139,16 @@ export function SkillInput({
         />
 
         {selectedSkills.length > 0 &&
-          selectedSkills.map((stored) => {
+          selectedSkills.map((stored, index) => {
             const fullSkill = workspaceSkills.find((s) => s.id === stored.skillId)
+            const skillName = resolveSkillName(stored)
+            const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+              activeSearchTarget,
+              blockId,
+              subBlockId,
+              valuePath: [index, 'name'],
+              label: skillName,
+            })
             return (
               <div
                 key={stored.skillId}
@@ -144,7 +157,7 @@ export function SkillInput({
                 <div
                   role='group'
                   tabIndex={fullSkill && !disabled && !isPreview ? 0 : undefined}
-                  aria-label={resolveSkillName(stored)}
+                  aria-label={skillName}
                   className='flex cursor-pointer items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-[6.5px]'
                   onClick={() => {
                     if (fullSkill && !disabled && !isPreview) {
@@ -165,7 +178,7 @@ export function SkillInput({
                       <AgentSkillsIcon className='size-[10px] text-[var(--border)]' />
                     </div>
                     <span className='truncate font-medium text-[var(--text-primary)] text-small'>
-                      {resolveSkillName(stored)}
+                      {formatDisplayText(skillName, { workflowSearchHighlight })}
                     </span>
                   </div>
                   <div className='flex flex-shrink-0 items-center gap-2'>

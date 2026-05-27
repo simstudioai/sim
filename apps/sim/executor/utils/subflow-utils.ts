@@ -4,6 +4,7 @@ import { DEFAULTS, LOOP, PARALLEL } from '@/executor/constants'
 import type { ContextExtensions } from '@/executor/execution/types'
 import { type BlockLog, type ExecutionContext, getNextExecutionOrder } from '@/executor/types'
 import { buildContainerIterationContext } from '@/executor/utils/iteration-context'
+import type { SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('SubflowUtils')
 
@@ -107,6 +108,12 @@ export function extractOuterBranchIndex(clonedId: string): number | undefined {
   return match ? Number.parseInt(match[1], 10) : undefined
 }
 
+export function extractInnermostOuterBranchIndex(clonedId: string): number | undefined {
+  const matches = Array.from(clonedId.matchAll(/__obranch-(\d+)/g))
+  const lastMatch = matches.at(-1)
+  return lastMatch ? Number.parseInt(lastMatch[1], 10) : undefined
+}
+
 /**
  * Strips all clone suffixes (`__obranch-N`) and branch subscripts (`₍N₎`)
  * from a node ID, returning the original workflow-level block ID.
@@ -118,10 +125,17 @@ export function stripCloneSuffixes(nodeId: string): string {
 }
 
 /**
+ * Builds a stable ID for an output scoped to a global outer parallel branch.
+ */
+export function buildOuterBranchScopedId(originalId: string, branchIndex: number): string {
+  return `${originalId}__obranch-${branchIndex}`
+}
+
+/**
  * Builds a cloned subflow ID from an original ID and outer branch index.
  */
 export function buildClonedSubflowId(originalId: string, branchIndex: number): string {
-  return `${originalId}__obranch-${branchIndex}`
+  return buildOuterBranchScopedId(originalId, branchIndex)
 }
 
 /**
@@ -146,8 +160,23 @@ export function stripOuterBranchSuffix(id: string): string {
 export function findEffectiveContainerId(
   originalId: string,
   currentNodeId: string,
-  executionMap: Map<string, unknown>
+  executionMap: Map<string, unknown>,
+  mappedBranchIndex?: number
 ): string {
+  if (mappedBranchIndex !== undefined && mappedBranchIndex > 0) {
+    const cloneSuffix = `__obranch-${mappedBranchIndex}`
+    const candidateId = buildClonedSubflowId(originalId, mappedBranchIndex)
+    if (executionMap.has(candidateId)) {
+      return candidateId
+    }
+
+    for (const scopeId of executionMap.keys()) {
+      if (scopeId.endsWith(cloneSuffix) && stripOuterBranchSuffix(scopeId) === originalId) {
+        return scopeId
+      }
+    }
+  }
+
   // Prefer the cloned variant when currentNodeId carries an __obranch-N suffix.
   // During concurrent parallel-in-loop execution both the original (branch 0)
   // and cloned variants coexist in the map; the clone is the correct scope.
@@ -195,6 +224,76 @@ export function normalizeNodeId(nodeId: string): string {
     return extractParallelIdFromSentinel(nodeId) || nodeId
   }
   return nodeId
+}
+
+type SubflowContainerType = 'loop' | 'parallel'
+
+function getSubflowNodes(
+  workflow: Pick<SerializedWorkflow, 'loops' | 'parallels'>,
+  type: SubflowContainerType,
+  id: string
+): string[] | undefined {
+  return type === 'loop' ? workflow.loops?.[id]?.nodes : workflow.parallels?.[id]?.nodes
+}
+
+export function subflowContainsBlock(
+  workflow: Pick<SerializedWorkflow, 'loops' | 'parallels'>,
+  containerType: SubflowContainerType,
+  containerId: string,
+  baseBlockId: string,
+  visited = new Set<string>()
+): boolean {
+  const visitKey = `${containerType}:${containerId}`
+  if (visited.has(visitKey)) return false
+  visited.add(visitKey)
+
+  const nodes = getSubflowNodes(workflow, containerType, containerId)
+  if (!nodes) return false
+
+  for (const nodeId of nodes) {
+    if (nodeId === baseBlockId) return true
+    if (workflow.loops?.[nodeId]) {
+      if (subflowContainsBlock(workflow, 'loop', nodeId, baseBlockId, visited)) return true
+    } else if (workflow.parallels?.[nodeId]) {
+      if (subflowContainsBlock(workflow, 'parallel', nodeId, baseBlockId, visited)) return true
+    }
+  }
+  return false
+}
+
+export function isSubflowNestedInside(
+  workflow: Pick<SerializedWorkflow, 'loops' | 'parallels'>,
+  childType: SubflowContainerType,
+  childId: string,
+  ancestorType: SubflowContainerType,
+  ancestorId: string,
+  visited = new Set<string>()
+): boolean {
+  const visitKey = `${ancestorType}:${ancestorId}`
+  if (visited.has(visitKey)) return false
+  visited.add(visitKey)
+
+  const nodes = getSubflowNodes(workflow, ancestorType, ancestorId)
+  if (!nodes) return false
+
+  for (const nodeId of nodes) {
+    if (
+      nodeId === childId &&
+      (childType === 'loop' ? workflow.loops?.[childId] : workflow.parallels?.[childId])
+    ) {
+      return true
+    }
+    if (workflow.loops?.[nodeId]) {
+      if (isSubflowNestedInside(workflow, childType, childId, 'loop', nodeId, visited)) {
+        return true
+      }
+    } else if (workflow.parallels?.[nodeId]) {
+      if (isSubflowNestedInside(workflow, childType, childId, 'parallel', nodeId, visited)) {
+        return true
+      }
+    }
+  }
+  return false
 }
 
 /**
@@ -263,76 +362,9 @@ export async function addSubflowErrorLog(
 }
 
 /**
- * Emits block log + SSE events for a loop/parallel that was skipped due to an
- * empty collection or false initial condition. This ensures the container block
- * appears in terminal logs, execution snapshots, and edge highlighting.
- */
-export async function emitEmptySubflowEvents(
-  ctx: ExecutionContext,
-  blockId: string,
-  blockType: 'loop' | 'parallel',
-  contextExtensions: ContextExtensions | null
-): Promise<void> {
-  const now = new Date().toISOString()
-  const executionOrder = getNextExecutionOrder(ctx)
-  const output = { results: [] }
-  const block = ctx.workflow?.blocks.find((b) => b.id === blockId)
-  const blockName = block?.metadata?.name ?? blockType
-  const iterationContext = buildContainerIterationContext(ctx, blockId)
-
-  ctx.blockLogs.push({
-    blockId,
-    blockName,
-    blockType,
-    startedAt: now,
-    endedAt: now,
-    durationMs: DEFAULTS.EXECUTION_TIME,
-    success: true,
-    output,
-    executionOrder,
-  })
-
-  if (contextExtensions?.onBlockStart) {
-    try {
-      await contextExtensions.onBlockStart(blockId, blockName, blockType, executionOrder)
-    } catch (error) {
-      logger.warn('Empty subflow start callback failed', {
-        blockId,
-        blockType,
-        error: toError(error).message,
-      })
-    }
-  }
-
-  if (contextExtensions?.onBlockComplete) {
-    try {
-      await contextExtensions.onBlockComplete(
-        blockId,
-        blockName,
-        blockType,
-        {
-          output,
-          executionTime: DEFAULTS.EXECUTION_TIME,
-          startedAt: now,
-          executionOrder,
-          endedAt: now,
-        },
-        iterationContext
-      )
-    } catch (error) {
-      logger.warn('Empty subflow completion callback failed', {
-        blockId,
-        blockType,
-        error: toError(error).message,
-      })
-    }
-  }
-}
-
-/**
  * Emits the BlockLog + onBlockComplete callback for a loop/parallel container that
- * finished successfully with at least one iteration. Without this, successful container
- * runs produce no top-level BlockLog, which forces the trace-span builder to fall back
+ * finished successfully. Without this, successful container runs produce no top-level BlockLog,
+ * which forces the trace-span builder to fall back
  * to generic counter-based names ("Loop 1", "Parallel 1") instead of the user-configured
  * block name.
  */

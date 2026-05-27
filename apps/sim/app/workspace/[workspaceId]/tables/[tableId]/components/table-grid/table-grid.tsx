@@ -11,7 +11,7 @@ import { TableX } from '@/components/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
-import type { ColumnDefinition, TableRow as TableRowType } from '@/lib/table'
+import type { ColumnDefinition, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -139,6 +139,10 @@ interface TableGridProps {
    */
   onOpenColumnConfig: (cfg: ColumnConfig) => void
   onOpenWorkflowConfig: (cfg: WorkflowConfig) => void
+  /** Open the enrichments list (Clay-style catalog) slideout. */
+  onOpenEnrichments: () => void
+  /** Open the enrichments slideout in edit mode for an existing enrichment group. */
+  onOpenEnrichmentConfig: (group: WorkflowGroup) => void
   onOpenExecutionDetails: (executionId: string) => void
   /** Open the row-edit modal for `row`. Wrapper renders the modal. */
   onOpenRowModal: (row: TableRowType) => void
@@ -243,6 +247,8 @@ export function TableGrid({
   sidebarReservedPx,
   onOpenColumnConfig,
   onOpenWorkflowConfig,
+  onOpenEnrichments,
+  onOpenEnrichmentConfig,
   onOpenExecutionDetails,
   onOpenRowModal,
   onRequestDeleteRows,
@@ -513,6 +519,11 @@ export function TableGrid({
     return expandToDisplayColumns(ordered, tableWorkflowGroups)
   }, [columns, columnOrder, tableWorkflowGroups])
 
+  const workflowGroupById = useMemo(
+    () => new Map(tableWorkflowGroups.map((g) => [g.id, g])),
+    [tableWorkflowGroups]
+  )
+
   const hasWorkflowColumns = columns.some((c) => !!c.workflowGroupId)
   const { colWidth: checkboxColWidth, numDivWidth } = checkboxColLayout(
     tableData?.maxRows ?? 0,
@@ -765,11 +776,14 @@ export function TableGrid({
         _exec?.status === 'pending' &&
         typeof _exec?.jobId === 'string' &&
         _exec.jobId.startsWith('paused-')
+      // Enrichment cells have no workflow execution trace to open.
+      const _isEnrichmentGroup = workflowGroupById.get(_gid)?.type === 'enrichment'
       contextMenuHasStartedRun =
-        _exec?.status === 'completed' ||
-        _exec?.status === 'error' ||
-        _exec?.status === 'running' ||
-        _isPaused
+        !_isEnrichmentGroup &&
+        (_exec?.status === 'completed' ||
+          _exec?.status === 'error' ||
+          _exec?.status === 'running' ||
+          _isPaused)
       contextMenuExecutionId = _exec?.executionId ?? null
     }
   }
@@ -2570,27 +2584,39 @@ export function TableGrid({
 
   /** Open the workflow-config sidebar to spawn a brand-new workflow group. */
   function handleAddWorkflowColumn() {
-    onOpenWorkflowConfig({ mode: 'create', proposedName: generateColumnName() })
+    onOpenWorkflowConfig({ mode: 'create', kind: 'manual', proposedName: generateColumnName() })
   }
 
   const handleConfigureColumn = useCallback(
     (columnName: string) => {
       const column = columnsRef.current.find((c) => c.name === columnName)
-      if (column?.workflowGroupId) {
-        // Workflow-output column header → single-output sub-mode.
+      const group = column?.workflowGroupId
+        ? workflowGroupById.get(column.workflowGroupId)
+        : undefined
+      // Enrichment output columns behave like plain columns (rename / type /
+      // unique) — route them to the normal column editor, not the workflow
+      // "Configure output column" panel.
+      if (column?.workflowGroupId && group?.type !== 'enrichment') {
         onOpenWorkflowConfig({ mode: 'edit-output', columnName })
       } else {
         onOpenColumnConfig({ mode: 'edit', columnName })
       }
     },
-    [onOpenColumnConfig, onOpenWorkflowConfig]
+    [onOpenColumnConfig, onOpenWorkflowConfig, workflowGroupById]
   )
 
   const handleConfigureWorkflowGroup = useCallback(
     (groupId: string) => {
+      const group = workflowGroupById.get(groupId)
+      // Enrichment groups have no workflow — route their config to the
+      // enrichments sidebar (edit mode) instead of the workflow sidebar.
+      if (group?.type === 'enrichment') {
+        onOpenEnrichmentConfig(group)
+        return
+      }
       onOpenWorkflowConfig({ mode: 'edit-group', groupId })
     },
-    [onOpenWorkflowConfig]
+    [onOpenEnrichmentConfig, onOpenWorkflowConfig, workflowGroupById]
   )
 
   const handleDeleteWorkflowGroup = useCallback((groupId: string) => {
@@ -2916,14 +2942,18 @@ export function TableGrid({
     // running/completed/error.
     const isPaused =
       status === 'pending' && typeof exec?.jobId === 'string' && exec.jobId.startsWith('paused-')
+    // Enrichment groups have no workflow execution to open — never offer "View
+    // execution" for them.
+    const isEnrichmentGroup = workflowGroupById.get(groupId)?.type === 'enrichment'
     return {
       rowId: row.id,
       groupId,
       executionId: exec?.executionId ?? null,
       canViewExecution:
-        status === 'completed' || status === 'error' || status === 'running' || isPaused,
+        !isEnrichmentGroup &&
+        (status === 'completed' || status === 'error' || status === 'running' || isPaused),
     }
-  }, [normalizedSelection, rows, displayColumns])
+  }, [normalizedSelection, rows, displayColumns, workflowGroupById])
 
   const tableWorkflowGroupIds = useMemo(
     () => tableWorkflowGroups.map((g) => g.id),
@@ -3160,6 +3190,9 @@ export function TableGrid({
                                 normalizedSelection.endCol >= g.startColIndex + g.size - 1
                               }
                               groupId={g.groupId}
+                              groupType={workflowGroupById.get(g.groupId)?.type}
+                              enrichmentId={workflowGroupById.get(g.groupId)?.enrichmentId}
+                              groupName={workflowGroupById.get(g.groupId)?.name}
                               onSelectGroup={handleGroupSelect}
                               onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
                               onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
@@ -3176,7 +3209,11 @@ export function TableGrid({
                               onDeleteGroup={
                                 userPermissions.canEdit ? handleDeleteWorkflowGroup : undefined
                               }
-                              onViewWorkflow={handleViewWorkflow}
+                              onViewWorkflow={
+                                workflowGroupById.get(g.groupId)?.type === 'enrichment'
+                                  ? undefined
+                                  : handleViewWorkflow
+                              }
                               readOnly={!userPermissions.canEdit}
                               onDragStart={
                                 userPermissions.canEdit ? handleColumnDragStart : undefined
@@ -3251,6 +3288,7 @@ export function TableGrid({
                           disabled={addColumnMutation.isPending}
                           onPickType={handleAddColumnOfType}
                           onPickWorkflow={handleAddWorkflowColumn}
+                          onPickEnrichment={onOpenEnrichments}
                         />
                       )}
                     </tr>

@@ -1,6 +1,7 @@
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
+import { COMPARISON_OPERATORS, LOGICAL_OPERATORS } from '@/lib/table/query-builder/constants'
 import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import {
   getSearchableJsonStringLeaves,
@@ -43,6 +44,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { isReference } from '@/executor/constants'
 import type { SelectorContext } from '@/hooks/selectors/types'
 import {
+  formatParameterLabel,
   getSubBlocksForToolInput,
   getToolIdForOperation,
   getToolParametersConfig,
@@ -98,7 +100,6 @@ const PLAIN_TEXT_EXCLUDED_SUBBLOCK_TYPES = new Set<SubBlockType>([
   'sort-builder',
   'time-input',
   'file-upload',
-  'mcp-dynamic-args',
   'modal',
   'schedule-info',
   'slider',
@@ -115,6 +116,7 @@ const DISPLAY_ONLY_SUBBLOCK_TYPES = new Set<SubBlockType>([
 ])
 
 const TEXT_VALUE_ONLY_SUBBLOCK_TYPES = new Set<SubBlockType>(['filter-builder', 'variables-input'])
+const DISPLAY_LABEL_READONLY_REASON = 'Display labels cannot be replaced'
 
 const TOOL_INPUT_TEXT_EXCLUDED_LEAF_KEYS = new Set([
   'type',
@@ -132,6 +134,11 @@ const TOOL_INPUT_TEXT_EXCLUDED_LEAF_KEYS = new Set([
 const TOOL_INPUT_TEXT_EXCLUDED_PATH_KEYS = new Set(['schema'])
 
 type WorkflowSearchSubBlockConfig = Pick<SubBlockConfig, 'id' | 'type'> & Partial<SubBlockConfig>
+type DisplayLabelLeaf = { value: string; path: WorkflowSearchValuePath; fieldTitle?: string }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
 
 function looksLikeStoredSkillList(value: unknown): boolean {
   return (
@@ -258,6 +265,257 @@ function getTextLeaves(value: unknown, subBlockType: SubBlockType | undefined) {
       ...leaf,
       fieldTitle: getStructuredFieldTitle(subBlockType, leaf.path),
     }))
+}
+
+function getSelectedOptionValues(value: unknown, multiSelect?: boolean): string[] {
+  if (multiSelect) {
+    if (Array.isArray(value))
+      return value.filter((item): item is string => typeof item === 'string')
+    return typeof value === 'string' && value.length > 0 ? [value] : []
+  }
+  return typeof value === 'string' && value.length > 0 ? [value] : []
+}
+
+function getStaticOptionLabels(subBlockConfig?: WorkflowSearchSubBlockConfig): Map<string, string> {
+  const options = subBlockConfig?.options
+  if (!Array.isArray(options)) return new Map()
+  return new Map(
+    options.flatMap((option) => {
+      if (typeof option === 'string') return [[option, option] as const]
+      return [[option.id, option.label] as const]
+    })
+  )
+}
+
+function formatTimeInputDisplayLabel(value: string): string {
+  const [hours, minutes] = value.split(':')
+  const hour = Number.parseInt(hours ?? '', 10)
+  if (!Number.isFinite(hour) || !minutes) return value
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour % 12 || 12
+  return `${displayHour}:${minutes} ${ampm}`
+}
+
+function getOptionLabelLeaves(
+  subBlockConfig: WorkflowSearchSubBlockConfig | undefined,
+  fieldTitle: string | undefined,
+  basePath: string
+): DisplayLabelLeaf[] {
+  const options = subBlockConfig?.options
+  if (!Array.isArray(options)) return []
+  return options.flatMap((option, index) => {
+    if (typeof option === 'string') {
+      return [{ value: option, path: [basePath, index], fieldTitle }]
+    }
+    return option.label ? [{ value: option.label, path: [basePath, index], fieldTitle }] : []
+  })
+}
+
+function getMcpDynamicArgEnumLabelLeaves(value: unknown, schema: unknown): DisplayLabelLeaf[] {
+  const parsedValue = typeof value === 'string' ? safeParseJson(value) : value
+  if (!isRecord(parsedValue) || !isRecord(schema) || !isRecord(schema.properties)) return []
+
+  return Object.entries(schema.properties).flatMap(([paramName, paramSchema]) => {
+    if (!isRecord(paramSchema) || !Array.isArray(paramSchema.enum)) return []
+    const selectedValue = parsedValue[paramName]
+    if (selectedValue === undefined || selectedValue === null || selectedValue === '') return []
+    return [
+      {
+        value: String(selectedValue),
+        path: [paramName],
+        fieldTitle: formatParameterLabel(paramName),
+      },
+    ]
+  })
+}
+
+function getDisplayLabelLeaves({
+  value,
+  subBlockConfig,
+  subBlockType,
+}: {
+  value: unknown
+  subBlockConfig?: WorkflowSearchSubBlockConfig
+  subBlockType: SubBlockType
+}): DisplayLabelLeaf[] {
+  if (subBlockType === 'table') {
+    return (subBlockConfig?.columns ?? []).map((column, index) => ({
+      value: column,
+      path: ['columns', index],
+      fieldTitle: 'Column',
+    }))
+  }
+
+  if (subBlockType === 'checkbox-list' || subBlockType === 'grouped-checkbox-list') {
+    return getOptionLabelLeaves(subBlockConfig, subBlockConfig?.title, 'options')
+  }
+
+  if (subBlockType === 'time-input') {
+    return typeof value === 'string' && value.length > 0
+      ? [{ value: formatTimeInputDisplayLabel(value), path: [], fieldTitle: subBlockConfig?.title }]
+      : []
+  }
+
+  if (subBlockType === 'variables-input') {
+    const parsed = typeof value === 'string' ? safeParseJson(value) : value
+    if (!Array.isArray(parsed)) return []
+    return parsed.flatMap((assignment, index) => {
+      if (!assignment || typeof assignment !== 'object' || Array.isArray(assignment)) return []
+      const variableName = (assignment as Record<string, unknown>).variableName
+      return typeof variableName === 'string' && variableName.length > 0
+        ? [{ value: variableName, path: [index, 'variableName'], fieldTitle: 'Variable' }]
+        : []
+    })
+  }
+
+  if (subBlockType === 'skill-input') {
+    const parsed = typeof value === 'string' ? safeParseJson(value) : value
+    if (!Array.isArray(parsed)) return []
+    return parsed.flatMap((skill, index) => {
+      if (!skill || typeof skill !== 'object' || Array.isArray(skill)) return []
+      const name = (skill as Record<string, unknown>).name
+      return typeof name === 'string' && name.length > 0
+        ? [{ value: name, path: [index, 'name'], fieldTitle: subBlockConfig?.title ?? 'Skill' }]
+        : []
+    })
+  }
+
+  if (subBlockType === 'sort-builder') {
+    const directionLabels: Record<string, string> = { asc: 'ascending', desc: 'descending' }
+    const parsed = typeof value === 'string' ? safeParseJson(value) : value
+    if (!Array.isArray(parsed)) return []
+    return parsed.flatMap((rule, index) => {
+      if (!rule || typeof rule !== 'object' || Array.isArray(rule)) return []
+      const record = rule as Record<string, unknown>
+      const leaves: Array<{ value: string; path: WorkflowSearchValuePath; fieldTitle?: string }> =
+        []
+      if (typeof record.column === 'string' && record.column.length > 0) {
+        leaves.push({ value: record.column, path: [index, 'column'], fieldTitle: 'Column' })
+      }
+      if (typeof record.direction === 'string' && record.direction.length > 0) {
+        leaves.push({
+          value: directionLabels[record.direction] ?? record.direction,
+          path: [index, 'direction'],
+          fieldTitle: 'Direction',
+        })
+      }
+      return leaves
+    })
+  }
+
+  if (subBlockType === 'filter-builder') {
+    const operatorLabels = new Map<string, string>(
+      COMPARISON_OPERATORS.map((option) => [option.value, option.label])
+    )
+    const logicalLabels = new Map<string, string>(
+      LOGICAL_OPERATORS.map((option) => [option.value, option.label])
+    )
+    const parsed = typeof value === 'string' ? safeParseJson(value) : value
+    if (!Array.isArray(parsed)) return []
+    return parsed.flatMap((rule, index) => {
+      if (!rule || typeof rule !== 'object' || Array.isArray(rule)) return []
+      const record = rule as Record<string, unknown>
+      const leaves: DisplayLabelLeaf[] = []
+      if (typeof record.column === 'string' && record.column.length > 0) {
+        leaves.push({ value: record.column, path: [index, 'column'], fieldTitle: 'Column' })
+      }
+      if (typeof record.operator === 'string' && record.operator.length > 0) {
+        leaves.push({
+          value: operatorLabels.get(record.operator) ?? record.operator,
+          path: [index, 'operator'],
+          fieldTitle: 'Operator',
+        })
+      }
+      if (
+        index > 0 &&
+        typeof record.logicalOperator === 'string' &&
+        record.logicalOperator.length > 0
+      ) {
+        leaves.push({
+          value: logicalLabels.get(record.logicalOperator) ?? record.logicalOperator,
+          path: [index, 'logicalOperator'],
+          fieldTitle: 'Logic',
+        })
+      }
+      return leaves
+    })
+  }
+
+  if (subBlockType !== 'dropdown' && subBlockType !== 'combobox') return []
+
+  const optionLabels = getStaticOptionLabels(subBlockConfig)
+  if (optionLabels.size === 0) return []
+  return getSelectedOptionValues(value, subBlockConfig?.multiSelect).flatMap(
+    (selectedValue, index) => {
+      const optionLabel = optionLabels.get(selectedValue)
+      const label = subBlockType === 'dropdown' ? optionLabel?.toLowerCase() : optionLabel
+      if (!label) return []
+      return [
+        {
+          value: label,
+          path: subBlockConfig?.multiSelect ? [index] : [],
+          fieldTitle: subBlockConfig?.title,
+        },
+      ]
+    }
+  )
+}
+
+function addDisplayLabelMatches({
+  matches,
+  block,
+  subBlockId,
+  canonicalSubBlockId,
+  subBlockType,
+  subBlockConfig,
+  value,
+  query,
+  caseSensitive,
+  protectedByLock,
+  isSnapshotView,
+  basePath = [],
+}: {
+  matches: WorkflowSearchMatch[]
+  block: WorkflowSearchBlockState
+  subBlockId: string
+  canonicalSubBlockId: string
+  subBlockType: SubBlockType
+  subBlockConfig?: WorkflowSearchSubBlockConfig
+  value: unknown
+  query?: string
+  caseSensitive: boolean
+  protectedByLock: boolean
+  isSnapshotView: boolean
+  basePath?: WorkflowSearchValuePath
+}) {
+  for (const leaf of getDisplayLabelLeaves({ value, subBlockConfig, subBlockType })) {
+    addTextMatches({
+      matches,
+      idPrefix: 'display-label',
+      block,
+      subBlockId,
+      canonicalSubBlockId,
+      subBlockType,
+      fieldTitle: leaf.fieldTitle ?? subBlockConfig?.title,
+      value: leaf.value,
+      valuePath: [...basePath, ...leaf.path],
+      target: { kind: 'subblock' },
+      query,
+      caseSensitive,
+      editable: false,
+      protectedByLock,
+      isSnapshotView,
+      readonlyReason: DISPLAY_LABEL_READONLY_REASON,
+    })
+  }
+}
+
+function safeParseJson(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
 }
 
 function scopeToolCanonicalModes(
@@ -719,10 +977,10 @@ function addToolInputMatches({
         target: { kind: 'subblock' },
         query,
         caseSensitive,
-        editable,
+        editable: false,
         protectedByLock,
         isSnapshotView,
-        readonlyReason,
+        readonlyReason: DISPLAY_LABEL_READONLY_REASON,
       })
     }
 
@@ -746,6 +1004,21 @@ function addToolInputMatches({
       const nestedDependentValuePaths = dependentValuePaths?.map((path) => [toolIndex, ...path])
 
       if (mode !== 'resource' && !structuredResourceKind) {
+        addDisplayLabelMatches({
+          matches,
+          block,
+          subBlockId,
+          canonicalSubBlockId,
+          subBlockType,
+          subBlockConfig: config,
+          value: paramValue,
+          query,
+          caseSensitive,
+          protectedByLock,
+          isSnapshotView,
+          basePath,
+        })
+
         for (const leaf of getTextLeaves(paramValue, subBlockType)) {
           const leafEditable = editable && typeof leaf.originalValue === 'string'
           addTextMatches({
@@ -857,7 +1130,7 @@ function addToolInputMatches({
           canonicalSubBlockId,
           subBlockType,
           fieldTitle: config.title,
-          valuePath: basePath,
+          valuePath: [...basePath, ...(reference.valuePath ?? [])],
           target: { kind: 'subblock' },
           kind: reference.kind,
           rawValue: reference.rawValue,
@@ -1034,6 +1307,7 @@ export function indexWorkflowSearchMatches(
 
     for (const [subBlockId, subBlockState] of Object.entries(block.subBlocks ?? {})) {
       if (isSyntheticToolSubBlockId(subBlockId)) continue
+      if (subBlockId.startsWith('_')) continue
       const subBlockConfig = configsById.get(subBlockId)
       if (subBlockConfig?.hidden) continue
       if (subBlockConfig && !isSubBlockFeatureEnabled(subBlockConfig)) continue
@@ -1102,8 +1376,57 @@ export function indexWorkflowSearchMatches(
         continue
       }
 
+      if (mode !== 'resource') {
+        addDisplayLabelMatches({
+          matches,
+          block,
+          subBlockId,
+          canonicalSubBlockId,
+          subBlockType,
+          subBlockConfig,
+          value,
+          query,
+          caseSensitive,
+          protectedByLock,
+          isSnapshotView,
+        })
+
+        if (subBlockType === 'mcp-dynamic-args') {
+          for (const leaf of getMcpDynamicArgEnumLabelLeaves(value, subBlockValues._toolSchema)) {
+            addTextMatches({
+              matches,
+              idPrefix: 'mcp-dynamic-args-display-label',
+              block,
+              subBlockId,
+              canonicalSubBlockId,
+              subBlockType,
+              fieldTitle: leaf.fieldTitle ?? subBlockConfig?.title,
+              value: leaf.value,
+              valuePath: leaf.path,
+              target: { kind: 'subblock' },
+              query,
+              caseSensitive,
+              editable: false,
+              protectedByLock,
+              isSnapshotView,
+              readonlyReason: DISPLAY_LABEL_READONLY_REASON,
+            })
+          }
+        }
+      }
+
       if (mode !== 'resource' && !structuredResourceKind) {
-        const textLeaves = getTextLeaves(value, subBlockType)
+        const mcpDynamicEnumPathKeys =
+          subBlockType === 'mcp-dynamic-args'
+            ? new Set(
+                getMcpDynamicArgEnumLabelLeaves(value, subBlockValues._toolSchema).map((leaf) =>
+                  pathToKey(leaf.path)
+                )
+              )
+            : undefined
+        const textLeaves = getTextLeaves(value, subBlockType).filter(
+          (leaf) => !mcpDynamicEnumPathKeys?.has(pathToKey(leaf.path))
+        )
         for (const leaf of textLeaves) {
           const leafEditable = editable && typeof leaf.originalValue === 'string'
           addTextMatches({
@@ -1216,7 +1539,7 @@ export function indexWorkflowSearchMatches(
           canonicalSubBlockId,
           subBlockType: subBlockConfig?.type ?? subBlockState.type,
           fieldTitle: subBlockConfig?.title,
-          valuePath: [],
+          valuePath: reference.valuePath ?? [],
           target: { kind: 'subblock' },
           kind: reference.kind,
           rawValue: reference.rawValue,

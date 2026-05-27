@@ -162,12 +162,29 @@ export function validateRunFromBlock(
   const isLoopContainer = dag.loopConfigs.has(blockId)
   const isParallelContainer = dag.parallelConfigs.has(blockId)
   const isContainer = isLoopContainer || isParallelContainer
+  let validationNode = node
 
   if (!node && !isContainer) {
     return { valid: false, error: `Block not found in workflow: ${blockId}` }
   }
 
   if (isContainer) {
+    const parentLoopId = findParentLoop(blockId, dag)
+    if (parentLoopId) {
+      return {
+        valid: false,
+        error: `Cannot run from block inside loop: ${parentLoopId}`,
+      }
+    }
+
+    const parentParallelId = findParentParallel(blockId, dag)
+    if (parentParallelId) {
+      return {
+        valid: false,
+        error: `Cannot run from block inside parallel: ${parentParallelId}`,
+      }
+    }
+
     const sentinelStartId = resolveContainerToSentinelStart(blockId, dag)
     if (!sentinelStartId || !dag.nodes.has(sentinelStartId)) {
       return {
@@ -175,29 +192,32 @@ export function validateRunFromBlock(
         error: `Container sentinel not found for: ${blockId}`,
       }
     }
+    validationNode = dag.nodes.get(sentinelStartId)
   }
 
   if (node) {
     if (node.metadata.isLoopNode) {
       return {
         valid: false,
-        error: `Cannot run from block inside loop: ${node.metadata.loopId}`,
+        error: `Cannot run from block inside loop: ${node.metadata.subflowId}`,
       }
     }
 
     if (node.metadata.isParallelBranch) {
       return {
         valid: false,
-        error: `Cannot run from block inside parallel: ${node.metadata.parallelId}`,
+        error: `Cannot run from block inside parallel: ${node.metadata.subflowId}`,
       }
     }
 
     if (node.metadata.isSentinel) {
       return { valid: false, error: 'Cannot run from sentinel node' }
     }
+  }
 
+  if (validationNode) {
     // Check immediate upstream dependencies were executed
-    for (const sourceId of node.incomingEdges) {
+    for (const sourceId of validationNode.incomingEdges) {
       const sourceNode = dag.nodes.get(sourceId)
       // Skip sentinel nodes - they're internal and not in executedBlocks
       if (sourceNode?.metadata.isSentinel) continue
@@ -216,4 +236,22 @@ export function validateRunFromBlock(
   }
 
   return { valid: true }
+}
+
+function findParentLoop(blockId: string, dag: DAG): string | undefined {
+  for (const [loopId, config] of dag.loopConfigs) {
+    if (loopId !== blockId && config.nodes?.includes(blockId)) {
+      return loopId
+    }
+  }
+  return undefined
+}
+
+function findParentParallel(blockId: string, dag: DAG): string | undefined {
+  for (const [parallelId, config] of dag.parallelConfigs) {
+    if (parallelId !== blockId && config.nodes?.includes(blockId)) {
+      return parallelId
+    }
+  }
+  return undefined
 }

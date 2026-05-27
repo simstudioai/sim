@@ -1,5 +1,9 @@
 import type { PdlPersonEnrichParams, PdlPersonEnrichResponse } from '@/tools/peopledatalabs/types'
-import { PDL_PERSON_OUTPUT_PROPERTIES } from '@/tools/peopledatalabs/types'
+import {
+  PDL_CREDIT_USD,
+  PDL_PERSON_OUTPUT_PROPERTIES,
+  PEOPLEDATALABS_API_KEY_PREFIX,
+} from '@/tools/peopledatalabs/types'
 import { buildQueryString, projectPerson } from '@/tools/peopledatalabs/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +13,24 @@ export const personEnrichTool: ToolConfig<PdlPersonEnrichParams, PdlPersonEnrich
   description:
     'Enrich a single person profile using People Data Labs. Match by email, phone, LinkedIn URL, or name + company/location. Returns work history, contact details, location, and skills.',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: PEOPLEDATALABS_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'peopledatalabs',
+    pricing: {
+      type: 'custom',
+      // PDL charges 1 credit per matched request; misses (404) are free.
+      getCost: (_params, output) => {
+        const cost = output.matched === true ? PDL_CREDIT_USD : 0
+        return { cost, metadata: { credits: output.matched === true ? 1 : 0 } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  },
 
   params: {
     apiKey: {

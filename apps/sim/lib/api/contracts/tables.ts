@@ -716,13 +716,24 @@ export const deleteTableRowsContract = defineRouteContract({
 // ============================================================================
 
 const workflowGroupOutputSchema = z.object({
-  blockId: z.string().min(1),
-  path: z.string().min(1),
+  // Workflow outputs carry blockId/path; enrichment outputs carry outputId and
+  // leave these empty. `.default('')` keeps the parsed value a plain string.
+  blockId: z.string().default(''),
+  path: z.string().default(''),
+  outputId: z.string().optional(),
   columnName: z.string().min(1),
 })
 
 const workflowGroupDependenciesSchema = z.object({
   columns: z.array(z.string()).optional(),
+})
+
+const workflowGroupTypeSchema = z.enum(['manual', 'enrichment'])
+
+/** One workflow Start-block input field ← one table column. */
+const workflowGroupInputMappingSchema = z.object({
+  inputName: z.string().min(1, 'inputName cannot be empty'),
+  columnName: z.string().min(1, 'columnName cannot be empty'),
 })
 
 const workflowGroupOutputColumnSchema = z.object({
@@ -741,10 +752,17 @@ export const addWorkflowGroupBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   group: z.object({
     id: z.string().min(1),
-    workflowId: z.string().min(1),
+    /** Workflow id for manual groups; `''` (or omitted) for enrichment groups. */
+    workflowId: z.string().default(''),
+    /** Registry enrichment id for enrichment groups. */
+    enrichmentId: z.string().min(1).optional(),
     name: z.string().optional(),
+    /** Provenance of the group; defaults to `'manual'` when omitted. */
+    type: workflowGroupTypeSchema.optional(),
     dependencies: workflowGroupDependenciesSchema.optional(),
     outputs: z.array(workflowGroupOutputSchema).min(1),
+    /** Maps the workflow's Start-block inputs to table columns. */
+    inputMappings: z.array(workflowGroupInputMappingSchema).optional(),
     /** When `false`, the group never auto-fires from the scheduler — it can
      *  only be triggered manually. Defaults to `true`. Persisted on the
      *  group; distinct from the top-level `autoRun` below which is a
@@ -787,6 +805,10 @@ export const updateWorkflowGroupBodySchema = z.object({
    * `columnName` must already exist in the group's outputs.
    */
   mappingUpdates: z.array(workflowGroupMappingUpdateSchema).optional(),
+  /** Replace the group's input mappings. Omit to leave unchanged. */
+  inputMappings: z.array(workflowGroupInputMappingSchema).optional(),
+  /** Update the group's provenance. Omit to leave unchanged. */
+  type: workflowGroupTypeSchema.optional(),
   /** Toggle the group's persisted auto-run flag. Omit to leave unchanged. */
   autoRun: z.boolean().optional(),
 })
