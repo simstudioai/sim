@@ -123,6 +123,7 @@ export const sixtyfourEnrichCompanyTool: ToolConfig<
         structuredData: data.structured_data ?? {},
         references: data.references ?? {},
         confidenceScore: data.confidence_score ?? null,
+        orgChart: data.org_chart ?? null,
       },
     }
   },
@@ -137,6 +138,11 @@ export const sixtyfourEnrichCompanyTool: ToolConfig<
     confidenceScore: {
       type: 'number',
       description: 'Quality score for the returned data (0-10)',
+      optional: true,
+    },
+    orgChart: {
+      type: 'json',
+      description: 'Org chart returned when fullOrgChart is enabled',
       optional: true,
     },
   },
