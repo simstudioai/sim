@@ -11,12 +11,27 @@ const {
   mockGetTableById,
   mockBatchInsertRows,
   mockReplaceTableRows,
+  mockAddWorkflowGroup,
+  fakeEnrichment,
 } = vi.hoisted(() => ({
   mockResolveWorkspaceFileReference: vi.fn(),
   mockDownloadWorkspaceFile: vi.fn(),
   mockGetTableById: vi.fn(),
   mockBatchInsertRows: vi.fn(),
   mockReplaceTableRows: vi.fn(),
+  mockAddWorkflowGroup: vi.fn(),
+  fakeEnrichment: {
+    id: 'work-email',
+    name: 'Work Email',
+    description: 'Find work email',
+    icon: () => null,
+    inputs: [
+      { id: 'fullName', name: 'Full name', type: 'string', required: true },
+      { id: 'companyDomain', name: 'Company domain', type: 'string', required: true },
+    ],
+    outputs: [{ id: 'email', name: 'email', type: 'string' }],
+    providers: [],
+  },
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -29,8 +44,14 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   fetchWorkspaceFileBuffer: mockDownloadWorkspaceFile,
 }))
 
+vi.mock('@/enrichments/registry', () => ({
+  ALL_ENRICHMENTS: [fakeEnrichment],
+  getEnrichment: (id: string) => (id === fakeEnrichment.id ? fakeEnrichment : undefined),
+}))
+
 vi.mock('@/lib/table/service', () => ({
   addTableColumn: vi.fn(),
+  addWorkflowGroup: mockAddWorkflowGroup,
   batchInsertRows: mockBatchInsertRows,
   batchUpdateRows: vi.fn(),
   createTable: vi.fn(),
@@ -208,5 +229,170 @@ describe('userTableServerTool.import_file', () => {
     expect(result.success).toBe(false)
     expect(result.message).toMatch(/missing required columns/i)
     expect(mockBatchInsertRows).not.toHaveBeenCalled()
+  })
+})
+
+describe('userTableServerTool.list_enrichments', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns the enrichment catalog metadata', async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'list_enrichments', args: {} },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.data?.enrichments).toEqual([
+      {
+        id: 'work-email',
+        name: 'Work Email',
+        description: 'Find work email',
+        inputs: [
+          { id: 'fullName', name: 'Full name', type: 'string', required: true },
+          { id: 'companyDomain', name: 'Company domain', type: 'string', required: true },
+        ],
+        outputs: [{ id: 'email', name: 'email', type: 'string' }],
+      },
+    ])
+  })
+})
+
+describe('userTableServerTool.add_enrichment', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(
+      buildTable({
+        schema: {
+          columns: [
+            { name: 'name', type: 'string' },
+            { name: 'company', type: 'string' },
+          ],
+        },
+      })
+    )
+    mockAddWorkflowGroup.mockResolvedValue(buildTable())
+  })
+
+  it('creates an enrichment group with mapped inputs and derived output columns', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'add_enrichment',
+        args: {
+          tableId: 'tbl_1',
+          enrichmentId: 'work-email',
+          inputMappings: [
+            { inputName: 'fullName', columnName: 'name' },
+            { inputName: 'companyDomain', columnName: 'company' },
+          ],
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.data?.groupId).toBe('deadbeefcafef00d')
+    expect(mockAddWorkflowGroup).toHaveBeenCalledTimes(1)
+    const call = mockAddWorkflowGroup.mock.calls[0][0]
+    expect(call.autoRun).toBe(false)
+    expect(call.group).toMatchObject({
+      type: 'enrichment',
+      enrichmentId: 'work-email',
+      workflowId: '',
+      autoRun: false,
+      dependencies: { columns: ['name', 'company'] },
+      inputMappings: [
+        { inputName: 'fullName', columnName: 'name' },
+        { inputName: 'companyDomain', columnName: 'company' },
+      ],
+      outputs: [{ blockId: '', path: '', outputId: 'email', columnName: 'email' }],
+    })
+    expect(call.outputColumns).toEqual([
+      {
+        name: 'email',
+        type: 'string',
+        required: false,
+        unique: false,
+        workflowGroupId: 'deadbeefcafef00d',
+      },
+    ])
+  })
+
+  it('enables auto-run when explicitly requested', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'add_enrichment',
+        args: {
+          tableId: 'tbl_1',
+          enrichmentId: 'work-email',
+          inputMappings: [
+            { inputName: 'fullName', columnName: 'name' },
+            { inputName: 'companyDomain', columnName: 'company' },
+          ],
+          autoRun: true,
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.message).toMatch(/auto-run enabled/)
+    const call = mockAddWorkflowGroup.mock.calls[0][0]
+    expect(call.autoRun).toBe(true)
+    expect(call.group.autoRun).toBe(true)
+  })
+
+  it('rejects an unknown enrichment id', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'add_enrichment',
+        args: { tableId: 'tbl_1', enrichmentId: 'nope', inputMappings: [] },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/Unknown enrichment/)
+    expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
+  })
+
+  it('rejects when a required input is unmapped', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'add_enrichment',
+        args: {
+          tableId: 'tbl_1',
+          enrichmentId: 'work-email',
+          inputMappings: [{ inputName: 'fullName', columnName: 'name' }],
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/requires input "companyDomain"/)
+    expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
+  })
+
+  it('rejects when a mapped column does not exist on the table', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'add_enrichment',
+        args: {
+          tableId: 'tbl_1',
+          enrichmentId: 'work-email',
+          inputMappings: [
+            { inputName: 'fullName', columnName: 'name' },
+            { inputName: 'companyDomain', columnName: 'missing_col' },
+          ],
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/does not exist/)
+    expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
   })
 })
