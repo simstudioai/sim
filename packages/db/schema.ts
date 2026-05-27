@@ -609,6 +609,7 @@ export const workflowSchedule = pgTable(
     triggerType: text('trigger_type').notNull(), // "manual", "webhook", "schedule"
     timezone: text('timezone').notNull().default('UTC'),
     failedCount: integer('failed_count').notNull().default(0),
+    infraRetryCount: integer('infra_retry_count').notNull().default(0),
     status: text('status').notNull().default('active'), // 'active', 'disabled', or 'completed'
     lastFailedAt: timestamp('last_failed_at'),
     sourceType: text('source_type').notNull().default('workflow'), // 'workflow' or 'job'
@@ -644,6 +645,16 @@ export const workflowSchedule = pgTable(
       sourceWorkspaceSourceTypeIdx: index(
         'idx_workflow_schedule_on_source_workspace_id_source_t_c07f3bba6'
       ).on(table.sourceWorkspaceId, table.sourceType, table.archivedAt, table.status),
+      dueWorkflowIdx: index('workflow_schedule_due_workflow_idx')
+        .on(table.nextRunAt, table.lastQueuedAt, table.deploymentVersionId, table.workflowId)
+        .where(
+          sql`${table.archivedAt} IS NULL AND ${table.status} NOT IN ('disabled', 'completed') AND (${table.sourceType} = 'workflow' OR ${table.sourceType} IS NULL)`
+        ),
+      dueJobIdx: index('workflow_schedule_due_job_idx')
+        .on(table.nextRunAt, table.lastQueuedAt)
+        .where(
+          sql`${table.archivedAt} IS NULL AND ${table.status} NOT IN ('disabled', 'completed') AND ${table.sourceType} = 'job'`
+        ),
     }
   }
 )
@@ -2680,6 +2691,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'mothership_block',
   'knowledge-base',
   'voice-input',
+  'enrichment',
 ])
 
 export const usageLog = pgTable(
@@ -3013,6 +3025,12 @@ export const asyncJobs = pgTable(
       table.status,
       table.completedAt
     ),
+    schedulePendingRunAtIdx: index('async_jobs_schedule_pending_run_at_idx')
+      .on(table.runAt, table.createdAt, table.id)
+      .where(sql`${table.type} = 'schedule-execution' AND ${table.status} = 'pending'`),
+    scheduleProcessingStartedAtIdx: index('async_jobs_schedule_processing_started_at_idx')
+      .on(table.startedAt, table.id)
+      .where(sql`${table.type} = 'schedule-execution' AND ${table.status} = 'processing'`),
   })
 )
 
@@ -3227,6 +3245,15 @@ export const tableRunDispatches = pgTable(
     status: text('status').notNull().default('pending'),
     /** Highest `user_table_rows.position` we've already enqueued cells for. */
     cursor: integer('cursor').notNull().default(0),
+    /** Optional cap on how much work the dispatch does before completing.
+     *  `{ type: 'rows', max: number }` today; the discriminated shape lets
+     *  future caps (cells, cost, duration) extend without a schema change.
+     *  Null = unbounded (process every row in scope). */
+    limit: jsonb('limit'),
+    /** Units of `limit.type` already consumed (eligible rows dispatched, for
+     *  `type: 'rows'`). Mutable counter the dispatcher advances per window so
+     *  the budget survives across the checkpointed waits between windows. */
+    processedCount: integer('processed_count').notNull().default(0),
     /** When true, eligibility bypasses `autoRun: false` skip and treats
      *  terminal states as re-runnable. Auto-fire paths (row inserts,
      *  CSV import, addWorkflowGroup) set this to false so the dispatch

@@ -8,6 +8,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
+import { HttpError } from '@/lib/core/utils/http-error'
 
 export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 export interface WorkspaceBasic {
@@ -153,7 +154,7 @@ export async function checkWorkspaceAccess(
  * centralized route wrapper maps it to HTTP 403 instead of defaulting to 500.
  * The `message` is intentionally client-safe and is exposed to API responses.
  */
-export class WorkspaceAccessDeniedError extends Error {
+export class WorkspaceAccessDeniedError extends HttpError {
   readonly statusCode = 403
   readonly workspaceId: string
 

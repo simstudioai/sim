@@ -8,10 +8,10 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { Skeleton, toast, useToast } from '@/components/emcn'
 import { TableX } from '@/components/emcn/icons'
-import type { RunMode } from '@/lib/api/contracts/tables'
+import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
-import type { ColumnDefinition, TableRow as TableRowType } from '@/lib/table'
+import type { ColumnDefinition, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -139,6 +139,10 @@ interface TableGridProps {
    */
   onOpenColumnConfig: (cfg: ColumnConfig) => void
   onOpenWorkflowConfig: (cfg: WorkflowConfig) => void
+  /** Open the enrichments list (Clay-style catalog) slideout. */
+  onOpenEnrichments: () => void
+  /** Open the enrichments slideout in edit mode for an existing enrichment group. */
+  onOpenEnrichmentConfig: (group: WorkflowGroup) => void
   onOpenExecutionDetails: (executionId: string) => void
   /** Open the row-edit modal for `row`. Wrapper renders the modal. */
   onOpenRowModal: (row: TableRowType) => void
@@ -147,7 +151,7 @@ interface TableGridProps {
   /** Open the delete-columns confirmation modal for `names`. Wrapper renders the modal. */
   onRequestDeleteColumns: (names: string[]) => void
   /** Fire run for a single column (meta-cell Run menu). */
-  onRunColumn: (groupId: string, runMode: RunMode, rowIds?: string[]) => void
+  onRunColumn: (groupId: string, runMode: RunMode, rowIds?: string[], limit?: RunLimit) => void
   /** Fire every runnable column on a single row (per-row gutter Play). */
   onRunRow: (rowId: string) => void
   /** Fan out a run across every workflow group on `rowIds`. Used by context menu. */
@@ -243,6 +247,8 @@ export function TableGrid({
   sidebarReservedPx,
   onOpenColumnConfig,
   onOpenWorkflowConfig,
+  onOpenEnrichments,
+  onOpenEnrichmentConfig,
   onOpenExecutionDetails,
   onOpenRowModal,
   onRequestDeleteRows,
@@ -417,8 +423,13 @@ export function TableGrid({
   const deleteWorkflowGroupMutation = useDeleteWorkflowGroup({ workspaceId, tableId })
   const updateWorkflowGroupMutation = useUpdateWorkflowGroup({ workspaceId, tableId })
 
-  function handleRunColumn(groupId: string, runMode: RunMode = 'all', rowIds?: string[]) {
-    onRunColumn(groupId, runMode, rowIds)
+  function handleRunColumn(
+    groupId: string,
+    runMode: RunMode = 'all',
+    rowIds?: string[],
+    limit?: RunLimit
+  ) {
+    onRunColumn(groupId, runMode, rowIds, limit)
   }
 
   const handleViewWorkflow = useCallback(
@@ -507,6 +518,11 @@ export function TableGrid({
     }
     return expandToDisplayColumns(ordered, tableWorkflowGroups)
   }, [columns, columnOrder, tableWorkflowGroups])
+
+  const workflowGroupById = useMemo(
+    () => new Map(tableWorkflowGroups.map((g) => [g.id, g])),
+    [tableWorkflowGroups]
+  )
 
   const hasWorkflowColumns = columns.some((c) => !!c.workflowGroupId)
   const { colWidth: checkboxColWidth, numDivWidth } = checkboxColLayout(
@@ -740,12 +756,17 @@ export function TableGrid({
   let contextMenuExecutionId: string | null = null
   let contextMenuIsWorkflowColumn = false
   let contextMenuHasStartedRun = false
+  // The workflow group of the right-clicked cell, when it's a workflow-output
+  // column. Scopes the run/re-run menu items to just that cell's group (the
+  // cascade re-runs dependents on its own) instead of every group on the row.
+  let contextMenuGroupId: string | null = null
   if (contextMenu.row && contextMenu.columnName) {
     const _col = columnsRef.current.find((c) => c.name === contextMenu.columnName)
     const _gid = _col?.workflowGroupId
     if (_col && _gid) {
       const _exec = contextMenu.row.executions?.[_gid]
       contextMenuIsWorkflowColumn = true
+      contextMenuGroupId = _gid
       // Cells with a server-side execution log: `completed` / `error` /
       // `running`, plus HITL-paused runs (status `pending` with a `paused-`
       // jobId — has a real executionId + viewable trace). `queued` / plain
@@ -755,11 +776,14 @@ export function TableGrid({
         _exec?.status === 'pending' &&
         typeof _exec?.jobId === 'string' &&
         _exec.jobId.startsWith('paused-')
+      // Enrichment cells have no workflow execution trace to open.
+      const _isEnrichmentGroup = workflowGroupById.get(_gid)?.type === 'enrichment'
       contextMenuHasStartedRun =
-        _exec?.status === 'completed' ||
-        _exec?.status === 'error' ||
-        _exec?.status === 'running' ||
-        _isPaused
+        !_isEnrichmentGroup &&
+        (_exec?.status === 'completed' ||
+          _exec?.status === 'error' ||
+          _exec?.status === 'running' ||
+          _isPaused)
       contextMenuExecutionId = _exec?.executionId ?? null
     }
   }
@@ -2560,27 +2584,39 @@ export function TableGrid({
 
   /** Open the workflow-config sidebar to spawn a brand-new workflow group. */
   function handleAddWorkflowColumn() {
-    onOpenWorkflowConfig({ mode: 'create', proposedName: generateColumnName() })
+    onOpenWorkflowConfig({ mode: 'create', kind: 'manual', proposedName: generateColumnName() })
   }
 
   const handleConfigureColumn = useCallback(
     (columnName: string) => {
       const column = columnsRef.current.find((c) => c.name === columnName)
-      if (column?.workflowGroupId) {
-        // Workflow-output column header → single-output sub-mode.
+      const group = column?.workflowGroupId
+        ? workflowGroupById.get(column.workflowGroupId)
+        : undefined
+      // Enrichment output columns behave like plain columns (rename / type /
+      // unique) — route them to the normal column editor, not the workflow
+      // "Configure output column" panel.
+      if (column?.workflowGroupId && group?.type !== 'enrichment') {
         onOpenWorkflowConfig({ mode: 'edit-output', columnName })
       } else {
         onOpenColumnConfig({ mode: 'edit', columnName })
       }
     },
-    [onOpenColumnConfig, onOpenWorkflowConfig]
+    [onOpenColumnConfig, onOpenWorkflowConfig, workflowGroupById]
   )
 
   const handleConfigureWorkflowGroup = useCallback(
     (groupId: string) => {
+      const group = workflowGroupById.get(groupId)
+      // Enrichment groups have no workflow — route their config to the
+      // enrichments sidebar (edit mode) instead of the workflow sidebar.
+      if (group?.type === 'enrichment') {
+        onOpenEnrichmentConfig(group)
+        return
+      }
       onOpenWorkflowConfig({ mode: 'edit-group', groupId })
     },
-    [onOpenWorkflowConfig]
+    [onOpenEnrichmentConfig, onOpenWorkflowConfig, workflowGroupById]
   )
 
   const handleDeleteWorkflowGroup = useCallback((groupId: string) => {
@@ -2820,13 +2856,18 @@ export function TableGrid({
 
   // Context-menu wrappers: act on `contextMenuRowIds`, then close the menu.
   // Mirror the action bar's Play / Refresh split: Play fills empty/failed,
-  // Refresh re-runs everything (including completed cells).
+  // Refresh re-runs everything (including completed cells). When the menu was
+  // opened on a workflow-output cell, scope to just that cell's group — the
+  // server cascade re-runs dependent groups whose deps it fills. Right-clicking
+  // a plain cell has no group, so fall back to every group on the row(s).
   const handleRunWorkflowsOnSelection = () => {
-    onRunRows(contextMenuRowIds, 'incomplete')
+    if (contextMenuGroupId) onRunColumn(contextMenuGroupId, 'incomplete', contextMenuRowIds)
+    else onRunRows(contextMenuRowIds, 'incomplete')
     closeContextMenu()
   }
   const handleRefreshWorkflowsOnSelection = () => {
-    onRunRows(contextMenuRowIds, 'all')
+    if (contextMenuGroupId) onRunColumn(contextMenuGroupId, 'all', contextMenuRowIds)
+    else onRunRows(contextMenuRowIds, 'all')
     closeContextMenu()
   }
   const handleStopWorkflowsOnSelection = () => {
@@ -2901,14 +2942,18 @@ export function TableGrid({
     // running/completed/error.
     const isPaused =
       status === 'pending' && typeof exec?.jobId === 'string' && exec.jobId.startsWith('paused-')
+    // Enrichment groups have no workflow execution to open — never offer "View
+    // execution" for them.
+    const isEnrichmentGroup = workflowGroupById.get(groupId)?.type === 'enrichment'
     return {
       rowId: row.id,
       groupId,
       executionId: exec?.executionId ?? null,
       canViewExecution:
-        status === 'completed' || status === 'error' || status === 'running' || isPaused,
+        !isEnrichmentGroup &&
+        (status === 'completed' || status === 'error' || status === 'running' || isPaused),
     }
-  }, [normalizedSelection, rows, displayColumns])
+  }, [normalizedSelection, rows, displayColumns, workflowGroupById])
 
   const tableWorkflowGroupIds = useMemo(
     () => tableWorkflowGroups.map((g) => g.id),
@@ -2916,10 +2961,17 @@ export function TableGrid({
   )
 
   // Drives Run vs Refresh visibility on the context menu — same classifier
-  // the action bar uses, so both surfaces stay in sync.
+  // the action bar uses, so both surfaces stay in sync. Scoped to the clicked
+  // cell's group when the menu opened on a workflow-output cell so visibility
+  // tracks that group's state, not the whole row's.
   const contextMenuStats = useMemo(
-    () => classifyExecStatusMix(rows, new Set(contextMenuRowIds), tableWorkflowGroupIds),
-    [contextMenuRowIds, rows, tableWorkflowGroupIds]
+    () =>
+      classifyExecStatusMix(
+        rows,
+        new Set(contextMenuRowIds),
+        contextMenuGroupId ? [contextMenuGroupId] : tableWorkflowGroupIds
+      ),
+    [contextMenuRowIds, rows, tableWorkflowGroupIds, contextMenuGroupId]
   )
 
   // Run scope is derived from one of two selection sources:
@@ -3138,6 +3190,9 @@ export function TableGrid({
                                 normalizedSelection.endCol >= g.startColIndex + g.size - 1
                               }
                               groupId={g.groupId}
+                              groupType={workflowGroupById.get(g.groupId)?.type}
+                              enrichmentId={workflowGroupById.get(g.groupId)?.enrichmentId}
+                              groupName={workflowGroupById.get(g.groupId)?.name}
                               onSelectGroup={handleGroupSelect}
                               onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
                               onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
@@ -3154,7 +3209,11 @@ export function TableGrid({
                               onDeleteGroup={
                                 userPermissions.canEdit ? handleDeleteWorkflowGroup : undefined
                               }
-                              onViewWorkflow={handleViewWorkflow}
+                              onViewWorkflow={
+                                workflowGroupById.get(g.groupId)?.type === 'enrichment'
+                                  ? undefined
+                                  : handleViewWorkflow
+                              }
                               readOnly={!userPermissions.canEdit}
                               onDragStart={
                                 userPermissions.canEdit ? handleColumnDragStart : undefined
@@ -3229,6 +3288,7 @@ export function TableGrid({
                           disabled={addColumnMutation.isPending}
                           onPickType={handleAddColumnOfType}
                           onPickWorkflow={handleAddWorkflowColumn}
+                          onPickEnrichment={onOpenEnrichments}
                         />
                       )}
                     </tr>
@@ -3373,6 +3433,7 @@ export function TableGrid({
         }
         runningInSelectionCount={runningInContextSelection}
         hasWorkflowColumns={hasWorkflowColumns}
+        workflowCellScoped={Boolean(contextMenuGroupId)}
         disableEdit={!userPermissions.canEdit}
         disableInsert={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit}

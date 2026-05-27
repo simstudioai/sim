@@ -19,6 +19,8 @@ export type BYOKProviderId =
   | 'brandfetch'
   | 'parallel_ai'
   | 'cohere'
+  | 'hunter'
+  | 'peopledatalabs'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 

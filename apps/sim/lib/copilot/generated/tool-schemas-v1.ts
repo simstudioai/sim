@@ -2716,7 +2716,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             autoRun: {
               type: 'boolean',
               description:
-                "Optional flag for add_workflow_group and update_workflow_group. On add: when true, existing rows whose dependencies are already filled run immediately; default false stages the group silently — call run_column when ready to fire rows. On update: toggle a group's auto-fire behavior on an existing group — false stages it (no auto-runs on dep satisfaction; only manual run_column fires rows), true re-enables auto-fire (rows whose deps fill will be scheduled). Set true on add only if the user explicitly asked to start runs immediately.",
+                "Optional flag for add_workflow_group, add_enrichment, and update_workflow_group. On add (workflow group or enrichment): when true, existing rows whose dependencies are already filled run immediately; default false stages the group silently — call run_column when ready to fire rows. On update: toggle a group's auto-fire behavior on an existing group — false stages it (no auto-runs on dep satisfaction; only manual run_column fires rows), true re-enables auto-fire (rows whose deps fill will be scheduled). Set true on add only if the user explicitly asked to start runs immediately.",
             },
             blockId: {
               type: 'string',
@@ -2744,7 +2744,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             dependencies: {
               type: 'object',
               description:
-                "Dependencies the workflow group requires before running a row. { columns?: string[] } lists input column names that must be filled. Workflow output columns count too — depend on the column produced by an upstream group, not the group itself. The dep graph is column-induced. A group can't depend on its own output columns. Used by add_workflow_group and update_workflow_group.",
+                "Dependencies the group requires before running a row. { columns?: string[] } lists input column names that must be filled. Workflow output columns count too — depend on the column produced by an upstream group, not the group itself. The dep graph is column-induced. A group can't depend on its own output columns. Used by add_workflow_group and update_workflow_group, and optionally by add_enrichment (omit and the handler defaults deps to the mapped input columns).",
               properties: {
                 columns: {
                   type: 'array',
@@ -2759,6 +2759,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             description: {
               type: 'string',
               description: "Table description (optional for 'create')",
+            },
+            enrichmentId: {
+              type: 'string',
+              description:
+                "Enrichment registry ID for add_enrichment. Discover the available IDs (and each one's inputs/outputs) via list_enrichments first — don't hardcode. Examples: work-email, phone-number, company-domain, company-info.",
             },
             fileId: {
               type: 'string',
@@ -2786,6 +2791,25 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 'Array of workflow group IDs. Required for run_column — non-empty list of columns to run.',
               items: {
                 type: 'string',
+              },
+            },
+            inputMappings: {
+              type: 'array',
+              description:
+                'For add_enrichment: maps each enrichment input to an existing table column. Each item is { inputName, columnName } where inputName is the enrichment input id (from list_enrichments) and columnName is an existing column on the table. Provide a mapping for every required input. (The field is named inputName for consistency with workflow-group input mappings; for enrichments it holds the enrichment input id.)',
+              items: {
+                type: 'object',
+                properties: {
+                  columnName: {
+                    type: 'string',
+                    description: 'Existing table column name that supplies this input.',
+                  },
+                  inputName: {
+                    type: 'string',
+                    description: 'Enrichment input id to bind (from list_enrichments).',
+                  },
+                },
+                required: ['inputName', 'columnName'],
               },
             },
             limit: {
@@ -2834,7 +2858,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             name: {
               type: 'string',
-              description: "Table name (required for 'create')",
+              description:
+                "Table name (required for 'create'). Also the optional display name for add_enrichment — defaults to the enrichment's registry name when omitted.",
             },
             newName: {
               type: 'string',
@@ -2848,6 +2873,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             offset: {
               type: 'number',
               description: 'Number of rows to skip (optional for query_rows, default 0)',
+            },
+            outputColumnNames: {
+              type: 'object',
+              description:
+                'Optional output column name overrides for add_enrichment, as { "<outputId>": "<columnName>" }. Omit to use each enrichment output\'s default name.',
+              additionalProperties: {
+                type: 'string',
+                description: 'Target column name for this enrichment output id.',
+              },
             },
             outputFormat: {
               type: 'string',
@@ -3010,6 +3044,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'run_column',
             'cancel_table_runs',
             'list_workflow_outputs',
+            'list_enrichments',
+            'add_enrichment',
           ],
         },
       },

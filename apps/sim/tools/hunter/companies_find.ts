@@ -1,4 +1,5 @@
 import type { HunterEnrichmentParams, HunterEnrichmentResponse } from '@/tools/hunter/types'
+import { HUNTER_API_KEY_PREFIX } from '@/tools/hunter/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichmentResponse> = {
@@ -6,6 +7,18 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
   name: 'Hunter Companies Find',
   description: 'Enriches company data using domain name.',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: HUNTER_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'hunter',
+    // Companies Find (enrichment) is free on Hunter — no credits consumed.
+    pricing: { type: 'per_request', cost: 0 },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  },
 
   params: {
     domain: {

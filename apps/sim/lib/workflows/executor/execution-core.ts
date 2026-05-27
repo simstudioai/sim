@@ -5,6 +5,7 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { filterUndefined } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
@@ -38,6 +39,49 @@ import { Serializer } from '@/serializer'
 const logger = createLogger('ExecutionCore')
 
 const EnvVarsSchema = z.record(z.string(), z.string())
+
+/**
+ * Surfaces the underlying driver error from a wrapped error chain.
+ *
+ * Drizzle wraps the original `postgres`/Node driver error as `error.cause`,
+ * which the logger's Error serializer drops (it only emits own-enumerable
+ * keys). Walking the chain from `error` itself and preferring the first error
+ * carrying a `code` exposes the diagnostic fields — notably the Postgres
+ * `code` — that distinguish a connection drop (`08006`), a rejected connection
+ * (`53300`), and a statement timeout (`57014`) behind an opaque "Failed query"
+ * message. Starting at `error` also captures a bare driver error that reaches
+ * this path unwrapped; when no error in the chain carries a `code`, it falls
+ * back to the first wrapped cause (the top-level error is already logged on its
+ * own, so it is not echoed here).
+ */
+function describeErrorCause(error: unknown): Record<string, unknown> | undefined {
+  try {
+    let driver: (Error & Record<string, unknown>) | undefined
+    let current: unknown = error
+    for (let depth = 0; depth < 10 && current instanceof Error; depth++) {
+      const candidate = current as Error & Record<string, unknown>
+      if (candidate.code !== undefined) {
+        driver = candidate
+        break
+      }
+      if (depth === 1) driver = candidate
+      current = candidate.cause
+    }
+    if (!driver) return undefined
+    return filterUndefined({
+      name: driver.name,
+      message: driver.message,
+      code: driver.code,
+      severity: driver.severity,
+      detail: driver.detail,
+      routine: driver.routine,
+      errno: driver.errno,
+      syscall: driver.syscall,
+    })
+  } catch {
+    return undefined
+  }
+}
 
 export interface ExecuteWorkflowCoreOptions {
   snapshot: ExecutionSnapshot
@@ -682,7 +726,12 @@ export async function executeWorkflowCore(
 
     return result
   } catch (error: unknown) {
-    logger.error(`[${requestId}] Execution failed:`, error)
+    const errorCause = describeErrorCause(error)
+    logger.error(
+      `[${requestId}] Execution failed:`,
+      error,
+      ...(errorCause ? [{ cause: errorCause }] : [])
+    )
 
     await waitForLifecycleCallbacks()
 

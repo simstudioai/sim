@@ -30,6 +30,7 @@ export {
   languages,
 } from './code/code'
 export { CopyCodeButton } from './code/copy-code-button'
+export { CollapsibleCard, type CollapsibleCardProps } from './collapsible-card/collapsible-card'
 export {
   Combobox,
   type ComboboxOption,
