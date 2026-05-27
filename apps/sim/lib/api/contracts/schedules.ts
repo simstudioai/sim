@@ -134,7 +134,7 @@ const messageResponseSchema = z.object({
 
 export const executeSchedulesResponseSchema = z.object({
   message: z.string(),
-  processedCount: z.number().int().min(0),
+  status: z.enum(['started', 'already_running']),
 })
 
 export type ExecuteSchedulesResponse = z.output<typeof executeSchedulesResponseSchema>
