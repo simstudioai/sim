@@ -300,12 +300,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       placeholder: 'Search term',
       condition: {
         field: 'operation',
-        value: [
-          ...LEAD_LIST_OPERATIONS,
-          ...CAMPAIGN_LIST_OPERATIONS,
-          ...EMAIL_LIST_OPERATIONS,
-          ...LEAD_LIST_LIST_OPERATIONS,
-        ],
+        value: [...LEAD_LIST_OPERATIONS, ...CAMPAIGN_LIST_OPERATIONS, ...LEAD_LIST_LIST_OPERATIONS],
       },
     },
     {
