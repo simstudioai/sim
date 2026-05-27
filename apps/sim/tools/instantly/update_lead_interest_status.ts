@@ -8,6 +8,7 @@ import {
   instantlyBaseParamFields,
   instantlyHeaders,
   instantlyUrl,
+  parseInstantlyResponse,
 } from '@/tools/instantly/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -29,9 +30,9 @@ export const updateLeadInterestStatusTool: ToolConfig<
     },
     interest_value: {
       type: 'number',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Interest status value. Use null in JSON/tool input to reset to Lead.',
+      description: 'Interest status value. Leave empty in the block or pass null to reset to Lead.',
     },
     campaign_id: {
       type: 'string',
@@ -62,18 +63,23 @@ export const updateLeadInterestStatusTool: ToolConfig<
     url: () => instantlyUrl('/api/v2/leads/update-interest-status'),
     method: 'POST',
     headers: instantlyHeaders,
-    body: (params) =>
-      compactBody({
+    body: (params) => {
+      if (params.interest_value === undefined) {
+        throw new Error('Interest Value is required for Instantly Update Lead Interest Status')
+      }
+
+      return compactBody({
         lead_email: params.lead_email,
         interest_value: params.interest_value,
         campaign_id: params.campaign_id,
         list_id: params.list_id,
         ai_interest_value: params.ai_interest_value,
         disable_auto_interest: params.disable_auto_interest,
-      }),
+      })
+    },
   },
   transformResponse: async (response) => {
-    const data: unknown = await response.json()
+    const data = await parseInstantlyResponse(response)
     const result = asRecord(data)
 
     return {

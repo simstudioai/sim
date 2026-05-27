@@ -10,6 +10,7 @@ import {
   instantlyHeaders,
   instantlyUrl,
   mapEmail,
+  parseInstantlyResponse,
 } from '@/tools/instantly/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -68,14 +69,8 @@ export const listEmailsTool: ToolConfig<InstantlyListEmailsParams, InstantlyList
       visibility: 'user-or-llm',
       description: 'Lead email address filter',
     },
-    lead_id: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Lead ID filter',
-    },
     is_unread: {
-      type: 'number',
+      type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
       description: 'Unread status filter',
@@ -86,20 +81,19 @@ export const listEmailsTool: ToolConfig<InstantlyListEmailsParams, InstantlyList
       instantlyUrl('/api/v2/emails', {
         limit: params.limit,
         starting_after: params.starting_after,
-        search: params.thread_id ? `thread:${params.thread_id}` : params.search,
+        search: params.search,
         campaign_id: params.campaign_id,
         list_id: params.list_id,
         i_status: params.i_status,
         eaccount: params.eaccount,
         lead: params.lead,
-        lead_id: params.lead_id,
         is_unread: params.is_unread,
       }),
     method: 'GET',
     headers: instantlyHeaders,
   },
   transformResponse: async (response) => {
-    const data: unknown = await response.json()
+    const data = await parseInstantlyResponse(response)
     const emails = getItems(data).map(mapEmail)
 
     return {

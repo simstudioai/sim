@@ -22,7 +22,7 @@ export const instantlyBaseParamFields = {
 } satisfies ToolConfig<InstantlyBaseParams>['params']
 
 export const instantlyHeaders = (params: InstantlyBaseParams) => ({
-  Authorization: `Bearer ${params.apiKey}`,
+  Authorization: `Bearer ${params.apiKey.trim()}`,
   'Content-Type': 'application/json',
 })
 
@@ -41,6 +41,18 @@ export function instantlyUrl(path: string, query?: Record<string, unknown>): str
 
 export function compactBody(values: Record<string, unknown>): Record<string, unknown> {
   return filterUndefined(values)
+}
+
+export async function parseInstantlyResponse(response: Response): Promise<unknown> {
+  const data = await parseJsonResponse(response)
+
+  if (!response.ok) {
+    throw new Error(
+      extractInstantlyError(data, `Instantly API request failed (${response.status})`)
+    )
+  }
+
+  return data
 }
 
 export function asRecord(value: unknown): JsonRecord {
@@ -324,6 +336,21 @@ export const leadListsListOutputs = {
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+async function parseJsonResponse(response: Response): Promise<unknown> {
+  try {
+    return await response.json()
+  } catch {
+    return null
+  }
+}
+
+function extractInstantlyError(value: unknown, fallback: string): string {
+  const data = asRecord(value)
+  if (typeof data.message === 'string') return data.message
+  if (typeof data.error === 'string') return data.error
+  return fallback
 }
 
 function asString(value: unknown): string | null {

@@ -22,7 +22,10 @@ const SIM_WEBHOOK_TOKEN_HEADER = 'x-sim-webhook-token'
 export const instantlyHandler: WebhookProviderHandler = {
   verifyAuth({ request, requestId, providerConfig }: AuthContext): NextResponse | null {
     const secretToken = providerConfig.secretToken as string | undefined
-    if (!secretToken) return null
+    if (!secretToken) {
+      logger.warn(`[${requestId}] Instantly webhook secret token is missing`)
+      return new NextResponse('Unauthorized', { status: 401 })
+    }
 
     if (!verifyTokenAuth(request, secretToken, SIM_WEBHOOK_TOKEN_HEADER)) {
       logger.warn(`[${requestId}] Unauthorized Instantly webhook request`)
@@ -85,9 +88,9 @@ export const instantlyHandler: WebhookProviderHandler = {
   async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     const { webhook, requestId } = ctx
     const providerConfig = getProviderConfig(webhook)
-    const apiKey = providerConfig.apiKey as string | undefined
+    const apiKey = providerConfig.triggerApiKey as string | undefined
     const triggerId = providerConfig.triggerId as string | undefined
-    const campaignId = providerConfig.triggerCampaignId as string | undefined
+    const campaignId = optionalId(providerConfig.triggerCampaignId)
 
     if (!apiKey?.trim()) {
       throw new Error('Instantly API Key is required.')
@@ -119,8 +122,8 @@ export const instantlyHandler: WebhookProviderHandler = {
       },
     }
 
-    if (campaignId?.trim()) {
-      requestBody.campaign = campaignId.trim()
+    if (campaignId) {
+      requestBody.campaign = campaignId
     }
 
     logger.info(`[${requestId}] Creating Instantly webhook`, {
@@ -133,7 +136,7 @@ export const instantlyHandler: WebhookProviderHandler = {
     const response = await fetch(instantlyUrl('/api/v2/webhooks'), {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey.trim()}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
@@ -179,7 +182,7 @@ export const instantlyHandler: WebhookProviderHandler = {
 
     try {
       const providerConfig = getProviderConfig(webhook)
-      const apiKey = providerConfig.apiKey as string | undefined
+      const apiKey = providerConfig.triggerApiKey as string | undefined
       const externalId = providerConfig.externalId as string | undefined
 
       if (!apiKey?.trim() || !externalId?.trim()) {
@@ -193,11 +196,11 @@ export const instantlyHandler: WebhookProviderHandler = {
       }
 
       const response = await fetch(
-        instantlyUrl(`/api/v2/webhooks/${encodeURIComponent(externalId)}`),
+        instantlyUrl(`/api/v2/webhooks/${encodeURIComponent(externalId.trim())}`),
         {
           method: 'DELETE',
           headers: {
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey.trim()}`,
           },
         }
       )
@@ -252,6 +255,13 @@ function toNumberOrNull(value: unknown): number | null {
 
 function toBooleanOrNull(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null
+}
+
+function optionalId(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (trimmed === '' || trimmed === '-') return undefined
+  return trimmed
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

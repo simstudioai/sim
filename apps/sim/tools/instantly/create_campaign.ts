@@ -9,6 +9,7 @@ import {
   instantlyHeaders,
   instantlyUrl,
   mapCampaign,
+  parseInstantlyResponse,
 } from '@/tools/instantly/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -107,33 +108,18 @@ export const createCampaignTool: ToolConfig<
         campaign_schedule: params.campaign_schedule,
         sequences: params.sequences,
         pl_value: params.pl_value,
-        is_evergreen: params.is_evergreen,
         email_gap: params.email_gap,
-        random_wait_max: params.random_wait_max,
         text_only: params.text_only,
-        first_email_text_only: params.first_email_text_only,
         email_list: params.email_list,
         daily_limit: params.daily_limit,
         stop_on_reply: params.stop_on_reply,
-        email_tag_list: params.email_tag_list,
         link_tracking: params.link_tracking,
         open_tracking: params.open_tracking,
-        stop_on_auto_reply: params.stop_on_auto_reply,
         daily_max_leads: params.daily_max_leads,
-        prioritize_new_leads: params.prioritize_new_leads,
-        match_lead_esp: params.match_lead_esp,
-        stop_for_company: params.stop_for_company,
-        insert_unsubscribe_header: params.insert_unsubscribe_header,
-        allow_risky_contacts: params.allow_risky_contacts,
-        disable_bounce_protect: params.disable_bounce_protect,
-        cc_list: params.cc_list,
-        bcc_list: params.bcc_list,
-        owned_by: params.owned_by,
-        ai_sdr_id: params.ai_sdr_id,
       }),
   },
   transformResponse: async (response) => {
-    const data: unknown = await response.json()
+    const data = await parseInstantlyResponse(response)
     const campaign = mapCampaign(data)
 
     return {

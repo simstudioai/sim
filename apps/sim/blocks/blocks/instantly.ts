@@ -87,6 +87,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       placeholder: 'Enter your Instantly API key',
       password: true,
       required: true,
+      paramVisibility: 'user-only',
     },
     {
       id: 'leadId',
@@ -121,7 +122,11 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       title: 'Lead Email',
       type: 'short-input',
       placeholder: 'jane@example.com',
-      required: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      required: {
+        field: 'operation',
+        value: [...LEAD_CREATE_OPERATIONS],
+        and: { field: 'leadDestination', value: 'campaign' },
+      },
       condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
     },
     {
@@ -186,7 +191,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a JSON object of Instantly custom variables. Values must be strings, numbers, booleans, or null. Return ONLY the JSON object.',
+          'Generate a JSON object of Instantly custom variables. Values must be strings, numbers, booleans, or null. Return ONLY the JSON object - no explanations, no extra text.',
         generationType: 'json-object',
       },
       mode: 'advanced',
@@ -227,6 +232,64 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
         { label: 'No', id: 'false' },
       ],
       value: () => '',
+      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'verifyLeadsForLeadFinder',
+      title: 'Verify Leads For Lead Finder',
+      type: 'dropdown',
+      options: [
+        { label: 'Unspecified', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'verifyLeadsOnImport',
+      title: 'Verify Leads On Import',
+      type: 'dropdown',
+      options: [
+        { label: 'Unspecified', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'leadInterestStatus',
+      title: 'Lead Interest Status',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'potentialLeadValue',
+      title: 'Potential Lead Value',
+      type: 'short-input',
+      placeholder: 'High',
+      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'assignedTo',
+      title: 'Assigned To',
+      type: 'short-input',
+      placeholder: 'Organization user UUID',
+      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'blocklistId',
+      title: 'Blocklist ID',
+      type: 'short-input',
+      placeholder: 'Blocklist UUID',
       condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
       mode: 'advanced',
     },
@@ -301,6 +364,14 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'excludedLeadIds',
+      title: 'Excluded Lead IDs',
+      type: 'long-input',
+      placeholder: 'lead-id-1, lead-id-2',
+      condition: { field: 'operation', value: [...LEAD_LIST_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
       id: 'contacts',
       title: 'Contacts',
       type: 'long-input',
@@ -331,6 +402,64 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
         { label: 'No', id: 'false' },
       ],
       value: () => '',
+      condition: { field: 'operation', value: [...LEAD_LIST_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'organizationUserIds',
+      title: 'Organization User IDs',
+      type: 'long-input',
+      placeholder: 'user-id-1, user-id-2',
+      condition: { field: 'operation', value: [...LEAD_LIST_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'smartViewId',
+      title: 'Smart View ID',
+      type: 'short-input',
+      placeholder: 'Smart view UUID',
+      condition: { field: 'operation', value: [...LEAD_LIST_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'websiteVisitor',
+      title: 'Website Visitor',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: [...LEAD_LIST_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'distinctContacts',
+      title: 'Distinct Contacts',
+      type: 'dropdown',
+      options: [
+        { label: 'Unspecified', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: [...LEAD_LIST_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'enrichmentStatus',
+      title: 'Enrichment Status',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: [...LEAD_LIST_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'esgCode',
+      title: 'ESG Code',
+      type: 'short-input',
+      placeholder: '0',
       condition: { field: 'operation', value: [...LEAD_LIST_OPERATIONS] },
       mode: 'advanced',
     },
@@ -390,8 +519,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       id: 'interestValue',
       title: 'Interest Value',
       type: 'short-input',
-      placeholder: '1',
-      required: { field: 'operation', value: [...LEAD_INTEREST_OPERATIONS] },
+      placeholder: '1 or null',
       condition: { field: 'operation', value: [...LEAD_INTEREST_OPERATIONS] },
     },
     {
@@ -404,6 +532,14 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
         { label: 'No', id: 'false' },
       ],
       value: () => '',
+      condition: { field: 'operation', value: [...LEAD_INTEREST_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'aiInterestValue',
+      title: 'AI Interest Value',
+      type: 'short-input',
+      placeholder: '1',
       condition: { field: 'operation', value: [...LEAD_INTEREST_OPERATIONS] },
       mode: 'advanced',
     },
@@ -426,7 +562,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate an Instantly API V2 campaign_schedule JSON object with schedules containing name, timing.from, timing.to, days, and timezone. Return ONLY the JSON object.',
+          'Generate an Instantly API V2 campaign_schedule JSON object with schedules containing name, timing.from, timing.to, days, and timezone. Return ONLY the JSON object - no explanations, no extra text.',
         generationType: 'json-object',
       },
     },
@@ -440,7 +576,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate an Instantly API V2 sequences JSON array. Use one sequence with steps; each step must have type "email", delay, and variants with subject and body. Return ONLY the JSON array.',
+          'Generate an Instantly API V2 sequences JSON array. Use one sequence with steps; each step must have type "email", delay, and variants with subject and body. Return ONLY the JSON array - no explanations, no extra text.',
         generationType: 'json-object',
       },
       mode: 'advanced',
@@ -496,10 +632,60 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'positiveLeadValue',
+      title: 'Positive Lead Value',
+      type: 'short-input',
+      placeholder: '100',
+      condition: { field: 'operation', value: [...CAMPAIGN_MUTATION_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'emailGap',
+      title: 'Email Gap',
+      type: 'short-input',
+      placeholder: '10',
+      condition: { field: 'operation', value: [...CAMPAIGN_MUTATION_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'linkTracking',
+      title: 'Link Tracking',
+      type: 'dropdown',
+      options: [
+        { label: 'Unspecified', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: [...CAMPAIGN_MUTATION_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'textOnly',
+      title: 'Text Only',
+      type: 'dropdown',
+      options: [
+        { label: 'Unspecified', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: [...CAMPAIGN_MUTATION_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
       id: 'tagIds',
       title: 'Tag IDs',
       type: 'short-input',
       placeholder: 'id1,id2',
+      condition: { field: 'operation', value: [...CAMPAIGN_LIST_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'aiSalesAgentId',
+      title: 'AI Sales Agent ID',
+      type: 'short-input',
+      placeholder: 'AI Sales Agent UUID',
       condition: { field: 'operation', value: [...CAMPAIGN_LIST_OPERATIONS] },
       mode: 'advanced',
     },
@@ -530,6 +716,35 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       condition: { field: 'operation', value: [...EMAIL_LIST_OPERATIONS] },
     },
     {
+      id: 'emailStatus',
+      title: 'Email Status',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: [...EMAIL_LIST_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'emailLead',
+      title: 'Lead Email Filter',
+      type: 'short-input',
+      placeholder: 'lead@example.com',
+      condition: { field: 'operation', value: [...EMAIL_LIST_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'emailIsUnread',
+      title: 'Unread',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: [...EMAIL_LIST_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
       id: 'replyToUuid',
       title: 'Reply To Email ID',
       type: 'short-input',
@@ -558,6 +773,22 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       title: 'Body HTML',
       type: 'long-input',
       placeholder: '<p>HTML reply body</p>',
+      condition: { field: 'operation', value: [...EMAIL_REPLY_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'ccRecipients',
+      title: 'CC Recipients',
+      type: 'short-input',
+      placeholder: 'cc@example.com',
+      condition: { field: 'operation', value: [...EMAIL_REPLY_OPERATIONS] },
+      mode: 'advanced',
+    },
+    {
+      id: 'bccRecipients',
+      title: 'BCC Recipients',
+      type: 'short-input',
+      placeholder: 'bcc@example.com',
       condition: { field: 'operation', value: [...EMAIL_REPLY_OPERATIONS] },
       mode: 'advanced',
     },
@@ -631,40 +862,55 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       tool: (params) => `instantly_${params.operation}`,
       params: (params) => ({
         campaign:
-          params.leadDestination === 'campaign'
-            ? emptyToUndefined(params.leadDestinationId)
-            : undefined,
+          params.operation === 'list_leads'
+            ? optionalIdParam(params.campaignId)
+            : params.leadDestination === 'campaign'
+              ? optionalIdParam(params.leadDestinationId)
+              : undefined,
         list_id:
           params.operation === 'delete_leads' && params.deleteSource === 'list'
-            ? emptyToUndefined(params.deleteSourceId)
+            ? optionalIdParam(params.deleteSourceId)
             : params.leadDestination === 'list'
-              ? emptyToUndefined(params.leadDestinationId)
-              : emptyToUndefined(params.listId),
+              ? optionalIdParam(params.leadDestinationId)
+              : optionalIdParam(params.listId),
         campaign_id:
           params.operation === 'delete_leads'
             ? params.deleteSource === 'campaign'
-              ? emptyToUndefined(params.deleteSourceId)
+              ? optionalIdParam(params.deleteSourceId)
               : undefined
-            : emptyToUndefined(params.campaignId),
+            : optionalIdParam(params.campaignId),
         leadId: params.leadId,
-        email: params.email,
-        first_name: params.firstName,
-        last_name: params.lastName,
-        company_name: params.companyName,
-        job_title: params.jobTitle,
-        phone: params.phone,
-        website: params.website,
-        personalization: params.personalization,
+        email: emptyToUndefined(params.email),
+        first_name: emptyToUndefined(params.firstName),
+        last_name: emptyToUndefined(params.lastName),
+        company_name: emptyToUndefined(params.companyName),
+        job_title: emptyToUndefined(params.jobTitle),
+        phone: emptyToUndefined(params.phone),
+        website: emptyToUndefined(params.website),
+        personalization: emptyToUndefined(params.personalization),
         custom_variables: parseJsonObject(params.customVariables),
+        lt_interest_status: toNumberParam(params.leadInterestStatus),
+        pl_value_lead: emptyToUndefined(params.potentialLeadValue),
+        assigned_to: optionalIdParam(params.assignedTo),
+        blocklist_id: optionalIdParam(params.blocklistId),
         skip_if_in_workspace: toBooleanParam(params.skipIfInWorkspace),
         skip_if_in_campaign: toBooleanParam(params.skipIfInCampaign),
         skip_if_in_list: toBooleanParam(params.skipIfInList),
+        verify_leads_for_lead_finder: toBooleanParam(params.verifyLeadsForLeadFinder),
+        verify_leads_on_import: toBooleanParam(params.verifyLeadsOnImport),
         filter: emptyToUndefined(params.leadFilter),
         ids:
           params.operation === 'delete_leads'
             ? parseStringList(params.deleteLeadIds)
             : parseStringList(params.leadIds),
+        excluded_ids: parseStringList(params.excludedLeadIds),
         contacts: parseStringList(params.contacts),
+        organization_user_ids: parseStringList(params.organizationUserIds),
+        smart_view_id: optionalIdParam(params.smartViewId),
+        is_website_visitor: toBooleanParam(params.websiteVisitor),
+        distinct_contacts: toBooleanParam(params.distinctContacts),
+        enrichment_status: toNumberParam(params.enrichmentStatus),
+        esg_code: emptyToUndefined(params.esgCode),
         in_campaign: toBooleanParam(params.inCampaign),
         in_list: toBooleanParam(params.inList),
         status:
@@ -675,13 +921,17 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
           params.operation === 'delete_leads'
             ? toNumberParam(params.deleteLimit)
             : toNumberParam(params.limit),
-        starting_after: params.startingAfter,
-        lead_email: params.leadEmail,
-        interest_value: toNumberParam(params.interestValue),
+        starting_after: emptyToUndefined(params.startingAfter),
+        lead_email: emptyToUndefined(params.leadEmail),
+        interest_value:
+          params.operation === 'update_lead_interest_status'
+            ? toNullableNumberParam(params.interestValue, true)
+            : undefined,
+        ai_interest_value: toNumberParam(params.aiInterestValue),
         disable_auto_interest: toBooleanParam(params.disableAutoInterest),
         name:
           params.operation === 'create_lead_list'
-            ? params.leadListName
+            ? emptyToUndefined(params.leadListName)
             : emptyToUndefined(params.campaignName),
         campaign_schedule: parseJsonObject(params.campaignSchedule),
         sequences: parseJsonArray(params.sequences),
@@ -690,20 +940,30 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
         daily_max_leads: toNumberParam(params.dailyMaxLeads),
         open_tracking: toBooleanParam(params.openTracking),
         stop_on_reply: toBooleanParam(params.stopOnReply),
+        pl_value: toNumberParam(params.positiveLeadValue),
+        email_gap: toNumberParam(params.emailGap),
+        link_tracking: toBooleanParam(params.linkTracking),
+        text_only: toBooleanParam(params.textOnly),
         tag_ids: emptyToUndefined(params.tagIds),
+        ai_sales_agent_id: optionalIdParam(params.aiSalesAgentId),
         search:
           params.operation === 'list_emails'
             ? emptyToUndefined(params.emailSearch)
             : emptyToUndefined(params.search),
-        eaccount: params.emailAccount,
-        reply_to_uuid: params.replyToUuid,
-        subject: params.subject,
+        eaccount: emptyToUndefined(params.emailAccount),
+        i_status: toNumberParam(params.emailStatus),
+        lead: emptyToUndefined(params.emailLead),
+        is_unread: toBooleanParam(params.emailIsUnread),
+        reply_to_uuid: emptyToUndefined(params.replyToUuid),
+        subject: emptyToUndefined(params.subject),
         body: {
-          text: params.bodyText,
+          text: emptyToUndefined(params.bodyText),
           html: emptyToUndefined(params.bodyHtml),
         },
+        cc_address_email_list: emptyToUndefined(params.ccRecipients),
+        bcc_address_email_list: emptyToUndefined(params.bccRecipients),
         has_enrichment_task: toBooleanParam(params.hasEnrichmentTask),
-        owned_by: emptyToUndefined(params.ownedBy),
+        owned_by: optionalIdParam(params.ownedBy),
       }),
     },
   },
@@ -717,34 +977,104 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
     firstName: { type: 'string', description: 'Lead first name' },
     lastName: { type: 'string', description: 'Lead last name' },
     companyName: { type: 'string', description: 'Company name' },
+    leadInterestStatus: { type: 'number', description: 'Lead interest status value' },
+    potentialLeadValue: { type: 'string', description: 'Potential value of the lead' },
+    assignedTo: { type: 'string', description: 'Organization user ID assigned to the lead' },
+    blocklistId: { type: 'string', description: 'Blocklist ID' },
+    verifyLeadsForLeadFinder: {
+      type: 'boolean',
+      description: 'Whether to verify leads imported from Lead Finder',
+    },
+    verifyLeadsOnImport: { type: 'boolean', description: 'Whether to verify leads on import' },
     search: { type: 'string', description: 'Search query' },
+    excludedLeadIds: { type: 'string', description: 'Lead IDs to exclude' },
+    contacts: { type: 'string', description: 'Lead email addresses to include' },
+    organizationUserIds: { type: 'string', description: 'Organization user IDs to filter leads' },
+    smartViewId: { type: 'string', description: 'Smart view ID to filter leads' },
+    websiteVisitor: { type: 'boolean', description: 'Whether the lead is a website visitor' },
+    distinctContacts: { type: 'boolean', description: 'Whether to return distinct contacts' },
+    enrichmentStatus: { type: 'number', description: 'Enrichment status filter' },
+    esgCode: { type: 'string', description: 'Email security gateway code filter' },
     campaignId: { type: 'string', description: 'Campaign ID' },
     listId: { type: 'string', description: 'Lead list ID' },
+    leadIds: { type: 'string', description: 'Lead IDs' },
+    inCampaign: { type: 'boolean', description: 'Whether the lead is in a campaign' },
+    inList: { type: 'boolean', description: 'Whether the lead is in a list' },
     deleteSource: { type: 'string', description: 'Delete source type' },
     deleteSourceId: { type: 'string', description: 'Delete source ID' },
+    deleteStatus: { type: 'number', description: 'Delete status filter' },
+    deleteLeadIds: { type: 'string', description: 'Lead IDs to delete' },
+    deleteLimit: { type: 'number', description: 'Maximum number of leads to delete' },
     leadEmail: { type: 'string', description: 'Lead email for interest update' },
     interestValue: { type: 'number', description: 'Interest status value' },
+    disableAutoInterest: { type: 'boolean', description: 'Whether to disable auto interest' },
+    aiInterestValue: { type: 'number', description: 'AI interest value' },
     campaignName: { type: 'string', description: 'Campaign name' },
     campaignSchedule: { type: 'json', description: 'Campaign schedule object' },
     sequences: { type: 'array', description: 'Campaign sequences' },
+    emailList: { type: 'string', description: 'Sending email accounts' },
+    dailyLimit: { type: 'number', description: 'Daily sending limit' },
+    dailyMaxLeads: { type: 'number', description: 'Daily maximum new leads' },
+    openTracking: { type: 'boolean', description: 'Whether to track opens' },
+    stopOnReply: { type: 'boolean', description: 'Whether to stop on replies' },
+    positiveLeadValue: { type: 'number', description: 'Value of every positive lead' },
+    emailGap: { type: 'number', description: 'Gap between emails in minutes' },
+    linkTracking: { type: 'boolean', description: 'Whether to track links' },
+    textOnly: { type: 'boolean', description: 'Whether the campaign is text only' },
+    tagIds: { type: 'string', description: 'Campaign tag IDs' },
+    aiSalesAgentId: { type: 'string', description: 'AI Sales Agent ID' },
+    campaignStatus: { type: 'number', description: 'Campaign status filter' },
     emailAccount: { type: 'string', description: 'Email account' },
     emailSearch: { type: 'string', description: 'Email search query' },
+    emailStatus: { type: 'number', description: 'Email interest status filter' },
+    emailLead: { type: 'string', description: 'Lead email filter' },
+    emailIsUnread: { type: 'boolean', description: 'Whether the email is unread' },
     replyToUuid: { type: 'string', description: 'Email ID to reply to' },
     subject: { type: 'string', description: 'Reply subject' },
     bodyText: { type: 'string', description: 'Reply body text' },
+    bodyHtml: { type: 'string', description: 'Reply body HTML' },
+    ccRecipients: { type: 'string', description: 'CC email recipients' },
+    bccRecipients: { type: 'string', description: 'BCC email recipients' },
     leadListName: { type: 'string', description: 'Lead list name' },
+    hasEnrichmentTask: { type: 'boolean', description: 'Whether the lead list has enrichment' },
+    ownedBy: { type: 'string', description: 'Owner user ID' },
     limit: { type: 'number', description: 'Page size' },
     startingAfter: { type: 'string', description: 'Pagination cursor' },
   },
   outputs: {
-    leads: { type: 'array', description: 'List of leads' },
-    lead: { type: 'json', description: 'Lead details' },
-    campaigns: { type: 'array', description: 'List of campaigns' },
-    campaign: { type: 'json', description: 'Campaign details' },
-    emails: { type: 'array', description: 'List of emails' },
-    email: { type: 'json', description: 'Email details' },
-    lead_lists: { type: 'array', description: 'List of lead lists' },
-    lead_list: { type: 'json', description: 'Lead list details' },
+    leads: {
+      type: 'array',
+      description: 'List of leads (id, email, first_name, last_name, campaign, status)',
+    },
+    lead: {
+      type: 'json',
+      description:
+        'Lead details (id, email, first_name, last_name, company_name, job_title, campaign, status, payload)',
+    },
+    campaigns: { type: 'array', description: 'List of campaigns (id, name, status, daily_limit)' },
+    campaign: {
+      type: 'json',
+      description:
+        'Campaign details (id, name, status, daily_limit, daily_max_leads, open_tracking)',
+    },
+    emails: {
+      type: 'array',
+      description: 'List of emails (id, subject, from_address_email, lead, thread_id)',
+    },
+    email: {
+      type: 'json',
+      description:
+        'Email details (id, subject, from_address_email, to_address_email_list, thread_id, content_preview)',
+    },
+    lead_lists: {
+      type: 'array',
+      description: 'List of lead lists (id, name, has_enrichment_task, timestamp_created)',
+    },
+    lead_list: {
+      type: 'json',
+      description:
+        'Lead list details (id, organization_id, has_enrichment_task, owned_by, name, timestamp_created)',
+    },
     count: { type: 'number', description: 'Returned or affected record count' },
     next_starting_after: { type: 'string', description: 'Cursor for the next page' },
     id: { type: 'string', description: 'Record ID' },
@@ -786,16 +1116,21 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
 
 function parseStringList(value: unknown): string[] | undefined {
   if (Array.isArray(value)) {
-    const strings = value.filter((item): item is string => typeof item === 'string' && item !== '')
+    const strings = value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter((item) => item !== '' && item !== '-')
     return strings.length > 0 ? strings : undefined
   }
 
-  if (typeof value !== 'string' || value.trim() === '') return undefined
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (trimmed === '' || trimmed === '-') return undefined
 
-  const strings = value
+  const strings = trimmed
     .split(/[\s,]+/)
     .map((item) => item.trim())
-    .filter(Boolean)
+    .filter((item) => item !== '' && item !== '-')
 
   return strings.length > 0 ? strings : undefined
 }
@@ -832,6 +1167,15 @@ function toNumberParam(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
+function toNullableNumberParam(value: unknown, emptyAsNull = false): number | null | undefined {
+  if (value === null) return null
+  if (emptyAsNull && value === undefined) return null
+  if (emptyAsNull && typeof value === 'string' && value.trim() === '-') return null
+  if (typeof value === 'string' && value.trim().toLowerCase() === 'null') return null
+  if (emptyAsNull && typeof value === 'string' && value.trim() === '') return null
+  return toNumberParam(value)
+}
+
 function toBooleanParam(value: unknown): boolean | undefined {
   if (typeof value === 'boolean') return value
   if (typeof value !== 'string' || value.trim() === '') return undefined
@@ -841,7 +1185,16 @@ function toBooleanParam(value: unknown): boolean | undefined {
 }
 
 function emptyToUndefined(value: unknown): unknown {
-  return value === '' ? undefined : value
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  return trimmed === '' || trimmed === '-' ? undefined : trimmed
+}
+
+function optionalIdParam(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (trimmed === '' || trimmed === '-') return undefined
+  return trimmed
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

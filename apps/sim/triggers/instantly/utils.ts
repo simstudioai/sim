@@ -75,7 +75,7 @@ export function instantlySetupInstructions(eventType: string): string {
 export function buildInstantlyExtraFields(triggerId: string): SubBlockConfig[] {
   return [
     {
-      id: 'apiKey',
+      id: 'triggerApiKey',
       title: 'API Key',
       type: 'short-input',
       placeholder: 'Enter your Instantly API key',

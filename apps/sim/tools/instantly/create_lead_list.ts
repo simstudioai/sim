@@ -9,6 +9,7 @@ import {
   instantlyUrl,
   leadListOutputs,
   mapLeadList,
+  parseInstantlyResponse,
 } from '@/tools/instantly/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -53,7 +54,7 @@ export const createLeadListTool: ToolConfig<
       }),
   },
   transformResponse: async (response) => {
-    const data: unknown = await response.json()
+    const data = await parseInstantlyResponse(response)
     const leadList = mapLeadList(data)
 
     return {

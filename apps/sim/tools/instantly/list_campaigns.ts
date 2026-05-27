@@ -10,6 +10,7 @@ import {
   instantlyHeaders,
   instantlyUrl,
   mapCampaign,
+  parseInstantlyResponse,
 } from '@/tools/instantly/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -74,7 +75,7 @@ export const listCampaignsTool: ToolConfig<
     headers: instantlyHeaders,
   },
   transformResponse: async (response) => {
-    const data: unknown = await response.json()
+    const data = await parseInstantlyResponse(response)
     const campaigns = getItems(data).map(mapCampaign)
 
     return {

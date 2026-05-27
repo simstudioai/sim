@@ -163,29 +163,14 @@ export interface InstantlyCreateCampaignParams extends InstantlyBaseParams {
   campaign_schedule: Record<string, unknown>
   sequences?: unknown[]
   pl_value?: number | null
-  is_evergreen?: boolean | null
   email_gap?: number | null
-  random_wait_max?: number | null
   text_only?: boolean | null
-  first_email_text_only?: boolean | null
   email_list?: string[]
   daily_limit?: number | null
   stop_on_reply?: boolean | null
-  email_tag_list?: string[]
   link_tracking?: boolean | null
   open_tracking?: boolean
-  stop_on_auto_reply?: boolean | null
   daily_max_leads?: number | null
-  prioritize_new_leads?: boolean | null
-  match_lead_esp?: boolean | null
-  stop_for_company?: boolean | null
-  insert_unsubscribe_header?: boolean | null
-  allow_risky_contacts?: boolean | null
-  disable_bounce_protect?: boolean | null
-  cc_list?: string[]
-  bcc_list?: string[]
-  owned_by?: string | null
-  ai_sdr_id?: string | null
 }
 
 export interface InstantlyPatchCampaignParams extends Partial<InstantlyCreateCampaignParams> {
@@ -206,9 +191,7 @@ export interface InstantlyListEmailsParams extends InstantlyBaseParams {
   i_status?: number
   eaccount?: string
   lead?: string
-  lead_id?: string
-  is_unread?: number
-  thread_id?: string
+  is_unread?: boolean
 }
 
 export interface InstantlyReplyToEmailParams extends InstantlyBaseParams {

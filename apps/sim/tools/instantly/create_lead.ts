@@ -6,6 +6,7 @@ import {
   instantlyUrl,
   leadOutputs,
   mapLead,
+  parseInstantlyResponse,
 } from '@/tools/instantly/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -118,6 +119,12 @@ export const createLeadTool: ToolConfig<InstantlyCreateLeadParams, InstantlyLead
       visibility: 'user-or-llm',
       description: 'Blocklist ID to check for the lead',
     },
+    verify_leads_for_lead_finder: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to verify leads imported from Lead Finder',
+    },
     verify_leads_on_import: {
       type: 'boolean',
       required: false,
@@ -160,7 +167,7 @@ export const createLeadTool: ToolConfig<InstantlyCreateLeadParams, InstantlyLead
       }),
   },
   transformResponse: async (response) => {
-    const data: unknown = await response.json()
+    const data = await parseInstantlyResponse(response)
     const lead = mapLead(data)
 
     return {

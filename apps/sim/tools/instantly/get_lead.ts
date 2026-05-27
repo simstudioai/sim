@@ -5,6 +5,7 @@ import {
   instantlyUrl,
   leadOutputs,
   mapLead,
+  parseInstantlyResponse,
 } from '@/tools/instantly/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -23,12 +24,12 @@ export const getLeadTool: ToolConfig<InstantlyGetLeadParams, InstantlyLeadRespon
     },
   },
   request: {
-    url: (params) => instantlyUrl(`/api/v2/leads/${params.leadId}`),
+    url: (params) => instantlyUrl(`/api/v2/leads/${params.leadId.trim()}`),
     method: 'GET',
     headers: instantlyHeaders,
   },
   transformResponse: async (response) => {
-    const data: unknown = await response.json()
+    const data = await parseInstantlyResponse(response)
     const lead = mapLead(data)
 
     return {

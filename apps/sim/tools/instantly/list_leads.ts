@@ -8,6 +8,7 @@ import {
   instantlyUrl,
   leadsListOutputs,
   mapLead,
+  parseInstantlyResponse,
 } from '@/tools/instantly/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -68,6 +69,19 @@ export const listLeadsTool: ToolConfig<InstantlyListLeadsParams, InstantlyListLe
       description: 'Lead IDs to exclude',
       items: { type: 'string', description: 'Lead ID' },
     },
+    organization_user_ids: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Organization user IDs to filter leads',
+      items: { type: 'string', description: 'Organization user ID' },
+    },
+    smart_view_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Smart view ID to filter leads',
+    },
     contacts: {
       type: 'array',
       required: false,
@@ -92,6 +106,12 @@ export const listLeadsTool: ToolConfig<InstantlyListLeadsParams, InstantlyListLe
       required: false,
       visibility: 'user-or-llm',
       description: 'Whether to return distinct contacts',
+    },
+    is_website_visitor: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether the lead is a website visitor',
     },
     enrichment_status: {
       type: 'number',
@@ -132,7 +152,7 @@ export const listLeadsTool: ToolConfig<InstantlyListLeadsParams, InstantlyListLe
       }),
   },
   transformResponse: async (response) => {
-    const data: unknown = await response.json()
+    const data = await parseInstantlyResponse(response)
     const leads = getItems(data).map(mapLead)
 
     return {

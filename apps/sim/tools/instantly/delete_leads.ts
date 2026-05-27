@@ -8,6 +8,7 @@ import {
   instantlyBaseParamFields,
   instantlyHeaders,
   instantlyUrl,
+  parseInstantlyResponse,
 } from '@/tools/instantly/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -65,7 +66,7 @@ export const deleteLeadsTool: ToolConfig<InstantlyDeleteLeadsParams, InstantlyDe
         }),
     },
     transformResponse: async (response) => {
-      const data: unknown = await response.json()
+      const data = await parseInstantlyResponse(response)
       const result = asRecord(data)
 
       return {

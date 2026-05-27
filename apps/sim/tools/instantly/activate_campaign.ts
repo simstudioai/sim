@@ -8,6 +8,7 @@ import {
   instantlyHeaders,
   instantlyUrl,
   mapCampaign,
+  parseInstantlyResponse,
 } from '@/tools/instantly/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -29,12 +30,12 @@ export const activateCampaignTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => instantlyUrl(`/api/v2/campaigns/${params.campaignId}/activate`),
+    url: (params) => instantlyUrl(`/api/v2/campaigns/${params.campaignId.trim()}/activate`),
     method: 'POST',
     headers: instantlyHeaders,
   },
   transformResponse: async (response) => {
-    const data: unknown = await response.json()
+    const data = await parseInstantlyResponse(response)
     const campaign = mapCampaign(data)
 
     return {

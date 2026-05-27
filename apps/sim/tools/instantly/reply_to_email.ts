@@ -6,6 +6,7 @@ import {
   instantlyHeaders,
   instantlyUrl,
   mapEmail,
+  parseInstantlyResponse,
 } from '@/tools/instantly/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -68,7 +69,7 @@ export const replyToEmailTool: ToolConfig<InstantlyReplyToEmailParams, Instantly
       }),
   },
   transformResponse: async (response) => {
-    const data: unknown = await response.json()
+    const data = await parseInstantlyResponse(response)
     const email = mapEmail(data)
 
     return {
