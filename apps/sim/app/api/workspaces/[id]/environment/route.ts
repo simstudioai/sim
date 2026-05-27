@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -18,7 +19,10 @@ import {
   createWorkspaceEnvCredentials,
   deleteWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
-import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import {
+  getPersonalAndWorkspaceEnv,
+  invalidateEffectiveDecryptedEnvCache,
+} from '@/lib/environment/utils'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceEnvironmentAPI')
@@ -64,10 +68,10 @@ export const GET = withRouteHandler(
         },
         { status: 200 }
       )
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`[${requestId}] Workspace env GET error`, error)
       return NextResponse.json(
-        { error: error.message || 'Failed to load environment' },
+        { error: getErrorMessage(error, 'Failed to load environment') },
         { status: 500 }
       )
     }
@@ -135,6 +139,7 @@ export const PUT = withRouteHandler(
         return { existingEncrypted: existing, merged: mergedVars }
       })
 
+      invalidateEffectiveDecryptedEnvCache({ workspaceId })
       const newKeys = Object.keys(variables).filter((k) => !(k in existingEncrypted))
       await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId: userId })
 
@@ -156,10 +161,10 @@ export const PUT = withRouteHandler(
       })
 
       return NextResponse.json({ success: true })
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`[${requestId}] Workspace env PUT error`, error)
       return NextResponse.json(
-        { error: error.message || 'Failed to update environment' },
+        { error: getErrorMessage(error, 'Failed to update environment') },
         { status: 500 }
       )
     }
@@ -223,6 +228,7 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ success: true })
       }
 
+      invalidateEffectiveDecryptedEnvCache({ workspaceId })
       await deleteWorkspaceEnvCredentials({ workspaceId, removedKeys: keys })
 
       recordAudit({
@@ -242,10 +248,10 @@ export const DELETE = withRouteHandler(
       })
 
       return NextResponse.json({ success: true })
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`[${requestId}] Workspace env DELETE error`, error)
       return NextResponse.json(
-        { error: error.message || 'Failed to remove environment keys' },
+        { error: getErrorMessage(error, 'Failed to remove environment keys') },
         { status: 500 }
       )
     }

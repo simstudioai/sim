@@ -135,7 +135,7 @@ export const PUT = withRouteHandler(
 
         await db
           .update(workflowSchedule)
-          .set({ status: 'disabled', nextRunAt: null, updatedAt: new Date() })
+          .set({ status: 'disabled', nextRunAt: null, lastQueuedAt: null, updatedAt: new Date() })
           .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
 
         logger.info(`[${requestId}] Disabled schedule: ${scheduleId}`)
@@ -220,7 +220,7 @@ export const PUT = withRouteHandler(
 
       await db
         .update(workflowSchedule)
-        .set({ status: 'active', failedCount: 0, updatedAt: now, nextRunAt })
+        .set({ status: 'active', failedCount: 0, infraRetryCount: 0, updatedAt: now, nextRunAt })
         .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
 
       logger.info(`[${requestId}] Reactivated schedule: ${scheduleId}`)

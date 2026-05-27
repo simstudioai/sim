@@ -560,7 +560,6 @@ async function handleExecutePost(
       )
     }
 
-    // Pass the pre-fetched workflow record to skip the redundant Step 1 DB query in preprocessing.
     const preprocessResult = await preprocessExecution({
       workflowId,
       userId,

@@ -287,7 +287,7 @@ export async function deleteWorkspaceEnvCredentials(params: {
 export async function syncPersonalEnvCredentialsForUser(params: {
   userId: string
   envKeys: string[]
-}) {
+}): Promise<void> {
   const { userId, envKeys } = params
   const workspaceIds = await getUserWorkspaceIds(userId)
   if (!workspaceIds.length) return

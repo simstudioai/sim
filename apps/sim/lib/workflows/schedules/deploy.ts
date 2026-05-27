@@ -118,6 +118,7 @@ export async function createSchedulesForDeploy(
           timezone,
           status: 'active',
           failedCount: 0,
+          infraRetryCount: 0,
         }
 
         const setValues = {
@@ -129,6 +130,7 @@ export async function createSchedulesForDeploy(
           timezone,
           status: 'active',
           failedCount: 0,
+          infraRetryCount: 0,
         }
 
         await tx
