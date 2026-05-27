@@ -4,7 +4,12 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { MAX_MCP_SERVERS_PER_WORKFLOW, MAX_MCP_TOOLS_PER_SERVER } from '@/lib/mcp/constants'
+import {
+  MAX_MCP_SERVER_PARAMETER_SCHEMAS_BYTES,
+  MAX_MCP_SERVER_TOOLS_METADATA_BYTES,
+  MAX_MCP_SERVERS_PER_WORKFLOW,
+  MAX_MCP_TOOLS_PER_SERVER,
+} from '@/lib/mcp/constants'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import {
   acquireWorkflowMcpServerLock,
@@ -13,9 +18,13 @@ import {
 } from '@/lib/mcp/server-locks'
 import {
   addMcpToolMetadataUsage,
+  addMcpToolMetadataUsageRow,
+  createMcpToolMetadataUsageRow,
   getMcpServerToolMetadataUsageRows,
   getMcpToolDescriptionForStorage,
+  getMcpToolMetadataSizes,
   getMcpToolMetadataUsageFromRows,
+  type McpToolMetadataUsage,
   validateMcpServerToolMetadataBudget,
   validateMcpToolMetadataForStorage,
 } from '@/lib/mcp/tool-limits'
@@ -179,6 +188,25 @@ async function validateServerToolMetadataBudget(
     usage = addMcpToolMetadataUsage(usage, tool)
   }
   return validateMcpServerToolMetadataBudget(usage)
+}
+
+function validateServerToolMetadataBudgetForUpdate(
+  currentUsage: McpToolMetadataUsage,
+  proposedUsage: McpToolMetadataUsage
+): string | null {
+  if (
+    proposedUsage.schemaBytes > MAX_MCP_SERVER_PARAMETER_SCHEMAS_BYTES &&
+    proposedUsage.schemaBytes > currentUsage.schemaBytes
+  ) {
+    return `MCP server tool schemas exceed maximum size of ${MAX_MCP_SERVER_PARAMETER_SCHEMAS_BYTES} bytes`
+  }
+  if (
+    proposedUsage.metadataBytes > MAX_MCP_SERVER_TOOLS_METADATA_BYTES &&
+    proposedUsage.metadataBytes > currentUsage.metadataBytes
+  ) {
+    return `MCP server tool metadata exceeds maximum size of ${MAX_MCP_SERVER_TOOLS_METADATA_BYTES} bytes`
+  }
+  return null
 }
 
 async function prepareWorkflowMcpTool(params: {
@@ -863,7 +891,7 @@ export async function performUpdateWorkflowMcpTool(
           id: workflowMcpTool.id,
           toolName: workflowMcpTool.toolName,
           toolDescription: workflowMcpTool.toolDescription,
-          parameterSchema: workflowMcpTool.parameterSchema,
+          parameterSchemaBytes: sql<number>`octet_length(${workflowMcpTool.parameterSchema}::text)`,
         })
         .from(workflowMcpTool)
         .where(
@@ -885,13 +913,13 @@ export async function performUpdateWorkflowMcpTool(
           ? updateData.toolDescription
           : currentTool.toolDescription
       const effectiveParameterSchema =
-        updateData.parameterSchema !== undefined
-          ? updateData.parameterSchema
-          : currentTool.parameterSchema
+        updateData.parameterSchema !== undefined ? updateData.parameterSchema : undefined
       const metadataLimitError = validateMcpToolMetadataForStorage({
         toolName: effectiveToolName,
         toolDescription: effectiveToolDescription,
-        parameterSchema: effectiveParameterSchema,
+        ...(effectiveParameterSchema !== undefined && {
+          parameterSchema: effectiveParameterSchema,
+        }),
       })
       if (metadataLimitError) {
         throw new WorkflowMcpExpectedError(metadataLimitError, 'validation')
@@ -919,18 +947,36 @@ export async function performUpdateWorkflowMcpTool(
         }
       }
 
-      const budgetError = await validateServerToolMetadataBudget(
-        params.serverId,
-        [
-          {
-            toolName: effectiveToolName,
-            toolDescription: effectiveToolDescription,
-            parameterSchema: effectiveParameterSchema,
-          },
-        ],
-        tx,
-        params.toolId
+      const baseUsage = getMcpToolMetadataUsageFromRows(
+        await getMcpServerToolMetadataUsageRows(tx, params.serverId, params.toolId)
       )
+      const currentUsage = addMcpToolMetadataUsageRow(baseUsage, {
+        id: currentTool.id,
+        ...getMcpToolMetadataSizes({
+          toolName: currentTool.toolName,
+          toolDescription: currentTool.toolDescription,
+        }),
+        parameterSchemaBytes: Number(currentTool.parameterSchemaBytes) || 0,
+      })
+      const proposedUsage = addMcpToolMetadataUsageRow(
+        baseUsage,
+        effectiveParameterSchema !== undefined
+          ? createMcpToolMetadataUsageRow({
+              id: currentTool.id,
+              toolName: effectiveToolName,
+              toolDescription: effectiveToolDescription,
+              parameterSchema: effectiveParameterSchema,
+            })
+          : {
+              id: currentTool.id,
+              ...getMcpToolMetadataSizes({
+                toolName: effectiveToolName,
+                toolDescription: effectiveToolDescription,
+              }),
+              parameterSchemaBytes: Number(currentTool.parameterSchemaBytes) || 0,
+            }
+      )
+      const budgetError = validateServerToolMetadataBudgetForUpdate(currentUsage, proposedUsage)
       if (budgetError) {
         throw new WorkflowMcpExpectedError(budgetError, 'validation')
       }

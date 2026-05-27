@@ -4,6 +4,17 @@
 import { dbChainMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@sim/audit', () => ({
+  AuditAction: {
+    MCP_SERVER_UPDATED: 'mcp_server_updated',
+    MCP_TOOL_UPDATED: 'mcp_tool_updated',
+  },
+  AuditResourceType: {
+    MCP_SERVER: 'mcp_server',
+    MCP_TOOL: 'mcp_tool',
+  },
+  recordAudit: vi.fn(),
+}))
 vi.mock('@sim/db', () => ({
   ...dbChainMock,
   workflow: schemaMock.workflow,
@@ -28,8 +39,11 @@ vi.mock('@/lib/mcp/workflow-mcp-sync', () => ({
   generateParameterSchemaForWorkflow: vi.fn().mockResolvedValue({ type: 'object', properties: {} }),
 }))
 
-import { MAX_MCP_TOOLS_PER_SERVER } from '@/lib/mcp/constants'
-import { performCreateWorkflowMcpServer } from '@/lib/mcp/orchestration/workflow-mcp-lifecycle'
+import { MAX_MCP_PARAMETER_SCHEMA_BYTES, MAX_MCP_TOOLS_PER_SERVER } from '@/lib/mcp/constants'
+import {
+  performCreateWorkflowMcpServer,
+  performUpdateWorkflowMcpTool,
+} from '@/lib/mcp/orchestration/workflow-mcp-lifecycle'
 import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
 
 describe('workflow MCP lifecycle orchestration', () => {
@@ -150,5 +164,40 @@ describe('workflow MCP lifecycle orchestration', () => {
       errorCode: 'validation',
     })
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('allows updating tool metadata when an unchanged stored schema exceeds the new cap', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'server-1' }]).mockResolvedValueOnce([
+      {
+        id: 'tool-1',
+        toolName: 'tool_a',
+        toolDescription: null,
+        parameterSchemaBytes: MAX_MCP_PARAMETER_SCHEMA_BYTES + 1,
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'tool-1',
+        serverId: 'server-1',
+        toolName: 'tool_a',
+        toolDescription: 'Updated description',
+      },
+    ])
+
+    const result = await performUpdateWorkflowMcpTool({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      serverId: 'server-1',
+      toolId: 'tool-1',
+      toolDescription: 'Updated description',
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      tool: {
+        toolDescription: 'Updated description',
+      },
+    })
+    expect(dbChainMockFns.update).toHaveBeenCalled()
   })
 })
