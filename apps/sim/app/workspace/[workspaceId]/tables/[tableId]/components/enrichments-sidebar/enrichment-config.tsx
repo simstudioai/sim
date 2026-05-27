@@ -10,16 +10,18 @@ import {
   CollapsibleCard,
   Combobox,
   FieldDivider,
+  Input,
   Label,
   Switch,
   toast,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
 import type { AddWorkflowGroupBodyInput } from '@/lib/api/contracts/tables'
+import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition, WorkflowGroup, WorkflowGroupOutput } from '@/lib/table'
 import { deriveOutputColumnName } from '@/lib/table/column-naming'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
-import { useAddWorkflowGroup } from '@/hooks/queries/tables'
+import { useAddWorkflowGroup, useUpdateWorkflowGroup } from '@/hooks/queries/tables'
 import { RunSettingsSection } from '../workflow-sidebar/run-settings-section'
 
 interface EnrichmentConfigProps {
@@ -29,6 +31,10 @@ interface EnrichmentConfigProps {
   tableId: string
   onBack: () => void
   onClose: () => void
+  /** When set, the panel edits this existing enrichment group (pre-filled,
+   *  updates instead of creating). Output columns already exist and are shown
+   *  read-only. */
+  existingGroup?: WorkflowGroup
 }
 
 /** Pre-fill an input's column from a same-named column (case-insensitive). */
@@ -56,10 +62,18 @@ export function EnrichmentConfig({
   tableId,
   onBack,
   onClose,
+  existingGroup,
 }: EnrichmentConfigProps) {
   const addWorkflowGroup = useAddWorkflowGroup({ workspaceId, tableId })
+  const updateWorkflowGroup = useUpdateWorkflowGroup({ workspaceId, tableId })
+  const isEditing = Boolean(existingGroup)
 
   const [inputMappings, setInputMappings] = useState<Record<string, string>>(() => {
+    if (existingGroup) {
+      const seed: Record<string, string> = {}
+      for (const m of existingGroup.inputMappings ?? []) seed[m.inputName] = m.columnName
+      return seed
+    }
     const seed: Record<string, string> = {}
     for (const input of enrichment.inputs) {
       const col = defaultColumnFor(input, allColumns)
@@ -67,27 +81,83 @@ export function EnrichmentConfig({
     }
     return seed
   })
+  // Per-output column names. Edit mode reflects the existing columns (read-only);
+  // create mode seeds deduped defaults the user can rename.
+  const [outputNames, setOutputNames] = useState<Record<string, string>>(() => {
+    const seed: Record<string, string> = {}
+    if (existingGroup) {
+      for (const o of existingGroup.outputs) {
+        if (o.outputId) seed[o.outputId] = o.columnName
+      }
+      return seed
+    }
+    const taken = new Set(allColumns.map((c) => c.name))
+    for (const o of enrichment.outputs) {
+      const colName = deriveOutputColumnName(o.name, taken)
+      taken.add(colName)
+      seed[o.id] = colName
+    }
+    return seed
+  })
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
-  const [autoRun, setAutoRun] = useState(false)
-  const [deps, setDeps] = useState<string[]>([])
+  const [autoRun, setAutoRun] = useState(() => existingGroup?.autoRun ?? false)
+  const [deps, setDeps] = useState<string[]>(() => existingGroup?.dependencies?.columns ?? [])
   const [showValidation, setShowValidation] = useState(false)
 
   const columnOptions = allColumns.map((c) => ({ label: c.name, value: c.name }))
   const missingRequired = enrichment.inputs.some((i) => i.required && !inputMappings[i.id])
   const depsValid = !autoRun || deps.length > 0
-  const saveDisabled = addWorkflowGroup.isPending || !depsValid
+
+  /** Per-output name validation (create mode only — edit mode columns exist). */
+  function outputNameError(outputId: string): string | null {
+    if (isEditing) return null
+    const value = (outputNames[outputId] ?? '').trim()
+    if (!value) return 'Required'
+    const lower = value.toLowerCase()
+    if (allColumns.some((c) => c.name.toLowerCase() === lower)) return 'Column already exists'
+    const dup = enrichment.outputs.some(
+      (o) => o.id !== outputId && (outputNames[o.id] ?? '').trim().toLowerCase() === lower
+    )
+    return dup ? 'Duplicate name' : null
+  }
+  const outputsInvalid =
+    !isEditing && enrichment.outputs.some((o) => outputNameError(o.id) !== null)
+  const saveDisabled =
+    addWorkflowGroup.isPending || updateWorkflowGroup.isPending || !depsValid || outputsInvalid
 
   async function handleSave() {
-    if (missingRequired || (autoRun && deps.length === 0)) {
+    if (missingRequired || (autoRun && deps.length === 0) || outputsInvalid) {
       setShowValidation(true)
       return
     }
+    const inputMappingsList = Object.entries(inputMappings)
+      .filter(([, columnName]) => Boolean(columnName))
+      .map(([inputName, columnName]) => ({ inputName, columnName }))
+
+    if (existingGroup) {
+      try {
+        await updateWorkflowGroup.mutateAsync({
+          groupId: existingGroup.id,
+          name: enrichment.name,
+          dependencies: { columns: deps },
+          inputMappings: inputMappingsList,
+          autoRun,
+        })
+        toast.success(`Updated "${enrichment.name}"`)
+        onClose()
+      } catch (err) {
+        toast.error(toError(err).message)
+      }
+      return
+    }
+
     const groupId = generateId()
     const taken = new Set(allColumns.map((c) => c.name))
     const outputColumns: AddWorkflowGroupBodyInput['outputColumns'] = []
     const outputs: WorkflowGroupOutput[] = []
     for (const o of enrichment.outputs) {
-      const colName = deriveOutputColumnName(o.name, taken)
+      const desired = (outputNames[o.id] ?? '').trim() || o.name
+      const colName = deriveOutputColumnName(desired, taken)
       taken.add(colName)
       outputColumns.push({
         name: colName,
@@ -98,9 +168,6 @@ export function EnrichmentConfig({
       })
       outputs.push({ blockId: '', path: '', outputId: o.id, columnName: colName })
     }
-    const inputMappingsList = Object.entries(inputMappings)
-      .filter(([, columnName]) => Boolean(columnName))
-      .map(([inputName, columnName]) => ({ inputName, columnName }))
 
     const group: WorkflowGroup = {
       id: groupId,
@@ -205,9 +272,42 @@ export function EnrichmentConfig({
 
         <div className='flex flex-col gap-[9.5px]'>
           <Label className='pl-0.5'>Output columns</Label>
-          <p className='pl-0.5 text-[var(--text-tertiary)] text-caption'>
-            Creates: {enrichment.outputs.map((o) => o.name).join(', ')}
-          </p>
+          <div className='flex flex-col gap-2'>
+            {enrichment.outputs.map((output) => {
+              const outErr = showValidation ? outputNameError(output.id) : null
+              return (
+                <CollapsibleCard
+                  key={output.id}
+                  title={output.name}
+                  badge={
+                    <Badge variant='type' size='sm'>
+                      {output.type}
+                    </Badge>
+                  }
+                  collapsed={collapsed[`out:${output.id}`] ?? false}
+                  onToggleCollapse={() =>
+                    setCollapsed((prev) => ({
+                      ...prev,
+                      [`out:${output.id}`]: !prev[`out:${output.id}`],
+                    }))
+                  }
+                >
+                  <Label className='text-small'>Column name</Label>
+                  <Input
+                    value={outputNames[output.id] ?? ''}
+                    onChange={(e) =>
+                      setOutputNames((prev) => ({ ...prev, [output.id]: e.target.value }))
+                    }
+                    disabled={isEditing}
+                    spellCheck={false}
+                    autoComplete='off'
+                    className={cn(outErr && 'border-[var(--text-error)]')}
+                  />
+                  {outErr && <p className='text-[var(--text-error)] text-caption'>{outErr}</p>}
+                </CollapsibleCard>
+              )
+            })}
+          </div>
         </div>
 
         <FieldDivider />
@@ -238,7 +338,7 @@ export function EnrichmentConfig({
           Cancel
         </Button>
         <Button variant='primary' size='sm' onClick={handleSave} disabled={saveDisabled}>
-          {saveDisabled ? 'Saving…' : 'Save'}
+          {isEditing ? 'Update' : 'Save'}
         </Button>
       </div>
     </div>

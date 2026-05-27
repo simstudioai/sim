@@ -15,7 +15,7 @@ import {
 } from '@/components/emcn'
 import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
 import type { RunMode } from '@/lib/api/contracts/tables'
-import type { ColumnDefinition, Filter, TableRow as TableRowType } from '@/lib/table'
+import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import {
   type ColumnOption,
   ResourceHeader,
@@ -76,13 +76,13 @@ interface TableProps {
 type SlideoutState =
   | { kind: 'none' }
   | { kind: 'column'; config: ColumnConfig }
-  | { kind: 'enrichments' }
+  | { kind: 'enrichments'; editGroup?: WorkflowGroup }
   | { kind: 'workflow'; config: WorkflowConfig }
   | { kind: 'execution'; executionId: string }
 
 type SlideoutAction =
   | { type: 'OPEN_COLUMN'; config: ColumnConfig }
-  | { type: 'OPEN_ENRICHMENTS' }
+  | { type: 'OPEN_ENRICHMENTS'; editGroup?: WorkflowGroup }
   | { type: 'OPEN_WORKFLOW'; config: WorkflowConfig }
   | { type: 'OPEN_EXECUTION'; executionId: string }
   | { type: 'CLOSE' }
@@ -92,7 +92,7 @@ function slideoutReducer(_state: SlideoutState, action: SlideoutAction): Slideou
     case 'OPEN_COLUMN':
       return { kind: 'column', config: action.config }
     case 'OPEN_ENRICHMENTS':
-      return { kind: 'enrichments' }
+      return { kind: 'enrichments', editGroup: action.editGroup }
     case 'OPEN_WORKFLOW':
       return { kind: 'workflow', config: action.config }
     case 'OPEN_EXECUTION':
@@ -153,6 +153,9 @@ export function Table({
   }, [])
   const onOpenEnrichments = useCallback(() => {
     dispatch({ type: 'OPEN_ENRICHMENTS' })
+  }, [])
+  const onOpenEnrichmentConfig = useCallback((editGroup: WorkflowGroup) => {
+    dispatch({ type: 'OPEN_ENRICHMENTS', editGroup })
   }, [])
   const onOpenExecutionDetails = useCallback((executionId: string) => {
     dispatch({ type: 'OPEN_EXECUTION', executionId })
@@ -498,6 +501,7 @@ export function Table({
         onOpenColumnConfig={onOpenColumnConfig}
         onOpenWorkflowConfig={onOpenWorkflowConfig}
         onOpenEnrichments={onOpenEnrichments}
+        onOpenEnrichmentConfig={onOpenEnrichmentConfig}
         onOpenExecutionDetails={onOpenExecutionDetails}
         onOpenRowModal={onOpenRowModal}
         onRequestDeleteRows={onRequestDeleteRows}
@@ -580,6 +584,7 @@ export function Table({
         allColumns={columns}
         workspaceId={workspaceId}
         tableId={tableId}
+        editGroup={slideout.kind === 'enrichments' ? slideout.editGroup : undefined}
       />
       <WorkflowSidebar
         config={workflowConfig}

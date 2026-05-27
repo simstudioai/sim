@@ -5,8 +5,9 @@ import { X } from 'lucide-react'
 import { Button, Input } from '@/components/emcn'
 import { Search } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
-import type { ColumnDefinition } from '@/lib/table'
+import type { ColumnDefinition, WorkflowGroup } from '@/lib/table'
 import { ALL_ENRICHMENTS } from '@/enrichments'
+import { getEnrichment } from '@/enrichments/registry'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
 import { EnrichmentConfig } from './enrichment-config'
 
@@ -16,6 +17,9 @@ interface EnrichmentsSidebarProps {
   allColumns: ColumnDefinition[]
   workspaceId: string
   tableId: string
+  /** When set, the sidebar opens straight into this enrichment group's config
+   *  in edit mode (skips the catalog list). */
+  editGroup?: WorkflowGroup
 }
 
 /**
@@ -43,9 +47,27 @@ function EnrichmentsSidebarBody({
   allColumns,
   workspaceId,
   tableId,
+  editGroup,
 }: Omit<EnrichmentsSidebarProps, 'open'>) {
   const [selected, setSelected] = useState<EnrichmentDef | null>(null)
   const [query, setQuery] = useState('')
+
+  // Edit mode: open the picked enrichment's config directly, pre-filled from the
+  // existing group. No catalog list / back-to-list step.
+  const editEnrichment = editGroup ? getEnrichment(editGroup.enrichmentId) : undefined
+  if (editGroup && editEnrichment) {
+    return (
+      <EnrichmentConfig
+        enrichment={editEnrichment}
+        existingGroup={editGroup}
+        allColumns={allColumns}
+        workspaceId={workspaceId}
+        tableId={tableId}
+        onBack={onClose}
+        onClose={onClose}
+      />
+    )
+  }
 
   if (selected) {
     return (
