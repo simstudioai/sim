@@ -149,7 +149,7 @@
     "json5": "2.2.3",
     "jszip": "3.10.1",
     "jwt-decode": "^4.0.0",
-    "lru-cache": "11.5.1",
+    "lru-cache": "11.3.6",
     "lucide-react": "^0.479.0",
     "mammoth": "^1.9.0",
     "mermaid": "11.15.0",
