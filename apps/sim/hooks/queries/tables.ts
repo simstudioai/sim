@@ -1430,7 +1430,8 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
       // position. We can't predict that set client-side, so optimistic stamping
       // is skipped — the dispatcher's real pending stamps (cell SSE) drive the
       // UI within the first window.
-      if (limit) return { snapshots: undefined, runStateSnapshot: undefined, didBumpRunState: false }
+      if (limit)
+        return { snapshots: undefined, runStateSnapshot: undefined, didBumpRunState: false }
       const targetRowIds = rowIds && rowIds.length > 0 ? new Set(rowIds) : null
       const targetGroupIds = new Set(groupIds)
       const groups =
