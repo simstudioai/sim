@@ -64,6 +64,13 @@ export async function runEnrichment(
         { signal: ctx.signal }
       )
       if (!response.success) {
+        // A 404 means the provider simply has no record for these inputs — a
+        // clean no-match, not an infra failure. Fall through to the next
+        // provider without counting it as an error (so the cell shows "Not
+        // found" rather than an error). Other statuses (auth, rate-limit, 5xx)
+        // are real errors and propagate.
+        const status = (response.output as { status?: unknown } | undefined)?.status
+        if (status === 404) continue
         throw new Error(response.error ?? `${provider.toolId} failed`)
       }
       cost += readCost(response.output)
