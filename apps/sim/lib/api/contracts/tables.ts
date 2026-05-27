@@ -905,11 +905,28 @@ export const cancelTableRunsContract = defineRouteContract({
  * action-bar Play/Refresh, column-header menu) reduces to a `groupIds` +
  * optional `rowIds` shape. AI uses the `run_column` tool op.
  */
+/**
+ * Optional cap on how much work the dispatch does before completing. The
+ * discriminated `type` keeps it extensible — only `'rows'` exists today
+ * (`max` = number of eligible rows to run before stopping), but future kinds
+ * (`'cells'`, `'cost'`, …) can extend the union without reshaping the request.
+ */
+export const runLimitSchema = z.object({
+  type: z.literal('rows'),
+  max: z
+    .number()
+    .int('max must be a whole number')
+    .min(1, 'max must be at least 1')
+    .max(1_000_000, 'max cannot exceed 1,000,000'),
+})
+
 export const runColumnBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   groupIds: z.array(z.string().min(1)).min(1),
   runMode: z.enum(['all', 'incomplete']).default('all'),
   rowIds: z.array(z.string().min(1)).min(1).optional(),
+  /** Cap the run to the first `max` eligible rows. Omit for an unbounded run. */
+  limit: runLimitSchema.optional(),
 })
 
 export const runColumnContract = defineRouteContract({
@@ -938,6 +955,8 @@ export type RunColumnBodyInput = z.input<typeof runColumnBodySchema>
 /** Shared `runMode` union — used by every UI / hook / Mothership site that
  *  builds a run-column payload. Single source of truth for the literal pair. */
 export type RunMode = NonNullable<RunColumnBodyInput['runMode']>
+/** Run cap shape consumed by hooks/components building a capped run payload. */
+export type RunLimit = z.input<typeof runLimitSchema>
 
 /**
  * Active dispatch overlay: rows in the scope ahead of `cursor` render as
@@ -955,6 +974,11 @@ export const activeDispatchSchema = z.object({
     groupIds: z.array(z.string()),
     rowIds: z.array(z.string()).optional(),
   }),
+  /** Present when the run is capped. The client's "about to run" overlay skips
+   *  capped dispatches — it can't tell which rows ahead of the cursor fall
+   *  within the budget, so it would over-render Queued; the dispatcher's real
+   *  per-row pending stamps cover the actual rows instead. */
+  limit: runLimitSchema.optional(),
 })
 
 export const listActiveDispatchesContract = defineRouteContract({
