@@ -104,6 +104,7 @@ import { IncidentioBlock } from '@/blocks/blocks/incidentio'
 import { InfisicalBlock } from '@/blocks/blocks/infisical'
 import { InputTriggerBlock } from '@/blocks/blocks/input_trigger'
 import { IntercomBlock, IntercomV2Block } from '@/blocks/blocks/intercom'
+import { IroncladBlock } from '@/blocks/blocks/ironclad'
 import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
 import { JiraServiceManagementBlock } from '@/blocks/blocks/jira_service_management'
@@ -366,6 +367,7 @@ export const registry: Record<string, BlockConfig> = {
   input_trigger: InputTriggerBlock,
   intercom: IntercomBlock,
   intercom_v2: IntercomV2Block,
+  ironclad: IroncladBlock,
   jina: JinaBlock,
   jira: JiraBlock,
   jira_service_management: JiraServiceManagementBlock,

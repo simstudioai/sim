@@ -7203,6 +7203,73 @@
     "tags": ["customer-support", "messaging"]
   },
   {
+    "type": "ironclad",
+    "slug": "ironclad",
+    "name": "Ironclad",
+    "description": "Contract lifecycle management with Ironclad",
+    "longDescription": "Manage workflows and records in Ironclad. Create and track contract workflows, manage records, view approvals, add comments, and update metadata. Requires an Ironclad OAuth connection.",
+    "bgColor": "#FFFFFF",
+    "iconName": "IroncladIcon",
+    "docsUrl": "https://docs.sim.ai/tools/ironclad",
+    "operations": [
+      {
+        "name": "Create Workflow",
+        "description": "Create a new workflow in Ironclad using a specified template and attributes."
+      },
+      {
+        "name": "List Workflows",
+        "description": "List all workflows in Ironclad with pagination support."
+      },
+      {
+        "name": "Get Workflow",
+        "description": "Retrieve details of a specific workflow by its ID."
+      },
+      {
+        "name": "Update Workflow Metadata",
+        "description": "Update attributes on a workflow. The workflow must be in the Review step. Supports set and remove actions."
+      },
+      {
+        "name": "Cancel Workflow",
+        "description": "Cancel a workflow instance by its ID."
+      },
+      {
+        "name": "List Workflow Approvals",
+        "description": "List all triggered approvals for a specific workflow. Conditional approvals that have not been triggered will not appear."
+      },
+      {
+        "name": "Add Comment",
+        "description": "Add a comment to a workflow."
+      },
+      {
+        "name": "List Workflow Comments",
+        "description": "List all comments on a workflow."
+      },
+      {
+        "name": "Create Record",
+        "description": "Create a new record in Ironclad with a specified type, name, and properties."
+      },
+      {
+        "name": "List Records",
+        "description": "List all records in Ironclad with pagination and optional filtering by last updated time."
+      },
+      {
+        "name": "Get Record",
+        "description": "Retrieve details of a specific record by its ID."
+      },
+      {
+        "name": "Update Record",
+        "description": "Update metadata fields on an existing record."
+      }
+    ],
+    "operationCount": 12,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "oauth",
+    "category": "tools",
+    "integrationType": "documents",
+    "tags": ["e-signatures", "document-processing"]
+  },
+  {
     "type": "jina",
     "slug": "jina",
     "name": "Jina",

@@ -661,6 +661,7 @@ export const auth = betterAuth({
         'sharepoint',
         'jira',
         'airtable',
+        'ironclad',
         'box',
         'dropbox',
         'salesforce',
@@ -2063,6 +2064,55 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in Airtable getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
+        // Ironclad provider
+        {
+          providerId: 'ironclad',
+          clientId: env.IRONCLAD_CLIENT_ID as string,
+          clientSecret: env.IRONCLAD_CLIENT_SECRET as string,
+          authorizationUrl: 'https://na1.ironcladapp.com/oauth/authorize',
+          tokenUrl: 'https://na1.ironcladapp.com/oauth/token',
+          userInfoUrl: 'https://na1.ironcladapp.com/oauth/userinfo',
+          scopes: getCanonicalScopesForProvider('ironclad'),
+          responseType: 'code',
+          pkce: false,
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/ironclad`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://na1.ironcladapp.com/oauth/userinfo', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Error fetching Ironclad user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const data = await response.json()
+              const now = new Date()
+
+              return {
+                id: `${data.id.toString()}-${crypto.randomUUID()}`,
+                name: data.username || data.email?.split('@')[0] || 'Ironclad User',
+                email: data.email || `${data.id}@ironclad.user`,
+                emailVerified: !!data.email,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Ironclad getUserInfo:', { error })
               return null
             }
           },

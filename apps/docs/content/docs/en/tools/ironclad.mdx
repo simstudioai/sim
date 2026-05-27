@@ -1,0 +1,259 @@
+---
+title: Ironclad
+description: Contract lifecycle management with Ironclad
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="ironclad"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Ironclad](https://ironcladapp.com/) is a leading contract lifecycle management (CLM) platform that helps legal teams streamline contract creation, negotiation, approval, and storage. It enables organizations to manage the entire contract process from start to finish in a single, unified platform.
+
+With Ironclad, you can:
+
+- **Automate contract workflows**: Create and manage contract workflows using configurable templates with built-in approval routing
+- **Manage records**: Store and organize contract records with custom metadata, properties, and linked relationships
+- **Track approvals**: Monitor approval status across workflows with conditional approval groups
+- **Collaborate with comments**: Add and view comments on workflows for team communication and audit trails
+
+In Sim, the Ironclad integration enables your agents to interact with Ironclad's workflow and records APIs programmatically. This allows for seamless contract operations like creating new workflows from templates, updating contract metadata, managing records, and tracking approvals - all within your agent workflows. Use Ironclad to automate contract lifecycle processes, keep records in sync, and enable your agents to participate in contract management decisions.
+{/* MANUAL-CONTENT-END */}
+
+## Usage Instructions
+
+Manage workflows and records in Ironclad. Create and track contract workflows, manage records, view approvals, add comments, and update metadata. Requires an Ironclad OAuth connection.
+
+
+
+## Tools
+
+### `ironclad_create_workflow`
+
+Create a new workflow in Ironclad using a specified template and attributes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `template` | string | Yes | The template ID to use for the workflow |
+| `attributes` | string | No | JSON object of workflow attributes |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The ID of the created workflow |
+| `status` | string | The status of the workflow |
+| `template` | string | The template used for the workflow |
+| `creator` | string | The creator of the workflow |
+
+### `ironclad_list_workflows`
+
+List all workflows in Ironclad with pagination support.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `page` | number | No | Page number \(starting from 0\) |
+| `perPage` | number | No | Number of results per page \(max 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workflows` | json | List of workflows |
+| `page` | number | Current page number |
+| `pageSize` | number | Number of results per page |
+| `count` | number | Total number of workflows |
+
+### `ironclad_get_workflow`
+
+Retrieve details of a specific workflow by its ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workflowId` | string | Yes | The unique identifier of the workflow |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The workflow ID |
+| `status` | string | The workflow status |
+| `template` | string | The template used for the workflow |
+| `creator` | string | The creator of the workflow |
+| `step` | string | The current step of the workflow |
+| `attributes` | json | The workflow attributes |
+
+### `ironclad_update_workflow_metadata`
+
+Update attributes on a workflow. The workflow must be in the Review step. Supports set and remove actions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workflowId` | string | Yes | The unique identifier of the workflow |
+| `actions` | string | Yes | JSON array of actions. Each action has "action" \(set/remove\), "field", and optionally "value". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the update was successful |
+
+### `ironclad_cancel_workflow`
+
+Cancel a workflow instance by its ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workflowId` | string | Yes | The unique identifier of the workflow to cancel |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the cancellation was successful |
+
+### `ironclad_list_workflow_approvals`
+
+List all triggered approvals for a specific workflow. Conditional approvals that have not been triggered will not appear.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workflowId` | string | Yes | The unique identifier of the workflow |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `approvals` | json | List of triggered approval groups for the workflow |
+
+### `ironclad_add_comment`
+
+Add a comment to a workflow.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workflowId` | string | Yes | The unique identifier of the workflow |
+| `comment` | string | Yes | The comment text to add |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the comment was added successfully |
+
+### `ironclad_list_workflow_comments`
+
+List all comments on a workflow.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workflowId` | string | Yes | The unique identifier of the workflow |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | json | List of comments on the workflow |
+
+### `ironclad_create_record`
+
+Create a new record in Ironclad with a specified type, name, and properties.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `recordType` | string | Yes | The record type \(e.g., "contract", "Statement of Work"\) |
+| `name` | string | Yes | A human-readable name for the record |
+| `properties` | string | No | JSON object of properties. Each property has a "type" \(string/number/email/date/monetary_amount\) and "value". |
+| `links` | string | No | JSON array of linked record objects, each with a "recordId" field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The ID of the created record |
+| `name` | string | The name of the record |
+| `type` | string | The type of the record |
+
+### `ironclad_list_records`
+
+List all records in Ironclad with pagination and optional filtering by last updated time.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `page` | number | No | Page number \(starting from 0\) |
+| `pageSize` | number | No | Number of results per page \(max 100\) |
+| `lastUpdated` | string | No | Filter records updated on or after this ISO 8601 timestamp |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | List of records |
+| `page` | number | Current page number |
+| `pageSize` | number | Number of results per page |
+| `count` | number | Total number of records |
+
+### `ironclad_get_record`
+
+Retrieve details of a specific record by its ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `recordId` | string | Yes | The unique identifier of the record |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The record ID |
+| `name` | string | The record name |
+| `type` | string | The record type |
+| `properties` | json | The record properties |
+| `createdAt` | string | When the record was created |
+| `updatedAt` | string | When the record was last updated |
+
+### `ironclad_update_record`
+
+Update metadata fields on an existing record.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `recordId` | string | Yes | The unique identifier of the record to update |
+| `properties` | string | Yes | JSON object of fields to update \(e.g., \{"fieldName": "newValue"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The record ID |
+| `name` | string | The record name |
+| `type` | string | The record type |
+
+

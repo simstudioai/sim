@@ -128,6 +128,18 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'schema.bases:read': 'View bases and tables',
   'webhook:manage': 'Manage webhooks',
 
+  // Ironclad scopes
+  'public.workflows.readWorkflows': 'Read workflows',
+  'public.workflows.createWorkflows': 'Create workflows',
+  'public.workflows.updateWorkflows': 'Update workflows',
+  'public.workflows.cancel': 'Cancel workflows',
+  'public.workflows.readApprovals': 'Read workflow approvals',
+  'public.workflows.readComments': 'Read workflow comments',
+  'public.workflows.createComments': 'Create workflow comments',
+  'public.records.readRecords': 'Read records',
+  'public.records.createRecords': 'Create records',
+  'public.records.updateRecords': 'Update records',
+
   // Jira scopes
   'read:jira-user': 'Read Jira user',
   'read:jira-work': 'Read Jira work',
