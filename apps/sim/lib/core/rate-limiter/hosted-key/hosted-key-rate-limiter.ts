@@ -73,9 +73,7 @@ function interruptibleSleep(ms: number, signal?: AbortSignal): Promise<void> {
       resolve()
     }, ms)
     signal.addEventListener('abort', onAbort, { once: true })
-    // Re-check after registering: if the signal fired between the guard above and
-    // addEventListener, the 'abort' event already dispatched and our listener would
-    // never run, leaving the sleep to run its full duration. onAbort is idempotent.
+    // Catch an abort that fired between the guard above and addEventListener.
     if (signal.aborted) onAbort()
   })
 }

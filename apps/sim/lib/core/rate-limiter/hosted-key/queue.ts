@@ -15,11 +15,9 @@ const TICKET_HEARTBEAT_TTL_SECONDS = 30
 export const HEARTBEAT_REFRESH_INTERVAL_MS = 10_000
 
 /**
- * TTL on the queue list itself. Set on every enqueue and re-extended by the head's
- * heartbeat while it actively waits, so a long-waiting head (whose budget can exceed
- * this TTL for enterprise async runs) never lets the list expire out from under the
- * waiters behind it. Prevents abandoned queues (whole workspace went silent) from
- * sticking around forever in Redis.
+ * TTL on the queue list itself. Set on enqueue and re-extended by the head's heartbeat,
+ * so a long-waiting head can't let the list expire out from under the waiters behind it.
+ * Prevents abandoned queues from sticking around forever in Redis.
  */
 const QUEUE_LIST_TTL_SECONDS = 600
 
@@ -150,12 +148,9 @@ export class HostedKeyQueue {
   }
 
   /**
-   * Refresh the ticket's heartbeat. Called periodically by the head while it's
-   * waiting on the bucket so it doesn't get reaped as dead. Also re-extends the
-   * queue list TTL: a head whose wait outlives {@link QUEUE_LIST_TTL_SECONDS}
-   * (possible for long enterprise async budgets) would otherwise let the list
-   * expire with no new enqueue to refresh it, dropping every waiter to "missing"
-   * and collapsing FIFO ordering into concurrent bucket racing.
+   * Refresh the ticket's heartbeat so the head isn't reaped as dead while waiting on the
+   * bucket. Also re-extends the queue list TTL so a wait outliving {@link QUEUE_LIST_TTL_SECONDS}
+   * doesn't let the list expire and collapse FIFO ordering.
    */
   async refreshHeartbeat(
     provider: string,

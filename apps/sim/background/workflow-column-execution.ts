@@ -70,9 +70,7 @@ export async function executeWorkflowGroupCellJob(
       ...currentPayload,
       groupId: next.id,
       workflowId: next.workflowId,
-      // Re-derive from the target group rather than inheriting the prior group's
-      // value via the spread: a workflow group following an enrichment group would
-      // otherwise carry a stale enrichmentId.
+      // Re-derive so a workflow group after an enrichment group doesn't keep a stale enrichmentId.
       enrichmentId: next.enrichmentId,
       executionId: generateId(),
     }
