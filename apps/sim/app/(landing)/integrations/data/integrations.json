@@ -7029,6 +7029,178 @@
     "tags": ["secrets-management"]
   },
   {
+    "type": "instantly",
+    "slug": "instantly",
+    "name": "Instantly",
+    "description": "Manage Instantly leads, campaigns, emails, and lead lists",
+    "longDescription": "Integrate Instantly API V2 into workflows. Create and list leads, manage lead interest status, delete leads in bulk, list and create campaigns, reply to emails, and manage lead lists.",
+    "bgColor": "#FFFFFF",
+    "iconName": "InstantlyIcon",
+    "docsUrl": "https://docs.sim.ai/tools/instantly",
+    "operations": [
+      {
+        "name": "List Leads",
+        "description": "Retrieves Instantly V2 leads with search, campaign, list, and pagination filters."
+      },
+      {
+        "name": "Get Lead",
+        "description": "Retrieves an Instantly V2 lead by ID."
+      },
+      {
+        "name": "Create Lead",
+        "description": "Creates an Instantly V2 lead in a campaign or lead list."
+      },
+      {
+        "name": "Delete Leads",
+        "description": "Deletes Instantly V2 leads in bulk from a campaign or lead list."
+      },
+      {
+        "name": "Update Lead Interest Status",
+        "description": "Submits an Instantly V2 background job to update a lead interest status."
+      },
+      {
+        "name": "List Campaigns",
+        "description": "Retrieves Instantly V2 campaigns with search, status, tag, and pagination filters."
+      },
+      {
+        "name": "Create Campaign",
+        "description": "Creates an Instantly V2 campaign using the documented campaign schedule schema."
+      },
+      {
+        "name": "Patch Campaign",
+        "description": "Updates documented Instantly V2 campaign fields."
+      },
+      {
+        "name": "Activate Campaign",
+        "description": "Activates, starts, or resumes an Instantly V2 campaign."
+      },
+      {
+        "name": "List Emails",
+        "description": "Retrieves Instantly V2 Unibox emails with search and pagination filters."
+      },
+      {
+        "name": "Reply To Email",
+        "description": "Sends an Instantly V2 reply to an existing Unibox email."
+      },
+      {
+        "name": "List Lead Lists",
+        "description": "Retrieves Instantly V2 lead lists with search and pagination filters."
+      },
+      {
+        "name": "Create Lead List",
+        "description": "Creates an Instantly V2 lead list."
+      }
+    ],
+    "operationCount": 13,
+    "triggers": [
+      {
+        "id": "instantly_webhook",
+        "name": "Instantly Webhook",
+        "description": "Trigger workflow on any Instantly webhook event"
+      },
+      {
+        "id": "instantly_email_sent",
+        "name": "Instantly Email Sent",
+        "description": "Trigger when Instantly sends an email"
+      },
+      {
+        "id": "instantly_email_opened",
+        "name": "Instantly Email Opened",
+        "description": "Trigger when a lead opens an Instantly email"
+      },
+      {
+        "id": "instantly_reply_received",
+        "name": "Instantly Reply Received",
+        "description": "Trigger when a lead replies to an Instantly email"
+      },
+      {
+        "id": "instantly_auto_reply_received",
+        "name": "Instantly Auto Reply Received",
+        "description": "Trigger when Instantly receives an auto-reply from a lead"
+      },
+      {
+        "id": "instantly_link_clicked",
+        "name": "Instantly Link Clicked",
+        "description": "Trigger when a lead clicks a tracked Instantly link"
+      },
+      {
+        "id": "instantly_email_bounced",
+        "name": "Instantly Email Bounced",
+        "description": "Trigger when an Instantly email bounces"
+      },
+      {
+        "id": "instantly_lead_unsubscribed",
+        "name": "Instantly Lead Unsubscribed",
+        "description": "Trigger when an Instantly lead unsubscribes"
+      },
+      {
+        "id": "instantly_account_error",
+        "name": "Instantly Account Error",
+        "description": "Trigger when Instantly reports an account-level error"
+      },
+      {
+        "id": "instantly_campaign_completed",
+        "name": "Instantly Campaign Completed",
+        "description": "Trigger when an Instantly campaign completes"
+      },
+      {
+        "id": "instantly_lead_neutral",
+        "name": "Instantly Lead Neutral",
+        "description": "Trigger when an Instantly lead is marked neutral"
+      },
+      {
+        "id": "instantly_lead_interested",
+        "name": "Instantly Lead Interested",
+        "description": "Trigger when an Instantly lead is marked interested"
+      },
+      {
+        "id": "instantly_lead_not_interested",
+        "name": "Instantly Lead Not Interested",
+        "description": "Trigger when an Instantly lead is marked not interested"
+      },
+      {
+        "id": "instantly_lead_meeting_booked",
+        "name": "Instantly Lead Meeting Booked",
+        "description": "Trigger when an Instantly lead books a meeting"
+      },
+      {
+        "id": "instantly_lead_meeting_completed",
+        "name": "Instantly Lead Meeting Completed",
+        "description": "Trigger when an Instantly lead completes a meeting"
+      },
+      {
+        "id": "instantly_lead_closed",
+        "name": "Instantly Lead Closed",
+        "description": "Trigger when an Instantly lead is marked closed"
+      },
+      {
+        "id": "instantly_lead_out_of_office",
+        "name": "Instantly Lead Out Of Office",
+        "description": "Trigger when an Instantly lead is out of office"
+      },
+      {
+        "id": "instantly_lead_wrong_person",
+        "name": "Instantly Lead Wrong Person",
+        "description": "Trigger when an Instantly lead is marked wrong person"
+      },
+      {
+        "id": "instantly_lead_no_show",
+        "name": "Instantly Lead No Show",
+        "description": "Trigger when an Instantly lead is marked no show"
+      },
+      {
+        "id": "instantly_supersearch_enrichment_completed",
+        "name": "Instantly Supersearch Enrichment Completed",
+        "description": "Trigger when Instantly completes a Supersearch enrichment"
+      }
+    ],
+    "triggerCount": 20,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["email", "developer-tools", "sales"],
+    "tags": ["sales-engagement", "email-marketing", "automation"]
+  },
+  {
     "type": "intercom_v2",
     "slug": "intercom",
     "name": "Intercom",
