@@ -62,6 +62,7 @@ import {
   checkBatchUniqueConstraintsDb,
   checkUniqueConstraintsDb,
   coerceRowToSchema,
+  coerceRowValues,
   getUniqueColumns,
   validateRowSize,
   validateTableName,
@@ -1331,11 +1332,6 @@ export async function upsertRow(
     )
   }
 
-  const targetValue = data.data[targetColumnName]
-  if (targetValue === undefined || targetValue === null) {
-    throw new Error(`Upsert requires a value for the conflict target column "${targetColumnName}"`)
-  }
-
   // Validate row data
   const sizeValidation = validateRowSize(data.data)
   if (!sizeValidation.valid) {
@@ -1345,6 +1341,13 @@ export async function upsertRow(
   const schemaValidation = coerceRowToSchema(data.data, schema)
   if (!schemaValidation.valid) {
     throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
+  }
+
+  // Read the conflict-target value *after* coercion so `matchFilter` branches on
+  // the persisted type (e.g. a coerced `"123"` → `123` matches existing rows).
+  const targetValue = data.data[targetColumnName]
+  if (targetValue === undefined || targetValue === null) {
+    throw new Error(`Upsert requires a value for the conflict target column "${targetColumnName}"`)
   }
 
   // `data->` and `data->>` accept the JSON key as a parameterized text value;
@@ -2166,6 +2169,12 @@ export async function updateRowsByFilter(
   if (matchingRows.length === 0) {
     return { affectedCount: 0, affectedRowIds: [] }
   }
+
+  // Coerce the patch itself in place — the write below persists `data.data`
+  // (as `patchJson`), so coercing only the per-row merged copies would be
+  // discarded. The merged validation in the loop still enforces required
+  // fields against the full row.
+  coerceRowValues(data.data, table.schema)
 
   for (const row of matchingRows) {
     const existingData = row.data as RowData

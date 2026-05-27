@@ -6,6 +6,7 @@ import { TABLE_LIMITS } from '../constants'
 import {
   type ColumnDefinition,
   coerceRowToSchema,
+  coerceRowValues,
   getUniqueColumns,
   type TableSchema,
   validateColumnDefinition,
@@ -334,6 +335,14 @@ describe('Validation', () => {
       expect(data.created).toBe(new Date(epoch).toISOString())
     })
 
+    it('coerces a Date instance to an ISO date string', () => {
+      const date = new Date('2024-01-15T00:00:00Z')
+      const data = { name: 'Acme', founded: 2000, created: date }
+      const result = coerceRowToSchema(data, schema)
+      expect(result.valid).toBe(true)
+      expect(data.created).toBe(date.toISOString())
+    })
+
     it('leaves already-correct values untouched and passes through json', () => {
       const data = { name: 'Acme', founded: 2000, metadata: { k: 'v' } }
       const result = coerceRowToSchema(data, schema)
@@ -346,6 +355,34 @@ describe('Validation', () => {
       const result = coerceRowToSchema(data, schema)
       expect(result.valid).toBe(false)
       expect(result.errors).toContain('Missing required field: founded')
+    })
+  })
+
+  describe('coerceRowValues', () => {
+    const schema: TableSchema = {
+      columns: [
+        { name: 'name', type: 'string', required: true },
+        { name: 'founded', type: 'number', required: true },
+        { name: 'age', type: 'number' },
+      ],
+    }
+
+    it('coerces a partial patch in place without flagging absent required fields', () => {
+      const patch = { age: '42' }
+      coerceRowValues(patch, schema)
+      expect(patch.age).toBe(42)
+    })
+
+    it('nulls an un-coercible optional value in a patch', () => {
+      const patch: { age: unknown } = { age: 'nope' }
+      coerceRowValues(patch as never, schema)
+      expect(patch.age).toBeNull()
+    })
+
+    it('leaves an un-coercible required value in place for downstream validation', () => {
+      const patch: { founded: unknown } = { founded: 'nope' }
+      coerceRowValues(patch as never, schema)
+      expect(patch.founded).toBe('nope')
     })
   })
 

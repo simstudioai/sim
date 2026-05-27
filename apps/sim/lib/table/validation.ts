@@ -290,7 +290,7 @@ function coerceValueToColumnType(
       }
       return { ok: false }
     case 'date':
-      if (value instanceof Date) return { ok: true, value }
+      if (value instanceof Date) return { ok: true, value: value.toISOString() }
       if (typeof value === 'string' && !Number.isNaN(Date.parse(value))) return { ok: true, value }
       if (typeof value === 'number' && Number.isFinite(value)) {
         return { ok: true, value: new Date(value).toISOString() }
@@ -302,18 +302,16 @@ function coerceValueToColumnType(
 }
 
 /**
- * Coerces each value in `data` toward its column's declared type **in place**,
- * then validates the result. Values that already match are untouched;
- * unambiguous conversions (e.g. `"1999"` → `1999`) are applied; values that
- * cannot be coerced are set to `null` when the column is optional, or left in
- * place to fail validation when the column is required.
+ * Coerces each present value in `data` toward its column's declared type **in
+ * place**. Values that already match are untouched; unambiguous conversions
+ * (e.g. `"1999"` → `1999`) are applied; values that cannot be coerced are set to
+ * `null` when the column is optional, or left in place when required (so a
+ * subsequent {@link validateRowAgainstSchema} reports them).
  *
- * This is the write-path entry point — callers that persist rows use it instead
- * of {@link validateRowAgainstSchema} so a single off-type field (a tool
- * returning `"unknown"` for a numeric column, say) nulls that one cell rather
- * than failing the entire row write.
+ * Operates per-present-column, so it is safe on a partial patch (columns absent
+ * from `data` are skipped — it never invents a missing-required-field error).
  */
-export function coerceRowToSchema(data: RowData, schema: TableSchema): ValidationResult {
+export function coerceRowValues(data: RowData, schema: TableSchema): void {
   for (const column of schema.columns) {
     const value = data[column.name]
     if (value === null || value === undefined) continue
@@ -325,7 +323,21 @@ export function coerceRowToSchema(data: RowData, schema: TableSchema): Validatio
       data[column.name] = null
     }
   }
+}
 
+/**
+ * Coerces a full row toward its schema **in place** (see {@link coerceRowValues})
+ * then validates the result.
+ *
+ * This is the write-path entry point — callers that persist a complete row use
+ * it instead of {@link validateRowAgainstSchema} so a single off-type field (a
+ * tool returning `"unknown"` for a numeric column, say) nulls that one cell
+ * rather than failing the entire row write. Callers persisting only a partial
+ * patch should use {@link coerceRowValues} on the patch and validate the merged
+ * row separately.
+ */
+export function coerceRowToSchema(data: RowData, schema: TableSchema): ValidationResult {
+  coerceRowValues(data, schema)
   return validateRowAgainstSchema(data, schema)
 }
 
