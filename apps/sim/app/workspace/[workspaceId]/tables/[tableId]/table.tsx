@@ -14,7 +14,7 @@ import {
   toast,
 } from '@/components/emcn'
 import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
-import type { RunMode } from '@/lib/api/contracts/tables'
+import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import type { ColumnDefinition, Filter, TableRow as TableRowType } from '@/lib/table'
 import {
   type ColumnOption,
@@ -214,7 +214,7 @@ export function Table({
   // gutter, action-bar Play/Refresh, right-click context menu) reduces to a
   // (groupIds, rowIds?, runMode) triple. Empty groupIds = no-op.
   const runScope = useCallback(
-    (args: { groupIds: string[]; rowIds?: string[]; runMode: RunMode }) => {
+    (args: { groupIds: string[]; rowIds?: string[]; runMode: RunMode; limit?: RunLimit }) => {
       if (args.groupIds.length === 0) return
       if (args.rowIds && args.rowIds.length === 0) return
       runColumnMutate(args)
@@ -223,8 +223,8 @@ export function Table({
   )
 
   const onRunColumn = useCallback(
-    (groupId: string, runMode: RunMode, rowIds?: string[]) => {
-      runScope({ groupIds: [groupId], rowIds, runMode })
+    (groupId: string, runMode: RunMode, rowIds?: string[], limit?: RunLimit) => {
+      runScope({ groupIds: [groupId], rowIds, runMode, limit })
     },
     [runScope]
   )

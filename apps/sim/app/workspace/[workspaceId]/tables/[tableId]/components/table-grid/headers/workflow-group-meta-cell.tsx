@@ -21,7 +21,7 @@ import {
   PlayOutline,
   Trash,
 } from '@/components/emcn/icons'
-import type { RunMode } from '@/lib/api/contracts/tables'
+import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { SELECTION_TINT_BG } from '../constants'
@@ -51,6 +51,9 @@ interface ColumnOptionsMenuProps {
    *  exposes group-level run actions above the column actions. */
   onRunColumnAll?: () => void
   onRunColumnIncomplete?: () => void
+  /** Runs only the first `max` empty/unrun rows. Surfaces fixed "Run N rows"
+   *  shortcuts so users can sample a large table without firing every row. */
+  onRunColumnLimited?: (max: number) => void
   /** When set, surfaces a "Run N selected rows" item above Run all. */
   onRunColumnSelected?: () => void
   selectedRowCount?: number
@@ -79,6 +82,7 @@ export function ColumnOptionsMenu({
   onDeleteGroup,
   onRunColumnAll,
   onRunColumnIncomplete,
+  onRunColumnLimited,
   onRunColumnSelected,
   selectedRowCount = 0,
   onViewWorkflow,
@@ -127,6 +131,16 @@ export function ColumnOptionsMenu({
                 <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
                   Run empty rows
                 </DropdownMenuItem>
+                {onRunColumnLimited && (
+                  <>
+                    <DropdownMenuItem onSelect={() => onRunColumnLimited(10)}>
+                      Run 10 empty rows
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => onRunColumnLimited(1000)}>
+                      Run 1,000 empty rows
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSeparator />
@@ -175,7 +189,7 @@ interface WorkflowGroupMetaCellProps {
   isGroupSelected: boolean
   onSelectGroup: (startColIndex: number, size: number) => void
   onOpenConfig: (columnName: string) => void
-  onRunColumn?: (groupId: string, mode?: RunMode, rowIds?: string[]) => void
+  onRunColumn?: (groupId: string, mode?: RunMode, rowIds?: string[], limit?: RunLimit) => void
   onInsertLeft?: (columnName: string) => void
   onInsertRight?: (columnName: string) => void
   onDeleteColumn?: (columnName: string) => void
@@ -250,6 +264,13 @@ export function WorkflowGroupMetaCell({
       onRunColumn?.(groupId, 'all', selectedRowIds)
     }
   }, [groupId, onRunColumn, selectedRowIds])
+
+  const handleRunLimited = useCallback(
+    (max: number) => {
+      if (groupId) onRunColumn?.(groupId, 'incomplete', undefined, { type: 'rows', max })
+    },
+    [groupId, onRunColumn]
+  )
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -406,6 +427,12 @@ export function WorkflowGroupMetaCell({
               )}
               <DropdownMenuItem onSelect={handleRunAll}>Run all rows</DropdownMenuItem>
               <DropdownMenuItem onSelect={handleRunIncomplete}>Run empty rows</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => handleRunLimited(10)}>
+                Run 10 empty rows
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => handleRunLimited(1000)}>
+                Run 1,000 empty rows
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -423,6 +450,7 @@ export function WorkflowGroupMetaCell({
           onDeleteGroup={onDeleteGroup ? () => onDeleteGroup(groupId) : undefined}
           onRunColumnAll={onRunColumn ? handleRunAll : undefined}
           onRunColumnIncomplete={onRunColumn ? handleRunIncomplete : undefined}
+          onRunColumnLimited={onRunColumn ? handleRunLimited : undefined}
           onRunColumnSelected={onRunColumn && selectedCount > 0 ? handleRunSelected : undefined}
           selectedRowCount={selectedCount}
           onViewWorkflow={onViewWorkflow ? () => onViewWorkflow(workflowId) : undefined}

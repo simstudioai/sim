@@ -20,19 +20,49 @@ const logger = createLogger('TriggerWorkflowGroupCell')
 
 /** Cell-task entrypoint. Holds a per-row cascade lock so only one worker
  *  advances a given row at a time; bails on contention. The held lock heart-
- *  beats every 10s so a crashed pod releases within ~30s. */
+ *  beats every 10s so a crashed pod releases within ~30s.
+ *
+ *  After the cascade finishes and the lock releases, re-checks for a runnable
+ *  queued marker that may have landed between the cascade's final
+ *  `pickNextEligibleGroupForRow` and the lock release (a window where a
+ *  contender bails on the still-held lock but we're already done). If one
+ *  appeared, re-acquire and drive it — this is the same task re-acquiring the
+ *  lock, NOT a queue re-enqueue or a timed poll, and it loops only while a
+ *  runnable group exists. */
 export async function executeWorkflowGroupCellJob(
   payload: WorkflowGroupCellPayload,
   signal?: AbortSignal
 ) {
-  const { tableId, rowId, executionId } = payload
-  const outcome = await withCascadeLock(tableId, rowId, executionId, () =>
-    runRowCascadeLoop(payload, signal)
-  )
-  if (outcome.status === 'contended') {
-    logger.info(
-      `Cascade lock held — bailing (table=${tableId} row=${rowId} executionId=${executionId})`
+  const { tableId, rowId, workspaceId } = payload
+  const { getTableById, getRowById } = await import('@/lib/table/service')
+  const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
+
+  let currentPayload = payload
+  while (true) {
+    if (signal?.aborted) break
+    const outcome = await withCascadeLock(tableId, rowId, currentPayload.executionId, () =>
+      runRowCascadeLoop(currentPayload, signal)
     )
+    if (outcome.status === 'contended') {
+      // Another worker owns the row's cascade; it drains the queued marker.
+      logger.info(
+        `Cascade lock held — bailing (table=${tableId} row=${rowId} executionId=${currentPayload.executionId})`
+      )
+      break
+    }
+    if (signal?.aborted) break
+    const freshTable = await getTableById(tableId)
+    if (!freshTable) break
+    const freshRow = await getRowById(tableId, rowId, workspaceId)
+    if (!freshRow) break
+    const next = pickNextEligibleGroupForRow(freshTable, freshRow)
+    if (!next) break
+    currentPayload = {
+      ...currentPayload,
+      groupId: next.id,
+      workflowId: next.workflowId,
+      executionId: generateId(),
+    }
   }
 }
 

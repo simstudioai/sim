@@ -27,7 +27,7 @@ import type {
 const logger = createLogger('WorkflowGroupScheduler')
 
 import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from './deps'
-import type { DispatchMode } from './dispatcher'
+import type { DispatchLimit, DispatchMode } from './dispatcher'
 
 export {
   getUnmetGroupDeps,
@@ -130,14 +130,19 @@ export function pickNextEligibleGroupForRow(
   for (const group of groups) {
     if (group.id === excludeGroupId) continue
     const exec = row.executions?.[group.id]
-    // Dispatcher pre-stamp (pending + executionId: null) is a placeholder; the
-    // cascade-loop is the right owner of the claim. Treat as "claimable" by
-    // pretending the exec doesn't exist for the eligibility check.
-    const effectiveRow =
-      exec?.status === 'pending' && exec.executionId == null
-        ? { ...row, executions: { ...row.executions, [group.id]: undefined } as RowExecutions }
-        : row
-    if (isGroupEligible(group, effectiveRow, { isManualRun: false, mode: 'incomplete' })) {
+    // Dispatcher pre-stamp (pending + executionId: null) is a queued marker: an
+    // explicit run request whose cell-task bailed on lock contention. It's the
+    // handoff — the cascade owner runs it next. Treat it as `isManualRun` so an
+    // explicitly-requested `autoRun: false` group is honored (the dispatcher
+    // already applied manual eligibility before stamping it); groups with no
+    // marker stay `isManualRun: false` so pure dep-fill auto-cascade still
+    // respects `autoRun`. Either way the placeholder is cleared from the
+    // eligibility view so the group is claimable.
+    const isRequested = exec?.status === 'pending' && exec.executionId == null
+    const effectiveRow = isRequested
+      ? { ...row, executions: { ...row.executions, [group.id]: undefined } as RowExecutions }
+      : row
+    if (isGroupEligible(group, effectiveRow, { isManualRun: isRequested, mode: 'incomplete' })) {
       return group
     }
   }
@@ -539,12 +544,15 @@ export async function runWorkflowColumn(opts: {
   requestId: string
   groupIds?: string[]
   rowIds?: string[]
+  /** Optional cap on work before the dispatch completes (e.g. run only the
+   *  first N eligible rows). Null/omitted = process every row in scope. */
+  limit?: DispatchLimit | null
   /** When false, eligibility honors `autoRun: false` and treats completed
    *  cells as terminal — appropriate for auto-fire after row writes or
    *  schema changes. Defaults to true (user-initiated "Run column"). */
   isManualRun?: boolean
 }): Promise<{ dispatchId: string | null }> {
-  const { tableId, workspaceId, mode, requestId, groupIds, rowIds } = opts
+  const { tableId, workspaceId, mode, requestId, groupIds, rowIds, limit } = opts
   const isManualRun = opts.isManualRun ?? true
   // Empty `rowIds` array means "scope explicitly empty" — auto-fire callers
   // (CSV import on zero matches, etc.) end up here. Skip the dispatch entirely
@@ -598,13 +606,20 @@ export async function runWorkflowColumn(opts: {
   }
 
   // Wipe targeted output cols + executions[gid] before any cells fire so the
-  // user sees the column flip to empty/Pending instantly.
-  await bulkClearWorkflowGroupCells({
-    tableId,
-    groups: targetGroups.map((g) => ({ id: g.id, outputs: g.outputs })),
-    rowIds,
-    mode,
-  })
+  // user sees the column flip to empty/Pending instantly. Skipped for capped
+  // runs: the eager clear can't know which N rows the dispatcher will pick
+  // (they depend on per-row eligibility as it walks positions), so wiping all
+  // rows in scope would blank far more than we re-run. `mode: 'all'` re-runs
+  // completed cells without the clear anyway — the clear is only for instant
+  // feedback, which the capped rows still get via the dispatcher's pre-stamp.
+  if (!limit) {
+    await bulkClearWorkflowGroupCells({
+      tableId,
+      groups: targetGroups.map((g) => ({ id: g.id, outputs: g.outputs })),
+      rowIds,
+      mode,
+    })
+  }
 
   // Always insert a `table_run_dispatches` row. The dispatcher state machine
   // is the single source of truth for cursor advancement, SSE emission, and
@@ -619,6 +634,7 @@ export async function runWorkflowColumn(opts: {
       groupIds: targetGroupIds,
       ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
     },
+    limit,
     isManualRun,
   })
 
