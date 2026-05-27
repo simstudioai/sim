@@ -12,6 +12,7 @@ import type { ExecuteSchedulesResponse } from '@/lib/api/contracts/schedules'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { JOB_STATUS, type Job } from '@/lib/core/async-jobs/types'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -400,6 +401,33 @@ async function deferClaimedScheduleAfterQueueFailure(
     })
 }
 
+async function handleClaimedScheduleSetupFailure(
+  schedule: ClaimedSchedule,
+  requestId: string,
+  expectedLastQueuedAt: Date,
+  error: unknown,
+  retryContext: string,
+  failureContext: string
+): Promise<void> {
+  if (isRetryableInfrastructureError(error)) {
+    await deferClaimedScheduleAfterQueueFailure(
+      schedule,
+      requestId,
+      expectedLastQueuedAt,
+      error,
+      retryContext
+    )
+    return
+  }
+
+  logger.error(`[${requestId}] Non-retryable schedule setup failure`, {
+    scheduleId: schedule.id,
+    workflowId: schedule.workflowId,
+    error: toError(error).message,
+  })
+  await markClaimedScheduleFailed(schedule, requestId, expectedLastQueuedAt, failureContext)
+}
+
 async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
   const staleStartedBefore = getStaleScheduleExecutionCutoff(now)
 
@@ -721,7 +749,8 @@ async function processScheduleItem(
   schedule: ClaimedSchedule,
   queuedAt: Date,
   requestId: string,
-  jobQueue: JobQueue
+  jobQueue: JobQueue,
+  useDatabaseFallback: boolean
 ) {
   const queueTime = schedule.lastQueuedAt ?? queuedAt
   const executionId = generateId()
@@ -756,7 +785,6 @@ async function processScheduleItem(
   let enqueuedJobId: string | null = null
 
   try {
-    const useDatabaseFallback = shouldExecuteInline()
     const delayMs = Math.floor(Math.random() * SCHEDULE_JITTER_MAX_MS)
 
     const scheduleJobId = buildScheduleExecutionJobId(schedule)
@@ -908,12 +936,13 @@ async function processScheduleItem(
         `[${requestId}] Failed to enqueue schedule execution for workflow ${schedule.workflowId}`,
         error
       )
-      await deferClaimedScheduleAfterQueueFailure(
+      await handleClaimedScheduleSetupFailure(
         schedule,
         requestId,
         queueTime,
         error,
-        `Failed to defer schedule ${schedule.id} after enqueue failure`
+        `Failed to defer schedule ${schedule.id} after enqueue failure`,
+        `Failed to mark schedule ${schedule.id} failed after non-retryable enqueue failure`
       )
       return
     }
@@ -1004,12 +1033,13 @@ async function processScheduleItem(
       error
     )
     if (!enqueuedJobId) {
-      await deferClaimedScheduleAfterQueueFailure(
+      await handleClaimedScheduleSetupFailure(
         schedule,
         requestId,
         queueTime,
         error,
-        `Failed to defer schedule ${schedule.id} after pre-enqueue failure`
+        `Failed to defer schedule ${schedule.id} after pre-enqueue failure`,
+        `Failed to mark schedule ${schedule.id} failed after non-retryable setup failure`
       )
     }
   }
@@ -1117,7 +1147,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const schedulePromises =
         dueSchedules.length > 0
           ? dueSchedules.map((schedule) =>
-              processScheduleItem(schedule, queuedAt, requestId, jobQueue)
+              processScheduleItem(schedule, queuedAt, requestId, jobQueue, useDatabaseFallback)
             )
           : []
 

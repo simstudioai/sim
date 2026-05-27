@@ -615,13 +615,15 @@ describe('Scheduled Workflow Execution API Route', () => {
     )
   })
 
-  it('releases schedule claims when lookup fails before enqueue', async () => {
+  it('defers schedule claims when retryable lookup infrastructure fails before enqueue', async () => {
     const claimedAt = new Date('2025-01-01T00:00:00.000Z')
     const schedule = {
       ...SINGLE_SCHEDULE[0],
       lastQueuedAt: claimedAt,
     }
-    mockGetJob.mockRejectedValueOnce(new Error('queue lookup failed'))
+    mockGetJob.mockRejectedValueOnce(
+      Object.assign(new Error('queue lookup failed'), { code: 'ECONNRESET' })
+    )
     dbChainMockFns.limit
       .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
       .mockResolvedValueOnce([])
@@ -639,6 +641,60 @@ describe('Scheduled Workflow Execution API Route', () => {
         infraRetryCount: 1,
       })
     )
+  })
+
+  it('marks schedules failed when non-retryable setup errors happen before enqueue', async () => {
+    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
+    const schedule = {
+      ...SINGLE_SCHEDULE[0],
+      lastQueuedAt: claimedAt,
+    }
+    mockGetJob.mockRejectedValueOnce(new Error('bad setup invariant'))
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
+
+    const response = await GET(createMockRequest())
+
+    expect(response.status).toBe(200)
+    expect(mockEnqueue).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lastQueuedAt: null,
+        lastFailedAt: expect.any(Date),
+        nextRunAt: expect.any(Date),
+        infraRetryCount: 0,
+      })
+    )
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        infraRetryCount: 1,
+      })
+    )
+  })
+
+  it('uses one backend mode decision for slot accounting and schedule processing', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning
+      .mockReturnValueOnce(SINGLE_SCHEDULE)
+      .mockResolvedValueOnce([{ id: 'job-id-1' }])
+
+    try {
+      const response = await GET(createMockRequest())
+
+      expect(response.status).toBe(200)
+      expect(mockShouldExecuteInline).toHaveBeenCalledTimes(1)
+      expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
+        expect.objectContaining({ scheduleId: 'schedule-1' })
+      )
+    } finally {
+      randomSpy.mockRestore()
+    }
   })
 
   it('restores the original claim token when an active durable job owns the occurrence', async () => {
