@@ -155,7 +155,7 @@ export function useTableEventStream({
     }
 
     const applyDispatch = (event: Extract<TableEvent, { kind: 'dispatch' }>): void => {
-      const { dispatchId, status, scope, cursor, mode, isManualRun } = event
+      const { dispatchId, status, scope, cursor, mode, isManualRun, limit } = event
       queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
         // SSE may arrive before the initial fetch lands. Seed an empty
         // run-state so the dispatch isn't dropped; counters are reconciled
@@ -183,6 +183,7 @@ export function useTableEventStream({
         // the cached entry's value if this is a legacy emit without the
         // field, and finally to `false` if we have nothing.
         const resolvedManualRun = isManualRun ?? existing?.isManualRun ?? false
+        const resolvedLimit = limit ?? existing?.limit
         const next: ActiveDispatch = {
           id: dispatchId,
           status,
@@ -190,6 +191,7 @@ export function useTableEventStream({
           isManualRun: resolvedManualRun,
           cursor,
           scope,
+          ...(resolvedLimit ? { limit: resolvedLimit } : {}),
         }
         if (idx === -1) return { ...base, dispatches: [...list, next] }
         const merged = list.slice()

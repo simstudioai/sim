@@ -20,19 +20,58 @@ const logger = createLogger('TriggerWorkflowGroupCell')
 
 /** Cell-task entrypoint. Holds a per-row cascade lock so only one worker
  *  advances a given row at a time; bails on contention. The held lock heart-
- *  beats every 10s so a crashed pod releases within ~30s. */
+ *  beats every 10s so a crashed pod releases within ~30s.
+ *
+ *  After the cascade finishes and the lock releases, re-checks for a runnable
+ *  queued marker that may have landed between the cascade's final
+ *  `pickNextEligibleGroupForRow` and the lock release (a window where a
+ *  contender bails on the still-held lock but we're already done). If one
+ *  appeared, re-acquire and drive it — this is the same task re-acquiring the
+ *  lock, NOT a queue re-enqueue or a timed poll, and it loops only while a
+ *  runnable group exists. */
 export async function executeWorkflowGroupCellJob(
   payload: WorkflowGroupCellPayload,
   signal?: AbortSignal
 ) {
-  const { tableId, rowId, executionId } = payload
-  const outcome = await withCascadeLock(tableId, rowId, executionId, () =>
-    runRowCascadeLoop(payload, signal)
-  )
-  if (outcome.status === 'contended') {
-    logger.info(
-      `Cascade lock held — bailing (table=${tableId} row=${rowId} executionId=${executionId})`
+  const { tableId, rowId, workspaceId } = payload
+  const { getTableById, getRowById } = await import('@/lib/table/service')
+  const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
+
+  let currentPayload = payload
+  while (true) {
+    if (signal?.aborted) break
+    const outcome = await withCascadeLock(tableId, rowId, currentPayload.executionId, () =>
+      runRowCascadeLoop(currentPayload, signal)
     )
+    if (outcome.status === 'contended') {
+      // Another worker owns the row's cascade; it drains the queued marker.
+      logger.info(
+        `Cascade lock held — bailing (table=${tableId} row=${rowId} executionId=${currentPayload.executionId})`
+      )
+      break
+    }
+    if (signal?.aborted) break
+    const freshTable = await getTableById(tableId)
+    if (!freshTable) break
+    const freshRow = await getRowById(tableId, rowId, workspaceId)
+    if (!freshRow) break
+    const next = pickNextEligibleGroupForRow(freshTable, freshRow)
+    if (!next) break
+    // Only re-drive a genuine queued marker (an explicit run request whose
+    // cell-task bailed during our release window). The inner cascade loop has
+    // already drained every auto-eligible group, so re-driving a non-marker
+    // group here would re-run forever — e.g. a group that completed with empty
+    // outputs stays auto-eligible (the inner loop excludes it via
+    // `excludeGroupId`, but this outer pass has no such anchor).
+    const nextExec = freshRow.executions?.[next.id]
+    const hasQueuedMarker = nextExec?.status === 'pending' && nextExec.executionId == null
+    if (!hasQueuedMarker) break
+    currentPayload = {
+      ...currentPayload,
+      groupId: next.id,
+      workflowId: next.workflowId,
+      executionId: generateId(),
+    }
   }
 }
 
@@ -114,6 +153,173 @@ async function runWorkflowAndWriteTerminal(
     const writeState = (executionState: RowExecutionMetadata, dataPatch?: RowData) =>
       writeWorkflowGroupState(cellCtx, { executionState, dataPatch })
 
+    // Enrichment groups call a registry function directly instead of running a
+    // workflow, reusing the same pickup → run → terminal-write status flow. The
+    // `enrichmentId` guard ensures only true registry enrichments take this path
+    // — a group typed 'enrichment' without a registry id falls through to the
+    // workflow path rather than erroring.
+    if (group.type === 'enrichment' && group.enrichmentId) {
+      const { getEnrichment } = await import('@/enrichments/registry')
+      const { runEnrichment } = await import('@/enrichments/run')
+      const enrichment = getEnrichment(group.enrichmentId)
+      // `tableRowExecutions.workflowId` is an opaque id for status; use the
+      // enrichment id for enrichment cells.
+      const statusId = group.enrichmentId ?? ''
+      if (!enrichment) {
+        await writeState({
+          status: 'error',
+          executionId,
+          jobId: null,
+          workflowId: statusId,
+          error: `Unknown enrichment "${group.enrichmentId ?? ''}"`,
+        })
+        return 'error'
+      }
+
+      const row = await getRowById(tableId, rowId, workspaceId)
+      if (!row) {
+        logger.warn(`Row ${rowId} vanished before enrichment`)
+        return 'error'
+      }
+
+      const pickedUp = await markWorkflowGroupPickedUp(cellCtx, {
+        workflowId: statusId,
+        jobId: null,
+      })
+      if (pickedUp === 'skipped') return 'error'
+
+      // Map table columns → enrichment input ids (skip this group's own outputs).
+      const ownOutputColumns = new Set(group.outputs.map((o) => o.columnName))
+      const enrichInputs: Record<string, unknown> = {}
+      for (const m of group.inputMappings ?? []) {
+        if (ownOutputColumns.has(m.columnName)) continue
+        enrichInputs[m.inputName] = row.data[m.columnName]
+      }
+
+      // Skip (don't error) rows missing a required input — common when a table
+      // is partially filled. Clear any prior output values so a stale result
+      // doesn't linger (and doesn't mark the group `completed`-and-filled, which
+      // would block the auto cascade from re-enriching once inputs return).
+      const isEmpty = (v: unknown) => v === undefined || v === null || v === ''
+      const missingRequired = enrichment.inputs.some(
+        (i) => i.required && isEmpty(enrichInputs[i.id])
+      )
+      if (missingRequired) {
+        const clearPatch: RowData = {}
+        for (const out of group.outputs) {
+          if (!isEmpty(row.data[out.columnName])) clearPatch[out.columnName] = ''
+        }
+        await writeState(
+          {
+            status: 'completed',
+            executionId,
+            jobId: null,
+            workflowId: statusId,
+            error: null,
+          },
+          clearPatch
+        )
+        return 'completed'
+      }
+
+      try {
+        if (signal?.aborted) {
+          await writeState({
+            status: 'error',
+            executionId,
+            jobId: null,
+            workflowId: statusId,
+            error: 'Cancelled',
+          })
+          return 'error'
+        }
+        const { result, cost, error } = await runEnrichment(enrichment, enrichInputs, {
+          tableId,
+          rowId,
+          workspaceId,
+          signal,
+        })
+
+        // An abort during the cascade must not be recorded as a completed cell.
+        if (signal?.aborted) {
+          await writeState({
+            status: 'error',
+            executionId,
+            jobId: null,
+            workflowId: statusId,
+            error: 'Cancelled',
+          })
+          return 'error'
+        }
+
+        // Every provider that ran errored (auth / rate-limit / outage) — surface
+        // it rather than writing a blank cell that looks like "no data found".
+        if (error) {
+          await writeState({
+            status: 'error',
+            executionId,
+            jobId: null,
+            workflowId: statusId,
+            error,
+          })
+          return 'error'
+        }
+
+        // Bill the table owner for any hosted-key cost the providers incurred.
+        // Billing failures must not error an otherwise-successful cell.
+        if (cost > 0 && table.createdBy) {
+          try {
+            const { recordUsage } = await import('@/lib/billing/core/usage-log')
+            await recordUsage({
+              userId: table.createdBy,
+              workspaceId,
+              executionId,
+              entries: [
+                {
+                  category: 'fixed',
+                  source: 'enrichment',
+                  description: enrichment.name,
+                  cost,
+                  metadata: { enrichmentId: enrichment.id, tableId, rowId },
+                },
+              ],
+            })
+          } catch (billingErr) {
+            logger.error('Failed to record enrichment usage', {
+              enrichmentId: enrichment.id,
+              cost,
+              error: toError(billingErr).message,
+            })
+          }
+        }
+
+        // Write every output column: the result value when present, else clear
+        // it. A partial/empty result must blank the columns it didn't fill so a
+        // re-run that finds less than before doesn't leave stale values.
+        const dataPatch: RowData = {}
+        for (const out of group.outputs) {
+          if (!out.outputId) continue
+          const value = result[out.outputId]
+          dataPatch[out.columnName] =
+            value === undefined || value === null ? '' : (value as RowData[string])
+        }
+        await writeState(
+          { status: 'completed', executionId, jobId: null, workflowId: statusId, error: null },
+          dataPatch
+        )
+        return 'completed'
+      } catch (err) {
+        await writeState({
+          status: 'error',
+          executionId,
+          jobId: null,
+          workflowId: statusId,
+          error: toError(err).message,
+        })
+        return 'error'
+      }
+    }
+
     const blockErrors: Record<string, string> = {}
     let writeChain: Promise<void> = Promise.resolve()
     let terminalWritten = false
@@ -180,8 +386,19 @@ async function runWorkflowAndWriteTerminal(
         .filter((c) => !ownOutputColumns.has(c.name))
         .map((c) => c.name)
 
+      // When the group has explicit input mappings, feed the workflow's
+      // Start-block fields from the mapped columns (`inputName ← row[columnName]`).
+      // Otherwise fall back to spreading every non-output column by name, so a
+      // Start field still resolves when it matches a column name. `row`/`rawRow`
+      // always carry the full row for downstream reference.
+      const inputMappings = group.inputMappings ?? []
+      const mappedInputs: Record<string, unknown> = {}
+      for (const m of inputMappings) {
+        mappedInputs[m.inputName] = inputRow[m.columnName]
+      }
+
       const input = {
-        ...inputRow,
+        ...(inputMappings.length > 0 ? mappedInputs : inputRow),
         row: inputRow,
         rawRow: inputRow,
         previousRow: null,

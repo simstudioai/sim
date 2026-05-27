@@ -46,6 +46,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
       isManualRun: r.isManualRun,
       cursor: r.cursor,
       scope: r.scope,
+      ...(r.limit ? { limit: r.limit } : {}),
     }))
 
     return NextResponse.json({

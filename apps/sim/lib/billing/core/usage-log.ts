@@ -25,6 +25,7 @@ export type UsageLogSource =
   | 'mothership_block'
   | 'knowledge-base'
   | 'voice-input'
+  | 'enrichment'
 
 /**
  * Metadata for 'model' category charges

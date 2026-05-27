@@ -272,7 +272,8 @@ async function injectHostedKeyIfNeeded(
     provider,
     envKeyPrefix,
     rateLimit,
-    billingActorId
+    billingActorId,
+    executionContext?.abortSignal
   )
 
   if (!acquireResult.success && acquireResult.billingActorRateLimited) {
@@ -319,6 +320,49 @@ async function injectHostedKeyIfNeeded(
 }
 
 /**
+ * Re-acquire a hosted key after upstream-429 retries have been exhausted. Calls
+ * `acquireKey` (which now blocks on the per-workspace bucket) and re-injects the
+ * fresh key into `params`. Returns false if no key could be obtained — caller
+ * should re-throw the original upstream 429.
+ *
+ * Does not consult BYOK. We only enter this path from inside the hosted-key
+ * branch of `executeTool`, so BYOK has already been ruled out for this call.
+ */
+async function reacquireHostedKey(
+  tool: ToolConfig,
+  params: Record<string, unknown>,
+  executionContext: ExecutionContext | undefined,
+  requestId: string
+): Promise<boolean> {
+  if (!tool.hosting) return false
+  const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
+  const { workspaceId } = resolveToolScope(params, executionContext)
+  if (!workspaceId) return false
+
+  const provider = byokProviderId || tool.id
+  const acquireResult = await getHostedKeyRateLimiter().acquireKey(
+    provider,
+    envKeyPrefix,
+    rateLimit,
+    workspaceId,
+    executionContext?.abortSignal
+  )
+
+  if (!acquireResult.success || !acquireResult.key) {
+    logger.warn(
+      `[${requestId}] Re-acquire of hosted key for ${tool.id} failed: ${acquireResult.error ?? 'unknown'}`
+    )
+    return false
+  }
+
+  params[apiKeyParam] = acquireResult.key
+  logger.info(
+    `[${requestId}] Re-acquired hosted key for ${tool.id} (${acquireResult.envVarName}) after upstream throttling`
+  )
+  return true
+}
+
+/**
  * Check if an error is a rate limit (throttling) or quota exhaustion error.
  * Some providers (e.g. Perplexity) return 401/403 with "insufficient_quota"
  * instead of the standard 429, so we also inspect the error message.
@@ -344,11 +388,23 @@ interface RetryContext {
   toolId: string
   envVarName: string
   executionContext?: ExecutionContext
+  /**
+   * Optional callback invoked after the local exponential backoff has been exhausted by
+   * upstream 429s. Should re-enter the per-workspace hosted-key queue (which now blocks
+   * on the bucket) and return a fresh execution thunk bound to the newly acquired key.
+   * If the callback returns null, we give up and re-throw the last error.
+   */
+  reacquireAfterRetriesExhausted?: () => Promise<(() => Promise<unknown>) | null>
 }
 
 /**
  * Execute a function with exponential backoff retry for rate limiting errors.
  * Only used for hosted key requests. Tracks rate limit events via telemetry.
+ *
+ * On terminal upstream 429, optionally re-enters the hosted-key queue (which waits for
+ * the per-workspace bucket to refill) and retries once with a freshly acquired key.
+ * This handles the case where the upstream provider's limit is tighter than ours — we
+ * re-queue the call instead of surfacing the error.
  */
 async function executeWithRetry<T>(
   fn: () => Promise<T>,
@@ -356,7 +412,8 @@ async function executeWithRetry<T>(
   maxRetries = 3,
   baseDelayMs = 1000
 ): Promise<T> {
-  const { requestId, toolId, envVarName, executionContext } = context
+  const { requestId, toolId, envVarName, executionContext, reacquireAfterRetriesExhausted } =
+    context
   let lastError: unknown
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -367,6 +424,23 @@ async function executeWithRetry<T>(
 
       if (!isRateLimitError(error) || attempt === maxRetries) {
         if (isRateLimitError(error) && attempt === maxRetries) {
+          if (reacquireAfterRetriesExhausted) {
+            try {
+              const requeued = await reacquireAfterRetriesExhausted()
+              if (requeued) {
+                logger.warn(
+                  `[${requestId}] Upstream retries exhausted for ${toolId} (${envVarName}); re-queued and retrying once with fresh key`
+                )
+                return (await requeued()) as T
+              }
+            } catch (requeueError) {
+              logger.error(
+                `[${requestId}] Re-queue after exhausted upstream retries failed for ${toolId}`,
+                { error: toError(requeueError).message }
+              )
+            }
+          }
+
           PlatformEvents.hostedKeyUserThrottled({
             toolId,
             reason: 'upstream_retries_exhausted',
@@ -1099,6 +1173,16 @@ export async function executeTool(
           toolId,
           envVarName: hostedKeyInfo.envVarName!,
           executionContext,
+          reacquireAfterRetriesExhausted: async () => {
+            const reacquired = await reacquireHostedKey(
+              tool,
+              contextParams,
+              executionContext,
+              requestId
+            )
+            if (!reacquired) return null
+            return () => executeToolRequest(toolId, tool, contextParams)
+          },
         })
       : await executeToolRequest(toolId, tool, contextParams, signal)
 
@@ -1156,6 +1240,18 @@ export async function executeTool(
 
     if (error instanceof Error) {
       errorMessage = error.message || `Error executing tool ${toolId}`
+      // HTTP errors are thrown as Error instances carrying `status`/`statusText`/
+      // `data` (see createTransformedErrorFromErrorInfo). Surface them on the
+      // output so callers can branch on the status (e.g. treat 404 as a clean
+      // no-match) — the object branch below only ran for non-Error throws.
+      const httpStatus = (error as { status?: unknown }).status
+      if (typeof httpStatus === 'number') {
+        errorDetails = {
+          status: httpStatus,
+          statusText: (error as { statusText?: string }).statusText,
+          data: (error as { data?: unknown }).data,
+        }
+      }
     } else if (typeof error === 'string') {
       errorMessage = error
     } else if (error && typeof error === 'object') {

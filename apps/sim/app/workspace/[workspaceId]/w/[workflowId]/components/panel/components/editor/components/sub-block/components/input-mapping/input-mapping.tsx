@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Badge, Input } from '@/components/emcn'
+import { Badge, CollapsibleCard, Input } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -242,104 +241,85 @@ function InputMappingField({
   }
 
   return (
-    <div
-      className={cn(
-        'rounded-sm border border-[var(--border-1)]',
-        collapsed ? 'overflow-hidden' : 'overflow-visible'
-      )}
+    <CollapsibleCard
+      title={fieldName}
+      badge={
+        fieldType ? (
+          <Badge variant='type' size='sm'>
+            {fieldType}
+          </Badge>
+        ) : undefined
+      }
+      collapsed={collapsed}
+      onToggleCollapse={onToggleCollapse}
     >
-      <div
-        role='button'
-        tabIndex={0}
-        className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
-        onClick={onToggleCollapse}
-        onKeyDown={(event) => handleKeyboardActivation(event, onToggleCollapse)}
-      >
-        <div className='flex min-w-0 flex-1 items-center gap-2'>
-          <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
-            {fieldName}
-          </span>
-          {fieldType && (
-            <Badge variant='type' size='sm'>
-              {fieldType}
-            </Badge>
-          )}
-        </div>
-      </div>
-
-      {!collapsed && (
-        <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
-          <div className='flex flex-col gap-1.5'>
-            <Label className='text-small'>Value</Label>
-            <div className='relative'>
-              <Input
-                ref={(el) => {
-                  if (el) inputRefs.current.set(fieldId, el)
-                }}
-                name='value'
-                value={value}
-                onChange={handlers.onChange}
-                onKeyDown={handlers.onKeyDown}
-                onDrop={handlers.onDrop}
-                onDragOver={handlers.onDragOver}
-                onFocus={handlers.onFocus}
-                onScroll={(e) => handleScroll(e)}
-                onPaste={() =>
-                  setTimeout(() => {
-                    const input = inputRefs.current.get(fieldId)
-                    input && handleScroll({ currentTarget: input } as any)
-                  }, 0)
-                }
-                placeholder='Enter value or reference'
-                disabled={disabled}
-                autoComplete='off'
-                className={cn(
-                  'allow-scroll w-full overflow-auto text-transparent caret-foreground'
-                )}
-                style={{ overflowX: 'auto' }}
-              />
-              <div
-                ref={(el) => {
-                  if (el) overlayRefs.current.set(fieldId, el)
-                }}
-                className={cn(
-                  'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
-                  !disabled && 'pointer-events-none'
-                )}
-                style={{ overflowX: 'auto' }}
-              >
-                <div
-                  className='w-full whitespace-pre'
-                  style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
-                >
-                  {formatDisplayText(
-                    value,
-                    accessiblePrefixes
-                      ? { accessiblePrefixes, workflowSearchHighlight }
-                      : { highlightAll: true, workflowSearchHighlight }
-                  )}
-                </div>
-              </div>
-              {fieldState.showTags && (
-                <TagDropdown
-                  visible={fieldState.showTags}
-                  onSelect={tagSelectHandler}
-                  blockId={blockId}
-                  activeSourceBlockId={fieldState.activeSourceBlockId}
-                  inputValue={value}
-                  cursorPosition={fieldState.cursorPosition}
-                  onClose={() => inputController.fieldHelpers.hideFieldDropdowns(fieldId)}
-                  inputRef={
-                    {
-                      current: inputRefs.current.get(fieldId) || null,
-                    } as React.RefObject<HTMLInputElement>
-                  }
-                />
+      <div className='flex flex-col gap-1.5'>
+        <Label className='text-small'>Value</Label>
+        <div className='relative'>
+          <Input
+            ref={(el) => {
+              if (el) inputRefs.current.set(fieldId, el)
+            }}
+            name='value'
+            value={value}
+            onChange={handlers.onChange}
+            onKeyDown={handlers.onKeyDown}
+            onDrop={handlers.onDrop}
+            onDragOver={handlers.onDragOver}
+            onFocus={handlers.onFocus}
+            onScroll={(e) => handleScroll(e)}
+            onPaste={() =>
+              setTimeout(() => {
+                const input = inputRefs.current.get(fieldId)
+                input && handleScroll({ currentTarget: input } as any)
+              }, 0)
+            }
+            placeholder='Enter value or reference'
+            disabled={disabled}
+            autoComplete='off'
+            className={cn('allow-scroll w-full overflow-auto text-transparent caret-foreground')}
+            style={{ overflowX: 'auto' }}
+          />
+          <div
+            ref={(el) => {
+              if (el) overlayRefs.current.set(fieldId, el)
+            }}
+            className={cn(
+              'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
+              !disabled && 'pointer-events-none'
+            )}
+            style={{ overflowX: 'auto' }}
+          >
+            <div
+              className='w-full whitespace-pre'
+              style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+            >
+              {formatDisplayText(
+                value,
+                accessiblePrefixes
+                  ? { accessiblePrefixes, workflowSearchHighlight }
+                  : { highlightAll: true, workflowSearchHighlight }
               )}
             </div>
           </div>
+          {fieldState.showTags && (
+            <TagDropdown
+              visible={fieldState.showTags}
+              onSelect={tagSelectHandler}
+              blockId={blockId}
+              activeSourceBlockId={fieldState.activeSourceBlockId}
+              inputValue={value}
+              cursorPosition={fieldState.cursorPosition}
+              onClose={() => inputController.fieldHelpers.hideFieldDropdowns(fieldId)}
+              inputRef={
+                {
+                  current: inputRefs.current.get(fieldId) || null,
+                } as React.RefObject<HTMLInputElement>
+              }
+            />
+          )}
         </div>
-      )}
-    </div>
+      </div>
+    </CollapsibleCard>
   )
 }
