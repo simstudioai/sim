@@ -633,6 +633,7 @@ import {
   enrichSearchSimilarCompaniesTool,
   enrichVerifyEmailTool,
 } from '@/tools/enrich'
+import { enrichmentRunTool } from '@/tools/enrichment'
 import {
   evernoteCopyNoteTool,
   evernoteCreateNotebookTool,
@@ -4338,6 +4339,7 @@ export const tools: Record<string, ToolConfig> = {
   enrich_search_posts: enrichSearchPostsTool,
   enrich_search_similar_companies: enrichSearchSimilarCompaniesTool,
   enrich_verify_email: enrichVerifyEmailTool,
+  enrichment_run: enrichmentRunTool,
   extend_parser: extendParserTool,
   extend_parser_v2: extendParserV2Tool,
   exa_search: exaSearchTool,
