@@ -6,7 +6,9 @@ const MCP_SERVER_LOCK_TIMEOUT_MS = 3_000
 const LOCK_NOT_AVAILABLE_SQLSTATE = '55P03'
 
 export async function setWorkflowMcpTransactionLockTimeout(tx: DbOrTx): Promise<void> {
-  await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${MCP_SERVER_LOCK_TIMEOUT_MS}ms'`))
+  await tx.execute(
+    sql`select set_config('lock_timeout', ${`${MCP_SERVER_LOCK_TIMEOUT_MS}ms`}, true)`
+  )
 }
 
 export async function acquireWorkflowMcpServerLock(tx: DbOrTx, serverId: string): Promise<void> {

@@ -50,7 +50,8 @@ interface ServerMetadataUsageState {
 async function listWorkflowMcpToolSyncPage(
   tx: DbOrTx,
   workflowId: string,
-  afterToolId?: string
+  afterToolId?: string,
+  serverIds?: string[]
 ): Promise<WorkflowMcpToolSyncRow[]> {
   return tx
     .select({
@@ -64,6 +65,9 @@ async function listWorkflowMcpToolSyncPage(
       and(
         eq(workflowMcpTool.workflowId, workflowId),
         isNull(workflowMcpTool.archivedAt),
+        serverIds && serverIds.length > 0
+          ? inArray(workflowMcpTool.serverId, serverIds)
+          : undefined,
         afterToolId ? gt(workflowMcpTool.id, afterToolId) : undefined
       )
     )
@@ -188,10 +192,13 @@ export async function syncMcpToolsForWorkflow(
 
     const affectedServerIds = new Set<string>()
     const lockedServers = await collectWorkflowMcpToolServerIds(tx, workflowId)
+    if (lockedServers.length === 0) return []
+
     for (const { serverId } of lockedServers) {
       await acquireWorkflowMcpServerLock(tx, serverId)
       affectedServerIds.add(serverId)
     }
+    const lockedServerIds = [...affectedServerIds]
 
     const usageStateByServer = new Map<string, ServerMetadataUsageState>()
     for (const { serverId } of lockedServers) {
@@ -206,7 +213,7 @@ export async function syncMcpToolsForWorkflow(
     let afterToolId: string | undefined
 
     while (true) {
-      const page = await listWorkflowMcpToolSyncPage(tx, workflowId, afterToolId)
+      const page = await listWorkflowMcpToolSyncPage(tx, workflowId, afterToolId, lockedServerIds)
       if (page.length === 0) break
 
       const pageTools = page.slice(0, MCP_SYNC_TOOLS_PAGE_SIZE)
@@ -222,7 +229,9 @@ export async function syncMcpToolsForWorkflow(
         left.localeCompare(right)
       )) {
         const usageState = usageStateByServer.get(serverId)
-        if (!usageState) continue
+        if (!usageState) {
+          throw new Error(`Missing locked MCP server usage state for server ${serverId}`)
+        }
         const schemaToolIds: string[] = []
         const emptySchemaToolIds: string[] = []
 

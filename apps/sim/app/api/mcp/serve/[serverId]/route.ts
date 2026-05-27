@@ -560,9 +560,7 @@ async function handleToolsList(
       .orderBy(asc(workflowMcpTool.id))
       .limit(MAX_MCP_TOOLS_LIST_COUNT + 1)
 
-    const hasNextPage = toolSizes.length > MAX_MCP_TOOLS_LIST_COUNT
-    const pageSizes = hasNextPage ? toolSizes.slice(0, MAX_MCP_TOOLS_LIST_COUNT) : toolSizes
-    const nextCursor = hasNextPage ? pageSizes.at(-1)?.id : undefined
+    const pageSizes = toolSizes.slice(0, MAX_MCP_TOOLS_LIST_COUNT)
 
     let estimatedSchemaBytes = 0
     let estimatedMetadataBytes = 0
@@ -602,7 +600,9 @@ async function handleToolsList(
       .orderBy(asc(workflowMcpTool.id))
       .limit(MAX_MCP_TOOLS_LIST_COUNT + 1)
 
+    const hasNextPage = tools.length > MAX_MCP_TOOLS_LIST_COUNT
     const pageTools = tools.slice(0, MAX_MCP_TOOLS_LIST_COUNT)
+    const nextCursor = hasNextPage ? pageTools.at(-1)?.id : undefined
     let schemaBytes = 0
     const result: ListToolsResult = {
       tools: pageTools.map((tool) => {
