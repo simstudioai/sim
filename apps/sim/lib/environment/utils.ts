@@ -4,29 +4,15 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
-import { LRUCache } from 'lru-cache'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
   createWorkspaceEnvCredentials,
   getAccessibleEnvCredentials,
   syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
-import { registerCache } from '@/lib/monitoring/cache-registry'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('EnvironmentUtils')
-const EFFECTIVE_ENV_CACHE_TTL_MS = 15_000
-
-const effectiveEnvCache = new LRUCache<string, Promise<Record<string, string>>>({
-  max: 500,
-  ttl: EFFECTIVE_ENV_CACHE_TTL_MS,
-})
-
-registerCache('effectiveEnvCache', () => effectiveEnvCache.size)
-
-function getEffectiveEnvCacheKey(userId: string, workspaceId?: string) {
-  return `${userId}:${workspaceId ?? ''}`
-}
 
 /**
  * Get environment variable keys for a user
@@ -269,7 +255,10 @@ export async function upsertPersonalEnvVars(
       set: { variables: finalEncrypted, updatedAt: new Date() },
     })
 
-  await syncPersonalEnvCredentialsForUser({ userId, envKeys: Object.keys(finalEncrypted) })
+  await syncPersonalEnvCredentialsForUser({
+    userId,
+    envKeys: Object.keys(finalEncrypted),
+  })
 
   return { added, updated }
 }
@@ -321,29 +310,19 @@ export async function upsertWorkspaceEnvVars(
   return updatedKeys
 }
 
+/**
+ * Returns a merged decrypted env map for webhook/copilot/MCP config resolution.
+ */
 export async function getEffectiveDecryptedEnv(
   userId: string,
   workspaceId?: string
 ): Promise<Record<string, string>> {
-  const cacheKey = getEffectiveEnvCacheKey(userId, workspaceId)
-
-  const cached = effectiveEnvCache.get(cacheKey)
-  if (cached) {
-    const value = await cached
-    return { ...value }
+  const { personalDecrypted, workspaceDecrypted } = await getPersonalAndWorkspaceEnv(
+    userId,
+    workspaceId
+  )
+  return {
+    ...personalDecrypted,
+    ...workspaceDecrypted,
   }
-
-  const promise = getPersonalAndWorkspaceEnv(userId, workspaceId)
-    .then(({ personalDecrypted, workspaceDecrypted }) => ({
-      ...personalDecrypted,
-      ...workspaceDecrypted,
-    }))
-    .catch((error) => {
-      effectiveEnvCache.delete(cacheKey)
-      throw error
-    })
-
-  effectiveEnvCache.set(cacheKey, promise)
-  const value = await promise
-  return { ...value }
 }
