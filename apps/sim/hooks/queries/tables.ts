@@ -42,6 +42,7 @@ import {
   listActiveDispatchesContract,
   listTableRowsContract,
   listTablesContract,
+  type RunLimit,
   type RunMode,
   renameTableContract,
   restoreTableContract,
@@ -1287,6 +1288,10 @@ interface RunColumnVariables {
   runMode?: RunMode
   /** Restrict to these rows. Server applies the same eligibility predicate. */
   rowIds?: string[]
+  /** Cap the run to the first `max` eligible rows. Omit for an unbounded run.
+   *  Optimistic stamping is skipped when set — the dispatcher's real pending
+   *  stamps drive the UI for the actual capped rows. */
+  limit?: RunLimit
 }
 
 type InfiniteRowsCache = { pages: TableRowsResponse[]; pageParams: number[] }
@@ -1408,7 +1413,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ groupIds, runMode = 'all', rowIds }: RunColumnVariables) => {
+    mutationFn: async ({ groupIds, runMode = 'all', rowIds, limit }: RunColumnVariables) => {
       return requestJson(runColumnContract, {
         params: { tableId },
         body: {
@@ -1416,10 +1421,17 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
           groupIds,
           runMode,
           ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
+          ...(limit ? { limit } : {}),
         },
       })
     },
-    onMutate: async ({ groupIds, runMode = 'all', rowIds }) => {
+    onMutate: async ({ groupIds, runMode = 'all', rowIds, limit }) => {
+      // Capped runs touch only the first N eligible rows, chosen server-side by
+      // position. We can't predict that set client-side, so optimistic stamping
+      // is skipped — the dispatcher's real pending stamps (cell SSE) drive the
+      // UI within the first window.
+      if (limit)
+        return { snapshots: undefined, runStateSnapshot: undefined, didBumpRunState: false }
       const targetRowIds = rowIds && rowIds.length > 0 ? new Set(rowIds) : null
       const targetGroupIds = new Set(groupIds)
       const groups =
@@ -1481,7 +1493,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
       }
     },
-    onSuccess: (data, { groupIds, runMode = 'all', rowIds }, context) => {
+    onSuccess: (data, { groupIds, runMode = 'all', rowIds, limit }, context) => {
       // Seed the dispatch into the overlay (drives resolveCellExec for
       // ahead-of-cursor rows) from the response — refetching would reset the
       // optimistic counter to the server's still-zero count.
@@ -1506,6 +1518,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
             groupIds,
             ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
           },
+          ...(limit ? { limit } : {}),
         }
         return { ...base, dispatches: [...base.dispatches, dispatch] }
       })
@@ -1522,9 +1535,13 @@ export function useAddWorkflowGroup({ workspaceId, tableId }: RowMutationContext
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ group, outputColumns }: AddWorkflowGroupVariables) => {
+      // Mirror the one-shot "schedule existing rows on creation" flag to the
+      // group's persisted autoRun. Without this it defaults to `true`, so an
+      // autoRun=false group opens a dispatch the scheduler then skips per-cell
+      // ('autoRun-off') — a no-op run that flashes the "X running" badge.
       return requestJson(addWorkflowGroupContract, {
         params: { tableId },
-        body: { workspaceId, group, outputColumns },
+        body: { workspaceId, group, outputColumns, autoRun: group.autoRun },
       })
     },
     onError: (error) => {
@@ -1545,6 +1562,8 @@ interface UpdateWorkflowGroupVariables {
   outputs?: WorkflowGroupOutput[]
   newOutputColumns?: UpdateWorkflowGroupBodyInput['newOutputColumns']
   mappingUpdates?: UpdateWorkflowGroupBodyInput['mappingUpdates']
+  inputMappings?: UpdateWorkflowGroupBodyInput['inputMappings']
+  type?: UpdateWorkflowGroupBodyInput['type']
   autoRun?: boolean
 }
 

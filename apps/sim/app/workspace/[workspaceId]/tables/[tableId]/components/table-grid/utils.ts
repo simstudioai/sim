@@ -189,6 +189,12 @@ export function resolveCellExec(
   if (areOutputsFilled(group, row)) return undefined
   if (!areGroupDepsSatisfied(group, row)) return undefined
   for (const d of activeDispatches) {
+    // Capped dispatches run only the first N eligible rows ahead of the
+    // cursor, and this per-row resolver can't tell which rows fall within the
+    // budget — rendering every ahead-of-cursor row as Queued would massively
+    // over-count. The dispatcher's real per-row pending stamps (arriving via
+    // cell SSE) cover the actual rows instead.
+    if (d.limit) continue
     if (!d.scope.groupIds.includes(group.id)) continue
     if (d.scope.rowIds && !d.scope.rowIds.includes(row.id)) continue
     if (row.position <= d.cursor) continue

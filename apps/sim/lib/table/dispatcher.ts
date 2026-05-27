@@ -33,6 +33,18 @@ export interface DispatchScope {
   rowIds?: string[]
 }
 
+/**
+ * Optional cap on how much work a dispatch does before it completes. The
+ * discriminated `type` keeps it extensible: only `'rows'` exists today, but a
+ * future `'cells'` / `'cost'` / `'duration'` cap can be added by extending the
+ * union and teaching `dispatcherStep` how to count that unit — no schema or
+ * plumbing change. `max` is the hard ceiling in units of `type`.
+ */
+export interface DispatchLimit {
+  type: 'rows'
+  max: number
+}
+
 export interface DispatchRow {
   id: string
   tableId: string
@@ -42,6 +54,10 @@ export interface DispatchRow {
   scope: DispatchScope
   status: DispatchStatus
   cursor: number
+  /** Cap on work before completion; null = unbounded. */
+  limit: DispatchLimit | null
+  /** Units of `limit.type` already consumed (eligible rows dispatched). */
+  processedCount: number
   isManualRun: boolean
   requestedAt: Date
 }
@@ -137,6 +153,7 @@ export async function insertDispatch(input: {
   requestId: string
   mode: DispatchMode
   scope: DispatchScope
+  limit?: DispatchLimit | null
   isManualRun: boolean
 }): Promise<string> {
   const id = `tdsp_${generateId().replace(/-/g, '')}`
@@ -147,6 +164,7 @@ export async function insertDispatch(input: {
     requestId: input.requestId,
     mode: input.mode,
     scope: input.scope,
+    limit: input.limit ?? null,
     status: 'pending',
     // -1 = "haven't started." First window's filter `position > -1` matches
     // position 0; subsequent iterations advance to `lastPosition` which then
@@ -221,7 +239,13 @@ export async function countActiveRunCells(
       .select({ rowsAhead: sql<number>`count(*)::int` })
       .from(userTableRows)
       .where(and(...filters))
-    return (row?.rowsAhead ?? 0) * groupCount
+    let rowsAhead = row?.rowsAhead ?? 0
+    // A `rows` cap means at most `max - processed` more rows will run, even if
+    // many more sit ahead of the cursor — clamp so the badge doesn't over-count.
+    if (d.limit?.type === 'rows') {
+      rowsAhead = Math.min(rowsAhead, Math.max(0, d.limit.max - d.processedCount))
+    }
+    return rowsAhead * groupCount
   }
 
   // One round-trip per dispatch + the sidecar count, all in parallel.
@@ -252,6 +276,8 @@ export async function listActiveDispatches(tableId: string): Promise<DispatchRow
     scope: row.scope as DispatchScope,
     status: row.status as DispatchStatus,
     cursor: row.cursor,
+    limit: (row.limit as DispatchLimit | null) ?? null,
+    processedCount: row.processedCount,
     isManualRun: row.isManualRun,
     requestedAt: row.requestedAt,
   }))
@@ -273,6 +299,8 @@ export async function readDispatch(dispatchId: string): Promise<DispatchRow | nu
     scope: row.scope as DispatchScope,
     status: row.status as DispatchStatus,
     cursor: row.cursor,
+    limit: (row.limit as DispatchLimit | null) ?? null,
+    processedCount: row.processedCount,
     isManualRun: row.isManualRun,
     requestedAt: row.requestedAt,
   }
@@ -423,15 +451,40 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
   // eligibility — otherwise a window full of skipped cells loops forever.
   const lastPosition = chunk[chunk.length - 1].position
 
-  if (pendingRuns.length > 0) {
-    await stampQueuedForBatch(pendingRuns)
+  // Apply the dispatch's row cap. With a `rows` limit, only the first
+  // `remaining` distinct eligible rows in this window are dispatched and the
+  // dispatch completes once the budget is spent. buildPendingRuns emits each
+  // row's groups consecutively in ascending position, so collecting distinct
+  // rowIds until the budget fills picks the lowest-position rows.
+  let windowRuns = pendingRuns
+  let dispatchedRows = 0
+  let budgetExhausted = false
+  if (dispatch.limit?.type === 'rows') {
+    const remaining = dispatch.limit.max - dispatch.processedCount
+    if (remaining <= 0) {
+      await completeDispatch(dispatch, lastPosition)
+      return 'done'
+    }
+    const allowedRowIds = new Set<string>()
+    for (const p of pendingRuns) {
+      if (allowedRowIds.has(p.rowId)) continue
+      if (allowedRowIds.size >= remaining) break
+      allowedRowIds.add(p.rowId)
+    }
+    windowRuns = pendingRuns.filter((p) => allowedRowIds.has(p.rowId))
+    dispatchedRows = allowedRowIds.size
+    budgetExhausted = dispatch.processedCount + dispatchedRows >= dispatch.limit.max
+  }
+
+  if (windowRuns.length > 0) {
+    await stampQueuedForBatch(windowRuns)
 
     // Backend-agnostic batch dispatch: trigger.dev wraps `batchTriggerAndWait`
     // (CRIU-checkpointed wait); database backend calls the cell-task runner
     // directly via Promise.all (skips async_jobs since we're awaiting in-
     // process anyway). Either way the parent dispatcher blocks until every
     // cell in the window terminates — bounds queue depth at WINDOW_SIZE.
-    const items = await buildEnqueueItems(pendingRuns)
+    const items = await buildEnqueueItems(windowRuns)
     const queue = await getJobQueue()
     try {
       await queue.batchEnqueueAndWait('workflow-group-cell', items)
@@ -439,11 +492,18 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       logger.error(`[${dispatchId}] batch dispatch failed`, {
         error: toError(err).message,
       })
+      // These rows never actually ran, so they must not consume the row cap —
+      // otherwise a transient failure on the only window of a `max: N` run would
+      // exhaust the budget and complete the dispatch with zero rows started.
+      // The cursor still advances past the window (cells are flipped to a
+      // re-runnable `error` below), so later windows fulfill the remaining cap.
+      dispatchedRows = 0
+      budgetExhausted = false
       // Cursor advances past this window, so flip the un-claimed pre-stamps to
       // terminal `error` (+ SSE) — visible, not stuck pending, re-runnable.
       const failedAt = new Date()
       await Promise.allSettled(
-        pendingRuns.map(async (p) => {
+        windowRuns.map(async (p) => {
           const updated = await db
             .update(tableRowExecutions)
             .set({ status: 'error', error: 'Failed to enqueue run', updatedAt: failedAt })
@@ -472,6 +532,14 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     }
   }
 
+  if (dispatchedRows > 0) await incrementProcessedCount(dispatchId, dispatchedRows)
+
+  // Budget spent → complete now rather than crawling the rest of the table.
+  if (budgetExhausted) {
+    await completeDispatch(dispatch, lastPosition)
+    return 'done'
+  }
+
   await Promise.all([
     advanceCursor(dispatchId, lastPosition),
     appendTableEvent({
@@ -483,10 +551,37 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       cursor: lastPosition,
       mode: dispatch.mode,
       isManualRun: dispatch.isManualRun,
+      ...(dispatch.limit ? { limit: dispatch.limit } : {}),
     }),
   ])
 
   return 'continue'
+}
+
+/** Bump the processed-row counter so a row cap survives across the
+ *  checkpointed waits between windows. */
+async function incrementProcessedCount(dispatchId: string, delta: number): Promise<void> {
+  await db
+    .update(tableRunDispatches)
+    .set({ processedCount: sql`${tableRunDispatches.processedCount} + ${delta}` })
+    .where(eq(tableRunDispatches.id, dispatchId))
+}
+
+/** Mark a dispatch complete and emit the terminal SSE so the client overlay
+ *  clears. Shared by the row-cap exhaustion path. */
+async function completeDispatch(dispatch: DispatchRow, cursor: number): Promise<void> {
+  await markDispatchComplete(dispatch.id)
+  await appendTableEvent({
+    kind: 'dispatch',
+    tableId: dispatch.tableId,
+    dispatchId: dispatch.id,
+    status: 'complete',
+    scope: dispatch.scope,
+    cursor,
+    mode: dispatch.mode,
+    isManualRun: dispatch.isManualRun,
+    ...(dispatch.limit ? { limit: dispatch.limit } : {}),
+  })
 }
 
 /** Pre-batch stamp: write each targeted cell as `pending` (no executionId)
@@ -562,6 +657,8 @@ export async function markActiveDispatchesCancelled(tableId: string): Promise<Di
     scope: row.scope as DispatchScope,
     status: 'cancelled' as DispatchStatus,
     cursor: row.cursor,
+    limit: (row.limit as DispatchLimit | null) ?? null,
+    processedCount: row.processedCount,
     isManualRun: row.isManualRun,
     requestedAt: row.requestedAt,
   }))

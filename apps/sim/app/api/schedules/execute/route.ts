@@ -26,6 +26,14 @@ const JOB_CHUNK_SIZE = 100
 const MAX_TICK_DURATION_MS = 3 * 60 * 1000
 const STALE_SCHEDULE_CLAIM_MS = getMaxExecutionTimeout()
 
+/**
+ * Upper bound (ms) for the random start delay applied to each scheduled
+ * execution. Cron schedules all fire on the same boundary (e.g. every `:00`),
+ * which stampedes the database connection pool at the top of each minute/hour.
+ * Spreading starts across a [0, 30s) window smooths that burst.
+ */
+const SCHEDULE_JITTER_MAX_MS = 30_000
+
 const dueFilter = (queuedAt: Date) =>
   and(
     isNull(workflowSchedule.archivedAt),
@@ -217,6 +225,7 @@ async function processScheduleItem(
     const jobId = await jobQueue.enqueue('schedule-execution', payload, {
       jobId: scheduleJobId,
       concurrencyKey: scheduleJobId,
+      delayMs: Math.floor(Math.random() * SCHEDULE_JITTER_MAX_MS),
       metadata: {
         workflowId: schedule.workflowId ?? undefined,
         workspaceId: resolvedWorkspaceId ?? undefined,

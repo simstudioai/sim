@@ -2680,6 +2680,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'mothership_block',
   'knowledge-base',
   'voice-input',
+  'enrichment',
 ])
 
 export const usageLog = pgTable(
@@ -3227,6 +3228,15 @@ export const tableRunDispatches = pgTable(
     status: text('status').notNull().default('pending'),
     /** Highest `user_table_rows.position` we've already enqueued cells for. */
     cursor: integer('cursor').notNull().default(0),
+    /** Optional cap on how much work the dispatch does before completing.
+     *  `{ type: 'rows', max: number }` today; the discriminated shape lets
+     *  future caps (cells, cost, duration) extend without a schema change.
+     *  Null = unbounded (process every row in scope). */
+    limit: jsonb('limit'),
+    /** Units of `limit.type` already consumed (eligible rows dispatched, for
+     *  `type: 'rows'`). Mutable counter the dispatcher advances per window so
+     *  the budget survives across the checkpointed waits between windows. */
+    processedCount: integer('processed_count').notNull().default(0),
     /** When true, eligibility bypasses `autoRun: false` skip and treats
      *  terminal states as re-runnable. Auto-fire paths (row inserts,
      *  CSV import, addWorkflowGroup) set this to false so the dispatch

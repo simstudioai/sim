@@ -81,6 +81,9 @@ export class TriggerDevJobQueue implements JobQueueBackend {
       triggerOptions.idempotencyKey = options.jobId
       triggerOptions.idempotencyKeyTTL = '14d'
     }
+    if (options?.delayMs && options.delayMs > 0) {
+      triggerOptions.delay = new Date(Date.now() + options.delayMs)
+    }
     const handle = await tasks.trigger(taskId, enrichedPayload, triggerOptions)
 
     logger.debug('Enqueued job via trigger.dev', { jobId: handle.id, type, taskId, tags })
