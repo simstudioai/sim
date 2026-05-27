@@ -19,6 +19,7 @@ import { googleFormsHandler } from '@/lib/webhooks/providers/google-forms'
 import { grainHandler } from '@/lib/webhooks/providers/grain'
 import { greenhouseHandler } from '@/lib/webhooks/providers/greenhouse'
 import { imapHandler } from '@/lib/webhooks/providers/imap'
+import { instantlyHandler } from '@/lib/webhooks/providers/instantly'
 import { intercomHandler } from '@/lib/webhooks/providers/intercom'
 import { jiraHandler } from '@/lib/webhooks/providers/jira'
 import { jsmHandler } from '@/lib/webhooks/providers/jsm'
@@ -69,6 +70,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   greenhouse: greenhouseHandler,
   imap: imapHandler,
   intercom: intercomHandler,
+  instantly: instantlyHandler,
   jira: jiraHandler,
   jsm: jsmHandler,
   lemlist: lemlistHandler,
