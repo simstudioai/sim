@@ -20,6 +20,8 @@ interface CellContentProps {
    * is empty. `undefined` (or empty) means no waiting state.
    */
   waitingOnLabels?: string[]
+  /** Column is an enrichment output — a completed-but-empty cell renders "Not found". */
+  isEnrichmentOutput?: boolean
 }
 
 /**
@@ -37,8 +39,9 @@ export function CellContent({
   onSave,
   onCancel,
   waitingOnLabels,
+  isEnrichmentOutput,
 }: CellContentProps) {
-  const kind = resolveCellRender({ value, exec, column, waitingOnLabels })
+  const kind = resolveCellRender({ value, exec, column, waitingOnLabels, isEnrichmentOutput })
 
   return (
     <>

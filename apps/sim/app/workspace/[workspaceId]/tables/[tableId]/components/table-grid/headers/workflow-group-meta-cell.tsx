@@ -23,6 +23,8 @@ import {
 } from '@/components/emcn/icons'
 import type { RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
+import type { WorkflowGroupType } from '@/lib/table'
+import { getEnrichment } from '@/enrichments/registry'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { SELECTION_TINT_BG } from '../constants'
 import type { DisplayColumn } from '../types'
@@ -166,6 +168,13 @@ export function ColumnOptionsMenu({
 interface WorkflowGroupMetaCellProps {
   workflowId: string
   groupId: string
+  /** When `'enrichment'`, the cell shows the enrichment's name + icon instead
+   *  of a backing workflow's color chip + name. */
+  groupType?: WorkflowGroupType
+  /** Registry id for enrichment groups (resolves name/icon fallback). */
+  enrichmentId?: string
+  /** Persisted group name (the enrichment name at creation). */
+  groupName?: string
   size: number
   startColIndex: number
   columnName: string
@@ -205,6 +214,9 @@ interface WorkflowGroupMetaCellProps {
 export function WorkflowGroupMetaCell({
   workflowId,
   groupId,
+  groupType,
+  enrichmentId,
+  groupName,
   size,
   startColIndex,
   columnName,
@@ -226,9 +238,14 @@ export function WorkflowGroupMetaCell({
   onDragLeave,
   readOnly,
 }: WorkflowGroupMetaCellProps) {
+  const isEnrichment = groupType === 'enrichment'
+  const enrichment = isEnrichment ? getEnrichment(enrichmentId) : undefined
+  const EnrichmentIcon = enrichment?.icon
   const wf = workflows?.find((w) => w.id === workflowId)
   const color = wf?.color ?? 'var(--text-muted)'
-  const name = wf?.name ?? 'Workflow'
+  const name = isEnrichment
+    ? (groupName ?? enrichment?.name ?? 'Enrichment')
+    : (wf?.name ?? 'Workflow')
 
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false)
   const [optionsMenuPosition, setOptionsMenuPosition] = useState({ x: 0, y: 0 })
@@ -369,14 +386,18 @@ export function WorkflowGroupMetaCell({
         style={{ background: color }}
       />
       <div className='flex h-[18px] min-w-0 items-center gap-1.5'>
-        <span
-          className='size-[10px] shrink-0 rounded-sm border-[2px]'
-          style={{
-            backgroundColor: color,
-            borderColor: `${color}60`,
-            backgroundClip: 'padding-box',
-          }}
-        />
+        {isEnrichment && EnrichmentIcon ? (
+          <EnrichmentIcon className='size-[12px] shrink-0 text-[var(--text-icon)]' />
+        ) : (
+          <span
+            className='size-[10px] shrink-0 rounded-sm border-[2px]'
+            style={{
+              backgroundColor: color,
+              borderColor: `${color}60`,
+              backgroundClip: 'padding-box',
+            }}
+          />
+        )}
         <span className='min-w-0 truncate font-medium text-[11px] text-[var(--text-secondary)]'>
           {name}
         </span>

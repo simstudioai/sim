@@ -20,6 +20,7 @@ export type CellRenderKind =
   | { kind: 'cancelled' }
   | { kind: 'error' }
   | { kind: 'waiting'; labels: string[] }
+  | { kind: 'not-found' }
   // Plain typed cells
   | { kind: 'boolean'; checked: boolean }
   | { kind: 'json'; text: string }
@@ -34,6 +35,9 @@ interface ResolveCellRenderInput {
   exec: RowExecutionMetadata | undefined
   column: DisplayColumn
   waitingOnLabels: string[] | undefined
+  /** Column is an enrichment-group output — a completed-but-empty cell renders
+   *  "Not found" rather than a blank, since the enrichment ran and matched nothing. */
+  isEnrichmentOutput?: boolean
 }
 
 export function resolveCellRender({
@@ -41,8 +45,10 @@ export function resolveCellRender({
   exec,
   column,
   waitingOnLabels,
+  isEnrichmentOutput,
 }: ResolveCellRenderInput): CellRenderKind {
   const isNull = value === null || value === undefined
+  const isEmpty = isNull || value === ''
 
   if (column.workflowGroupId) {
     const blockId = column.outputBlockId
@@ -57,8 +63,9 @@ export function resolveCellRender({
     if (inFlight && blockRunning) return { kind: 'running' }
 
     // Value wins over pending-upstream: a finished column stays finished even
-    // while other blocks in the group are still running.
-    if (!isNull) return { kind: 'value', text: stringifyValue(value) }
+    // while other blocks in the group are still running. An empty string is not
+    // a value — it falls through so a completed enrichment can show "Not found".
+    if (!isEmpty) return { kind: 'value', text: stringifyValue(value) }
 
     if (inFlight && !(groupHasBlockErrors && !blockRunning)) {
       // A `pending` cell whose jobId starts with `paused-` is mid-pause
@@ -79,6 +86,8 @@ export function resolveCellRender({
     }
     if (exec?.status === 'cancelled') return { kind: 'cancelled' }
     if (exec?.status === 'error') return { kind: 'error' }
+    // Enrichment ran to completion but matched nothing → "Not found".
+    if (isEnrichmentOutput && exec?.status === 'completed') return { kind: 'not-found' }
     return { kind: 'empty' }
   }
 
@@ -271,6 +280,15 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
         >
           {kind.text}
         </span>
+      )
+
+    case 'not-found':
+      return (
+        <Wrap isEditing={isEditing}>
+          <Badge variant='gray' dot size='sm'>
+            Not found
+          </Badge>
+        </Wrap>
       )
 
     case 'empty':

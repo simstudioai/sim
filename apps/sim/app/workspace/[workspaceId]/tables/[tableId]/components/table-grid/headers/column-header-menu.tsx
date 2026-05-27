@@ -250,7 +250,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
-            isWorkflowColumn={!!column.workflowGroupId}
+            isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
             blockIconInfo={sourceInfo?.blockIconInfo}
           />
           <input
@@ -270,7 +270,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
-            isWorkflowColumn={!!column.workflowGroupId}
+            isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
             blockIconInfo={sourceInfo?.blockIconInfo}
           />
           <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
@@ -287,7 +287,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           >
             <ColumnTypeIcon
               type={column.type}
-              isWorkflowColumn={!!column.workflowGroupId}
+              isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
               blockIconInfo={sourceInfo?.blockIconInfo}
             />
             <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
