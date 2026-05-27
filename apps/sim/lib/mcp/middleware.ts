@@ -3,10 +3,17 @@ import { toError } from '@sim/utils/errors'
 import type { NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  assertContentLengthWithinLimit,
+  isPayloadSizeLimitError,
+  readStreamToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { createMcpErrorResponse } from '@/lib/mcp/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('McpAuthMiddleware')
+const MAX_MCP_MANAGEMENT_BODY_BYTES = 10 * 1024 * 1024
+const parsedBodies = new WeakMap<NextRequest, unknown>()
 
 export type McpPermissionLevel = 'read' | 'write' | 'admin'
 
@@ -35,6 +42,68 @@ interface AuthFailure {
 }
 
 type AuthValidationResult = AuthResult | AuthFailure
+
+class McpBodyReadError extends Error {
+  constructor(
+    readonly kind: 'aborted' | 'payload_too_large' | 'invalid_json',
+    readonly cause: unknown
+  ) {
+    super(toError(cause).message)
+    this.name = 'McpBodyReadError'
+  }
+}
+
+export async function readMcpJsonBodyWithLimit(request: NextRequest): Promise<unknown> {
+  const cached = parsedBodies.get(request)
+  if (cached !== undefined) return cached
+
+  try {
+    assertContentLengthWithinLimit(
+      request.headers,
+      MAX_MCP_MANAGEMENT_BODY_BYTES,
+      'MCP management request body'
+    )
+    const buffer = await readStreamToBufferWithLimit(request.body, {
+      maxBytes: MAX_MCP_MANAGEMENT_BODY_BYTES,
+      label: 'MCP management request body',
+      signal: request.signal,
+    })
+    const body = buffer.byteLength > 0 ? JSON.parse(buffer.toString('utf-8')) : {}
+    parsedBodies.set(request, body)
+    return body
+  } catch (error) {
+    if (request.signal.aborted) {
+      throw new McpBodyReadError('aborted', error)
+    }
+    if (isPayloadSizeLimitError(error)) {
+      throw new McpBodyReadError('payload_too_large', error)
+    }
+    if (error instanceof SyntaxError) {
+      throw new McpBodyReadError('invalid_json', error)
+    }
+    throw error
+  }
+}
+
+export function mcpBodyReadErrorResponse(
+  error: unknown,
+  request?: NextRequest
+): NextResponse | null {
+  if (!(error instanceof McpBodyReadError)) {
+    return null
+  }
+  if (error.kind === 'aborted' || request?.signal.aborted) {
+    return createMcpErrorResponse(error.cause, 'Client cancelled request', 499)
+  }
+  if (error.kind === 'payload_too_large') {
+    return createMcpErrorResponse(
+      error.cause,
+      'MCP management request body exceeds maximum size',
+      413
+    )
+  }
+  return createMcpErrorResponse(error.cause, 'Invalid request body', 400)
+}
 
 /**
  * Validates MCP authentication and authorization
@@ -68,11 +137,17 @@ async function validateMcpAuth(
       try {
         const contentType = request.headers.get('content-type')
         if (contentType?.includes('application/json')) {
-          const body = await request.json()
-          workspaceId = body.workspaceId
-          ;(request as any)._parsedBody = body
+          const body = await readMcpJsonBodyWithLimit(request)
+          const bodyWorkspaceId =
+            body && typeof body === 'object' && 'workspaceId' in body
+              ? (body as { workspaceId?: unknown }).workspaceId
+              : undefined
+          workspaceId = typeof bodyWorkspaceId === 'string' ? bodyWorkspaceId : null
         }
-      } catch {}
+      } catch (error) {
+        const errorResponse = mcpBodyReadErrorResponse(error, request)
+        if (errorResponse) return { success: false, errorResponse }
+      }
     }
 
     if (!workspaceId) {
@@ -190,6 +265,8 @@ export function withMcpAuth<TParams = Record<string, string>>(
       try {
         return await handler(request, (authResult as AuthResult).context, routeContext)
       } catch (error) {
+        const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+        if (bodyErrorResponse) return bodyErrorResponse
         logger.error(
           `[${(authResult as AuthResult).context.requestId}] Error in MCP route handler:`,
           error
@@ -198,11 +275,4 @@ export function withMcpAuth<TParams = Record<string, string>>(
       }
     }
   }
-}
-
-/**
- * Utility to get parsed request body
- */
-export function getParsedBody(request: NextRequest): any {
-  return (request as any)._parsedBody
 }
