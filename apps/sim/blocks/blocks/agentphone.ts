@@ -34,7 +34,7 @@ export const AgentPhoneBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Communication,
   tags: ['messaging', 'automation'],
-  bgColor: 'linear-gradient(135deg, #1a1a1a 0%, #0a2a14 100%)',
+  bgColor: '#000000',
   icon: AgentPhoneIcon,
   authMode: AuthMode.ApiKey,
 
