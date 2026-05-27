@@ -174,12 +174,57 @@ async function runWorkflowAndWriteTerminal(
 
       try {
         if (signal?.aborted) return 'error'
-        const result = await runEnrichment(enrichment, enrichInputs, {
+        const { result, cost, error } = await runEnrichment(enrichment, enrichInputs, {
           tableId,
           rowId,
           workspaceId,
           signal,
         })
+
+        // An abort during the cascade must not be recorded as a completed cell.
+        if (signal?.aborted) return 'error'
+
+        // Every provider that ran errored (auth / rate-limit / outage) — surface
+        // it rather than writing a blank cell that looks like "no data found".
+        if (error) {
+          await writeState({
+            status: 'error',
+            executionId,
+            jobId: null,
+            workflowId: statusId,
+            error,
+          })
+          return 'error'
+        }
+
+        // Bill the table owner for any hosted-key cost the providers incurred.
+        // Billing failures must not error an otherwise-successful cell.
+        if (cost > 0 && table.createdBy) {
+          try {
+            const { recordUsage } = await import('@/lib/billing/core/usage-log')
+            await recordUsage({
+              userId: table.createdBy,
+              workspaceId,
+              executionId,
+              entries: [
+                {
+                  category: 'fixed',
+                  source: 'enrichment',
+                  description: enrichment.name,
+                  cost,
+                  metadata: { enrichmentId: enrichment.id, tableId, rowId },
+                },
+              ],
+            })
+          } catch (billingErr) {
+            logger.error('Failed to record enrichment usage', {
+              enrichmentId: enrichment.id,
+              cost,
+              error: toError(billingErr).message,
+            })
+          }
+        }
+
         const dataPatch: RowData = {}
         for (const out of group.outputs) {
           if (!out.outputId) continue

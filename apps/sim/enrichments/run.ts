@@ -5,9 +5,29 @@ import { executeTool } from '@/tools'
 
 const logger = createLogger('Enrichments')
 
+/** Outcome of running an enrichment's provider cascade for one row. */
+export interface EnrichmentRunOutcome {
+  /** Mapped output values from the winning provider, or `{}` when none hit. */
+  result: Record<string, unknown>
+  /** Total hosted-key cost (USD) across providers that ran; `0` for BYOK / free. */
+  cost: number
+  /**
+   * Set only when every provider that actually ran errored (none produced a
+   * clean result or a clean miss). Lets the caller mark the cell errored instead
+   * of blanking it — a genuine "no match" still leaves this `null`.
+   */
+  error: string | null
+}
+
 /** True when at least one output value in the result is non-empty. */
 function hasResult(result: Record<string, unknown>): boolean {
   return Object.values(result).some((v) => v !== undefined && v !== null && v !== '')
+}
+
+/** Reads the hosted-key cost `executeTool` merges into a successful output. */
+function readCost(output: Record<string, unknown>): number {
+  const total = (output.cost as { total?: unknown } | undefined)?.total
+  return typeof total === 'number' && Number.isFinite(total) && total > 0 ? total : 0
 }
 
 /**
@@ -15,7 +35,9 @@ function hasResult(result: Record<string, unknown>): boolean {
  * the first that returns a non-empty result wins and is returned. A provider is
  * skipped when its `buildParams` returns `null` (insufficient inputs); a tool
  * failure or empty mapped result falls through to the next. When every provider
- * misses, returns `{}` — the caller writes a blank (not errored) cell.
+ * that ran errored, `error` is set so the caller can mark the cell errored; a
+ * clean miss leaves `error: null` (blank cell). Hosted-key cost is accumulated
+ * across providers for the caller to bill.
  *
  * Server-only: imports `executeTool`, which pulls in DB / mailer code. Only the
  * background cell executor imports this module (dynamically).
@@ -24,11 +46,17 @@ export async function runEnrichment(
   enrichment: EnrichmentConfig,
   inputs: Record<string, unknown>,
   ctx: EnrichmentRunContext
-): Promise<Record<string, unknown>> {
+): Promise<EnrichmentRunOutcome> {
+  let cost = 0
+  let ranCount = 0
+  let errorCount = 0
+  let lastError: string | null = null
+
   for (const provider of enrichment.providers) {
     if (ctx.signal?.aborted) break
     const params = provider.buildParams(inputs)
     if (!params) continue
+    ranCount++
     try {
       const response = await executeTool(
         provider.toolId,
@@ -38,18 +66,25 @@ export async function runEnrichment(
       if (!response.success) {
         throw new Error(response.error ?? `${provider.toolId} failed`)
       }
+      cost += readCost(response.output)
       const result = provider.mapOutput(response.output)
       if (result && hasResult(result)) {
         logger.info('Enrichment hit', { enrichmentId: enrichment.id, provider: provider.id })
-        return result
+        return { result, cost, error: null }
       }
     } catch (err) {
+      errorCount++
+      lastError = getErrorMessage(err)
       logger.warn('Enrichment provider failed; trying next', {
         enrichmentId: enrichment.id,
         provider: provider.id,
-        error: getErrorMessage(err),
+        error: lastError,
       })
     }
   }
-  return {}
+
+  // No provider hit. Surface an error only when every provider that ran errored
+  // (infra/auth/rate-limit) — a clean miss returns a blank result instead.
+  const error = ranCount > 0 && errorCount === ranCount ? lastError : null
+  return { result: {}, cost, error }
 }
