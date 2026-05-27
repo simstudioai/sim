@@ -266,10 +266,20 @@ export const SixtyfourBlock: BlockConfig = {
     emails: {
       type: 'json',
       description: 'Email addresses found with validation status and type (find_email)',
+      properties: {
+        address: { type: 'string', description: 'Email address' },
+        status: { type: 'string', description: 'Validation status (OK, UNKNOWN, NOT_FOUND)' },
+        type: { type: 'string', description: 'Email type (COMPANY or PERSONAL)' },
+      },
     },
     personalEmails: {
       type: 'json',
       description: 'Personal email addresses found in PERSONAL mode (find_email)',
+      properties: {
+        address: { type: 'string', description: 'Email address' },
+        status: { type: 'string', description: 'Validation status (OK, UNKNOWN, NOT_FOUND)' },
+        type: { type: 'string', description: 'Email type (COMPANY or PERSONAL)' },
+      },
     },
     notes: {
       type: 'string',
@@ -287,6 +297,10 @@ export const SixtyfourBlock: BlockConfig = {
     confidenceScore: {
       type: 'number',
       description: 'Quality score for the returned data, 0-10 (enrich_lead, enrich_company)',
+    },
+    orgChart: {
+      type: 'json',
+      description: 'Org chart returned when fullOrgChart is enabled (enrich_company)',
     },
   },
 }

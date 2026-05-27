@@ -54,6 +54,8 @@ export const agentmailGetMessageTool: ToolConfig<GetMessageParams, GetMessageRes
           subject: null,
           text: null,
           html: null,
+          labels: [],
+          timestamp: null,
           createdAt: '',
         },
       }
@@ -71,6 +73,8 @@ export const agentmailGetMessageTool: ToolConfig<GetMessageParams, GetMessageRes
         subject: data.subject ?? null,
         text: data.text ?? null,
         html: data.html ?? null,
+        labels: data.labels ?? [],
+        timestamp: data.timestamp ?? null,
         createdAt: data.created_at ?? '',
       },
     }
@@ -86,6 +90,12 @@ export const agentmailGetMessageTool: ToolConfig<GetMessageParams, GetMessageRes
     subject: { type: 'string', description: 'Message subject', optional: true },
     text: { type: 'string', description: 'Plain text content', optional: true },
     html: { type: 'string', description: 'HTML content', optional: true },
+    labels: { type: 'array', description: 'Labels assigned to the message' },
+    timestamp: {
+      type: 'string',
+      description: 'Time the message was sent or drafted',
+      optional: true,
+    },
     createdAt: { type: 'string', description: 'Creation timestamp' },
   },
 }

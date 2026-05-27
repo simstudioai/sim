@@ -31,7 +31,7 @@ export const agentphoneListContactsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results to return (default 50)',
+      description: 'Number of results to return (default 50, max 200)',
     },
     offset: {
       type: 'number',
