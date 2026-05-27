@@ -118,6 +118,7 @@ async function runWorkflowAndWriteTerminal(
     // workflow, reusing the same pickup → run → terminal-write status flow.
     if (group.type === 'enrichment') {
       const { getEnrichment } = await import('@/enrichments/registry')
+      const { runEnrichment } = await import('@/enrichments/run')
       const enrichment = getEnrichment(group.enrichmentId)
       // `tableRowExecutions.workflowId` is an opaque id for status; use the
       // enrichment id for enrichment cells.
@@ -173,7 +174,7 @@ async function runWorkflowAndWriteTerminal(
 
       try {
         if (signal?.aborted) return 'error'
-        const result = await enrichment.enrich(enrichInputs, {
+        const result = await runEnrichment(enrichment, enrichInputs, {
           tableId,
           rowId,
           workspaceId,

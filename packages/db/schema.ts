@@ -2680,6 +2680,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'mothership_block',
   'knowledge-base',
   'voice-input',
+  'enrichment',
 ])
 
 export const usageLog = pgTable(

@@ -3,6 +3,7 @@ export type {
   EnrichmentConfig,
   EnrichmentInputField,
   EnrichmentOutputField,
+  EnrichmentProvider,
   EnrichmentRegistry,
   EnrichmentRunContext,
 } from './types'

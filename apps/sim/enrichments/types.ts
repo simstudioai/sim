@@ -14,14 +14,14 @@ export interface EnrichmentInputField {
 
 /** One value an enrichment produces. Becomes a table column. */
 export interface EnrichmentOutputField {
-  /** Key the value is returned under from `enrich()` (`result[id]`). */
+  /** Key the value is returned under from a provider's `run()` (`result[id]`). */
   id: string
   /** Default column name. */
   name: string
   type: ColumnDefinition['type']
 }
 
-/** Per-row execution context handed to `enrich()` (runs server-side). */
+/** Per-row execution context handed to a provider's `run()` (runs server-side). */
 export interface EnrichmentRunContext {
   tableId: string
   rowId: string
@@ -30,9 +30,35 @@ export interface EnrichmentRunContext {
 }
 
 /**
+ * One data source an enrichment can try, described as plain data so the catalog
+ * (which the table UI imports for metadata) never pulls in server-only tool
+ * code. Providers are attempted in declared order (a fallback cascade); the
+ * cascade runner (`run.ts`, server-only) calls the tool and the first provider
+ * to return a non-empty result fills the cell.
+ */
+export interface EnrichmentProvider {
+  /** Stable id for logs, e.g. `'hunter'`, `'pdl'`. */
+  id: string
+  /** Human label, e.g. `'Hunter'`, `'People Data Labs'`. */
+  label: string
+  /** Tool executed via `executeTool` (in the server-only runner). */
+  toolId: string
+  /**
+   * Maps enrichment inputs to tool params, or `null` when there aren't enough
+   * inputs to run this provider (cascade falls through to the next).
+   */
+  buildParams: (inputs: Record<string, unknown>) => Record<string, unknown> | null
+  /**
+   * Maps the tool's output to `{ [outputId]: value }`, or `null` for no result.
+   * An empty/`null` result falls through to the next provider.
+   */
+  mapOutput: (output: Record<string, unknown>) => Record<string, unknown> | null
+}
+
+/**
  * A code-defined enrichment. Runs directly per table row (no workflow): the
- * table's per-cell executor calls `enrich()` with the mapped inputs and writes
- * each returned output value into its column.
+ * table's per-cell executor runs the provider cascade with the mapped inputs
+ * and writes each returned output value into its column.
  */
 export interface EnrichmentConfig {
   id: string
@@ -42,11 +68,8 @@ export interface EnrichmentConfig {
   icon: React.ComponentType<{ className?: string }>
   inputs: EnrichmentInputField[]
   outputs: EnrichmentOutputField[]
-  /** Returns `{ [outputId]: value }`. Throwing surfaces as a per-cell error. */
-  enrich: (
-    inputs: Record<string, unknown>,
-    ctx: EnrichmentRunContext
-  ) => Promise<Record<string, unknown>>
+  /** Data sources tried in order until one returns a non-empty result. */
+  providers: EnrichmentProvider[]
 }
 
 export type EnrichmentRegistry = Record<string, EnrichmentConfig>
