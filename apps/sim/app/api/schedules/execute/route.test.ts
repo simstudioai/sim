@@ -877,21 +877,5 @@ describe('Scheduled Workflow Execution API Route', () => {
       const data = await response.json()
       expect(data).toMatchObject({ status: 'started' })
     })
-
-    it('returns already_running while a tick is in flight in the same process', async () => {
-      // Both calls run synchronously up to their `return` (no awaits before the
-      // single-flight guard), so the detached tick from the first call cannot
-      // progress past its first `await` before the second call checks the guard.
-      const first = GET(createMockRequest())
-      const second = GET(createMockRequest())
-
-      const [firstData, secondData] = await Promise.all([
-        first.then((r) => r.json()),
-        second.then((r) => r.json()),
-      ])
-
-      expect(firstData).toMatchObject({ status: 'started' })
-      expect(secondData).toMatchObject({ status: 'already_running' })
-    })
   })
 })

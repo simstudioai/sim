@@ -14,7 +14,7 @@ import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { JOB_STATUS, type Job } from '@/lib/core/async-jobs/types'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import { createSingleFlight } from '@/lib/core/utils/background'
+import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -1072,12 +1072,6 @@ async function processJobItem(job: ClaimedJob, queuedAt: Date, requestId: string
   }
 }
 
-/**
- * A tick self-bounds at `MAX_TICK_DURATION_MS`; allow a grace window beyond that
- * before a hung tick is considered stale and a new one is allowed to take over.
- */
-const scheduleTickGuard = createSingleFlight({ staleAfterMs: MAX_TICK_DURATION_MS + 60_000 })
-
 interface ScheduleTickResult {
   processedCount: number
   totalSchedules: number
@@ -1191,11 +1185,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return authError
   }
 
-  const started = scheduleTickGuard.run('schedule-execution-tick', () => runScheduleTick(requestId))
+  runDetached('schedule-execution-tick', () => runScheduleTick(requestId))
 
   const response = {
-    message: started ? 'Scheduled execution started' : 'Scheduled execution already in progress',
-    status: started ? 'started' : 'already_running',
+    message: 'Scheduled execution started',
+    status: 'started',
   } satisfies ExecuteSchedulesResponse
 
   return NextResponse.json(response, { status: 202 })
