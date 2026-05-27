@@ -11,7 +11,19 @@ import { isDev } from '@/lib/core/config/feature-flags'
  * endpoints lives in proxy.ts as the single source of truth.
  */
 
-function signPayload(payload: string): string {
+const AUTH_TOKEN_VERSION = 'v2'
+const AUTH_TOKEN_TTL_MS = 24 * 60 * 60 * 1000
+
+function passwordBinding(encryptedPassword?: string | null): string {
+  if (!encryptedPassword) return ''
+  return sha256Hex(encryptedPassword)
+}
+
+function signPayload(payload: string, encryptedPassword?: string | null): string {
+  return hmacSha256Hex(`${payload}:${passwordBinding(encryptedPassword)}`, env.BETTER_AUTH_SECRET)
+}
+
+function signLegacyPayload(payload: string): string {
   return hmacSha256Hex(payload, env.BETTER_AUTH_SECRET)
 }
 
@@ -25,15 +37,22 @@ function generateAuthToken(
   type: string,
   encryptedPassword?: string | null
 ): string {
-  const payload = `${deploymentId}:${type}:${Date.now()}:${passwordSlot(encryptedPassword)}`
-  const sig = signPayload(payload)
+  const payload = `${AUTH_TOKEN_VERSION}:${deploymentId}:${type}:${Date.now()}`
+  const sig = signPayload(payload, encryptedPassword)
   return Buffer.from(`${payload}:${sig}`).toString('base64')
+}
+
+function hasValidTimestamp(timestamp: string): boolean {
+  const createdAt = Number.parseInt(timestamp, 10)
+  if (!Number.isFinite(createdAt)) return false
+
+  return Date.now() - createdAt <= AUTH_TOKEN_TTL_MS
 }
 
 /**
  * Validates an HMAC-signed authentication token for a deployment (chat or form).
- * Includes a password-derived slot so changing the deployment password immediately
- * invalidates existing sessions.
+ * The signature is bound to the current encrypted password so changing a
+ * deployment password immediately invalidates existing sessions.
  */
 export function validateAuthToken(
   token: string,
@@ -48,25 +67,32 @@ export function validateAuthToken(
     const payload = decoded.slice(0, lastColon)
     const sig = decoded.slice(lastColon + 1)
 
-    const expectedSig = signPayload(payload)
-    if (!safeCompare(sig, expectedSig)) {
-      return false
+    const parts = payload.split(':')
+
+    if (parts[0] === AUTH_TOKEN_VERSION) {
+      if (parts.length !== 4) return false
+
+      const expectedSig = signPayload(payload, encryptedPassword)
+      if (!safeCompare(sig, expectedSig)) return false
+
+      const [_version, storedId, _type, timestamp] = parts
+      if (storedId !== deploymentId) return false
+
+      return hasValidTimestamp(timestamp)
     }
 
-    const parts = payload.split(':')
-    if (parts.length < 4) return false
-    const [storedId, _type, timestamp, storedPwSlot] = parts
+    if (parts.length !== 4) return false
 
+    const expectedSig = signLegacyPayload(payload)
+    if (!safeCompare(sig, expectedSig)) return false
+
+    const [storedId, _type, timestamp, storedPwSlot] = parts
     if (storedId !== deploymentId) return false
 
     const expectedPwSlot = passwordSlot(encryptedPassword)
     if (storedPwSlot !== expectedPwSlot) return false
 
-    const createdAt = Number.parseInt(timestamp)
-    const expireTime = 24 * 60 * 60 * 1000
-    if (Date.now() - createdAt > expireTime) return false
-
-    return true
+    return hasValidTimestamp(timestamp)
   } catch (_e) {
     return false
   }
