@@ -109,6 +109,9 @@ export type TableEvent =
       cursor?: number
       mode?: 'all' | 'incomplete' | 'new'
       isManualRun?: boolean
+      /** Present when the run is capped — carried so the client overlay can
+       *  skip capped dispatches (see `resolveCellExec`). */
+      limit?: { type: 'rows'; max: number }
     }
 
 export interface TableEventEntry {

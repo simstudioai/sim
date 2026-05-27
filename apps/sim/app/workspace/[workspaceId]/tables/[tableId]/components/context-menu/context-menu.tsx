@@ -42,6 +42,10 @@ interface ContextMenuProps {
   runningInSelectionCount?: number
   /** Whether the table has any workflow columns; gates the run-workflows item. */
   hasWorkflowColumns?: boolean
+  /** True when the menu was opened on a workflow-output cell, so Run / Re-run
+   *  act on that cell's group only (the cascade handles dependents). Switches
+   *  the labels from row-wide ("all cells") to cell-scoped ("cell"). */
+  workflowCellScoped?: boolean
   disableEdit?: boolean
   disableInsert?: boolean
   disableDelete?: boolean
@@ -64,17 +68,26 @@ export function ContextMenu({
   onStopWorkflows,
   runningInSelectionCount = 0,
   hasWorkflowColumns = false,
+  workflowCellScoped = false,
   disableEdit = false,
   disableInsert = false,
   disableDelete = false,
 }: ContextMenuProps) {
   const deleteLabel = selectedRowCount > 1 ? `Delete ${selectedRowCount} rows` : 'Delete row'
-  const runLabel =
-    selectedRowCount > 1
+  const runLabel = workflowCellScoped
+    ? selectedRowCount > 1
+      ? `Run cell on ${selectedRowCount} rows`
+      : 'Run cell'
+    : selectedRowCount > 1
       ? `Run empty or failed cells on ${selectedRowCount} rows`
       : 'Run empty or failed cells'
-  const refreshLabel =
-    selectedRowCount > 1 ? `Re-run all cells on ${selectedRowCount} rows` : 'Re-run all cells'
+  const refreshLabel = workflowCellScoped
+    ? selectedRowCount > 1
+      ? `Re-run cell on ${selectedRowCount} rows`
+      : 'Re-run cell'
+    : selectedRowCount > 1
+      ? `Re-run all cells on ${selectedRowCount} rows`
+      : 'Re-run all cells'
   const stopLabel =
     runningInSelectionCount === 1
       ? 'Stop running workflow'
