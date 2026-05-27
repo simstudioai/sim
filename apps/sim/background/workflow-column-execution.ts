@@ -57,6 +57,15 @@ export async function executeWorkflowGroupCellJob(
     if (!freshRow) break
     const next = pickNextEligibleGroupForRow(freshTable, freshRow)
     if (!next) break
+    // Only re-drive a genuine queued marker (an explicit run request whose
+    // cell-task bailed during our release window). The inner cascade loop has
+    // already drained every auto-eligible group, so re-driving a non-marker
+    // group here would re-run forever — e.g. a group that completed with empty
+    // outputs stays auto-eligible (the inner loop excludes it via
+    // `excludeGroupId`, but this outer pass has no such anchor).
+    const nextExec = freshRow.executions?.[next.id]
+    const hasQueuedMarker = nextExec?.status === 'pending' && nextExec.executionId == null
+    if (!hasQueuedMarker) break
     currentPayload = {
       ...currentPayload,
       groupId: next.id,

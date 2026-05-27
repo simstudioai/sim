@@ -492,6 +492,13 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       logger.error(`[${dispatchId}] batch dispatch failed`, {
         error: toError(err).message,
       })
+      // These rows never actually ran, so they must not consume the row cap —
+      // otherwise a transient failure on the only window of a `max: N` run would
+      // exhaust the budget and complete the dispatch with zero rows started.
+      // The cursor still advances past the window (cells are flipped to a
+      // re-runnable `error` below), so later windows fulfill the remaining cap.
+      dispatchedRows = 0
+      budgetExhausted = false
       // Cursor advances past this window, so flip the un-claimed pre-stamps to
       // terminal `error` (+ SSE) — visible, not stuck pending, re-runnable.
       const failedAt = new Date()
@@ -573,6 +580,7 @@ async function completeDispatch(dispatch: DispatchRow, cursor: number): Promise<
     cursor,
     mode: dispatch.mode,
     isManualRun: dispatch.isManualRun,
+    ...(dispatch.limit ? { limit: dispatch.limit } : {}),
   })
 }
 

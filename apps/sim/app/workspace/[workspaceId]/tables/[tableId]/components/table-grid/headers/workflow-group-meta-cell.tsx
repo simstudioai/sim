@@ -31,6 +31,11 @@ import type { DisplayColumn } from '../types'
 
 const WORKFLOW_META_BG_ALPHA = 12 // 0–255
 
+/** Fixed row-cap presets for the "Run N empty rows" shortcuts. Shared by the
+ *  group-header options menu and the inline quick-run dropdown so the two
+ *  surfaces stay in sync. */
+const LIMITED_RUN_PRESETS = [10, 1000] as const
+
 interface ColumnOptionsMenuProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -133,16 +138,12 @@ export function ColumnOptionsMenu({
                 <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
                   Run empty rows
                 </DropdownMenuItem>
-                {onRunColumnLimited && (
-                  <>
-                    <DropdownMenuItem onSelect={() => onRunColumnLimited(10)}>
-                      Run 10 empty rows
+                {onRunColumnLimited &&
+                  LIMITED_RUN_PRESETS.map((max) => (
+                    <DropdownMenuItem key={max} onSelect={() => onRunColumnLimited(max)}>
+                      {`Run ${max.toLocaleString()} empty rows`}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onRunColumnLimited(1000)}>
-                      Run 1,000 empty rows
-                    </DropdownMenuItem>
-                  </>
-                )}
+                  ))}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSeparator />
@@ -448,12 +449,11 @@ export function WorkflowGroupMetaCell({
               )}
               <DropdownMenuItem onSelect={handleRunAll}>Run all rows</DropdownMenuItem>
               <DropdownMenuItem onSelect={handleRunIncomplete}>Run empty rows</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => handleRunLimited(10)}>
-                Run 10 empty rows
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => handleRunLimited(1000)}>
-                Run 1,000 empty rows
-              </DropdownMenuItem>
+              {LIMITED_RUN_PRESETS.map((max) => (
+                <DropdownMenuItem key={max} onSelect={() => handleRunLimited(max)}>
+                  {`Run ${max.toLocaleString()} empty rows`}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
