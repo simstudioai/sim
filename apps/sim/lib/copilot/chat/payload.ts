@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
@@ -11,6 +12,8 @@ import { tools } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 
 const logger = createLogger('CopilotChatPayload')
+const INTEGRATION_TOOL_SCHEMA_CACHE_TTL_MS = 5_000
+const INTEGRATION_TOOL_SCHEMA_CACHE_MAX_ENTRIES = 500
 
 interface BuildPayloadParams {
   message: string
@@ -48,6 +51,39 @@ interface BuildIntegrationToolSchemasOptions {
   schemaSurface?: 'default' | 'copilot'
 }
 
+interface IntegrationToolSchemaCacheEntry {
+  promise: Promise<ToolSchema[]>
+}
+
+const integrationToolSchemaCache = new LRUCache<string, IntegrationToolSchemaCacheEntry>({
+  max: INTEGRATION_TOOL_SCHEMA_CACHE_MAX_ENTRIES,
+  ttl: INTEGRATION_TOOL_SCHEMA_CACHE_TTL_MS,
+})
+
+function getIntegrationToolSchemaCacheKey(
+  userId: string,
+  workspaceId: string | undefined,
+  schemaSurface: string
+): string {
+  return JSON.stringify([userId, workspaceId ?? null, schemaSurface])
+}
+
+function cloneToolSchemas(toolSchemas: ToolSchema[]): ToolSchema[] {
+  return toolSchemas.map((tool) => {
+    const cloned: ToolSchema = {
+      ...tool,
+      input_schema: { ...tool.input_schema },
+    }
+    if (tool.params) cloned.params = { ...tool.params }
+    if (tool.oauth) cloned.oauth = { ...tool.oauth }
+    return cloned
+  })
+}
+
+export function clearIntegrationToolSchemaCacheForTests(): void {
+  integrationToolSchemaCache.clear()
+}
+
 /**
  * Build deferred integration tool schemas from the Sim tool registry.
  * Shared by the interactive chat payload builder and the non-interactive
@@ -61,6 +97,36 @@ export async function buildIntegrationToolSchemas(
   userId: string,
   messageId?: string,
   options: BuildIntegrationToolSchemasOptions = { schemaSurface: 'copilot' },
+  workspaceId?: string
+): Promise<ToolSchema[]> {
+  const schemaSurface = options.schemaSurface ?? 'copilot'
+  const cacheKey = getIntegrationToolSchemaCacheKey(userId, workspaceId, schemaSurface)
+  const cached = integrationToolSchemaCache.get(cacheKey)
+  if (cached) {
+    return cloneToolSchemas(await cached.promise)
+  }
+
+  const promise = buildIntegrationToolSchemasUncached(
+    userId,
+    messageId,
+    { schemaSurface },
+    workspaceId
+  ).catch((error) => {
+    integrationToolSchemaCache.delete(cacheKey)
+    throw error
+  })
+
+  integrationToolSchemaCache.set(cacheKey, {
+    promise,
+  })
+
+  return cloneToolSchemas(await promise)
+}
+
+async function buildIntegrationToolSchemasUncached(
+  userId: string,
+  messageId: string | undefined,
+  options: Required<BuildIntegrationToolSchemasOptions>,
   workspaceId?: string
 ): Promise<ToolSchema[]> {
   const reqLogger = logger.withMetadata({ messageId })
@@ -121,7 +187,7 @@ export async function buildIntegrationToolSchemas(
           }
         }
         const userSchema = createUserToolSchema(toolConfig, {
-          surface: options.schemaSurface ?? 'copilot',
+          surface: options.schemaSurface,
         })
         const catalogEntry = getToolEntry(strippedName)
         integrationTools.push({
@@ -165,7 +231,7 @@ export async function buildIntegrationToolSchemas(
     )
   }
 
-  return integrationTools.map((tool) => ({ ...tool, input_schema: { ...tool.input_schema } }))
+  return integrationTools
 }
 
 /**

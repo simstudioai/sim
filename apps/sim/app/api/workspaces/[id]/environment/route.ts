@@ -19,7 +19,10 @@ import {
   createWorkspaceEnvCredentials,
   deleteWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
-import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import {
+  getPersonalAndWorkspaceEnv,
+  invalidateEffectiveDecryptedEnvCache,
+} from '@/lib/environment/utils'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceEnvironmentAPI')
@@ -136,6 +139,7 @@ export const PUT = withRouteHandler(
         return { existingEncrypted: existing, merged: mergedVars }
       })
 
+      invalidateEffectiveDecryptedEnvCache({ workspaceId })
       const newKeys = Object.keys(variables).filter((k) => !(k in existingEncrypted))
       await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId: userId })
 
@@ -224,6 +228,7 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ success: true })
       }
 
+      invalidateEffectiveDecryptedEnvCache({ workspaceId })
       await deleteWorkspaceEnvCredentials({ workspaceId, removedKeys: keys })
 
       recordAudit({

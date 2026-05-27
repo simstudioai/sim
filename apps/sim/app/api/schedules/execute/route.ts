@@ -41,7 +41,9 @@ const JOB_CHUNK_SIZE = 100
 const MAX_TICK_DURATION_MS = 3 * 60 * 1000
 const STALE_SCHEDULE_CLAIM_MS = getMaxExecutionTimeout()
 const STALE_SCHEDULE_RECOVERY_BATCH_SIZE = 100
-let databaseScheduleStartQueue: Promise<void> = Promise.resolve()
+const DATABASE_SCHEDULE_START_TURN_WAIT_MS = 1_000
+type DatabaseScheduleStartResult = 'started' | 'capacity_full' | 'not_pending'
+let databaseScheduleStartTurn: Promise<void> | null = null
 
 const dueFilter = (queuedAt: Date) =>
   and(
@@ -68,18 +70,30 @@ const workflowScheduleFilter = (queuedAt: Date) =>
 const jobScheduleFilter = (queuedAt: Date) =>
   and(dueFilter(queuedAt), sql`${workflowSchedule.sourceType} = 'job'`)
 
-async function runWithDatabaseScheduleStartTurn<T>(operation: () => Promise<T>): Promise<T> {
-  const previousTurn = databaseScheduleStartQueue
+async function runWithDatabaseScheduleStartTurn(
+  operation: () => Promise<DatabaseScheduleStartResult>
+): Promise<DatabaseScheduleStartResult> {
+  const activeTurn = databaseScheduleStartTurn
+  if (activeTurn) {
+    const turnOpened = await Promise.race([
+      activeTurn.then(() => true),
+      sleep(DATABASE_SCHEDULE_START_TURN_WAIT_MS).then(() => false),
+    ])
+    if (!turnOpened || databaseScheduleStartTurn) return 'capacity_full'
+  }
+
   let releaseTurn = () => {}
-  databaseScheduleStartQueue = new Promise<void>((resolve) => {
+  const currentTurn = new Promise<void>((resolve) => {
     releaseTurn = resolve
   })
-
-  await previousTurn
+  databaseScheduleStartTurn = currentTurn
 
   try {
     return await operation()
   } finally {
+    if (databaseScheduleStartTurn === currentTurn) {
+      databaseScheduleStartTurn = null
+    }
     releaseTurn()
   }
 }
@@ -286,14 +300,10 @@ function staleScheduleExecutionJobsFilter(staleStartedBefore: Date) {
   )
 }
 
-function getExhaustedRecoveryNextRunAt(payload: ScheduleExecutionPayload, now: Date): Date {
-  return (
-    getNextRunFromCronExpression(payload.cronExpression, payload.timezone) ??
-    new Date(now.getTime() + 24 * 60 * 60 * 1000)
-  )
-}
-
-function getScheduleFailureNextRunAt(schedule: DatabaseScheduleExecutionTarget, now: Date): Date {
+function getScheduleNextRunAt(
+  schedule: { cronExpression?: string | null; timezone?: string },
+  now: Date
+): Date {
   return (
     getNextRunFromCronExpression(schedule.cronExpression, schedule.timezone) ??
     new Date(now.getTime() + 24 * 60 * 60 * 1000)
@@ -313,7 +323,7 @@ async function markClaimedScheduleFailed(
       updatedAt: now,
       lastQueuedAt: null,
       lastFailedAt: now,
-      nextRunAt: getScheduleFailureNextRunAt(schedule, now),
+      nextRunAt: getScheduleNextRunAt(schedule, now),
       failedCount: sql`COALESCE(${workflowSchedule.failedCount}, 0) + 1`,
       status: sql`CASE WHEN COALESCE(${workflowSchedule.failedCount}, 0) + 1 >= ${MAX_CONSECUTIVE_FAILURES} THEN 'disabled' ELSE 'active' END`,
       infraRetryCount: 0,
@@ -447,7 +457,7 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
           updatedAt: now,
           lastQueuedAt: null,
           lastFailedAt: now,
-          nextRunAt: getExhaustedRecoveryNextRunAt(payload, now),
+          nextRunAt: getScheduleNextRunAt(payload, now),
           failedCount: sql`COALESCE(${workflowSchedule.failedCount}, 0) + 1`,
           status: sql`CASE WHEN COALESCE(${workflowSchedule.failedCount}, 0) + 1 >= ${MAX_CONSECUTIVE_FAILURES} THEN 'disabled' ELSE 'active' END`,
           infraRetryCount: 0,
@@ -488,8 +498,6 @@ function isStaleDatabaseScheduleJob(job: { status: string; startedAt?: Date }): 
 }
 
 async function getDatabaseScheduleExecutionSlots(): Promise<number> {
-  await recoverStaleDatabaseScheduleJobs(new Date())
-
   const [row] = await db
     .select({
       count: sql<number>`count(*)`,
@@ -500,8 +508,6 @@ async function getDatabaseScheduleExecutionSlots(): Promise<number> {
   const processingCount = Number(row?.count ?? 0)
   return Math.max(0, SCHEDULE_EXECUTION_CONCURRENCY_LIMIT - processingCount)
 }
-
-type DatabaseScheduleStartResult = 'started' | 'capacity_full' | 'not_pending'
 
 async function tryStartDatabaseScheduleJob(jobId: string): Promise<DatabaseScheduleStartResult> {
   const now = new Date()
@@ -1062,6 +1068,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       let databaseScheduleSlots = SCHEDULE_EXECUTION_CONCURRENCY_LIMIT
 
       if (useDatabaseFallback) {
+        await recoverStaleDatabaseScheduleJobs(queuedAt)
         databaseScheduleSlots = await getDatabaseScheduleExecutionSlots()
         resumedPendingSchedules = await resumePendingDatabaseScheduleJobs(
           jobQueue,
