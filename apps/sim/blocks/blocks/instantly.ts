@@ -861,24 +861,9 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
     config: {
       tool: (params) => `instantly_${params.operation}`,
       params: (params) => ({
-        campaign:
-          params.operation === 'list_leads'
-            ? optionalIdParam(params.campaignId)
-            : params.leadDestination === 'campaign'
-              ? optionalIdParam(params.leadDestinationId)
-              : undefined,
-        list_id:
-          params.operation === 'delete_leads' && params.deleteSource === 'list'
-            ? optionalIdParam(params.deleteSourceId)
-            : params.leadDestination === 'list'
-              ? optionalIdParam(params.leadDestinationId)
-              : optionalIdParam(params.listId),
-        campaign_id:
-          params.operation === 'delete_leads'
-            ? params.deleteSource === 'campaign'
-              ? optionalIdParam(params.deleteSourceId)
-              : undefined
-            : optionalIdParam(params.campaignId),
+        campaign: mapCampaignParam(params),
+        list_id: mapListIdParam(params),
+        campaign_id: mapCampaignIdParam(params),
         leadId: params.leadId,
         email: emptyToUndefined(params.email),
         first_name: emptyToUndefined(params.firstName),
@@ -899,10 +884,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
         verify_leads_for_lead_finder: toBooleanParam(params.verifyLeadsForLeadFinder),
         verify_leads_on_import: toBooleanParam(params.verifyLeadsOnImport),
         filter: emptyToUndefined(params.leadFilter),
-        ids:
-          params.operation === 'delete_leads'
-            ? parseStringList(params.deleteLeadIds)
-            : parseStringList(params.leadIds),
+        ids: mapIdsParam(params),
         excluded_ids: parseStringList(params.excludedLeadIds),
         contacts: parseStringList(params.contacts),
         organization_user_ids: parseStringList(params.organizationUserIds),
@@ -913,15 +895,9 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
         esg_code: emptyToUndefined(params.esgCode),
         in_campaign: toBooleanParam(params.inCampaign),
         in_list: toBooleanParam(params.inList),
-        status:
-          params.operation === 'delete_leads'
-            ? toNumberParam(params.deleteStatus)
-            : toNumberParam(params.campaignStatus),
-        limit:
-          params.operation === 'delete_leads'
-            ? toNumberParam(params.deleteLimit)
-            : toNumberParam(params.limit),
-        starting_after: emptyToUndefined(params.startingAfter),
+        status: mapStatusParam(params),
+        limit: mapLimitParam(params),
+        starting_after: mapStartingAfterParam(params),
         lead_email: emptyToUndefined(params.leadEmail),
         interest_value:
           params.operation === 'update_lead_interest_status'
@@ -929,10 +905,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
             : undefined,
         ai_interest_value: toNumberParam(params.aiInterestValue),
         disable_auto_interest: toBooleanParam(params.disableAutoInterest),
-        name:
-          params.operation === 'create_lead_list'
-            ? emptyToUndefined(params.leadListName)
-            : emptyToUndefined(params.campaignName),
+        name: mapNameParam(params),
         campaign_schedule: parseJsonObject(params.campaignSchedule),
         sequences: parseJsonArray(params.sequences),
         email_list: parseStringList(params.emailList),
@@ -946,10 +919,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
         text_only: toBooleanParam(params.textOnly),
         tag_ids: emptyToUndefined(params.tagIds),
         ai_sales_agent_id: optionalIdParam(params.aiSalesAgentId),
-        search:
-          params.operation === 'list_emails'
-            ? emptyToUndefined(params.emailSearch)
-            : emptyToUndefined(params.search),
+        search: mapSearchParam(params),
         eaccount: emptyToUndefined(params.emailAccount),
         i_status: toNumberParam(params.emailStatus),
         lead: emptyToUndefined(params.emailLead),
@@ -1188,6 +1158,94 @@ function emptyToUndefined(value: unknown): unknown {
   if (typeof value !== 'string') return value
   const trimmed = value.trim()
   return trimmed === '' || trimmed === '-' ? undefined : trimmed
+}
+
+function mapCampaignParam(params: Record<string, unknown>): string | undefined {
+  if (params.operation === 'list_leads') return optionalIdParam(params.campaignId)
+  if (params.operation !== 'create_lead' || params.leadDestination !== 'campaign') return undefined
+  return optionalIdParam(params.leadDestinationId)
+}
+
+function mapListIdParam(params: Record<string, unknown>): string | undefined {
+  switch (params.operation) {
+    case 'delete_leads':
+      return params.deleteSource === 'list' ? optionalIdParam(params.deleteSourceId) : undefined
+    case 'create_lead':
+      return params.leadDestination === 'list'
+        ? optionalIdParam(params.leadDestinationId)
+        : undefined
+    case 'list_leads':
+    case 'update_lead_interest_status':
+    case 'list_emails':
+      return optionalIdParam(params.listId)
+    default:
+      return undefined
+  }
+}
+
+function mapCampaignIdParam(params: Record<string, unknown>): string | undefined {
+  if (params.operation === 'delete_leads') {
+    return params.deleteSource === 'campaign' ? optionalIdParam(params.deleteSourceId) : undefined
+  }
+
+  if (params.operation === 'update_lead_interest_status' || params.operation === 'list_emails') {
+    return optionalIdParam(params.campaignId)
+  }
+
+  return undefined
+}
+
+function mapIdsParam(params: Record<string, unknown>): string[] | undefined {
+  if (params.operation === 'delete_leads') return parseStringList(params.deleteLeadIds)
+  if (params.operation === 'list_leads') return parseStringList(params.leadIds)
+  return undefined
+}
+
+function mapStatusParam(params: Record<string, unknown>): number | undefined {
+  if (params.operation === 'delete_leads') return toNumberParam(params.deleteStatus)
+  if (params.operation === 'list_campaigns') return toNumberParam(params.campaignStatus)
+  return undefined
+}
+
+function mapLimitParam(params: Record<string, unknown>): number | undefined {
+  if (params.operation === 'delete_leads') return toNumberParam(params.deleteLimit)
+  if (isPaginatedOperation(params.operation)) return toNumberParam(params.limit)
+  return undefined
+}
+
+function mapStartingAfterParam(params: Record<string, unknown>): unknown {
+  return isPaginatedOperation(params.operation) ? emptyToUndefined(params.startingAfter) : undefined
+}
+
+function mapNameParam(params: Record<string, unknown>): unknown {
+  switch (params.operation) {
+    case 'create_lead_list':
+      return emptyToUndefined(params.leadListName)
+    case 'create_campaign':
+    case 'patch_campaign':
+      return emptyToUndefined(params.campaignName)
+    default:
+      return undefined
+  }
+}
+
+function mapSearchParam(params: Record<string, unknown>): unknown {
+  if (params.operation === 'list_emails') return emptyToUndefined(params.emailSearch)
+  if (isSearchOperation(params.operation)) return emptyToUndefined(params.search)
+  return undefined
+}
+
+function isPaginatedOperation(value: unknown): boolean {
+  return (
+    value === 'list_leads' ||
+    value === 'list_campaigns' ||
+    value === 'list_emails' ||
+    value === 'list_lead_lists'
+  )
+}
+
+function isSearchOperation(value: unknown): boolean {
+  return value === 'list_leads' || value === 'list_campaigns' || value === 'list_lead_lists'
 }
 
 function optionalIdParam(value: unknown): string | undefined {
