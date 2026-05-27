@@ -115,8 +115,11 @@ async function runWorkflowAndWriteTerminal(
       writeWorkflowGroupState(cellCtx, { executionState, dataPatch })
 
     // Enrichment groups call a registry function directly instead of running a
-    // workflow, reusing the same pickup → run → terminal-write status flow.
-    if (group.type === 'enrichment') {
+    // workflow, reusing the same pickup → run → terminal-write status flow. The
+    // `enrichmentId` guard ensures only true registry enrichments take this path
+    // — a group typed 'enrichment' without a registry id falls through to the
+    // workflow path rather than erroring.
+    if (group.type === 'enrichment' && group.enrichmentId) {
       const { getEnrichment } = await import('@/enrichments/registry')
       const { runEnrichment } = await import('@/enrichments/run')
       const enrichment = getEnrichment(group.enrichmentId)
@@ -155,25 +158,42 @@ async function runWorkflowAndWriteTerminal(
       }
 
       // Skip (don't error) rows missing a required input — common when a table
-      // is partially filled. The cell completes empty and re-runs once the
-      // input columns fill (if they're dependencies).
+      // is partially filled. Clear any prior output values so a stale result
+      // doesn't linger (and doesn't mark the group `completed`-and-filled, which
+      // would block the auto cascade from re-enriching once inputs return).
       const isEmpty = (v: unknown) => v === undefined || v === null || v === ''
       const missingRequired = enrichment.inputs.some(
         (i) => i.required && isEmpty(enrichInputs[i.id])
       )
       if (missingRequired) {
-        await writeState({
-          status: 'completed',
-          executionId,
-          jobId: null,
-          workflowId: statusId,
-          error: null,
-        })
+        const clearPatch: RowData = {}
+        for (const out of group.outputs) {
+          if (!isEmpty(row.data[out.columnName])) clearPatch[out.columnName] = ''
+        }
+        await writeState(
+          {
+            status: 'completed',
+            executionId,
+            jobId: null,
+            workflowId: statusId,
+            error: null,
+          },
+          clearPatch
+        )
         return 'completed'
       }
 
       try {
-        if (signal?.aborted) return 'error'
+        if (signal?.aborted) {
+          await writeState({
+            status: 'error',
+            executionId,
+            jobId: null,
+            workflowId: statusId,
+            error: 'Cancelled',
+          })
+          return 'error'
+        }
         const { result, cost, error } = await runEnrichment(enrichment, enrichInputs, {
           tableId,
           rowId,
@@ -182,7 +202,16 @@ async function runWorkflowAndWriteTerminal(
         })
 
         // An abort during the cascade must not be recorded as a completed cell.
-        if (signal?.aborted) return 'error'
+        if (signal?.aborted) {
+          await writeState({
+            status: 'error',
+            executionId,
+            jobId: null,
+            workflowId: statusId,
+            error: 'Cancelled',
+          })
+          return 'error'
+        }
 
         // Every provider that ran errored (auth / rate-limit / outage) — surface
         // it rather than writing a blank cell that looks like "no data found".

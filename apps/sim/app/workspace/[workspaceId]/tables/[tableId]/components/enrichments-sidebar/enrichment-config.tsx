@@ -137,6 +137,7 @@ export function EnrichmentConfig({
     addWorkflowGroup.isPending ||
     updateWorkflowGroup.isPending ||
     updateColumn.isPending ||
+    (showValidation && missingRequired) ||
     !depsValid ||
     outputsInvalid
 
@@ -151,15 +152,9 @@ export function EnrichmentConfig({
 
     if (existingGroup) {
       try {
-        // Rename any output columns the user changed first; the rename cascades
+        // Apply the group edit (mappings / deps / auto-run) first so it lands
+        // even if a later column rename fails. Renames run after and cascade
         // into the group's output refs server-side.
-        for (const o of enrichment.outputs) {
-          const original = originalOutputName(o.id)
-          const next = (outputNames[o.id] ?? '').trim()
-          if (original && next && next !== original) {
-            await updateColumn.mutateAsync({ columnName: original, updates: { name: next } })
-          }
-        }
         await updateWorkflowGroup.mutateAsync({
           groupId: existingGroup.id,
           name: enrichment.name,
@@ -167,6 +162,13 @@ export function EnrichmentConfig({
           inputMappings: inputMappingsList,
           autoRun,
         })
+        for (const o of enrichment.outputs) {
+          const original = originalOutputName(o.id)
+          const next = (outputNames[o.id] ?? '').trim()
+          if (original && next && next !== original) {
+            await updateColumn.mutateAsync({ columnName: original, updates: { name: next } })
+          }
+        }
         toast.success(`Updated "${enrichment.name}"`)
         onClose()
       } catch (err) {

@@ -767,8 +767,7 @@ export function TableGrid({
         typeof _exec?.jobId === 'string' &&
         _exec.jobId.startsWith('paused-')
       // Enrichment cells have no workflow execution trace to open.
-      const _isEnrichmentGroup =
-        tableWorkflowGroups.find((wg) => wg.id === _gid)?.type === 'enrichment'
+      const _isEnrichmentGroup = workflowGroupById.get(_gid)?.type === 'enrichment'
       contextMenuHasStartedRun =
         !_isEnrichmentGroup &&
         (_exec?.status === 'completed' ||
@@ -2930,8 +2929,7 @@ export function TableGrid({
       status === 'pending' && typeof exec?.jobId === 'string' && exec.jobId.startsWith('paused-')
     // Enrichment groups have no workflow execution to open — never offer "View
     // execution" for them.
-    const isEnrichmentGroup =
-      tableWorkflowGroups.find((wg) => wg.id === groupId)?.type === 'enrichment'
+    const isEnrichmentGroup = workflowGroupById.get(groupId)?.type === 'enrichment'
     return {
       rowId: row.id,
       groupId,
@@ -2940,7 +2938,7 @@ export function TableGrid({
         !isEnrichmentGroup &&
         (status === 'completed' || status === 'error' || status === 'running' || isPaused),
     }
-  }, [normalizedSelection, rows, displayColumns, tableWorkflowGroups])
+  }, [normalizedSelection, rows, displayColumns, workflowGroupById])
 
   const tableWorkflowGroupIds = useMemo(
     () => tableWorkflowGroups.map((g) => g.id),
