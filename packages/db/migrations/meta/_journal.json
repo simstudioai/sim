@@ -1499,6 +1499,13 @@
       "when": 1779868021005,
       "tag": "0214_light_moira_mactaggert",
       "breakpoints": true
+    },
+    {
+      "idx": 215,
+      "version": "7",
+      "when": 1779902345831,
+      "tag": "0215_flowery_hellcat",
+      "breakpoints": true
     }
   ]
 }

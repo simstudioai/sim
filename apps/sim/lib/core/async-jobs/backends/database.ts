@@ -96,6 +96,8 @@ export class DatabaseJobQueue implements JobQueueBackend {
         payload: payload as Record<string, unknown>,
         status: JOB_STATUS.PENDING,
         createdAt: now,
+        runAt:
+          options?.delayMs && options.delayMs > 0 ? new Date(now.getTime() + options.delayMs) : now,
         attempts: 0,
         maxAttempts: options?.maxAttempts ?? 3,
         metadata: (options?.metadata ?? {}) as Record<string, unknown>,
