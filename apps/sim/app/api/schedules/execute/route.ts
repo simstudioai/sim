@@ -14,6 +14,7 @@ import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { JOB_STATUS, type Job } from '@/lib/core/async-jobs/types'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -1071,9 +1072,112 @@ async function processJobItem(job: ClaimedJob, queuedAt: Date, requestId: string
   }
 }
 
+interface ScheduleTickResult {
+  processedCount: number
+  totalSchedules: number
+  totalJobs: number
+}
+
+/**
+ * Drains due schedules and jobs, claiming and enqueuing work until the tick
+ * budget is exhausted or no more items are due. Runs detached from the HTTP
+ * response so the cron caller does not wait; cross-replica safety is provided by
+ * the `FOR UPDATE SKIP LOCKED` claim layer, not this function.
+ */
+export async function runScheduleTick(requestId: string): Promise<ScheduleTickResult> {
+  const tickStart = Date.now()
+
+  const jobQueue = await getJobQueue()
+  const useDatabaseFallback = shouldExecuteInline()
+  let totalSchedules = 0
+  let totalJobs = 0
+  let iterations = 0
+  let remainingWorkflowBudget = SCHEDULE_WORKFLOW_ENQUEUE_LIMIT
+  let schedulesExhausted = false
+  let jobsExhausted = false
+
+  while (Date.now() - tickStart < MAX_TICK_DURATION_MS) {
+    if (schedulesExhausted && jobsExhausted) break
+    const queuedAt = new Date()
+    let resumedPendingSchedules = 0
+    let databaseScheduleSlots = SCHEDULE_EXECUTION_CONCURRENCY_LIMIT
+
+    if (useDatabaseFallback) {
+      await recoverStaleDatabaseScheduleJobs(queuedAt)
+      databaseScheduleSlots = await getDatabaseScheduleExecutionSlots()
+      resumedPendingSchedules = await resumePendingDatabaseScheduleJobs(
+        jobQueue,
+        requestId,
+        databaseScheduleSlots
+      )
+      databaseScheduleSlots = await getDatabaseScheduleExecutionSlots()
+    }
+
+    const workflowClaimLimit = Math.min(
+      WORKFLOW_CHUNK_SIZE,
+      remainingWorkflowBudget,
+      useDatabaseFallback ? databaseScheduleSlots : WORKFLOW_CHUNK_SIZE
+    )
+
+    if (useDatabaseFallback && workflowClaimLimit <= 0) {
+      schedulesExhausted = true
+    }
+
+    const [dueSchedules, dueJobs] = await Promise.all([
+      schedulesExhausted ? [] : claimWorkflowSchedules(queuedAt, workflowClaimLimit),
+      jobsExhausted ? [] : claimJobSchedules(queuedAt, JOB_CHUNK_SIZE),
+    ])
+
+    remainingWorkflowBudget -= dueSchedules.length
+    if (dueSchedules.length < workflowClaimLimit || remainingWorkflowBudget <= 0) {
+      schedulesExhausted = true
+    }
+    if (dueJobs.length < JOB_CHUNK_SIZE) jobsExhausted = true
+
+    if (dueSchedules.length === 0 && dueJobs.length === 0 && resumedPendingSchedules === 0) break
+
+    iterations += 1
+    totalSchedules += dueSchedules.length + resumedPendingSchedules
+    totalJobs += dueJobs.length
+
+    logger.info(
+      `[${requestId}] Iteration ${iterations}: claimed ${dueSchedules.length} schedules, resumed ${resumedPendingSchedules} pending schedule jobs, ${dueJobs.length} jobs`,
+      {
+        remainingWorkflowBudget,
+        scheduleConcurrencyLimit: SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
+        databaseScheduleSlots,
+      }
+    )
+
+    const schedulePromises =
+      dueSchedules.length > 0
+        ? dueSchedules.map((schedule) =>
+            processScheduleItem(schedule, queuedAt, requestId, jobQueue, useDatabaseFallback)
+          )
+        : []
+
+    await Promise.allSettled([
+      ...schedulePromises,
+      ...dueJobs.map((job) => processJobItem(job, queuedAt, requestId)),
+    ])
+  }
+
+  const totalCount = totalSchedules + totalJobs
+  const durationMs = Date.now() - tickStart
+  logger.info(
+    `[${requestId}] Processed ${totalCount} items across ${iterations} iteration(s) in ${durationMs}ms (${totalSchedules} schedules, ${totalJobs} jobs)`,
+    {
+      scheduleConcurrencyLimit: SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
+      scheduleEnqueueBudget: SCHEDULE_WORKFLOW_ENQUEUE_LIMIT,
+      remainingWorkflowBudget,
+    }
+  )
+
+  return { processedCount: totalCount, totalSchedules, totalJobs }
+}
+
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
-  const tickStart = Date.now()
   logger.info(`[${requestId}] Scheduled execution triggered at ${new Date().toISOString()}`)
 
   const authError = verifyCronAuth(request, 'Schedule execution')
@@ -1081,101 +1185,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return authError
   }
 
-  try {
-    const jobQueue = await getJobQueue()
-    const useDatabaseFallback = shouldExecuteInline()
-    let totalSchedules = 0
-    let totalJobs = 0
-    let iterations = 0
-    let remainingWorkflowBudget = SCHEDULE_WORKFLOW_ENQUEUE_LIMIT
-    let schedulesExhausted = false
-    let jobsExhausted = false
+  runDetached('schedule-execution-tick', () => runScheduleTick(requestId))
 
-    while (Date.now() - tickStart < MAX_TICK_DURATION_MS) {
-      if (schedulesExhausted && jobsExhausted) break
-      const queuedAt = new Date()
-      let resumedPendingSchedules = 0
-      let databaseScheduleSlots = SCHEDULE_EXECUTION_CONCURRENCY_LIMIT
+  const response = {
+    message: 'Scheduled execution started',
+    status: 'started',
+  } satisfies ExecuteSchedulesResponse
 
-      if (useDatabaseFallback) {
-        await recoverStaleDatabaseScheduleJobs(queuedAt)
-        databaseScheduleSlots = await getDatabaseScheduleExecutionSlots()
-        resumedPendingSchedules = await resumePendingDatabaseScheduleJobs(
-          jobQueue,
-          requestId,
-          databaseScheduleSlots
-        )
-        databaseScheduleSlots = await getDatabaseScheduleExecutionSlots()
-      }
-
-      const workflowClaimLimit = Math.min(
-        WORKFLOW_CHUNK_SIZE,
-        remainingWorkflowBudget,
-        useDatabaseFallback ? databaseScheduleSlots : WORKFLOW_CHUNK_SIZE
-      )
-
-      if (useDatabaseFallback && workflowClaimLimit <= 0) {
-        schedulesExhausted = true
-      }
-
-      const [dueSchedules, dueJobs] = await Promise.all([
-        schedulesExhausted ? [] : claimWorkflowSchedules(queuedAt, workflowClaimLimit),
-        jobsExhausted ? [] : claimJobSchedules(queuedAt, JOB_CHUNK_SIZE),
-      ])
-
-      remainingWorkflowBudget -= dueSchedules.length
-      if (dueSchedules.length < workflowClaimLimit || remainingWorkflowBudget <= 0) {
-        schedulesExhausted = true
-      }
-      if (dueJobs.length < JOB_CHUNK_SIZE) jobsExhausted = true
-
-      if (dueSchedules.length === 0 && dueJobs.length === 0 && resumedPendingSchedules === 0) break
-
-      iterations += 1
-      totalSchedules += dueSchedules.length + resumedPendingSchedules
-      totalJobs += dueJobs.length
-
-      logger.info(
-        `[${requestId}] Iteration ${iterations}: claimed ${dueSchedules.length} schedules, resumed ${resumedPendingSchedules} pending schedule jobs, ${dueJobs.length} jobs`,
-        {
-          remainingWorkflowBudget,
-          scheduleConcurrencyLimit: SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
-          databaseScheduleSlots,
-        }
-      )
-
-      const schedulePromises =
-        dueSchedules.length > 0
-          ? dueSchedules.map((schedule) =>
-              processScheduleItem(schedule, queuedAt, requestId, jobQueue, useDatabaseFallback)
-            )
-          : []
-
-      await Promise.allSettled([
-        ...schedulePromises,
-        ...dueJobs.map((job) => processJobItem(job, queuedAt, requestId)),
-      ])
-    }
-
-    const totalCount = totalSchedules + totalJobs
-    const durationMs = Date.now() - tickStart
-    logger.info(
-      `[${requestId}] Processed ${totalCount} items across ${iterations} iteration(s) in ${durationMs}ms (${totalSchedules} schedules, ${totalJobs} jobs)`,
-      {
-        scheduleConcurrencyLimit: SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
-        scheduleEnqueueBudget: SCHEDULE_WORKFLOW_ENQUEUE_LIMIT,
-        remainingWorkflowBudget,
-      }
-    )
-
-    const response = {
-      message: 'Scheduled workflow executions processed',
-      processedCount: totalCount,
-    } satisfies ExecuteSchedulesResponse
-
-    return NextResponse.json(response)
-  } catch (error) {
-    logger.error(`[${requestId}] Error in scheduled execution handler`, error)
-    return NextResponse.json({ error: toError(error).message }, { status: 500 })
-  }
+  return NextResponse.json(response, { status: 202 })
 })

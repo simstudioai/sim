@@ -4,7 +4,7 @@
  * @vitest-environment node
  */
 import { dbChainMock, dbChainMockFns, requestUtilsMockFns, resetDbChainMock } from '@sim/testing'
-import type { NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const orderByLimitMock = vi.fn()
@@ -131,7 +131,7 @@ vi.mock('@sim/utils/id', () => ({
   ),
 }))
 
-import { GET } from './route'
+import { GET, runScheduleTick } from './route'
 
 const SINGLE_SCHEDULE = [
   {
@@ -284,13 +284,9 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
+    const result = await runScheduleTick('test-request-id')
 
-    expect(response).toBeDefined()
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data).toHaveProperty('message')
-    expect(data).toHaveProperty('processedCount', 1)
+    expect(result.processedCount).toBe(1)
   })
 
   it('should queue schedules to Trigger.dev when enabled', async () => {
@@ -300,23 +296,17 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
+    const result = await runScheduleTick('test-request-id')
 
-    expect(response).toBeDefined()
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data).toHaveProperty('processedCount', 1)
+    expect(result.processedCount).toBe(1)
   })
 
   it('should handle case with no due schedules', async () => {
     dbChainMockFns.returning.mockReturnValueOnce([]).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
+    const result = await runScheduleTick('test-request-id')
 
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data).toHaveProperty('message')
-    expect(data).toHaveProperty('processedCount', 0)
+    expect(result.processedCount).toBe(0)
   })
 
   it('should execute multiple schedules in parallel', async () => {
@@ -328,20 +318,16 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce(MULTIPLE_SCHEDULES).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
+    const result = await runScheduleTick('test-request-id')
 
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data).toHaveProperty('processedCount', 2)
+    expect(result.processedCount).toBe(2)
   })
 
   it('should execute mothership jobs inline', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'job-1' }])
     dbChainMockFns.returning.mockReturnValueOnce(SINGLE_JOB)
 
-    const response = await GET(createMockRequest())
-
-    expect(response.status).toBe(200)
+    await runScheduleTick('test-request-id')
     expect(mockExecuteJobInline).toHaveBeenCalledWith(
       expect.objectContaining({
         scheduleId: 'job-1',
@@ -358,9 +344,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
-
-    expect(response.status).toBe(200)
+    await runScheduleTick('test-request-id')
     expect(mockEnqueue).toHaveBeenCalledWith(
       'schedule-execution',
       expect.objectContaining({
@@ -398,9 +382,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([{ id: 'job-id-1' }])
 
     try {
-      const response = await GET(createMockRequest())
-
-      expect(response.status).toBe(200)
+      await runScheduleTick('test-request-id')
       expect(mockEnqueue).toHaveBeenCalledWith(
         'schedule-execution',
         expect.objectContaining({ scheduleId: 'schedule-1' }),
@@ -435,9 +417,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([])
 
     try {
-      const response = await GET(createMockRequest())
-
-      expect(response.status).toBe(200)
+      await runScheduleTick('test-request-id')
       expect(mockEnqueue).toHaveBeenCalled()
       expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
       expect(mockCompleteJob).not.toHaveBeenCalled()
@@ -485,9 +465,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([{ id: 'job-id-1' }])
 
     try {
-      const response = await GET(createMockRequest())
-
-      expect(response.status).toBe(200)
+      await runScheduleTick('test-request-id')
       expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
         expect.objectContaining({ scheduleId: 'schedule-1' })
       )
@@ -527,11 +505,9 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'pending-job-id' }])
 
-    const response = await GET(createMockRequest())
+    const result = await runScheduleTick('test-request-id')
 
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data).toHaveProperty('processedCount', 1)
+    expect(result.processedCount).toBe(1)
     expect(mockEnqueue).not.toHaveBeenCalled()
     expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -563,9 +539,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce([]).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
-
-    expect(response.status).toBe(200)
+    await runScheduleTick('test-request-id')
     expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
     expect(mockCompleteJob).toHaveBeenCalledWith(
       'stale-pending-job-id',
@@ -596,9 +570,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
 
-    const response = await GET(createMockRequest())
-
-    expect(response.status).toBe(200)
+    await runScheduleTick('test-request-id')
     expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -629,9 +601,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
-
-    expect(response.status).toBe(200)
+    await runScheduleTick('test-request-id')
     expect(mockEnqueue).not.toHaveBeenCalled()
     expect(mockReleaseScheduleLock).not.toHaveBeenCalled()
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
@@ -655,9 +625,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
-
-    expect(response.status).toBe(200)
+    await runScheduleTick('test-request-id')
     expect(mockEnqueue).not.toHaveBeenCalled()
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -685,9 +653,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([{ id: 'job-id-1' }])
 
     try {
-      const response = await GET(createMockRequest())
-
-      expect(response.status).toBe(200)
+      await runScheduleTick('test-request-id')
       expect(mockShouldExecuteInline).toHaveBeenCalledTimes(1)
       expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
         expect.objectContaining({ scheduleId: 'schedule-1' })
@@ -718,9 +684,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
-
-    expect(response.status).toBe(200)
+    await runScheduleTick('test-request-id')
     expect(mockEnqueue).not.toHaveBeenCalled()
     expect(mockReleaseScheduleLock).not.toHaveBeenCalled()
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
@@ -769,9 +733,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockReturnValueOnce([schedule])
       .mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
-
-    expect(response.status).toBe(200)
+    await runScheduleTick('test-request-id')
     expect(mockEnqueue).not.toHaveBeenCalled()
     expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
       expect.objectContaining({
@@ -802,9 +764,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
-
-    expect(response.status).toBe(200)
+    await runScheduleTick('test-request-id')
     expect(mockEnqueue).toHaveBeenCalled()
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -835,9 +795,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
-
-    expect(response.status).toBe(200)
+    await runScheduleTick('test-request-id')
     expect(mockCancelJob).toHaveBeenCalledWith('trigger-run-id')
     expect(mockReleaseScheduleLock).toHaveBeenCalledWith(
       'schedule-1',
@@ -871,11 +829,9 @@ describe('Scheduled Workflow Execution API Route', () => {
     dbChainMockFns.limit.mockResolvedValueOnce(claimedIds).mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce(claimedSchedules).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
+    const result = await runScheduleTick('test-request-id')
 
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data).toHaveProperty('processedCount', 100)
+    expect(result.processedCount).toBe(100)
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(100)
     expect(mockEnqueue).toHaveBeenCalledTimes(100)
   })
@@ -892,9 +848,7 @@ describe('Scheduled Workflow Execution API Route', () => {
     dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
     mockGetJob.mockResolvedValueOnce({ id: 'job-id-1', status: 'completed' })
 
-    const response = await GET(createMockRequest())
-
-    expect(response.status).toBe(200)
+    await runScheduleTick('test-request-id')
     expect(mockReleaseScheduleLock).toHaveBeenCalledWith(
       'schedule-1',
       'test-request-id',
@@ -903,5 +857,25 @@ describe('Scheduled Workflow Execution API Route', () => {
       null,
       { expectedLastQueuedAt: claimedAt }
     )
+  })
+
+  describe('GET handler (fire-and-forget)', () => {
+    it('returns the auth error when cron auth fails', async () => {
+      mockVerifyCronAuth.mockReturnValueOnce(
+        NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+      )
+
+      const response = await GET(createMockRequest())
+
+      expect(response.status).toBe(401)
+    })
+
+    it('acknowledges immediately with 202 and starts the tick in the background', async () => {
+      const response = await GET(createMockRequest())
+
+      expect(response.status).toBe(202)
+      const data = await response.json()
+      expect(data).toMatchObject({ status: 'started' })
+    })
   })
 })
