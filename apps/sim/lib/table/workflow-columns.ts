@@ -90,14 +90,20 @@ export function classifyEligibility(
   if (mode === 'new' && exec && !isOrphanPreStamp) return 'has-prior-attempt'
 
   const completedAndFilled = status === 'completed' && areOutputsFilled(group, row)
-  if (!isManualRun && completedAndFilled) return 'completed-on-auto'
+  // For an enrichment a `completed` run is terminal even with empty outputs —
+  // a no-match is a real result, not an unfinished run. Treating it as "done"
+  // stops the auto cascade from re-invoking billable provider calls on every
+  // no-match row each dispatch. A genuine input change clears the exec entry
+  // (see deriveExecClearsForDataPatch), so real re-runs still happen.
+  const isDone = completedAndFilled || (group.type === 'enrichment' && status === 'completed')
+  if (!isManualRun && isDone) return 'completed-on-auto'
   if (!isManualRun && status === 'error') return 'error-on-auto'
   if (!isManualRun && status === 'cancelled') return 'cancelled-on-auto'
   // Manual incomplete-mode runs (Run row / Run incomplete) treat a `completed`
   // group as done even if an output is blank — only "Run all" re-runs it. The
-  // auto cascade still re-fills blank outputs (completedAndFilled).
+  // auto cascade still re-fills blank workflow outputs (completedAndFilled).
   if (mode === 'incomplete') {
-    if (isManualRun ? status === 'completed' : completedAndFilled) {
+    if (isManualRun ? status === 'completed' : isDone) {
       return 'completed-on-incomplete'
     }
   }
