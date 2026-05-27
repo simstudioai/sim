@@ -2581,14 +2581,19 @@ export function TableGrid({
   const handleConfigureColumn = useCallback(
     (columnName: string) => {
       const column = columnsRef.current.find((c) => c.name === columnName)
-      if (column?.workflowGroupId) {
-        // Workflow-output column header → single-output sub-mode.
+      const group = column?.workflowGroupId
+        ? workflowGroupById.get(column.workflowGroupId)
+        : undefined
+      // Enrichment output columns behave like plain columns (rename / type /
+      // unique) — route them to the normal column editor, not the workflow
+      // "Configure output column" panel.
+      if (column?.workflowGroupId && group?.type !== 'enrichment') {
         onOpenWorkflowConfig({ mode: 'edit-output', columnName })
       } else {
         onOpenColumnConfig({ mode: 'edit', columnName })
       }
     },
-    [onOpenColumnConfig, onOpenWorkflowConfig]
+    [onOpenColumnConfig, onOpenWorkflowConfig, workflowGroupById]
   )
 
   const handleConfigureWorkflowGroup = useCallback(
