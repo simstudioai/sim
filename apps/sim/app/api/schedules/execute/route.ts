@@ -1072,7 +1072,11 @@ async function processJobItem(job: ClaimedJob, queuedAt: Date, requestId: string
   }
 }
 
-const scheduleTickGuard = createSingleFlight()
+/**
+ * A tick self-bounds at `MAX_TICK_DURATION_MS`; allow a grace window beyond that
+ * before a hung tick is considered stale and a new one is allowed to take over.
+ */
+const scheduleTickGuard = createSingleFlight({ staleAfterMs: MAX_TICK_DURATION_MS + 60_000 })
 
 interface ScheduleTickResult {
   processedCount: number

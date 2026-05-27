@@ -25,6 +25,16 @@ export function runDetached(label: string, work: () => Promise<unknown>): void {
     })
 }
 
+interface SingleFlightOptions {
+  /**
+   * How long a run may hold the slot before it is treated as stale. A later
+   * `run` call past this window takes over and starts a fresh run, so a hung
+   * task (one whose promise never settles) cannot wedge the slot permanently.
+   * This is the in-process equivalent of a distributed lock's TTL.
+   */
+  staleAfterMs: number
+}
+
 /**
  * A per-process single-flight guard. Prevents a long-running detached task from
  * piling up when it is invoked again before the previous run finishes.
@@ -32,27 +42,44 @@ export function runDetached(label: string, work: () => Promise<unknown>): void {
  * This guards a single Node process only — cross-replica deduplication must be
  * handled by the underlying work (e.g. database row claiming or a distributed
  * lock).
+ *
+ * A held slot is released when its run settles, or — if the run hangs and never
+ * settles — taken over by the next `run` call after `staleAfterMs`. Ownership is
+ * tracked by token so a stale run that settles late cannot clear a newer run's
+ * slot.
  */
-export function createSingleFlight() {
-  let active = false
+export function createSingleFlight({ staleAfterMs }: SingleFlightOptions) {
+  let activeToken: symbol | null = null
+  let activeSince = 0
 
   return {
-    /** Whether a run is currently in flight in this process. */
-    isActive: (): boolean => active,
+    /** Whether a run currently holds the slot in this process. */
+    isActive: (): boolean => activeToken !== null,
 
     /**
-     * Starts `work` detached if no run is active.
+     * Starts `work` detached unless a non-stale run already holds the slot.
      *
-     * @returns `true` if a new run started, `false` if one was already in flight.
+     * @returns `true` if a new run started, `false` if a run was already in flight.
      */
     run(label: string, work: () => Promise<unknown>): boolean {
-      if (active) return false
-      active = true
+      const now = Date.now()
+      if (activeToken !== null) {
+        if (now - activeSince < staleAfterMs) return false
+        logger.warn(
+          `Single-flight "${label}" held for ${now - activeSince}ms (> ${staleAfterMs}ms); starting a new run`
+        )
+      }
+
+      const token = Symbol(label)
+      activeToken = token
+      activeSince = now
       runDetached(label, () =>
         Promise.resolve()
           .then(work)
           .finally(() => {
-            active = false
+            if (activeToken === token) {
+              activeToken = null
+            }
           })
       )
       return true
