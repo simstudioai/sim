@@ -986,9 +986,14 @@ export const subscription = pgTable(
     periodStart: timestamp('period_start'),
     periodEnd: timestamp('period_end'),
     cancelAtPeriodEnd: boolean('cancel_at_period_end'),
+    cancelAt: timestamp('cancel_at'),
+    canceledAt: timestamp('canceled_at'),
+    endedAt: timestamp('ended_at'),
     seats: integer('seats'),
     trialStart: timestamp('trial_start'),
     trialEnd: timestamp('trial_end'),
+    billingInterval: text('billing_interval'),
+    stripeScheduleId: text('stripe_schedule_id'),
     metadata: json('metadata'),
   },
   (table) => ({
@@ -3337,6 +3342,7 @@ export const jwks = pgTable('jwks', {
   publicKey: text('public_key').notNull(),
   privateKey: text('private_key').notNull(),
   createdAt: timestamp('created_at').notNull(),
+  expiresAt: timestamp('expires_at'),
 })
 
 export const mothershipInboxAllowedSender = pgTable(
