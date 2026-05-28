@@ -576,18 +576,28 @@ export function TableGrid({
 
   const frozenColumnSet = useMemo(() => new Set(frozenColumns), [frozenColumns])
 
+  // Stable fingerprint of frozen-column widths only. Changes when a frozen
+  // column is resized; stays the same when a non-frozen column is resized.
+  // Used as the sole dep that ties frozenOffsets to column-width changes so
+  // that non-frozen resizes don't recreate the Map and re-render all DataRows.
+  const frozenWidthsKey = displayColumns
+    .filter((c) => frozenColumnSet.has(c.name))
+    .map((c) => columnWidths[c.key] ?? COL_WIDTH)
+    .join(',')
+
   /** Frozen column key → sticky `left` px offset. */
   const frozenOffsets = useMemo<Map<string, number>>(() => {
     const offsets = new Map<string, number>()
     let left = checkboxColWidth
+    const widths = columnWidthsRef.current
     for (const col of displayColumns) {
       if (frozenColumnSet.has(col.name)) {
         offsets.set(col.key, left)
-        left += columnWidths[col.key] ?? COL_WIDTH
+        left += widths[col.key] ?? COL_WIDTH
       }
     }
     return offsets
-  }, [displayColumns, frozenColumnSet, columnWidths, checkboxColWidth])
+  }, [displayColumns, frozenColumnSet, checkboxColWidth, frozenWidthsKey])
 
   const lastFrozenColKey = useMemo<string | null>(() => {
     let last: string | null = null
@@ -600,11 +610,12 @@ export function TableGrid({
   /** Right edge of the frozen sticky zone; used as the left inset for scroll-to-reveal. */
   const frozenStickyLeftEdge = useMemo(() => {
     let edge = checkboxColWidth
+    const widths = columnWidthsRef.current
     for (const [key, left] of frozenOffsets) {
-      edge = Math.max(edge, left + (columnWidths[key] ?? COL_WIDTH))
+      edge = Math.max(edge, left + (widths[key] ?? COL_WIDTH))
     }
     return edge
-  }, [frozenOffsets, columnWidths, checkboxColWidth])
+  }, [frozenOffsets, checkboxColWidth])
 
   const headerGroups = useMemo(
     () => buildHeaderGroups(displayColumns, tableWorkflowGroups),
