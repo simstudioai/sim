@@ -4684,6 +4684,8 @@ export function ZoomIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export function ZoomInfoIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const clipId = `zoominfo-clip_${id}`
   return (
     <svg
       {...props}
@@ -4692,7 +4694,7 @@ export function ZoomInfoIcon(props: SVGProps<SVGSVGElement>) {
       xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
     >
-      <g clipPath='url(#zoominfo-clip)'>
+      <g clipPath={`url(#${clipId})`}>
         <path
           d='M0.272461 8.27246C0.272461 3.85418 3.85418 0.272461 8.27246 0.272461H56.2725C60.6907 0.272461 64.2725 3.85418 64.2725 8.27246V56.2725C64.2725 60.6907 60.6907 64.2725 56.2725 64.2725H8.27246C3.85418 64.2725 0.272461 60.6907 0.272461 56.2725V8.27246Z'
           fill='#EA1B15'
@@ -4703,7 +4705,7 @@ export function ZoomInfoIcon(props: SVGProps<SVGSVGElement>) {
         />
       </g>
       <defs>
-        <clipPath id='zoominfo-clip'>
+        <clipPath id={clipId}>
           <rect width='64' height='64' fill='white' transform='translate(0.272461 0.272461)' />
         </clipPath>
       </defs>
