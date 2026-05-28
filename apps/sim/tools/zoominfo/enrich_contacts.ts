@@ -12,6 +12,33 @@ import {
   ZOOMINFO_PROXY_URL,
 } from '@/tools/zoominfo/utils'
 
+/**
+ * Default output fields used when the caller does not specify any. ZoomInfo's
+ * ContactEnrich schema requires `outputFields`, so we send a useful contact set
+ * rather than letting the request fail. All values are valid ContactEnrich fields.
+ */
+const DEFAULT_CONTACT_OUTPUT_FIELDS = [
+  'id',
+  'firstName',
+  'lastName',
+  'email',
+  'phone',
+  'mobilePhone',
+  'jobTitle',
+  'jobFunction',
+  'managementLevel',
+  'city',
+  'state',
+  'country',
+  'contactAccuracyScore',
+  'validDate',
+  'lastUpdatedDate',
+  'companyId',
+  'companyName',
+  'companyWebsite',
+  'companyPhone',
+]
+
 export const zoominfoEnrichContactsTool: ToolConfig<
   ZoomInfoEnrichContactsParams,
   ZoomInfoEnrichContactsResponse
@@ -47,7 +74,7 @@ export const zoominfoEnrichContactsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'JSON array or comma-separated list of fields to return (e.g. ["id","firstName","email","phone","jobTitle"])',
+        'JSON array or comma-separated list of fields to return (e.g. ["id","firstName","email","phone","jobTitle"]). Defaults to a standard contact set if omitted.',
     },
     requiredFields: {
       type: 'string',
@@ -71,9 +98,11 @@ export const zoominfoEnrichContactsTool: ToolConfig<
         throw new Error('matchPersonInput supports a maximum of 25 entries per request')
       }
 
-      const attributes: Record<string, unknown> = { matchPersonInput }
       const outputFields = parseCsvOrJson(params.outputFields, 'outputFields')
-      if (outputFields) attributes.outputFields = outputFields
+      const attributes: Record<string, unknown> = {
+        matchPersonInput,
+        outputFields: outputFields ?? DEFAULT_CONTACT_OUTPUT_FIELDS,
+      }
       const requiredFields = parseCsvOrJson(params.requiredFields, 'requiredFields')
       if (requiredFields) attributes.requiredFields = requiredFields
 

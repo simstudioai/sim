@@ -12,6 +12,36 @@ import {
   ZOOMINFO_PROXY_URL,
 } from '@/tools/zoominfo/utils'
 
+/**
+ * Default output fields used when the caller does not specify any. ZoomInfo's
+ * CompanyEnrich schema requires `outputFields`, so we send a useful firmographic
+ * set rather than letting the request fail. All values are valid CompanyEnrich fields.
+ */
+const DEFAULT_COMPANY_OUTPUT_FIELDS = [
+  'id',
+  'name',
+  'website',
+  'domainList',
+  'ticker',
+  'revenue',
+  'revenueRange',
+  'employeeCount',
+  'employeeRange',
+  'primaryIndustry',
+  'industries',
+  'street',
+  'city',
+  'state',
+  'zipCode',
+  'country',
+  'phone',
+  'foundedYear',
+  'companyStatus',
+  'socialMediaUrls',
+  'logo',
+  'description',
+]
+
 export const zoominfoEnrichCompaniesTool: ToolConfig<
   ZoomInfoEnrichCompaniesParams,
   ZoomInfoEnrichCompaniesResponse
@@ -47,7 +77,7 @@ export const zoominfoEnrichCompaniesTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'JSON array or comma-separated list of fields to return (e.g. ["id","name","website","revenue","employeeCount"])',
+        'JSON array or comma-separated list of fields to return (e.g. ["id","name","website","revenue","employeeCount"]). Defaults to a standard firmographic set if omitted.',
     },
   },
 
@@ -67,9 +97,11 @@ export const zoominfoEnrichCompaniesTool: ToolConfig<
         throw new Error('matchCompanyInput supports a maximum of 25 entries per request')
       }
 
-      const attributes: Record<string, unknown> = { matchCompanyInput }
       const outputFields = parseCsvOrJson(params.outputFields, 'outputFields')
-      if (outputFields) attributes.outputFields = outputFields
+      const attributes: Record<string, unknown> = {
+        matchCompanyInput,
+        outputFields: outputFields ?? DEFAULT_COMPANY_OUTPUT_FIELDS,
+      }
 
       return {
         ...buildProxyBody(params),

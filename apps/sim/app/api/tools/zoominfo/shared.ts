@@ -171,6 +171,12 @@ export async function fetchZoomInfoAccessToken(
 export function extractZoomInfoError(body: unknown, status: number): string {
   if (body && typeof body === 'object') {
     const obj = body as Record<string, unknown>
+    if (obj.error && typeof obj.error === 'object') {
+      const eo = obj.error as Record<string, unknown>
+      const message = typeof eo.message === 'string' ? eo.message : ''
+      const code = typeof eo.code === 'string' ? eo.code : ''
+      if (message) return code ? `[${code}] ${message}` : message
+    }
     if (typeof obj.error === 'string' && obj.error.length > 0) {
       const desc = typeof obj.error_description === 'string' ? `: ${obj.error_description}` : ''
       return `${obj.error}${desc}`
