@@ -214,11 +214,21 @@ export function useTableUndo({
             if (direction === 'undo') {
               deleteColumnMutation.mutate(action.columnName, {
                 onSuccess: () => {
+                  const metadata: Record<string, unknown> = {}
                   const currentWidths = getColumnWidthsRef.current?.() ?? {}
                   if (action.columnName in currentWidths) {
                     const { [action.columnName]: _, ...rest } = currentWidths
                     onColumnWidthsChangeRef.current?.(rest)
-                    updateMetadataMutation.mutate({ columnWidths: rest })
+                    metadata.columnWidths = rest
+                  }
+                  const currentFrozen = getFrozenColumnsRef.current?.() ?? []
+                  if (currentFrozen.includes(action.columnName)) {
+                    const newFrozen = currentFrozen.filter((n) => n !== action.columnName)
+                    onFrozenColumnsChangeRef.current?.(newFrozen)
+                    metadata.frozenColumns = newFrozen
+                  }
+                  if (Object.keys(metadata).length > 0) {
+                    updateMetadataMutation.mutate(metadata)
                   }
                 },
               })
