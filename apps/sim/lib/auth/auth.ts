@@ -910,13 +910,11 @@ export const auth = betterAuth({
             )
           }
 
-          const otpType = data.type === 'change-email' ? 'email-verification' : data.type
-
-          const html = await renderOTPEmail(data.otp, data.email, otpType)
+          const html = await renderOTPEmail(data.otp, data.email, data.type)
 
           const result = await sendEmail({
             to: data.email,
-            subject: getEmailSubject(otpType),
+            subject: getEmailSubject(data.type),
             html,
             from: getFromEmailAddress(),
             emailType: 'transactional',

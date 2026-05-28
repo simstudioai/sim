@@ -4,6 +4,7 @@ import { getBrandConfig } from '@/ee/whitelabeling'
 export type EmailSubjectType =
   | 'sign-in'
   | 'email-verification'
+  | 'change-email'
   | 'forget-password'
   | 'reset-password'
   | 'invitation'
@@ -34,6 +35,8 @@ export function getEmailSubject(type: EmailSubjectType): string {
       return `Sign in to ${brandName}`
     case 'email-verification':
       return `Verify your email for ${brandName}`
+    case 'change-email':
+      return `Verify your new email for ${brandName}`
     case 'forget-password':
       return `Reset your ${brandName} password`
     case 'reset-password':
