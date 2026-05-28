@@ -17,8 +17,9 @@ export const findEmailsByDomainTool: ToolConfig<
   version: '1.0.0',
 
   hosting: findymailHosting<FindymailFindEmailsByDomainParams>((_params, output) => {
+    // No contacts array means no verified contacts returned — no charge.
     if (!Array.isArray(output.contacts)) {
-      throw new Error('Findymail find emails by domain response missing contacts array')
+      return 0
     }
     // 1 finder credit per verified contact returned.
     return output.contacts.length

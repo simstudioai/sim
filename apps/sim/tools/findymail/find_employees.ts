@@ -17,8 +17,9 @@ export const findEmployeesTool: ToolConfig<
   version: '1.0.0',
 
   hosting: findymailHosting<FindymailFindEmployeesParams>((_params, output) => {
+    // No employees array means no contacts found — no charge.
     if (!Array.isArray(output.employees)) {
-      throw new Error('Findymail find employees response missing employees array')
+      return 0
     }
     // 1 finder credit per contact found.
     return output.employees.length

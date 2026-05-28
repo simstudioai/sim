@@ -186,4 +186,85 @@ describe('Wiza hosted key pricing', () => {
     expect((result.output as any).email).toBe('a@b.com')
     expect((result.output as any).status).toBe('finished')
   })
+
+  it('returns immediately without polling when the initial reveal is already terminal', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const initial = {
+      success: true as const,
+      output: {
+        id: 123,
+        status: 'finished',
+        is_complete: true,
+        email: 'a@b.com',
+        email_status: 'valid',
+        emails: [],
+        phones: [],
+      } as any,
+    }
+    const result = await wizaIndividualRevealTool.postProcess!(
+      initial as any,
+      { apiKey: 'k', enrichment_level: 'full' } as any,
+      vi.fn()
+    )
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect((result.output as any).email).toBe('a@b.com')
+  })
+
+  it('retries transient poll errors and still resolves on a later finished response', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('busy', { status: 503 }))
+      .mockResolvedValueOnce(new Response('rate limited', { status: 429 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: { id: 1, status: 'finished', email: 'a@b.com', email_status: 'valid', emails: [], phones: [] },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const initial = {
+      success: true as const,
+      output: { id: 1, status: 'queued', is_complete: false } as any,
+    }
+    const promise = wizaIndividualRevealTool.postProcess!(
+      initial as any,
+      { apiKey: 'k', enrichment_level: 'full' } as any,
+      vi.fn()
+    )
+    await vi.advanceTimersByTimeAsync(6000)
+    const result = await promise
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(result.success).toBe(true)
+    expect((result.output as any).email).toBe('a@b.com')
+  })
+
+  it('returns an explicit failure (not a queued success) after repeated poll errors', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn().mockResolvedValue(new Response('error', { status: 500 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const initial = {
+      success: true as const,
+      output: { id: 1, status: 'queued', is_complete: false } as any,
+    }
+    const promise = wizaIndividualRevealTool.postProcess!(
+      initial as any,
+      { apiKey: 'k', enrichment_level: 'full' } as any,
+      vi.fn()
+    )
+    await vi.advanceTimersByTimeAsync(6000)
+    const result = await promise
+
+    expect(result.success).toBe(false)
+    expect((result.output as any).status).toBe('queued')
+  })
 })

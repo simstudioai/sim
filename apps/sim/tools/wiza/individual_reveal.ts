@@ -9,6 +9,13 @@ import type {
 
 const POLL_INTERVAL_MS = 2000
 const MAX_POLL_TIME_MS = 120000
+/** Tolerate brief Wiza outages while polling before giving up on an already-started reveal. */
+const MAX_CONSECUTIVE_POLL_ERRORS = 3
+
+/** Whether a reveal payload has reached a terminal state and no longer needs polling. */
+function isTerminalReveal(d: Record<string, unknown>): boolean {
+  return d.status === 'finished' || d.status === 'failed' || d.is_complete === true
+}
 
 /** Map a Wiza individual-reveal payload (`data` object) to the tool output shape. */
 function mapRevealData(d: Record<string, unknown>): WizaIndividualRevealData {
@@ -192,12 +199,25 @@ export const wizaIndividualRevealTool: ToolConfig<
   postProcess: async (result, params) => {
     if (!result.success) return result
 
+    // Wiza can resolve synchronously (e.g. a cache hit) — the initial POST payload is
+    // already mapped, so skip polling when it is terminal.
+    if (isTerminalReveal(result.output)) {
+      return { success: result.output.status !== 'failed', output: result.output }
+    }
+
     const revealId = result.output.id
     if (revealId == null) {
-      throw new Error('Wiza individual reveal did not return an id')
+      // Return an explicit failure rather than throwing: a thrown error here is swallowed
+      // by the executor and masked as the queued (incomplete) success result.
+      return {
+        success: false,
+        error: 'Wiza individual reveal did not return an id',
+        output: result.output,
+      }
     }
 
     let elapsedTime = 0
+    let consecutiveErrors = 0
     while (elapsedTime < MAX_POLL_TIME_MS) {
       await sleep(POLL_INTERVAL_MS)
       elapsedTime += POLL_INTERVAL_MS
@@ -213,14 +233,25 @@ export const wizaIndividualRevealTool: ToolConfig<
       )
 
       if (!statusResponse.ok) {
-        const errorText = await statusResponse.text()
-        throw new Error(`Wiza API error: ${statusResponse.status} - ${errorText}`)
+        // The reveal is already started (and billed by Wiza), so tolerate brief outages and
+        // retry rather than aborting the whole window on a single transient 5xx/429.
+        consecutiveErrors += 1
+        if (consecutiveErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
+          const errorText = await statusResponse.text().catch(() => '')
+          return {
+            success: false,
+            error: `Wiza API error: ${statusResponse.status} - ${errorText}`,
+            output: result.output,
+          }
+        }
+        continue
       }
+      consecutiveErrors = 0
 
       const json = await statusResponse.json()
       const data = json.data ?? {}
 
-      if (data.status === 'finished' || data.status === 'failed' || data.is_complete === true) {
+      if (isTerminalReveal(data)) {
         return {
           success: data.status !== 'failed',
           output: mapRevealData(data),
@@ -228,7 +259,11 @@ export const wizaIndividualRevealTool: ToolConfig<
       }
     }
 
-    throw new Error('Wiza individual reveal did not complete within the polling window')
+    return {
+      success: false,
+      error: 'Wiza individual reveal did not complete within the polling window',
+      output: result.output,
+    }
   },
 
   outputs: {
