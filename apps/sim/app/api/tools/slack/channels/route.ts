@@ -36,9 +36,8 @@ const SCOPED_USER_ID_PATTERN =
 function parseScopedSlackUserId(accountId: string): string | null {
   const match = SCOPED_USER_ID_PATTERN.exec(accountId)
   if (match) return match[1]
-  // A marker is present but the id didn't parse — surface it instead of
-  // silently dropping to the bot `is_member` filter, which would bypass the
-  // installer-scoped privacy check without any signal.
+  // Marker present but unparseable — surface it rather than silently falling
+  // back to the bot `is_member` filter and bypassing the privacy scope.
   if (accountId.includes('-usr_')) {
     logger.warn('Slack accountId carries usr_ marker but did not parse; using is_member fallback', {
       accountId,
