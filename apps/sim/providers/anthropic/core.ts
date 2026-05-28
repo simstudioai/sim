@@ -82,13 +82,15 @@ const THINKING_BUDGET_TOKENS: Record<string, number> = {
 
 /**
  * Checks if a model supports adaptive thinking (thinking.type: "adaptive").
- * Opus 4.7 supports ONLY adaptive thinking (no extended thinking / budget_tokens).
+ * Opus 4.8 and Opus 4.7 support ONLY adaptive thinking (no extended thinking / budget_tokens).
  * Opus 4.6 and Sonnet 4.6 support both extended and adaptive thinking — use adaptive.
  * Opus 4.5 supports effort but NOT adaptive thinking — it uses budget_tokens with type: "enabled".
  */
 function supportsAdaptiveThinking(modelId: string): boolean {
   const normalizedModel = modelId.toLowerCase()
   return (
+    normalizedModel.includes('opus-4-8') ||
+    normalizedModel.includes('opus-4.8') ||
     normalizedModel.includes('opus-4-7') ||
     normalizedModel.includes('opus-4.7') ||
     normalizedModel.includes('opus-4-6') ||
