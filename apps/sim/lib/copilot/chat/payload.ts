@@ -41,6 +41,10 @@ interface BuildPayloadParams {
   workspaceContext?: string
   userPermission?: string
   userTimezone?: string
+  userMetadata?: {
+    name?: string
+    timezone?: string
+  }
   includeMothershipTools?: boolean
 }
 
@@ -317,6 +321,9 @@ export async function buildCopilotRequestPayload(
     ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),
     ...(params.userPermission ? { userPermission: params.userPermission } : {}),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
+    ...(params.userMetadata && (params.userMetadata.name || params.userMetadata.timezone)
+      ? { userMetadata: params.userMetadata }
+      : {}),
     isHosted,
   }
 }

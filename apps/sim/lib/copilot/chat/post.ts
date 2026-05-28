@@ -164,6 +164,7 @@ type UnifiedChatBranch =
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         userTimezone?: string
+        userMetadata?: { name?: string; timezone?: string }
         workflowId: string
         workflowName?: string
         workspaceId?: string
@@ -198,6 +199,7 @@ type UnifiedChatBranch =
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         userTimezone?: string
+        userMetadata?: { name?: string; timezone?: string }
         workspaceContext?: string
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
@@ -586,6 +588,7 @@ async function resolveBranch(params: {
             workspaceContext: payloadParams.workspaceContext,
             userPermission: payloadParams.userPermission,
             userTimezone: payloadParams.userTimezone,
+            userMetadata: payloadParams.userMetadata,
           },
           { selectedModel }
         ),
@@ -644,6 +647,7 @@ async function resolveBranch(params: {
           workspaceContext: payloadParams.workspaceContext,
           userPermission: payloadParams.userPermission,
           userTimezone: payloadParams.userTimezone,
+          userMetadata: payloadParams.userMetadata,
           includeMothershipTools: true,
         },
         { selectedModel: '' }
@@ -686,8 +690,14 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     }
     const authenticatedUserId = session.user.id
     const authenticatedUserEmail = session.user.email
+    const authenticatedUserName =
+      typeof session.user.name === 'string' ? session.user.name : undefined
 
     const body = ChatMessageSchema.parse(await req.json())
+    const userMetadata = {
+      ...(authenticatedUserName ? { name: authenticatedUserName } : {}),
+      ...(body.userTimezone ? { timezone: body.userTimezone } : {}),
+    }
     const normalizedContexts = normalizeContexts(body.contexts) ?? []
     userMessageId = body.userMessageId || generateId()
 
@@ -853,15 +863,14 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       // opens". Previously these ran bare under the root and inflated the
       // apparent "gap" before the model call. Each promise is its own
       // span; they run concurrently under Promise.all below.
-      const workspaceContextPromise =
-        workspaceId
-          ? withCopilotSpan(
-              TraceSpan.CopilotChatBuildWorkspaceContext,
-              { [TraceAttr.WorkspaceId]: workspaceId },
-              () => generateWorkspaceContext(workspaceId, authenticatedUserId),
-              activeOtelRoot.context
-            )
-          : Promise.resolve(undefined)
+      const workspaceContextPromise = workspaceId
+        ? withCopilotSpan(
+            TraceSpan.CopilotChatBuildWorkspaceContext,
+            { [TraceAttr.WorkspaceId]: workspaceId },
+            () => generateWorkspaceContext(workspaceId, authenticatedUserId),
+            activeOtelRoot.context
+          )
+        : Promise.resolve(undefined)
       const agentContextsPromise = withCopilotSpan(
         TraceSpan.CopilotChatResolveAgentContexts,
         {
@@ -944,6 +953,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 fileAttachments: body.fileAttachments,
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,
+                userMetadata,
                 workflowId: branch.workflowId,
                 workflowName: branch.workflowName,
                 workspaceId: branch.workspaceId,
@@ -963,6 +973,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 fileAttachments: body.fileAttachments,
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,
+                userMetadata,
                 workspaceContext,
               }),
         activeOtelRoot.context

@@ -102,6 +102,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       fileAttachments,
       workflowId,
       executionId,
+      userMetadata,
     } = validation.data.body
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
@@ -131,6 +132,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       messageId,
       isHosted: true,
       workspaceContext,
+      ...(userMetadata ? { userMetadata } : {}),
       ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(mothershipToolRuntime.tools.length > 0

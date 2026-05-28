@@ -150,4 +150,33 @@ describe('buildCopilotRequestPayload', () => {
       })
     )
   })
+
+  it('passes user metadata through to the Go request payload', async () => {
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'what time is it',
+        userId: 'user-1',
+        userMessageId: 'msg-1',
+        mode: 'agent',
+        model: 'claude-opus-4-8',
+        workspaceId: 'ws-1',
+        userTimezone: 'America/Los_Angeles',
+        userMetadata: {
+          name: 'Sid',
+          timezone: 'America/Los_Angeles',
+        },
+      },
+      { selectedModel: 'claude-opus-4-8' }
+    )
+
+    expect(payload).toEqual(
+      expect.objectContaining({
+        userTimezone: 'America/Los_Angeles',
+        userMetadata: {
+          name: 'Sid',
+          timezone: 'America/Los_Angeles',
+        },
+      })
+    )
+  })
 })
