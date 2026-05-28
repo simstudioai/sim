@@ -1540,6 +1540,7 @@ export function useChat(
     queueDispatchEpochRef.current++
     queueDispatchActionsRef.current = []
     queuedMessageDispatchIdsRef.current.clear()
+    userRemovedDuringDispatchRef.current.clear()
     queueDispatchTaskRef.current = null
     setDispatchingHeadId(null)
   }, [])
@@ -1723,6 +1724,10 @@ export function useChat(
   const editingQueuedId = useMothershipQueueStore((state) => state.editing[chatKey] ?? null)
   const [dispatchingHeadId, setDispatchingHeadId] = useState<string | null>(null)
   const queuedMessageDispatchIdsRef = useRef<Set<string>>(new Set())
+  // Ids the user explicitly removed while a dispatch was in flight — used to
+  // suppress the dispatch's failure-restore path, which would otherwise undo
+  // the user's removal silently.
+  const userRemovedDuringDispatchRef = useRef<Set<string>>(new Set())
   const queueDispatchActionsRef = useRef<QueueDispatchAction[]>([])
   const queueDispatchTaskRef = useRef<Promise<void> | null>(null)
   const queueDispatchEpochRef = useRef(0)
@@ -5529,6 +5534,11 @@ export function useChat(
         if (!removedFromQueue || options.epoch !== queueDispatchEpochRef.current) {
           return
         }
+        // If the user explicitly removed this message during dispatch, honor
+        // that and don't re-insert on failure.
+        if (userRemovedDuringDispatchRef.current.delete(msg.id)) {
+          return
+        }
         useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, msg)
       }
 
@@ -5564,6 +5574,7 @@ export function useChat(
       } finally {
         setDispatchingHeadId((current) => (current === msg.id ? null : current))
         queuedMessageDispatchIdsRef.current.delete(msg.id)
+        userRemovedDuringDispatchRef.current.delete(msg.id)
       }
     },
     [startSendMessage]
@@ -5616,6 +5627,11 @@ export function useChat(
   enqueueQueueDispatchRef.current = enqueueQueueDispatch
 
   const removeFromQueue = useCallback((id: string) => {
+    // If the message is mid-dispatch, mark it so the dispatch's failure-restore
+    // path won't silently undo the user's removal.
+    if (queuedMessageDispatchIdsRef.current.has(id)) {
+      userRemovedDuringDispatchRef.current.add(id)
+    }
     clearQueuedSendHandoffState(id)
     clearQueuedSendHandoffClaim(id)
     useMothershipQueueStore.getState().remove(chatKeyRef.current, id)
