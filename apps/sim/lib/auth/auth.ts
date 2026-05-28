@@ -9,11 +9,11 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import { createAuthMiddleware } from 'better-auth/api'
 import { nextCookies } from 'better-auth/next-js'
 import {
   admin,
   captcha,
-  createAuthMiddleware,
   customSession,
   emailOTP,
   genericOAuth,
@@ -189,7 +189,7 @@ export const auth = betterAuth({
     },
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
-    freshAge: 60 * 60, // 1 hour (or set to 0 to disable completely)
+    freshAge: 0,
   },
   user: {
     deleteUser: {
@@ -620,6 +620,7 @@ export const auth = betterAuth({
     accountLinking: {
       enabled: true,
       allowDifferentEmails: true,
+      requireLocalEmailVerified: false,
       trustedProviders: [
         'google',
         'github',
@@ -699,7 +700,7 @@ export const auth = betterAuth({
   },
   emailVerification: {
     autoSignInAfterVerification: true,
-    onEmailVerification: async (user) => {
+    afterEmailVerification: async (user) => {
       if (isHosted && user.email) {
         try {
           const html = await renderWelcomeEmail(user.name || undefined)
@@ -714,11 +715,11 @@ export const auth = betterAuth({
             emailType: 'transactional',
           })
 
-          logger.info('[emailVerification.onEmailVerification] Welcome email sent', {
+          logger.info('[emailVerification.afterEmailVerification] Welcome email sent', {
             userId: user.id,
           })
         } catch (error) {
-          logger.error('[emailVerification.onEmailVerification] Failed to send welcome email', {
+          logger.error('[emailVerification.afterEmailVerification] Failed to send welcome email', {
             userId: user.id,
             error,
           })
@@ -732,7 +733,7 @@ export const auth = betterAuth({
           })
         } catch (error) {
           logger.error(
-            '[emailVerification.onEmailVerification] Failed to schedule onboarding followup email',
+            '[emailVerification.afterEmailVerification] Failed to schedule onboarding followup email',
             { userId: user.id, error }
           )
         }
@@ -742,8 +743,6 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: isEmailVerificationEnabled,
-    throwOnMissingCredentials: true,
-    throwOnInvalidCredentials: true,
     sendResetPassword: async ({ user, url, token }, request) => {
       const username = user.name || ''
 
@@ -851,7 +850,6 @@ export const auth = betterAuth({
     }),
   },
   plugins: [
-    nextCookies(),
     ...(isSignupEmailValidationEnabled ? [emailHarmony()] : []),
     ...(env.TURNSTILE_SECRET_KEY
       ? [
@@ -889,11 +887,7 @@ export const auth = betterAuth({
       session,
     })),
     emailOTP({
-      sendVerificationOTP: async (data: {
-        email: string
-        otp: string
-        type: 'sign-in' | 'email-verification' | 'forget-password'
-      }) => {
+      sendVerificationOTP: async (data) => {
         if (!isEmailVerificationEnabled) {
           logger.info('Skipping email verification')
           return
@@ -916,11 +910,13 @@ export const auth = betterAuth({
             )
           }
 
-          const html = await renderOTPEmail(data.otp, data.email, data.type)
+          const otpType = data.type === 'change-email' ? 'email-verification' : data.type
+
+          const html = await renderOTPEmail(data.otp, data.email, otpType)
 
           const result = await sendEmail({
             to: data.email,
-            subject: getEmailSubject(data.type),
+            subject: getEmailSubject(otpType),
             html,
             from: getFromEmailAddress(),
             emailType: 'transactional',
@@ -954,7 +950,6 @@ export const auth = betterAuth({
     }),
     genericOAuth({
       config: [
-        // Google providers
         {
           providerId: 'google-email',
           clientId: env.GOOGLE_CLIENT_ID as string,
@@ -1730,7 +1725,6 @@ export const auth = betterAuth({
           },
         },
 
-        // HubSpot provider
         {
           providerId: 'hubspot',
           clientId: env.HUBSPOT_CLIENT_ID as string,
@@ -1804,7 +1798,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Salesforce provider
         {
           providerId: 'salesforce',
           clientId: env.SALESFORCE_CLIENT_ID as string,
@@ -1854,7 +1847,6 @@ export const auth = betterAuth({
           },
         },
 
-        // X provider
         {
           providerId: 'x',
           clientId: env.X_CLIENT_ID as string,
@@ -1914,7 +1906,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Confluence provider
         {
           providerId: 'confluence',
           clientId: env.CONFLUENCE_CLIENT_ID as string,
@@ -1966,7 +1957,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Jira provider
         {
           providerId: 'jira',
           clientId: env.JIRA_CLIENT_ID as string,
@@ -2018,7 +2008,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Airtable provider
         {
           providerId: 'airtable',
           clientId: env.AIRTABLE_CLIENT_ID as string,
@@ -2068,7 +2057,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Notion provider
         {
           providerId: 'notion',
           clientId: env.NOTION_CLIENT_ID as string,
@@ -2118,7 +2106,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Monday.com provider
         {
           providerId: 'monday',
           clientId: env.MONDAY_CLIENT_ID as string,
@@ -2171,7 +2158,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Reddit provider
         {
           providerId: 'reddit',
           clientId: env.REDDIT_CLIENT_ID as string,
@@ -2500,7 +2486,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Slack provider
         {
           providerId: 'slack',
           clientId: env.SLACK_CLIENT_ID as string,
@@ -2560,7 +2545,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Webflow provider
         {
           providerId: 'webflow',
           clientId: env.WEBFLOW_CLIENT_ID as string,
@@ -2610,7 +2594,6 @@ export const auth = betterAuth({
             }
           },
         },
-        // LinkedIn provider
         {
           providerId: 'linkedin',
           clientId: env.LINKEDIN_CLIENT_ID as string,
@@ -2660,7 +2643,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Zoom provider
         {
           providerId: 'zoom',
           clientId: env.ZOOM_CLIENT_ID as string,
@@ -2712,7 +2694,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Spotify provider
         {
           providerId: 'spotify',
           clientId: env.SPOTIFY_CLIENT_ID as string,
@@ -2761,7 +2742,6 @@ export const auth = betterAuth({
           },
         },
 
-        // WordPress.com provider
         {
           providerId: 'wordpress',
           clientId: env.WORDPRESS_CLIENT_ID as string,
@@ -2949,32 +2929,9 @@ export const auth = betterAuth({
               authorizeReference: async ({ user, referenceId, action }) => {
                 return await authorizeSubscriptionReference(user.id, referenceId, action)
               },
-              getCheckoutSessionParams: async ({ plan, subscription }) => {
-                if (isTeam(plan.name)) {
-                  return {
-                    params: {
-                      allow_promotion_codes: true,
-                      line_items: [
-                        {
-                          price: plan.priceId,
-                          quantity: subscription?.seats || 1,
-                          adjustable_quantity: {
-                            enabled: true,
-                            minimum: 1,
-                            maximum: 50,
-                          },
-                        },
-                      ],
-                    },
-                  }
-                }
-
-                return {
-                  params: {
-                    allow_promotion_codes: true,
-                  },
-                }
-              },
+              getCheckoutSessionParams: async () => ({
+                params: { allow_promotion_codes: true },
+              }),
               onSubscriptionComplete: async ({
                 stripeSubscription,
                 subscription,
@@ -3268,9 +3225,10 @@ export const auth = betterAuth({
           organization({
             allowUserToCreateOrganization: async () => false,
             disableOrganizationDeletion: true,
-            organizationCreation: {
-              afterCreate: async ({ organization, user }) => {
-                logger.info('[organizationCreation.afterCreate] Organization created', {
+            requireEmailVerificationOnInvitation: isEmailVerificationEnabled,
+            organizationHooks: {
+              afterCreateOrganization: async ({ organization, user }) => {
+                logger.info('[organizationHooks.afterCreateOrganization] Organization created', {
                   organizationId: organization.id,
                   creatorId: user.id,
                 })
@@ -3279,13 +3237,8 @@ export const auth = betterAuth({
           }),
         ]
       : []),
+    nextCookies(),
   ],
-  pages: {
-    signIn: '/login',
-    signUp: '/signup',
-    error: '/error',
-    verify: '/verify',
-  },
 })
 
 async function getSessionImpl() {
@@ -3301,6 +3254,3 @@ async function getSessionImpl() {
 }
 
 export const getSession = cache(getSessionImpl)
-
-export const signIn = auth.api.signInEmail
-export const signUp = auth.api.signUpEmail
