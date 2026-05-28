@@ -157,9 +157,9 @@ export const zoominfoSearchCompaniesTool: ToolConfig<
       const revenueMax = toNumberOrUndefined(params.revenueMax)
       if (revenueMax !== undefined) attributes.revenueMax = revenueMax
       const employeeRangeMin = toNumberOrUndefined(params.employeeRangeMin)
-      if (employeeRangeMin !== undefined) attributes.employeeRangeMin = String(employeeRangeMin)
+      if (employeeRangeMin !== undefined) attributes.employeeRangeMin = employeeRangeMin
       const employeeRangeMax = toNumberOrUndefined(params.employeeRangeMax)
-      if (employeeRangeMax !== undefined) attributes.employeeRangeMax = String(employeeRangeMax)
+      if (employeeRangeMax !== undefined) attributes.employeeRangeMax = employeeRangeMax
       if (params.excludeDefunctCompanies !== undefined) {
         attributes.excludeDefunctCompanies = params.excludeDefunctCompanies
       }
