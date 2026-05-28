@@ -514,10 +514,11 @@ export function TableGrid({
     setPinnedColumns(newPinned)
     pinnedColumnsRef.current = newPinned
 
-    // Re-enforce pinned-at-front. Pinning pulls the column into the sticky
-    // zone; unpinning ejects it to the first unpinned slot. Without this on
-    // unpin, the unpinned column would stay sandwiched between still-pinned
-    // siblings and the sticky zone would render with a gap.
+    // Pinned-at-front is an invariant the rest of the grid relies on (sticky
+    // offsets walk displayColumns left→right and stop at the first unpinned
+    // entry). On unpin we must re-sort so the unpinned column doesn't stay
+    // sandwiched between still-pinned siblings, which would render the sticky
+    // zone with a gap.
     const currentOrder = columnOrderRef.current ?? schemaColumnsRef.current.map((c) => c.name)
     const pinnedSet = new Set(newPinned)
     const newOrder = [
@@ -1225,9 +1226,8 @@ export function TableGrid({
       }
     }
 
-    // Pinned columns reorder only within the pinned zone; unpinned only within
-    // the unpinned zone. Cross-zone drops are silently dropped so the indicator
-    // never lies about an insertion that would just get snapped back.
+    // Reorder is restricted to within a single zone so a cross-zone drop
+    // indicator never appears for an insertion the grid would refuse.
     if (dragged) {
       const pinned = pinnedColumnsRef.current
       if (pinned.includes(dragged) !== pinned.includes(columnName)) {
@@ -1357,10 +1357,9 @@ export function TableGrid({
         ...remaining.slice(insertIndex),
       ]
 
-      // Re-enforce pinned-at-front: if any pinned column was dragged behind an
-      // unpinned one (or vice versa), restore the pinned zone at the front
-      // while preserving the user's relative reorder within each zone.
-      // Defense in depth — dragover already blocks cross-zone drops.
+      // Belt-and-suspenders re-sort: dragover already blocks cross-zone drops,
+      // but if anything ever slips through, the pinned-at-front invariant gets
+      // restored here (relative order within each zone is preserved).
       let finalOrder = newOrder
       const currentPinned = pinnedColumnsRef.current
       if (currentPinned.length > 0) {
@@ -1424,7 +1423,6 @@ export function TableGrid({
           if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
           return
         }
-        // Cross-zone (pinned ↔ unpinned) → no-op drop, no indicator.
         const pinned = pinnedColumnsRef.current
         const draggedName = dragColumnNameRef.current
         if (draggedName && pinned.includes(draggedName) !== pinned.includes(col.name)) {
@@ -3372,9 +3370,7 @@ export function TableGrid({
                                   userPermissions.canEdit ? handleColumnDragLeave : undefined
                                 }
                                 isPinned={firstCol ? pinnedColumnSet.has(firstCol.name) : false}
-                                onPinToggle={
-                                  userPermissions.canEdit ? handlePinToggle : undefined
-                                }
+                                onPinToggle={userPermissions.canEdit ? handlePinToggle : undefined}
                                 stickyLeft={stickyLeft}
                                 isLastPinned={lastCol?.key === lastPinnedColKey}
                               />
@@ -3447,9 +3443,7 @@ export function TableGrid({
                             onOpenConfig={handleConfigureColumn}
                             onViewWorkflow={handleViewWorkflow}
                             isPinned={colIsPinned}
-                            onPinToggle={
-                              userPermissions.canEdit ? handlePinToggle : undefined
-                            }
+                            onPinToggle={userPermissions.canEdit ? handlePinToggle : undefined}
                             stickyLeft={colStickyLeft}
                             isLastPinned={column.key === lastPinnedColKey}
                           />
