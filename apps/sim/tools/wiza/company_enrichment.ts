@@ -139,8 +139,7 @@ export const wizaCompanyEnrichmentTool: ToolConfig<
     company_country: { type: 'string', description: 'Country', optional: true },
     credits: {
       type: 'json',
-      description:
-        'Credits deducted for this enrichment (api_credits: { total, email_credits, phone_credits, scrape_credits })',
+      description: 'Credits deducted for this enrichment (api_credits: { total, company_credits })',
       optional: true,
     },
   },

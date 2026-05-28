@@ -563,7 +563,7 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
     credits: {
       type: 'json',
       description:
-        'Credits deducted (company_enrichment, get_individual_reveal): { api_credits: { total, email_credits, phone_credits, scrape_credits } }',
+        'Credits deducted — company_enrichment: { api_credits: { total, company_credits } }; get_individual_reveal: { api_credits: { total, email_credits, phone_credits, scrape_credits } }',
     },
     email_credits: {
       type: 'json',
