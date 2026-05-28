@@ -335,9 +335,11 @@ export function useTableUndo({
                   }
                   if (action.previousFrozenColumns !== null) {
                     const currentFrozen = getFrozenColumnsRef.current?.() ?? []
-                    const newFrozen = currentFrozen.filter((n) => n !== action.columnName)
-                    onFrozenColumnsChangeRef.current?.(newFrozen)
-                    metadata.frozenColumns = newFrozen
+                    if (currentFrozen.includes(action.columnName)) {
+                      const newFrozen = currentFrozen.filter((n) => n !== action.columnName)
+                      onFrozenColumnsChangeRef.current?.(newFrozen)
+                      metadata.frozenColumns = newFrozen
+                    }
                   }
                   if (Object.keys(metadata).length > 0) {
                     updateMetadataMutation.mutate(metadata)
