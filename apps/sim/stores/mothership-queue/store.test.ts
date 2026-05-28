@@ -143,6 +143,19 @@ describe('useMothershipQueueStore', () => {
       useMothershipQueueStore.getState().migrate('nope', 'chat-X')
       expect(useMothershipQueueStore.getState().queues).toBe(before)
     })
+
+    it('merges into an existing destination bucket instead of overwriting', () => {
+      useMothershipQueueStore.getState().enqueue('chat-X', message('existing-1'))
+      useMothershipQueueStore.getState().enqueue('chat-X', message('existing-2'))
+      useMothershipQueueStore.getState().enqueue('pending::abc', message('pending-1'))
+      useMothershipQueueStore.getState().migrate('pending::abc', 'chat-X')
+      expect(useMothershipQueueStore.getState().queues['chat-X']?.map((m) => m.id)).toEqual([
+        'existing-1',
+        'existing-2',
+        'pending-1',
+      ])
+      expect(useMothershipQueueStore.getState().queues['pending::abc']).toBeUndefined()
+    })
   })
 
   describe('clearChat', () => {

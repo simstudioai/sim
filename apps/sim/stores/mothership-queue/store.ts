@@ -150,7 +150,16 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
 
             const queues = omitKey(state.queues, fromKey)
             if (fromQueue && fromQueue.length > 0) {
-              queues[toKey] = fromQueue
+              /**
+               * Merge into any existing destination bucket rather than
+               * overwriting. In the normal `adoptResolvedChatId` flow the
+               * destination is a fresh chatId with no prior bucket, but if
+               * a stale entry survives in sessionStorage we'd silently lose
+               * the user's pending messages on overwrite. Appending keeps
+               * FIFO order (existing first, then the resolved-stream sends).
+               */
+              const existing = state.queues[toKey] ?? []
+              queues[toKey] = [...existing, ...fromQueue]
             }
             const editing = omitKey(state.editing, fromKey)
             if (fromEditing !== undefined) {

@@ -4981,6 +4981,14 @@ export function useChat(
             contexts,
           })
           queueStore.setEditing(activeChatKey, null)
+          /**
+           * If the dispatcher paused on this slot (head-was-editing), resume.
+           * `enqueueQueueDispatch` is idempotent against an in-flight loop and
+           * the dispatcher itself guards against double-sending the same id.
+           */
+          if (!sendingRef.current && !pendingStopPromiseRef.current) {
+            void enqueueQueueDispatchRef.current({ type: 'send_head' })
+          }
           return
         }
         queueStore.setEditing(activeChatKey, null)
@@ -5614,9 +5622,17 @@ export function useChat(
           continue
         }
 
-        const queue = useMothershipQueueStore.getState().queues[chatKeyRef.current]
-        const msg = queue?.[0]
+        const queueState = useMothershipQueueStore.getState()
+        const activeChatKey = chatKeyRef.current
+        const msg = queueState.queues[activeChatKey]?.[0]
         if (!msg) continue
+        /**
+         * Pause draining while the head is bound to the composer. Dispatching
+         * would either send the pre-edit content (losing the user's in-flight
+         * edit) or remove the slot mid-edit (turning the eventual submit into
+         * a tail-append). The next kick after `setEditing(null)` resumes us.
+         */
+        if (queueState.editing[activeChatKey] === msg.id) continue
 
         await dispatchQueuedMessage(msg, { epoch: action.epoch })
       }
@@ -5715,12 +5731,28 @@ export function useChat(
     const queue = useMothershipQueueStore.getState().queues[activeChatKey] ?? EMPTY_MESSAGE_QUEUE
     const msg = queue.find((m) => m.id === id)
     if (!msg) return undefined
+    /**
+     * Evict any sessionStorage handoff record for this id. If a prior dispatch
+     * attempt failed after writing the handoff (which carries a snapshot of
+     * the message content), leaving it in place would let the recovery effect
+     * replay the stale pre-edit content even though the in-memory store has
+     * the new content.
+     */
+    clearQueuedSendHandoffState(id)
+    clearQueuedSendHandoffClaim(id)
     useMothershipQueueStore.getState().setEditing(activeChatKey, id)
     return msg
   }, [])
 
   const cancelQueueEdit = useCallback(() => {
     useMothershipQueueStore.getState().setEditing(chatKeyRef.current, null)
+    /**
+     * Resume dispatch if it paused on this slot. Original content remains in
+     * the queue, so the next drain will send what was there before the edit.
+     */
+    if (!sendingRef.current && !pendingStopPromiseRef.current) {
+      void enqueueQueueDispatchRef.current({ type: 'send_head' })
+    }
   }, [])
 
   /**
