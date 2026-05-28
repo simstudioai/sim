@@ -880,7 +880,7 @@ export const auth = betterAuth({
       } as Record<string, unknown>,
     }),
     oneTimeToken({
-      expiresIn: 24 * 60 * 60, // 24 hours - Socket.IO handles connection persistence with heartbeats
+      expiresIn: 24 * 60, // 24 hours in minutes (better-auth's expiresIn unit)
     }),
     customSession(async ({ user, session }) => ({
       user,
