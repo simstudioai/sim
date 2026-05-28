@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
 import { isPlanAliasPath, workflowAliasSandboxPath } from '@/lib/copilot/vfs/workflow-aliases'
+import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
 import { getTableById, listTables, queryRows } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -71,7 +72,9 @@ async function resolveInputFiles(
   let totalSize = 0
 
   if (inputFiles?.length && workspaceId) {
-    const allFiles = await listWorkspaceFiles(workspaceId, { includeReservedSystemFiles: true })
+    const allFiles = await listWorkspaceFiles(workspaceId, {
+      includeReservedSystemFiles: isMothershipBetaFeaturesEnabled,
+    })
     for (const fileRef of inputFiles) {
       const filePath =
         typeof fileRef === 'string'
@@ -124,11 +127,11 @@ async function resolveInputFiles(
 
   if (inputDirectories?.length && workspaceId) {
     const folders = await listWorkspaceFileFolders(workspaceId, {
-      includeReservedSystemFolders: true,
+      includeReservedSystemFolders: isMothershipBetaFeaturesEnabled,
     })
     const allFiles = await listWorkspaceFiles(workspaceId, {
       folders,
-      includeReservedSystemFiles: true,
+      includeReservedSystemFiles: isMothershipBetaFeaturesEnabled,
     })
     for (const dirRef of inputDirectories) {
       const dirPath =

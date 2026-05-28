@@ -57,7 +57,7 @@ vi.mock('@/tools/params', () => ({
   createUserToolSchema: mockCreateUserToolSchema,
 }))
 
-import { buildIntegrationToolSchemas } from './payload'
+import { buildCopilotRequestPayload, buildIntegrationToolSchemas } from './payload'
 
 describe('buildIntegrationToolSchemas', () => {
   beforeEach(() => {
@@ -120,6 +120,34 @@ describe('buildIntegrationToolSchemas', () => {
     expect(mockCreateUserToolSchema).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'brandfetch_search' }),
       { surface: 'copilot' }
+    )
+  })
+})
+
+describe('buildCopilotRequestPayload', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('passes workspaceContext through to the Go request payload', async () => {
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'debug workspace',
+        userId: 'user-1',
+        userMessageId: 'msg-1',
+        mode: 'agent',
+        model: 'claude-opus-4-8',
+        workspaceId: 'ws-1',
+        workspaceContext: 'workspace inventory',
+      },
+      { selectedModel: 'claude-opus-4-8' }
+    )
+
+    expect(payload).toEqual(
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+        workspaceContext: 'workspace inventory',
+      })
     )
   })
 })

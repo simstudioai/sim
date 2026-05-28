@@ -80,6 +80,7 @@ import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/executi
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
+import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
 import { buildMothershipToolsForRequest } from '@/lib/mothership/settings/runtime'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -490,6 +491,9 @@ export class WorkspaceVFS {
     path: string,
     suffix: 'style' | 'compiled-check' | 'compiled'
   ): Promise<WorkspaceFileRecord | null> {
+    if (!isMothershipBetaFeaturesEnabled && isWorkflowAliasBackingPath(path)) {
+      return null
+    }
     const byIdMatch = path.match(new RegExp(`^files/by-id/([^/]+)/${suffix}$`))
     if (byIdMatch?.[1]) {
       return getWorkspaceFile(this._workspaceId, byIdMatch[1])
@@ -657,6 +661,9 @@ export class WorkspaceVFS {
       .replace(/\/content$/, '')
       .replace(/^\/+/, '')
 
+    if (!isMothershipBetaFeaturesEnabled && isWorkflowAliasBackingPath(fileReference)) {
+      return null
+    }
     if (fileReference.endsWith('/meta.json') || path.endsWith('/meta.json')) return null
 
     const scope = deletedMatch ? 'archived' : 'active'
@@ -664,7 +671,7 @@ export class WorkspaceVFS {
     try {
       const files = await listWorkspaceFiles(this._workspaceId, {
         scope,
-        includeReservedSystemFiles: true,
+        includeReservedSystemFiles: isMothershipBetaFeaturesEnabled,
       })
       const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
@@ -721,6 +728,7 @@ export class WorkspaceVFS {
     workspaceId: string,
     userId: string
   ): Promise<WorkspaceMdData['workflows']> {
+    const workflowArtifactsEnabled = isMothershipBetaFeaturesEnabled
     const [workflowRows, folderRows] = await Promise.all([
       listWorkflows(workspaceId),
       listFolders(workspaceId),
@@ -728,17 +736,21 @@ export class WorkspaceVFS {
 
     const folderPaths = this.buildFolderPaths(folderRows)
 
-    await Promise.all(
-      workflowRows.map((wf) =>
-        ensureWorkflowAliasBackingQuietly({
-          workspaceId,
-          userId,
-          workflowId: wf.id,
-          workflowName: wf.name,
-        })
+    if (workflowArtifactsEnabled) {
+      await Promise.all(
+        workflowRows.map((wf) =>
+          ensureWorkflowAliasBackingQuietly({
+            workspaceId,
+            userId,
+            workflowId: wf.id,
+            workflowName: wf.name,
+          })
+        )
       )
-    )
-    const workspaceFiles = await listWorkspaceFiles(workspaceId, { includeReservedSystemFiles: true })
+    }
+    const workspaceFiles = workflowArtifactsEnabled
+      ? await listWorkspaceFiles(workspaceId, { includeReservedSystemFiles: true })
+      : []
 
     // Register all folders in the VFS so empty folders are discoverable.
     for (const { folderId } of folderRows) {
@@ -759,71 +771,73 @@ export class WorkspaceVFS {
 
         this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf))
 
-        const changelog = findWorkspaceFileRecord(
-          workspaceFiles,
-          workflowChangelogBackingPath(wf.id)
-        )
-        let changelogContent = ''
-        if (changelog) {
-          try {
-            changelogContent = (await readFileRecord(changelog))?.content ?? ''
-          } catch (err) {
-            logger.warn('Failed to read workflow changelog alias backing file', {
-              workspaceId,
-              workflowId: wf.id,
-              fileId: changelog.id,
-              error: toError(err).message,
-            })
-          }
-        }
-        if (changelog) {
-          this.files.set(`${prefix}${WORKFLOW_CHANGELOG_ALIAS_NAME}`, changelogContent)
-        }
-        this.files.set(`${prefix}${WORKFLOW_PLANS_ALIAS_DIR}/.folder`, '')
-
-        const planFiles = workspaceFiles.filter((file) => {
-          if (!file.folderPath) return false
-          return (
-            file.folderPath === `${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}` ||
-            file.folderPath.startsWith(`${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}/`)
+        if (workflowArtifactsEnabled) {
+          const changelog = findWorkspaceFileRecord(
+            workspaceFiles,
+            workflowChangelogBackingPath(wf.id)
           )
-        })
-        for (const planFile of planFiles) {
-          const relativeFolder = planFile.folderPath
-            ?.replace(`${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}`, '')
-            .replace(/^\/+/, '')
-          const aliasPlanPath = [
-            prefix,
-            `${WORKFLOW_PLANS_ALIAS_DIR}/`,
-            relativeFolder ? `${encodeVfsPathSegments(relativeFolder.split('/'))}/` : '',
-            normalizeVfsSegment(planFile.name),
-          ].join('')
-          try {
-            this.files.set(aliasPlanPath, (await readFileRecord(planFile))?.content ?? '')
-          } catch (err) {
-            logger.warn('Failed to read workflow plan alias backing file', {
-              workspaceId,
-              workflowId: wf.id,
-              fileId: planFile.id,
-              error: toError(err).message,
-            })
-          }
-        }
-        this.files.set(
-          `${prefix}${WORKFLOW_ALIAS_LINKS_NAME}`,
-          JSON.stringify(
-            {
-              aliases: buildWorkflowAliasLinks({
-                workflowPath,
+          let changelogContent = ''
+          if (changelog) {
+            try {
+              changelogContent = (await readFileRecord(changelog))?.content ?? ''
+            } catch (err) {
+              logger.warn('Failed to read workflow changelog alias backing file', {
+                workspaceId,
                 workflowId: wf.id,
-                changelog,
-                planFiles,
-              }),
-            },
-            null,
-            2
+                fileId: changelog.id,
+                error: toError(err).message,
+              })
+            }
+          }
+          if (changelog) {
+            this.files.set(`${prefix}${WORKFLOW_CHANGELOG_ALIAS_NAME}`, changelogContent)
+          }
+          this.files.set(`${prefix}${WORKFLOW_PLANS_ALIAS_DIR}/.folder`, '')
+
+          const planFiles = workspaceFiles.filter((file) => {
+            if (!file.folderPath) return false
+            return (
+              file.folderPath === `${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}` ||
+              file.folderPath.startsWith(`${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}/`)
+            )
+          })
+          for (const planFile of planFiles) {
+            const relativeFolder = planFile.folderPath
+              ?.replace(`${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}`, '')
+              .replace(/^\/+/, '')
+            const aliasPlanPath = [
+              prefix,
+              `${WORKFLOW_PLANS_ALIAS_DIR}/`,
+              relativeFolder ? `${encodeVfsPathSegments(relativeFolder.split('/'))}/` : '',
+              normalizeVfsSegment(planFile.name),
+            ].join('')
+            try {
+              this.files.set(aliasPlanPath, (await readFileRecord(planFile))?.content ?? '')
+            } catch (err) {
+              logger.warn('Failed to read workflow plan alias backing file', {
+                workspaceId,
+                workflowId: wf.id,
+                fileId: planFile.id,
+                error: toError(err).message,
+              })
+            }
+          }
+          this.files.set(
+            `${prefix}${WORKFLOW_ALIAS_LINKS_NAME}`,
+            JSON.stringify(
+              {
+                aliases: buildWorkflowAliasLinks({
+                  workflowPath,
+                  workflowId: wf.id,
+                  changelog,
+                  planFiles,
+                }),
+              },
+              null,
+              2
+            )
           )
-        )
+        }
 
         let normalized: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>> = null
         try {
@@ -1057,6 +1071,7 @@ export class WorkspaceVFS {
    */
   private async materializeFiles(workspaceId: string): Promise<WorkspaceMdData['files']> {
     try {
+      const workflowArtifactsEnabled = isMothershipBetaFeaturesEnabled
       const folders = await listWorkspaceFileFolders(workspaceId, {
         includeReservedSystemFolders: true,
       })
@@ -1065,6 +1080,12 @@ export class WorkspaceVFS {
         includeReservedSystemFiles: true,
       })
       for (const folder of folders) {
+        if (
+          !workflowArtifactsEnabled &&
+          isWorkflowAliasBackingPath(`files/${encodeVfsPathSegments(folder.path.split('/'))}`)
+        ) {
+          continue
+        }
         this.files.set(`files/${encodeVfsPathSegments(folder.path.split('/'))}/.folder`, '')
       }
 
@@ -1073,6 +1094,9 @@ export class WorkspaceVFS {
           folderPath: file.folderPath,
           name: file.name,
         })
+        if (!workflowArtifactsEnabled && isWorkflowAliasBackingPath(filePath)) {
+          continue
+        }
         this.files.set(
           filePath,
           serializeFileMeta({
@@ -1088,66 +1112,68 @@ export class WorkspaceVFS {
         )
       }
 
-      this.files.set(`${WORKFLOW_PLANS_ALIAS_DIR}/.folder`, '')
-      const workspacePlanFiles = files.filter((file) => {
-        if (!file.folderPath) return false
-        return (
-          file.folderPath === `${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}` ||
-          file.folderPath.startsWith(`${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}/`)
-        )
-      })
-      const workspacePlanLinks = []
-      for (const planFile of workspacePlanFiles) {
-        const relativeFolder = planFile.folderPath
-          ?.replace(`${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}`, '')
-          .replace(/^\/+/, '')
-        const aliasRelativePath = [
-          relativeFolder ? `${encodeVfsPathSegments(relativeFolder.split('/'))}/` : '',
-          normalizeVfsSegment(planFile.name),
-        ].join('')
-        const aliasPlanPath = `${WORKFLOW_PLANS_ALIAS_DIR}/${aliasRelativePath}`
-        const relativeSegments = aliasRelativePath.split('/').slice(0, -1)
-        for (let index = 0; index < relativeSegments.length; index++) {
-          this.files.set(
-            `${WORKFLOW_PLANS_ALIAS_DIR}/${relativeSegments.slice(0, index + 1).join('/')}/.folder`,
-            ''
+      if (workflowArtifactsEnabled) {
+        this.files.set(`${WORKFLOW_PLANS_ALIAS_DIR}/.folder`, '')
+        const workspacePlanFiles = files.filter((file) => {
+          if (!file.folderPath) return false
+          return (
+            file.folderPath === `${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}` ||
+            file.folderPath.startsWith(`${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}/`)
           )
+        })
+        const workspacePlanLinks = []
+        for (const planFile of workspacePlanFiles) {
+          const relativeFolder = planFile.folderPath
+            ?.replace(`${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}`, '')
+            .replace(/^\/+/, '')
+          const aliasRelativePath = [
+            relativeFolder ? `${encodeVfsPathSegments(relativeFolder.split('/'))}/` : '',
+            normalizeVfsSegment(planFile.name),
+          ].join('')
+          const aliasPlanPath = `${WORKFLOW_PLANS_ALIAS_DIR}/${aliasRelativePath}`
+          const relativeSegments = aliasRelativePath.split('/').slice(0, -1)
+          for (let index = 0; index < relativeSegments.length; index++) {
+            this.files.set(
+              `${WORKFLOW_PLANS_ALIAS_DIR}/${relativeSegments.slice(0, index + 1).join('/')}/.folder`,
+              ''
+            )
+          }
+          try {
+            this.files.set(aliasPlanPath, (await readFileRecord(planFile))?.content ?? '')
+            workspacePlanLinks.push({
+              kind: 'plan_file',
+              scope: 'workspace',
+              aliasPath: aliasPlanPath,
+              backingPath: workspacePlanBackingPath(aliasRelativePath),
+              backingFileId: planFile.id,
+            })
+          } catch (err) {
+            logger.warn('Failed to read workspace plan alias backing file', {
+              workspaceId,
+              fileId: planFile.id,
+              error: toError(err).message,
+            })
+          }
         }
-        try {
-          this.files.set(aliasPlanPath, (await readFileRecord(planFile))?.content ?? '')
-          workspacePlanLinks.push({
-            kind: 'plan_file',
-            scope: 'workspace',
-            aliasPath: aliasPlanPath,
-            backingPath: workspacePlanBackingPath(aliasRelativePath),
-            backingFileId: planFile.id,
-          })
-        } catch (err) {
-          logger.warn('Failed to read workspace plan alias backing file', {
-            workspaceId,
-            fileId: planFile.id,
-            error: toError(err).message,
-          })
-        }
-      }
-      this.files.set(
-        `${WORKFLOW_PLANS_ALIAS_DIR}/${WORKFLOW_ALIAS_LINKS_NAME}`,
-        JSON.stringify(
-          {
-            aliases: [
-              {
-                kind: 'plans_dir',
-                scope: 'workspace',
-                aliasPath: WORKFLOW_PLANS_ALIAS_DIR,
-                backingPath: workspacePlansBackingFolderPath(),
-              },
-              ...workspacePlanLinks,
-            ],
-          },
-          null,
-          2
+        this.files.set(
+          `${WORKFLOW_PLANS_ALIAS_DIR}/${WORKFLOW_ALIAS_LINKS_NAME}`,
+          JSON.stringify(
+            {
+              aliases: [
+                {
+                  kind: 'plans_dir',
+                  scope: 'workspace',
+                  aliasPath: WORKFLOW_PLANS_ALIAS_DIR,
+                  backingPath: workspacePlansBackingFolderPath(),
+                },
+                ...workspacePlanLinks,
+              ],
+            },
+            null,
+            2
+          )
         )
-      )
+      }
 
       return files
         .filter(

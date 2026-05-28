@@ -25,6 +25,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
@@ -130,7 +131,7 @@ function isWriteAction(toolName: string, action: string | undefined): boolean {
 }
 
 /** Registry of all server tools. Tools self-declare their validation schemas. */
-const serverToolRegistry: Record<string, BaseServerTool> = {
+const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [getBlocksMetadataServerTool.name]: getBlocksMetadataServerTool,
   [getTriggerBlocksServerTool.name]: getTriggerBlocksServerTool,
   [editWorkflowServerTool.name]: editWorkflowServerTool,
@@ -159,8 +160,17 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [generateImageServerTool.name]: generateImageServerTool,
 }
 
+function getServerToolRegistry(): Record<string, BaseServerTool> {
+  if (isMothershipBetaFeaturesEnabled) {
+    return baseServerToolRegistry
+  }
+  const registry = { ...baseServerToolRegistry }
+  delete registry[touchPlanServerTool.name]
+  return registry
+}
+
 export function getRegisteredServerToolNames(): string[] {
-  return Object.keys(serverToolRegistry)
+  return Object.keys(getServerToolRegistry())
 }
 
 export async function routeExecution(
@@ -168,7 +178,7 @@ export async function routeExecution(
   payload: unknown,
   context?: ServerToolContext
 ): Promise<unknown> {
-  const tool = serverToolRegistry[toolName]
+  const tool = getServerToolRegistry()[toolName]
   if (!tool) {
     throw new Error(`Unknown server tool: ${toolName}`)
   }
