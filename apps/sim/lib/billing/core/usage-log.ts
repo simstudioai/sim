@@ -5,15 +5,12 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('UsageLog')
-const OPEN_BILLING_PERIOD = {
-  start: new Date(0),
-  end: new Date(Date.UTC(9999, 11, 31)),
-} as const
 
 /**
  * Usage log category types
@@ -95,10 +92,6 @@ function stableEventKey(parts: Record<string, unknown>): string {
     .map((key) => `${key}:${String(parts[key] ?? '')}`)
     .join('|')
   return createHash('sha256').update(payload).digest('hex')
-}
-
-function defaultBillingPeriod(): { start: Date; end: Date } {
-  return { ...OPEN_BILLING_PERIOD }
 }
 
 async function resolveBillingContext(

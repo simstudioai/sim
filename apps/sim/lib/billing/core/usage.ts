@@ -10,6 +10,7 @@ import {
   renderUsageThresholdEmail,
 } from '@/components/emails'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
+import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
   getHighestPrioritySubscription,
   type HighestPrioritySubscription,
@@ -37,13 +38,6 @@ import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getEmailPreferences } from '@/lib/messaging/email/unsubscribe'
 
 const logger = createLogger('UsageManagement')
-
-function defaultBillingPeriod(): { start: Date; end: Date } {
-  return {
-    start: new Date(0),
-    end: new Date(Date.UTC(9999, 11, 31)),
-  }
-}
 
 export interface OrgUsageLimitResult {
   limit: number

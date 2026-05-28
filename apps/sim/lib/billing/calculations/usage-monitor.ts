@@ -3,6 +3,7 @@ import { member, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
+import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
   getHighestPrioritySubscription,
   type HighestPrioritySubscription,
@@ -21,13 +22,6 @@ import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 const logger = createLogger('UsageMonitor')
 
 const WARNING_THRESHOLD = 80
-
-function defaultBillingPeriod(): { start: Date; end: Date } {
-  return {
-    start: new Date(0),
-    end: new Date(Date.UTC(9999, 11, 31)),
-  }
-}
 
 interface UsageData {
   percentUsed: number
