@@ -103,7 +103,7 @@ function supportsAdaptiveThinking(modelId: string): boolean {
 /**
  * Builds the thinking configuration for the Anthropic API based on model capabilities and level.
  *
- * - Opus 4.7: Uses adaptive thinking only (no extended thinking support)
+ * - Opus 4.8, Opus 4.7: Uses adaptive thinking only (no extended thinking support)
  * - Opus 4.6, Sonnet 4.6: Uses adaptive thinking with effort parameter
  * - Other models: Uses budget_tokens-based extended thinking
  *
