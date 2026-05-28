@@ -14,7 +14,7 @@ export const apolloContactSearchTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key',
     },
     q_keywords: {

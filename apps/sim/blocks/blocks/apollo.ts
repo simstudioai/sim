@@ -224,11 +224,10 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
       required: true,
     },
     {
-      id: 'organizations',
-      title: 'Organizations (JSON Array)',
+      id: 'domains',
+      title: 'Domains (JSON Array)',
       type: 'code',
-      placeholder:
-        '[{"name": "Company A", "domain": "companya.com"}, {"name": "Company B", "domain": "companyb.com"}]',
+      placeholder: '["apollo.io", "stripe.com"]',
       condition: { field: 'operation', value: 'organization_bulk_enrich' },
       required: true,
     },
@@ -1027,7 +1026,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
             'account_stage_ids',
             'account_label_ids',
             'people',
-            'organizations',
+            'domains',
             'contacts',
             'accounts',
             'contact_ids',
@@ -1168,7 +1167,172 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     operation: { type: 'string', description: 'Apollo operation to perform' },
   },
   outputs: {
-    success: { type: 'boolean', description: 'Whether the operation was successful' },
-    output: { type: 'json', description: 'Output data from the Apollo operation' },
+    people: {
+      type: 'json',
+      description:
+        'Array of people (people_search): [{id, first_name, last_name, name, title, email, organization_name, linkedin_url, phone_numbers}]',
+    },
+    person: {
+      type: 'json',
+      description:
+        'Enriched person (people_enrich): {id, first_name, last_name, name, title, email, organization_name, linkedin_url, phone_numbers}',
+    },
+    matches: {
+      type: 'json',
+      description: 'Array of enriched people (people_bulk_enrich), null entries indicate no match',
+    },
+    organizations: {
+      type: 'json',
+      description:
+        'Array of organizations (organization_search, organization_bulk_enrich): [{id, name, website_url, linkedin_url, industry, phone, employees, founded_year}]',
+    },
+    organization: {
+      type: 'json',
+      description:
+        'Enriched organization (organization_enrich): {id, name, website_url, linkedin_url, industry, phone, employees, founded_year}',
+    },
+    contact: {
+      type: 'json',
+      description:
+        'Contact (contact_create, contact_update): {id, first_name, last_name, email, title, account_id, owner_id, created_at}',
+    },
+    contacts: {
+      type: 'json',
+      description: 'Array of contacts (contact_search)',
+    },
+    created_contacts: {
+      type: 'json',
+      description: 'Newly created contacts (contact_bulk_create)',
+    },
+    existing_contacts: {
+      type: 'json',
+      description: 'Existing contacts (contact_bulk_create with dedupe)',
+    },
+    account: {
+      type: 'json',
+      description:
+        'Account (account_create, account_update): {id, name, domain, website_url, phone, owner_id, account_stage_id, created_at}',
+    },
+    accounts: {
+      type: 'json',
+      description: 'Array of accounts (account_search)',
+    },
+    created_accounts: {
+      type: 'json',
+      description: 'Newly created accounts (account_bulk_create)',
+    },
+    existing_accounts: {
+      type: 'json',
+      description: 'Existing accounts (account_bulk_create with dedupe)',
+    },
+    failed_accounts: {
+      type: 'json',
+      description: 'Accounts that failed (account_bulk_create)',
+    },
+    account_ids: {
+      type: 'json',
+      description: 'IDs of updated accounts (account_bulk_update)',
+    },
+    entity_progress_job: {
+      type: 'json',
+      description: 'Async job descriptor (contact_bulk_update, account_bulk_update async path)',
+    },
+    opportunity: {
+      type: 'json',
+      description:
+        'Opportunity (opportunity_create, opportunity_update, opportunity_get): {id, name, account_id, amount, opportunity_stage_id, owner_id, closed_date, is_closed, is_won, currency, created_at}',
+    },
+    opportunities: {
+      type: 'json',
+      description: 'Array of opportunities (opportunity_search)',
+    },
+    sequences: {
+      type: 'json',
+      description:
+        'Array of sequences (sequence_search): [{id, name, active, num_steps, num_contacts, created_at}]',
+    },
+    added: {
+      type: 'json',
+      description:
+        'Contacts added to sequence (sequence_add): [{id, first_name, last_name, email, status}]',
+    },
+    skipped: {
+      type: 'json',
+      description: 'Contacts skipped by sequence add (sequence_add)',
+    },
+    skipped_contact_ids: {
+      type: 'json',
+      description: 'Skipped contact IDs (sequence_add): array of IDs or {id: reason} map',
+    },
+    emailer_campaign: {
+      type: 'json',
+      description: 'Emailer campaign details (sequence_add): {id, name}',
+    },
+    sequence_id: {
+      type: 'string',
+      description: 'Sequence ID contacts were added to (sequence_add)',
+    },
+    tasks: {
+      type: 'json',
+      description:
+        'Array of tasks (task_create, task_search): [{id, user_id, contact_id, type, priority, status, due_at, note, created_at}]',
+    },
+    email_accounts: {
+      type: 'json',
+      description:
+        'Linked email accounts (email_accounts): [{id, email, type, active, default, linked_at}]',
+    },
+    pagination: {
+      type: 'json',
+      description: 'Pagination info (contact_search, account_search, task_search)',
+    },
+    page: { type: 'number', description: 'Current page (search operations)' },
+    per_page: { type: 'number', description: 'Results per page (search operations)' },
+    total_entries: {
+      type: 'number',
+      description: 'Total entries matching search (search operations)',
+    },
+    total_added: { type: 'number', description: 'Contacts added (sequence_add)' },
+    total_skipped: { type: 'number', description: 'Contacts skipped (sequence_add)' },
+    total_submitted: {
+      type: 'number',
+      description: 'Total submitted (contact_bulk_create, account_bulk_create)',
+    },
+    created: {
+      type: 'boolean',
+      description: 'Created flag for single-item create operations',
+    },
+    updated: { type: 'boolean', description: 'Updated flag for single-item update operations' },
+    found: { type: 'boolean', description: 'Found flag (opportunity_get)' },
+    enriched: {
+      type: 'boolean',
+      description: 'Enriched flag (people_enrich, organization_enrich)',
+    },
+    message: { type: 'string', description: 'Message (bulk_update operations)' },
+    job_id: { type: 'string', description: 'Async job ID (bulk_update operations)' },
+    total: {
+      type: 'number',
+      description: 'Total count (organization_bulk_enrich requested domains; email_accounts count)',
+    },
+    total_requested_enrichments: {
+      type: 'number',
+      description: 'Total requested enrichments (people_bulk_enrich)',
+    },
+    unique_enriched_records: {
+      type: 'number',
+      description: 'Unique enriched records (people_bulk_enrich)',
+    },
+    unique_domains: {
+      type: 'number',
+      description: 'Unique domains processed (organization_bulk_enrich)',
+    },
+    missing_records: {
+      type: 'number',
+      description: 'Missing records (people_bulk_enrich, organization_bulk_enrich)',
+    },
+    credits_consumed: {
+      type: 'number',
+      description: 'Credits consumed (people_bulk_enrich)',
+    },
   },
 }

@@ -11,7 +11,7 @@ export const apolloTaskSearchTool: ToolConfig<ApolloTaskSearchParams, ApolloTask
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key (master key required)',
     },
     sort_by_field: {
@@ -42,22 +42,23 @@ export const apolloTaskSearchTool: ToolConfig<ApolloTaskSearchParams, ApolloTask
   },
 
   request: {
-    url: 'https://api.apollo.io/api/v1/tasks/search',
+    url: (params: ApolloTaskSearchParams) => {
+      const qs = new URLSearchParams()
+      qs.set('page', String(params.page || 1))
+      qs.set('per_page', String(Math.min(params.per_page || 25, 100)))
+      if (params.sort_by_field) qs.set('sort_by_field', params.sort_by_field)
+      if (params.open_factor_names?.length) {
+        for (const name of params.open_factor_names) {
+          if (typeof name === 'string' && name) qs.append('open_factor_names[]', name)
+        }
+      }
+      return `https://api.apollo.io/api/v1/tasks/search?${qs.toString()}`
+    },
     method: 'POST',
     headers: (params: ApolloTaskSearchParams) => ({
-      'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
     }),
-    body: (params: ApolloTaskSearchParams) => {
-      const body: Record<string, unknown> = {
-        page: params.page || 1,
-        per_page: Math.min(params.per_page || 25, 100),
-      }
-      if (params.sort_by_field) body.sort_by_field = params.sort_by_field
-      if (params.open_factor_names?.length) body.open_factor_names = params.open_factor_names
-      return body
-    },
   },
 
   transformResponse: async (response: Response) => {

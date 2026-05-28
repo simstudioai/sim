@@ -137,6 +137,11 @@ export const wizaCompanyEnrichmentTool: ToolConfig<
     company_region: { type: 'string', description: 'State/region', optional: true },
     company_postal_code: { type: 'string', description: 'Postal code', optional: true },
     company_country: { type: 'string', description: 'Country', optional: true },
-    credits: { type: 'json', description: 'Remaining API credits', optional: true },
+    credits: {
+      type: 'json',
+      description:
+        'Credits deducted for this enrichment (api_credits: { total, email_credits, phone_credits, scrape_credits })',
+      optional: true,
+    },
   },
 }

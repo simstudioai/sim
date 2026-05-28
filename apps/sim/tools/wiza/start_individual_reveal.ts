@@ -132,11 +132,20 @@ export const wizaStartIndividualRevealTool: ToolConfig<
   },
 
   outputs: {
-    id: { type: 'number', description: 'Individual reveal ID (use with Get Individual Reveal)' },
+    id: {
+      type: 'number',
+      description: 'Individual reveal ID (use with Get Individual Reveal)',
+      optional: true,
+    },
     status: {
       type: 'string',
       description: 'Reveal status: queued, resolving, finished, or failed',
+      optional: true,
     },
-    is_complete: { type: 'boolean', description: 'Whether the reveal has completed' },
+    is_complete: {
+      type: 'boolean',
+      description: 'Whether the reveal has completed',
+      optional: true,
+    },
   },
 }

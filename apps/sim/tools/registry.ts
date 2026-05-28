@@ -3176,6 +3176,14 @@ import {
   zoomListRecordingsTool,
   zoomUpdateMeetingTool,
 } from '@/tools/zoom'
+import {
+  zoominfoEnrichCompaniesTool,
+  zoominfoEnrichContactsTool,
+  zoominfoSearchCompaniesTool,
+  zoominfoSearchContactsTool,
+  zoominfoSearchIntentTool,
+  zoominfoSearchNewsTool,
+} from '@/tools/zoominfo'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -6006,6 +6014,12 @@ export const tools: Record<string, ToolConfig> = {
   zoom_get_meeting_recordings: zoomGetMeetingRecordingsTool,
   zoom_delete_recording: zoomDeleteRecordingTool,
   zoom_list_past_participants: zoomListPastParticipantsTool,
+  zoominfo_search_companies: zoominfoSearchCompaniesTool,
+  zoominfo_search_contacts: zoominfoSearchContactsTool,
+  zoominfo_enrich_companies: zoominfoEnrichCompaniesTool,
+  zoominfo_enrich_contacts: zoominfoEnrichContactsTool,
+  zoominfo_search_intent: zoominfoSearchIntentTool,
+  zoominfo_search_news: zoominfoSearchNewsTool,
   // Spotify
   spotify_search: spotifySearchTool,
   spotify_get_track: spotifyGetTrackTool,

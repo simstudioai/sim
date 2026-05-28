@@ -18,7 +18,7 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key (master key required)',
     },
     account_ids: {
@@ -116,25 +116,54 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
     }
 
     const data = await response.json()
+    const accounts = Array.isArray(data?.accounts) ? data.accounts : []
+    const entityProgressJob = data?.entity_progress_job ?? null
+    const accountIds = Array.isArray(data?.account_ids)
+      ? data.account_ids
+      : accounts.map((a: { id?: unknown }) => a?.id).filter((id: unknown) => typeof id === 'string')
+    const jobId =
+      typeof data?.job_id === 'string'
+        ? data.job_id
+        : typeof entityProgressJob?.id === 'string'
+          ? entityProgressJob.id
+          : null
 
     return {
       success: true,
       output: {
-        message: data.message ?? null,
-        account_ids: data.account_ids ?? [],
+        accounts,
+        account_ids: accountIds,
+        entity_progress_job: entityProgressJob,
+        job_id: jobId,
+        message: data?.message ?? null,
       },
     }
   },
 
   outputs: {
-    message: {
-      type: 'string',
-      description: 'Confirmation message from Apollo',
-      optional: true,
+    accounts: {
+      type: 'json',
+      description:
+        'Updated accounts (synchronous response, ≤100 accounts): [{id, account_stage_id, ...}]',
     },
     account_ids: {
       type: 'json',
       description: 'IDs of accounts that were updated',
+    },
+    entity_progress_job: {
+      type: 'json',
+      description: 'Async job descriptor (>100 accounts or async=true)',
+      optional: true,
+    },
+    job_id: {
+      type: 'string',
+      description: 'Async job ID extracted from entity_progress_job',
+      optional: true,
+    },
+    message: {
+      type: 'string',
+      description: 'Optional confirmation message from Apollo',
+      optional: true,
     },
   },
 }
