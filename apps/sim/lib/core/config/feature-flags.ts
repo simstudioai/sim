@@ -151,6 +151,11 @@ export const isWorkflowColumnsEnabledClient = isTruthy(
 )
 
 /**
+ * Enables beta Mothership plan/changelog artifact surfaces.
+ */
+export const isMothershipBetaFeaturesEnabled = isTruthy(env.MOTHERSHIP_BETA_FEATURES)
+
+/**
  * Is E2B enabled for remote code execution
  */
 export const isE2bEnabled = isTruthy(env.E2B_ENABLED)

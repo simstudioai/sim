@@ -12,6 +12,7 @@ import {
 } from '@/lib/copilot/vfs/path-utils'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
+import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('TouchPlanServerTool')
 const TOUCH_PLAN_TOOL_ID = 'touch_plan'
@@ -64,6 +65,9 @@ function normalizePlanRelativePath(name: string): string {
 export const touchPlanServerTool: BaseServerTool<TouchPlanArgs, TouchPlanResult> = {
   name: TOUCH_PLAN_TOOL_ID,
   async execute(params: TouchPlanArgs, context?: ServerToolContext): Promise<TouchPlanResult> {
+    if (!isMothershipBetaFeaturesEnabled) {
+      return { success: false, message: 'touch_plan is not available' }
+    }
     if (!context?.userId) {
       throw new Error('Authentication required')
     }

@@ -8,12 +8,14 @@ import {
   resolveWorkflowAliasPath,
   type WorkflowAliasTarget,
 } from '@/lib/copilot/vfs/workflow-aliases'
+import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
 import { canonicalizeVfsPath } from './path-utils'
 
 export async function resolveWorkflowAliasForWorkspace(args: {
   workspaceId: string
   path: string
 }): Promise<WorkflowAliasTarget | null> {
+  if (!isMothershipBetaFeaturesEnabled) return null
   if (!isPlanAliasPath(args.path)) return null
 
   let canonicalPath: string

@@ -18,6 +18,10 @@ vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
   writeWorkspaceFileByPath: mocks.writeWorkspaceFileByPath,
 }))
 
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isMothershipBetaFeaturesEnabled: true,
+}))
+
 import { touchPlanServerTool } from './touch-plan'
 
 describe('touch_plan server tool', () => {
