@@ -292,8 +292,25 @@ export function useTableUndo({
                       onColumnWidthsChangeRef.current?.(merged)
                     }
                     if (action.previousFrozenColumns !== null) {
-                      onFrozenColumnsChangeRef.current?.(action.previousFrozenColumns)
-                      metadata.frozenColumns = action.previousFrozenColumns
+                      const wasColumnFrozen = action.previousFrozenColumns.includes(
+                        action.columnName
+                      )
+                      if (wasColumnFrozen) {
+                        const currentFrozen = getFrozenColumnsRef.current?.() ?? []
+                        if (!currentFrozen.includes(action.columnName)) {
+                          const insertIndex = action.previousFrozenColumns.indexOf(
+                            action.columnName
+                          )
+                          const restoredFrozen = [...currentFrozen]
+                          restoredFrozen.splice(
+                            Math.min(insertIndex, restoredFrozen.length),
+                            0,
+                            action.columnName
+                          )
+                          onFrozenColumnsChangeRef.current?.(restoredFrozen)
+                          metadata.frozenColumns = restoredFrozen
+                        }
+                      }
                     }
                     if (Object.keys(metadata).length > 0) {
                       updateMetadataMutation.mutate(metadata)
