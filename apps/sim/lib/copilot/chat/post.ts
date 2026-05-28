@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
+import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-dual-write'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
 import {
   buildPersistedAssistantMessage,
@@ -333,7 +334,14 @@ async function persistUserMessage(params: {
           updatedAt: new Date(),
         })
         .where(eq(copilotChats.id, chatId))
-        .returning({ messages: copilotChats.messages })
+        .returning({ messages: copilotChats.messages, model: copilotChats.model })
+
+      if (updated) {
+        await appendCopilotChatMessages(chatId, [userMsg], {
+          streamId: userMessageId,
+          chatModel: updated.model ?? null,
+        })
+      }
 
       const messagesAfter = Array.isArray(updated?.messages) ? updated.messages : undefined
       span.setAttributes({

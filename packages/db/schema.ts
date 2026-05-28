@@ -1902,6 +1902,39 @@ export const copilotChats = pgTable(
   })
 )
 
+export const copilotMessages = pgTable(
+  'copilot_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    chatId: uuid('chat_id')
+      .notNull()
+      .references(() => copilotChats.id, { onDelete: 'cascade' }),
+    messageId: text('message_id').notNull(),
+    role: text('role').notNull(),
+    content: jsonb('content').notNull(),
+    streamId: text('stream_id'),
+    parentMessageId: text('parent_message_id'),
+    model: text('model'),
+    tokensIn: integer('tokens_in'),
+    tokensOut: integer('tokens_out'),
+    deletedAt: timestamp('deleted_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    chatMessageUnique: uniqueIndex('copilot_messages_chat_message_unique').on(
+      table.chatId,
+      table.messageId
+    ),
+    chatCreatedAtIdx: index('copilot_messages_chat_created_at_idx')
+      .on(table.chatId, table.createdAt, table.id)
+      .where(sql`${table.deletedAt} IS NULL`),
+    chatStreamIdx: index('copilot_messages_chat_stream_idx')
+      .on(table.chatId, table.streamId)
+      .where(sql`${table.streamId} IS NOT NULL`),
+  })
+)
+
 export const copilotWorkflowReadHashes = pgTable(
   'copilot_workflow_read_hashes',
   {
