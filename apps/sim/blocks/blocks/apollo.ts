@@ -589,6 +589,14 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'account_bulk_update_account_stage_id',
+      title: 'Uniform Account Stage ID (used with Account IDs)',
+      type: 'short-input',
+      placeholder: 'Apollo account stage ID',
+      condition: { field: 'operation', value: 'account_bulk_update' },
+      mode: 'advanced',
+    },
+    {
       id: 'account_attributes',
       title: 'Account Attributes (JSON Array of Objects)',
       type: 'code',
@@ -1126,8 +1134,12 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           if (rest.account_bulk_update_owner_id) {
             parsedParams.owner_id = rest.account_bulk_update_owner_id
           }
+          if (rest.account_bulk_update_account_stage_id) {
+            parsedParams.account_stage_id = rest.account_bulk_update_account_stage_id
+          }
           parsedParams.account_bulk_update_name = undefined
           parsedParams.account_bulk_update_owner_id = undefined
+          parsedParams.account_bulk_update_account_stage_id = undefined
         }
 
         if (params.operation === 'contact_create') {

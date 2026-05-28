@@ -40,6 +40,12 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'When using account_ids, apply this owner to all accounts',
     },
+    account_stage_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When using account_ids, apply this account stage to all accounts',
+    },
     account_attributes: {
       type: 'json',
       required: false,
@@ -71,6 +77,7 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
       }
       if (params.name) body.name = params.name
       if (params.owner_id) body.owner_id = params.owner_id
+      if (params.account_stage_id) body.account_stage_id = params.account_stage_id
       if (params.account_attributes) {
         if (Array.isArray(params.account_attributes)) {
           if (params.account_attributes.length > 0) {
@@ -83,7 +90,8 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
           body.account_attributes = params.account_attributes
         }
       }
-      const hasUpdateFields = body.account_attributes || body.name || body.owner_id
+      const hasUpdateFields =
+        body.account_attributes || body.name || body.owner_id || body.account_stage_id
       if (!hasUpdateFields) {
         throw new Error(
           'Apollo account bulk update requires update fields. Provide account_attributes (array of per-account updates with id, or single object paired with account_ids), or pair account_ids with name/owner_id to apply uniformly.'

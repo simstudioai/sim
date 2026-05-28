@@ -468,6 +468,7 @@ export interface ApolloAccountBulkUpdateParams extends ApolloBaseParams {
   account_ids?: string[]
   name?: string
   owner_id?: string
+  account_stage_id?: string
   account_attributes?: Array<{ id: string; [key: string]: unknown }> | Record<string, unknown>
   async?: boolean
 }
