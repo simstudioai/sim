@@ -85,6 +85,7 @@ export const agentphoneGetConversationMessagesTool: ToolConfig<
             direction: (msg.direction as string) ?? '',
             channel: (msg.channel as string | null) ?? null,
             mediaUrl: (msg.mediaUrl as string | null) ?? null,
+            mediaUrls: Array.isArray(msg.mediaUrls) ? (msg.mediaUrls as string[]) : [],
             receivedAt: (msg.receivedAt as string) ?? '',
           })
         ),
@@ -107,6 +108,11 @@ export const agentphoneGetConversationMessagesTool: ToolConfig<
           direction: { type: 'string', description: 'inbound or outbound' },
           channel: { type: 'string', description: 'sms, mms, or imessage', optional: true },
           mediaUrl: { type: 'string', description: 'Attached media URL', optional: true },
+          mediaUrls: {
+            type: 'array',
+            description: 'All attached media URLs',
+            items: { type: 'string' },
+          },
           receivedAt: { type: 'string', description: 'ISO 8601 timestamp' },
         },
       },

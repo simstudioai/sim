@@ -15,8 +15,9 @@ const TICKET_HEARTBEAT_TTL_SECONDS = 30
 export const HEARTBEAT_REFRESH_INTERVAL_MS = 10_000
 
 /**
- * TTL on the queue list itself. Set on every enqueue. Prevents abandoned queues
- * (whole workspace went silent) from sticking around forever in Redis.
+ * TTL on the queue list itself. Set on enqueue and re-extended by the head's heartbeat,
+ * so a long-waiting head can't let the list expire out from under the waiters behind it.
+ * Prevents abandoned queues from sticking around forever in Redis.
  */
 const QUEUE_LIST_TTL_SECONDS = 600
 
@@ -147,8 +148,9 @@ export class HostedKeyQueue {
   }
 
   /**
-   * Refresh the ticket's heartbeat. Called periodically by the head while it's
-   * waiting on the bucket so it doesn't get reaped as dead.
+   * Refresh the ticket's heartbeat so the head isn't reaped as dead while waiting on the
+   * bucket. Also re-extends the queue list TTL so a wait outliving {@link QUEUE_LIST_TTL_SECONDS}
+   * doesn't let the list expire and collapse FIFO ordering.
    */
   async refreshHeartbeat(
     provider: string,
@@ -158,9 +160,13 @@ export class HostedKeyQueue {
     const redis = getRedisClient()
     if (!redis) return
 
+    const listKey = queueListKey(provider, billingActorId)
     const hbKey = heartbeatKey(provider, billingActorId, ticketId)
     try {
-      await redis.set(hbKey, '1', 'EX', TICKET_HEARTBEAT_TTL_SECONDS)
+      const pipeline = redis.multi()
+      pipeline.set(hbKey, '1', 'EX', TICKET_HEARTBEAT_TTL_SECONDS)
+      pipeline.expire(listKey, QUEUE_LIST_TTL_SECONDS)
+      await pipeline.exec()
     } catch (error) {
       logger.warn(`Queue heartbeat refresh failed for ${hbKey}`, {
         error: toError(error).message,

@@ -32,6 +32,10 @@ import { MCP_CLIENT_CONSTANTS } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpClient')
 
+interface McpClientConnectOptions {
+  isCancelled?: () => boolean
+}
+
 export class McpClient {
   private client: Client
   private transport: StreamableHTTPClientTransport
@@ -85,11 +89,17 @@ export class McpClient {
    * If an `onToolsChanged` callback was provided, registers a notification handler
    * for `notifications/tools/list_changed` after connecting.
    */
-  async connect(): Promise<void> {
+  async connect(options: McpClientConnectOptions = {}): Promise<void> {
     logger.info(`Connecting to MCP server: ${this.config.name} (${this.config.transport})`)
 
     try {
       await this.client.connect(this.transport)
+      if (options.isCancelled?.()) {
+        await this.client.close().catch((error) => {
+          logger.warn(`Error closing cancelled connection to ${this.config.name}:`, error)
+        })
+        throw new McpConnectionError('Connection attempt cancelled', this.config.name)
+      }
 
       this.isConnected = true
       this.connectionStatus.connected = true

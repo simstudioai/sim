@@ -43,6 +43,7 @@ export const workflowScheduleRowSchema = z.object({
   triggerType: z.string(),
   timezone: z.string(),
   failedCount: z.number(),
+  infraRetryCount: z.number(),
   status: scheduleStatusSchema,
   lastFailedAt: z.string().nullable(),
   /**
@@ -130,6 +131,13 @@ const messageResponseSchema = z.object({
   message: z.string(),
   nextRunAt: z.string().optional(),
 })
+
+export const executeSchedulesResponseSchema = z.object({
+  message: z.string(),
+  status: z.literal('started'),
+})
+
+export type ExecuteSchedulesResponse = z.output<typeof executeSchedulesResponseSchema>
 
 export const getScheduleContract = defineRouteContract({
   method: 'GET',
@@ -226,5 +234,14 @@ export const deleteScheduleContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: messageResponseSchema,
+  },
+})
+
+export const executeSchedulesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/schedules/execute',
+  response: {
+    mode: 'json',
+    schema: executeSchedulesResponseSchema,
   },
 })

@@ -170,24 +170,32 @@ describe('HostedKeyQueue', () => {
   })
 
   describe('refreshHeartbeat', () => {
-    it('writes the heartbeat key with TTL', async () => {
-      mockRedis.set.mockResolvedValueOnce('OK')
+    it('writes the heartbeat key with TTL and re-extends the queue list TTL', async () => {
+      mockRedis.pipeline.exec.mockResolvedValueOnce([
+        [null, 'OK'],
+        [null, 1],
+      ])
 
       await queue.refreshHeartbeat(provider, workspaceId, ticketId)
 
-      expect(mockRedis.set).toHaveBeenCalledWith(
+      expect(mockRedis.pipeline.set).toHaveBeenCalledWith(
         'hosted-queue-tkt:exa:workspace-1:ticket-1',
         '1',
         'EX',
         expect.any(Number)
       )
+      expect(mockRedis.pipeline.expire).toHaveBeenCalledWith(
+        'hosted-queue:exa:workspace-1',
+        expect.any(Number)
+      )
+      expect(mockRedis.pipeline.exec).toHaveBeenCalledTimes(1)
     })
 
     it('is a no-op when Redis is unavailable', async () => {
       redisConfigMockFns.mockGetRedisClient.mockReturnValueOnce(null)
 
       await expect(queue.refreshHeartbeat(provider, workspaceId, ticketId)).resolves.toBeUndefined()
-      expect(mockRedis.set).not.toHaveBeenCalled()
+      expect(mockRedis.multi).not.toHaveBeenCalled()
     })
   })
 

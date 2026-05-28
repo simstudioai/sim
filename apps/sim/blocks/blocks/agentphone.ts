@@ -34,7 +34,7 @@ export const AgentPhoneBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Communication,
   tags: ['messaging', 'automation'],
-  bgColor: 'linear-gradient(135deg, #1a1a1a 0%, #0a2a14 100%)',
+  bgColor: '#000000',
   icon: AgentPhoneIcon,
   authMode: AuthMode.ApiKey,
 
@@ -700,6 +700,7 @@ export const AgentPhoneBlock: BlockConfig = {
     from_: { type: 'string', description: 'Sender phone number on a number message' },
     body: { type: 'string', description: 'Message body text' },
     mediaUrl: { type: 'string', description: 'Attached media URL' },
+    mediaUrls: { type: 'json', description: 'Attached media URLs (array)' },
     receivedAt: { type: 'string', description: 'ISO 8601 timestamp' },
     participant: { type: 'string', description: 'External participant phone number' },
     lastMessageAt: { type: 'string', description: 'ISO 8601 timestamp' },
@@ -712,7 +713,7 @@ export const AgentPhoneBlock: BlockConfig = {
     messages: {
       type: 'json',
       description:
-        'Conversation messages: [{id, body, fromNumber, toNumber, direction, channel, mediaUrl, receivedAt}]',
+        'Conversation messages: [{id, body, fromNumber, toNumber, direction, channel, mediaUrl, mediaUrls, receivedAt}]',
     },
     reactionType: { type: 'string', description: 'Reaction type applied' },
     messageId: { type: 'string', description: 'Message ID' },

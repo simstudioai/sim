@@ -1,17 +1,54 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { mcpToolDiscoveryQuerySchema, refreshMcpToolsBodySchema } from '@/lib/api/contracts/mcp'
 import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import {
+  mcpBodyReadErrorResponse,
+  readMcpJsonBodyWithLimit,
+  withMcpAuth,
+} from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import { McpOauthAuthorizationRequiredError, type McpToolDiscoveryResponse } from '@/lib/mcp/types'
 import { categorizeError, createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpToolDiscoveryAPI')
+const MCP_REFRESH_DISCOVERY_CONCURRENCY = 5
 
 export const dynamic = 'force-dynamic'
+
+async function settleWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  task: (item: T) => Promise<R>
+): Promise<Array<PromiseSettledResult<R>>> {
+  const results: Array<PromiseSettledResult<R> | undefined> = new Array(items.length)
+  let nextIndex = 0
+
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex
+      nextIndex += 1
+      try {
+        results[index] = { status: 'fulfilled', value: await task(items[index]) }
+      } catch (reason) {
+        results[index] = { status: 'rejected', reason }
+      }
+    }
+  })
+
+  await Promise.all(workers)
+
+  return results.map(
+    (result) =>
+      result ?? {
+        status: 'rejected',
+        reason: new Error('MCP refresh discovery task did not run'),
+      }
+  )
+}
 
 export const GET = withRouteHandler(
   withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
@@ -63,7 +100,7 @@ export const GET = withRouteHandler(
 export const POST = withRouteHandler(
   withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
-      const rawBody = getParsedBody(request) ?? (await request.json())
+      const rawBody = await readMcpJsonBodyWithLimit(request)
       const parsedBody = refreshMcpToolsBodySchema.safeParse(rawBody)
 
       if (!parsedBody.success) {
@@ -74,11 +111,13 @@ export const POST = withRouteHandler(
 
       logger.info(`[${requestId}] Refreshing tools for ${serverIds.length} servers`)
 
-      const results = await Promise.allSettled(
-        serverIds.map(async (serverId: string) => {
+      const results = await settleWithConcurrency(
+        serverIds,
+        MCP_REFRESH_DISCOVERY_CONCURRENCY,
+        async (serverId: string) => {
           const tools = await mcpService.discoverServerTools(userId, serverId, workspaceId, true)
           return { serverId, toolCount: tools.length }
-        })
+        }
       )
 
       const successes: Array<{ serverId: string; toolCount: number }> = []
@@ -91,7 +130,7 @@ export const POST = withRouteHandler(
         } else {
           failures.push({
             serverId,
-            error: result.reason instanceof Error ? result.reason.message : 'Unknown error',
+            error: getErrorMessage(result.reason, 'Unknown error'),
           })
         }
       })
@@ -107,6 +146,8 @@ export const POST = withRouteHandler(
         },
       })
     } catch (error) {
+      const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+      if (bodyErrorResponse) return bodyErrorResponse
       if (
         error instanceof McpOauthAuthorizationRequiredError ||
         error instanceof UnauthorizedError

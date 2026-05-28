@@ -8,7 +8,11 @@ import { getExecutionTimeout } from '@/lib/core/execution-limits'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SIM_VIA_HEADER } from '@/lib/execution/call-chain'
-import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import {
+  mcpBodyReadErrorResponse,
+  readMcpJsonBodyWithLimit,
+  withMcpAuth,
+} from '@/lib/mcp/middleware'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
 import {
@@ -53,7 +57,7 @@ export const POST = withRouteHandler(
   withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     let serverId: string | undefined
     try {
-      const rawBody = getParsedBody(request) ?? (await request.json())
+      const rawBody = await readMcpJsonBodyWithLimit(request)
       const parsedBody = mcpToolExecutionBodySchema.safeParse(rawBody)
 
       if (!parsedBody.success) {
@@ -235,6 +239,8 @@ export const POST = withRouteHandler(
 
       return createMcpSuccessResponse(transformedResult)
     } catch (error) {
+      const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+      if (bodyErrorResponse) return bodyErrorResponse
       if (
         error instanceof McpOauthAuthorizationRequiredError ||
         error instanceof McpOauthRedirectRequired ||

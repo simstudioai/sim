@@ -4,6 +4,10 @@ import { getActiveWorkflowRecord } from '@sim/workflow-authz'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import {
+  describeRetryableInfrastructureError,
+  isRetryableInfrastructureError,
+} from '@/lib/core/errors/retryable-infrastructure'
 import { getExecutionTimeout } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
@@ -40,7 +44,7 @@ export interface PreprocessExecutionOptions {
   useAuthenticatedUserAsActor?: boolean // If true, use the authenticated userId as actorUserId (for client-side executions and personal API keys)
   /** @deprecated No longer used - background/async executions always use deployed state */
   useDraftState?: boolean
-  /** Pre-fetched workflow record to skip the Step 1 DB query. Must be a full workflow table row. */
+  /** Pre-fetched workflow row for caller context; preprocessing still re-checks active state. */
   workflowRecord?: WorkflowRecord
 }
 
@@ -53,6 +57,8 @@ export interface PreprocessExecutionResult {
     message: string
     statusCode: number
     logCreated: boolean
+    retryable?: boolean
+    cause?: Record<string, unknown>
   }
   actorUserId?: string
   workflowRecord?: WorkflowRecord
@@ -159,6 +165,8 @@ export async function preprocessExecution(
           message: 'Internal error while fetching workflow',
           statusCode: 500,
           logCreated: true,
+          retryable: isRetryableInfrastructureError(error),
+          cause: describeRetryableInfrastructureError(error),
         },
       }
     }
@@ -287,6 +295,8 @@ export async function preprocessExecution(
         message: 'Error resolving billing account',
         statusCode: 500,
         logCreated: true,
+        retryable: isRetryableInfrastructureError(error),
+        cause: describeRetryableInfrastructureError(error),
       },
     }
   }
@@ -358,6 +368,8 @@ export async function preprocessExecution(
           message: 'Unable to determine usage limits. Execution blocked for security.',
           statusCode: 500,
           logCreated: true,
+          retryable: isRetryableInfrastructureError(error),
+          cause: describeRetryableInfrastructureError(error),
         },
       }
     }
@@ -425,6 +437,8 @@ export async function preprocessExecution(
           message: 'Error checking rate limits',
           statusCode: 500,
           logCreated: true,
+          retryable: isRetryableInfrastructureError(error),
+          cause: describeRetryableInfrastructureError(error),
         },
       }
     }

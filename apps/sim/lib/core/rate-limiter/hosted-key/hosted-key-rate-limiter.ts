@@ -65,6 +65,7 @@ function interruptibleSleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise<void>((resolve) => {
     const onAbort = () => {
       clearTimeout(timer)
+      signal.removeEventListener('abort', onAbort)
       resolve()
     }
     const timer = setTimeout(() => {
@@ -72,6 +73,8 @@ function interruptibleSleep(ms: number, signal?: AbortSignal): Promise<void> {
       resolve()
     }, ms)
     signal.addEventListener('abort', onAbort, { once: true })
+    // Catch an abort that fired between the guard above and addEventListener.
+    if (signal.aborted) onAbort()
   })
 }
 

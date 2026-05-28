@@ -91,6 +91,24 @@ describe('compactExecutionPayload', () => {
     expect(isLargeValueRef(compacted.metadata)).toBe(true)
   })
 
+  it('rejects oversized values before preserving or spilling them when requested', async () => {
+    await expect(
+      compactExecutionPayload(
+        { root: Object.fromEntries(Array.from({ length: 100 }, (_, index) => [`k${index}`, 'x'])) },
+        {
+          thresholdBytes: 256,
+          preserveRoot: true,
+          rejectLargeValues: true,
+          rejectLargeValueLabel: 'Workflow execution response',
+          ...TEST_EXECUTION_CONTEXT,
+        }
+      )
+    ).rejects.toMatchObject({
+      name: 'PayloadSizeLimitError',
+      label: 'Workflow execution response',
+    })
+  })
+
   it('does not double-spill existing refs', async () => {
     const compacted = await compactExecutionPayload(
       { results: [[{ payload: 'x'.repeat(2048) }]] },
