@@ -93,7 +93,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       accessToken = resolvedToken
       logger.info('Using OAuth token for Slack API')
 
-      if (authz.resolvedCredentialId) {
+      // resolvedCredentialId is an account.id only for OAuth credentials
+      // (the service_account path returns a credential.id).
+      if (authz.credentialType === 'oauth' && authz.resolvedCredentialId) {
         const [accountRow] = await db
           .select({ accountId: account.accountId })
           .from(account)
