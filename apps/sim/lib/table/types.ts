@@ -142,14 +142,14 @@ export interface TableSchema {
 
 /**
  * Table-level metadata stored alongside the table definition. UI state only
- * (column widths, column order, frozen columns) — workflow-group concurrency
+ * (column widths, column order, pinned columns) — workflow-group concurrency
  * is enforced at the trigger.dev queue layer, not via metadata.
  */
 export interface TableMetadata {
   columnWidths?: Record<string, number>
   columnOrder?: string[]
   /** Logical column names that are pinned to the left while scrolling horizontally. */
-  frozenColumns?: string[]
+  pinnedColumns?: string[]
 }
 
 export interface TableDefinition {

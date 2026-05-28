@@ -302,9 +302,9 @@ export function TableGrid({
   const [dropSide, setDropSide] = useState<'left' | 'right'>('left')
   const dropSideRef = useRef(dropSide)
   dropSideRef.current = dropSide
-  const [frozenColumns, setFrozenColumns] = useState<string[]>([])
-  const frozenColumnsRef = useRef(frozenColumns)
-  frozenColumnsRef.current = frozenColumns
+  const [pinnedColumns, setPinnedColumns] = useState<string[]>([])
+  const pinnedColumnsRef = useRef(pinnedColumns)
+  pinnedColumnsRef.current = pinnedColumns
   const metadataSeededRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -469,13 +469,13 @@ export function TableGrid({
     }
     const updatedOrder = columnOrderRef.current?.map((n) => (n === oldName ? newName : n))
     if (updatedOrder) setColumnOrder(updatedOrder)
-    const updatedFrozen = frozenColumnsRef.current.map((n) => (n === oldName ? newName : n))
-    const frozenChanged = updatedFrozen.some((n, i) => n !== frozenColumnsRef.current[i])
-    if (frozenChanged) setFrozenColumns(updatedFrozen)
+    const updatedPinned = pinnedColumnsRef.current.map((n) => (n === oldName ? newName : n))
+    const pinnedChanged = updatedPinned.some((n, i) => n !== pinnedColumnsRef.current[i])
+    if (pinnedChanged) setPinnedColumns(updatedPinned)
     updateMetadataRef.current({
       columnWidths: updatedWidths,
       ...(updatedOrder ? { columnOrder: updatedOrder } : {}),
-      ...(frozenChanged ? { frozenColumns: updatedFrozen } : {}),
+      ...(pinnedChanged ? { pinnedColumns: updatedPinned } : {}),
     })
   }
   // Populate the wrapper's sink so its sidebars can fire renames back into
@@ -490,16 +490,16 @@ export function TableGrid({
     setColumnWidths(widths)
   }
 
-  function handleFrozenColumnsChange(frozen: string[]) {
-    setFrozenColumns(frozen)
-    frozenColumnsRef.current = frozen
+  function handlePinnedColumnsChange(pinned: string[]) {
+    setPinnedColumns(pinned)
+    pinnedColumnsRef.current = pinned
   }
 
-  function getFrozenColumns() {
-    return frozenColumnsRef.current
+  function getPinnedColumns() {
+    return pinnedColumnsRef.current
   }
 
-  const handleFreezeToggle = useCallback((columnName: string) => {
+  const handlePinToggle = useCallback((columnName: string) => {
     const col = columnsRef.current.find((c) => c.name === columnName)
     const siblings: string[] = col?.workflowGroupId
       ? columnsRef.current
@@ -507,33 +507,33 @@ export function TableGrid({
           .map((c) => c.name)
       : [columnName]
 
-    const current = frozenColumnsRef.current
-    if (current.includes(columnName)) {
-      const newFrozen = current.filter((n) => !siblings.includes(n))
-      setFrozenColumns(newFrozen)
-      frozenColumnsRef.current = newFrozen
-      updateMetadataRef.current({
-        frozenColumns: newFrozen,
-        columnWidths: columnWidthsRef.current,
-      })
-    } else {
-      const newFrozen = [...current, ...siblings.filter((n) => !current.includes(n))]
-      setFrozenColumns(newFrozen)
-      frozenColumnsRef.current = newFrozen
-      const currentOrder = columnOrderRef.current ?? schemaColumnsRef.current.map((c) => c.name)
-      const frozenSet = new Set(newFrozen)
-      const newOrder = [
-        ...currentOrder.filter((n) => frozenSet.has(n)),
-        ...currentOrder.filter((n) => !frozenSet.has(n)),
-      ]
+    const current = pinnedColumnsRef.current
+    const newPinned = current.includes(columnName)
+      ? current.filter((n) => !siblings.includes(n))
+      : [...current, ...siblings.filter((n) => !current.includes(n))]
+    setPinnedColumns(newPinned)
+    pinnedColumnsRef.current = newPinned
+
+    // Re-enforce pinned-at-front. Pinning pulls the column into the sticky
+    // zone; unpinning ejects it to the first unpinned slot. Without this on
+    // unpin, the unpinned column would stay sandwiched between still-pinned
+    // siblings and the sticky zone would render with a gap.
+    const currentOrder = columnOrderRef.current ?? schemaColumnsRef.current.map((c) => c.name)
+    const pinnedSet = new Set(newPinned)
+    const newOrder = [
+      ...currentOrder.filter((n) => pinnedSet.has(n)),
+      ...currentOrder.filter((n) => !pinnedSet.has(n)),
+    ]
+    const orderChanged = newOrder.some((n, i) => n !== currentOrder[i])
+    if (orderChanged) {
       setColumnOrder(newOrder)
       columnOrderRef.current = newOrder
-      updateMetadataRef.current({
-        frozenColumns: newFrozen,
-        columnOrder: newOrder,
-        columnWidths: columnWidthsRef.current,
-      })
     }
+    updateMetadataRef.current({
+      pinnedColumns: newPinned,
+      ...(orderChanged ? { columnOrder: newOrder } : {}),
+      columnWidths: columnWidthsRef.current,
+    })
   }, [])
 
   const { pushUndo, undo, redo } = useTableUndo({
@@ -542,8 +542,8 @@ export function TableGrid({
     onColumnOrderChange: handleColumnOrderChange,
     onColumnRename: handleColumnRename,
     onColumnWidthsChange: handleColumnWidthsChange,
-    onFrozenColumnsChange: handleFrozenColumnsChange,
-    getFrozenColumns,
+    onPinnedColumnsChange: handlePinnedColumnsChange,
+    getPinnedColumns,
     getColumnWidths,
   })
   const undoRef = useRef(undo)
@@ -585,48 +585,48 @@ export function TableGrid({
     hasWorkflowColumns
   )
 
-  const frozenColumnSet = useMemo(() => new Set(frozenColumns), [frozenColumns])
+  const pinnedColumnSet = useMemo(() => new Set(pinnedColumns), [pinnedColumns])
 
-  // Stable fingerprint of frozen-column widths only. Changes when a frozen
-  // column is resized; stays the same when a non-frozen column is resized.
-  // Used as the sole dep that ties frozenOffsets to column-width changes so
-  // that non-frozen resizes don't recreate the Map and re-render all DataRows.
-  const frozenWidthsKey = displayColumns
-    .filter((c) => frozenColumnSet.has(c.name))
+  // Stable fingerprint of pinned-column widths only. Changes when a pinned
+  // column is resized; stays the same when an unpinned column is resized.
+  // Used as the sole dep that ties pinnedOffsets to column-width changes so
+  // that unpinned resizes don't recreate the Map and re-render all DataRows.
+  const pinnedWidthsKey = displayColumns
+    .filter((c) => pinnedColumnSet.has(c.name))
     .map((c) => columnWidths[c.key] ?? COL_WIDTH)
     .join(',')
 
-  /** Frozen column key → sticky `left` px offset. */
-  const frozenOffsets = useMemo<Map<string, number>>(() => {
+  /** Pinned column key → sticky `left` px offset. */
+  const pinnedOffsets = useMemo<Map<string, number>>(() => {
     const offsets = new Map<string, number>()
     let left = checkboxColWidth
     const widths = columnWidthsRef.current
     for (const col of displayColumns) {
-      if (frozenColumnSet.has(col.name)) {
+      if (pinnedColumnSet.has(col.name)) {
         offsets.set(col.key, left)
         left += widths[col.key] ?? COL_WIDTH
       }
     }
     return offsets
-  }, [displayColumns, frozenColumnSet, checkboxColWidth, frozenWidthsKey])
+  }, [displayColumns, pinnedColumnSet, checkboxColWidth, pinnedWidthsKey])
 
-  const lastFrozenColKey = useMemo<string | null>(() => {
+  const lastPinnedColKey = useMemo<string | null>(() => {
     let last: string | null = null
     for (const col of displayColumns) {
-      if (frozenColumnSet.has(col.name)) last = col.key
+      if (pinnedColumnSet.has(col.name)) last = col.key
     }
     return last
-  }, [displayColumns, frozenColumnSet])
+  }, [displayColumns, pinnedColumnSet])
 
-  /** Right edge of the frozen sticky zone; used as the left inset for scroll-to-reveal. */
-  const frozenStickyLeftEdge = useMemo(() => {
+  /** Right edge of the pinned sticky zone; used as the left inset for scroll-to-reveal. */
+  const pinnedStickyLeftEdge = useMemo(() => {
     let edge = checkboxColWidth
     const widths = columnWidthsRef.current
-    for (const [key, left] of frozenOffsets) {
+    for (const [key, left] of pinnedOffsets) {
       edge = Math.max(edge, left + (widths[key] ?? COL_WIDTH))
     }
     return edge
-  }, [frozenOffsets, checkboxColWidth])
+  }, [pinnedOffsets, checkboxColWidth])
 
   const headerGroups = useMemo(
     () => buildHeaderGroups(displayColumns, tableWorkflowGroups),
@@ -1225,6 +1225,17 @@ export function TableGrid({
       }
     }
 
+    // Pinned columns reorder only within the pinned zone; unpinned only within
+    // the unpinned zone. Cross-zone drops are silently dropped so the indicator
+    // never lies about an insertion that would just get snapped back.
+    if (dragged) {
+      const pinned = pinnedColumnsRef.current
+      if (pinned.includes(dragged) !== pinned.includes(columnName)) {
+        if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
+        return
+      }
+    }
+
     // Workflow groups: skip per-`<th>` writes and let `handleScrollDragOver`
     // do the bookkeeping. The scroll handler computes side from the group's
     // full bounds, so it stays stable across sibling cursor moves; the per-th
@@ -1346,16 +1357,17 @@ export function TableGrid({
         ...remaining.slice(insertIndex),
       ]
 
-      // Re-enforce frozen-at-front: if any frozen column was dragged behind a
-      // non-frozen one (or vice versa), restore the frozen zone at the front
+      // Re-enforce pinned-at-front: if any pinned column was dragged behind an
+      // unpinned one (or vice versa), restore the pinned zone at the front
       // while preserving the user's relative reorder within each zone.
+      // Defense in depth — dragover already blocks cross-zone drops.
       let finalOrder = newOrder
-      const currentFrozen = frozenColumnsRef.current
-      if (currentFrozen.length > 0) {
-        const frozenSet = new Set(currentFrozen)
-        const frozenInNew = newOrder.filter((n) => frozenSet.has(n))
-        const unfrozenInNew = newOrder.filter((n) => !frozenSet.has(n))
-        finalOrder = [...frozenInNew, ...unfrozenInNew]
+      const currentPinned = pinnedColumnsRef.current
+      if (currentPinned.length > 0) {
+        const pinnedSet = new Set(currentPinned)
+        const pinnedInNew = newOrder.filter((n) => pinnedSet.has(n))
+        const unpinnedInNew = newOrder.filter((n) => !pinnedSet.has(n))
+        finalOrder = [...pinnedInNew, ...unpinnedInNew]
       }
 
       const orderChanged = finalOrder.some((name, i) => currentOrder[i] !== name)
@@ -1412,6 +1424,13 @@ export function TableGrid({
           if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
           return
         }
+        // Cross-zone (pinned ↔ unpinned) → no-op drop, no indicator.
+        const pinned = pinnedColumnsRef.current
+        const draggedName = dragColumnNameRef.current
+        if (draggedName && pinned.includes(draggedName) !== pinned.includes(col.name)) {
+          if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
+          return
+        }
         const midX = left + groupWidth / 2
         const side = cursorX < midX ? 'left' : 'right'
         if (col.name !== dropTargetColumnNameRef.current || side !== dropSideRef.current) {
@@ -1458,7 +1477,7 @@ export function TableGrid({
     if (
       !tableData.metadata.columnWidths &&
       !tableData.metadata.columnOrder &&
-      !tableData.metadata.frozenColumns
+      !tableData.metadata.pinnedColumns
     )
       return
     // First load: seed all from the server and remember we've seeded.
@@ -1470,8 +1489,8 @@ export function TableGrid({
       if (tableData.metadata.columnOrder) {
         setColumnOrder(tableData.metadata.columnOrder)
       }
-      if (tableData.metadata.frozenColumns) {
-        setFrozenColumns(tableData.metadata.frozenColumns)
+      if (tableData.metadata.pinnedColumns) {
+        setPinnedColumns(tableData.metadata.pinnedColumns)
       }
       return
     }
@@ -1646,7 +1665,7 @@ export function TableGrid({
     const selector = `[data-table-scroll] [data-row="${rowIndex}"][data-col="${colIndex}"]`
     // `scrollIntoView` ignores the sticky `<thead>` and sticky gutter, so a cell
     // scrolled to the edge lands behind them. Scroll manually with insets equal
-    // to the sticky header height (top) and the full frozen left edge (left).
+    // to the sticky header height (top) and the full pinned left edge (left).
     const revealCell = (cell: HTMLElement) => {
       const scrollEl = scrollRef.current
       if (!scrollEl) return
@@ -1659,10 +1678,10 @@ export function TableGrid({
         scrollEl.scrollTop += rect.bottom - view.bottom
       }
       const targetColName = columnsRef.current[colIndex]?.name
-      const targetIsFrozen = targetColName ? frozenColumnSet.has(targetColName) : false
-      if (!targetIsFrozen) {
-        if (rect.left < view.left + frozenStickyLeftEdge) {
-          scrollEl.scrollLeft -= view.left + frozenStickyLeftEdge - rect.left
+      const targetIsPinned = targetColName ? pinnedColumnSet.has(targetColName) : false
+      if (!targetIsPinned) {
+        if (rect.left < view.left + pinnedStickyLeftEdge) {
+          scrollEl.scrollLeft -= view.left + pinnedStickyLeftEdge - rect.left
         } else if (rect.right > view.right) {
           scrollEl.scrollLeft += rect.right - view.right
         }
@@ -1692,8 +1711,8 @@ export function TableGrid({
     selectionFocus,
     isColumnSelection,
     rowVirtualizer,
-    frozenStickyLeftEdge,
-    frozenColumnSet,
+    pinnedStickyLeftEdge,
+    pinnedColumnSet,
   ])
 
   const handleCellClick = useCallback(
@@ -2834,7 +2853,7 @@ export function TableGrid({
         .map((r) => ({ rowId: r.id, value: r.data[columnToDelete] }))
       const previousWidth = columnWidthsRef.current[columnToDelete] ?? null
       const orderSnapshot = currentOrder ? [...currentOrder] : null
-      const frozenSnapshot = [...frozenColumnsRef.current]
+      const pinnedSnapshot = [...pinnedColumnsRef.current]
 
       const onDeleted = () => {
         deletedOriginalPositions.push(entry.position)
@@ -2848,17 +2867,17 @@ export function TableGrid({
           cellData,
           previousOrder: orderSnapshot,
           previousWidth,
-          previousFrozenColumns: frozenSnapshot,
+          previousPinnedColumns: pinnedSnapshot,
         })
 
         const { [columnToDelete]: _removedWidth, ...cleanedWidths } = columnWidthsRef.current
         setColumnWidths(cleanedWidths)
         columnWidthsRef.current = cleanedWidths
 
-        const updatedFrozen = frozenColumnsRef.current.filter((n) => n !== columnToDelete)
-        if (updatedFrozen.length !== frozenColumnsRef.current.length) {
-          setFrozenColumns(updatedFrozen)
-          frozenColumnsRef.current = updatedFrozen
+        const updatedPinned = pinnedColumnsRef.current.filter((n) => n !== columnToDelete)
+        if (updatedPinned.length !== pinnedColumnsRef.current.length) {
+          setPinnedColumns(updatedPinned)
+          pinnedColumnsRef.current = updatedPinned
         }
 
         if (currentOrder) {
@@ -2867,12 +2886,12 @@ export function TableGrid({
           updateMetadataRef.current({
             columnWidths: cleanedWidths,
             columnOrder: currentOrder,
-            frozenColumns: frozenColumnsRef.current,
+            pinnedColumns: pinnedColumnsRef.current,
           })
         } else {
           updateMetadataRef.current({
             columnWidths: cleanedWidths,
-            frozenColumns: frozenColumnsRef.current,
+            pinnedColumns: pinnedColumnsRef.current,
           })
         }
 
@@ -3296,7 +3315,7 @@ export function TableGrid({
                         <th className='sticky left-0 z-[12] border-[var(--border)] border-b bg-[var(--bg)] px-1 py-[5px]' />
                         {headerGroups.map((g) => {
                           const firstCol = displayColumns[g.startColIndex]
-                          const stickyLeft = firstCol ? frozenOffsets.get(firstCol.key) : undefined
+                          const stickyLeft = firstCol ? pinnedOffsets.get(firstCol.key) : undefined
                           if (g.kind === 'workflow') {
                             const lastCol = displayColumns[g.startColIndex + g.size - 1]
                             return (
@@ -3352,16 +3371,16 @@ export function TableGrid({
                                 onDragLeave={
                                   userPermissions.canEdit ? handleColumnDragLeave : undefined
                                 }
-                                isFrozen={firstCol ? frozenColumnSet.has(firstCol.name) : false}
-                                onFreezeToggle={
-                                  userPermissions.canEdit ? handleFreezeToggle : undefined
+                                isPinned={firstCol ? pinnedColumnSet.has(firstCol.name) : false}
+                                onPinToggle={
+                                  userPermissions.canEdit ? handlePinToggle : undefined
                                 }
                                 stickyLeft={stickyLeft}
-                                isLastFrozen={lastCol?.key === lastFrozenColKey}
+                                isLastPinned={lastCol?.key === lastPinnedColKey}
                               />
                             )
                           }
-                          const isLastFrz = firstCol?.key === lastFrozenColKey
+                          const isLastFrz = firstCol?.key === lastPinnedColKey
                           return (
                             <th
                               key={`meta-${g.startColIndex}`}
@@ -3389,8 +3408,8 @@ export function TableGrid({
                         onCheckedChange={handleSelectAllToggle}
                       />
                       {displayColumns.map((column, idx) => {
-                        const colIsFrozen = frozenColumnSet.has(column.name)
-                        const colStickyLeft = frozenOffsets.get(column.key)
+                        const colIsPinned = pinnedColumnSet.has(column.name)
+                        const colStickyLeft = pinnedOffsets.get(column.key)
                         return (
                           <ColumnHeaderMenu
                             key={column.key}
@@ -3427,12 +3446,12 @@ export function TableGrid({
                             sourceInfo={columnSourceInfo.get(column.name)}
                             onOpenConfig={handleConfigureColumn}
                             onViewWorkflow={handleViewWorkflow}
-                            isFrozen={colIsFrozen}
-                            onFreezeToggle={
-                              userPermissions.canEdit ? handleFreezeToggle : undefined
+                            isPinned={colIsPinned}
+                            onPinToggle={
+                              userPermissions.canEdit ? handlePinToggle : undefined
                             }
                             stickyLeft={colStickyLeft}
-                            isLastFrozen={column.key === lastFrozenColKey}
+                            isLastPinned={column.key === lastPinnedColKey}
                           />
                         )
                       })}
@@ -3515,8 +3534,8 @@ export function TableGrid({
                               onRunRow={onRunRow}
                               workflowGroups={tableWorkflowGroups}
                               activeDispatches={activeDispatches}
-                              frozenOffsets={frozenOffsets.size > 0 ? frozenOffsets : undefined}
-                              lastFrozenColKey={lastFrozenColKey}
+                              pinnedOffsets={pinnedOffsets.size > 0 ? pinnedOffsets : undefined}
+                              lastPinnedColKey={lastPinnedColKey}
                             />
                           )
                         })}

@@ -17,11 +17,11 @@ import {
   ArrowRight,
   Eye,
   EyeOff,
-  Lock,
   Pencil,
+  Pin,
+  PinOff,
   PlayOutline,
   Trash,
-  Unlock,
 } from '@/components/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
@@ -69,10 +69,10 @@ interface ColumnOptionsMenuProps {
   /** When set, the menu surfaces a "View workflow" item that opens a popup
    *  preview of the configured workflow. */
   onViewWorkflow?: () => void
-  /** Whether this column is currently frozen (pinned to the left). */
-  isFrozen?: boolean
-  /** Toggle the frozen state of this column. */
-  onFreezeToggle?: (columnName: string) => void
+  /** Whether this column is currently pinned to the left. */
+  isPinned?: boolean
+  /** Toggle the pinned state of this column. */
+  onPinToggle?: (columnName: string) => void
 }
 
 /**
@@ -99,8 +99,8 @@ export function ColumnOptionsMenu({
   onRunColumnSelected,
   selectedRowCount = 0,
   onViewWorkflow,
-  isFrozen,
-  onFreezeToggle,
+  isPinned,
+  onPinToggle,
 }: ColumnOptionsMenuProps) {
   const showRunActions = Boolean(onRunColumnAll && onRunColumnIncomplete)
   const showRunSelected = Boolean(onRunColumnSelected) && selectedRowCount > 0
@@ -167,10 +167,10 @@ export function ColumnOptionsMenu({
           <Pencil />
           Edit column
         </DropdownMenuItem>
-        {onFreezeToggle && (
-          <DropdownMenuItem onSelect={() => onFreezeToggle(column.name)}>
-            {isFrozen ? <Unlock /> : <Lock />}
-            {isFrozen ? 'Unfreeze column' : 'Freeze column'}
+        {onPinToggle && (
+          <DropdownMenuItem onSelect={() => onPinToggle(column.name)}>
+            {isPinned ? <PinOff /> : <Pin />}
+            {isPinned ? 'Unpin column' : 'Pin column'}
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
@@ -233,14 +233,14 @@ interface WorkflowGroupMetaCellProps {
   onDragEnd?: () => void
   onDragLeave?: () => void
   readOnly?: boolean
-  /** Left offset in pixels when frozen (drives `position: sticky`). */
+  /** Left offset in pixels when pinned (drives `position: sticky`). */
   stickyLeft?: number
-  /** Whether this is the rightmost frozen column group (renders a separator shadow). */
-  isLastFrozen?: boolean
-  /** Whether this column group is currently frozen (pinned to the left). */
-  isFrozen?: boolean
-  /** Toggle the frozen state for this column group. */
-  onFreezeToggle?: (columnName: string) => void
+  /** Whether this is the rightmost pinned column group (renders a separator shadow). */
+  isLastPinned?: boolean
+  /** Whether this column group is currently pinned to the left. */
+  isPinned?: boolean
+  /** Toggle the pinned state for this column group. */
+  onPinToggle?: (columnName: string) => void
 }
 
 /**
@@ -275,9 +275,9 @@ export function WorkflowGroupMetaCell({
   onDragLeave,
   readOnly,
   stickyLeft,
-  isLastFrozen,
-  isFrozen,
-  onFreezeToggle,
+  isLastPinned,
+  isPinned,
+  onPinToggle,
 }: WorkflowGroupMetaCellProps) {
   const isEnrichment = groupType === 'enrichment'
   const enrichment = isEnrichment ? getEnrichment(enrichmentId) : undefined
@@ -400,7 +400,7 @@ export function WorkflowGroupMetaCell({
       className={cn(
         'group relative cursor-pointer border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[5px] text-left align-middle before:pointer-events-none before:absolute before:top-0 before:bottom-0 before:left-[-1px] before:w-px before:bg-[var(--border)] before:content-[""]',
         stickyLeft !== undefined && 'z-[11]',
-        isLastFrozen && '[box-shadow:2px_0_0_0_var(--border)]'
+        isLastPinned && '[box-shadow:2px_0_0_0_var(--border)]'
       )}
       style={stickyLeft !== undefined ? { position: 'sticky', left: stickyLeft } : undefined}
     >
@@ -488,8 +488,8 @@ export function WorkflowGroupMetaCell({
           onRunColumnSelected={onRunColumn && selectedCount > 0 ? handleRunSelected : undefined}
           selectedRowCount={selectedCount}
           onViewWorkflow={onViewWorkflow ? () => onViewWorkflow(workflowId) : undefined}
-          isFrozen={isFrozen}
-          onFreezeToggle={onFreezeToggle}
+          isPinned={isPinned}
+          onPinToggle={onPinToggle}
         />
       )}
     </th>

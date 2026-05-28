@@ -41,14 +41,14 @@ interface ColumnHeaderMenuProps {
   /** Opens a popup preview of the column's underlying workflow. Surfaced in
    *  the chevron menu for workflow-output columns. */
   onViewWorkflow?: (workflowId: string) => void
-  /** Whether this column is currently frozen (pinned to the left). */
-  isFrozen?: boolean
-  /** Toggle the frozen state for this column. */
-  onFreezeToggle?: (columnName: string) => void
-  /** Left offset in pixels when frozen (drives `position: sticky`). */
+  /** Whether this column is currently pinned to the left. */
+  isPinned?: boolean
+  /** Toggle the pinned state for this column. */
+  onPinToggle?: (columnName: string) => void
+  /** Left offset in pixels when pinned (drives `position: sticky`). */
   stickyLeft?: number
-  /** Whether this is the rightmost frozen column (renders a separator shadow). */
-  isLastFrozen?: boolean
+  /** Whether this is the rightmost pinned column (renders a separator shadow). */
+  isLastPinned?: boolean
 }
 
 /**
@@ -83,10 +83,10 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   sourceInfo,
   onOpenConfig,
   onViewWorkflow,
-  isFrozen,
-  onFreezeToggle,
+  isPinned,
+  onPinToggle,
   stickyLeft,
-  isLastFrozen,
+  isLastPinned,
 }: ColumnHeaderMenuProps) {
   const renameInputRef = useRef<HTMLInputElement>(null)
   const didDragRef = useRef(false)
@@ -242,7 +242,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       className={cn(
         'group relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle',
         stickyLeft !== undefined && 'z-[11]',
-        isLastFrozen && '[box-shadow:2px_0_0_0_var(--border)]'
+        isLastPinned && '[box-shadow:2px_0_0_0_var(--border)]'
       )}
       style={stickyLeft !== undefined ? { position: 'sticky', left: stickyLeft } : undefined}
       draggable={!readOnly && !isRenaming}
@@ -332,8 +332,8 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             onViewWorkflow={
               onViewWorkflow && ownGroup ? () => onViewWorkflow(ownGroup.workflowId) : undefined
             }
-            isFrozen={isFrozen}
-            onFreezeToggle={onFreezeToggle}
+            isPinned={isPinned}
+            onPinToggle={onPinToggle}
           />
         </div>
       )}

@@ -31,8 +31,8 @@ interface UseTableUndoProps {
   onColumnOrderChange?: (order: string[]) => void
   onColumnRename?: (oldName: string, newName: string) => void
   onColumnWidthsChange?: (widths: Record<string, number>) => void
-  onFrozenColumnsChange?: (frozen: string[]) => void
-  getFrozenColumns?: () => string[]
+  onPinnedColumnsChange?: (pinned: string[]) => void
+  getPinnedColumns?: () => string[]
   getColumnWidths?: () => Record<string, number>
 }
 
@@ -42,8 +42,8 @@ export function useTableUndo({
   onColumnOrderChange,
   onColumnRename,
   onColumnWidthsChange,
-  onFrozenColumnsChange,
-  getFrozenColumns,
+  onPinnedColumnsChange,
+  getPinnedColumns,
   getColumnWidths,
 }: UseTableUndoProps) {
   const push = useTableUndoStore((s) => s.push)
@@ -73,10 +73,10 @@ export function useTableUndo({
   onColumnRenameRef.current = onColumnRename
   const onColumnWidthsChangeRef = useRef(onColumnWidthsChange)
   onColumnWidthsChangeRef.current = onColumnWidthsChange
-  const onFrozenColumnsChangeRef = useRef(onFrozenColumnsChange)
-  onFrozenColumnsChangeRef.current = onFrozenColumnsChange
-  const getFrozenColumnsRef = useRef(getFrozenColumns)
-  getFrozenColumnsRef.current = getFrozenColumns
+  const onPinnedColumnsChangeRef = useRef(onPinnedColumnsChange)
+  onPinnedColumnsChangeRef.current = onPinnedColumnsChange
+  const getPinnedColumnsRef = useRef(getPinnedColumns)
+  getPinnedColumnsRef.current = getPinnedColumns
   const getColumnWidthsRef = useRef(getColumnWidths)
   getColumnWidthsRef.current = getColumnWidths
 
@@ -221,11 +221,11 @@ export function useTableUndo({
                     onColumnWidthsChangeRef.current?.(rest)
                     metadata.columnWidths = rest
                   }
-                  const currentFrozen = getFrozenColumnsRef.current?.() ?? []
-                  if (currentFrozen.includes(action.columnName)) {
-                    const newFrozen = currentFrozen.filter((n) => n !== action.columnName)
-                    onFrozenColumnsChangeRef.current?.(newFrozen)
-                    metadata.frozenColumns = newFrozen
+                  const currentPinned = getPinnedColumnsRef.current?.() ?? []
+                  if (currentPinned.includes(action.columnName)) {
+                    const newPinned = currentPinned.filter((n) => n !== action.columnName)
+                    onPinnedColumnsChangeRef.current?.(newPinned)
+                    metadata.pinnedColumns = newPinned
                   }
                   if (Object.keys(metadata).length > 0) {
                     updateMetadataMutation.mutate(metadata)
@@ -291,24 +291,24 @@ export function useTableUndo({
                       metadata.columnWidths = merged
                       onColumnWidthsChangeRef.current?.(merged)
                     }
-                    if (action.previousFrozenColumns !== null) {
-                      const wasColumnFrozen = action.previousFrozenColumns.includes(
+                    if (action.previousPinnedColumns !== null) {
+                      const wasColumnPinned = action.previousPinnedColumns.includes(
                         action.columnName
                       )
-                      if (wasColumnFrozen) {
-                        const currentFrozen = getFrozenColumnsRef.current?.() ?? []
-                        if (!currentFrozen.includes(action.columnName)) {
-                          const insertIndex = action.previousFrozenColumns.indexOf(
+                      if (wasColumnPinned) {
+                        const currentPinned = getPinnedColumnsRef.current?.() ?? []
+                        if (!currentPinned.includes(action.columnName)) {
+                          const insertIndex = action.previousPinnedColumns.indexOf(
                             action.columnName
                           )
-                          const restoredFrozen = [...currentFrozen]
-                          restoredFrozen.splice(
-                            Math.min(insertIndex, restoredFrozen.length),
+                          const restoredPinned = [...currentPinned]
+                          restoredPinned.splice(
+                            Math.min(insertIndex, restoredPinned.length),
                             0,
                             action.columnName
                           )
-                          onFrozenColumnsChangeRef.current?.(restoredFrozen)
-                          metadata.frozenColumns = restoredFrozen
+                          onPinnedColumnsChangeRef.current?.(restoredPinned)
+                          metadata.pinnedColumns = restoredPinned
                         }
                       }
                     }
@@ -333,12 +333,12 @@ export function useTableUndo({
                     metadata.columnWidths = rest
                     onColumnWidthsChangeRef.current?.(rest)
                   }
-                  if (action.previousFrozenColumns !== null) {
-                    const currentFrozen = getFrozenColumnsRef.current?.() ?? []
-                    if (currentFrozen.includes(action.columnName)) {
-                      const newFrozen = currentFrozen.filter((n) => n !== action.columnName)
-                      onFrozenColumnsChangeRef.current?.(newFrozen)
-                      metadata.frozenColumns = newFrozen
+                  if (action.previousPinnedColumns !== null) {
+                    const currentPinned = getPinnedColumnsRef.current?.() ?? []
+                    if (currentPinned.includes(action.columnName)) {
+                      const newPinned = currentPinned.filter((n) => n !== action.columnName)
+                      onPinnedColumnsChangeRef.current?.(newPinned)
+                      metadata.pinnedColumns = newPinned
                     }
                   }
                   if (Object.keys(metadata).length > 0) {

@@ -189,7 +189,7 @@ describe('useTableUndo – delete-column undo cell restore chunking', () => {
     cellData: [],
     previousOrder: null,
     previousWidth: null,
-    previousFrozenColumns: null,
+    previousPinnedColumns: null,
   }
 
   it('does not call mutateAsync when cellData is empty', async () => {
