@@ -156,7 +156,7 @@ export const zoominfoSearchContactsTool: ToolConfig<
       if (params.companyId) attributes.companyId = params.companyId
       if (params.companyName) attributes.companyName = params.companyName
       const minScore = toNumberOrUndefined(params.contactAccuracyScoreMin)
-      if (minScore !== undefined) attributes.contactAccuracyScoreMin = minScore
+      if (minScore !== undefined) attributes.contactAccuracyScoreMin = String(minScore)
       const required = toCsvStringOrUndefined(params.requiredFields, 'requiredFields')
       if (required) attributes.requiredFields = required
       if (params.excludePartialProfiles !== undefined) {
