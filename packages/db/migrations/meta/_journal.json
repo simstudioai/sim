@@ -1506,6 +1506,13 @@
       "when": 1779902345831,
       "tag": "0215_flowery_hellcat",
       "breakpoints": true
+    },
+    {
+      "idx": 216,
+      "version": "7",
+      "when": 1779926079020,
+      "tag": "0216_colorful_cobalt_man",
+      "breakpoints": true
     }
   ]
 }
