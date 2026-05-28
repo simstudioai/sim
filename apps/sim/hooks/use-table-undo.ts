@@ -32,6 +32,7 @@ interface UseTableUndoProps {
   onColumnRename?: (oldName: string, newName: string) => void
   onColumnWidthsChange?: (widths: Record<string, number>) => void
   onFrozenColumnsChange?: (frozen: string[]) => void
+  getFrozenColumns?: () => string[]
   getColumnWidths?: () => Record<string, number>
 }
 
@@ -42,6 +43,7 @@ export function useTableUndo({
   onColumnRename,
   onColumnWidthsChange,
   onFrozenColumnsChange,
+  getFrozenColumns,
   getColumnWidths,
 }: UseTableUndoProps) {
   const push = useTableUndoStore((s) => s.push)
@@ -73,6 +75,8 @@ export function useTableUndo({
   onColumnWidthsChangeRef.current = onColumnWidthsChange
   const onFrozenColumnsChangeRef = useRef(onFrozenColumnsChange)
   onFrozenColumnsChangeRef.current = onFrozenColumnsChange
+  const getFrozenColumnsRef = useRef(getFrozenColumns)
+  getFrozenColumnsRef.current = getFrozenColumns
   const getColumnWidthsRef = useRef(getColumnWidths)
   getColumnWidthsRef.current = getColumnWidths
 
@@ -303,9 +307,8 @@ export function useTableUndo({
                     onColumnWidthsChangeRef.current?.(rest)
                   }
                   if (action.previousFrozenColumns !== null) {
-                    const newFrozen = action.previousFrozenColumns.filter(
-                      (n) => n !== action.columnName
-                    )
+                    const currentFrozen = getFrozenColumnsRef.current?.() ?? []
+                    const newFrozen = currentFrozen.filter((n) => n !== action.columnName)
                     onFrozenColumnsChangeRef.current?.(newFrozen)
                     metadata.frozenColumns = newFrozen
                   }

@@ -495,6 +495,10 @@ export function TableGrid({
     frozenColumnsRef.current = frozen
   }
 
+  function getFrozenColumns() {
+    return frozenColumnsRef.current
+  }
+
   const handleFreezeToggle = useCallback((columnName: string) => {
     const col = columnsRef.current.find((c) => c.name === columnName)
     const siblings: string[] = col?.workflowGroupId
@@ -539,6 +543,7 @@ export function TableGrid({
     onColumnRename: handleColumnRename,
     onColumnWidthsChange: handleColumnWidthsChange,
     onFrozenColumnsChange: handleFrozenColumnsChange,
+    getFrozenColumns,
     getColumnWidths,
   })
   const undoRef = useRef(undo)
