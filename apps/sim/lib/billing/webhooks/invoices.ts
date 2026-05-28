@@ -957,6 +957,9 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
         invoiceId: invoice.id,
         stripeSubscriptionId,
       })
+      if (isEnterprise(sub.plan)) {
+        await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
+      }
       return
     }
 

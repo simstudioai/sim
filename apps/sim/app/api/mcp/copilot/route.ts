@@ -296,8 +296,6 @@ function buildMcpServer(abortSignal?: AbortSignal): Server {
       abortSignal
     )
 
-    trackMcpCopilotCall(authResult.userId)
-
     return result
   })
 
@@ -387,10 +385,6 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
   void request
   return NextResponse.json(createError(0, -32000, 'Method not allowed.'), { status: 405 })
 })
-
-function trackMcpCopilotCall(userId: string): void {
-  logger.debug('MCP copilot call tracked via request logs', { userId })
-}
 
 async function handleToolsCall(
   params: { name: string; arguments?: Record<string, unknown> },
