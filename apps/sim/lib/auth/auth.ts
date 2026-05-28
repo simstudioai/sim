@@ -143,8 +143,17 @@ function getMicrosoftUserInfoFromIdToken(tokens: { accessToken?: string }, provi
 }
 
 const blockedSignupDomains = env.BLOCKED_SIGNUP_DOMAINS
-  ? new Set(env.BLOCKED_SIGNUP_DOMAINS.split(',').map((d) => d.trim().toLowerCase()))
+  ? env.BLOCKED_SIGNUP_DOMAINS.split(',')
+      .map((d) => d.trim().toLowerCase())
+      .filter(Boolean)
   : null
+
+function isSignupEmailBlocked(email: string | undefined | null): boolean {
+  if (!blockedSignupDomains || !email) return false
+  const domain = email.split('@')[1]?.toLowerCase()
+  if (!domain) return false
+  return blockedSignupDomains.some((entry) => domain === entry || domain.endsWith(`.${entry}`))
+}
 
 const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
   logger.warn('Ignoring invalid entry in TRUSTED_ORIGINS', { value })
@@ -219,11 +228,8 @@ export const auth = betterAuth({
     user: {
       create: {
         before: async (user) => {
-          if (blockedSignupDomains) {
-            const emailDomain = user.email?.split('@')[1]?.toLowerCase()
-            if (emailDomain && blockedSignupDomains.has(emailDomain)) {
-              throw new Error('Sign-ups from this email domain are not allowed.')
-            }
+          if (isSignupEmailBlocked(user.email)) {
+            throw new Error('Sign-ups from this email domain are not allowed.')
           }
           return { data: user }
         },
@@ -814,14 +820,8 @@ export const auth = betterAuth({
         }
       }
 
-      if (ctx.path.startsWith('/sign-up') && blockedSignupDomains) {
-        const requestEmail = ctx.body?.email?.toLowerCase()
-        if (requestEmail) {
-          const emailDomain = requestEmail.split('@')[1]
-          if (emailDomain && blockedSignupDomains.has(emailDomain)) {
-            throw new Error('Sign-ups from this email domain are not allowed.')
-          }
-        }
+      if (ctx.path.startsWith('/sign-up') && isSignupEmailBlocked(ctx.body?.email)) {
+        throw new Error('Sign-ups from this email domain are not allowed.')
       }
 
       if (ctx.path === '/oauth2/authorize' || ctx.path === '/oauth2/token') {
