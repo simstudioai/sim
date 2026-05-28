@@ -1027,6 +1027,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
             'account_label_ids',
             'people',
             'domains',
+            'organizations',
             'contacts',
             'accounts',
             'contact_ids',
@@ -1072,6 +1073,29 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
             ids: ids.length > 0 ? ids : undefined,
             attributes: attributes.length > 0 ? attributes : undefined,
           }
+        }
+
+        if (params.operation === 'organization_bulk_enrich') {
+          // Back-compat: workflows saved before the `organizations` → `domains` rename stored an
+          // array of { name, domain? } objects (or plain strings) under `organizations`. Derive
+          // `domains` from it so those workflows keep running without manual migration.
+          if (parsedParams.domains === undefined && parsedParams.organizations !== undefined) {
+            const legacy = parsedParams.organizations
+            if (Array.isArray(legacy)) {
+              const derived = legacy
+                .map((item) => {
+                  if (typeof item === 'string') return item
+                  if (item && typeof item === 'object' && 'domain' in item) {
+                    const domain = (item as Record<string, unknown>).domain
+                    return typeof domain === 'string' ? domain : undefined
+                  }
+                  return undefined
+                })
+                .filter((domain): domain is string => typeof domain === 'string' && domain !== '')
+              if (derived.length > 0) parsedParams.domains = derived
+            }
+          }
+          parsedParams.organizations = undefined
         }
 
         if (params.operation === 'contact_bulk_update') {

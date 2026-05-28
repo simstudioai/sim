@@ -128,6 +128,12 @@ export const apolloSequenceAddContactsTool: ToolConfig<
   },
 
   request: {
+    /**
+     * Apollo runs on Rails, which merges query-string and request-body params into a single
+     * `params` hash. Scalar settings stay in the query string (matching the docs), but the
+     * potentially large `contact_ids`/`label_names` arrays are sent in the JSON body to avoid
+     * exceeding reverse-proxy URL length limits (100 UUIDs ≈ 3.6 KB on their own).
+     */
     url: (params: ApolloSequenceAddContactsParams) => {
       const hasContactIds = !!params.contact_ids?.length
       const hasLabelNames = !!params.label_names?.length
@@ -139,16 +145,6 @@ export const apolloSequenceAddContactsTool: ToolConfig<
       const qs = new URLSearchParams()
       qs.set('emailer_campaign_id', params.sequence_id)
       qs.set('send_email_from_email_account_id', params.send_email_from_email_account_id)
-      if (hasContactIds) {
-        for (const id of params.contact_ids ?? []) {
-          if (typeof id === 'string' && id) qs.append('contact_ids[]', id)
-        }
-      }
-      if (hasLabelNames) {
-        for (const name of params.label_names ?? []) {
-          if (typeof name === 'string' && name) qs.append('label_names[]', name)
-        }
-      }
       if (params.send_email_from_email_address) {
         qs.set('send_email_from_email_address', params.send_email_from_email_address)
       }
@@ -198,9 +194,22 @@ export const apolloSequenceAddContactsTool: ToolConfig<
     },
     method: 'POST',
     headers: (params: ApolloSequenceAddContactsParams) => ({
+      'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
     }),
+    body: (params: ApolloSequenceAddContactsParams) => {
+      const body: Record<string, unknown> = {}
+      const contactIds = (params.contact_ids ?? []).filter(
+        (id): id is string => typeof id === 'string' && id.length > 0
+      )
+      const labelNames = (params.label_names ?? []).filter(
+        (name): name is string => typeof name === 'string' && name.length > 0
+      )
+      if (contactIds.length > 0) body.contact_ids = contactIds
+      if (labelNames.length > 0) body.label_names = labelNames
+      return body
+    },
   },
 
   transformResponse: async (response: Response, params?: ApolloSequenceAddContactsParams) => {
