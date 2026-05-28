@@ -1042,9 +1042,14 @@ export const subscription = pgTable(
     periodStart: timestamp('period_start'),
     periodEnd: timestamp('period_end'),
     cancelAtPeriodEnd: boolean('cancel_at_period_end'),
+    cancelAt: timestamp('cancel_at'),
+    canceledAt: timestamp('canceled_at'),
+    endedAt: timestamp('ended_at'),
     seats: integer('seats'),
     trialStart: timestamp('trial_start'),
     trialEnd: timestamp('trial_end'),
+    billingInterval: text('billing_interval'),
+    stripeScheduleId: text('stripe_schedule_id'),
     metadata: json('metadata'),
   },
   (table) => ({
@@ -1962,6 +1967,39 @@ export const copilotChats = pgTable(
       sql`date_trunc('milliseconds', ${table.createdAt})`,
       table.id
     ),
+  })
+)
+
+export const copilotMessages = pgTable(
+  'copilot_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    chatId: uuid('chat_id')
+      .notNull()
+      .references(() => copilotChats.id, { onDelete: 'cascade' }),
+    messageId: text('message_id').notNull(),
+    role: text('role').notNull(),
+    content: jsonb('content').notNull(),
+    streamId: text('stream_id'),
+    parentMessageId: text('parent_message_id'),
+    model: text('model'),
+    tokensIn: integer('tokens_in'),
+    tokensOut: integer('tokens_out'),
+    deletedAt: timestamp('deleted_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    chatMessageUnique: uniqueIndex('copilot_messages_chat_message_unique').on(
+      table.chatId,
+      table.messageId
+    ),
+    chatCreatedAtIdx: index('copilot_messages_chat_created_at_idx')
+      .on(table.chatId, table.createdAt, table.id)
+      .where(sql`${table.deletedAt} IS NULL`),
+    chatStreamIdx: index('copilot_messages_chat_stream_idx')
+      .on(table.chatId, table.streamId)
+      .where(sql`${table.streamId} IS NOT NULL`),
   })
 )
 
@@ -3429,6 +3467,7 @@ export const jwks = pgTable('jwks', {
   publicKey: text('public_key').notNull(),
   privateKey: text('private_key').notNull(),
   createdAt: timestamp('created_at').notNull(),
+  expiresAt: timestamp('expires_at'),
 })
 
 export const mothershipInboxAllowedSender = pgTable(
