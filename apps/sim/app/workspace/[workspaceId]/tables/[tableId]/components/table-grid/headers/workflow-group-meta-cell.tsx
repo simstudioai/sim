@@ -233,6 +233,14 @@ interface WorkflowGroupMetaCellProps {
   onDragEnd?: () => void
   onDragLeave?: () => void
   readOnly?: boolean
+  /** Left offset in pixels when frozen (drives `position: sticky`). */
+  stickyLeft?: number
+  /** Whether this is the rightmost frozen column group (renders a separator shadow). */
+  isLastFrozen?: boolean
+  /** Whether this column group is currently frozen (pinned to the left). */
+  isFrozen?: boolean
+  /** Toggle the frozen state for this column group. */
+  onFreezeToggle?: (columnName: string) => void
 }
 
 /**
@@ -266,6 +274,10 @@ export function WorkflowGroupMetaCell({
   onDragEnd,
   onDragLeave,
   readOnly,
+  stickyLeft,
+  isLastFrozen,
+  isFrozen,
+  onFreezeToggle,
 }: WorkflowGroupMetaCellProps) {
   const isEnrichment = groupType === 'enrichment'
   const enrichment = isEnrichment ? getEnrichment(enrichmentId) : undefined
@@ -385,7 +397,12 @@ export function WorkflowGroupMetaCell({
       onDragEnd={isDraggable ? handleDragEnd : undefined}
       onDragLeave={isDraggable ? handleDragLeave : undefined}
       onDrop={isDraggable ? handleDrop : undefined}
-      className='group relative cursor-pointer border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[5px] text-left align-middle before:pointer-events-none before:absolute before:top-0 before:bottom-0 before:left-[-1px] before:w-px before:bg-[var(--border)] before:content-[""]'
+      className={cn(
+        'group relative cursor-pointer border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[5px] text-left align-middle before:pointer-events-none before:absolute before:top-0 before:bottom-0 before:left-[-1px] before:w-px before:bg-[var(--border)] before:content-[""]',
+        stickyLeft !== undefined && 'z-[11]',
+        isLastFrozen && '[box-shadow:2px_0_0_0_var(--border)]'
+      )}
+      style={stickyLeft !== undefined ? { position: 'sticky', left: stickyLeft } : undefined}
     >
       <div
         className='pointer-events-none absolute inset-0'
@@ -471,6 +488,8 @@ export function WorkflowGroupMetaCell({
           onRunColumnSelected={onRunColumn && selectedCount > 0 ? handleRunSelected : undefined}
           selectedRowCount={selectedCount}
           onViewWorkflow={onViewWorkflow ? () => onViewWorkflow(workflowId) : undefined}
+          isFrozen={isFrozen}
+          onFreezeToggle={onFreezeToggle}
         />
       )}
     </th>

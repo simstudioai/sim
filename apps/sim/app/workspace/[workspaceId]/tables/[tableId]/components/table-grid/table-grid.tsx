@@ -2601,26 +2601,6 @@ export function TableGrid({
     []
   )
 
-  const handleChangeType = useCallback((columnName: string, newType: ColumnDefinition['type']) => {
-    const column = columnsRef.current.find((c) => c.name === columnName)
-    const previousType = column?.type
-    updateColumnMutation.mutate(
-      { columnName, updates: { type: newType } },
-      {
-        onSuccess: () => {
-          if (previousType) {
-            pushUndoRef.current({
-              type: 'update-column-type',
-              columnName,
-              previousType,
-              newType,
-            })
-          }
-        },
-      }
-    )
-  }, [])
-
   const insertColumnInOrder = useCallback(
     (anchorColumn: string, newColumn: string, side: 'left' | 'right') => {
       const order = columnOrderRef.current ?? schemaColumnsRef.current.map((c) => c.name)
@@ -3287,66 +3267,90 @@ export function TableGrid({
                     {hasWorkflowGroup && (
                       <tr>
                         <th className='sticky left-0 z-[12] border-[var(--border)] border-b bg-[var(--bg)] px-1 py-[5px]' />
-                        {headerGroups.map((g) =>
-                          g.kind === 'workflow' ? (
-                            <WorkflowGroupMetaCell
-                              key={`meta-${g.startColIndex}`}
-                              workflowId={g.workflowId}
-                              size={g.size}
-                              startColIndex={g.startColIndex}
-                              columnName={displayColumns[g.startColIndex]?.name ?? ''}
-                              column={displayColumns[g.startColIndex]}
-                              workflows={workflows}
-                              isGroupSelected={
-                                isColumnSelection &&
-                                normalizedSelection !== null &&
-                                normalizedSelection.startCol <= g.startColIndex &&
-                                normalizedSelection.endCol >= g.startColIndex + g.size - 1
-                              }
-                              groupId={g.groupId}
-                              groupType={workflowGroupById.get(g.groupId)?.type}
-                              enrichmentId={workflowGroupById.get(g.groupId)?.enrichmentId}
-                              groupName={workflowGroupById.get(g.groupId)?.name}
-                              onSelectGroup={handleGroupSelect}
-                              onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
-                              onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
-                              selectedRowIds={selectedRowIds}
-                              onInsertLeft={
-                                userPermissions.canEdit ? handleInsertColumnLeft : undefined
-                              }
-                              onInsertRight={
-                                userPermissions.canEdit ? handleInsertColumnRight : undefined
-                              }
-                              onDeleteColumn={
-                                userPermissions.canEdit ? handleDeleteColumn : undefined
-                              }
-                              onDeleteGroup={
-                                userPermissions.canEdit ? handleDeleteWorkflowGroup : undefined
-                              }
-                              onViewWorkflow={
-                                workflowGroupById.get(g.groupId)?.type === 'enrichment'
-                                  ? undefined
-                                  : handleViewWorkflow
-                              }
-                              readOnly={!userPermissions.canEdit}
-                              onDragStart={
-                                userPermissions.canEdit ? handleColumnDragStart : undefined
-                              }
-                              onDragOver={
-                                userPermissions.canEdit ? handleColumnDragOver : undefined
-                              }
-                              onDragEnd={userPermissions.canEdit ? handleColumnDragEnd : undefined}
-                              onDragLeave={
-                                userPermissions.canEdit ? handleColumnDragLeave : undefined
-                              }
-                            />
-                          ) : (
+                        {headerGroups.map((g) => {
+                          const firstCol = displayColumns[g.startColIndex]
+                          const stickyLeft = firstCol ? frozenOffsets.get(firstCol.key) : undefined
+                          if (g.kind === 'workflow') {
+                            const lastCol = displayColumns[g.startColIndex + g.size - 1]
+                            return (
+                              <WorkflowGroupMetaCell
+                                key={`meta-${g.startColIndex}`}
+                                workflowId={g.workflowId}
+                                size={g.size}
+                                startColIndex={g.startColIndex}
+                                columnName={firstCol?.name ?? ''}
+                                column={firstCol}
+                                workflows={workflows}
+                                isGroupSelected={
+                                  isColumnSelection &&
+                                  normalizedSelection !== null &&
+                                  normalizedSelection.startCol <= g.startColIndex &&
+                                  normalizedSelection.endCol >= g.startColIndex + g.size - 1
+                                }
+                                groupId={g.groupId}
+                                groupType={workflowGroupById.get(g.groupId)?.type}
+                                enrichmentId={workflowGroupById.get(g.groupId)?.enrichmentId}
+                                groupName={workflowGroupById.get(g.groupId)?.name}
+                                onSelectGroup={handleGroupSelect}
+                                onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
+                                onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
+                                selectedRowIds={selectedRowIds}
+                                onInsertLeft={
+                                  userPermissions.canEdit ? handleInsertColumnLeft : undefined
+                                }
+                                onInsertRight={
+                                  userPermissions.canEdit ? handleInsertColumnRight : undefined
+                                }
+                                onDeleteColumn={
+                                  userPermissions.canEdit ? handleDeleteColumn : undefined
+                                }
+                                onDeleteGroup={
+                                  userPermissions.canEdit ? handleDeleteWorkflowGroup : undefined
+                                }
+                                onViewWorkflow={
+                                  workflowGroupById.get(g.groupId)?.type === 'enrichment'
+                                    ? undefined
+                                    : handleViewWorkflow
+                                }
+                                readOnly={!userPermissions.canEdit}
+                                onDragStart={
+                                  userPermissions.canEdit ? handleColumnDragStart : undefined
+                                }
+                                onDragOver={
+                                  userPermissions.canEdit ? handleColumnDragOver : undefined
+                                }
+                                onDragEnd={
+                                  userPermissions.canEdit ? handleColumnDragEnd : undefined
+                                }
+                                onDragLeave={
+                                  userPermissions.canEdit ? handleColumnDragLeave : undefined
+                                }
+                                isFrozen={firstCol ? frozenColumnSet.has(firstCol.name) : false}
+                                onFreezeToggle={
+                                  userPermissions.canEdit ? handleFreezeToggle : undefined
+                                }
+                                stickyLeft={stickyLeft}
+                                isLastFrozen={lastCol?.key === lastFrozenColKey}
+                              />
+                            )
+                          }
+                          const isLastFrz = firstCol?.key === lastFrozenColKey
+                          return (
                             <th
                               key={`meta-${g.startColIndex}`}
-                              className='border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]'
+                              className={cn(
+                                'border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]',
+                                stickyLeft !== undefined && 'z-[11]',
+                                isLastFrz && '[box-shadow:2px_0_0_0_var(--border)]'
+                              )}
+                              style={
+                                stickyLeft !== undefined
+                                  ? { position: 'sticky', left: stickyLeft }
+                                  : undefined
+                              }
                             />
                           )
-                        )}
+                        })}
                         {userPermissions.canEdit && (
                           <th className='border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]' />
                         )}
