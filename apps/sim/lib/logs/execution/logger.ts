@@ -42,9 +42,9 @@ import type {
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
 const logger = createLogger('ExecutionLogger')
-const MAX_EXECUTION_DATA_BYTES = 500 * 1024
+const MAX_EXECUTION_DATA_BYTES = 3 * 1024 * 1024
 const MAX_TRACE_IO_BYTES = 8 * 1024
-const MAX_WORKFLOW_VALUE_BYTES = 64 * 1024
+const MAX_WORKFLOW_VALUE_BYTES = 512 * 1024
 const EXECUTION_LOG_STATEMENT_TIMEOUT_MS = 30_000
 const EXECUTION_LOG_LOCK_TIMEOUT_MS = 3_000
 const EXECUTION_LOG_IDLE_TIMEOUT_MS = 5_000
