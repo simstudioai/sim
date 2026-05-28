@@ -1,4 +1,4 @@
-import { AzureDevOpsIcon } from '@/components/icons'
+import { AzureIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { AzureDevOpsBasicWorkItemType, AzureDevOpsResponse } from '@/tools/azure_devops/types'
@@ -23,7 +23,7 @@ export const AzureDevOpsBlock: BlockConfig<AzureDevOpsResponse> = {
   integrationType: IntegrationType.DeveloperTools,
   tags: ['ci-cd', 'project-management', 'version-control'],
   bgColor: '#0078D4',
-  icon: AzureDevOpsIcon,
+  icon: AzureIcon,
   authMode: AuthMode.ApiKey,
   triggerAllowed: true,
 
