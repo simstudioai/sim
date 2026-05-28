@@ -208,6 +208,7 @@ import {
   ZendeskIcon,
   ZepIcon,
   ZoomIcon,
+  ZoomInfoIcon,
 } from '@/components/icons'
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
@@ -418,4 +419,5 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   zendesk: ZendeskIcon,
   zep: ZepIcon,
   zoom: ZoomIcon,
+  zoominfo: ZoomInfoIcon,
 }

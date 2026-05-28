@@ -18,7 +18,7 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key (master key required)',
     },
     account_ids: {
@@ -39,6 +39,12 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'When using account_ids, apply this owner to all accounts',
+    },
+    account_stage_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When using account_ids, apply this account stage to all accounts',
     },
     account_attributes: {
       type: 'json',
@@ -71,6 +77,7 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
       }
       if (params.name) body.name = params.name
       if (params.owner_id) body.owner_id = params.owner_id
+      if (params.account_stage_id) body.account_stage_id = params.account_stage_id
       if (params.account_attributes) {
         if (Array.isArray(params.account_attributes)) {
           if (params.account_attributes.length > 0) {
@@ -83,7 +90,8 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
           body.account_attributes = params.account_attributes
         }
       }
-      const hasUpdateFields = body.account_attributes || body.name || body.owner_id
+      const hasUpdateFields =
+        body.account_attributes || body.name || body.owner_id || body.account_stage_id
       if (!hasUpdateFields) {
         throw new Error(
           'Apollo account bulk update requires update fields. Provide account_attributes (array of per-account updates with id, or single object paired with account_ids), or pair account_ids with name/owner_id to apply uniformly.'
@@ -116,25 +124,53 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
     }
 
     const data = await response.json()
+    const accounts = Array.isArray(data?.accounts) ? data.accounts : []
+    const entityProgressJob = data?.entity_progress_job ?? null
+    const accountIds = Array.isArray(data?.account_ids)
+      ? data.account_ids
+      : accounts.map((a: { id?: unknown }) => a?.id).filter((id: unknown) => typeof id === 'string')
+    const jobId =
+      typeof data?.job_id === 'string'
+        ? data.job_id
+        : typeof entityProgressJob?.id === 'string'
+          ? entityProgressJob.id
+          : null
 
     return {
       success: true,
       output: {
-        message: data.message ?? null,
-        account_ids: data.account_ids ?? [],
+        accounts,
+        account_ids: accountIds,
+        entity_progress_job: entityProgressJob,
+        job_id: jobId,
+        message: data?.message ?? null,
       },
     }
   },
 
   outputs: {
-    message: {
-      type: 'string',
-      description: 'Confirmation message from Apollo',
-      optional: true,
+    accounts: {
+      type: 'json',
+      description: 'Updated accounts (synchronous response): [{id, account_stage_id, ...}]',
     },
     account_ids: {
       type: 'json',
       description: 'IDs of accounts that were updated',
+    },
+    entity_progress_job: {
+      type: 'json',
+      description: 'Async job descriptor (when async=true is passed with account_ids)',
+      optional: true,
+    },
+    job_id: {
+      type: 'string',
+      description: 'Async job ID extracted from entity_progress_job',
+      optional: true,
+    },
+    message: {
+      type: 'string',
+      description: 'Optional confirmation message from Apollo',
+      optional: true,
     },
   },
 }

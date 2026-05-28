@@ -17,7 +17,7 @@ export const apolloOrganizationEnrichTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key',
     },
     domain: {
@@ -29,20 +29,19 @@ export const apolloOrganizationEnrichTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.apollo.io/api/v1/organizations/enrich',
-    method: 'POST',
-    headers: (params: ApolloOrganizationEnrichParams) => ({
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache',
-      'X-Api-Key': params.apiKey,
-    }),
-    body: (params: ApolloOrganizationEnrichParams) => {
+    url: (params: ApolloOrganizationEnrichParams) => {
       const domain = params.domain?.trim()
       if (!domain) {
         throw new Error('domain is required for organization enrichment')
       }
-      return { domain }
+      const qs = new URLSearchParams({ domain })
+      return `https://api.apollo.io/api/v1/organizations/enrich?${qs.toString()}`
     },
+    method: 'GET',
+    headers: (params: ApolloOrganizationEnrichParams) => ({
+      'Cache-Control': 'no-cache',
+      'X-Api-Key': params.apiKey,
+    }),
   },
 
   transformResponse: async (response: Response) => {

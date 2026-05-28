@@ -17,7 +17,7 @@ export const apolloSequenceAddContactsTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key (master key required)',
     },
     sequence_id: {
@@ -128,15 +128,12 @@ export const apolloSequenceAddContactsTool: ToolConfig<
   },
 
   request: {
-    url: (params: ApolloSequenceAddContactsParams) =>
-      `https://api.apollo.io/api/v1/emailer_campaigns/${params.sequence_id.trim()}/add_contact_ids`,
-    method: 'POST',
-    headers: (params: ApolloSequenceAddContactsParams) => ({
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache',
-      'X-Api-Key': params.apiKey,
-    }),
-    body: (params: ApolloSequenceAddContactsParams) => {
+    /**
+     * Apollo documents every field for this endpoint as a query parameter (no request body),
+     * so `contact_ids[]`/`label_names[]` are appended to the query string alongside the scalar
+     * settings, matching the documented contract.
+     */
+    url: (params: ApolloSequenceAddContactsParams) => {
       const hasContactIds = !!params.contact_ids?.length
       const hasLabelNames = !!params.label_names?.length
       if (!hasContactIds && !hasLabelNames) {
@@ -144,43 +141,67 @@ export const apolloSequenceAddContactsTool: ToolConfig<
           'Apollo sequence add requires either contact_ids or label_names to be provided'
         )
       }
-      const body: Record<string, unknown> = {
-        emailer_campaign_id: params.sequence_id,
-        send_email_from_email_account_id: params.send_email_from_email_account_id,
+      const qs = new URLSearchParams()
+      qs.set('emailer_campaign_id', params.sequence_id)
+      qs.set('send_email_from_email_account_id', params.send_email_from_email_account_id)
+      for (const id of params.contact_ids ?? []) {
+        if (typeof id === 'string' && id.length > 0) qs.append('contact_ids[]', id)
       }
-      if (hasContactIds) body.contact_ids = params.contact_ids
-      if (hasLabelNames) body.label_names = params.label_names
+      for (const name of params.label_names ?? []) {
+        if (typeof name === 'string' && name.length > 0) qs.append('label_names[]', name)
+      }
       if (params.send_email_from_email_address) {
-        body.send_email_from_email_address = params.send_email_from_email_address
+        qs.set('send_email_from_email_address', params.send_email_from_email_address)
       }
-      if (params.sequence_no_email !== undefined) body.sequence_no_email = params.sequence_no_email
+      if (params.sequence_no_email !== undefined) {
+        qs.set('sequence_no_email', String(params.sequence_no_email))
+      }
       if (params.sequence_unverified_email !== undefined) {
-        body.sequence_unverified_email = params.sequence_unverified_email
+        qs.set('sequence_unverified_email', String(params.sequence_unverified_email))
       }
       if (params.sequence_job_change !== undefined) {
-        body.sequence_job_change = params.sequence_job_change
+        qs.set('sequence_job_change', String(params.sequence_job_change))
       }
       if (params.sequence_active_in_other_campaigns !== undefined) {
-        body.sequence_active_in_other_campaigns = params.sequence_active_in_other_campaigns
+        qs.set(
+          'sequence_active_in_other_campaigns',
+          String(params.sequence_active_in_other_campaigns)
+        )
       }
       if (params.sequence_finished_in_other_campaigns !== undefined) {
-        body.sequence_finished_in_other_campaigns = params.sequence_finished_in_other_campaigns
+        qs.set(
+          'sequence_finished_in_other_campaigns',
+          String(params.sequence_finished_in_other_campaigns)
+        )
       }
       if (params.sequence_same_company_in_same_campaign !== undefined) {
-        body.sequence_same_company_in_same_campaign = params.sequence_same_company_in_same_campaign
+        qs.set(
+          'sequence_same_company_in_same_campaign',
+          String(params.sequence_same_company_in_same_campaign)
+        )
       }
       if (params.contacts_without_ownership_permission !== undefined) {
-        body.contacts_without_ownership_permission = params.contacts_without_ownership_permission
+        qs.set(
+          'contacts_without_ownership_permission',
+          String(params.contacts_without_ownership_permission)
+        )
       }
-      if (params.add_if_in_queue !== undefined) body.add_if_in_queue = params.add_if_in_queue
+      if (params.add_if_in_queue !== undefined) {
+        qs.set('add_if_in_queue', String(params.add_if_in_queue))
+      }
       if (params.contact_verification_skipped !== undefined) {
-        body.contact_verification_skipped = params.contact_verification_skipped
+        qs.set('contact_verification_skipped', String(params.contact_verification_skipped))
       }
-      if (params.user_id) body.user_id = params.user_id
-      if (params.status) body.status = params.status
-      if (params.auto_unpause_at) body.auto_unpause_at = params.auto_unpause_at
-      return body
+      if (params.user_id) qs.set('user_id', params.user_id)
+      if (params.status) qs.set('status', params.status)
+      if (params.auto_unpause_at) qs.set('auto_unpause_at', params.auto_unpause_at)
+      return `https://api.apollo.io/api/v1/emailer_campaigns/${params.sequence_id.trim()}/add_contact_ids?${qs.toString()}`
     },
+    method: 'POST',
+    headers: (params: ApolloSequenceAddContactsParams) => ({
+      'Cache-Control': 'no-cache',
+      'X-Api-Key': params.apiKey,
+    }),
   },
 
   transformResponse: async (response: Response, params?: ApolloSequenceAddContactsParams) => {

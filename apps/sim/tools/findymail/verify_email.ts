@@ -44,6 +44,7 @@ export const verifyEmailTool: ToolConfig<FindymailVerifyEmailParams, FindymailVe
           success: false,
           error:
             (errorData as Record<string, string>).message ||
+            (errorData as Record<string, string>).error ||
             `Findymail API error: ${response.status} ${response.statusText}`,
           output: { email: '', verified: false, provider: null },
         }

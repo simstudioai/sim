@@ -3176,6 +3176,14 @@ import {
   zoomListRecordingsTool,
   zoomUpdateMeetingTool,
 } from '@/tools/zoom'
+import {
+  zoominfoEnrichCompaniesTool,
+  zoominfoEnrichContactsTool,
+  zoominfoSearchCompaniesTool,
+  zoominfoSearchContactsTool,
+  zoominfoSearchIntentTool,
+  zoominfoSearchNewsTool,
+} from '@/tools/zoominfo'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -4999,17 +5007,17 @@ export const tools: Record<string, ToolConfig> = {
   fathom_get_transcript: fathomGetTranscriptTool,
   fathom_list_team_members: fathomListTeamMembersTool,
   fathom_list_teams: fathomListTeamsTool,
-  findymail_verify_email: findymailVerifyEmailTool,
+  findymail_find_email_from_linkedin: findymailFindEmailFromLinkedInTool,
   findymail_find_email_from_name: findymailFindEmailFromNameTool,
   findymail_find_emails_by_domain: findymailFindEmailsByDomainTool,
-  findymail_find_email_from_linkedin: findymailFindEmailFromLinkedInTool,
-  findymail_reverse_email_lookup: findymailReverseEmailLookupTool,
-  findymail_get_company: findymailGetCompanyTool,
   findymail_find_employees: findymailFindEmployeesTool,
   findymail_find_phone: findymailFindPhoneTool,
-  findymail_search_technologies: findymailSearchTechnologiesTool,
-  findymail_lookup_technologies: findymailLookupTechnologiesTool,
+  findymail_get_company: findymailGetCompanyTool,
   findymail_get_credits: findymailGetCreditsTool,
+  findymail_lookup_technologies: findymailLookupTechnologiesTool,
+  findymail_reverse_email_lookup: findymailReverseEmailLookupTool,
+  findymail_search_technologies: findymailSearchTechnologiesTool,
+  findymail_verify_email: findymailVerifyEmailTool,
   stt_whisper: whisperSttTool,
   stt_whisper_v2: whisperSttV2Tool,
   stt_deepgram: deepgramSttTool,
@@ -6006,6 +6014,12 @@ export const tools: Record<string, ToolConfig> = {
   zoom_get_meeting_recordings: zoomGetMeetingRecordingsTool,
   zoom_delete_recording: zoomDeleteRecordingTool,
   zoom_list_past_participants: zoomListPastParticipantsTool,
+  zoominfo_search_companies: zoominfoSearchCompaniesTool,
+  zoominfo_search_contacts: zoominfoSearchContactsTool,
+  zoominfo_enrich_companies: zoominfoEnrichCompaniesTool,
+  zoominfo_enrich_contacts: zoominfoEnrichContactsTool,
+  zoominfo_search_intent: zoominfoSearchIntentTool,
+  zoominfo_search_news: zoominfoSearchNewsTool,
   // Spotify
   spotify_search: spotifySearchTool,
   spotify_get_track: spotifyGetTrackTool,
