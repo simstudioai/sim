@@ -9,6 +9,7 @@ import {
   getHighestPrioritySubscription,
   getOrganizationSubscriptionUsable,
 } from '@/lib/billing/core/subscription'
+import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import {
   hasUsableSubscriptionAccess,
@@ -315,6 +316,14 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
       ownerId: usageSnapshot.ownerId,
     })
 
+    const ledgerUsage =
+      orgSubscription.periodStart && orgSubscription.periodEnd
+        ? await getBillingPeriodUsageCost(
+            { type: 'organization', id: organizationId },
+            { start: orgSubscription.periodStart, end: orgSubscription.periodEnd }
+          )
+        : 0
+
     const {
       totalOverage: currentOverage,
       baseSubscriptionAmount: basePrice,
@@ -325,7 +334,7 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
       periodStart: orgSubscription.periodStart ?? null,
       periodEnd: orgSubscription.periodEnd ?? null,
       organizationId,
-      pooledCurrentPeriodCost: usageSnapshot.pooledCurrentPeriodCost,
+      pooledCurrentPeriodCost: usageSnapshot.pooledCurrentPeriodCost + ledgerUsage,
       departedMemberUsage: usageSnapshot.departedMemberUsage,
       memberIds: usageSnapshot.memberIds,
     })
@@ -333,7 +342,9 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
     if (currentOverage < threshold) {
       logger.debug('Organization threshold billing check below threshold before locking', {
         organizationId,
-        totalTeamUsage: usageSnapshot.pooledCurrentPeriodCost + usageSnapshot.departedMemberUsage,
+        totalTeamUsage:
+          usageSnapshot.pooledCurrentPeriodCost + ledgerUsage + usageSnapshot.departedMemberUsage,
+        ledgerUsage,
         effectiveTeamUsage,
         basePrice,
         currentOverage,
@@ -433,7 +444,9 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
 
       logger.debug('Organization threshold billing check', {
         organizationId,
-        totalTeamUsage: usageSnapshot.pooledCurrentPeriodCost + usageSnapshot.departedMemberUsage,
+        totalTeamUsage:
+          usageSnapshot.pooledCurrentPeriodCost + ledgerUsage + usageSnapshot.departedMemberUsage,
+        ledgerUsage,
         effectiveTeamUsage,
         basePrice,
         currentOverage,

@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, count, eq, gt, ne } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
+import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import {
   computeDailyRefreshConsumed,
   getOrgMemberRefreshBounds,
@@ -122,6 +123,13 @@ export async function getOrganizationBillingData(
     // Calculate aggregated statistics
     let totalCurrentUsage = members.reduce((sum, m) => sum + m.currentUsage, 0)
 
+    if (subscription.periodStart && subscription.periodEnd) {
+      totalCurrentUsage += await getBillingPeriodUsageCost(
+        { type: 'organization', id: subscription.referenceId },
+        { start: subscription.periodStart, end: subscription.periodEnd }
+      )
+    }
+
     if (isPaid(subscription.plan) && subscription.periodStart) {
       const planDollars = getPlanTierDollars(subscription.plan)
       if (planDollars > 0) {
@@ -137,6 +145,7 @@ export async function getOrganizationBillingData(
           planDollars,
           seats: subscription.seats || 1,
           userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
+          billingEntity: { type: 'organization', id: subscription.referenceId },
         })
         totalCurrentUsage = Math.max(0, totalCurrentUsage - refreshConsumed)
       }

@@ -41,17 +41,6 @@ import type {
 } from '@/lib/logs/types'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
-/** Maps execution trigger types to their corresponding userStats counter columns */
-const TRIGGER_COUNTER_MAP: Record<string, { key: string; column: string }> = {
-  manual: { key: 'totalManualExecutions', column: 'total_manual_executions' },
-  api: { key: 'totalApiCalls', column: 'total_api_calls' },
-  webhook: { key: 'totalWebhookTriggers', column: 'total_webhook_triggers' },
-  schedule: { key: 'totalScheduledExecutions', column: 'total_scheduled_executions' },
-  chat: { key: 'totalChatExecutions', column: 'total_chat_executions' },
-  mcp: { key: 'totalMcpExecutions', column: 'total_mcp_executions' },
-  a2a: { key: 'totalA2aExecutions', column: 'total_a2a_executions' },
-} as const
-
 const logger = createLogger('ExecutionLogger')
 const MAX_EXECUTION_DATA_BYTES = 500 * 1024
 const MAX_TRACE_IO_BYTES = 8 * 1024
@@ -1069,22 +1058,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
         }
       }
 
-      const additionalStats: Record<string, ReturnType<typeof sql>> = {
-        totalTokensUsed: sql`total_tokens_used + ${costSummary.totalTokens}`,
-      }
-
-      const triggerCounter = TRIGGER_COUNTER_MAP[trigger]
-      if (triggerCounter) {
-        additionalStats[triggerCounter.key] = sql`${sql.raw(triggerCounter.column)} + 1`
-      }
-
       await recordUsage({
         userId,
         entries,
         workspaceId: workflowRecord.workspaceId ?? undefined,
         workflowId,
         executionId,
-        additionalStats,
       })
 
       // Check if user has hit overage threshold and bill incrementally
