@@ -31,11 +31,20 @@ interface SlackChannel {
  * `is_member` filter — no regression.
  */
 const SCOPED_USER_ID_PATTERN =
-  /-usr_([UWB][A-Z0-9]+)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  /-usr_([UW][A-Z0-9]+)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function parseScopedSlackUserId(accountId: string): string | null {
   const match = SCOPED_USER_ID_PATTERN.exec(accountId)
-  return match ? match[1] : null
+  if (match) return match[1]
+  // A marker is present but the id didn't parse — surface it instead of
+  // silently dropping to the bot `is_member` filter, which would bypass the
+  // installer-scoped privacy check without any signal.
+  if (accountId.includes('-usr_')) {
+    logger.warn('Slack accountId carries usr_ marker but did not parse; using is_member fallback', {
+      accountId,
+    })
+  }
+  return null
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
