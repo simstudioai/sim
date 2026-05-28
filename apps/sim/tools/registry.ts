@@ -3035,9 +3035,8 @@ import {
 import {
   wizaCompanyEnrichmentTool,
   wizaGetCreditsTool,
-  wizaGetIndividualRevealTool,
+  wizaIndividualRevealTool,
   wizaProspectSearchTool,
-  wizaStartIndividualRevealTool,
 } from '@/tools/wiza'
 import {
   wordpressCreateCategoryTool,
@@ -5394,9 +5393,8 @@ export const tools: Record<string, ToolConfig> = {
   wikipedia_random: wikipediaRandomPageTool,
   wiza_company_enrichment: wizaCompanyEnrichmentTool,
   wiza_get_credits: wizaGetCreditsTool,
-  wiza_get_individual_reveal: wizaGetIndividualRevealTool,
+  wiza_individual_reveal: wizaIndividualRevealTool,
   wiza_prospect_search: wizaProspectSearchTool,
-  wiza_start_individual_reveal: wizaStartIndividualRevealTool,
   wordpress_create_post: wordpressCreatePostTool,
   wordpress_update_post: wordpressUpdatePostTool,
   wordpress_delete_post: wordpressDeletePostTool,

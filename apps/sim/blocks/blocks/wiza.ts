@@ -24,8 +24,7 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       options: [
         { label: 'Prospect Search', id: 'prospect_search' },
         { label: 'Company Enrichment', id: 'company_enrichment' },
-        { label: 'Start Individual Reveal', id: 'start_individual_reveal' },
-        { label: 'Get Individual Reveal', id: 'get_individual_reveal' },
+        { label: 'Individual Reveal', id: 'individual_reveal' },
         { label: 'Get Credits', id: 'get_credits' },
       ],
       value: () => 'prospect_search',
@@ -37,6 +36,17 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: 'Enter your Wiza API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
+      condition: { field: 'operation', value: 'get_credits', not: true },
+    },
+    {
+      id: 'apiKey',
+      title: 'Wiza API Key',
+      type: 'short-input',
+      placeholder: 'Enter your Wiza API key',
+      password: true,
+      required: true,
+      condition: { field: 'operation', value: 'get_credits' },
     },
 
     // Prospect Search
@@ -224,7 +234,7 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       mode: 'advanced',
     },
 
-    // Start Individual Reveal
+    // Individual Reveal
     {
       id: 'enrichment_level',
       title: 'Enrichment Level',
@@ -236,75 +246,57 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
         { label: 'Full', id: 'full' },
       ],
       value: () => 'full',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
-      required: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
+      required: { field: 'operation', value: 'individual_reveal' },
     },
     {
       id: 'profile_url',
       title: 'LinkedIn Profile URL',
       type: 'short-input',
       placeholder: 'https://linkedin.com/in/johndoe',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
     },
     {
       id: 'full_name',
       title: 'Full Name',
       type: 'short-input',
       placeholder: 'John Doe',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
     },
     {
       id: 'company',
       title: 'Company',
       type: 'short-input',
       placeholder: 'Wiza',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
     },
     {
       id: 'domain',
       title: 'Company Domain',
       type: 'short-input',
       placeholder: 'wiza.co',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
     },
     {
       id: 'email',
       title: 'Email',
       type: 'short-input',
       placeholder: 'john@wiza.co',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
     },
     {
       id: 'accept_work',
       title: 'Accept Work Emails',
       type: 'switch',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
       mode: 'advanced',
     },
     {
       id: 'accept_personal',
       title: 'Accept Personal Emails',
       type: 'switch',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
       mode: 'advanced',
-    },
-    {
-      id: 'callback_url',
-      title: 'Callback URL',
-      type: 'short-input',
-      placeholder: 'https://example.com/wiza-callback',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
-      mode: 'advanced',
-    },
-
-    // Get Individual Reveal
-    {
-      id: 'id',
-      title: 'Reveal ID',
-      type: 'short-input',
-      placeholder: 'Reveal ID returned from Start Individual Reveal',
-      condition: { field: 'operation', value: 'get_individual_reveal' },
-      required: { field: 'operation', value: 'get_individual_reveal' },
     },
   ],
 
@@ -312,8 +304,7 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
     access: [
       'wiza_prospect_search',
       'wiza_company_enrichment',
-      'wiza_start_individual_reveal',
-      'wiza_get_individual_reveal',
+      'wiza_individual_reveal',
       'wiza_get_credits',
     ],
     config: {
@@ -323,10 +314,8 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
             return 'wiza_prospect_search'
           case 'company_enrichment':
             return 'wiza_company_enrichment'
-          case 'start_individual_reveal':
-            return 'wiza_start_individual_reveal'
-          case 'get_individual_reveal':
-            return 'wiza_get_individual_reveal'
+          case 'individual_reveal':
+            return 'wiza_individual_reveal'
           case 'get_credits':
             return 'wiza_get_credits'
           default:
@@ -416,8 +405,6 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
     email: { type: 'string', description: 'Email address' },
     accept_work: { type: 'boolean', description: 'Whether to accept work emails' },
     accept_personal: { type: 'boolean', description: 'Whether to accept personal emails' },
-    callback_url: { type: 'string', description: 'Callback URL' },
-    id: { type: 'string', description: 'Individual reveal ID' },
   },
 
   outputs: {

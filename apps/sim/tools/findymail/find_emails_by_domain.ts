@@ -1,3 +1,4 @@
+import { findymailHosting } from '@/tools/findymail/hosting'
 import type {
   FindymailFindEmailsByDomainParams,
   FindymailFindEmailsByDomainResponse,
@@ -14,6 +15,14 @@ export const findEmailsByDomainTool: ToolConfig<
   description:
     'Find verified contacts at a given domain matching one or more target roles (max 3 roles). Limited to 5 concurrent synchronous requests.',
   version: '1.0.0',
+
+  hosting: findymailHosting<FindymailFindEmailsByDomainParams>((_params, output) => {
+    if (!Array.isArray(output.contacts)) {
+      throw new Error('Findymail find emails by domain response missing contacts array')
+    }
+    // 1 finder credit per verified contact returned.
+    return output.contacts.length
+  }),
 
   params: {
     domain: {

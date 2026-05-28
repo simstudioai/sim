@@ -1,3 +1,4 @@
+import { findymailHosting } from '@/tools/findymail/hosting'
 import type {
   FindymailSearchTechnologiesParams,
   FindymailSearchTechnologiesResponse,
@@ -14,6 +15,11 @@ export const searchTechnologiesTool: ToolConfig<
   description:
     'Search the technology catalog by name. Returns up to 25 technologies. Free endpoint, rate limited to 10 requests per minute.',
   version: '1.0.0',
+
+  hosting: findymailHosting<FindymailSearchTechnologiesParams>(() => {
+    // Free catalog search — consumes no Findymail credits.
+    return 0
+  }),
 
   params: {
     q: {

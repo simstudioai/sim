@@ -1,3 +1,4 @@
+import { findymailHosting } from '@/tools/findymail/hosting'
 import type {
   FindymailLookupTechnologiesParams,
   FindymailLookupTechnologiesResponse,
@@ -14,6 +15,11 @@ export const lookupTechnologiesTool: ToolConfig<
   description:
     'Get the technology stack for a company by domain. Optionally filter by technology names. 1 finder credit if technologies are found, free otherwise.',
   version: '1.0.0',
+
+  hosting: findymailHosting<FindymailLookupTechnologiesParams>((_params, output) => {
+    // 1 finder credit when a technology stack is returned, free otherwise.
+    return Array.isArray(output.technologies) && output.technologies.length > 0 ? 1 : 0
+  }),
 
   params: {
     domain: {
