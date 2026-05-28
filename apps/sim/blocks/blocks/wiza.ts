@@ -54,6 +54,15 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: '[{"v":"CEO","s":"i"},{"v":"Founder","s":"i"}]',
       condition: { field: 'operation', value: 'prospect_search' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Wiza job_title filter: a JSON array of include/exclude objects.
+Each object is {"v": "<job title>", "s": "i" | "e"} where "i" includes and "e" excludes the title. Use double quotes around a phrase for an exact match.
+Example: [{"v":"CEO","s":"i"},{"v":"intern","s":"e"}]
+Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the job titles to include/exclude...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'job_title_level',
@@ -102,6 +111,15 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: '[{"v":{"country":"united states"},"b":"city","s":"i"}]',
       condition: { field: 'operation', value: 'prospect_search' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Wiza person location filter: a JSON array of location objects.
+Each object is {"v": {"country": "...", "state": "...", "city": "..."}, "b": "country" | "state" | "city", "s": "i" | "e"} where "b" is the level to match, "s" includes ("i") or excludes ("e").
+Example: [{"v":{"country":"united states","state":"california"},"b":"state","s":"i"}]
+Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the person locations to include/exclude...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'skill',
@@ -142,6 +160,15 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: '[{"v":"wiza","s":"i"}]',
       condition: { field: 'operation', value: 'prospect_search' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Wiza current-company filter: a JSON array of include/exclude objects.
+Each object is {"v": "<company name>", "s": "i" | "e"} where "i" includes and "e" excludes the company.
+Example: [{"v":"wiza","s":"i"},{"v":"acme","s":"e"}]
+Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the current companies to include/exclude...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'past_company',
@@ -150,6 +177,15 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: '[{"v":"google","s":"i"}]',
       condition: { field: 'operation', value: 'prospect_search' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Wiza past-company filter: a JSON array of include/exclude objects.
+Each object is {"v": "<company name>", "s": "i" | "e"} where "i" includes and "e" excludes the company.
+Example: [{"v":"google","s":"i"}]
+Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the past companies to include/exclude...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'company_location',
@@ -158,6 +194,15 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: '[{"v":{"country":"canada"},"b":"country","s":"i"}]',
       condition: { field: 'operation', value: 'prospect_search' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Wiza company HQ location filter: a JSON array of location objects.
+Each object is {"v": {"country": "...", "state": "...", "city": "..."}, "b": "country" | "state" | "city", "s": "i" | "e"} where "b" is the level to match, "s" includes ("i") or excludes ("e").
+Example: [{"v":{"country":"canada","state":"ontario"},"b":"state","s":"i"}]
+Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the company HQ locations to include/exclude...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'company_industry',
@@ -166,6 +211,15 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: '[{"v":"computer software","s":"i"}]',
       condition: { field: 'operation', value: 'prospect_search' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Wiza company industry filter: a JSON array of include/exclude objects.
+Each object is {"v": "<industry>", "s": "i" | "e"} where "i" includes and "e" excludes the industry.
+Example: [{"v":"computer software","s":"i"},{"v":"retail","s":"e"}]
+Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the company industries to include/exclude...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'company_size',
@@ -190,6 +244,15 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: '{"job_title":[{"v":"CEO","s":"i"}], "company_size":["11-50"]}',
       condition: { field: 'operation', value: 'prospect_search' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Wiza prospect-search filters object as JSON.
+Available keys: first_name, last_name (string arrays); job_title, job_company, past_company, company_industry (arrays of {"v":"...","s":"i"|"e"}); location, company_location (arrays of {"v":{country,state,city},"b":"country"|"state"|"city","s":"i"|"e"}); job_title_level, job_role, job_sub_role, skill, school, major, linkedin_slug, company_size, company_type (string arrays).
+Example: {"job_title":[{"v":"CEO","s":"i"}],"company_size":["11-50","51-200"],"company_location":[{"v":{"country":"united states"},"b":"country","s":"i"}]}
+Return ONLY the JSON object - no explanations, no extra text.`,
+        placeholder: 'Describe the prospects to search for...',
+        generationType: 'json-object',
+      },
     },
 
     // Company Enrichment
