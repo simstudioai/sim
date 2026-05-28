@@ -14,7 +14,7 @@ export const apolloSequenceSearchTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key (master key required)',
     },
     q_name: {
@@ -38,21 +38,18 @@ export const apolloSequenceSearchTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.apollo.io/api/v1/emailer_campaigns/search',
+    url: (params: ApolloSequenceSearchParams) => {
+      const qs = new URLSearchParams()
+      qs.set('page', String(params.page || 1))
+      qs.set('per_page', String(Math.min(params.per_page || 25, 100)))
+      if (params.q_name) qs.set('q_name', params.q_name)
+      return `https://api.apollo.io/api/v1/emailer_campaigns/search?${qs.toString()}`
+    },
     method: 'POST',
     headers: (params: ApolloSequenceSearchParams) => ({
-      'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
     }),
-    body: (params: ApolloSequenceSearchParams) => {
-      const body: Record<string, unknown> = {
-        page: params.page || 1,
-        per_page: Math.min(params.per_page || 25, 100),
-      }
-      if (params.q_name) body.q_name = params.q_name
-      return body
-    },
   },
 
   transformResponse: async (response: Response) => {

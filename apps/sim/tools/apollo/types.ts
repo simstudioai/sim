@@ -229,7 +229,7 @@ export interface ApolloOrganizationEnrichResponse extends ToolResponse {
 
 // Bulk Organization Enrichment Types
 export interface ApolloOrganizationBulkEnrichParams extends ApolloBaseParams {
-  organizations: Array<{ name: string; domain?: string }>
+  domains: string[]
 }
 
 export interface ApolloOrganizationBulkEnrichResponse extends ToolResponse {
@@ -344,8 +344,10 @@ export interface ApolloContactBulkUpdateParams extends ApolloBaseParams {
 
 export interface ApolloContactBulkUpdateResponse extends ToolResponse {
   output: {
-    message: string | null
+    contacts: ApolloContact[]
+    entity_progress_job: Record<string, unknown> | null
     job_id: string | null
+    message: string | null
   }
 }
 
@@ -466,14 +468,18 @@ export interface ApolloAccountBulkUpdateParams extends ApolloBaseParams {
   account_ids?: string[]
   name?: string
   owner_id?: string
+  account_stage_id?: string
   account_attributes?: Array<{ id: string; [key: string]: unknown }> | Record<string, unknown>
   async?: boolean
 }
 
 export interface ApolloAccountBulkUpdateResponse extends ToolResponse {
   output: {
-    message: string | null
+    accounts: ApolloAccount[]
     account_ids: string[]
+    entity_progress_job: Record<string, unknown> | null
+    job_id: string | null
+    message: string | null
   }
 }
 
