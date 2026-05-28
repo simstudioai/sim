@@ -31,6 +31,7 @@ interface UseTableUndoProps {
   onColumnOrderChange?: (order: string[]) => void
   onColumnRename?: (oldName: string, newName: string) => void
   onColumnWidthsChange?: (widths: Record<string, number>) => void
+  onFrozenColumnsChange?: (frozen: string[]) => void
   getColumnWidths?: () => Record<string, number>
 }
 
@@ -40,6 +41,7 @@ export function useTableUndo({
   onColumnOrderChange,
   onColumnRename,
   onColumnWidthsChange,
+  onFrozenColumnsChange,
   getColumnWidths,
 }: UseTableUndoProps) {
   const push = useTableUndoStore((s) => s.push)
@@ -69,6 +71,8 @@ export function useTableUndo({
   onColumnRenameRef.current = onColumnRename
   const onColumnWidthsChangeRef = useRef(onColumnWidthsChange)
   onColumnWidthsChangeRef.current = onColumnWidthsChange
+  const onFrozenColumnsChangeRef = useRef(onFrozenColumnsChange)
+  onFrozenColumnsChangeRef.current = onFrozenColumnsChange
   const getColumnWidthsRef = useRef(getColumnWidths)
   getColumnWidthsRef.current = getColumnWidths
 
@@ -273,6 +277,10 @@ export function useTableUndo({
                       metadata.columnWidths = merged
                       onColumnWidthsChangeRef.current?.(merged)
                     }
+                    if (action.previousFrozenColumns !== null) {
+                      onFrozenColumnsChangeRef.current?.(action.previousFrozenColumns)
+                      metadata.frozenColumns = action.previousFrozenColumns
+                    }
                     if (Object.keys(metadata).length > 0) {
                       updateMetadataMutation.mutate(metadata)
                     }
@@ -293,6 +301,13 @@ export function useTableUndo({
                     const { [action.columnName]: _, ...rest } = currentWidths
                     metadata.columnWidths = rest
                     onColumnWidthsChangeRef.current?.(rest)
+                  }
+                  if (action.previousFrozenColumns !== null) {
+                    const newFrozen = action.previousFrozenColumns.filter(
+                      (n) => n !== action.columnName
+                    )
+                    onFrozenColumnsChangeRef.current?.(newFrozen)
+                    metadata.frozenColumns = newFrozen
                   }
                   if (Object.keys(metadata).length > 0) {
                     updateMetadataMutation.mutate(metadata)

@@ -490,6 +490,11 @@ export function TableGrid({
     setColumnWidths(widths)
   }
 
+  function handleFrozenColumnsChange(frozen: string[]) {
+    setFrozenColumns(frozen)
+    frozenColumnsRef.current = frozen
+  }
+
   const handleFreezeToggle = useCallback((columnName: string) => {
     const col = columnsRef.current.find((c) => c.name === columnName)
     const siblings: string[] = col?.workflowGroupId
@@ -533,6 +538,7 @@ export function TableGrid({
     onColumnOrderChange: handleColumnOrderChange,
     onColumnRename: handleColumnRename,
     onColumnWidthsChange: handleColumnWidthsChange,
+    onFrozenColumnsChange: handleFrozenColumnsChange,
     getColumnWidths,
   })
   const undoRef = useRef(undo)
@@ -2820,6 +2826,7 @@ export function TableGrid({
         .map((r) => ({ rowId: r.id, value: r.data[columnToDelete] }))
       const previousWidth = columnWidthsRef.current[columnToDelete] ?? null
       const orderSnapshot = currentOrder ? [...currentOrder] : null
+      const frozenSnapshot = [...frozenColumnsRef.current]
 
       const onDeleted = () => {
         deletedOriginalPositions.push(entry.position)
@@ -2833,6 +2840,7 @@ export function TableGrid({
           cellData,
           previousOrder: orderSnapshot,
           previousWidth,
+          previousFrozenColumns: frozenSnapshot,
         })
 
         const { [columnToDelete]: _removedWidth, ...cleanedWidths } = columnWidthsRef.current
