@@ -100,6 +100,7 @@ describe('async preprocessing correlation threading', () => {
         workflowId: 'workflow-1',
         status: 'active',
         archivedAt: null,
+        lastQueuedAt: new Date('2025-01-01T00:00:00.000Z'),
       },
     ])
     mockLoadDeployedWorkflowState.mockResolvedValue({
@@ -251,6 +252,67 @@ describe('async preprocessing correlation threading', () => {
             scheduledFor: '2025-01-01T00:00:00.000Z',
           },
         },
+      })
+    )
+  })
+
+  it('increments infrastructure retry count for retryable schedule preprocessing failures', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: {
+        message: 'database unavailable',
+        statusCode: 500,
+        logCreated: true,
+        retryable: true,
+        cause: { code: '53300' },
+      },
+    })
+
+    await executeScheduleJob({
+      scheduleId: 'schedule-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-retry',
+      requestId: 'request-retry',
+      now: '2025-01-01T00:00:00.000Z',
+      scheduledFor: '2025-01-01T00:00:00.000Z',
+      infraRetryCount: 2,
+    })
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lastQueuedAt: null,
+        infraRetryCount: 3,
+      })
+    )
+  })
+
+  it('moves exhausted infrastructure retries onto the normal failure path', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: {
+        message: 'database unavailable',
+        statusCode: 500,
+        logCreated: true,
+        retryable: true,
+        cause: { code: '53300' },
+      },
+    })
+
+    await executeScheduleJob({
+      scheduleId: 'schedule-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-retry-exhausted',
+      requestId: 'request-retry-exhausted',
+      now: '2025-01-01T00:00:00.000Z',
+      scheduledFor: '2025-01-01T00:00:00.000Z',
+      infraRetryCount: 10,
+    })
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lastQueuedAt: null,
+        lastFailedAt: expect.any(Date),
+        infraRetryCount: 0,
       })
     )
   })

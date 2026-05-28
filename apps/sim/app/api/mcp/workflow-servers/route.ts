@@ -6,7 +6,11 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createWorkflowMcpServerBodySchema } from '@/lib/api/contracts/workflow-mcp-servers'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import {
+  mcpBodyReadErrorResponse,
+  readMcpJsonBodyWithLimit,
+  withMcpAuth,
+} from '@/lib/mcp/middleware'
 import { performCreateWorkflowMcpServer } from '@/lib/mcp/orchestration'
 import {
   createMcpErrorResponse,
@@ -96,7 +100,7 @@ export const POST = withRouteHandler(
   withMcpAuth('write')(
     async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
       try {
-        const rawBody = getParsedBody(request) ?? (await request.json())
+        const rawBody = await readMcpJsonBodyWithLimit(request)
         const parsedBody = createWorkflowMcpServerBodySchema.safeParse(rawBody)
 
         if (!parsedBody.success) {
@@ -138,6 +142,8 @@ export const POST = withRouteHandler(
 
         return createMcpSuccessResponse({ server, addedTools }, 201)
       } catch (error) {
+        const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+        if (bodyErrorResponse) return bodyErrorResponse
         logger.error(`[${requestId}] Error creating workflow MCP server:`, error)
         return createMcpErrorResponse(toError(error), 'Failed to create workflow MCP server', 500)
       }

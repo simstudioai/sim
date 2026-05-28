@@ -3,7 +3,11 @@ import { toError } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { updateMcpServerBodySchema } from '@/lib/api/contracts/mcp'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import {
+  mcpBodyReadErrorResponse,
+  readMcpJsonBodyWithLimit,
+  withMcpAuth,
+} from '@/lib/mcp/middleware'
 import { performUpdateMcpServer } from '@/lib/mcp/orchestration'
 import {
   createMcpErrorResponse,
@@ -28,7 +32,7 @@ export const PATCH = withRouteHandler(
       try {
         const { id: serverId } = await params
 
-        const rawBody = getParsedBody(request) ?? (await request.json())
+        const rawBody = await readMcpJsonBodyWithLimit(request)
         const parsedBody = updateMcpServerBodySchema.safeParse(rawBody)
 
         if (!parsedBody.success) {
@@ -82,6 +86,8 @@ export const PATCH = withRouteHandler(
           server: { ...rest, hasOauthClientSecret: !!_secret },
         })
       } catch (error) {
+        const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+        if (bodyErrorResponse) return bodyErrorResponse
         logger.error(`[${requestId}] Error updating MCP server:`, error)
         return createMcpErrorResponse(toError(error), 'Failed to update MCP server', 500)
       }

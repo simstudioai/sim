@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { MAX_MCP_TOOLS_PER_SERVER } from '@/lib/mcp/constants'
 
 const dateStringSchema = z.preprocess(
   (value) => (value instanceof Date ? value.toISOString() : value),
@@ -67,7 +68,16 @@ export const createWorkflowMcpServerBodySchema = z
     name: z.string().min(1),
     description: z.string().optional(),
     isPublic: z.boolean().optional(),
-    workflowIds: z.array(z.string()).optional(),
+    workflowIds: z
+      .array(z.string())
+      .max(
+        MAX_MCP_TOOLS_PER_SERVER,
+        `Workflow MCP servers can include at most ${MAX_MCP_TOOLS_PER_SERVER} tools`
+      )
+      .refine((workflowIds) => new Set(workflowIds).size === workflowIds.length, {
+        message: 'workflowIds must be unique',
+      })
+      .optional(),
   })
   .passthrough()
 

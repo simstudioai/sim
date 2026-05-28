@@ -20,6 +20,8 @@ vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/table/validation', () => ({
   validateRowSize: vi.fn(() => ({ valid: true, errors: [] })),
   validateRowAgainstSchema: vi.fn(() => ({ valid: true, errors: [] })),
+  coerceRowToSchema: vi.fn(() => ({ valid: true, errors: [] })),
+  coerceRowValues: vi.fn(),
   validateTableName: vi.fn(() => ({ valid: true, errors: [] })),
   validateTableSchema: vi.fn(() => ({ valid: true, errors: [] })),
   getUniqueColumns: vi.fn(() => []),

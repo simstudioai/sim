@@ -82,6 +82,7 @@ export const agentphoneUpdateConversationTool: ToolConfig<
         direction: (message.direction as string) ?? '',
         channel: (message.channel as string | null) ?? null,
         mediaUrl: (message.mediaUrl as string | null) ?? null,
+        mediaUrls: Array.isArray(message.mediaUrls) ? (message.mediaUrls as string[]) : [],
         receivedAt: (message.receivedAt as string) ?? '',
       })
     )
@@ -137,6 +138,11 @@ export const agentphoneUpdateConversationTool: ToolConfig<
             type: 'string',
             description: 'Media URL if any',
             optional: true,
+          },
+          mediaUrls: {
+            type: 'array',
+            description: 'All attached media URLs',
+            items: { type: 'string' },
           },
           receivedAt: { type: 'string', description: 'ISO 8601 timestamp' },
         },

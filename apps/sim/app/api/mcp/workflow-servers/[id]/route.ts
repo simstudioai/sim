@@ -9,7 +9,11 @@ import {
   workflowMcpServerParamsSchema,
 } from '@/lib/api/contracts/workflow-mcp-servers'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import {
+  mcpBodyReadErrorResponse,
+  readMcpJsonBodyWithLimit,
+  withMcpAuth,
+} from '@/lib/mcp/middleware'
 import {
   performDeleteWorkflowMcpServer,
   performUpdateWorkflowMcpServer,
@@ -94,7 +98,7 @@ export const PATCH = withRouteHandler(
     ) => {
       try {
         const { id: serverId } = workflowMcpServerParamsSchema.parse(await params)
-        const rawBody = getParsedBody(request) ?? (await request.json())
+        const rawBody = await readMcpJsonBodyWithLimit(request)
         const parsedBody = updateWorkflowMcpServerBodySchema.safeParse(rawBody)
 
         if (!parsedBody.success) {
@@ -130,6 +134,8 @@ export const PATCH = withRouteHandler(
 
         return createMcpSuccessResponse({ server: updatedServer })
       } catch (error) {
+        const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+        if (bodyErrorResponse) return bodyErrorResponse
         logger.error(`[${requestId}] Error updating workflow MCP server:`, error)
         return createMcpErrorResponse(toError(error), 'Failed to update workflow MCP server', 500)
       }

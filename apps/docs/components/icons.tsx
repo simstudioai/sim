@@ -415,6 +415,18 @@ export function MailIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function InstantlyIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 766.8 766.8' xmlns='http://www.w3.org/2000/svg'>
+      <circle cx='383.4' cy='383.4' r='383.4' fill='#0081ff' />
+      <path
+        d='M276.12 438.81h-101.8c-3.58 0-5.83-3.87-4.05-6.98l163.07-284.97h238.63c3.87 0 6.06 4.44 3.69 7.51L459.07 305.59c-2.36 3.07-.18 7.51 3.69 7.51h124.51c4.2 0 6.26 5.11 3.23 8.02L235.8 662.51c-3.37 3.24-8.88.06-7.76-4.48l52.61-213.45c.72-2.93-1.5-5.77-4.53-5.77z'
+        fill='#fff'
+      />
+    </svg>
+  )
+}
+
 export function EmailBisonIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='-66 -2 88 64' fill='none' xmlns='http://www.w3.org/2000/svg'>
