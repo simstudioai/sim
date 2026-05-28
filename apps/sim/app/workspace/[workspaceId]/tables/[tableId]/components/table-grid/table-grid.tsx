@@ -699,7 +699,10 @@ export function TableGrid({
     checkboxColWidth,
   ])
 
-  const isAllRowsSelected = rowSelectionCoversAll(rowSelection, rows)
+  const isAllRowsSelected = useMemo(
+    () => rowSelectionCoversAll(rowSelection, rows),
+    [rowSelection, rows]
+  )
 
   const isAllRowsSelectedRef = useRef(isAllRowsSelected)
   isAllRowsSelectedRef.current = isAllRowsSelected
