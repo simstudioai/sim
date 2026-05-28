@@ -43,6 +43,13 @@ const logger = createLogger('CopilotLifecycle')
 const MAX_RESUME_ATTEMPTS = 3
 const RESUME_BACKOFF_MS = [250, 500, 1000] as const
 
+function resultContent(context: StreamingContext, options: CopilotLifecycleOptions): string {
+  if (options.interactive === false && context.sawMainToolCall) {
+    return context.finalAssistantContent
+  }
+  return context.accumulatedContent
+}
+
 export interface CopilotLifecycleOptions extends OrchestratorOptions {
   userId: string
   workflowId?: string
@@ -139,7 +146,7 @@ export async function runCopilotLifecycle(
       // branch here — if there are errors we never reach a
       // wasAborted-without-errors state.
       cancelled: context.wasAborted && context.errors.length === 0,
-      content: context.accumulatedContent,
+      content: resultContent(context, lifecycleOptions),
       contentBlocks: context.contentBlocks,
       toolCalls: buildToolCallSummaries(context),
       chatId: context.chatId,

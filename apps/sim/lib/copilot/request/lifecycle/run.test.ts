@@ -222,4 +222,88 @@ describe('runCopilotLifecycle', () => {
       })
     )
   })
+
+  it('uses the final post-tool assistant content for headless results', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'I will check that.Final answer only.'
+        context.finalAssistantContent = 'Final answer only.'
+        context.sawMainToolCall = true
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+        interactive: false,
+      }
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        content: 'Final answer only.',
+      })
+    )
+  })
+
+  it('does not fall back to pre-tool narration when headless final content is empty', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'I will check that.'
+        context.finalAssistantContent = ''
+        context.sawMainToolCall = true
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+        interactive: false,
+      }
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        content: '',
+      })
+    )
+  })
 })

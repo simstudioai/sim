@@ -84,6 +84,8 @@ describe('sse-handlers tool lifecycle', () => {
       chatId: undefined,
       messageId: 'msg-1',
       accumulatedContent: '',
+      finalAssistantContent: '',
+      sawMainToolCall: false,
       trace: new TraceCollector(),
       contentBlocks: [],
       toolCalls: new Map(),
@@ -103,6 +105,54 @@ describe('sse-handlers tool lifecycle', () => {
       userId: 'user-1',
       workflowId: 'workflow-1',
     }
+  })
+
+  it('keeps only the latest post-tool assistant text for headless final content', async () => {
+    await sseHandlers.text(
+      {
+        type: MothershipStreamV1EventType.text,
+        payload: {
+          channel: MothershipStreamV1TextChannel.assistant,
+          text: 'I will check that.',
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false }
+    )
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-1',
+          toolName: ReadTool.id,
+          arguments: { path: 'foo.txt' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, autoExecuteTools: false }
+    )
+
+    await sseHandlers.text(
+      {
+        type: MothershipStreamV1EventType.text,
+        payload: {
+          channel: MothershipStreamV1TextChannel.assistant,
+          text: 'Final answer only.',
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false }
+    )
+
+    expect(context.accumulatedContent).toBe('I will check that.Final answer only.')
+    expect(context.finalAssistantContent).toBe('Final answer only.')
   })
 
   it('executes tool_call and emits tool_result', async () => {

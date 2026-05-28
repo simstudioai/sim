@@ -18,6 +18,7 @@ vi.mock('@/lib/copilot/request/session', async () => {
   return {
     ...actual,
     hasAbortMarker: vi.fn().mockResolvedValue(false),
+    upsertFilePreviewSession: vi.fn(async (session) => session),
   }
 })
 
@@ -26,6 +27,16 @@ const resolveWorkspaceFileReferenceMock = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
 }))
+
+vi.mock('@/lib/copilot/tools/server/files/file-preview', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/copilot/tools/server/files/file-preview')
+  >('@/lib/copilot/tools/server/files/file-preview')
+  return {
+    ...actual,
+    loadWorkspaceFileTextForPreview: vi.fn().mockResolvedValue(''),
+  }
+})
 
 import {
   buildPreviewContentUpdate,
@@ -77,6 +88,8 @@ function createStreamingContext(): StreamingContext {
   return {
     messageId: 'msg-1',
     accumulatedContent: '',
+    finalAssistantContent: '',
+    sawMainToolCall: false,
     contentBlocks: [],
     toolCalls: new Map(),
     pendingToolPromises: new Map(),
@@ -263,7 +276,10 @@ describe('copilot go stream helpers', () => {
 
     const previewEvents = onEvent.mock.calls
       .map(([event]) => event)
-      .filter((event) => event.type === MothershipStreamV1EventType.tool && 'previewPhase' in event.payload)
+      .filter(
+        (event) =>
+          event.type === MothershipStreamV1EventType.tool && 'previewPhase' in event.payload
+      )
 
     expect(previewEvents.map((event) => event.payload.previewPhase)).toEqual([
       'file_preview_start',
@@ -379,7 +395,8 @@ describe('copilot go stream helpers', () => {
     const previewEvents = onEvent.mock.calls
       .map(([event]) => event)
       .filter(
-        (event) => event.type === MothershipStreamV1EventType.tool && 'previewPhase' in event.payload
+        (event) =>
+          event.type === MothershipStreamV1EventType.tool && 'previewPhase' in event.payload
       )
 
     expect(previewEvents.map((event) => event.payload.previewPhase)).toEqual([

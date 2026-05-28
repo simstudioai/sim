@@ -66,6 +66,8 @@ export interface StreamingContext {
   runId?: string
   messageId: string
   accumulatedContent: string
+  finalAssistantContent: string
+  sawMainToolCall: boolean
   contentBlocks: ContentBlock[]
   toolCalls: Map<string, ToolCallState>
   pendingToolPromises: Map<string, Promise<AsyncCompletionSignal>>

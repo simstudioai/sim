@@ -9,6 +9,7 @@ import {
 import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 import {
   performCreateWorkflowMcpServer,
   performDeleteWorkflowMcpServer,
@@ -45,13 +46,14 @@ export async function executeCheckDeploymentStatus(
         .limit(1),
     ])
 
-    const isApiDeployed = apiDeploy[0]?.isDeployed || false
+		const isApiDeployed = apiDeploy[0]?.isDeployed || false
+		const needsRedeployment = isApiDeployed ? await checkNeedsRedeployment(workflowId) : false
     const apiDetails = {
       isDeployed: isApiDeployed,
       deployedAt: apiDeploy[0]?.deployedAt || null,
       endpoint: isApiDeployed ? `/api/workflows/${workflowId}/execute` : null,
       apiKey: workflowRecord.workspaceId ? 'Workspace API keys' : 'Personal API keys',
-      needsRedeployment: false,
+			needsRedeployment,
     }
 
     const isChatDeployed = !!chatDeploy[0]

@@ -68,6 +68,7 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
       flushThinkingBlock(context)
     }
     context.accumulatedContent += chunk
+    context.finalAssistantContent += chunk
     addContentBlock(context, { type: 'text', content: chunk })
   }
 }

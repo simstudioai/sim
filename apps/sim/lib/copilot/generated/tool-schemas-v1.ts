@@ -2816,6 +2816,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description:
             'Plan file name or relative path under .plans, e.g. "implementation.md" or "phase-1/implementation.md". If no extension is supplied, ".md" is appended.',
         },
+        scope: {
+          type: 'string',
+          description:
+            'Plan scope. Use "workspace" for root .plans/** main-agent plans. Use "workflow" for workflows/{workflow}/.plans/** subplans. If omitted with workflowPath, workflow scope is assumed; otherwise workspace scope is assumed.',
+          enum: ['workspace', 'workflow'],
+        },
         title: {
           type: 'string',
           description: 'Optional short user-visible label for the plan creation.',
@@ -2823,10 +2829,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         workflowPath: {
           type: 'string',
           description:
-            'Canonical workflow VFS path, e.g. "workflows/My%20Workflow" or "workflows/Folder/My%20Workflow". Copy from glob/read output; do not use workflow IDs.',
+            'Required for scope "workflow". Canonical workflow VFS path, e.g. "workflows/My%20Workflow" or "workflows/Folder/My%20Workflow". Copy from glob/read output; do not use workflow IDs.',
         },
       },
-      required: ['workflowPath', 'name'],
+      required: ['name'],
     },
     resultSchema: {
       type: 'object',
@@ -2834,7 +2840,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         data: {
           type: 'object',
           description:
-            'Contains id, name, vfsPath, backingVfsPath, and workflowId. Use vfsPath for follow-up workspace_file calls.',
+            'Contains id, name, scope, vfsPath, backingVfsPath, and workflowId for workflow plans. Use vfsPath for follow-up workspace_file calls.',
         },
         message: {
           type: 'string',

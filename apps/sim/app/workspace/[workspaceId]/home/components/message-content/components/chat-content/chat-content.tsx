@@ -18,6 +18,7 @@ import {
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { sanitizeChatDisplayContent } from './chat-sanitize'
 
 const LANG_ALIASES: Record<string, string> = {
   js: 'javascript',
@@ -270,6 +271,8 @@ function ChatContentInner({
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
 
+  const displayContent = useMemo(() => sanitizeChatDisplayContent(content), [content])
+
   useEffect(() => {
     const handler = (e: Event) => {
       const { type, id, title } = (e as CustomEvent).detail
@@ -279,7 +282,10 @@ function ChatContentInner({
     return () => window.removeEventListener('wsres-click', handler)
   }, [])
 
-  const parsed = useMemo(() => parseSpecialTags(content, isStreaming), [content, isStreaming])
+  const parsed = useMemo(
+    () => parseSpecialTags(displayContent, isStreaming),
+    [displayContent, isStreaming]
+  )
   const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
 
   if (hasSpecialContent) {
@@ -354,7 +360,7 @@ function ChatContentInner({
   return (
     <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
       <Streamdown mode={isStreaming ? undefined : 'static'} components={MARKDOWN_COMPONENTS}>
-        {content}
+        {displayContent}
       </Streamdown>
     </div>
   )

@@ -150,6 +150,11 @@ export async function handleToolEvent(
     return
   }
 
+  if (!parentToolCallId) {
+    context.sawMainToolCall = true
+    context.finalAssistantContent = ''
+  }
+
   await handleCallPhase(event.payload, context, execContext, options, parentToolCallId, scope)
 }
 
