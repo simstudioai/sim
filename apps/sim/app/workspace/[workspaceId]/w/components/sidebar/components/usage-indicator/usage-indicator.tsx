@@ -16,13 +16,13 @@ import {
 } from '@/lib/billing/client/utils'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+import { UsageIndicatorContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/usage-indicator/components/usage-indicator-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import { UsageIndicatorContextMenu } from './usage-indicator-context-menu'
 
 const logger = createLogger('UsageIndicator')
 
@@ -474,9 +474,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     return (
       <div className='flex flex-shrink-0 flex-col border-t px-[13.5px] pt-2 pb-2.5'>
         <div className='flex h-[18px] items-center'>
-          <span className='font-base text-[var(--text-primary)] text-caption'>
-            {PLAN_NAMES[planType]}
-          </span>
+          <span className='text-[var(--text-primary)] text-caption'>{PLAN_NAMES[planType]}</span>
         </div>
       </div>
     )
@@ -499,7 +497,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           <div className='flex min-w-0 flex-1 items-center gap-1.5'>
             {showPlanText && (
               <>
-                <span className='flex-shrink-0 font-base text-[var(--text-primary)] text-caption'>
+                <span className='flex-shrink-0 text-[var(--text-primary)] text-caption'>
                   {PLAN_NAMES[planType]}
                 </span>
                 <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
@@ -507,16 +505,14 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
             )}
             <div className='flex min-w-0 flex-1 items-center gap-1'>
               {statusText.isError ? (
-                <span className='font-base text-[var(--text-error)] text-caption'>
-                  {statusText.text}
-                </span>
+                <span className='text-[var(--text-error)] text-caption'>{statusText.text}</span>
               ) : (
                 <>
-                  <span className='font-base text-[var(--text-secondary)] text-caption tabular-nums'>
+                  <span className='text-[var(--text-secondary)] text-caption tabular-nums'>
                     {dollarsToCredits(usage.current).toLocaleString()}
                   </span>
-                  <span className='font-base text-[var(--text-secondary)] text-caption'>/</span>
-                  <span className='font-base text-[var(--text-secondary)] text-caption tabular-nums'>
+                  <span className='text-[var(--text-secondary)] text-caption'>/</span>
+                  <span className='text-[var(--text-secondary)] text-caption tabular-nums'>
                     {dollarsToCredits(usage.limit).toLocaleString()} credits
                   </span>
                 </>

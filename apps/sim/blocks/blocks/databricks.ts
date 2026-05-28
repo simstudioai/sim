@@ -1,5 +1,5 @@
 import { DatabricksIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { DatabricksResponse } from '@/tools/databricks/types'
 
@@ -13,7 +13,6 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
   docsLink: 'https://docs.sim.ai/tools/databricks',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['data-warehouse', 'data-analytics', 'cloud'],
   bgColor: '#F9F7F4',
   icon: DatabricksIcon,
   subBlocks: [
@@ -418,3 +417,77 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
     clusters: { type: 'json', description: 'List of clusters' },
   },
 }
+
+export const DatabricksBlockMeta = {
+  tags: ['data-warehouse', 'data-analytics', 'cloud'],
+  templates: [
+    {
+      icon: DatabricksIcon,
+      title: 'Databricks job runner',
+      prompt:
+        'Build a scheduled workflow that triggers a Databricks job daily, polls until completion, writes the run status and metrics to a control table, and pages on failure.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'sync'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: DatabricksIcon,
+      title: 'Databricks cluster cost guard',
+      prompt:
+        'Create a scheduled workflow that pulls Databricks cluster usage hourly, identifies idle clusters, terminates them after a grace period, and writes savings to a finance report.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'devops'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DatabricksIcon,
+      title: 'Databricks notebook scheduler',
+      prompt:
+        'Build a workflow that runs a parameterized Databricks notebook, captures the outputs as files, and posts the result to a chosen Slack channel for review.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['analysis', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DatabricksIcon,
+      title: 'Databricks ML feature freshness',
+      prompt:
+        'Create a scheduled workflow that monitors Databricks feature-store freshness, alerts when a critical feature has stale data, and writes the alert details to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+    },
+    {
+      icon: DatabricksIcon,
+      title: 'Databricks model evaluator',
+      prompt:
+        'Build a workflow that runs a Databricks ML model evaluation job on the latest data, captures the metrics, writes results to a model-registry table, and pings Slack on regression.',
+      modules: ['agent', 'tables', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DatabricksIcon,
+      title: 'Databricks Delta Lake compactor',
+      prompt:
+        'Create a scheduled workflow that runs OPTIMIZE and VACUUM on Databricks Delta Lake tables weekly, captures the size and performance delta, and writes a maintenance report.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+    },
+    {
+      icon: DatabricksIcon,
+      title: 'Databricks job failure watcher',
+      prompt:
+        'Build a workflow that lists recent Databricks job runs every 15 minutes, detects failed runs, pulls the run output and error for an agent to summarize the likely cause, and posts an actionable Slack alert with a link to the run.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'engineering'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

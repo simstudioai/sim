@@ -1,7 +1,7 @@
 import { GoogleSlidesIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleSlidesResponse } from '@/tools/google_slides/types'
@@ -17,8 +17,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_slides',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['google-workspace', 'document-processing', 'content-management'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleSlidesIcon,
   subBlocks: [
     // Operation selector
@@ -3463,7 +3462,6 @@ export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
   description: 'Read, write, and create presentations',
   hideFromToolbar: false,
   integrationType: IntegrationType.Documents,
-  tags: ['google-workspace', 'document-processing', 'content-management'],
   subBlocks: googleSlidesV2SubBlocks,
   tools: {
     access: GoogleSlidesBlock.tools!.access,
@@ -3497,3 +3495,80 @@ export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
   },
   inputs: googleSlidesV2Inputs,
 }
+
+export const GoogleSlidesBlockMeta = {
+  tags: ['google-workspace', 'document-processing', 'content-management'],
+  templates: [
+    {
+      icon: GoogleSlidesIcon,
+      title: 'Google Slides QBR generator',
+      prompt:
+        'Build a workflow that takes a customer account, pulls usage and support data, and generates a Google Slides QBR deck from a template with the metrics auto-filled.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'reporting'],
+    },
+    {
+      icon: GoogleSlidesIcon,
+      title: 'Google Slides weekly board update',
+      prompt:
+        'Create a scheduled weekly workflow that updates a Google Slides board deck with the latest KPIs from tables, swaps the cover image, and shares the link to the leadership thread.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['founder', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleSlidesIcon,
+      title: 'Google Slides case-study builder',
+      prompt:
+        'Build a workflow that takes a customer story brief and generates a Google Slides case-study deck from a template, including pull quotes, metrics, and a logo.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+    {
+      icon: GoogleSlidesIcon,
+      title: 'Google Slides pitch personalizer',
+      prompt:
+        'Create a workflow that takes a Salesforce opportunity, generates a Google Slides pitch deck personalized to the account, and attaches it to the opportunity record.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'content'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: GoogleSlidesIcon,
+      title: 'Google Slides training builder',
+      prompt:
+        'Build a workflow that takes a knowledge base topic, generates a Google Slides training deck with structured slides, talking points, and quiz slides at the end.',
+      modules: ['knowledge-base', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'content'],
+    },
+    {
+      icon: GoogleSlidesIcon,
+      title: 'Google Slides exec metrics deck',
+      prompt:
+        'Create a scheduled monthly workflow that generates a Google Slides executive metrics deck from BigQuery and Stripe data, swaps the cover with the month, and shares it with leadership.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['founder', 'reporting'],
+      alsoIntegrations: ['google_bigquery', 'stripe'],
+    },
+    {
+      icon: GoogleSlidesIcon,
+      title: 'Google Slides win-loss recap',
+      prompt:
+        'Build a workflow that aggregates closed-won and closed-lost deals from Salesforce monthly, generates a Google Slides recap with patterns and insights, and emails it to the sales team.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'analysis'],
+      alsoIntegrations: ['salesforce', 'gmail'],
+    },
+  ],
+} as const satisfies BlockMeta
+
+export const GoogleSlidesV2BlockMeta = {
+  tags: ['google-workspace', 'document-processing', 'content-management'],
+} as const satisfies BlockMeta

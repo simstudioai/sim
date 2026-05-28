@@ -1,5 +1,5 @@
 import { GongIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { GongResponse } from '@/tools/gong/types'
 import { getTrigger } from '@/triggers'
 
@@ -13,7 +13,6 @@ export const GongBlock: BlockConfig<GongResponse> = {
   docsLink: 'https://docs.sim.ai/tools/gong',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['meeting', 'sales-engagement', 'speech-to-text'],
   bgColor: '#8039DF',
   icon: GongIcon,
   triggerAllowed: true,
@@ -712,3 +711,76 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     available: ['gong_webhook', 'gong_call_completed'],
   },
 }
+
+export const GongBlockMeta = {
+  tags: ['meeting', 'sales-engagement', 'speech-to-text'],
+  templates: [
+    {
+      icon: GongIcon,
+      title: 'Sales call analyzer',
+      prompt:
+        'Build a workflow that pulls call transcripts from Gong after each sales call, identifies key objections raised, action items promised, and competitor mentions, updates the deal record in my CRM, and posts a call summary with next steps to the Slack deal channel.',
+      modules: ['agent', 'tables', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'analysis', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GongIcon,
+      title: 'Gong objection tracker',
+      prompt:
+        'Build a scheduled weekly workflow that scans Gong sales calls for recurring objections, scores frequency and stage, and writes a competitive-intel digest to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GongIcon,
+      title: 'Gong deal-risk surfacer',
+      prompt:
+        'Create a workflow that monitors Gong conversation intelligence signals, identifies deals at risk based on talk patterns, and posts a Slack alert to the AE and manager.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GongIcon,
+      title: 'Gong coaching dashboard',
+      prompt:
+        'Build a scheduled weekly workflow that pulls Gong per-rep metrics — talk ratio, longest monologue, question rate — and writes a coaching table for managers.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'analysis'],
+    },
+    {
+      icon: GongIcon,
+      title: 'Gong customer-quote miner',
+      prompt:
+        'Create a workflow that processes Gong customer interview calls, extracts notable quotes and themes, and writes them to a marketing research table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: GongIcon,
+      title: 'Gong CRM auto-updater',
+      prompt:
+        'Build a workflow that runs after a Gong sales call, summarizes objections and next steps, and updates the linked Salesforce or HubSpot opportunity with notes.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce', 'hubspot'],
+    },
+    {
+      icon: GongIcon,
+      title: 'Gong competitor-mention tracker',
+      prompt:
+        'Create a workflow that scans Gong calls for competitor mentions, captures context and outcome, and writes the competitive intel to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+  ],
+} as const satisfies BlockMeta

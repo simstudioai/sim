@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
   Check,
-  Copy,
+  Duplicate,
   Modal,
   ModalBody,
   ModalContent,
@@ -46,9 +46,9 @@ function toPlainText(raw: string): string {
   )
 }
 
-const ICON_CLASS = 'h-[14px] w-[14px]'
+const ICON_CLASS = 'size-[14px]'
 const BUTTON_CLASS =
-  'flex h-[26px] w-[26px] items-center justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
+  'flex size-[26px] items-center justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
 
 interface MessageActionsProps {
   content: string
@@ -180,7 +180,7 @@ export const MessageActions = memo(function MessageActions({
                 onClick={copyToClipboard}
                 className={BUTTON_CLASS}
               >
-                {copied ? <Check className={ICON_CLASS} /> : <Copy className={ICON_CLASS} />}
+                {copied ? <Check className={ICON_CLASS} /> : <Duplicate className={ICON_CLASS} />}
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
@@ -260,7 +260,7 @@ export const MessageActions = memo(function MessageActions({
                         {copiedRequestId ? (
                           <Check className='size-[14px]' />
                         ) : (
-                          <Copy className='size-[14px]' />
+                          <Duplicate className='size-[14px]' />
                         )}
                       </button>
                     </Tooltip.Trigger>
@@ -287,7 +287,7 @@ export const MessageActions = memo(function MessageActions({
               Cancel
             </Button>
             <Button variant='primary' onClick={handleSubmitFeedback}>
-              Submit feedback
+              Submit
             </Button>
           </ModalFooter>
         </ModalContent>

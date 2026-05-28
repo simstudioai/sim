@@ -458,19 +458,6 @@ export interface PostHogEventMap {
     user_message_id: string
   }
 
-  tour_started: {
-    tour_type: 'nav' | 'workflow'
-  }
-
-  tour_completed: {
-    tour_type: 'nav' | 'workflow'
-  }
-
-  tour_skipped: {
-    tour_type: 'nav' | 'workflow'
-    step_index: number
-  }
-
   docs_opened: {
     source: 'help_menu' | 'editor_button' | 'toolbar_context_menu'
     block_type?: string

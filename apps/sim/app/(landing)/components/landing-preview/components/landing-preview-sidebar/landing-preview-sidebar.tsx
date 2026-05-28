@@ -169,7 +169,7 @@ export function LandingPreviewSidebar({
       {/* Workspace */}
       <div className='mt-3.5 flex flex-shrink-0 flex-col'>
         <div className='px-4 pb-1.5'>
-          <div className='font-base text-[12px]' style={{ color: C.TEXT_ICON }}>
+          <div className='text-[12px]' style={{ color: C.TEXT_ICON }}>
             Workspace
           </div>
         </div>
@@ -191,7 +191,7 @@ export function LandingPreviewSidebar({
         {/* Workflows */}
         <div className='flex flex-col'>
           <div className='px-4'>
-            <div className='font-base text-[12px]' style={{ color: C.TEXT_ICON }}>
+            <div className='text-[12px]' style={{ color: C.TEXT_ICON }}>
               Workflows
             </div>
           </div>

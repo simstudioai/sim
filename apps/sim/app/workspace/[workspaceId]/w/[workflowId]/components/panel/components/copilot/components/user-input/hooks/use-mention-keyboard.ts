@@ -29,6 +29,7 @@ interface UseMentionKeyboardProps {
     insertWorkflowBlockMention: (blk: any) => void
     insertTemplateMention: (tpl: any) => void
     insertLogMention: (log: any) => void
+    insertIntegrationMention: (integration: any) => void
     insertDocsMention: () => void
   }
   /** Folder navigation state exposed from MentionMenu via callback */
@@ -73,6 +74,7 @@ export function useMentionKeyboard({
       'workflow-blocks': insertHandlers.insertWorkflowBlockMention,
       templates: insertHandlers.insertTemplateMention,
       logs: insertHandlers.insertLogMention,
+      integrations: insertHandlers.insertIntegrationMention,
     }),
     [insertHandlers]
   )

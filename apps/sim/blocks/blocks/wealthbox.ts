@@ -1,6 +1,6 @@
 import { WealthboxIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { WealthboxResponse } from '@/tools/wealthbox/types'
 
@@ -13,9 +13,8 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
     'Integrate Wealthbox into the workflow. Can read and write notes, read and write contacts, and read and write tasks.',
   docsLink: 'https://docs.sim.ai/tools/wealthbox',
   category: 'tools',
-  integrationType: IntegrationType.CRM,
-  tags: ['sales-engagement', 'customer-support'],
-  bgColor: '#E0E0E0',
+  integrationType: IntegrationType.Sales,
+  bgColor: '#FFFFFF',
   icon: WealthboxIcon,
   subBlocks: [
     {
@@ -275,3 +274,77 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
     },
   },
 }
+
+export const WealthboxBlockMeta = {
+  tags: ['sales-engagement', 'customer-support'],
+  templates: [
+    {
+      icon: WealthboxIcon,
+      title: 'Wealthbox CRM mirror',
+      prompt:
+        'Build a scheduled workflow that mirrors Wealthbox contacts and tasks into a Sim table for unified reporting alongside other sales-pipeline data.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'sync'],
+    },
+    {
+      icon: WealthboxIcon,
+      title: 'Wealthbox client review prep',
+      prompt:
+        'Create a workflow that runs the morning of each Wealthbox client meeting, gathers recent emails, notes, and tasks for that client, and emails the advisor a prep brief.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: WealthboxIcon,
+      title: 'Wealthbox task auto-creator',
+      prompt:
+        'Build a workflow that listens for Gmail messages tagged "client action", classifies the action, and creates a matching task on the Wealthbox client record.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: WealthboxIcon,
+      title: 'Wealthbox compliance audit',
+      prompt:
+        'Create a scheduled workflow that audits Wealthbox client records monthly for missing KYC fields or stale notes and writes a compliance backlog to a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'legal'],
+    },
+    {
+      icon: WealthboxIcon,
+      title: 'Wealthbox birthday reminder',
+      prompt:
+        'Build a scheduled workflow that runs daily, surfaces Wealthbox client birthdays for the next 7 days, and emails advisors a reminder with a personalized message draft.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: WealthboxIcon,
+      title: 'Wealthbox book-of-business digest',
+      prompt:
+        'Create a scheduled weekly workflow that summarizes Wealthbox book-of-business metrics by advisor, writes a digest table, and posts the summary to leadership.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: WealthboxIcon,
+      title: 'Wealthbox referral tracker',
+      prompt:
+        'Build a workflow that watches Wealthbox for new referral notes, captures the source and prospect, writes the referral chain into a CRM table, and pings the advisor.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

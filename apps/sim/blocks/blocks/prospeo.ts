@@ -1,5 +1,5 @@
 import { ProspeoIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { ProspeoResponse } from '@/tools/prospeo/types'
 
 export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
@@ -12,7 +12,6 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
   docsLink: 'https://docs.sim.ai/tools/prospeo',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'sales-engagement'],
   bgColor: '#FF1A26',
   icon: ProspeoIcon,
   subBlocks: [
@@ -515,3 +514,75 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
     },
   },
 }
+
+export const ProspeoBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  templates: [
+    {
+      icon: ProspeoIcon,
+      title: 'Prospeo email finder',
+      prompt:
+        'Build a workflow that takes a prospect name and company from a table, runs Prospeo to find and verify their work email, and writes the deliverable contact back to the row.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: ProspeoIcon,
+      title: 'Prospeo person enricher',
+      prompt:
+        'Create a workflow that watches CRM contacts, runs Prospeo enrichment to fill in title, company, and verified contact details, and writes the enriched fields back.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'research'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: ProspeoIcon,
+      title: 'Prospeo ICP search',
+      prompt:
+        'Build a workflow that runs a Prospeo people search against my ICP filters, reveals verified emails and mobile numbers, and writes the prospect list into a sender table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: ProspeoIcon,
+      title: 'Prospeo + Email Bison outbound',
+      prompt:
+        'Create a workflow that uses Prospeo to find and verify prospect emails, drafts a personalized first-touch message, and pushes valid prospects into an Email Bison campaign.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['emailbison'],
+    },
+    {
+      icon: ProspeoIcon,
+      title: 'Prospeo CRM gap-filler',
+      prompt:
+        'Build a scheduled workflow that finds Salesforce contacts missing email addresses, runs Prospeo to find and verify them, and updates each contact record.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: ProspeoIcon,
+      title: 'Prospeo bulk list enrichment',
+      prompt:
+        'Build a workflow that reads a large prospect list from a table, runs Prospeo bulk person enrichment in batches to reveal verified emails and titles, and writes the enriched results back row by row with a status column for any that could not be matched.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'enrichment'],
+    },
+    {
+      icon: ProspeoIcon,
+      title: 'Prospeo company enrichment',
+      prompt:
+        'Create a workflow that takes a list of target company domains, runs Prospeo company enrichment to pull firmographics like size, industry, and location, and writes the structured company profiles into an account table for territory planning.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'enrichment'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -19,12 +19,12 @@ import {
   Button,
   ChevronDown,
   Code,
-  Copy as CopyIcon,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Duplicate,
   Input,
   Search as SearchIcon,
   Tooltip,
@@ -337,7 +337,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
           >
             <ChevronDown
               className={cn(
-                'h-[10px] w-[10px] transition-transform duration-100',
+                'size-[10px] transition-transform duration-100',
                 !isExpanded && '-rotate-90'
               )}
             />
@@ -350,9 +350,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
             className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
             style={{ background: bgColor }}
           >
-            {BlockIcon && (
-              <BlockIcon className={cn('h-[10px] w-[10px]', iconColorClass(bgColor))} />
-            )}
+            {BlockIcon && <BlockIcon className={cn('size-[10px]', iconColorClass(bgColor))} />}
           </div>
         )}
         <Tooltip.Root>
@@ -492,7 +490,7 @@ function DetailCodeSection({
         </span>
         <ChevronDown
           className={cn(
-            'h-[8px] w-[8px] text-[var(--text-tertiary)] transition-colors transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+            'size-[8px] text-[var(--text-tertiary)] transition-colors transition-transform duration-100 group-hover:text-[var(--text-primary)]',
             !isOpen && '-rotate-90'
           )}
         />
@@ -628,7 +626,7 @@ function DetailCodeSection({
                   onCloseAutoFocus={(e) => e.preventDefault()}
                 >
                   <DropdownMenuItem onSelect={handleCopy}>
-                    <CopyIcon />
+                    <Duplicate />
                     Copy
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -724,9 +722,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
             className='mt-[2px] flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
-            {BlockIcon && (
-              <BlockIcon className={cn('h-[12px] w-[12px]', iconColorClass(bgColor))} />
-            )}
+            {BlockIcon && <BlockIcon className={cn('size-[12px]', iconColorClass(bgColor))} />}
           </div>
         )}
         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>

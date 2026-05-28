@@ -1,6 +1,6 @@
 import { GoogleDocsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleDocsResponse } from '@/tools/google_docs/types'
@@ -15,8 +15,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_docs',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['google-workspace', 'document-processing', 'content-management'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleDocsIcon,
   subBlocks: [
     // Operation selector
@@ -213,3 +212,76 @@ Return ONLY the document content - no explanations, no extra text.`,
     updatedContent: { type: 'boolean', description: 'Content update status' },
   },
 }
+
+export const GoogleDocsBlockMeta = {
+  tags: ['google-workspace', 'document-processing', 'content-management'],
+  templates: [
+    {
+      icon: GoogleDocsIcon,
+      title: 'Google Docs review-cycle automator',
+      prompt:
+        'Build a workflow that watches Google Docs for a "ready-for-review" status comment, notifies named reviewers over Slack, collects approval reactions, and resolves the comment when complete.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleDocsIcon,
+      title: 'Google Docs version digester',
+      prompt:
+        'Create a scheduled weekly workflow that compares Google Docs revisions for tracked documents, summarizes who changed what, and posts a digest to the doc owner.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleDocsIcon,
+      title: 'Google Docs translation copy',
+      prompt:
+        'Build a workflow that takes a Google Doc and creates translated copies into target languages with Google Translate, links them in the source, and notifies the localization team.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['content', 'enterprise'],
+      alsoIntegrations: ['google_translate'],
+    },
+    {
+      icon: GoogleDocsIcon,
+      title: 'Meeting notes to Google Doc',
+      prompt:
+        'Create a workflow that after a meeting pulls the transcript, summarizes decisions, action items, and owners with an agent, and creates a formatted Google Doc in the shared team folder with a link posted to Slack.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'meeting', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleDocsIcon,
+      title: 'Google Docs proposal generator',
+      prompt:
+        'Build a workflow that on a closed-won deal reads the account details, creates a Google Doc from the proposal template, fills in customer name, scope, and pricing, and shares the draft with the account owner for review.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'content', 'automation'],
+    },
+    {
+      icon: GoogleDocsIcon,
+      title: 'Weekly report writer',
+      prompt:
+        'Create a scheduled weekly workflow that reads metrics from my tables, writes a narrative status report with an agent, and appends the new section to a running Google Doc so leadership has one living document.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['reporting', 'analysis'],
+    },
+    {
+      icon: GoogleDocsIcon,
+      title: 'Google Docs knowledge sync',
+      prompt:
+        'Build a workflow that reads a set of Google Docs in a folder, extracts their content, and upserts it into a knowledge base so the team can ask questions and get answers grounded in the latest docs.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'research', 'sync'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -7,7 +7,7 @@ import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/feature-flags'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
-import { registry as blockRegistry } from '@/blocks/registry'
+import { getBlock } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
@@ -153,7 +153,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         }
         ;(metadata as any).subBlocks = undefined
       } else {
-        const blockConfig: BlockConfig | undefined = blockRegistry[blockId]
+        const blockConfig: BlockConfig | undefined = getBlock(blockId)
         if (!blockConfig) {
           logger.debug('Block not found in registry', { blockId })
           continue

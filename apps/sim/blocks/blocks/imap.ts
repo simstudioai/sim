@@ -11,7 +11,6 @@ export const ImapBlock: BlockConfig = {
     'Connect to any email server via IMAP protocol to trigger workflows when new emails are received. Supports Gmail, Outlook, Yahoo, and any other IMAP-compatible email provider.',
   category: 'triggers',
   integrationType: IntegrationType.Email,
-  tags: ['messaging', 'automation'],
   bgColor: '#6366F1',
   icon: MailServerIcon,
   triggerAllowed: true,

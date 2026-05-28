@@ -52,12 +52,15 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { A2aDeploy } from './components/a2a/a2a'
-import { ApiDeploy } from './components/api/api'
-import { ChatDeploy, type ExistingChat } from './components/chat/chat'
+import {
+  A2aDeploy,
+  ApiDeploy,
+  ChatDeploy,
+  type ExistingChat,
+  GeneralDeploy,
+  McpDeploy,
+} from './components'
 import { ApiInfoModal } from './components/general/components/api-info-modal'
-import { GeneralDeploy } from './components/general/general'
-import { McpDeploy } from './components/mcp/mcp'
 
 const logger = createLogger('DeployModal')
 

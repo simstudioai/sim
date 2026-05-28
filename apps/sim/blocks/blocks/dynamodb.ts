@@ -1,6 +1,6 @@
 import { toError } from '@sim/utils/errors'
 import { DynamoDBIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { DynamoDBIntrospectResponse, DynamoDBResponse } from '@/tools/dynamodb/types'
 
@@ -14,7 +14,6 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse | DynamoDBIntrospectRes
   docsLink: 'https://docs.sim.ai/tools/dynamodb',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['cloud', 'data-warehouse'],
   bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',
   icon: DynamoDBIcon,
   subBlocks: [
@@ -828,3 +827,77 @@ Return ONLY the expression - no explanations.`,
     },
   },
 }
+
+export const DynamoDBBlockMeta = {
+  tags: ['cloud', 'data-warehouse'],
+  templates: [
+    {
+      icon: DynamoDBIcon,
+      title: 'DynamoDB hot-partition watcher',
+      prompt:
+        'Build a scheduled workflow that pulls DynamoDB CloudWatch metrics, identifies hot partitions and throttled requests, and writes the report to a Slack channel with mitigation suggestions.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['cloudwatch', 'slack'],
+    },
+    {
+      icon: DynamoDBIcon,
+      title: 'DynamoDB TTL backfill',
+      prompt:
+        'Create a workflow that scans a DynamoDB table for items missing the TTL attribute, computes the correct TTL based on creation time, and updates in batches with throttling.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+    },
+    {
+      icon: DynamoDBIcon,
+      title: 'DynamoDB to S3 archive',
+      prompt:
+        'Build a scheduled workflow that exports DynamoDB items older than the retention horizon to S3 with Parquet partitioning and removes the rows from the table, writing the archive manifest.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'sync'],
+      alsoIntegrations: ['s3'],
+    },
+    {
+      icon: DynamoDBIcon,
+      title: 'DynamoDB stream → events',
+      prompt:
+        'Create a workflow that subscribes to a DynamoDB stream, transforms each record into a typed event, and publishes it to an SQS queue with retry and dead-letter handling.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+      alsoIntegrations: ['sqs'],
+    },
+    {
+      icon: DynamoDBIcon,
+      title: 'DynamoDB capacity recommender',
+      prompt:
+        'Build a scheduled weekly workflow that analyzes DynamoDB capacity consumption, recommends switches between provisioned and on-demand per table, and writes the savings projection to a finance review file.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'devops'],
+    },
+    {
+      icon: DynamoDBIcon,
+      title: 'DynamoDB GSI health audit',
+      prompt:
+        'Create a scheduled workflow that scans DynamoDB GSIs for skew, low projection efficiency, and unused indexes, and writes a remediation plan to engineering Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DynamoDBIcon,
+      title: 'DynamoDB + Athena unified analytics',
+      prompt:
+        'Create a workflow that exports DynamoDB tables nightly into Athena-queryable Parquet, registers the schema, and writes a sample query for analyst use.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['analysis', 'sync'],
+      alsoIntegrations: ['athena'],
+    },
+  ],
+} as const satisfies BlockMeta

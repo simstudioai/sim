@@ -42,6 +42,9 @@ export const useSidebarStore = create<SidebarState>()(
           state.setHasHydrated(true)
           const width = state.isCollapsed ? SIDEBAR_WIDTH.COLLAPSED : state.sidebarWidth
           applySidebarWidth(width)
+          if (typeof document !== 'undefined') {
+            document.documentElement.removeAttribute('data-sidebar-collapsed')
+          }
         }
       },
       partialize: (state) => ({

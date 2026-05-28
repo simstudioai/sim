@@ -1,5 +1,5 @@
 import { TailscaleIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const TailscaleBlock: BlockConfig = {
@@ -11,7 +11,6 @@ export const TailscaleBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/tailscale',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['monitoring'],
   bgColor: '#2E2D2D',
   icon: TailscaleIcon,
   authMode: AuthMode.ApiKey,
@@ -339,3 +338,77 @@ export const TailscaleBlock: BlockConfig = {
     etag: { type: 'string', description: 'ACL ETag for conditional updates' },
   },
 }
+
+export const TailscaleBlockMeta = {
+  tags: ['monitoring'],
+  templates: [
+    {
+      icon: TailscaleIcon,
+      title: 'Tailscale device inventory',
+      prompt:
+        'Build a scheduled workflow that pulls Tailscale device inventory daily, identifies stale or non-compliant nodes, and writes a security review table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise'],
+    },
+    {
+      icon: TailscaleIcon,
+      title: 'Tailscale ACL drift detector',
+      prompt:
+        'Create a scheduled workflow that diffs Tailscale ACLs against the source of truth, alerts on drift, and writes the drift report to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: TailscaleIcon,
+      title: 'Tailscale new-hire provisioner',
+      prompt:
+        'Build a workflow that on a Workday new-hire event creates a Tailscale account for the engineer, assigns the right tags, and writes the access record.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: TailscaleIcon,
+      title: 'Tailscale offboarder',
+      prompt:
+        'Create a workflow that on a Workday termination removes the user from Tailscale, revokes node access, and writes the security audit log.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: TailscaleIcon,
+      title: 'Tailscale unauthorized-tag watcher',
+      prompt:
+        'Build a workflow that watches Tailscale for unauthorized device tagging or ACL changes, posts a Slack alert to the security channel, and writes the audit.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: TailscaleIcon,
+      title: 'Tailscale key-expiry sweeper',
+      prompt:
+        'Create a scheduled workflow that lists Tailscale auth keys expiring in 14 days, notifies owners, and rotates keys past their grace period.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: TailscaleIcon,
+      title: 'Tailscale access audit',
+      prompt:
+        'Build a scheduled monthly workflow that produces a Tailscale access-review report — devices, tags, ACL effective access — for the security team.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+  ],
+} as const satisfies BlockMeta

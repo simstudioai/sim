@@ -39,7 +39,7 @@
 
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Paperclip, Plus, X } from 'lucide-react'
+import { AlertTriangle, Paperclip, Plus, X } from 'lucide-react'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
@@ -78,6 +78,8 @@ interface TagProps extends VariantProps<typeof tagVariants> {
   disabled?: boolean
   /** Additional class names */
   className?: string
+  /** Optional prefix content rendered on the left (e.g., warning icon) */
+  prefix?: React.ReactNode
   /** Optional suffix content (e.g., "sent" label) */
   suffix?: React.ReactNode
 }
@@ -91,10 +93,12 @@ const Tag = React.memo(function Tag({
   disabled,
   variant,
   className,
+  prefix,
   suffix,
 }: TagProps) {
   return (
     <div className={cn(tagVariants({ variant }), className)}>
+      {prefix}
       <span className='max-w-[200px] truncate'>{value}</span>
       {suffix}
       {!disabled && onRemove && (
@@ -120,14 +124,22 @@ const Tag = React.memo(function Tag({
 
 /**
  * Variant styles for the TagInput container.
- * Matches the Input component styling exactly for consistent height.
+ *
+ * @remarks
+ * - `default` matches the standard Input component styling for consistent height.
+ * - `block` matches the multi-row "Description" textarea pattern: larger radius,
+ *   top-aligned items, taller min-height, and no focus ring — for use inside
+ *   form sections where the tag input visually pairs with textarea fields.
  */
 const tagInputVariants = cva(
-  'scrollbar-hide flex w-full cursor-text flex-wrap items-center gap-x-2 gap-y-1 overflow-y-auto rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 transition-colors focus-within:outline-none dark:bg-[var(--surface-5)]',
+  'scrollbar-hide flex w-full cursor-text flex-wrap gap-x-2 gap-y-1 overflow-y-auto border border-[var(--border-1)] bg-[var(--surface-5)] px-2 transition-colors',
   {
     variants: {
       variant: {
-        default: '',
+        default:
+          'items-center rounded-sm py-1.5 focus-within:outline-none focus-within:ring-1 focus-within:ring-[var(--brand-accent)] dark:bg-[var(--surface-5)]',
+        block:
+          'min-h-[112px] items-start rounded-lg py-2 focus-within:outline-none dark:bg-[var(--surface-4)]',
       },
     },
     defaultVariants: {
@@ -230,6 +242,7 @@ const TagInputTag = React.memo(function TagInputTag({
       variant={item.isValid ? tagVariant : 'invalid'}
       onRemove={handleRemove}
       disabled={disabled}
+      prefix={!item.isValid ? <AlertTriangle className='size-3 flex-shrink-0' /> : undefined}
       suffix={suffix}
     />
   )

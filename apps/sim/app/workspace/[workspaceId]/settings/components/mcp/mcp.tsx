@@ -45,7 +45,7 @@ import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-import { McpServerFormModal, McpServerSkeleton } from './components'
+import { McpServerFormModal } from './components'
 
 const logger = createLogger('McpSettings')
 
@@ -618,7 +618,7 @@ export function MCP({ initialServerId }: MCPProps) {
               placeholder='Search MCPs...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
           <Button onClick={() => setShowAddModal(true)} variant='primary' disabled={serversLoading}>
@@ -634,13 +634,7 @@ export function MCP({ initialServerId }: MCPProps) {
                 {getErrorMessage(error, 'Failed to load MCP servers')}
               </p>
             </div>
-          ) : serversLoading ? (
-            <div className='flex flex-col gap-2'>
-              <McpServerSkeleton />
-              <McpServerSkeleton />
-              <McpServerSkeleton />
-            </div>
-          ) : !hasServers ? (
+          ) : serversLoading ? null : !hasServers ? (
             <div className='flex h-full items-center justify-center'>
               <p className='text-[var(--text-muted)] text-sm'>Click "Add" above to get started</p>
             </div>

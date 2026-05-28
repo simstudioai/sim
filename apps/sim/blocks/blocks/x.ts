@@ -1,6 +1,6 @@
 import { xIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const XBlock: BlockConfig = {
@@ -13,7 +13,6 @@ export const XBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/x',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['marketing', 'messaging'],
   bgColor: '#000000',
   icon: xIcon,
   subBlocks: [
@@ -756,3 +755,76 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     },
   },
 }
+
+export const XBlockMeta = {
+  tags: ['marketing', 'messaging'],
+  templates: [
+    {
+      icon: xIcon,
+      title: 'X (Twitter) brand mention triage',
+      prompt:
+        'Build a workflow that monitors X mentions of the brand, classifies each as praise, support request, or complaint, and routes complaints to the support team with one-tap context.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'support'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: xIcon,
+      title: 'X engagement digest',
+      prompt:
+        'Create a scheduled daily workflow that summarizes top X engagement on the brand account, identifies high-influence engagers, and writes them to a sales-prospect table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'sales'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: xIcon,
+      title: 'X content scheduler',
+      prompt:
+        'Build a workflow that reads a tables-based X content calendar and posts scheduled tweets with media at the right time, retrying transient failures.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation'],
+    },
+    {
+      icon: xIcon,
+      title: 'X thread expander',
+      prompt:
+        'Create a workflow that takes a long-form article or blog and drafts a multi-tweet X thread with hooks, key points, and a call-to-action, then queues it for review before posting.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+    {
+      icon: xIcon,
+      title: 'X competitor watcher',
+      prompt:
+        'Build a scheduled workflow that tracks tweets from competitor handles and key industry voices, captures notable posts in a table, and surfaces high-engagement items to Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: xIcon,
+      title: 'X support ticket creator',
+      prompt:
+        'Create a workflow that watches X for tweets directed at the brand support handle, classifies as a support request, and opens a Zendesk ticket with the tweet context and customer profile.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication'],
+      alsoIntegrations: ['zendesk'],
+    },
+    {
+      icon: xIcon,
+      title: 'X bookmark research digest',
+      prompt:
+        'Create a scheduled weekly workflow that pulls my saved X bookmarks, fetches the full text of each bookmarked tweet, groups them by theme, writes a curated reading digest, and emails it to me before clearing the processed bookmarks.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'content', 'individual'],
+    },
+  ],
+} as const satisfies BlockMeta

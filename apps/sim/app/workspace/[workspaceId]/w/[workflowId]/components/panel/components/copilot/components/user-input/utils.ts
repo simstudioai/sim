@@ -152,6 +152,7 @@ type TableContext = Extract<ChatContext, { kind: 'table' }>
 type FileContext = Extract<ChatContext, { kind: 'file' }>
 type TemplatesContext = Extract<ChatContext, { kind: 'templates' }>
 type LogsContext = Extract<ChatContext, { kind: 'logs' }>
+type IntegrationContext = Extract<ChatContext, { kind: 'integration' }>
 type SlashCommandContext = Extract<ChatContext, { kind: 'slash_command' }>
 
 /**
@@ -201,6 +202,10 @@ export function areContextsEqual(c: ChatContext, context: ChatContext): boolean 
     case 'logs': {
       const ctx = context as LogsContext
       return c.executionId === ctx.executionId
+    }
+    case 'integration': {
+      const ctx = context as IntegrationContext
+      return c.blockType === ctx.blockType
     }
     case 'docs':
       return true // Only one docs context allowed

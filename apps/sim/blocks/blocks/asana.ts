@@ -1,6 +1,6 @@
 import { AsanaIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { AsanaResponse } from '@/tools/asana/types'
 
@@ -13,8 +13,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
   docsLink: 'https://docs.sim.ai/tools/asana',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['project-management', 'ticketing', 'automation'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: AsanaIcon,
   subBlocks: [
     {
@@ -367,3 +366,79 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     projects: { type: 'json', description: 'Array of projects' },
   },
 }
+
+export const AsanaBlockMeta = {
+  tags: ['project-management', 'ticketing', 'automation'],
+  templates: [
+    {
+      icon: AsanaIcon,
+      title: 'Asana sprint planner',
+      prompt:
+        'Build a workflow that on Monday morning compiles uncompleted Asana tasks, rebalances against capacity, and posts the sprint plan to the team Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AsanaIcon,
+      title: 'Asana stuck-task surfacer',
+      prompt:
+        'Create a scheduled workflow that finds Asana tasks with no progress for 5+ days, pings the assignee in Slack with a quick-action prompt, and updates the task status based on their answer.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AsanaIcon,
+      title: 'Asana cross-team blocker watcher',
+      prompt:
+        'Build a workflow that monitors Asana tasks tagged blocked, identifies the blocking team based on dependency metadata, and posts a request to the right channel in Slack.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AsanaIcon,
+      title: 'Asana template launcher',
+      prompt:
+        'Create a workflow that on a new Salesforce opportunity creates an Asana project from the customer-onboarding template, assigns the right owners, and writes the project link back to the opportunity.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: AsanaIcon,
+      title: 'Asana weekly project digest',
+      prompt:
+        'Build a scheduled weekly workflow that summarizes Asana project progress — completed, in-progress, at-risk — and emails a status update to each project sponsor.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: AsanaIcon,
+      title: 'Asana retro generator',
+      prompt:
+        'Create a workflow that pulls Asana tasks completed in a sprint, summarizes wins, blockers, and patterns, and writes a retro doc shared with the team via Slack.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AsanaIcon,
+      title: 'Asana bug intake triager',
+      prompt:
+        'Build a workflow that searches Asana for newly created tasks in the bug project, classifies each by severity and component with an agent, adds a triage comment, and creates a matching GitHub issue for engineering pickup.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+      alsoIntegrations: ['github'],
+    },
+  ],
+} as const satisfies BlockMeta

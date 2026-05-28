@@ -1,5 +1,5 @@
 import { LemlistIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { LemlistResponse } from '@/tools/lemlist/types'
 import { getTrigger } from '@/triggers'
 
@@ -13,7 +13,6 @@ export const LemlistBlock: BlockConfig<LemlistResponse> = {
   docsLink: 'https://docs.sim.ai/tools/lemlist',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['sales-engagement', 'email-marketing', 'automation'],
   bgColor: '#316BFF',
   icon: LemlistIcon,
   subBlocks: [
@@ -236,3 +235,76 @@ export const LemlistBlock: BlockConfig<LemlistResponse> = {
     ],
   },
 }
+
+export const LemlistBlockMeta = {
+  tags: ['sales-engagement', 'email-marketing', 'automation'],
+  templates: [
+    {
+      icon: LemlistIcon,
+      title: 'Lemlist reply router',
+      prompt:
+        'Create a workflow triggered by Lemlist reply webhooks that classifies each reply, applies the right Lemlist lead status, and posts a Slack notification to the lead owner with a one-line summary and the reply text.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: LemlistIcon,
+      title: 'Lemlist campaign analyzer',
+      prompt:
+        'Build a scheduled workflow that pulls Lemlist campaign activities, computes open, click, reply, and bounce rates per campaign and per step, and writes the results to a tracking table so I can spot the steps that need rewriting.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'analysis', 'reporting'],
+    },
+    {
+      icon: LemlistIcon,
+      title: 'Lemlist + Apollo prospect feeder',
+      prompt:
+        'Create a workflow that runs an Apollo search for an ICP, enriches each prospect with role and company signals, and sends a personalized first-touch email through Lemlist with a custom opening line per prospect.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'automation'],
+      alsoIntegrations: ['apollo'],
+    },
+    {
+      icon: LemlistIcon,
+      title: 'Lemlist interested-lead booker',
+      prompt:
+        'Build a workflow triggered when a Lemlist lead is marked interested that drafts a Calendly link tailored to the lead, replies to them through Lemlist with the link, and creates a follow-up task for the rep.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication', 'automation'],
+      alsoIntegrations: ['calendly'],
+    },
+    {
+      icon: LemlistIcon,
+      title: 'Lemlist activity dashboard',
+      prompt:
+        'Create a scheduled daily workflow that pulls Lemlist activity for the last 24 hours, summarizes opens, clicks, replies, and step performance per campaign, and writes a per-rep dashboard to a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'reporting', 'analysis'],
+    },
+    {
+      icon: LemlistIcon,
+      title: 'Lemlist bounced lead sweeper',
+      prompt:
+        'Build a workflow triggered by Lemlist email-bounced events that marks the lead as bounced, suppresses them from future campaigns, and writes a bounce log so list quality stays high.',
+      modules: ['agent', 'tables', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation', 'analysis'],
+    },
+    {
+      icon: LemlistIcon,
+      title: 'Lemlist to HubSpot logger',
+      prompt:
+        'Create a workflow that watches Lemlist activity and logs every send, open, click, and reply to the matching HubSpot contact as an engagement, and creates a HubSpot task for the rep on positive replies.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'sync'],
+      alsoIntegrations: ['hubspot'],
+    },
+  ],
+} as const satisfies BlockMeta

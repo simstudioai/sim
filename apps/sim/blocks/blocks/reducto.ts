@@ -1,6 +1,12 @@
 import { toError } from '@sim/utils/errors'
 import { ReductoIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType, type SubBlockType } from '@/blocks/types'
+import {
+  AuthMode,
+  type BlockConfig,
+  type BlockMeta,
+  IntegrationType,
+  type SubBlockType,
+} from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { ReductoParserOutput } from '@/tools/reducto/types'
 
@@ -14,7 +20,6 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
   docsLink: 'https://docs.sim.ai/tools/reducto',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['document-processing', 'ocr'],
   bgColor: '#5c0c5c',
   icon: ReductoIcon,
   subBlocks: [
@@ -225,3 +230,75 @@ export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
   },
   inputs: reductoV2Inputs,
 }
+
+export const ReductoBlockMeta = {
+  tags: ['document-processing', 'ocr'],
+  templates: [
+    {
+      icon: ReductoIcon,
+      title: 'Reducto contract parser',
+      prompt:
+        'Create a workflow that uses Reducto to parse uploaded contract PDFs into structured clauses, writes payment terms, liability caps, and termination conditions to a table, and flags non-standard clauses.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'analysis'],
+    },
+    {
+      icon: ReductoIcon,
+      title: 'Reducto + knowledge base loader',
+      prompt:
+        'Build a workflow that parses every PDF in a Drive folder with Reducto, normalizes the structure, and upserts chunks into a knowledge base with section-aware metadata so retrieval returns the right passage.',
+      modules: ['knowledge-base', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'sync'],
+      alsoIntegrations: ['google_drive'],
+    },
+    {
+      icon: ReductoIcon,
+      title: 'Reducto medical-record digester',
+      prompt:
+        'Build a workflow that parses medical record PDFs with Reducto, extracts diagnoses, medications, and visit summaries to structured rows, and produces a patient-facing one-pager file.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'analysis'],
+    },
+    {
+      icon: ReductoIcon,
+      title: 'Reducto + Mem0 contract memory',
+      prompt:
+        'Create a workflow that parses contracts with Reducto and writes the key terms into Mem0 per counterparty, so future interactions reference the real contract terms.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'automation'],
+      alsoIntegrations: ['mem0'],
+    },
+    {
+      icon: ReductoIcon,
+      title: 'Reducto invoice line-item extractor',
+      prompt:
+        'Build a workflow that parses incoming invoice PDFs with Reducto, extracts vendor, line items, tax, and totals into an accounts-payable table, and flags any invoice that fails to reconcile against its purchase order.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation', 'analysis'],
+    },
+    {
+      icon: ReductoIcon,
+      title: 'Reducto financial-statement digitizer',
+      prompt:
+        'Create a workflow that parses quarterly financial-statement PDFs with Reducto, extracts the balance sheet and income statement figures into structured rows, and writes a normalized table the finance team can chart over time.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'analysis', 'reporting'],
+    },
+    {
+      icon: ReductoIcon,
+      title: 'Reducto form-intake router',
+      prompt:
+        'Build a workflow that runs each uploaded intake form through Reducto, extracts the applicant fields into a table, and routes the parsed submission to the right reviewer in Slack based on the form type.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'forms', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

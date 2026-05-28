@@ -1,6 +1,6 @@
 import { ShopifyIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
 
@@ -28,8 +28,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
     'Integrate Shopify into your workflow. Manage products, orders, customers, and inventory. Create, read, update, and delete products. List and manage orders. Handle customer data and adjust inventory levels.',
   docsLink: 'https://docs.sim.ai/tools/shopify',
   category: 'tools',
-  integrationType: IntegrationType.Ecommerce,
-  tags: ['payments', 'subscriptions'],
+  integrationType: IntegrationType.Commerce,
   icon: ShopifyIcon,
   bgColor: '#FFFFFF',
   subBlocks: [
@@ -1029,3 +1028,78 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }
+
+export const ShopifyBlockMeta = {
+  tags: ['payments', 'subscriptions'],
+  templates: [
+    {
+      icon: ShopifyIcon,
+      title: 'E-commerce order monitor',
+      prompt:
+        'Build a workflow that monitors Shopify orders, flags high-value or unusual orders for review, tracks fulfillment status in a table, and sends daily inventory and sales summaries to Slack with restock alerts when items run low.',
+      modules: ['tables', 'scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ecommerce', 'monitoring', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ShopifyIcon,
+      title: 'Abandoned cart recovery',
+      prompt:
+        'Build a workflow that scans Shopify for orders stuck in draft or carts abandoned in the past day, drafts a personalized recovery email referencing the items, applies a single-use discount, and sends it via Gmail while logging recovery attempts to a table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ecommerce', 'marketing', 'automation'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: ShopifyIcon,
+      title: 'Low-stock restock alerter',
+      prompt:
+        'Create a scheduled hourly workflow that lists Shopify inventory items, computes days-of-cover from recent sales velocity, flags SKUs below a configurable threshold, and posts a Slack alert to the operations channel with the variant, location, and recommended reorder quantity.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ecommerce', 'monitoring', 'operations'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ShopifyIcon,
+      title: 'Shopify VIP segmenter',
+      prompt:
+        'Build a scheduled weekly workflow that pulls Shopify customers, calculates lifetime value and order frequency, segments them into VIP, regular, and at-risk cohorts in a tracking table, and emails the marketing team a list of new VIPs to nurture.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ecommerce', 'marketing', 'analysis'],
+    },
+    {
+      icon: ShopifyIcon,
+      title: 'Fulfillment status tracker',
+      prompt:
+        'Create a workflow that watches Shopify orders for fulfillment milestones, updates a status table with shipped, in-transit, and delivered states, and proactively emails customers when their order misses an SLA so support gets ahead of the inquiry.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ecommerce', 'support', 'monitoring'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: ShopifyIcon,
+      title: 'Product launch publisher',
+      prompt:
+        'Build a workflow that takes a new product brief, creates the product in Shopify with variants and pricing, adds it to the right collection, drafts a launch announcement, and queues a Slack and email broadcast for marketing review before going live.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['ecommerce', 'marketing', 'automation'],
+      alsoIntegrations: ['gmail', 'slack'],
+    },
+    {
+      icon: ShopifyIcon,
+      title: 'Order anomaly detector',
+      prompt:
+        'Create a scheduled workflow that runs every fifteen minutes, lists recent Shopify orders, scores each for anomalies — high value, unusual destination, mismatched billing — flags suspects in a review queue table, and Slacks the operations team for hands-on inspection.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ecommerce', 'monitoring', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

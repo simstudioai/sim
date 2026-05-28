@@ -1,5 +1,5 @@
 import { GoogleBooksIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const GoogleBooksBlock: BlockConfig = {
@@ -12,8 +12,7 @@ export const GoogleBooksBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/google_books',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['google-workspace', 'knowledge-base', 'content-management'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleBooksIcon,
 
   subBlocks: [
@@ -202,3 +201,74 @@ export const GoogleBooksBlock: BlockConfig = {
     isbn13: { type: 'string', description: 'ISBN-13 identifier' },
   },
 }
+
+export const GoogleBooksBlockMeta = {
+  tags: ['google-workspace', 'knowledge-base', 'content-management'],
+  templates: [
+    {
+      icon: GoogleBooksIcon,
+      title: 'Google Books citation finder',
+      prompt:
+        'Build a workflow that takes a topic, queries Google Books for relevant titles and quotes, and writes a citations bibliography file for research papers.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'content'],
+    },
+    {
+      icon: GoogleBooksIcon,
+      title: 'Google Books reading list builder',
+      prompt:
+        'Create a workflow that takes a topic, finds top-rated Google Books titles, writes a curated reading-list file with summaries, and emails it to the user.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'research'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: GoogleBooksIcon,
+      title: 'Google Books research enricher',
+      prompt:
+        'Build a workflow that for each topic in a research table queries Google Books for foundational works, captures the key passages, and writes them to a knowledge base.',
+      modules: ['knowledge-base', 'tables', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'sync'],
+    },
+    {
+      icon: GoogleBooksIcon,
+      title: 'Google Books quote miner',
+      prompt:
+        'Create a workflow that searches Google Books for quotes on a topic, scores by relevance, and writes the top quotes to a marketing content table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+    {
+      icon: GoogleBooksIcon,
+      title: 'Google Books bibliographic agent',
+      prompt:
+        'Build a research agent that uses Google Books as one of its tools to find canonical sources and properly cite them in answers with ISBN and page references.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research'],
+    },
+    {
+      icon: GoogleBooksIcon,
+      title: 'Google Books due-diligence helper',
+      prompt:
+        'Create a workflow that for a tracked person or company searches Google Books for prior publications and citations, and writes the findings to a CRM intel record.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: GoogleBooksIcon,
+      title: 'Google Books topic explorer',
+      prompt:
+        'Build an agent that explores a topic across Google Books, identifies adjacent themes from book metadata, and writes a topic map to a research file.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['research'],
+    },
+  ],
+} as const satisfies BlockMeta

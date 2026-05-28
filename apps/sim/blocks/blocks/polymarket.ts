@@ -1,5 +1,5 @@
 import { PolymarketIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 
 export const PolymarketBlock: BlockConfig = {
@@ -11,7 +11,6 @@ export const PolymarketBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/polymarket',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['prediction-markets', 'data-analytics'],
   bgColor: '#4C82FB',
   icon: PolymarketIcon,
   subBlocks: [
@@ -904,3 +903,77 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
     holders: { type: 'json', description: 'Array of market holder groups (get_holders)' },
   },
 }
+
+export const PolymarketBlockMeta = {
+  tags: ['prediction-markets', 'data-analytics'],
+  templates: [
+    {
+      icon: PolymarketIcon,
+      title: 'Polymarket position monitor',
+      prompt:
+        'Create a scheduled workflow that fetches Polymarket prices for tracked markets, computes price changes vs entry, writes the portfolio to a table, and pings Slack when any position swings beyond a threshold.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: PolymarketIcon,
+      title: 'Polymarket research digest',
+      prompt:
+        'Build a scheduled weekly workflow that pulls top-volume Polymarket markets, summarizes the implied odds and recent moves, and writes a markdown research file for the trading group.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'research'],
+    },
+    {
+      icon: PolymarketIcon,
+      title: 'Polymarket news-driven alerter',
+      prompt:
+        'Build a workflow triggered by news events that checks Polymarket prices for related markets, captures the price reaction over the next hour, and writes the event-to-price mapping to a research table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['research', 'analysis'],
+    },
+    {
+      icon: PolymarketIcon,
+      title: 'Polymarket + Similarweb event volume tracker',
+      prompt:
+        'Create a workflow that overlays Polymarket market activity with Similarweb traffic for the involved entities, identifies volume-driving news, and writes the analysis.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'research'],
+      alsoIntegrations: ['similarweb'],
+    },
+    {
+      icon: PolymarketIcon,
+      title: 'Polymarket large-order tracker',
+      prompt:
+        'Build a scheduled workflow that pulls Polymarket order book activity, identifies unusually large orders on tracked markets, and pings Slack on whale activity.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: PolymarketIcon,
+      title: 'Polymarket position digest',
+      prompt:
+        'Create a scheduled daily workflow that summarizes Polymarket holdings, PnL per market, and notable movements, and emails the report to the trading team.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: PolymarketIcon,
+      title: 'Polymarket arbitrage scanner',
+      prompt:
+        'Build a scheduled workflow that fetches prices for related Polymarket markets, detects when complementary outcomes sum away from fair value, writes the mispriced pairs to a table, and pings Slack with the implied edge for each opportunity.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'analysis', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -1,5 +1,5 @@
 import { RailwayIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { RailwayResponse } from '@/tools/railway/types'
 
@@ -11,8 +11,7 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
     'Integrate Railway into workflows to list projects, inspect services and environments, monitor deployments, trigger service deployments, and manage environment variables.',
   docsLink: 'https://docs.sim.ai/tools/railway',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['cloud', 'ci-cd'],
+  integrationType: IntegrationType.DevOps,
   bgColor: '#FFFFFF',
   icon: RailwayIcon,
   authMode: AuthMode.ApiKey,
@@ -640,3 +639,78 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
     pageInfo: { type: 'json', description: 'Pagination information' },
   },
 }
+
+export const RailwayBlockMeta = {
+  tags: ['cloud', 'ci-cd'],
+  templates: [
+    {
+      icon: RailwayIcon,
+      title: 'Railway deployment monitor',
+      prompt:
+        'Build a scheduled workflow that lists the latest Railway deployments across my services every few minutes, detects failed or crashed deployments, summarizes the failure with an agent, and posts an actionable Slack alert with a link to the service.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'engineering'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RailwayIcon,
+      title: 'Railway deploy on merge',
+      prompt:
+        'Create a workflow that watches GitHub for merges to the main branch, triggers a Railway service deployment for the matching environment, and posts the deployment status back as a Slack notification.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'ci-cd', 'automation'],
+      alsoIntegrations: ['github', 'slack'],
+    },
+    {
+      icon: RailwayIcon,
+      title: 'Railway environment variable auditor',
+      prompt:
+        'Build a scheduled weekly workflow that lists environment variables across every Railway project, compares them to a reference list in a table, flags drift and missing keys, and emails a remediation report to the platform team.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise', 'monitoring'],
+    },
+    {
+      icon: RailwayIcon,
+      title: 'Railway project inventory',
+      prompt:
+        'Create a scheduled workflow that lists every Railway project, its services, and environments weekly, logs them into a tracking table, and Slacks a diff of any added or removed resources so infrastructure changes never go unnoticed.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'infrastructure'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RailwayIcon,
+      title: 'Railway config sync',
+      prompt:
+        'Build a workflow that reads service configuration from a table and upserts the matching Railway environment variables for each service, then posts a Slack summary of every variable that was created or changed.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RailwayIcon,
+      title: 'Railway preview environment provisioner',
+      prompt:
+        'Create a workflow that watches GitHub for new pull requests, creates a fresh Railway environment for the branch, upserts the required environment variables, deploys the service, and comments the live preview URL back on the PR.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'ci-cd', 'automation'],
+      alsoIntegrations: ['github'],
+    },
+    {
+      icon: RailwayIcon,
+      title: 'Railway project onboarding kit',
+      prompt:
+        'Build a workflow that takes a new service name, creates a Railway project, sets up staging and production environments, seeds baseline environment variables from a table, and posts the project members and access summary to Slack for the team.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation', 'infrastructure'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

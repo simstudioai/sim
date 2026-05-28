@@ -11,7 +11,6 @@ import {
   ExpandableContent,
   FormField,
   Input,
-  Skeleton,
   Switch,
   Textarea,
   toast,
@@ -400,7 +399,7 @@ export function SSO() {
   }
 
   if (isLoadingProviders) {
-    return <SsoSkeleton />
+    return null
   }
 
   if (existingProvider && !isEditing) {
@@ -874,25 +873,5 @@ export function SSO() {
         </Button>
       </div>
     </form>
-  )
-}
-
-function SsoSkeleton() {
-  return (
-    <div className='flex h-full flex-col gap-4.5'>
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        <div className='flex flex-col gap-4.5'>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className='flex flex-col gap-2'>
-              <Skeleton className='h-[13px] w-[80px]' />
-              <Skeleton className='h-9 w-full' />
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className='mt-auto flex items-center justify-end'>
-        <Skeleton className='h-9 w-[60px]' />
-      </div>
-    </div>
   )
 }

@@ -13,14 +13,12 @@ import {
   ModalDescription,
   ModalFooter,
   ModalHeader,
-  Skeleton,
   Switch,
   Tooltip,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { ApiKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/api-keys/api-key-skeleton'
 import {
   type ApiKey,
   useApiKeys,
@@ -127,7 +125,7 @@ export function ApiKeys() {
     <div className='flex h-full flex-col gap-4.5'>
       {/* Search Input and Create Button */}
       <div className='flex items-center gap-2'>
-        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent p-2 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-2 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
           <Search
             className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
             strokeWidth={2}
@@ -136,7 +134,7 @@ export function ApiKeys() {
             placeholder='Search Sim keys...'
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
           />
         </div>
         <Button
@@ -157,21 +155,7 @@ export function ApiKeys() {
 
       {/* Scrollable Content */}
       <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
-        {isLoading ? (
-          <div className='flex flex-col gap-4.5'>
-            {/* Workspace section header */}
-            <div className='flex flex-col gap-2'>
-              <Skeleton className='h-5 w-[80px]' />
-              <Skeleton className='h-5 w-[180px]' />
-            </div>
-            {/* Personal section header + keys */}
-            <div className='flex flex-col gap-2'>
-              <Skeleton className='h-5 w-[60px]' />
-              <ApiKeySkeleton />
-              <ApiKeySkeleton />
-            </div>
-          </div>
-        ) : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
+        {isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
           <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
             Click "Create" above to get started
           </div>
@@ -311,15 +295,6 @@ export function ApiKeys() {
       </div>
 
       {/* Allow Personal API Keys Toggle - Fixed at bottom */}
-      {isLoading && canManageWorkspaceKeys && (
-        <div className='mt-6 flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <Skeleton className='h-5 w-[170px]' />
-            <Skeleton className='size-3 rounded-full' />
-          </div>
-          <Skeleton className='h-5 w-9 rounded-full' />
-        </div>
-      )}
       {!isLoading && canManageWorkspaceKeys && (
         <Tooltip.Provider delayDuration={150}>
           <div className='mt-6 flex items-center justify-between'>
@@ -341,9 +316,7 @@ export function ApiKeys() {
                 </Tooltip.Content>
               </Tooltip.Root>
             </div>
-            {isLoadingSettings ? (
-              <Skeleton className='h-5 w-16 rounded-full' />
-            ) : (
+            {isLoadingSettings ? null : (
               <Switch
                 checked={allowPersonalApiKeys}
                 disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}

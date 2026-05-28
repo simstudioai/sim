@@ -281,7 +281,7 @@ export function SubflowEditor({
           >
             <ChevronUp
               className={
-                'h-[14px] w-[14px] transition-transform' +
+                'size-[14px] transition-transform' +
                 (!isConnectionsAtMinHeight ? ' rotate-180' : '')
               }
             />

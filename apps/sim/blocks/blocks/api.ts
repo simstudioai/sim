@@ -14,8 +14,7 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
   - Curl the endpoint yourself before filling out the API block to make sure it's working IF you have the necessary authentication headers. Clarify with the user if you need any additional headers.
   `,
   category: 'blocks',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['automation', 'webhooks'],
+  integrationType: IntegrationType.DevOps,
   bgColor: '#2F55FF',
   icon: ApiIcon,
   subBlocks: [

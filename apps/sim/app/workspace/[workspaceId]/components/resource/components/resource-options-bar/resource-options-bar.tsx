@@ -116,7 +116,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
             >
               <ListFilter
                 className={cn(
-                  'mr-1.5 h-[14px] w-[14px]',
+                  'mr-1.5 size-[14px]',
                   filterActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-icon)]'
                 )}
               />
@@ -215,7 +215,7 @@ const SortDropdown = memo(function SortDropdown({ config }: { config: SortConfig
         >
           <ArrowUpDown
             className={cn(
-              'mr-1.5 h-[14px] w-[14px]',
+              'mr-1.5 size-[14px]',
               active ? 'text-[var(--text-primary)]' : 'text-[var(--text-icon)]'
             )}
           />

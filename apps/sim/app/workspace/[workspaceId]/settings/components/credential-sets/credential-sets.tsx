@@ -18,7 +18,6 @@ import {
   ModalDescription,
   ModalFooter,
   ModalHeader,
-  Skeleton,
   TagInput,
   type TagItem,
 } from '@/components/emcn'
@@ -31,7 +30,6 @@ import { getProviderDisplayName, type PollingProvider } from '@/lib/credential-s
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { getUserRole } from '@/lib/workspaces/organization'
-import { CredentialSetsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credential-sets/credential-sets-skeleton'
 import {
   type CredentialSet,
   useAcceptCredentialSetInvitation,
@@ -402,7 +400,7 @@ export function CredentialSets() {
     !hasNoContent
 
   if (membershipsLoading || invitationsLoading) {
-    return <CredentialSetsSkeleton />
+    return null
   }
 
   if (viewingSet) {
@@ -457,21 +455,7 @@ export function CredentialSets() {
               <div className='flex flex-col gap-4.5'>
                 <h4 className='font-medium text-[var(--text-primary)] text-base'>Members</h4>
 
-                {membersLoading || pendingInvitationsLoading ? (
-                  <div className='flex flex-col gap-4.5'>
-                    {[1, 2].map((i) => (
-                      <div key={i} className='flex items-center justify-between'>
-                        <div className='flex items-center gap-3'>
-                          <Skeleton className='size-8 rounded-full' />
-                          <div className='flex flex-col gap-1'>
-                            <Skeleton className='h-[14px] w-[100px]' />
-                            <Skeleton className='h-[12px] w-[150px]' />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : totalCount === 0 ? (
+                {membersLoading || pendingInvitationsLoading ? null : totalCount === 0 ? (
                   <p className='text-[var(--text-muted)] text-sm'>
                     No members yet. Send invitations above.
                   </p>
@@ -620,7 +604,7 @@ export function CredentialSets() {
               placeholder='Search polling groups...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
           {canManageCredentialSets && (
@@ -721,21 +705,7 @@ export function CredentialSets() {
                   (!searchTerm.trim() && ownedSets.length === 0)) && (
                   <div className='flex flex-col gap-2'>
                     <div className='font-medium text-[var(--text-secondary)] text-sm'>Manage</div>
-                    {ownedSetsLoading ? (
-                      <>
-                        {[1, 2].map((i) => (
-                          <div key={i} className='flex items-center justify-between'>
-                            <div className='flex items-center gap-3'>
-                              <Skeleton className='size-9 rounded-md' />
-                              <div className='flex flex-col gap-1'>
-                                <Skeleton className='h-[14px] w-[120px]' />
-                                <Skeleton className='h-[12px] w-[80px]' />
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </>
-                    ) : !searchTerm.trim() && ownedSets.length === 0 ? (
+                    {ownedSetsLoading ? null : !searchTerm.trim() && ownedSets.length === 0 ? (
                       <div className='text-[var(--text-muted)] text-sm'>
                         No polling groups created yet
                       </div>

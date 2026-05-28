@@ -1,6 +1,6 @@
 import { JiraIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { JiraResponse } from '@/tools/jira/types'
@@ -17,8 +17,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
   docsLink: 'https://docs.sim.ai/tools/jira',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['project-management', 'ticketing'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: JiraIcon,
   subBlocks: [
     {
@@ -1337,3 +1336,78 @@ Return ONLY the comment text - no explanations.`,
     ],
   },
 }
+
+export const JiraBlockMeta = {
+  tags: ['project-management', 'ticketing'],
+  templates: [
+    {
+      icon: JiraIcon,
+      title: 'Jira knowledge search',
+      prompt:
+        'Create a knowledge base connected to my Jira project so all tickets, comments, and resolutions are automatically synced and searchable. Then build an agent I can ask things like "how did we fix the auth timeout issue?" or "what was decided about the API redesign?" and get answers with ticket citations.',
+      modules: ['knowledge-base', 'agent'],
+      category: 'engineering',
+      tags: ['engineering', 'research'],
+    },
+    {
+      icon: JiraIcon,
+      title: 'Sprint report generator',
+      prompt:
+        'Create a scheduled workflow that runs at the end of each sprint, pulls all completed, in-progress, and blocked Jira tickets, calculates velocity and carry-over, and generates a sprint summary document with charts and trends to share with the team.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'reporting', 'team'],
+    },
+    {
+      icon: JiraIcon,
+      title: 'Jira backlog grooming digest',
+      prompt:
+        'Build a scheduled weekly workflow that scans Jira backlog for tickets missing estimates, owners, or priorities, generates a grooming queue, and posts the top items to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'team'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: JiraIcon,
+      title: 'Jira stale-ticket sweeper',
+      prompt:
+        'Create a scheduled workflow that lists Jira tickets with no activity in 14 days, pings the assignee in Slack with a status prompt, and updates the ticket based on the response.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: JiraIcon,
+      title: 'Jira release notes builder',
+      prompt:
+        'Build a workflow that pulls Jira tickets resolved since the last release tag, groups by feature area, and drafts user-facing release notes for marketing review.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['engineering', 'content'],
+    },
+    {
+      icon: JiraIcon,
+      title: 'Jira to Linear migrator',
+      prompt:
+        'Create a workflow that imports a Jira project into Linear, preserving status mapping, labels, comments, and assignees, and writes a mapping table for redirect URLs.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'sync'],
+      alsoIntegrations: ['linear'],
+    },
+
+    {
+      icon: JiraIcon,
+      title: 'Auto-generate Confluence pages from Jira sprints',
+      prompt:
+        'Create Confluence documentation from Jira sprint data automatically, eliminating manual reporting at the end of every sprint.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['automation', 'communication'],
+      featured: true,
+      alsoIntegrations: ['confluence'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -1,5 +1,5 @@
 import { WizaIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { WizaResponse } from '@/tools/wiza/types'
 
@@ -13,7 +13,6 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
   docsLink: 'https://docs.sim.ai/tools/wiza',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'sales-engagement'],
   bgColor: '#9284BC',
   icon: WizaIcon,
   subBlocks: [
@@ -640,3 +639,76 @@ Return ONLY the JSON object - no explanations, no extra text.`,
     api_credits: { type: 'number', description: 'Remaining API credits (get_credits)' },
   },
 }
+
+export const WizaBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  templates: [
+    {
+      icon: WizaIcon,
+      title: 'Wiza prospect builder',
+      prompt:
+        'Build a workflow that runs a Wiza prospect search against my ICP filters, reveals verified emails and phone numbers for each match, and writes the prospect list into a sender table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: WizaIcon,
+      title: 'Wiza contact reveal',
+      prompt:
+        'Create a workflow that watches a leads table for new rows, runs a Wiza individual reveal to surface verified email and phone, and writes the contact details back to each row.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+    },
+    {
+      icon: WizaIcon,
+      title: 'Wiza company enricher',
+      prompt:
+        'Build a workflow that takes a list of company domains, runs Wiza company enrichment, and writes firmographics and headcount into a tables-based research base.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: WizaIcon,
+      title: 'Wiza + Email Bison outbound',
+      prompt:
+        'Create a workflow that uses Wiza to find and reveal verified prospect emails, drafts a personalized first-touch message, and pushes valid prospects into an Email Bison campaign.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['emailbison'],
+    },
+    {
+      icon: WizaIcon,
+      title: 'Wiza CRM gap-filler',
+      prompt:
+        'Build a scheduled workflow that finds Salesforce contacts missing verified phone numbers, runs a Wiza reveal to fill the gaps, and updates each contact record.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: WizaIcon,
+      title: 'Wiza credit monitor',
+      prompt:
+        'Create a scheduled workflow that checks the remaining Wiza credit balance each morning, logs the daily usage to a table, and posts a Slack alert when credits fall below the threshold so reveals never silently stall mid-campaign.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['sales', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: WizaIcon,
+      title: 'Wiza to HubSpot pipeline',
+      prompt:
+        'Build a workflow that runs a Wiza prospect search for my target segment, reveals verified emails and phones for each match, and creates or updates the matching HubSpot contacts with the enriched fields and a lead-source tag.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'enrichment'],
+      alsoIntegrations: ['hubspot'],
+    },
+  ],
+} as const satisfies BlockMeta

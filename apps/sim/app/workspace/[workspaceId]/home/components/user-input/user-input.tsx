@@ -12,14 +12,12 @@ import {
   useState,
 } from 'react'
 import { createLogger } from '@sim/logger'
-import { Paperclip } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Tooltip } from '@/components/emcn'
+import { Button, Paperclip, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -45,6 +43,7 @@ import type {
 import {
   useContextManagement,
   useFileAttachments,
+  useIntegrationAutoMention,
   useMentionMenu,
   useMentionTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
@@ -159,13 +158,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const overlayRef = useRef<HTMLDivElement>(null)
   const plusMenuRef = useRef<PlusMenuHandle>(null)
 
-  const [prevDefaultValue, setPrevDefaultValue] = useState(defaultValue)
-  if (defaultValue && defaultValue !== prevDefaultValue) {
-    setPrevDefaultValue(defaultValue)
-    setValue(defaultValue)
-  } else if (!defaultValue && prevDefaultValue) {
-    setPrevDefaultValue(defaultValue)
-  }
+  const prevDefaultValueRef = useRef(defaultValue)
 
   const files = useFileAttachments({
     userId: userId || session?.user?.id,
@@ -323,17 +316,51 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     setSelectedContexts: contextManagement.setSelectedContexts,
   })
 
+  const integrationAutoMention = useIntegrationAutoMention({
+    setSelectedContexts: contextManagement.setSelectedContexts,
+  })
+
   const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending && !hasUploadingFiles
 
   const valueRef = useRef(value)
   valueRef.current = value
+
+  /**
+   * Convert integration names on mount for any initial value seeded by
+   * `defaultValue` or a restored mothership draft. Mid-typing conversion
+   * is intentionally NOT handled here — the keystroke fast-path in
+   * `handleInputChange` covers that case via `processChange`, and running
+   * it on every value change would inject `@` while the user is still
+   * typing the name and prematurely open the mention menu.
+   */
+  useEffect(() => {
+    if (!valueRef.current) return
+    const converted = integrationAutoMention.applyToText(valueRef.current)
+    if (converted !== valueRef.current) setValue(converted)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /**
+   * Sync `value` when the `defaultValue` prop changes post-mount — e.g.
+   * the user clicks a different template while UserInput is already
+   * mounted. Mirrors the previously inline render-phase derivation but
+   * now runs the prompt through `applyToText` so integration names get
+   * chipified consistently with paste / draft restore flows.
+   */
+  useEffect(() => {
+    if (defaultValue === prevDefaultValueRef.current) return
+    prevDefaultValueRef.current = defaultValue
+    if (defaultValue) setValue(integrationAutoMention.applyToText(defaultValue))
+  }, [defaultValue, integrationAutoMention.applyToText])
+
   const sttPrefixRef = useRef('')
 
   function handleTranscript(text: string) {
     const prefix = sttPrefixRef.current
     const newVal = prefix ? `${prefix} ${text}` : text
-    setValue(newVal)
-    valueRef.current = newVal
+    const converted = integrationAutoMention.applyToText(newVal)
+    setValue(converted)
+    valueRef.current = converted
   }
 
   function handleUsageLimitExceeded() {
@@ -379,7 +406,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     ref,
     () => ({
       loadQueuedMessage: (msg: QueuedMessage) => {
-        setValue(msg.content)
+        setValue(integrationAutoMention.applyToText(msg.content))
         const restored: AttachedFile[] = (msg.fileAttachments ?? []).map((a) => ({
           id: a.id,
           name: a.filename,
@@ -401,7 +428,12 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         })
       },
     }),
-    [files.restoreAttachedFiles, contextManagement.setSelectedContexts, textareaRef]
+    [
+      files.restoreAttachedFiles,
+      contextManagement.setSelectedContexts,
+      textareaRef,
+      integrationAutoMention.applyToText,
+    ]
   )
 
   useLayoutEffect(() => {
@@ -563,10 +595,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       }
     })
     return () => window.cancelAnimationFrame(raf)
-  }, [textareaRef])
-
-  const focusTextarea = useCallback(() => {
-    textareaRef.current?.focus()
   }, [textareaRef])
 
   const handleContainerClick = useCallback(
@@ -739,9 +767,12 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const syncMentionState = useCallback(
     (textarea: HTMLTextAreaElement, text: string, caret: number) => {
       const active = getActiveMentionAtRef.current(caret, text)
-      // Treat any whitespace inside the query as a closer — typing a space
-      // after `@foo` should leave the raw `@foo` text and dismiss the menu.
-      const isOpenable = active && !/\s/.test(active.query)
+      // Any word-boundary character inside the query — whitespace, sentence
+      // punctuation, or brackets — dismisses the menu. The mention token
+      // is "complete" the moment the user types a non-word character, so
+      // there's nothing more to query. Mirrors the boundary set the
+      // integration auto-detector uses for symmetry.
+      const isOpenable = active && !/[\s.,;:!?(){}[\]"'`/\\<>]/.test(active.query)
       if (!isOpenable) {
         if (mentionRangeRef.current !== null) {
           mentionRangeRef.current = null
@@ -765,12 +796,32 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const newValue = e.target.value
-      const caret = e.target.selectionStart ?? newValue.length
-      setValue(newValue)
-      syncMentionState(e.target, newValue, caret)
+      const previousValue = valueRef.current
+      const nextValue = e.target.value
+
+      let finalValue = nextValue
+      if (nextValue.length === previousValue.length + 1) {
+        // Single-char keystroke — synchronous, boundary-triggered.
+        finalValue = integrationAutoMention.processChange({
+          textarea: e.target,
+          previousValue,
+          nextValue,
+        })
+      } else if (nextValue.length > previousValue.length + 1) {
+        // Multi-char insertion (paste, drag-drop, IME commit) — bulk
+        // convert all matches and rewrite the textarea via `setRangeText`
+        // to keep the edit in a single native undo step.
+        finalValue = integrationAutoMention.applyToText(nextValue)
+        if (finalValue !== nextValue) {
+          e.target.setRangeText(finalValue, 0, nextValue.length, 'preserve')
+        }
+      }
+
+      const caret = e.target.selectionStart ?? finalValue.length
+      setValue(finalValue)
+      syncMentionState(e.target, finalValue, caret)
     },
-    [syncMentionState]
+    [integrationAutoMention.applyToText, integrationAutoMention.processChange, syncMentionState]
   )
 
   const handleSelectAdjust = useCallback(() => {
@@ -872,18 +923,12 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         <ContextMentionIcon
           context={matchingCtx}
           workflowColor={wfId ? (workflowsById[wfId]?.color ?? null) : null}
-          className='absolute inset-0 m-auto size-[12px] text-[var(--text-icon)]'
+          className='absolute inset-0 m-auto h-[12px] w-[12px] translate-y-[1.25px] text-[var(--text-icon)]'
         />
       ) : null
 
       elements.push(
-        <span
-          key={`mention-${i}-${range.start}-${range.end}`}
-          className='rounded-[5px] bg-[var(--surface-5)] py-0.5'
-          style={{
-            boxShadow: '-2px 0 0 var(--surface-5), 2px 0 0 var(--surface-5)',
-          }}
-        >
+        <span key={`mention-${i}-${range.start}-${range.end}`}>
           <span className='relative'>
             <span className='invisible'>{range.token.charAt(0)}</span>
             {mentionIconNode}
@@ -905,15 +950,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
   return (
     <div
-      role='group'
-      aria-label='Message input'
       onClick={handleContainerClick}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
-        handleKeyboardActivation(event, focusTextarea)
-      }}
       className={cn(
-        'relative z-10 mx-auto w-full max-w-[42rem] cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
+        'relative z-10 mx-auto w-full max-w-[48rem] cursor-text rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
         isInitialView && 'shadow-sm'
       )}
       onDragEnter={handleDragEnter}
@@ -949,14 +988,14 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
           onSelect={handleSelectAdjust}
           onMouseUp={handleSelectAdjust}
           onScroll={handleScroll}
-          placeholder=''
+          placeholder='Ask Sim to '
           rows={1}
           className={cn(TEXTAREA_BASE_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}
         />
       </div>
 
       <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-1.5'>
+        <div className='flex items-center gap-1'>
           <PlusMenuDropdown
             ref={plusMenuRef}
             availableResources={availableResources}
@@ -973,9 +1012,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
                 variant='ghost'
                 onClick={handleFileSelectStable}
                 aria-label='Attach file'
-                className='size-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
+                className='h-[28px] w-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
               >
-                <Paperclip className='size-[14px] text-[var(--text-icon)]' strokeWidth={2} />
+                <Paperclip className='h-[16px] w-[16px] text-[var(--text-icon)]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Attach file</Tooltip.Content>

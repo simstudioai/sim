@@ -1,5 +1,5 @@
 import { RevenueCatIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { RevenueCatResponse } from '@/tools/revenuecat/types'
 
@@ -12,8 +12,7 @@ export const RevenueCatBlock: BlockConfig<RevenueCatResponse> = {
     'Integrate RevenueCat into the workflow. Manage subscribers, entitlements, offerings, and Google Play subscriptions. Retrieve customer subscription status, grant or revoke promotional entitlements, record purchases, update subscriber attributes, and manage Google Play subscription billing.',
   docsLink: 'https://docs.sim.ai/tools/revenuecat',
   category: 'tools',
-  integrationType: IntegrationType.Ecommerce,
-  tags: ['payments', 'subscriptions'],
+  integrationType: IntegrationType.Commerce,
   bgColor: '#F25A5A',
   icon: RevenueCatIcon,
   subBlocks: [
@@ -487,3 +486,77 @@ Return ONLY the numeric timestamp, no text.`,
     },
   },
 }
+
+export const RevenueCatBlockMeta = {
+  tags: ['payments', 'subscriptions'],
+  templates: [
+    {
+      icon: RevenueCatIcon,
+      title: 'RevenueCat MRR dashboard',
+      prompt:
+        'Build a scheduled daily workflow that pulls RevenueCat subscriber and offering data, calculates MRR, ARPU, and trial-to-paid conversion, logs the metrics to a tracking table with historical trends, and posts a daily Slack summary for the growth team.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'reporting', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RevenueCatIcon,
+      title: 'Entitlement granter',
+      prompt:
+        'Create a workflow that listens for a customer-success approval — for example a Slack reaction or a row in a table — looks up the RevenueCat subscriber, grants a promotional entitlement with the right expiry, and logs the grant in an audit table for compliance.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'support', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RevenueCatIcon,
+      title: 'Failed renewal recovery',
+      prompt:
+        'Build a scheduled workflow that lists RevenueCat subscribers with failed renewals, segments them by plan and tenure, drafts a tailored win-back email, sends it via Gmail, and tracks recovery outcomes in a table with retry cadence rules.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'marketing', 'automation'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: RevenueCatIcon,
+      title: 'Subscriber attribute sync',
+      prompt:
+        'Create a workflow that listens for changes in your customer table — like email, display name, or company — and updates the matching RevenueCat subscriber attributes so analytics and targeted offers always reflect the latest customer state.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'sync', 'automation'],
+    },
+    {
+      icon: RevenueCatIcon,
+      title: 'Trial expiry digest',
+      prompt:
+        'Build a scheduled daily workflow that lists RevenueCat subscribers whose trials expire in the next three days, ranks them by engagement, drafts a personalized conversion nudge, and emails the success team a prioritized list to call.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['sales', 'finance', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: RevenueCatIcon,
+      title: 'Google Play refund operator',
+      prompt:
+        'Create a workflow that takes a refund approval from a support ticket, calls the RevenueCat Google Play refund operation with the right transaction identifier, revokes access, posts the outcome back on the ticket, and logs the action in a compliance table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'support', 'compliance'],
+      alsoIntegrations: ['zendesk'],
+    },
+    {
+      icon: RevenueCatIcon,
+      title: 'Offering performance report',
+      prompt:
+        'Build a scheduled weekly workflow that pulls RevenueCat offerings and recent purchases, computes conversion rate per offering and per package, writes a narrative analysis file with recommendations, and Slacks growth leadership the top findings.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'analysis', 'reporting'],
+    },
+  ],
+} as const satisfies BlockMeta

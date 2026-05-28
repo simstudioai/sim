@@ -628,7 +628,7 @@ export function MessagesInput({
                         {!isPreview && !disabled && (
                           <ChevronDown
                             className={cn(
-                              'h-3 w-3 flex-shrink-0 transition-transform duration-100',
+                              'size-3 flex-shrink-0 transition-transform duration-100',
                               openPopoverIndex === index && 'rotate-180'
                             )}
                           />

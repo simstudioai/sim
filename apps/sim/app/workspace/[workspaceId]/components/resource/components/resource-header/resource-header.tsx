@@ -128,10 +128,7 @@ export const ResourceHeader = memo(function ResourceHeader({
               >
                 {ActionIcon && (
                   <ActionIcon
-                    className={cn(
-                      'h-[14px] w-[14px] text-[var(--text-icon)]',
-                      action.label && 'mr-1.5'
-                    )}
+                    className={cn('size-[14px] text-[var(--text-icon)]', action.label && 'mr-1.5')}
                   />
                 )}
                 {action.label}

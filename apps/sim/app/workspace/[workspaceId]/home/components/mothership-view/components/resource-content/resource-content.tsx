@@ -3,9 +3,8 @@
 import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
-import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
+import { Button, PlayOutline, Skeleton, Tooltip, Upload } from '@/components/emcn'
 import {
-  Download,
   FileX,
   Folder as FolderIcon,
   Library,
@@ -27,7 +26,7 @@ import {
   FileViewer,
   type PreviewMode,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/generic-resource-content'
+import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
@@ -410,7 +409,7 @@ function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTable
             className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label='Export table as CSV'
           >
-            <Download className={RESOURCE_TAB_ICON_CLASS} />
+            <Upload className={RESOURCE_TAB_ICON_CLASS} />
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
@@ -472,7 +471,7 @@ function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) 
             className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label='Download file'
           >
-            <Download className={RESOURCE_TAB_ICON_CLASS} />
+            <Upload className={RESOURCE_TAB_ICON_CLASS} />
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>

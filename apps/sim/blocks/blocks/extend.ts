@@ -1,5 +1,11 @@
 import { ExtendIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType, type SubBlockType } from '@/blocks/types'
+import {
+  AuthMode,
+  type BlockConfig,
+  type BlockMeta,
+  IntegrationType,
+  type SubBlockType,
+} from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { ExtendParserOutput } from '@/tools/extend/types'
 
@@ -14,7 +20,6 @@ export const ExtendBlock: BlockConfig<ExtendParserOutput> = {
   docsLink: 'https://docs.sim.ai/tools/extend',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['document-processing', 'ocr'],
   bgColor: '#000000',
   icon: ExtendIcon,
   subBlocks: [
@@ -203,3 +208,76 @@ export const ExtendV2Block: BlockConfig<ExtendParserOutput> = {
   },
   inputs: extendV2Inputs,
 }
+
+export const ExtendBlockMeta = {
+  tags: ['document-processing', 'ocr'],
+  templates: [
+    {
+      icon: ExtendIcon,
+      title: 'Extend structured-data extractor',
+      prompt:
+        'Build a workflow that runs uploaded forms through Extend to pull labelled fields, writes the structured rows to a table, and notifies Slack on missing required fields.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ExtendIcon,
+      title: 'Extend insurance claim ingester',
+      prompt:
+        'Create a workflow that uses Extend to ingest claim forms, extracts policy number, claim amount, and incident details to structured rows, and routes high-value claims to a Slack adjuster channel.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ExtendIcon,
+      title: 'Extend purchase-order extractor',
+      prompt:
+        'Create a workflow that processes inbound PO PDFs with Extend, writes vendor, SKU, quantity, and total to an orders table, and pings Slack when a PO exceeds the approval threshold.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ExtendIcon,
+      title: 'Extend + ElevenLabs spoken-summary',
+      prompt:
+        'Build a workflow that uses Extend to pull structured data from a document, then narrates the summary with ElevenLabs, producing an audio briefing for stakeholders.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'communication'],
+      alsoIntegrations: ['elevenlabs'],
+    },
+    {
+      icon: ExtendIcon,
+      title: 'Extend KYC pipeline',
+      prompt:
+        'Build a workflow that runs Extend on uploaded KYC documents, validates extracted fields against a compliance rule set, and writes outcomes to a verification table.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'automation'],
+    },
+    {
+      icon: ExtendIcon,
+      title: 'Extend invoice processor',
+      prompt:
+        'Create a workflow that parses uploaded vendor invoices with Extend, extracts line items, totals, and due dates, validates against the matching purchase order, and writes approved invoices to an accounts-payable table for payment.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation', 'document-processing'],
+    },
+    {
+      icon: ExtendIcon,
+      title: 'Extend contract data extractor',
+      prompt:
+        'Build a workflow that runs Extend on uploaded contracts to pull parties, term dates, renewal clauses, and obligations, summarizes the key risks with an agent, and logs the structured fields to a contracts table for the legal team.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'document-processing', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

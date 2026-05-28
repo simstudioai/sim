@@ -1,6 +1,6 @@
 import { GoogleAdsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const GoogleAdsBlock: BlockConfig = {
@@ -12,8 +12,7 @@ export const GoogleAdsBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/google_ads',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['marketing', 'google-workspace', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleAdsIcon,
   authMode: AuthMode.OAuth,
   subBlocks: [
@@ -293,3 +292,76 @@ Return ONLY the GAQL query - no explanations, no quotes, no extra text.`,
     },
   },
 }
+
+export const GoogleAdsBlockMeta = {
+  tags: ['marketing', 'google-workspace', 'data-analytics'],
+  templates: [
+    {
+      icon: GoogleAdsIcon,
+      title: 'Google Ads spend pacing',
+      prompt:
+        'Build a scheduled daily workflow that pulls Google Ads campaign spend, compares against monthly budget, and posts a Slack alert when any campaign is pacing more than 15% over.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'finance', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleAdsIcon,
+      title: 'Google Ads keyword performance report',
+      prompt:
+        'Create a scheduled weekly workflow that pulls Google Ads keyword performance, flags keywords with rising CPCs or dropping CTRs, and writes a recommendation list to a file.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis'],
+    },
+    {
+      icon: GoogleAdsIcon,
+      title: 'Google Ads negative-keyword auto-prune',
+      prompt:
+        'Build a scheduled workflow that scans Google Ads search-terms reports weekly, identifies irrelevant terms wasting spend, and proposes a negative-keyword list with a human approval step before applying.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation'],
+    },
+    {
+      icon: GoogleAdsIcon,
+      title: 'Google Ads + Stripe ROAS tracker',
+      prompt:
+        'Create a scheduled workflow that joins Google Ads spend with Stripe revenue per campaign UTM, calculates true ROAS, and posts the per-channel breakdown to Slack each morning.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'finance', 'reporting'],
+      alsoIntegrations: ['stripe', 'slack'],
+    },
+    {
+      icon: GoogleAdsIcon,
+      title: 'Google Ads + PageSpeed landing audit',
+      prompt:
+        'Create a scheduled workflow that for active Google Ads campaigns runs Google PageSpeed on the landing pages weekly, flags slow LPs, and pings the marketing team.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['google_pagespeed', 'slack'],
+    },
+    {
+      icon: GoogleAdsIcon,
+      title: 'Google Ads + Profound AI brand attribution',
+      prompt:
+        'Build a scheduled workflow that joins Google Ads spend per campaign with Profound AI brand-visibility scores, writes a true-attribution table, and posts findings to Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis'],
+      alsoIntegrations: ['profound', 'slack'],
+    },
+    {
+      icon: GoogleAdsIcon,
+      title: 'Google Ads creative auditor',
+      prompt:
+        'Create a scheduled workflow that pulls Google Ads creatives, scores ad copy quality with an agent, and writes a per-campaign creative review file.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis'],
+    },
+  ],
+} as const satisfies BlockMeta

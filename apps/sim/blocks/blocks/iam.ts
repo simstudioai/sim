@@ -1,5 +1,5 @@
 import { IAMIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { IAMBaseResponse } from '@/tools/iam/types'
 
@@ -11,8 +11,7 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
     'Integrate AWS Identity and Access Management into your workflow. Create and manage users, roles, policies, groups, and access keys.',
   docsLink: 'https://docs.sim.ai/tools/iam',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['cloud', 'identity'],
+  integrationType: IntegrationType.Security,
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
   icon: IAMIcon,
   authMode: AuthMode.ApiKey,
@@ -665,3 +664,78 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
     },
   },
 }
+
+export const IAMBlockMeta = {
+  tags: ['cloud', 'identity'],
+  templates: [
+    {
+      icon: IAMIcon,
+      title: 'IAM permission drift detector',
+      prompt:
+        'Build a scheduled workflow that diffs AWS IAM policies against the Terraform source of truth, alerts on drift, and writes the drift report to a security Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: IAMIcon,
+      title: 'IAM wildcard policy auditor',
+      prompt:
+        'Create a scheduled workflow that scans AWS IAM policies for wildcard permissions, scores each by blast radius, and writes a remediation queue to a security table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: IAMIcon,
+      title: 'IAM access-review automator',
+      prompt:
+        'Build a scheduled quarterly workflow that posts AWS IAM access-review requests to role owners in Slack, captures attestations, and writes the audit log to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: IAMIcon,
+      title: 'IAM stale-key sweeper',
+      prompt:
+        'Create a scheduled workflow that lists IAM access keys older than 90 days, notifies the owner via Slack, and rotates or removes after a grace period.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: IAMIcon,
+      title: 'IAM unused-role cleaner',
+      prompt:
+        'Build a scheduled monthly workflow that finds IAM roles with no recent activity, requires owner approval in Slack, and removes the role to reduce attack surface.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: IAMIcon,
+      title: 'IAM least-privilege recommender',
+      prompt:
+        'Create a workflow that uses IAM Access Analyzer findings, generates least-privilege policy suggestions, and opens Linear tickets for engineers to apply.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: IAMIcon,
+      title: 'IAM SCP guardrail watcher',
+      prompt:
+        'Build a workflow that watches AWS Organizations SCP changes, classifies risk, and pings the security team on changes that broaden permissions across accounts.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

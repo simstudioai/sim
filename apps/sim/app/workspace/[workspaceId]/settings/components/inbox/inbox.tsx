@@ -4,10 +4,11 @@ import { ArrowRight } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
-import { InboxEnableToggle } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-enable-toggle'
-import { InboxSettingsTab } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-settings-tab'
-import { InboxSkeleton } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-skeleton'
-import { InboxTaskList } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-task-list'
+import {
+  InboxEnableToggle,
+  InboxSettingsTab,
+  InboxTaskList,
+} from '@/app/workspace/[workspaceId]/settings/components/inbox/components'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useInboxConfig } from '@/hooks/queries/inbox'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
@@ -24,7 +25,7 @@ export function Inbox() {
   const subscriptionAccess = getSubscriptionAccessState(subscriptionResponse?.data)
 
   if (isLoading || (isBillingEnabled && isSubLoading)) {
-    return <InboxSkeleton />
+    return null
   }
 
   if (isBillingEnabled && !subscriptionAccess.hasUsableMaxAccess) {

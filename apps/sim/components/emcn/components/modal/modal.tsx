@@ -129,6 +129,25 @@ export interface ModalContentProps
    * @default 'md'
    */
   size?: ModalSize
+  /**
+   * Strips the modal's default visual chrome (background, ring, rounded
+   * corners, overflow clip) so a custom surface nested inside can fully own
+   * its appearance. Useful when wrapping a self-styled panel like
+   * `ChipModal`. Modal mechanics (overlay, focus trap, ESC, animations)
+   * remain intact.
+   *
+   * When `bare` is `true`, pass `srTitle` to keep the dialog accessible —
+   * there's no visible `ModalHeader` providing a title.
+   * @default false
+   */
+  bare?: boolean
+  /**
+   * Screen-reader-only title rendered as a hidden `DialogPrimitive.Title`.
+   * Pair with `bare` to satisfy Radix's accessibility contract when no
+   * visible `ModalHeader` is rendered. Without it, Radix's focus management
+   * can fall into states where the dialog can't be re-opened cleanly.
+   */
+  srTitle?: string
 }
 
 /**
@@ -140,7 +159,18 @@ const ModalContent = React.forwardRef<
   ModalContentProps
 >(
   (
-    { className, children, showClose = true, size = 'md', style, onOpenAutoFocus, ...props },
+    {
+      className,
+      children,
+      showClose = true,
+      size = 'md',
+      bare = false,
+      srTitle,
+      style,
+      onOpenAutoFocus,
+      'aria-describedby': ariaDescribedBy,
+      ...props
+    },
     ref
   ) => {
     const [isInteractionReady, setIsInteractionReady] = React.useState(false)
@@ -166,7 +196,8 @@ const ModalContent = React.forwardRef<
           <DialogPrimitive.Content
             ref={ref}
             className={cn(
-              'pointer-events-auto flex max-h-[84vh] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-small ring-1 ring-foreground/10',
+              'pointer-events-auto flex max-h-[84vh] flex-col text-small',
+              !bare && 'overflow-hidden rounded-xl bg-[var(--bg)] ring-1 ring-foreground/10',
               ANIMATION_CLASSES,
               'data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-200',
               MODAL_SIZES[size],
@@ -187,8 +218,12 @@ const ModalContent = React.forwardRef<
               e.stopPropagation()
             }}
             onOpenAutoFocus={onOpenAutoFocus ?? focusFirstTextInput}
+            aria-describedby={ariaDescribedBy}
             {...props}
           >
+            {srTitle ? (
+              <DialogPrimitive.Title className='sr-only'>{srTitle}</DialogPrimitive.Title>
+            ) : null}
             {children}
           </DialogPrimitive.Content>
         </div>
@@ -234,7 +269,7 @@ const ModalTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title ref={ref} className={cn('', className)} {...props} />
+  <DialogPrimitive.Title ref={ref} className={className} {...props} />
 ))
 
 ModalTitle.displayName = 'ModalTitle'
@@ -246,7 +281,7 @@ const ModalDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description ref={ref} className={cn('', className)} {...props} />
+  <DialogPrimitive.Description ref={ref} className={className} {...props} />
 ))
 
 ModalDescription.displayName = 'ModalDescription'

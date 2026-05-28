@@ -153,6 +153,7 @@ export interface ChatMessageContext {
   fileId?: string
   folderId?: string
   chatId?: string
+  blockType?: string
 }
 
 export interface ChatMessage {

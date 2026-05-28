@@ -1,5 +1,5 @@
 import { EnrichSoIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const EnrichBlock: BlockConfig = {
@@ -12,7 +12,6 @@ export const EnrichBlock: BlockConfig = {
   docsLink: 'https://docs.enrich.so/',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'data-analytics'],
   bgColor: '#E5E5E6',
   icon: EnrichSoIcon,
   subBlocks: [
@@ -625,3 +624,77 @@ export const EnrichBlock: BlockConfig = {
     output: { type: 'json', description: 'Output data from the Enrich operation' },
   },
 }
+
+export const EnrichBlockMeta = {
+  tags: ['enrichment', 'data-analytics'],
+  templates: [
+    {
+      icon: EnrichSoIcon,
+      title: 'Enrich CRM hydrator',
+      prompt:
+        'Build a workflow that watches new Salesforce leads, enriches each with Enrich.so contact data, and writes role, company size, and email to the lead record.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: EnrichSoIcon,
+      title: 'Enrich list cleaner',
+      prompt:
+        'Create a workflow that runs an outreach list through Enrich, removes invalid emails and disqualified roles, and writes the clean list to a sender table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+    },
+    {
+      icon: EnrichSoIcon,
+      title: 'Enrich bulk-account researcher',
+      prompt:
+        'Build a workflow that takes a list of target accounts, enriches each with Enrich firmographic data, and writes a tables-based account brief for the sales team.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: EnrichSoIcon,
+      title: 'Enrich + Email Bison sender',
+      prompt:
+        'Create a workflow that runs Enrich on prospects then drafts and sends a personalized Email Bison sequence based on the enriched fields.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['emailbison'],
+    },
+    {
+      icon: EnrichSoIcon,
+      title: 'Enrich event-attendee researcher',
+      prompt:
+        'Build a workflow that takes the Luma event attendee list, enriches each via Enrich, and writes a per-attendee research brief for the sales team.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['luma'],
+    },
+    {
+      icon: EnrichSoIcon,
+      title: 'Enrich CRM gap-filler',
+      prompt:
+        'Create a scheduled workflow that finds HubSpot contacts missing key fields, runs Enrich, and fills in the gaps so reporting is complete.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: EnrichSoIcon,
+      title: 'Enrich + LinkedIn validator',
+      prompt:
+        'Build a workflow that validates LinkedIn profile URLs in the CRM using Enrich, flags outdated roles, and updates the contact record with the current title.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['linkedin'],
+    },
+  ],
+} as const satisfies BlockMeta

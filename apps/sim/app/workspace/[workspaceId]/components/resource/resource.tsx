@@ -332,7 +332,7 @@ export const ResourceTable = memo(function ResourceTable({
                   return (
                     <th
                       key={col.id}
-                      className='h-10 px-6 py-1.5 text-left align-middle font-base text-[var(--text-muted)] text-caption'
+                      className='h-10 px-6 py-1.5 text-left align-middle text-[var(--text-muted)] text-caption'
                     >
                       {col.header}
                     </th>
@@ -344,7 +344,7 @@ export const ResourceTable = memo(function ResourceTable({
                   <th key={col.id} className='h-10 px-4 py-1.5 text-left align-middle'>
                     <Button
                       variant='subtle'
-                      className='px-2 py-1 font-base text-[var(--text-muted)] hover-hover:text-[var(--text-muted)]'
+                      className='px-2 py-1 text-[var(--text-muted)] hover-hover:text-[var(--text-muted)]'
                       onClick={() =>
                         handleSort(
                           col.id,
@@ -706,7 +706,7 @@ const DataTableSkeleton = memo(function DataTableSkeleton({
             {columns.map((col) => (
               <th
                 key={col.id}
-                className='h-10 px-6 py-2.5 text-left align-middle font-base text-[var(--text-muted)]'
+                className='h-10 px-6 py-2.5 text-left align-middle text-[var(--text-muted)]'
               >
                 <div className='flex min-h-[20px] items-center'>
                   <Skeleton className='h-[12px] w-[56px]' />

@@ -1,5 +1,5 @@
 import { FindymailIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { FindymailResponse } from '@/tools/findymail/types'
 
 export const FindymailBlock: BlockConfig<FindymailResponse> = {
@@ -12,7 +12,6 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
   docsLink: 'https://docs.sim.ai/tools/findymail',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'sales-engagement'],
   bgColor: '#FFFFFF',
   icon: FindymailIcon,
   subBlocks: [
@@ -421,3 +420,73 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
     email: { type: 'string', description: 'Email address' },
   },
 }
+
+export const FindymailBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  templates: [
+    {
+      icon: FindymailIcon,
+      title: 'Findymail email finder',
+      prompt:
+        'Build a workflow that takes a prospect name and company domain from a table, runs Findymail to find the verified work email, and writes the deliverable contact back to the row.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: FindymailIcon,
+      title: 'Findymail LinkedIn enricher',
+      prompt:
+        'Create a workflow that takes a list of LinkedIn profile URLs, finds the matching verified work email via Findymail, and writes the enriched contacts into a research table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: FindymailIcon,
+      title: 'Findymail email verifier',
+      prompt:
+        'Build a workflow that runs a list of email addresses through Findymail verification, removes undeliverable addresses, and writes a clean list for outbound sends.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+    },
+    {
+      icon: FindymailIcon,
+      title: 'Findymail company team mapper',
+      prompt:
+        'Create a workflow that takes a target company domain, uses Findymail to find employees by job title and enrich company data, and writes the org map into a tables-based account base.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: FindymailIcon,
+      title: 'Findymail CRM gap-filler',
+      prompt:
+        'Build a scheduled workflow that finds HubSpot contacts missing verified emails, looks them up with Findymail, verifies each, and updates the contact record.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: FindymailIcon,
+      title: 'Findymail LinkedIn list builder',
+      prompt:
+        "Create a workflow that reads a list of LinkedIn profile URLs from a table, finds and verifies each prospect's work email and phone with Findymail, enriches their company, and writes a clean, ready-to-contact prospect table.",
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'enrichment'],
+    },
+    {
+      icon: FindymailIcon,
+      title: 'Findymail domain prospecting',
+      prompt:
+        'Build a workflow that takes a target company domain, uses Findymail to find employees and their verified emails by role, validates each address, and pushes the qualified contacts into the outbound sequence.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'enrichment'],
+    },
+  ],
+} as const satisfies BlockMeta

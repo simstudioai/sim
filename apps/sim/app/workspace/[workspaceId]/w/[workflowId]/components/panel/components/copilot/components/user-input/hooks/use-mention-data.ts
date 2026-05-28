@@ -8,6 +8,7 @@ import { listCopilotChatsContract } from '@/lib/api/contracts/copilot'
 import { listKnowledgeBasesContract } from '@/lib/api/contracts/knowledge/base'
 import { listLogsContract } from '@/lib/api/contracts/logs'
 import { listTemplatesContract } from '@/lib/api/contracts/templates'
+import { type IntegrationDescriptor, listIntegrations } from '@/blocks/integration-matcher'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -101,6 +102,7 @@ export interface MentionDataReturn {
   workflowBlocks: WorkflowBlockItem[]
   templatesList: TemplateItem[]
   logsList: LogItem[]
+  integrations: readonly IntegrationDescriptor[]
 
   // Loading states
   isLoadingPastChats: boolean
@@ -110,6 +112,7 @@ export interface MentionDataReturn {
   isLoadingWorkflowBlocks: boolean
   isLoadingTemplates: boolean
   isLoadingLogs: boolean
+  isLoadingIntegrations: boolean
 
   // Ensure loaded functions
   ensurePastChatsLoaded: () => Promise<void>
@@ -152,6 +155,11 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
 
   const [workflowBlocks, setWorkflowBlocks] = useState<WorkflowBlockItem[]>([])
   const [isLoadingWorkflowBlocks, setIsLoadingWorkflowBlocks] = useState(false)
+
+  // Integrations are derived synchronously from the block registry via the
+  // shared auto-mention matcher singleton — no fetch, no loading state. The
+  // accessor returns a stable cached reference so no memoization is needed.
+  const integrations = listIntegrations()
 
   const blockKeys = useWorkflowStore(
     useShallow(useCallback((state) => Object.keys(state.blocks), []))
@@ -380,6 +388,8 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     isLoadingLogs,
     workflowBlocks,
     isLoadingWorkflowBlocks,
+    integrations,
+    isLoadingIntegrations: false,
 
     // Operations
     ensurePastChatsLoaded,

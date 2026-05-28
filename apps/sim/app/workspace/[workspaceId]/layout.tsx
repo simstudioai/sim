@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 import { ToastProvider } from '@/components/emcn'
 import { getSession } from '@/lib/auth'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
-import { NavTour } from '@/app/workspace/[workspaceId]/components/product-tour'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
 import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
@@ -41,7 +40,6 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
                   </div>
                 </div>
               </div>
-              <NavTour />
             </WorkspacePermissionsProvider>
           </div>
         </GlobalCommandsProvider>

@@ -1,5 +1,6 @@
+import { Bug } from '@/components/emcn/icons'
 import { SentryIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { SentryResponse } from '@/tools/sentry/types'
 
@@ -12,9 +13,8 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
     'Integrate Sentry into the workflow. Monitor issues, manage projects, track events, and coordinate releases across your applications.',
   docsLink: 'https://docs.sim.ai/tools/sentry',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['error-tracking', 'monitoring'],
-  bgColor: '#E0E0E0',
+  integrationType: IntegrationType.Observability,
+  bgColor: '#FFFFFF',
   icon: SentryIcon,
   subBlocks: [
     {
@@ -695,3 +695,79 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     hasMore: { type: 'boolean', description: 'More results available' },
   },
 }
+
+export const SentryBlockMeta = {
+  tags: ['error-tracking', 'monitoring'],
+  templates: [
+    {
+      icon: Bug,
+      title: 'Bug triage agent',
+      prompt:
+        'Build an agent that monitors Sentry for new errors, automatically triages them by severity and affected users, creates Linear tickets for critical issues with full stack traces, and sends a Slack notification to the on-call channel.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops', 'automation'],
+      alsoIntegrations: ['linear', 'slack'],
+    },
+    {
+      icon: SentryIcon,
+      title: 'Sentry error triage',
+      prompt:
+        'Build a workflow triggered by Sentry issue events that classifies severity, groups similar issues, creates a Linear ticket on first occurrence above the threshold, and pings the owning team in Slack.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops'],
+      alsoIntegrations: ['linear', 'slack'],
+    },
+    {
+      icon: SentryIcon,
+      title: 'Sentry release health gate',
+      prompt:
+        'Create a workflow that runs after a Vercel deploy, checks Sentry release health, and rolls back the deploy if the error rate exceeds the threshold, posting an alert to Slack.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['vercel', 'slack'],
+    },
+    {
+      icon: SentryIcon,
+      title: 'Sentry weekly regression brief',
+      prompt:
+        'Build a scheduled weekly workflow that compares Sentry error rates week-over-week, identifies top regressors, and writes a brief to engineering leadership in Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SentryIcon,
+      title: 'Sentry source-map verifier',
+      prompt:
+        'Create a scheduled workflow that scans Sentry for issues with missing or stale source maps, writes a tracking table, and opens Linear tickets for the worst offenders.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: SentryIcon,
+      title: 'Sentry customer-impact mapper',
+      prompt:
+        'Build a workflow that takes a Sentry issue and matches affected users to CRM accounts, scoring customer impact, and creates a customer-facing incident note in HubSpot for the worst-affected accounts.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'sales'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: SentryIcon,
+      title: 'Sentry release tracker on deploy',
+      prompt:
+        'Create a workflow that watches GitHub for merges to main, creates a new Sentry release with the commit range, marks the deploy in Sentry for the production environment, and posts the release notes and linked issues to Slack so the team knows what shipped.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'ci-cd', 'automation'],
+      alsoIntegrations: ['github', 'slack'],
+    },
+  ],
+} as const satisfies BlockMeta

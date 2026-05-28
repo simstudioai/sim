@@ -146,12 +146,12 @@ function AddMembersModal({
             <div className='flex flex-col gap-3'>
               <div className='flex items-center gap-2'>
                 <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                  <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                  <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                   <BaseInput
                     placeholder='Search members...'
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                    className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
                   />
                 </div>
                 <Button variant='default' onClick={handleToggleAll}>
@@ -237,16 +237,18 @@ function AccessControlSkeleton() {
     <div className='flex h-full flex-col gap-4.5'>
       <div className='flex flex-col gap-2'>
         <Skeleton className='h-[14px] w-[100px]' />
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-3'>
-            <Skeleton className='size-9 rounded-md' />
-            <div className='flex flex-col gap-1'>
-              <Skeleton className='h-[14px] w-[120px]' />
-              <Skeleton className='h-[12px] w-[80px]' />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className='flex items-center justify-between'>
+            <div className='flex items-center gap-3'>
+              <Skeleton className='size-9 rounded-md' />
+              <div className='flex flex-col gap-1'>
+                <Skeleton className='h-[14px] w-[120px]' />
+                <Skeleton className='h-[12px] w-[80px]' />
+              </div>
             </div>
+            <Skeleton className='h-[32px] w-[60px] rounded-md' />
           </div>
-          <Skeleton className='h-[32px] w-[60px] rounded-md' />
-        </div>
+        ))}
       </div>
     </div>
   )
@@ -804,7 +806,7 @@ export function AccessControl() {
               <div className='flex items-center justify-between'>
                 <span className='font-medium text-[var(--text-secondary)] text-sm'>Members</span>
                 <Button variant='primary' onClick={handleOpenAddMembersModal}>
-                  <Plus className='mr-1.5 size-[13px]' />
+                  <Plus className='mr-1.5 h-[13px] w-[13px]' />
                   Add
                 </Button>
               </div>
@@ -915,12 +917,12 @@ export function AccessControl() {
                 <ModalTabsContent value='providers'>
                   <div className='flex items-center gap-2 pb-3'>
                     <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                       <BaseInput
                         placeholder='Search providers...'
                         value={providerSearchTerm}
                         onChange={(e) => setProviderSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                        className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
                       />
                     </div>
                     <Button
@@ -963,7 +965,7 @@ export function AccessControl() {
                             checked={isProviderAllowed(providerId)}
                             onCheckedChange={() => toggleProvider(providerId)}
                           />
-                          <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
+                          <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
                             {ProviderIcon && <ProviderIcon className='!h-[16px] !w-[16px]' />}
                           </div>
                           <span className='truncate font-medium text-sm'>{providerName}</span>
@@ -976,12 +978,12 @@ export function AccessControl() {
                 <ModalTabsContent value='blocks'>
                   <div className='flex items-center gap-2 pb-3'>
                     <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                       <BaseInput
                         placeholder='Search blocks...'
                         value={integrationSearchTerm}
                         onChange={(e) => setIntegrationSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                        className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
                       />
                     </div>
                     <Button
@@ -1031,7 +1033,7 @@ export function AccessControl() {
                                   onCheckedChange={() => toggleIntegration(block.type)}
                                 />
                                 <div
-                                  className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                                  className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
                                   style={{ background: block.bgColor }}
                                 >
                                   {BlockIcon && (
@@ -1066,7 +1068,7 @@ export function AccessControl() {
                                   onCheckedChange={() => toggleIntegration(block.type)}
                                 />
                                 <div
-                                  className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                                  className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
                                   style={{ background: block.bgColor }}
                                 >
                                   {BlockIcon && (
@@ -1086,12 +1088,12 @@ export function AccessControl() {
                 <ModalTabsContent value='platform'>
                   <div className='flex items-center gap-2 pb-3'>
                     <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                       <BaseInput
                         placeholder='Search features...'
                         value={platformSearchTerm}
                         onChange={(e) => setPlatformSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                        className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
                       />
                     </div>
                     <Button
@@ -1242,18 +1244,18 @@ export function AccessControl() {
         <div className='flex items-center gap-2'>
           <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
             <Search
-              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
             />
             <BaseInput
               placeholder='Search permission groups...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
           <Button variant='primary' onClick={() => setShowCreateModal(true)}>
-            <Plus className='mr-1.5 size-[13px]' />
+            <Plus className='mr-1.5 h-[13px] w-[13px]' />
             Create
           </Button>
         </div>

@@ -17,7 +17,7 @@ import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-to
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
-import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/create-workflow-mcp-server-modal'
+import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components/create-workflow-mcp-server-modal'
 import {
   useAddWorkflowMcpTool,
   useDeleteWorkflowMcpTool,

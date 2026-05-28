@@ -100,7 +100,7 @@ export function ThinkingBlock({
         <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
           <BrainIcon className='size-[14px] text-[var(--text-icon)]' />
         </div>
-        <span className='font-base text-[var(--text-body)] text-sm'>{label}</span>
+        <span className='text-[var(--text-body)] text-sm'>{label}</span>
         <ChevronDown
           className={cn(
             'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
@@ -112,7 +112,7 @@ export function ThinkingBlock({
       <Expandable expanded={expanded}>
         <ExpandableContent>
           <div ref={panelRef} className='max-h-[110px] overflow-y-scroll pt-0.5 pr-2 pl-6'>
-            <div className='whitespace-pre-wrap break-words font-base text-[13px] text-[var(--text-secondary)] leading-[18px] opacity-60'>
+            <div className='whitespace-pre-wrap break-words text-[13px] text-[var(--text-secondary)] leading-[18px] opacity-60'>
               {content}
             </div>
           </div>

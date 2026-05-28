@@ -13,7 +13,7 @@ import {
   ModalHeader,
   toast,
 } from '@/components/emcn'
-import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
+import { Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import {
@@ -413,7 +413,7 @@ export function Table({
             },
             {
               label: 'Export CSV',
-              icon: Download,
+              icon: Upload,
               onClick: () => void handleExportCsv(),
               disabled: tableData.rowCount === 0,
             },

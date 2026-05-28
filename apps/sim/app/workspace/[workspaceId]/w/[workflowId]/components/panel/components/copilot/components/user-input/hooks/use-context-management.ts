@@ -69,11 +69,15 @@ export function useContextManagement({ message, initialContexts }: UseContextMan
 
       const filtered = prev.filter((c) => {
         if (!c.label) return false
-        // Check for slash command tokens or mention tokens based on kind
+        // Check for slash command tokens or mention tokens based on kind.
+        // The trailing lookahead `(?![A-Za-z0-9_])` accepts any word-boundary
+        // — whitespace, end-of-string, or punctuation — so `@Slack.` and
+        // `@Slack,` survive the sync. A strict `(\s|$)` here would strip
+        // contexts whenever the user ends a sentence with a mention.
         const isSlashCommand = c.kind === 'slash_command'
         const prefix = isSlashCommand ? '/' : '@'
         const tokenPattern = new RegExp(
-          `(^|\\s)${escapeRegex(prefix)}${escapeRegex(c.label)}(\\s|$)`
+          `(^|\\s)${escapeRegex(prefix)}${escapeRegex(c.label)}(?![A-Za-z0-9_])`
         )
         return tokenPattern.test(message)
       })

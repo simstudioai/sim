@@ -1,5 +1,5 @@
 import { ZendeskIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const ZendeskBlock: BlockConfig = {
@@ -11,9 +11,8 @@ export const ZendeskBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/zendesk',
   authMode: AuthMode.ApiKey,
   category: 'tools',
-  integrationType: IntegrationType.CustomerSupport,
-  tags: ['customer-support', 'ticketing'],
-  bgColor: '#E0E0E0',
+  integrationType: IntegrationType.Support,
+  bgColor: '#FFFFFF',
   icon: ZendeskIcon,
   subBlocks: [
     {
@@ -697,3 +696,76 @@ Return ONLY the search query - no explanations.`,
     metadata: { type: 'json', description: 'Operation metadata including operation type' },
   },
 }
+
+export const ZendeskBlockMeta = {
+  tags: ['customer-support', 'ticketing'],
+  templates: [
+    {
+      icon: ZendeskIcon,
+      title: 'Support ticket knowledge search',
+      prompt:
+        'Create a knowledge base connected to my Zendesk account so all past tickets, resolutions, and agent notes are automatically synced and searchable. Then build an agent my support team can ask things like "how do we usually resolve the SSO login issue?" or "has anyone reported this billing bug before?" to find past solutions instantly.',
+      modules: ['knowledge-base', 'agent'],
+      category: 'support',
+      tags: ['support', 'research', 'team'],
+    },
+    {
+      icon: ZendeskIcon,
+      title: 'Zendesk auto-classifier',
+      prompt:
+        'Build a workflow triggered by new Zendesk tickets that classifies each one by product area, severity, and intent, applies the matching tags, sets priority, and assigns it to the right group so triage happens automatically.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation'],
+    },
+    {
+      icon: ZendeskIcon,
+      title: 'Zendesk SLA breach alert',
+      prompt:
+        'Create a scheduled workflow that searches Zendesk every 15 minutes for tickets at risk of breaching first-response or resolution SLA, summarizes each one, and posts a Slack alert to the responsible group with deep links to the tickets.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'monitoring', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ZendeskIcon,
+      title: 'Zendesk ticket deflector',
+      prompt:
+        'Create a knowledge base from help center articles and past ticket resolutions, then build a workflow that drafts a public reply for every new Zendesk ticket using the knowledge base with citations, and posts it as an internal note for agents to send with one click.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation', 'communication'],
+    },
+    {
+      icon: ZendeskIcon,
+      title: 'Zendesk to Jira engineering bridge',
+      prompt:
+        'Build a workflow that detects when a Zendesk ticket is tagged as a bug, creates a linked Jira issue with the ticket details and customer impact, and posts the Jira link back as an internal note on the Zendesk ticket.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'engineering', 'automation'],
+      alsoIntegrations: ['jira'],
+    },
+    {
+      icon: ZendeskIcon,
+      title: 'Zendesk weekly CX pulse',
+      prompt:
+        'Create a scheduled weekly workflow that pulls Zendesk ticket volume, CSAT, top tags, and recurring issues, generates a narrative CX pulse with week-over-week deltas, and posts it to Slack with links to the standout tickets.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'reporting', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ZendeskIcon,
+      title: 'Zendesk customer record sync',
+      prompt:
+        'Build a workflow that watches my CRM for new or updated accounts, searches Zendesk for the matching user and organization, and creates or updates them in bulk so support agents always see the latest company, plan, and contact details on every ticket.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'crm', 'sync'],
+      alsoIntegrations: ['salesforce'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -1,5 +1,5 @@
 import { AlgoliaIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const AlgoliaBlock: BlockConfig = {
@@ -11,7 +11,6 @@ export const AlgoliaBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/algolia',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['vector-search', 'knowledge-base'],
   bgColor: '#003DFF',
   icon: AlgoliaIcon,
   authMode: AuthMode.ApiKey,
@@ -646,3 +645,74 @@ Return ONLY the JSON array.`,
     },
   },
 }
+
+export const AlgoliaBlockMeta = {
+  tags: ['vector-search', 'knowledge-base'],
+  templates: [
+    {
+      icon: AlgoliaIcon,
+      title: 'Algolia content indexer',
+      prompt:
+        'Build a workflow that watches a content source — WordPress, knowledge base — and upserts records into an Algolia index, removing deleted items for accurate search.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'sync'],
+      alsoIntegrations: ['wordpress'],
+    },
+    {
+      icon: AlgoliaIcon,
+      title: 'Algolia search-quality auditor',
+      prompt:
+        'Create a scheduled workflow that runs benchmark queries against an Algolia index weekly, scores top-result relevance, and writes a quality report.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+    },
+    {
+      icon: AlgoliaIcon,
+      title: 'Algolia synonym manager',
+      prompt:
+        'Build a workflow that watches user search queries with zero results, suggests synonyms via an agent, and updates the Algolia synonyms list after approval.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+    },
+    {
+      icon: AlgoliaIcon,
+      title: 'Algolia personalization tuner',
+      prompt:
+        'Create a workflow that analyzes Algolia analytics for click and conversion patterns, suggests personalization rules, and writes the proposed rules to a review queue.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis'],
+    },
+    {
+      icon: AlgoliaIcon,
+      title: 'Algolia + knowledge base sync',
+      prompt:
+        'Build a workflow that mirrors a Sim knowledge base into an Algolia index, keeping vector retrieval and keyword search aligned for hybrid retrieval.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'sync'],
+    },
+    {
+      icon: AlgoliaIcon,
+      title: 'Algolia index size monitor',
+      prompt:
+        'Create a scheduled workflow that pulls Algolia index size and operation counts, writes a metrics history to a table, and pings on-call when usage approaches quota.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AlgoliaIcon,
+      title: 'Algolia zero-result tracker',
+      prompt:
+        'Build a scheduled workflow that aggregates Algolia zero-result queries, identifies content gaps, and writes a content-opportunity backlog to a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis'],
+    },
+  ],
+} as const satisfies BlockMeta

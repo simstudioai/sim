@@ -21,7 +21,6 @@ import {
   ModalDescription,
   ModalFooter,
   ModalHeader,
-  Skeleton,
   SModalTabs,
   SModalTabsBody,
   SModalTabsContent,
@@ -33,6 +32,7 @@ import {
 import { Input } from '@/components/ui'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import { useCreateMcpServer } from '@/hooks/queries/mcp'
 import {
@@ -49,8 +49,7 @@ import {
 } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { CreateApiKeyModal } from '../api-keys/components'
-import { FormField, McpServerSkeleton } from '../mcp/components'
-import { CreateWorkflowMcpServerModal } from './create-workflow-mcp-server-modal'
+import { FormField } from '../mcp/components'
 
 const logger = createLogger('WorkflowMcpServers')
 
@@ -303,13 +302,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   )
 
   if (isLoading) {
-    return (
-      <div className='flex h-full flex-col gap-4.5'>
-        <Skeleton className='h-[24px] w-[200px]' />
-        <Skeleton className='h-[100px] w-full' />
-        <Skeleton className='h-[150px] w-full' />
-      </div>
-    )
+    return null
   }
 
   if (error || !data) {
@@ -1032,7 +1025,7 @@ export function WorkflowMcpServers() {
               placeholder='Search servers...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
           <Button onClick={() => setShowAddModal(true)} disabled={isLoading} variant='primary'>
@@ -1048,13 +1041,7 @@ export function WorkflowMcpServers() {
                 {getErrorMessage(error, 'Failed to load MCP servers')}
               </p>
             </div>
-          ) : isLoading ? (
-            <div className='flex flex-col gap-2'>
-              <McpServerSkeleton />
-              <McpServerSkeleton />
-              <McpServerSkeleton />
-            </div>
-          ) : !hasServers ? (
+          ) : isLoading ? null : !hasServers ? (
             <div className='flex h-full items-center justify-center'>
               <p className='text-[var(--text-muted)] text-sm'>Click "Add" above to get started</p>
             </div>

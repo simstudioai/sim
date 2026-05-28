@@ -15,7 +15,6 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
-import { CustomToolSkeleton } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tool-skeleton'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
 
@@ -107,7 +106,7 @@ export function CustomTools() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={isLoading}
-              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
           <Button onClick={() => setShowAddForm(true)} disabled={isLoading} variant='primary'>
@@ -123,13 +122,7 @@ export function CustomTools() {
                 {getErrorMessage(error, 'Failed to load tools')}
               </p>
             </div>
-          ) : isLoading ? (
-            <div className='flex flex-col gap-2'>
-              <CustomToolSkeleton />
-              <CustomToolSkeleton />
-              <CustomToolSkeleton />
-            </div>
-          ) : showEmptyState ? (
+          ) : isLoading ? null : showEmptyState ? (
             <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
               Click "Add" above to get started
             </div>

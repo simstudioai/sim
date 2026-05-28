@@ -1,5 +1,5 @@
 import { AthenaIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type {
   AthenaCreateNamedQueryResponse,
@@ -30,7 +30,6 @@ export const AthenaBlock: BlockConfig<
   docsLink: 'https://docs.sim.ai/tools/athena',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['cloud', 'data-analytics'],
   bgColor: 'linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)',
   icon: AthenaIcon,
   subBlocks: [
@@ -467,3 +466,79 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
     },
   },
 }
+
+export const AthenaBlockMeta = {
+  tags: ['cloud', 'data-analytics'],
+  templates: [
+    {
+      icon: AthenaIcon,
+      title: 'Athena scheduled report runner',
+      prompt:
+        'Create a scheduled workflow that runs a saved AWS Athena query daily, writes the result rows to a Sim table, and posts a Slack summary of the top movers.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['analysis', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AthenaIcon,
+      title: 'Athena S3 access audit',
+      prompt:
+        'Build a workflow that runs Athena queries against S3 access logs weekly, identifies unusual access patterns or new principals, and writes findings to a security audit table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['s3'],
+    },
+    {
+      icon: AthenaIcon,
+      title: 'Athena cost-explorer query',
+      prompt:
+        'Build a scheduled workflow that runs Athena queries against AWS cost-and-usage reports daily, writes top cost movers per service to a table, and posts an anomaly digest to Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'devops'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AthenaIcon,
+      title: 'Athena + Tinybird real-time bridge',
+      prompt:
+        'Build a workflow that combines historical Athena queries with realtime Tinybird endpoints into a unified reporting view, writes results to a dashboard table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['analysis', 'sync'],
+      alsoIntegrations: ['tinybird'],
+    },
+    {
+      icon: AthenaIcon,
+      title: 'Athena + PostHog data-warehouse join',
+      prompt:
+        'Create a scheduled workflow that joins PostHog event exports with Athena historical data, computes funnel conversion across the join, and writes a daily report.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['product', 'analysis'],
+      alsoIntegrations: ['posthog'],
+    },
+    {
+      icon: AthenaIcon,
+      title: 'Athena ad-hoc query agent',
+      prompt:
+        'Build a Slack agent that translates natural-language analytics questions into safe AWS Athena queries, executes them, and returns the table answer with the query for review.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['analysis', 'engineering'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AthenaIcon,
+      title: 'Athena weekly executive metrics',
+      prompt:
+        'Create a scheduled weekly workflow that runs a set of AWS Athena queries against the data lake for revenue, retention, and usage metrics, writes the results to a metrics table, and emails a formatted scorecard to leadership.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['reporting', 'analysis'],
+      alsoIntegrations: ['gmail'],
+    },
+  ],
+} as const satisfies BlockMeta

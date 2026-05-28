@@ -1,5 +1,5 @@
 import { S3Icon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { S3Response } from '@/tools/s3/types'
@@ -13,8 +13,7 @@ export const S3Block: BlockConfig<S3Response> = {
     'Integrate S3 into the workflow. Upload files, download objects, list bucket contents, delete objects, and copy objects between buckets. Requires AWS access key and secret access key.',
   docsLink: 'https://docs.sim.ai/tools/s3',
   category: 'tools',
-  integrationType: IntegrationType.FileStorage,
-  tags: ['cloud', 'data-warehouse'],
+  integrationType: IntegrationType.Documents,
   bgColor: 'linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)',
   icon: S3Icon,
   subBlocks: [
@@ -414,3 +413,74 @@ export const S3Block: BlockConfig<S3Response> = {
     metadata: { type: 'json', description: 'Operation metadata' },
   },
 }
+
+export const S3BlockMeta = {
+  tags: ['cloud', 'automation'],
+  templates: [
+    {
+      icon: S3Icon,
+      title: 'S3 report archiver',
+      prompt:
+        'Build a scheduled workflow that generates a daily report file, uploads it to an S3 bucket under a dated prefix, and posts the object link to Slack so the team always has the latest archived copy.',
+      modules: ['scheduled', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: S3Icon,
+      title: 'S3 document ingestion to knowledge base',
+      prompt:
+        'Create a workflow that lists objects in an S3 bucket, downloads each new document, and indexes it into a Sim knowledge base so agents can answer questions over files stored in S3.',
+      modules: ['files', 'knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['automation', 'sync'],
+    },
+    {
+      icon: S3Icon,
+      title: 'S3 incoming-file processor',
+      prompt:
+        'Build a workflow that downloads a newly uploaded S3 object, parses its contents, writes the extracted rows to a table, and deletes the source object once processing succeeds.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'enterprise'],
+    },
+    {
+      icon: S3Icon,
+      title: 'S3 backup retention sweeper',
+      prompt:
+        'Create a scheduled workflow that lists objects in an S3 backup bucket, identifies files older than the retention window, deletes the expired objects, and writes a deletion manifest to a table for audit.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'enterprise', 'monitoring'],
+    },
+    {
+      icon: S3Icon,
+      title: 'S3 export-to-customer flow',
+      prompt:
+        'Build a workflow that generates a per-customer data export file, uploads it to a customer-scoped S3 prefix, and emails the customer a download link once the upload completes.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['automation', 'support'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: S3Icon,
+      title: 'S3 bucket inventory dashboard',
+      prompt:
+        'Create a scheduled workflow that lists objects across an S3 bucket, aggregates object count and total size by prefix, and writes a daily inventory snapshot to a table for cost and growth tracking.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['reporting', 'monitoring', 'automation'],
+    },
+    {
+      icon: S3Icon,
+      title: 'S3 media-asset publisher',
+      prompt:
+        'Build a workflow that takes a generated image or document, uploads it to a public S3 bucket, retrieves the object URL, and writes the link back to the originating row in a table.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['content', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

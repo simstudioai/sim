@@ -34,3 +34,4 @@ export type ChatContext =
   | { kind: 'templates'; templateId?: string; label: string }
   | { kind: 'docs'; label: string }
   | { kind: 'slash_command'; command: string; label: string }
+  | { kind: 'integration'; blockType: string; label: string }

@@ -35,7 +35,6 @@ import {
   SerperIcon,
 } from '@/components/icons'
 import { Input } from '@/components/ui'
-import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import {
   type BYOKKey,
   useBYOKKeys,
@@ -262,7 +261,7 @@ export function BYOK() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={isLoading}
-              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
         </div>
@@ -272,13 +271,7 @@ export function BYOK() {
         </p>
 
         <div className='min-h-0 flex-1 overflow-y-auto'>
-          {isLoading ? (
-            <div className='flex flex-col gap-2'>
-              {PROVIDERS.map((p) => (
-                <BYOKKeySkeleton key={p.id} />
-              ))}
-            </div>
-          ) : (
+          {isLoading ? null : (
             <div className='flex flex-col gap-2'>
               {filteredProviders.map((provider) => {
                 const existingKey = getKeyForProvider(provider.id)

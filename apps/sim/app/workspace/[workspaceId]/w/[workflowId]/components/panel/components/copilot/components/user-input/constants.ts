@@ -11,6 +11,7 @@ export type MentionFolderId =
   | 'workflow-blocks'
   | 'templates'
   | 'logs'
+  | 'integrations'
 
 /**
  * Menu item category types for mention menu (includes folders + docs item)
@@ -169,6 +170,22 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
     }),
     useInsertFallback: false,
   },
+  integrations: {
+    title: 'Integrations',
+    dataKey: 'integrations',
+    loadingKey: 'isLoadingIntegrations',
+    getLabel: (item) => item.name,
+    getId: (item) => item.blockType,
+    emptyMessage: 'No integrations',
+    noMatchMessage: 'No matching integrations',
+    filterFn: (item, q) => item.name.toLowerCase().includes(q),
+    buildContext: (item) => ({
+      kind: 'integration',
+      blockType: item.blockType,
+      label: item.name,
+    }),
+    useInsertFallback: true,
+  },
 }
 
 /**
@@ -180,6 +197,7 @@ export const FOLDER_ORDER: MentionFolderId[] = [
   'knowledge',
   'blocks',
   'workflow-blocks',
+  'integrations',
   'templates',
   'logs',
 ]

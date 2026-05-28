@@ -1,5 +1,5 @@
 import { ProfoundIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 const CATEGORY_REPORT_OPS = [
@@ -67,7 +67,6 @@ export const ProfoundBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/profound',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['seo', 'data-analytics'],
   bgColor: '#000000',
   icon: ProfoundIcon,
   authMode: AuthMode.ApiKey,
@@ -404,3 +403,76 @@ export const ProfoundBlock: BlockConfig = {
     },
   },
 }
+
+export const ProfoundBlockMeta = {
+  tags: ['seo', 'data-analytics'],
+  templates: [
+    {
+      icon: ProfoundIcon,
+      title: 'Profound AI-visibility tracker',
+      prompt:
+        'Create a scheduled weekly workflow that pulls Profound brand-visibility scores across AI search engines, tracks how my brand surfaces in answers for tracked prompts, and reports week-over-week shifts to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ProfoundIcon,
+      title: 'Profound competitor share-of-voice',
+      prompt:
+        'Build a workflow that pulls Profound competitor share-of-voice across AI engines, writes the leaderboard to a tracking table, and flags when a competitor jumps more than two positions.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis'],
+    },
+    {
+      icon: ProfoundIcon,
+      title: 'Profound prompt-coverage audit',
+      prompt:
+        'Build a workflow that uploads my list of priority prompts to Profound, monitors how my brand surfaces in AI answers across engines weekly, and writes the coverage report to a tables-based scorecard.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+    },
+    {
+      icon: ProfoundIcon,
+      title: 'Profound citation-source tracker',
+      prompt:
+        'Build a scheduled workflow that pulls the sources Profound reports AI engines cite when answering brand prompts, logs the citing domains and pages to a table, and flags new sources the content team should target.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'seo', 'analysis'],
+    },
+    {
+      icon: ProfoundIcon,
+      title: 'Profound visibility-drop alerter',
+      prompt:
+        'Create a workflow that checks Profound brand-visibility scores daily, compares each tracked prompt against its baseline, and immediately pages the marketing on-call in Slack when visibility drops sharply on a high-priority prompt.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ProfoundIcon,
+      title: 'Profound content-gap planner',
+      prompt:
+        'Build a workflow that pulls the prompts where Profound shows my brand is absent from AI answers, has an agent draft a prioritized content brief for each gap, and creates the briefs as Notion pages for the content team.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'seo', 'content'],
+      alsoIntegrations: ['notion'],
+    },
+    {
+      icon: ProfoundIcon,
+      title: 'Profound executive AI-search digest',
+      prompt:
+        'Create a scheduled monthly workflow that aggregates Profound visibility, share-of-voice, and citation trends into a Markdown report file with commentary, and emails the AI-search performance digest to leadership.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'reporting', 'analysis'],
+      alsoIntegrations: ['gmail'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -1,5 +1,5 @@
 import { BrowserUseIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { BrowserUseResponse } from '@/tools/browser_use/types'
 
 export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
@@ -12,7 +12,6 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
   docsLink: 'https://docs.sim.ai/tools/browser_use',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['web-scraping', 'automation', 'agentic'],
   bgColor: '#181C1E',
   icon: BrowserUseIcon,
   subBlocks: [
@@ -212,3 +211,76 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
     sessionId: { type: 'string', description: 'Browser Use session identifier' },
   },
 }
+
+export const BrowserUseBlockMeta = {
+  tags: ['web-scraping', 'automation', 'agentic'],
+  templates: [
+    {
+      icon: BrowserUseIcon,
+      title: 'Browser Use form filler',
+      prompt:
+        'Build a workflow that uses Browser Use to automate filling complex web forms — vendor portals, compliance questionnaires — with data pulled from a table, and captures screenshots to a file as audit trail.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'enterprise'],
+    },
+    {
+      icon: BrowserUseIcon,
+      title: 'Browser Use competitor pricing scraper',
+      prompt:
+        'Create a scheduled workflow that runs Browser Use weekly to navigate competitor pricing pages, captures the current plans and prices, diffs against last week, and posts changes to Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['research', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: BrowserUseIcon,
+      title: 'Browser Use legacy ERP scraper',
+      prompt:
+        'Create a workflow that uses Browser Use to log into a legacy ERP without an API, exports daily reports, parses them into a table, and posts a summary to Slack so old systems still feed modern ops.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: BrowserUseIcon,
+      title: 'Browser Use + Stagehand cross-tool QA',
+      prompt:
+        'Create a workflow that uses Browser Use and Stagehand together to run scripted browser flows against staging, captures screenshots, and writes a regression report.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+      alsoIntegrations: ['stagehand'],
+    },
+    {
+      icon: BrowserUseIcon,
+      title: 'Browser Use + Stagehand expense-portal grabber',
+      prompt:
+        'Build a workflow that uses Browser Use and Stagehand to automate expense-portal data pulls from suppliers, captures the structured data, and writes to a finance table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+      alsoIntegrations: ['stagehand'],
+    },
+    {
+      icon: BrowserUseIcon,
+      title: 'Browser Use invoice-portal collector',
+      prompt:
+        'Create a workflow that uses Browser Use to log into vendor invoice portals weekly, downloads outstanding invoices, and writes the metadata to a finance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+    },
+    {
+      icon: BrowserUseIcon,
+      title: 'Browser Use review-site monitor',
+      prompt:
+        'Build a workflow that uses Browser Use to scrape G2 and Capterra review pages for brand mentions, classifies sentiment, and writes notable reviews to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+    },
+  ],
+} as const satisfies BlockMeta

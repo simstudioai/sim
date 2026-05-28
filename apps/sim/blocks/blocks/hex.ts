@@ -1,5 +1,5 @@
 import { HexIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { HexResponse } from '@/tools/hex/types'
 
@@ -12,7 +12,6 @@ export const HexBlock: BlockConfig<HexResponse> = {
   docsLink: 'https://docs.sim.ai/tools/hex',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['data-warehouse', 'data-analytics'],
   bgColor: '#14151A',
   icon: HexIcon,
   authMode: AuthMode.ApiKey,
@@ -446,3 +445,79 @@ Example:
     allowWritebackCells: { type: 'boolean', description: 'Writeback cells allowed' },
   },
 }
+
+export const HexBlockMeta = {
+  tags: ['data-warehouse', 'data-analytics'],
+  templates: [
+    {
+      icon: HexIcon,
+      title: 'Hex project notebook runner',
+      prompt:
+        'Create a scheduled workflow that runs a Hex notebook with parameters every morning, pulls the rendered outputs, and posts the latest charts and summary to a Slack data channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['analysis', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: HexIcon,
+      title: 'Hex anomaly digest',
+      prompt:
+        'Build a workflow that runs a Hex notebook for anomaly detection on key metrics nightly, captures detected anomalies into a table, and pages the on-call data team on Slack for severe deltas.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['analysis', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: HexIcon,
+      title: 'Hex executive metrics email',
+      prompt:
+        'Create a scheduled weekly workflow that runs a Hex executive dashboard notebook, exports the rendered HTML, and emails it as a snapshot to the leadership distribution list every Monday morning.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['reporting', 'enterprise'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: HexIcon,
+      title: 'Hex + Tinybird realtime data app',
+      prompt:
+        'Create a workflow that powers a Hex data app with Tinybird realtime data, refreshes the dashboard on schedule, and writes usage analytics to a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['analysis', 'sync'],
+      alsoIntegrations: ['tinybird'],
+    },
+    {
+      icon: HexIcon,
+      title: 'Hex + Stripe revenue notebook',
+      prompt:
+        'Build a scheduled workflow that runs a Hex notebook over Stripe payment data daily, captures MRR, churn, and expansion metrics, and pushes the rendered chart to a Slack data channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'reporting'],
+      alsoIntegrations: ['stripe', 'slack'],
+    },
+    {
+      icon: HexIcon,
+      title: 'Hex + Amplitude product notebook',
+      prompt:
+        'Create a workflow that runs a Hex notebook joining Amplitude data with internal sources weekly, captures retention and feature adoption, and emails the rendered HTML to the product team.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['product', 'analysis'],
+      alsoIntegrations: ['amplitude', 'gmail'],
+    },
+    {
+      icon: HexIcon,
+      title: 'Hex run failure monitor',
+      prompt:
+        'Build a workflow that lists recent Hex project runs every hour, checks each run status, and when a scheduled notebook fails pulls the error, summarizes the likely cause with an agent, and posts a Slack alert with a link to the run.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

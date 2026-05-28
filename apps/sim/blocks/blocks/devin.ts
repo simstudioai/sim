@@ -1,5 +1,5 @@
 import { DevinIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const DevinBlock: BlockConfig = {
@@ -17,8 +17,7 @@ export const DevinBlock: BlockConfig = {
   `,
   docsLink: 'https://docs.sim.ai/tools/devin',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['agentic', 'automation'],
+  integrationType: IntegrationType.DevOps,
   bgColor: '#12141A',
   icon: DevinIcon,
   authMode: AuthMode.ApiKey,
@@ -187,3 +186,77 @@ RULES:
     },
   },
 }
+
+export const DevinBlockMeta = {
+  tags: ['agentic', 'automation'],
+  templates: [
+    {
+      icon: DevinIcon,
+      title: 'Devin session launcher',
+      prompt:
+        'Build a workflow that accepts a coding task description, creates a new Devin session with rich context, polls the session until it produces a pull request or hits a blocker, and posts the session link and status to Slack.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'agentic', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DevinIcon,
+      title: 'Devin bug-fix dispatcher',
+      prompt:
+        'Create a workflow that watches for new critical errors, packages the stack trace and reproduction steps into a Devin prompt, creates a session, and updates a Linear ticket with the Devin session link and any pull requests it opens.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'agentic', 'devops'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: DevinIcon,
+      title: 'Devin session monitor',
+      prompt:
+        'Build a scheduled workflow that runs every ten minutes, lists Devin sessions for your organization, tracks status changes, logs sessions, pull requests, and tags to a table, and sends a Slack alert when any session has been stuck for more than two hours.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring', 'agentic'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DevinIcon,
+      title: 'Devin progress nudger',
+      prompt:
+        'Build a workflow that runs every hour against active Devin sessions, detects sessions that are suspended or awaiting input, sends a targeted follow-up message via the Devin API to unblock progress, and notifies the requester if a session needs human intervention.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'agentic', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DevinIcon,
+      title: 'Documentation gap closer',
+      prompt:
+        'Create a workflow that scans a knowledge base of docs against the latest repo state, finds undocumented public APIs, opens a Devin session for each gap with a prompt to write documentation, and stores the produced markdown back into the knowledge base.',
+      modules: ['knowledge-base', 'files', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'content', 'agentic'],
+    },
+    {
+      icon: DevinIcon,
+      title: 'Devin retrospective report',
+      prompt:
+        'Build a scheduled weekly workflow that lists Devin sessions completed in the past week, summarizes outcomes, pull requests merged, time-to-completion, and recurring failure modes, and writes a retrospective report file shared with engineering leadership.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'reporting', 'analysis'],
+    },
+    {
+      icon: DevinIcon,
+      title: 'Devin issue-to-PR runner',
+      prompt:
+        'Create a workflow triggered when a Linear issue is labeled ready-for-devin that creates a Devin session with the issue context, monitors the session to completion, and comments the resulting pull request link back on the Linear issue.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation', 'agentic'],
+      alsoIntegrations: ['linear'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -2,7 +2,6 @@
 
 import { memo } from 'react'
 import {
-  Download,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -16,6 +15,7 @@ import {
   FolderInput,
   Pencil,
   Trash2,
+  Upload,
 } from '@/components/emcn'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
@@ -73,7 +73,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
         )}
         {onDownload && (
           <DropdownMenuItem onSelect={onDownload}>
-            <Download />
+            <Upload />
             {isMultiSelect ? `Download ${selectedCount} items` : 'Download'}
           </DropdownMenuItem>
         )}

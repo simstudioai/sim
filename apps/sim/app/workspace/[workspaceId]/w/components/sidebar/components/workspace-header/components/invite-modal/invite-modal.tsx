@@ -520,10 +520,10 @@ export function InviteModal({
               Invite members to this workspace by email and manage their permissions
             </ModalDescription>
             <div className='space-y-3'>
-              <div>
+              <div className='flex flex-col gap-[9px] px-0'>
                 <Label
                   htmlFor='invite-field'
-                  className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
+                  className='pl-0.5 font-normal text-[var(--text-muted)]'
                 >
                   Email Addresses
                 </Label>

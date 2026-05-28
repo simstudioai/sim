@@ -230,7 +230,7 @@ export function CredentialSelector({
     if (!baseProviderConfig) {
       return <ExternalLink className='size-3' />
     }
-    return createElement(baseProviderConfig.icon, { className: 'h-3 w-3' })
+    return createElement(baseProviderConfig.icon, { className: 'size-3' })
   }, [])
 
   const getProviderName = useCallback((providerName: OAuthProvider) => {

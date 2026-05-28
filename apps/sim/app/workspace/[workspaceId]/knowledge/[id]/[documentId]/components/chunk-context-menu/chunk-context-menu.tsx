@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Copy, Eye, Pencil, Plus, SquareArrowUpRight, Trash } from '@/components/emcn/icons'
+import { Duplicate, Eye, Pencil, Plus, SquareArrowUpRight, Trash } from '@/components/emcn/icons'
 
 interface ChunkContextMenuProps {
   isOpen: boolean
@@ -115,7 +115,7 @@ export function ChunkContextMenu({
             )}
             {!isMultiSelect && onCopyContent && (
               <DropdownMenuItem onSelect={onCopyContent}>
-                <Copy />
+                <Duplicate />
                 Copy content
               </DropdownMenuItem>
             )}

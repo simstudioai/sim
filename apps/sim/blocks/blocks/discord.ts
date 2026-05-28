@@ -1,5 +1,5 @@
 import { DiscordIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { DiscordResponse } from '@/tools/discord/types'
@@ -13,7 +13,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     'Comprehensive Discord integration: messages, threads, channels, roles, members, invites, and webhooks.',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['messaging', 'webhooks', 'automation'],
   bgColor: '#5865F2',
   icon: DiscordIcon,
   docsLink: 'https://docs.sim.ai/tools/discord',
@@ -796,3 +795,76 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     data: { type: 'json', description: 'Response data' },
   },
 }
+
+export const DiscordBlockMeta = {
+  tags: ['messaging', 'webhooks', 'automation'],
+  templates: [
+    {
+      icon: DiscordIcon,
+      title: 'Discord community manager',
+      prompt:
+        'Create a knowledge base connected to my Google Docs or Notion with product documentation. Then build a workflow that monitors my Discord server for unanswered questions, answers them using the knowledge base, tracks common questions in a table, and sends a weekly community summary to Slack.',
+      modules: ['knowledge-base', 'tables', 'agent', 'scheduled', 'workflows'],
+      category: 'support',
+      tags: ['community', 'support', 'communication'],
+      alsoIntegrations: ['google_docs', 'notion', 'slack'],
+    },
+    {
+      icon: DiscordIcon,
+      title: 'Discord support deflector',
+      prompt:
+        'Build a workflow that watches help channels in Discord for new questions, searches a knowledge base for an answer, and posts a sourced reply in-thread; escalates to a human when confidence is low.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['community', 'support'],
+    },
+    {
+      icon: DiscordIcon,
+      title: 'Discord weekly community digest',
+      prompt:
+        'Create a scheduled weekly workflow that summarizes Discord activity — top threads, helpful members, new questions — and posts the digest to the announcements channel and Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['community', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DiscordIcon,
+      title: 'Discord onboarding flow',
+      prompt:
+        'Build a workflow triggered when a member joins a Discord server that DMs a welcome with relevant links, opens a private onboarding thread, and tracks completion of starter tasks in a table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['community', 'automation'],
+    },
+    {
+      icon: DiscordIcon,
+      title: 'Discord moderation triage',
+      prompt:
+        'Create a workflow that monitors Discord messages for community-guideline violations using an agent classifier, auto-warns the user on minor issues, and pings moderators in a private channel for severe cases.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['community', 'automation'],
+    },
+    {
+      icon: DiscordIcon,
+      title: 'Discord feature request collector',
+      prompt:
+        'Build a workflow that watches a Discord feedback channel, classifies posts as bugs vs feature requests, opens Linear tickets for actionable items, and replies in-thread with the ticket link.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['community', 'product'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: DiscordIcon,
+      title: 'Discord event reminder',
+      prompt:
+        'Create a scheduled workflow that reads upcoming Luma or Google Calendar events, posts a reminder in the matching Discord channel 24 hours before, and pings RSVP attendees by role.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['community', 'communication'],
+      alsoIntegrations: ['google_calendar'],
+    },
+  ],
+} as const satisfies BlockMeta

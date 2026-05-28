@@ -3,16 +3,20 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import {
+  type AuthType,
+  blockTypeToIconMap,
+  type FAQItem,
+  INTEGRATIONS,
+  type Integration,
+} from '@/lib/integrations'
 import { IntegrationCtaButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-cta-button'
 import { IntegrationFAQ } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-faq'
 import { TemplateCardButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/template-card-button'
 import { IntegrationIcon } from '@/app/(landing)/integrations/components/integration-icon'
-import { blockTypeToIconMap } from '@/app/(landing)/integrations/data/icon-mapping'
-import integrations from '@/app/(landing)/integrations/data/integrations.json'
-import type { AuthType, FAQItem, Integration } from '@/app/(landing)/integrations/data/types'
-import { TEMPLATES } from '@/app/workspace/[workspaceId]/home/components/template-prompts/consts'
+import { getTemplatesForBlock } from '@/blocks/registry'
 
-const allIntegrations = integrations as Integration[]
+const allIntegrations = INTEGRATIONS
 const INTEGRATION_COUNT = allIntegrations.length
 const baseUrl = SITE_URL
 
@@ -223,12 +227,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
   const relatedIntegrations = relatedSlugs
     .map((s) => bySlug.get(s))
     .filter((i): i is Integration => i !== undefined)
-  const baseType = integration.type.replace(/_v\d+$/, '')
-  const matchingTemplates = TEMPLATES.filter(
-    (t) =>
-      t.integrationBlockTypes.includes(integration.type) ||
-      t.integrationBlockTypes.includes(baseType)
-  )
+  const matchingTemplates = getTemplatesForBlock(integration.type)
 
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
@@ -559,7 +558,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
 
               const resolveTypes = (template: (typeof matchingTemplates)[number]) => [
                 integration.type,
-                ...template.integrationBlockTypes.filter((bt) => bt !== integration.type),
+                ...template.otherBlockTypes,
               ]
 
               const renderIcons = (allTypes: string[]) =>

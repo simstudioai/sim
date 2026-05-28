@@ -1,5 +1,5 @@
 import { GoogleIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GoogleSearchResponse } from '@/tools/google/types'
 
@@ -12,8 +12,7 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_search',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['google-workspace', 'web-scraping', 'seo'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleIcon,
 
   subBlocks: [
@@ -92,3 +91,75 @@ Return ONLY the search query - no explanations, no quotes around the whole thing
     searchInformation: { type: 'json', description: 'Search metadata' },
   },
 }
+
+export const GoogleSearchBlockMeta = {
+  tags: ['web-scraping', 'seo'],
+  templates: [
+    {
+      icon: GoogleIcon,
+      title: 'Daily news digest',
+      prompt:
+        'Create a scheduled daily workflow that runs Google searches for the topics and competitors I care about, picks the most relevant fresh results, summarizes each in a sentence, and emails me a curated digest every morning.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'research', 'content'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: GoogleIcon,
+      title: 'Lead company researcher',
+      prompt:
+        "Build a workflow that watches my leads table for new rows, runs Google searches for each company's recent news, funding, and leadership, summarizes the findings with an agent, and writes a research brief back to the row.",
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'automation'],
+    },
+    {
+      icon: GoogleIcon,
+      title: 'SERP rank tracker',
+      prompt:
+        'Create a scheduled weekly workflow that runs Google searches for my target keywords, records where my domain appears in the results, logs positions to a tables-based scorecard, and posts a Slack summary of gainers and losers.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'seo', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleIcon,
+      title: 'Brand mention monitor',
+      prompt:
+        'Build a scheduled workflow that searches Google for new mentions of my brand and key executives, filters out noise with an agent, and posts notable mentions with links to a Slack channel for the comms team.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring', 'research'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleIcon,
+      title: 'Research-backed answer agent',
+      prompt:
+        'Create an agent that takes any question, runs targeted Google searches to gather current sources, synthesizes a concise answer with citations, and returns it so the team gets sourced answers instead of guesses.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'team'],
+    },
+    {
+      icon: GoogleIcon,
+      title: 'Content gap explorer',
+      prompt:
+        'Build a workflow that runs Google searches for a seed topic and its related queries, extracts the recurring subtopics and questions competitors rank for, and writes a prioritized content brief to a table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'seo', 'research'],
+    },
+    {
+      icon: GoogleIcon,
+      title: 'Support answer finder',
+      prompt:
+        'Create a workflow that on a new support ticket runs Google searches scoped to our docs and trusted sources, finds the most relevant pages, and drafts a sourced reply for the agent to review before sending.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'research', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { MicrosoftOneDriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { OneDriveResponse } from '@/tools/onedrive/types'
@@ -18,9 +18,8 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     'Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list files, and delete files or folders.',
   docsLink: 'https://docs.sim.ai/tools/onedrive',
   category: 'tools',
-  integrationType: IntegrationType.FileStorage,
-  tags: ['microsoft-365', 'cloud', 'document-processing'],
-  bgColor: '#E0E0E0',
+  integrationType: IntegrationType.Documents,
+  bgColor: '#FFFFFF',
   icon: MicrosoftOneDriveIcon,
   subBlocks: [
     // Operation selector
@@ -431,3 +430,77 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     },
   },
 }
+
+export const OneDriveBlockMeta = {
+  tags: ['microsoft-365', 'cloud', 'document-processing'],
+  templates: [
+    {
+      icon: MicrosoftOneDriveIcon,
+      title: 'OneDrive contract intake',
+      prompt:
+        'Create a workflow that watches a OneDrive intake folder for new contract PDFs, extracts clauses with Reducto, writes the structured terms to a table, and pings legal in Teams.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'automation'],
+      alsoIntegrations: ['reducto', 'microsoft_teams'],
+    },
+    {
+      icon: MicrosoftOneDriveIcon,
+      title: 'OneDrive sharing audit',
+      prompt:
+        'Build a scheduled weekly workflow that lists OneDrive files shared externally, flags ones above a sensitivity score, and writes a security review report.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: MicrosoftOneDriveIcon,
+      title: 'OneDrive to knowledge base sync',
+      prompt:
+        'Create a workflow that mirrors OneDrive folders into a knowledge base, chunks and embeds new content on change, and removes deleted files so retrieval stays accurate.',
+      modules: ['knowledge-base', 'files', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'sync'],
+    },
+    {
+      icon: MicrosoftOneDriveIcon,
+      title: 'OneDrive backup verifier',
+      prompt:
+        'Build a scheduled workflow that verifies OneDrive backups by sampling files and comparing checksums against the originating SharePoint copy, writing the report to an SRE table.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['sharepoint'],
+    },
+    {
+      icon: MicrosoftOneDriveIcon,
+      title: 'OneDrive retention cleaner',
+      prompt:
+        'Create a scheduled workflow that finds OneDrive files older than the retention horizon, requires manager approval through Teams, and archives or deletes per the policy.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+    {
+      icon: MicrosoftOneDriveIcon,
+      title: 'OneDrive Excel-pipeline opener',
+      prompt:
+        'Build a workflow that watches OneDrive for new Excel data drops, normalizes each, writes to a downstream table, and emails the analyst that the latest file is ready.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['analysis', 'sync'],
+      alsoIntegrations: ['microsoft_excel', 'gmail'],
+    },
+    {
+      icon: MicrosoftOneDriveIcon,
+      title: 'OneDrive new-hire kit deployer',
+      prompt:
+        'Create a workflow triggered by a Workday new hire that copies the standard OneDrive new-hire folder, shares it with the hire, and writes the link into the onboarding tracker.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation'],
+      alsoIntegrations: ['workday'],
+    },
+  ],
+} as const satisfies BlockMeta
