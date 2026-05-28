@@ -161,6 +161,9 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
       {
         name: 'mothership-queue',
         storage: createJSONStorage(() => sessionStorageAdapter),
+        // `editing` is intentionally omitted — the composer that holds the
+        // edit text is component-local and empty after reload, so a persisted
+        // editing flag would render an in-edit row with nothing bound.
         partialize: (state) => ({
           queues: Object.fromEntries(
             Object.entries(state.queues).map(([key, messages]) => [
@@ -168,9 +171,6 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
               messages.map(stripVolatile),
             ])
           ),
-          // Don't persist `editing` — the composer that holds the edit text
-          // is component-local and empty after reload.
-          editing: {},
         }),
       }
     ),
