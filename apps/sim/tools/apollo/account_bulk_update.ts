@@ -143,8 +143,7 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
   outputs: {
     accounts: {
       type: 'json',
-      description:
-        'Updated accounts (synchronous response, ≤100 accounts): [{id, account_stage_id, ...}]',
+      description: 'Updated accounts (synchronous response): [{id, account_stage_id, ...}]',
     },
     account_ids: {
       type: 'json',
@@ -152,7 +151,7 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
     },
     entity_progress_job: {
       type: 'json',
-      description: 'Async job descriptor (>100 accounts or async=true)',
+      description: 'Async job descriptor (when async=true is passed with account_ids)',
       optional: true,
     },
     job_id: {
