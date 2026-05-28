@@ -143,16 +143,27 @@ function getMicrosoftUserInfoFromIdToken(tokens: { accessToken?: string }, provi
 }
 
 const blockedSignupDomains = env.BLOCKED_SIGNUP_DOMAINS
-  ? env.BLOCKED_SIGNUP_DOMAINS.split(',')
-      .map((d) => d.trim().toLowerCase())
-      .filter(Boolean)
+  ? Array.from(
+      new Set(
+        env.BLOCKED_SIGNUP_DOMAINS.split(',')
+          .map((d) => d.trim().toLowerCase())
+          .filter(Boolean)
+      )
+    )
   : null
 
-function isSignupEmailBlocked(email: string | undefined | null): boolean {
-  if (!blockedSignupDomains || !email) return false
+export function isEmailInDenylist(
+  email: string | undefined | null,
+  denylist: readonly string[] | null
+): boolean {
+  if (!denylist || denylist.length === 0 || !email) return false
   const domain = email.split('@')[1]?.toLowerCase()
   if (!domain) return false
-  return blockedSignupDomains.some((entry) => domain === entry || domain.endsWith(`.${entry}`))
+  return denylist.some((entry) => domain === entry || domain.endsWith(`.${entry}`))
+}
+
+function isSignupEmailBlocked(email: string | undefined | null): boolean {
+  return isEmailInDenylist(email, blockedSignupDomains)
 }
 
 const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
