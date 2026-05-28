@@ -221,7 +221,7 @@ Return ONLY the email body - no explanations, no extra text.`,
       title: 'Unsubscribed',
       type: 'dropdown',
       options: [
-        { label: "Don't Change", id: '' },
+        { label: 'Use Default', id: '' },
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],

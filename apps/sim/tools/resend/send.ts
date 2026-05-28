@@ -103,13 +103,11 @@ export const resendSendTool: ToolConfig<MailSendParams, MailSendResult> = {
 
   transformResponse: async (response: Response, params): Promise<MailSendResult> => {
     const result = await response.json()
-    const sent = result.success === true
 
     return {
-      success: sent,
-      ...(sent ? {} : { error: result.message || 'Failed to send email' }),
+      success: true,
       output: {
-        success: sent,
+        success: true,
         id: result.data?.id || '',
         to: params?.to || '',
         subject: params?.subject || '',
