@@ -7,15 +7,11 @@ import type { MothershipQueueState, QueuedMothershipMessage } from '@/stores/mot
 const logger = createLogger('MothershipQueueStore')
 
 /**
- * Per-tab sessionStorage adapter. No-ops on SSR and tolerates quota errors so
- * a transient storage failure can never crash a render.
+ * Per-tab sessionStorage adapter — no-ops on SSR and tolerates quota errors.
  *
- * The queue persists to **sessionStorage** rather than localStorage (which is
- * what `mothership-drafts` uses) on purpose: a queued message carries
- * intent-to-send, and the rehydrate path auto-drains the queue once chat
- * history confirms there's no active server stream. Tab close should not
- * fire those sends days later, so sessionStorage caps the replay window at
- * the lifetime of the tab.
+ * We persist to sessionStorage (not localStorage like `mothership-drafts`)
+ * because the queue auto-drains on rehydrate: tab close should not fire those
+ * sends days later.
  */
 const sessionStorageAdapter = {
   getItem: (name: string): string | null => {
@@ -63,11 +59,9 @@ const setQueueForChat = (
 ): Record<string, QueuedMothershipMessage[]> =>
   next.length === 0 ? omitKey(queues, chatKey) : { ...queues, [chatKey]: next }
 
-/**
- * Drops the volatile `queuedSendHandoff` so the persisted snapshot only carries
- * data that remains meaningful after reload. Reconstruction on next dispatch is
- * unnecessary because rehydrate happens outside any active-stream lifecycle.
- */
+// Drop the volatile `queuedSendHandoff` from the persisted snapshot — its
+// stream reference is meaningless after reload; the dispatcher mints a fresh
+// one at send time if needed.
 const stripVolatile = (message: QueuedMothershipMessage): QueuedMothershipMessage => {
   if (!message.queuedSendHandoff) return message
   const { queuedSendHandoff: _drop, ...rest } = message
@@ -103,14 +97,8 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             const index = current.findIndex((m) => m.id === id)
             if (index === -1) return state
             const next = [...current]
-            /**
-             * Strip `queuedSendHandoff` on edit. The original handoff was
-             * created when the slot was first enqueued and references the
-             * stream that was active at that moment; once the user changes
-             * the payload, that handoff is no longer valid. The dispatcher
-             * (or `sendQueuedMessageImmediately`) will mint a fresh handoff
-             * at send time if the active-stream lifecycle still needs one.
-             */
+            // Strip `queuedSendHandoff` — references the stream active at
+            // original enqueue time; the dispatcher mints a fresh one at send.
             const { queuedSendHandoff: _stale, ...rest } = next[index]
             next[index] = {
               ...rest,
@@ -150,14 +138,8 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
 
             const queues = omitKey(state.queues, fromKey)
             if (fromQueue && fromQueue.length > 0) {
-              /**
-               * Merge into any existing destination bucket rather than
-               * overwriting. In the normal `adoptResolvedChatId` flow the
-               * destination is a fresh chatId with no prior bucket, but if
-               * a stale entry survives in sessionStorage we'd silently lose
-               * the user's pending messages on overwrite. Appending keeps
-               * FIFO order (existing first, then the resolved-stream sends).
-               */
+              // Merge defensively in case a stale bucket survived in
+              // sessionStorage. FIFO: existing first, then the resolved stream.
               const existing = state.queues[toKey] ?? []
               queues[toKey] = [...existing, ...fromQueue]
             }
@@ -186,7 +168,9 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
               messages.map(stripVolatile),
             ])
           ),
-          editing: state.editing,
+          // Don't persist `editing` — the composer that holds the edit text
+          // is component-local and empty after reload.
+          editing: {},
         }),
       }
     ),

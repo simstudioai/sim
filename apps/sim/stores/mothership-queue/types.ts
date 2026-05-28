@@ -1,9 +1,6 @@
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
 
-/**
- * Volatile metadata attached to a queued message so the dispatcher can claim
- * an in-flight stream's slot at hand-off time. Not persisted across reload.
- */
+// Volatile — lets the dispatcher claim an in-flight stream's slot. Not persisted.
 export interface QueuedSendHandoffSeed {
   id: string
   chatId?: string
@@ -15,10 +12,7 @@ export type QueuedMothershipMessage = QueuedMessage & {
   queuedSendHandoff?: QueuedSendHandoffSeed
 }
 
-/**
- * Mutable fields that an in-place edit may overwrite. `id` and index are
- * preserved by {@link MothershipQueueState.replaceAt}.
- */
+// Mutable fields an in-place edit overwrites; id and index are preserved by `replaceAt`.
 export type QueuedMessageEditPatch = Pick<QueuedMessage, 'content' | 'fileAttachments' | 'contexts'>
 
 export interface MothershipQueueState {

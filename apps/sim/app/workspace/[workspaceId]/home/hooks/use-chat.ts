@@ -217,11 +217,8 @@ const QUEUED_SEND_HANDOFF_CLAIM_TTL_MS = 30_000
 const QUEUED_SEND_HANDOFF_RETRY_BASE_MS = 1000
 const QUEUED_SEND_HANDOFF_RETRY_MAX_MS = 30_000
 
-/**
- * Stable reference returned by the queue selector when a chat has no bucket.
- * Sharing one array keeps Zustand's equality check from re-rendering on
- * every store write.
- */
+// Stable empty array — sharing one reference keeps the selector from
+// re-rendering on unrelated store writes.
 const EMPTY_MESSAGE_QUEUE: QueuedMothershipMessage[] = []
 
 const logger = createLogger('useChat')
@@ -1713,12 +1710,9 @@ export function useChat(
     [removePreviewSession, syncPreviewSessionRefs]
   )
 
-  /**
-   * `pendingChatKeyRef` always holds the sentinel key used while no `chatId`
-   * is resolved. On first send, `adoptResolvedChatId` migrates the sentinel
-   * bucket to the real `chatId`. When the route drops back to home, we mint
-   * a fresh sentinel so a new pending chat starts with an empty bucket.
-   */
+  // Sentinel used while no `chatId` is resolved; `adoptResolvedChatId`
+  // migrates this bucket onto the real chatId on first send. Rotated on
+  // home reset so a new pending chat starts with an empty bucket.
   const pendingChatKeyRef = useRef<string>(`pending::${generateShortId()}`)
   const [chatKey, setChatKey] = useState<string>(initialChatId ?? pendingChatKeyRef.current)
   const chatKeyRef = useRef<string>(chatKey)
@@ -1993,13 +1987,7 @@ export function useChat(
     inFlightResourceAddsRef.current.clear()
     reorderNeededAfterFlushRef.current = false
     resetEphemeralPreviewState()
-    /**
-     * Queue state is owned by `useMothershipQueueStore` and persists across
-     * navigation. The dispatch loop is per-instance, so cancel it but leave
-     * the queued messages — they belong to the chat we just left. The editing
-     * binding, by contrast, is scoped to this hook's composer and cannot
-     * survive a chat switch, so release it on the chat we just left.
-     */
+    // Editing binds to this hook's composer — release it before rotating chatKey.
     useMothershipQueueStore.getState().setEditing(chatKeyRef.current, null)
     pendingChatKeyRef.current = `pending::${generateShortId()}`
     chatKeyRef.current = pendingChatKeyRef.current
@@ -2056,21 +2044,12 @@ export function useChat(
     (chatId: string, options?: { replaceHomeHistory?: boolean; invalidateList?: boolean }) => {
       const selectedChatId = selectedChatIdRef.current
       chatIdRef.current = chatId
-      /**
-       * Move the queue bucket that holds messages enqueued during this stream
-       * onto the resolved chatId. The source is the pending sentinel that was
-       * active when this stream started — not `chatKeyRef.current`, which may
-       * have moved to a different chat if the user navigated away mid-stream.
-       * Using the sentinel keeps the other chat's queue untouched.
-       */
+      // Migrate from the pending sentinel (not chatKeyRef — user may have
+      // navigated to a different chat mid-stream, and we mustn't steal it).
       if (pendingChatKeyRef.current !== chatId) {
         useMothershipQueueStore.getState().migrate(pendingChatKeyRef.current, chatId)
       }
-      /**
-       * Only point our visible chatKey at the resolved id when the user is
-       * still viewing the chat that just resolved — otherwise we'd steal them
-       * back to the original session.
-       */
+      // Only rebind chatKey if the user is still viewing the resolved chat.
       const stillViewingResolvedChat = !selectedChatId || selectedChatId === chatId
       if (stillViewingResolvedChat && chatKeyRef.current !== chatId) {
         chatKeyRef.current = chatId
@@ -2334,13 +2313,8 @@ export function useChat(
     inFlightResourceAddsRef.current.clear()
     reorderNeededAfterFlushRef.current = false
     resetEphemeralPreviewState()
-    /**
-     * Queue buckets are owned by `useMothershipQueueStore` and persist across
-     * chat switches. We just rotate the bucket key so selectors read the new
-     * chat's queue; the previous chat's queue is left intact for its return.
-     * The editing binding is composer-scoped, so we release it on the chat
-     * we're leaving before swapping buckets.
-     */
+    // Rotate the bucket key; the previous chat's queue stays in the store.
+    // Release editing on the chat we're leaving (composer-scoped).
     if (chatKeyRef.current !== (initialChatId ?? '')) {
       useMothershipQueueStore.getState().setEditing(chatKeyRef.current, null)
     }
@@ -4965,13 +4939,8 @@ export function useChat(
       const activeChatKey = chatKeyRef.current
       const editingId = queueStore.editing[activeChatKey] ?? null
 
-      /**
-       * Edit-in-place: the user submitted while a queued slot was bound to the
-       * composer. Replace at the original index instead of appending — same id,
-       * same position. If the slot was dispatched between edit and submit (only
-       * possible for the head if the UI guard was bypassed) fall through and
-       * enqueue as a normal new message.
-       */
+      // Edit-in-place: replace at the original index. If the slot was already
+      // dispatched mid-edit (UI-guard race), fall through to a tail-append.
       if (editingId) {
         const existing = queueStore.queues[activeChatKey] ?? []
         if (existing.some((m) => m.id === editingId)) {
@@ -4981,11 +4950,7 @@ export function useChat(
             contexts,
           })
           queueStore.setEditing(activeChatKey, null)
-          /**
-           * If the dispatcher paused on this slot (head-was-editing), resume.
-           * `enqueueQueueDispatch` is idempotent against an in-flight loop and
-           * the dispatcher itself guards against double-sending the same id.
-           */
+          // Resume dispatch if it paused on this slot.
           if (!sendingRef.current && !pendingStopPromiseRef.current) {
             void enqueueQueueDispatchRef.current({ type: 'send_head' })
           }
@@ -5578,12 +5543,8 @@ export function useChat(
         }
         originalIndex = currentIndex
 
-        /**
-         * Read the live message from the store, not the closure-captured `msg`.
-         * Between when the dispatcher was scheduled and now, the user may have
-         * applied an in-place edit (`replaceAt`) — we must send the latest
-         * content, not the pre-edit snapshot.
-         */
+        // Re-read live: the user may have applied an in-place edit (`replaceAt`)
+        // between dispatch scheduling and this send.
         const liveMsg = queueAtSend[currentIndex]
         activeQueuedSendHandoff = options.queuedSendHandoff ?? liveMsg.queuedSendHandoff
         const consumed = await startSendMessage(
@@ -5626,12 +5587,8 @@ export function useChat(
         const activeChatKey = chatKeyRef.current
         const msg = queueState.queues[activeChatKey]?.[0]
         if (!msg) continue
-        /**
-         * Pause draining while the head is bound to the composer. Dispatching
-         * would either send the pre-edit content (losing the user's in-flight
-         * edit) or remove the slot mid-edit (turning the eventual submit into
-         * a tail-append). The next kick after `setEditing(null)` resumes us.
-         */
+        // Pause draining if the head is bound to the composer; dispatching now
+        // would race the eventual submit. The next kick on edit-resolve resumes us.
         if (queueState.editing[activeChatKey] === msg.id) continue
 
         await dispatchQueuedMessage(msg, { epoch: action.epoch })
@@ -5720,24 +5677,15 @@ export function useChat(
   )
 
   const editQueuedMessage = useCallback((id: string): QueuedMessage | undefined => {
-    /**
-     * Reject edits on a message that is currently being dispatched — the send
-     * is already in flight and `removeQueuedMessage` will drop the slot when
-     * it completes, so accepting the edit would silently lose the user's
-     * new content. The UI also disables this affordance via `dispatchingHeadId`.
-     */
+    // Reject edits on a message already mid-dispatch; the slot is about to be
+    // dropped. UI also disables this via `dispatchingHeadId`.
     if (queuedMessageDispatchIdsRef.current.has(id)) return undefined
     const activeChatKey = chatKeyRef.current
     const queue = useMothershipQueueStore.getState().queues[activeChatKey] ?? EMPTY_MESSAGE_QUEUE
     const msg = queue.find((m) => m.id === id)
     if (!msg) return undefined
-    /**
-     * Evict any sessionStorage handoff record for this id. If a prior dispatch
-     * attempt failed after writing the handoff (which carries a snapshot of
-     * the message content), leaving it in place would let the recovery effect
-     * replay the stale pre-edit content even though the in-memory store has
-     * the new content.
-     */
+    // Evict any sessionStorage handoff — a failed prior dispatch may have left
+    // a pre-edit content snapshot that the recovery effect would otherwise replay.
     clearQueuedSendHandoffState(id)
     clearQueuedSendHandoffClaim(id)
     useMothershipQueueStore.getState().setEditing(activeChatKey, id)
@@ -5746,23 +5694,16 @@ export function useChat(
 
   const cancelQueueEdit = useCallback(() => {
     useMothershipQueueStore.getState().setEditing(chatKeyRef.current, null)
-    /**
-     * Resume dispatch if it paused on this slot. Original content remains in
-     * the queue, so the next drain will send what was there before the edit.
-     */
+    // Resume dispatch if it paused on this slot.
     if (!sendingRef.current && !pendingStopPromiseRef.current) {
       void enqueueQueueDispatchRef.current({ type: 'send_head' })
     }
   }, [])
 
-  /**
-   * Resume draining when a non-empty queue rehydrates with no active stream —
-   * e.g. user returns to a chat after navigating away. We wait until the chat
-   * history confirms there is no `activeStreamId` so we don't race the
-   * reconnect path; when a stream is in flight, `finalize -> notifyTurnEnded`
-   * already drains the queue on completion. Idempotent — the dispatch loop
-   * short-circuits if a task is already running.
-   */
+  // Resume draining when a non-empty queue rehydrates with no active stream
+  // (e.g. nav-back). Wait for chat history to confirm no `activeStreamId` to
+  // avoid racing the reconnect path; mid-stream completions go through
+  // `notifyTurnEnded`. Idempotent — the dispatch loop dedupes.
   const chatHistoryReady = chatHistory !== undefined
   const remoteActiveStreamId = chatHistory?.activeStreamId ?? null
   useEffect(() => {
@@ -5785,11 +5726,7 @@ export function useChat(
       abortControllerRef.current = null
       clearActiveTurn()
       sendingRef.current = false
-      /**
-       * Editing state binds a queued slot to this hook's composer ref; once
-       * the hook unmounts there is nothing left to drive the bound composer,
-       * so we release the slot. The queued message itself stays intact.
-       */
+      // Release the editing slot — the composer it binds to is unmounting.
       useMothershipQueueStore.getState().setEditing(chatKeyRef.current, null)
     }
   }, [
