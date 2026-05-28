@@ -57,6 +57,10 @@ export interface DataRowProps {
    * queued indicators across page refresh during long Run-all dispatches.
    */
   activeDispatches: ActiveDispatch[] | undefined
+  /** Pixel `left` value for each frozen column key; absent keys are not frozen. */
+  frozenOffsets?: Map<string, number>
+  /** Key of the rightmost frozen column, used to render a separator shadow. */
+  lastFrozenColKey?: string | null
 }
 
 function cellRangeRowChanged(
@@ -113,7 +117,9 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.onStopRow !== next.onStopRow ||
     prev.onRunRow !== next.onRunRow ||
     prev.workflowGroups !== next.workflowGroups ||
-    prev.activeDispatches !== next.activeDispatches
+    prev.activeDispatches !== next.activeDispatches ||
+    prev.frozenOffsets !== next.frozenOffsets ||
+    prev.lastFrozenColKey !== next.lastFrozenColKey
   ) {
     return false
   }
@@ -157,6 +163,8 @@ export const DataRow = React.memo(function DataRow({
   onRunRow,
   workflowGroups,
   activeDispatches,
+  frozenOffsets,
+  lastFrozenColKey,
 }: DataRowProps) {
   const sel = normalizedSelection
   /**
@@ -264,13 +272,23 @@ export const DataRow = React.memo(function DataRow({
         const isLeftEdge = inRange ? colIndex === sel!.startCol : colIndex === 0
         const isRightEdge = inRange ? colIndex === sel!.endCol : colIndex === columns.length - 1
 
+        const frozenLeft = frozenOffsets?.get(column.key)
+        const isFrozenCell = frozenLeft !== undefined
+        const isFrozenSeparator = column.key === lastFrozenColKey
+
         return (
           <td
             key={column.key}
             data-row={rowIndex}
             data-row-id={row.id}
             data-col={colIndex}
-            className={cn(CELL, (isHighlighted || isAnchor || isEditing) && 'relative')}
+            className={cn(
+              CELL,
+              (isHighlighted || isAnchor || isEditing) && 'relative',
+              isFrozenCell && 'z-[5] bg-[var(--bg)]',
+              isFrozenSeparator && '[box-shadow:2px_0_0_0_var(--border)]'
+            )}
+            style={isFrozenCell ? { position: 'sticky', left: frozenLeft } : undefined}
             onMouseDown={(e) => {
               if (e.button !== 0 || isEditing) return
               onCellMouseDown(rowIndex, colIndex, e.shiftKey)

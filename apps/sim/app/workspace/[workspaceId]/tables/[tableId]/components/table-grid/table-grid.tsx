@@ -302,6 +302,9 @@ export function TableGrid({
   const [dropSide, setDropSide] = useState<'left' | 'right'>('left')
   const dropSideRef = useRef(dropSide)
   dropSideRef.current = dropSide
+  const [frozenColumns, setFrozenColumns] = useState<string[]>([])
+  const frozenColumnsRef = useRef(frozenColumns)
+  frozenColumnsRef.current = frozenColumns
   const metadataSeededRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -466,9 +469,13 @@ export function TableGrid({
     }
     const updatedOrder = columnOrderRef.current?.map((n) => (n === oldName ? newName : n))
     if (updatedOrder) setColumnOrder(updatedOrder)
+    const updatedFrozen = frozenColumnsRef.current.map((n) => (n === oldName ? newName : n))
+    const frozenChanged = updatedFrozen.some((n, i) => n !== frozenColumnsRef.current[i])
+    if (frozenChanged) setFrozenColumns(updatedFrozen)
     updateMetadataRef.current({
       columnWidths: updatedWidths,
       ...(updatedOrder ? { columnOrder: updatedOrder } : {}),
+      ...(frozenChanged ? { frozenColumns: updatedFrozen } : {}),
     })
   }
   // Populate the wrapper's sink so its sidebars can fire renames back into
@@ -482,6 +489,43 @@ export function TableGrid({
   function handleColumnWidthsChange(widths: Record<string, number>) {
     setColumnWidths(widths)
   }
+
+  const handleFreezeToggle = useCallback((columnName: string) => {
+    const col = columnsRef.current.find((c) => c.name === columnName)
+    const siblings: string[] = col?.workflowGroupId
+      ? columnsRef.current
+          .filter((c) => c.workflowGroupId === col.workflowGroupId)
+          .map((c) => c.name)
+      : [columnName]
+
+    const current = frozenColumnsRef.current
+    if (current.includes(columnName)) {
+      const newFrozen = current.filter((n) => !siblings.includes(n))
+      setFrozenColumns(newFrozen)
+      frozenColumnsRef.current = newFrozen
+      updateMetadataRef.current({
+        frozenColumns: newFrozen,
+        columnWidths: columnWidthsRef.current,
+      })
+    } else {
+      const newFrozen = [...current, ...siblings.filter((n) => !current.includes(n))]
+      setFrozenColumns(newFrozen)
+      frozenColumnsRef.current = newFrozen
+      const currentOrder = columnOrderRef.current ?? schemaColumnsRef.current.map((c) => c.name)
+      const frozenSet = new Set(newFrozen)
+      const newOrder = [
+        ...currentOrder.filter((n) => frozenSet.has(n)),
+        ...currentOrder.filter((n) => !frozenSet.has(n)),
+      ]
+      setColumnOrder(newOrder)
+      columnOrderRef.current = newOrder
+      updateMetadataRef.current({
+        frozenColumns: newFrozen,
+        columnOrder: newOrder,
+        columnWidths: columnWidthsRef.current,
+      })
+    }
+  }, [])
 
   const { pushUndo, undo, redo } = useTableUndo({
     workspaceId,
@@ -529,6 +573,38 @@ export function TableGrid({
     tableData?.maxRows ?? 0,
     hasWorkflowColumns
   )
+
+  const frozenColumnSet = useMemo(() => new Set(frozenColumns), [frozenColumns])
+
+  /** Frozen column key → sticky `left` px offset. */
+  const frozenOffsets = useMemo<Map<string, number>>(() => {
+    const offsets = new Map<string, number>()
+    let left = checkboxColWidth
+    for (const col of displayColumns) {
+      if (frozenColumnSet.has(col.name)) {
+        offsets.set(col.key, left)
+        left += columnWidths[col.key] ?? COL_WIDTH
+      }
+    }
+    return offsets
+  }, [displayColumns, frozenColumnSet, columnWidths, checkboxColWidth])
+
+  const lastFrozenColKey = useMemo<string | null>(() => {
+    let last: string | null = null
+    for (const col of displayColumns) {
+      if (frozenColumnSet.has(col.name)) last = col.key
+    }
+    return last
+  }, [displayColumns, frozenColumnSet])
+
+  /** Right edge of the frozen sticky zone; used as the left inset for scroll-to-reveal. */
+  const frozenStickyLeftEdge = useMemo(() => {
+    let edge = checkboxColWidth
+    for (const [key, left] of frozenOffsets) {
+      edge = Math.max(edge, left + (columnWidths[key] ?? COL_WIDTH))
+    }
+    return edge
+  }, [frozenOffsets, columnWidths, checkboxColWidth])
 
   const headerGroups = useMemo(
     () => buildHeaderGroups(displayColumns, tableWorkflowGroups),
@@ -606,10 +682,7 @@ export function TableGrid({
     checkboxColWidth,
   ])
 
-  const isAllRowsSelected = useMemo(
-    () => rowSelectionCoversAll(rowSelection, rows),
-    [rowSelection, rows]
-  )
+  const isAllRowsSelected = rowSelectionCoversAll(rowSelection, rows)
 
   const isAllRowsSelectedRef = useRef(isAllRowsSelected)
   isAllRowsSelectedRef.current = isAllRowsSelected
@@ -1248,17 +1321,29 @@ export function TableGrid({
         ...remaining.slice(insertIndex),
       ]
 
-      const orderChanged = newOrder.some((name, i) => currentOrder[i] !== name)
+      // Re-enforce frozen-at-front: if any frozen column was dragged behind a
+      // non-frozen one (or vice versa), restore the frozen zone at the front
+      // while preserving the user's relative reorder within each zone.
+      let finalOrder = newOrder
+      const currentFrozen = frozenColumnsRef.current
+      if (currentFrozen.length > 0) {
+        const frozenSet = new Set(currentFrozen)
+        const frozenInNew = newOrder.filter((n) => frozenSet.has(n))
+        const unfrozenInNew = newOrder.filter((n) => !frozenSet.has(n))
+        finalOrder = [...frozenInNew, ...unfrozenInNew]
+      }
+
+      const orderChanged = finalOrder.some((name, i) => currentOrder[i] !== name)
       if (orderChanged) {
         pushUndoRef.current({
           type: 'reorder-columns',
           previousOrder: currentOrder,
-          newOrder,
+          newOrder: finalOrder,
         })
-        setColumnOrder(newOrder)
+        setColumnOrder(finalOrder)
         updateMetadataRef.current({
           columnWidths: columnWidthsRef.current,
-          columnOrder: newOrder,
+          columnOrder: finalOrder,
         })
       }
     }
@@ -1345,8 +1430,13 @@ export function TableGrid({
 
   useEffect(() => {
     if (!tableData?.metadata) return
-    if (!tableData.metadata.columnWidths && !tableData.metadata.columnOrder) return
-    // First load: seed both from the server and remember we've seeded.
+    if (
+      !tableData.metadata.columnWidths &&
+      !tableData.metadata.columnOrder &&
+      !tableData.metadata.frozenColumns
+    )
+      return
+    // First load: seed all from the server and remember we've seeded.
     if (!metadataSeededRef.current) {
       metadataSeededRef.current = true
       if (tableData.metadata.columnWidths) {
@@ -1354,6 +1444,9 @@ export function TableGrid({
       }
       if (tableData.metadata.columnOrder) {
         setColumnOrder(tableData.metadata.columnOrder)
+      }
+      if (tableData.metadata.frozenColumns) {
+        setFrozenColumns(tableData.metadata.frozenColumns)
       }
       return
     }
@@ -1528,7 +1621,7 @@ export function TableGrid({
     const selector = `[data-table-scroll] [data-row="${rowIndex}"][data-col="${colIndex}"]`
     // `scrollIntoView` ignores the sticky `<thead>` and sticky gutter, so a cell
     // scrolled to the edge lands behind them. Scroll manually with insets equal
-    // to the sticky header height (top) and the row-number column width (left).
+    // to the sticky header height (top) and the full frozen left edge (left).
     const revealCell = (cell: HTMLElement) => {
       const scrollEl = scrollRef.current
       if (!scrollEl) return
@@ -1540,10 +1633,14 @@ export function TableGrid({
       } else if (rect.bottom > view.bottom) {
         scrollEl.scrollTop += rect.bottom - view.bottom
       }
-      if (rect.left < view.left + checkboxColWidth) {
-        scrollEl.scrollLeft -= view.left + checkboxColWidth - rect.left
-      } else if (rect.right > view.right) {
-        scrollEl.scrollLeft += rect.right - view.right
+      const targetColName = columnsRef.current[colIndex]?.name
+      const targetIsFrozen = targetColName ? frozenColumnSet.has(targetColName) : false
+      if (!targetIsFrozen) {
+        if (rect.left < view.left + frozenStickyLeftEdge) {
+          scrollEl.scrollLeft -= view.left + frozenStickyLeftEdge - rect.left
+        } else if (rect.right > view.right) {
+          scrollEl.scrollLeft += rect.right - view.right
+        }
       }
     }
     let secondRaf = 0
@@ -1565,7 +1662,14 @@ export function TableGrid({
       cancelAnimationFrame(rafId)
       if (secondRaf) cancelAnimationFrame(secondRaf)
     }
-  }, [selectionAnchor, selectionFocus, isColumnSelection, rowVirtualizer, checkboxColWidth])
+  }, [
+    selectionAnchor,
+    selectionFocus,
+    isColumnSelection,
+    rowVirtualizer,
+    frozenStickyLeftEdge,
+    frozenColumnSet,
+  ])
 
   const handleCellClick = useCallback(
     (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => {
@@ -2744,15 +2848,25 @@ export function TableGrid({
         setColumnWidths(cleanedWidths)
         columnWidthsRef.current = cleanedWidths
 
+        const updatedFrozen = frozenColumnsRef.current.filter((n) => n !== columnToDelete)
+        if (updatedFrozen.length !== frozenColumnsRef.current.length) {
+          setFrozenColumns(updatedFrozen)
+          frozenColumnsRef.current = updatedFrozen
+        }
+
         if (currentOrder) {
           currentOrder = currentOrder.filter((n) => n !== columnToDelete)
           setColumnOrder(currentOrder)
           updateMetadataRef.current({
             columnWidths: cleanedWidths,
             columnOrder: currentOrder,
+            frozenColumns: frozenColumnsRef.current,
           })
         } else {
-          updateMetadataRef.current({ columnWidths: cleanedWidths })
+          updateMetadataRef.current({
+            columnWidths: cleanedWidths,
+            frozenColumns: frozenColumnsRef.current,
+          })
         }
 
         deleteNext(index + 1)
@@ -3243,45 +3357,54 @@ export function TableGrid({
                         checked={isAllRowsSelected}
                         onCheckedChange={handleSelectAllToggle}
                       />
-                      {displayColumns.map((column, idx) => (
-                        <ColumnHeaderMenu
-                          key={column.key}
-                          column={column}
-                          colIndex={idx}
-                          readOnly={!userPermissions.canEdit}
-                          isRenaming={columnRename.editingId === column.name}
-                          isColumnSelected={
-                            isColumnSelection &&
-                            normalizedSelection !== null &&
-                            idx >= normalizedSelection.startCol &&
-                            idx <= normalizedSelection.endCol
-                          }
-                          renameValue={
-                            columnRename.editingId === column.name ? columnRename.editValue : ''
-                          }
-                          onRenameValueChange={columnRename.setEditValue}
-                          onRenameSubmit={columnRename.submitRename}
-                          onRenameCancel={columnRename.cancelRename}
-                          onColumnSelect={handleColumnSelect}
-                          onChangeType={handleChangeType}
-                          onInsertLeft={handleInsertColumnLeft}
-                          onInsertRight={handleInsertColumnRight}
-                          onDeleteColumn={handleDeleteColumn}
-                          onResizeStart={handleColumnResizeStart}
-                          onResize={handleColumnResize}
-                          onResizeEnd={handleColumnResizeEnd}
-                          onAutoResize={handleColumnAutoResize}
-                          onDragStart={handleColumnDragStart}
-                          onDragOver={handleColumnDragOver}
-                          onDragEnd={handleColumnDragEnd}
-                          onDragLeave={handleColumnDragLeave}
-                          workflows={workflows}
-                          workflowGroups={tableWorkflowGroups}
-                          sourceInfo={columnSourceInfo.get(column.name)}
-                          onOpenConfig={handleConfigureColumn}
-                          onViewWorkflow={handleViewWorkflow}
-                        />
-                      ))}
+                      {displayColumns.map((column, idx) => {
+                        const colIsFrozen = frozenColumnSet.has(column.name)
+                        const colStickyLeft = frozenOffsets.get(column.key)
+                        return (
+                          <ColumnHeaderMenu
+                            key={column.key}
+                            column={column}
+                            colIndex={idx}
+                            readOnly={!userPermissions.canEdit}
+                            isRenaming={columnRename.editingId === column.name}
+                            isColumnSelected={
+                              isColumnSelection &&
+                              normalizedSelection !== null &&
+                              idx >= normalizedSelection.startCol &&
+                              idx <= normalizedSelection.endCol
+                            }
+                            renameValue={
+                              columnRename.editingId === column.name ? columnRename.editValue : ''
+                            }
+                            onRenameValueChange={columnRename.setEditValue}
+                            onRenameSubmit={columnRename.submitRename}
+                            onRenameCancel={columnRename.cancelRename}
+                            onColumnSelect={handleColumnSelect}
+                            onInsertLeft={handleInsertColumnLeft}
+                            onInsertRight={handleInsertColumnRight}
+                            onDeleteColumn={handleDeleteColumn}
+                            onResizeStart={handleColumnResizeStart}
+                            onResize={handleColumnResize}
+                            onResizeEnd={handleColumnResizeEnd}
+                            onAutoResize={handleColumnAutoResize}
+                            onDragStart={handleColumnDragStart}
+                            onDragOver={handleColumnDragOver}
+                            onDragEnd={handleColumnDragEnd}
+                            onDragLeave={handleColumnDragLeave}
+                            workflows={workflows}
+                            workflowGroups={tableWorkflowGroups}
+                            sourceInfo={columnSourceInfo.get(column.name)}
+                            onOpenConfig={handleConfigureColumn}
+                            onViewWorkflow={handleViewWorkflow}
+                            isFrozen={colIsFrozen}
+                            onFreezeToggle={
+                              userPermissions.canEdit ? handleFreezeToggle : undefined
+                            }
+                            stickyLeft={colStickyLeft}
+                            isLastFrozen={column.key === lastFrozenColKey}
+                          />
+                        )
+                      })}
                       {userPermissions.canEdit && (
                         <NewColumnDropdown
                           trigger='inline-header'
@@ -3361,6 +3484,8 @@ export function TableGrid({
                               onRunRow={onRunRow}
                               workflowGroups={tableWorkflowGroups}
                               activeDispatches={activeDispatches}
+                              frozenOffsets={frozenOffsets.size > 0 ? frozenOffsets : undefined}
+                              lastFrozenColKey={lastFrozenColKey}
                             />
                           )
                         })}

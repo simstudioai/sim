@@ -1,9 +1,9 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
-import type { ColumnDefinition, WorkflowGroup } from '@/lib/table'
+import type { WorkflowGroup } from '@/lib/table'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COL_WIDTH, SELECTION_TINT_BG } from '../constants'
 import type { ColumnSourceInfo, DisplayColumn } from '../types'
@@ -21,7 +21,6 @@ interface ColumnHeaderMenuProps {
   onRenameSubmit: () => void
   onRenameCancel: () => void
   onColumnSelect: (colIndex: number, shiftKey: boolean) => void
-  onChangeType: (columnName: string, newType: ColumnDefinition['type']) => void
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
   onDeleteColumn: (columnName: string) => void
@@ -42,6 +41,14 @@ interface ColumnHeaderMenuProps {
   /** Opens a popup preview of the column's underlying workflow. Surfaced in
    *  the chevron menu for workflow-output columns. */
   onViewWorkflow?: (workflowId: string) => void
+  /** Whether this column is currently frozen (pinned to the left). */
+  isFrozen?: boolean
+  /** Toggle the frozen state for this column. */
+  onFreezeToggle?: (columnName: string) => void
+  /** Left offset in pixels when frozen (drives `position: sticky`). */
+  stickyLeft?: number
+  /** Whether this is the rightmost frozen column (renders a separator shadow). */
+  isLastFrozen?: boolean
 }
 
 /**
@@ -76,6 +83,10 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   sourceInfo,
   onOpenConfig,
   onViewWorkflow,
+  isFrozen,
+  onFreezeToggle,
+  stickyLeft,
+  isLastFrozen,
 }: ColumnHeaderMenuProps) {
   const renameInputRef = useRef<HTMLInputElement>(null)
   const didDragRef = useRef(false)
@@ -228,7 +239,12 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
 
   return (
     <th
-      className='group relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle'
+      className={cn(
+        'group relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle',
+        stickyLeft !== undefined && 'z-[11]',
+        isLastFrozen && '[box-shadow:2px_0_0_0_var(--border)]'
+      )}
+      style={stickyLeft !== undefined ? { position: 'sticky', left: stickyLeft } : undefined}
       draggable={!readOnly && !isRenaming}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
@@ -316,6 +332,8 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             onViewWorkflow={
               onViewWorkflow && ownGroup ? () => onViewWorkflow(ownGroup.workflowId) : undefined
             }
+            isFrozen={isFrozen}
+            onFreezeToggle={onFreezeToggle}
           />
         </div>
       )}

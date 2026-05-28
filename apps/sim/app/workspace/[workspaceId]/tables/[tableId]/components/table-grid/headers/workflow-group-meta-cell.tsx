@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { useCallback, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,9 +17,11 @@ import {
   ArrowRight,
   Eye,
   EyeOff,
+  Lock,
   Pencil,
   PlayOutline,
   Trash,
+  Unlock,
 } from '@/components/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
@@ -67,6 +69,10 @@ interface ColumnOptionsMenuProps {
   /** When set, the menu surfaces a "View workflow" item that opens a popup
    *  preview of the configured workflow. */
   onViewWorkflow?: () => void
+  /** Whether this column is currently frozen (pinned to the left). */
+  isFrozen?: boolean
+  /** Toggle the frozen state of this column. */
+  onFreezeToggle?: (columnName: string) => void
 }
 
 /**
@@ -93,6 +99,8 @@ export function ColumnOptionsMenu({
   onRunColumnSelected,
   selectedRowCount = 0,
   onViewWorkflow,
+  isFrozen,
+  onFreezeToggle,
 }: ColumnOptionsMenuProps) {
   const showRunActions = Boolean(onRunColumnAll && onRunColumnIncomplete)
   const showRunSelected = Boolean(onRunColumnSelected) && selectedRowCount > 0
@@ -159,6 +167,12 @@ export function ColumnOptionsMenu({
           <Pencil />
           Edit column
         </DropdownMenuItem>
+        {onFreezeToggle && (
+          <DropdownMenuItem onSelect={() => onFreezeToggle(column.name)}>
+            {isFrozen ? <Unlock /> : <Lock />}
+            {isFrozen ? 'Unfreeze column' : 'Freeze column'}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => onInsertLeft(column.name)}>
           <ArrowLeft />
@@ -269,112 +283,94 @@ export function WorkflowGroupMetaCell({
 
   const selectedCount = selectedRowIds?.length ?? 0
 
-  const handleRunAll = useCallback(() => {
+  function handleRunAll() {
     if (groupId) onRunColumn?.(groupId, 'all')
-  }, [groupId, onRunColumn])
+  }
 
-  const handleRunIncomplete = useCallback(() => {
+  function handleRunIncomplete() {
     if (groupId) onRunColumn?.(groupId, 'incomplete')
-  }, [groupId, onRunColumn])
+  }
 
-  const handleRunSelected = useCallback(() => {
+  function handleRunSelected() {
     if (groupId && selectedRowIds && selectedRowIds.length > 0) {
       onRunColumn?.(groupId, 'all', selectedRowIds)
     }
-  }, [groupId, onRunColumn, selectedRowIds])
+  }
 
-  const handleRunLimited = useCallback(
-    (max: number) => {
-      if (groupId) onRunColumn?.(groupId, 'incomplete', undefined, { type: 'rows', max })
-    },
-    [groupId, onRunColumn]
-  )
+  function handleRunLimited(max: number) {
+    if (groupId) onRunColumn?.(groupId, 'incomplete', undefined, { type: 'rows', max })
+  }
 
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      if (!column) return
+  function handleContextMenu(e: React.MouseEvent) {
+    if (!column) return
+    e.preventDefault()
+    e.stopPropagation()
+    setOptionsMenuPosition({ x: e.clientX, y: e.clientY })
+    setOptionsMenuOpen(true)
+  }
+
+  function selectGroupAndOpenConfig(e: React.MouseEvent<HTMLTableCellElement>) {
+    // Ignore clicks that landed on an interactive child (badge, play button,
+    // dropdown items rendered via portal). Only the bare meta-cell area
+    // should select the group + open the config sidebar.
+    const target = e.target as HTMLElement
+    if (target.closest('button, [role="menuitem"], [role="menu"]')) return
+    // Drag-vs-click guard: when a drag just ended on this cell, swallow the
+    // synthetic click so we don't accidentally pop open the sidebar.
+    if (didDragRef.current) {
+      didDragRef.current = false
+      return
+    }
+    onSelectGroup(startColIndex, size)
+    if (columnName) onOpenConfig(columnName)
+  }
+
+  function handleDragStart(e: React.DragEvent) {
+    if (readOnly || !onDragStart || !columnName) {
       e.preventDefault()
-      e.stopPropagation()
-      setOptionsMenuPosition({ x: e.clientX, y: e.clientY })
-      setOptionsMenuOpen(true)
-    },
-    [column]
-  )
+      return
+    }
+    didDragRef.current = true
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', columnName)
 
-  const selectGroupAndOpenConfig = useCallback(
-    (e: React.MouseEvent<HTMLTableCellElement>) => {
-      // Ignore clicks that landed on an interactive child (badge, play button,
-      // dropdown items rendered via portal). Only the bare meta-cell area
-      // should select the group + open the config sidebar.
-      const target = e.target as HTMLElement
-      if (target.closest('button, [role="menuitem"], [role="menu"]')) return
-      // Drag-vs-click guard: when a drag just ended on this cell, swallow the
-      // synthetic click so we don't accidentally pop open the sidebar.
-      if (didDragRef.current) {
-        didDragRef.current = false
-        return
-      }
-      onSelectGroup(startColIndex, size)
-      if (columnName) onOpenConfig(columnName)
-    },
-    [columnName, onOpenConfig, onSelectGroup, size, startColIndex]
-  )
+    const ghost = document.createElement('div')
+    ghost.textContent = name
+    ghost.style.cssText =
+      'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--text-primary)'
+    document.body.appendChild(ghost)
+    e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+    requestAnimationFrame(() => ghost.parentNode?.removeChild(ghost))
 
-  const handleDragStart = useCallback(
-    (e: React.DragEvent) => {
-      if (readOnly || !onDragStart || !columnName) {
-        e.preventDefault()
-        return
-      }
-      didDragRef.current = true
-      e.dataTransfer.effectAllowed = 'move'
-      e.dataTransfer.setData('text/plain', columnName)
+    onDragStart(columnName)
+  }
 
-      const ghost = document.createElement('div')
-      ghost.textContent = name
-      ghost.style.cssText =
-        'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--text-primary)'
-      document.body.appendChild(ghost)
-      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
-      requestAnimationFrame(() => ghost.parentNode?.removeChild(ghost))
+  function handleDragOver(e: React.DragEvent) {
+    if (!onDragOver || !columnName) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const midX = rect.left + rect.width / 2
+    const side = e.clientX < midX ? 'left' : 'right'
+    onDragOver(columnName, side)
+  }
 
-      onDragStart(columnName)
-    },
-    [columnName, name, onDragStart, readOnly]
-  )
-
-  const handleDragOver = useCallback(
-    (e: React.DragEvent) => {
-      if (!onDragOver || !columnName) return
-      e.preventDefault()
-      e.dataTransfer.dropEffect = 'move'
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-      const midX = rect.left + rect.width / 2
-      const side = e.clientX < midX ? 'left' : 'right'
-      onDragOver(columnName, side)
-    },
-    [columnName, onDragOver]
-  )
-
-  const handleDragEnd = useCallback(() => {
+  function handleDragEnd() {
     didDragRef.current = false
     onDragEnd?.()
-  }, [onDragEnd])
+  }
 
-  const handleDragLeave = useCallback(
-    (e: React.DragEvent) => {
-      const th = e.currentTarget as HTMLElement
-      const related = e.relatedTarget as Node | null
-      if (related && th.contains(related)) return
-      if (related && related instanceof Element && related.closest('th')) return
-      onDragLeave?.()
-    },
-    [onDragLeave]
-  )
+  function handleDragLeave(e: React.DragEvent) {
+    const th = e.currentTarget as HTMLElement
+    const related = e.relatedTarget as Node | null
+    if (related && th.contains(related)) return
+    if (related && related instanceof Element && related.closest('th')) return
+    onDragLeave?.()
+  }
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  function handleDrop(e: React.DragEvent) {
     e.preventDefault()
-  }, [])
+  }
 
   const isDraggable = !readOnly && Boolean(onDragStart)
 
