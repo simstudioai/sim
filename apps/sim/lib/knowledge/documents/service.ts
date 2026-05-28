@@ -702,12 +702,10 @@ export async function processDocumentAsync(
                 source: 'knowledge-base',
                 description: embeddingModelName,
                 cost,
+                sourceReference: `knowledge-document:${documentId}:${startTime}`,
                 metadata: { inputTokens: totalEmbeddingTokens, outputTokens: 0 },
               },
             ],
-            additionalStats: {
-              totalTokensUsed: sql`total_tokens_used + ${totalEmbeddingTokens}`,
-            },
           })
           await checkAndBillOverageThreshold(billingUserId)
         } else {

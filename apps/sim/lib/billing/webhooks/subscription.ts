@@ -280,6 +280,8 @@ export async function handleSubscriptionDeleted(
     referenceId: string
     stripeSubscriptionId: string | null
     seats?: number | null
+    periodStart?: Date | null
+    periodEnd?: Date | null
   },
   stripeEventId?: string
 ) {
@@ -308,6 +310,8 @@ export async function handleSubscriptionDeleted(
           await resetUsageForSubscription({
             plan: subscription.plan,
             referenceId: subscription.referenceId,
+            periodStart: subscription.periodStart ?? null,
+            periodEnd: subscription.periodEnd ?? null,
           })
 
           const dormantResult = await transitionOrganizationToDormantState(
@@ -412,6 +416,8 @@ export async function handleSubscriptionDeleted(
         await resetUsageForSubscription({
           plan: subscription.plan,
           referenceId: subscription.referenceId,
+          periodStart: subscription.periodStart ?? null,
+          periodEnd: subscription.periodEnd ?? null,
         })
 
         let restoredProCount = 0

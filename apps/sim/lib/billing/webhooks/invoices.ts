@@ -13,6 +13,7 @@ import type Stripe from 'stripe'
 import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
 import { BILLING_LOCK_TIMEOUT_MS } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
+import { getBillingPeriodUsageCostByUser } from '@/lib/billing/core/usage-log'
 import { addCredits, getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
@@ -387,8 +388,23 @@ export async function getBilledOverageForSubscription(sub: {
     : 0
 }
 
-export async function resetUsageForSubscription(sub: { plan: string | null; referenceId: string }) {
+export async function resetUsageForSubscription(sub: {
+  plan: string | null
+  referenceId: string
+  periodStart?: Date | null
+  periodEnd?: Date | null
+}) {
+  const billingPeriod =
+    sub.periodStart && sub.periodEnd ? { start: sub.periodStart, end: sub.periodEnd } : null
+
   if (await isSubscriptionOrgScoped(sub)) {
+    const ledgerUsageByUser = billingPeriod
+      ? await getBillingPeriodUsageCostByUser(
+          { type: 'organization', id: sub.referenceId },
+          billingPeriod
+        )
+      : new Map<string, number>()
+
     await db.transaction(async (tx) => {
       await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
@@ -441,6 +457,15 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
           return
         }
 
+        const lastCostByUser = sql.join(
+          memberStatsRows.map((row) => {
+            const baseline = toNumber(toDecimal(row.current))
+            const ledgerUsage = ledgerUsageByUser.get(row.userId) ?? 0
+            const lastPeriodCost = (baseline + ledgerUsage).toString()
+            return sql`WHEN ${row.userId} THEN ${lastPeriodCost}`
+          }),
+          sql` `
+        )
         const currentCostByUser = sql.join(
           memberStatsRows.map((row) => sql`WHEN ${row.userId} THEN ${row.current ?? '0'}`),
           sql` `
@@ -449,13 +474,14 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
           memberStatsRows.map((row) => sql`WHEN ${row.userId} THEN ${row.currentCopilot ?? '0'}`),
           sql` `
         )
+        const capturedLastCost = sql`CASE ${userStats.userId} ${lastCostByUser} ELSE '0' END`
         const capturedCurrentCost = sql`CASE ${userStats.userId} ${currentCostByUser} ELSE '0' END`
         const capturedCurrentCopilotCost = sql`CASE ${userStats.userId} ${currentCopilotCostByUser} ELSE '0' END`
 
         await tx
           .update(userStats)
           .set({
-            lastPeriodCost: capturedCurrentCost,
+            lastPeriodCost: capturedLastCost,
             lastPeriodCopilotCost: capturedCurrentCopilotCost,
             currentPeriodCost: sql`GREATEST(0, ${userStats.currentPeriodCost} - (${capturedCurrentCost})::decimal)`,
             currentPeriodCopilotCost: sql`GREATEST(0, ${userStats.currentPeriodCopilotCost} - (${capturedCurrentCopilotCost})::decimal)`,
@@ -483,6 +509,13 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
       const current = currentStats[0].current || '0'
       const snapshot = toNumber(toDecimal(currentStats[0].snapshot))
       const currentCopilot = currentStats[0].currentCopilot || '0'
+      const ledgerUsage = billingPeriod
+        ? await getBillingPeriodUsageCostByUser(
+            { type: 'user', id: sub.referenceId },
+            billingPeriod
+          )
+        : new Map<string, number>()
+      const userLedgerUsage = ledgerUsage.get(sub.referenceId) ?? 0
 
       // Snapshot > 0: user joined a paid org mid-cycle. The pre-join
       // portion was billed on this invoice (snapshot); `currentPeriodCost`
@@ -492,7 +525,7 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
         await db
           .update(userStats)
           .set({
-            lastPeriodCost: snapshot.toString(),
+            lastPeriodCost: (snapshot + userLedgerUsage).toString(),
             lastPeriodCopilotCost: '0',
             proPeriodCostSnapshot: '0',
             proPeriodCostSnapshotAt: null,
@@ -500,7 +533,11 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
           })
           .where(eq(userStats.userId, sub.referenceId))
       } else {
-        const totalLastPeriod = toNumber(toDecimal(current).plus(snapshot)).toString()
+        const totalLastPeriod = (
+          toNumber(toDecimal(current)) +
+          snapshot +
+          userLedgerUsage
+        ).toString()
         // Delta-reset for the same reason as the org branch above.
         await db
           .update(userStats)
@@ -895,13 +932,18 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
       event.id,
       async () => {
         const stripe = requireStripeClient()
+        const periodStart = invoice.lines?.data?.[0]?.period?.start || invoice.period_start || null
         const periodEnd =
           invoice.lines?.data?.[0]?.period?.end ||
           invoice.period_end ||
           Math.floor(Date.now() / 1000)
         const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
 
-        const totalOverage = await calculateSubscriptionOverage(sub)
+        const totalOverage = await calculateSubscriptionOverage({
+          ...sub,
+          periodStart: periodStart ? new Date(periodStart * 1000) : sub.periodStart,
+          periodEnd: new Date(periodEnd * 1000),
+        })
 
         const entityType = (await isSubscriptionOrgScoped(sub)) ? 'organization' : 'user'
         const entityId = sub.referenceId
@@ -1089,7 +1131,12 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
         // rolls `currentPeriodCost` forward by delta. Idempotent on its
         // own (delta subtraction of a value that's already been
         // subtracted is a no-op).
-        await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
+        await resetUsageForSubscription({
+          plan: sub.plan,
+          referenceId: sub.referenceId,
+          periodStart: periodStart ? new Date(periodStart * 1000) : sub.periodStart,
+          periodEnd: new Date(periodEnd * 1000),
+        })
 
         return { totalOverage, creditsApplied, amountToBillStripe }
       }

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -30,6 +31,10 @@ const STT_TOKEN_RATE_LIMIT = {
   refillRate: 3,
   refillIntervalMs: 72 * 1000,
 } as const
+
+function hashVoiceToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex')
+}
 
 const rateLimiter = new RateLimiter()
 
@@ -163,6 +168,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             source: 'voice-input',
             description: `Voice input session (${maxMinutes} min)`,
             cost: sessionCost * getCostMultiplier(),
+            sourceReference: `voice-input:${hashVoiceToken(data.token)}`,
           },
         ],
       }).catch((err) => {
