@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { generateId } from '@sim/utils/id'
+import { generateId, generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
@@ -133,6 +133,11 @@ import { workflowKeys } from '@/hooks/queries/workflows'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+import type {
+  QueuedMothershipMessage,
+  QueuedSendHandoffSeed,
+} from '@/stores/mothership-queue/types'
 import type { ChatContext } from '@/stores/panel'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -174,6 +179,9 @@ export interface UseChatReturn {
   removeFromQueue: (id: string) => void
   sendNow: (id: string) => Promise<void>
   editQueuedMessage: (id: string) => QueuedMessage | undefined
+  cancelQueueEdit: () => void
+  editingQueuedId: string | null
+  dispatchingHeadId: string | null
   previewSession: FilePreviewSession | null
   genericResourceData: GenericResourceData | null
   getCurrentRequestId: () => string | undefined
@@ -209,6 +217,13 @@ const QUEUED_SEND_HANDOFF_CLAIM_TTL_MS = 30_000
 const QUEUED_SEND_HANDOFF_RETRY_BASE_MS = 1000
 const QUEUED_SEND_HANDOFF_RETRY_MAX_MS = 30_000
 
+/**
+ * Stable reference returned by the queue selector when a chat has no bucket.
+ * Sharing one array keeps Zustand's equality check from re-rendering on
+ * every store write.
+ */
+const EMPTY_MESSAGE_QUEUE: QueuedMothershipMessage[] = []
+
 const logger = createLogger('useChat')
 
 type StreamPayload = Record<string, unknown>
@@ -235,17 +250,6 @@ interface QueuedSendHandoffState {
   contexts?: ChatContext[]
   requestedAt: number
   resolveAttempts?: number
-}
-
-interface QueuedSendHandoffSeed {
-  id: string
-  chatId?: string
-  supersededStreamId: string | null
-  userMessageId?: string
-}
-
-type QueuedChatMessage = QueuedMessage & {
-  queuedSendHandoff?: QueuedSendHandoffSeed
 }
 
 interface QueuedSendHandoffClaim {
@@ -1540,6 +1544,7 @@ export function useChat(
     queueDispatchActionsRef.current = []
     queuedMessageDispatchIdsRef.current.clear()
     queueDispatchTaskRef.current = null
+    setDispatchingHeadId(null)
   }, [])
   const resourcesRef = useRef(resources)
   resourcesRef.current = resources
@@ -1708,9 +1713,21 @@ export function useChat(
     [removePreviewSession, syncPreviewSessionRefs]
   )
 
-  const [messageQueue, setMessageQueue] = useState<QueuedChatMessage[]>([])
-  const messageQueueRef = useRef<QueuedChatMessage[]>([])
-  messageQueueRef.current = messageQueue
+  /**
+   * `pendingChatKeyRef` always holds the sentinel key used while no `chatId`
+   * is resolved. On first send, `adoptResolvedChatId` migrates the sentinel
+   * bucket to the real `chatId`. When the route drops back to home, we mint
+   * a fresh sentinel so a new pending chat starts with an empty bucket.
+   */
+  const pendingChatKeyRef = useRef<string>(`pending::${generateShortId()}`)
+  const [chatKey, setChatKey] = useState<string>(initialChatId ?? pendingChatKeyRef.current)
+  const chatKeyRef = useRef<string>(chatKey)
+  chatKeyRef.current = chatKey
+  const messageQueue = useMothershipQueueStore(
+    (state) => state.queues[chatKey] ?? EMPTY_MESSAGE_QUEUE
+  )
+  const editingQueuedId = useMothershipQueueStore((state) => state.editing[chatKey] ?? null)
+  const [dispatchingHeadId, setDispatchingHeadId] = useState<string | null>(null)
   const queuedMessageDispatchIdsRef = useRef<Set<string>>(new Set())
   const queueDispatchActionsRef = useRef<QueueDispatchAction[]>([])
   const queueDispatchTaskRef = useRef<Promise<void> | null>(null)
@@ -1976,7 +1993,17 @@ export function useChat(
     inFlightResourceAddsRef.current.clear()
     reorderNeededAfterFlushRef.current = false
     resetEphemeralPreviewState()
-    setMessageQueue([])
+    /**
+     * Queue state is owned by `useMothershipQueueStore` and persists across
+     * navigation. The dispatch loop is per-instance, so cancel it but leave
+     * the queued messages — they belong to the chat we just left. The editing
+     * binding, by contrast, is scoped to this hook's composer and cannot
+     * survive a chat switch, so release it on the chat we just left.
+     */
+    useMothershipQueueStore.getState().setEditing(chatKeyRef.current, null)
+    pendingChatKeyRef.current = `pending::${generateShortId()}`
+    chatKeyRef.current = pendingChatKeyRef.current
+    setChatKey(pendingChatKeyRef.current)
     clearQueueDispatchState()
   }, [
     cancelActiveStreamRecovery,
@@ -2029,6 +2056,26 @@ export function useChat(
     (chatId: string, options?: { replaceHomeHistory?: boolean; invalidateList?: boolean }) => {
       const selectedChatId = selectedChatIdRef.current
       chatIdRef.current = chatId
+      /**
+       * Move the queue bucket that holds messages enqueued during this stream
+       * onto the resolved chatId. The source is the pending sentinel that was
+       * active when this stream started — not `chatKeyRef.current`, which may
+       * have moved to a different chat if the user navigated away mid-stream.
+       * Using the sentinel keeps the other chat's queue untouched.
+       */
+      if (pendingChatKeyRef.current !== chatId) {
+        useMothershipQueueStore.getState().migrate(pendingChatKeyRef.current, chatId)
+      }
+      /**
+       * Only point our visible chatKey at the resolved id when the user is
+       * still viewing the chat that just resolved — otherwise we'd steal them
+       * back to the original session.
+       */
+      const stillViewingResolvedChat = !selectedChatId || selectedChatId === chatId
+      if (stillViewingResolvedChat && chatKeyRef.current !== chatId) {
+        chatKeyRef.current = chatId
+        setChatKey(chatId)
+      }
       if (!selectedChatId || selectedChatId === chatId) {
         setResolvedChatId(chatId)
       }
@@ -2287,7 +2334,26 @@ export function useChat(
     inFlightResourceAddsRef.current.clear()
     reorderNeededAfterFlushRef.current = false
     resetEphemeralPreviewState()
-    setMessageQueue([])
+    /**
+     * Queue buckets are owned by `useMothershipQueueStore` and persist across
+     * chat switches. We just rotate the bucket key so selectors read the new
+     * chat's queue; the previous chat's queue is left intact for its return.
+     * The editing binding is composer-scoped, so we release it on the chat
+     * we're leaving before swapping buckets.
+     */
+    if (chatKeyRef.current !== (initialChatId ?? '')) {
+      useMothershipQueueStore.getState().setEditing(chatKeyRef.current, null)
+    }
+    if (initialChatId) {
+      if (chatKeyRef.current !== initialChatId) {
+        chatKeyRef.current = initialChatId
+        setChatKey(initialChatId)
+      }
+    } else {
+      pendingChatKeyRef.current = `pending::${generateShortId()}`
+      chatKeyRef.current = pendingChatKeyRef.current
+      setChatKey(pendingChatKeyRef.current)
+    }
     clearQueueDispatchState()
   }, [
     initialChatId,
@@ -4409,7 +4475,8 @@ export function useChat(
    */
   const notifyTurnEnded = useCallback(
     (options: { error: boolean; skipQueueDispatch?: boolean }) => {
-      const hasQueuedFollowUp = !options.error && messageQueueRef.current.length > 0
+      const queue = useMothershipQueueStore.getState().queues[chatKeyRef.current]
+      const hasQueuedFollowUp = !options.error && (queue?.length ?? 0) > 0
       if (!options.error) {
         const cid = chatIdRef.current
         if (cid && onStreamEndRef.current) {
@@ -4429,7 +4496,7 @@ export function useChat(
       message: string,
       fileAttachments?: FileAttachmentForApi[],
       contexts?: ChatContext[]
-    ): QueuedChatMessage => {
+    ): QueuedMothershipMessage => {
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
       const cachedActiveStreamId = handoffChatId
@@ -4464,7 +4531,8 @@ export function useChat(
   const finalize = useCallback(
     (options?: { error?: boolean; targetChatId?: string }) => {
       const isError = !!options?.error
-      const hasQueuedFollowUp = !isError && messageQueueRef.current.length > 0
+      const queue = useMothershipQueueStore.getState().queues[chatKeyRef.current]
+      const hasQueuedFollowUp = !isError && (queue?.length ?? 0) > 0
       reconcileTerminalPreviewSessions()
       locallyTerminalStreamIdRef.current =
         streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? undefined
@@ -4893,19 +4961,38 @@ export function useChat(
     async (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       if (!message.trim() || !workspaceId) return
 
+      const queueStore = useMothershipQueueStore.getState()
+      const activeChatKey = chatKeyRef.current
+      const editingId = queueStore.editing[activeChatKey] ?? null
+
+      /**
+       * Edit-in-place: the user submitted while a queued slot was bound to the
+       * composer. Replace at the original index instead of appending — same id,
+       * same position. If the slot was dispatched between edit and submit (only
+       * possible for the head if the UI guard was bypassed) fall through and
+       * enqueue as a normal new message.
+       */
+      if (editingId) {
+        const existing = queueStore.queues[activeChatKey] ?? []
+        if (existing.some((m) => m.id === editingId)) {
+          queueStore.replaceAt(activeChatKey, editingId, {
+            content: message,
+            fileAttachments,
+            contexts,
+          })
+          queueStore.setEditing(activeChatKey, null)
+          return
+        }
+        queueStore.setEditing(activeChatKey, null)
+      }
+
       if (sendingRef.current) {
-        setMessageQueue((prev) => [
-          ...prev,
-          createQueuedMessage(message, fileAttachments, contexts),
-        ])
+        queueStore.enqueue(activeChatKey, createQueuedMessage(message, fileAttachments, contexts))
         return
       }
 
       if (pendingStopPromiseRef.current) {
-        setMessageQueue((prev) => [
-          ...prev,
-          createQueuedMessage(message, fileAttachments, contexts),
-        ])
+        queueStore.enqueue(activeChatKey, createQueuedMessage(message, fileAttachments, contexts))
         void enqueueQueueDispatchRef.current({ type: 'send_head' })
         return
       }
@@ -5429,7 +5516,7 @@ export function useChat(
 
   const dispatchQueuedMessage = useCallback(
     async (
-      msg: QueuedChatMessage,
+      msg: QueuedMothershipMessage,
       options: {
         epoch: number
         pendingStop?: Promise<void> | null
@@ -5441,11 +5528,16 @@ export function useChat(
       }
       queuedMessageDispatchIdsRef.current.add(msg.id)
 
-      let originalIndex = messageQueueRef.current.findIndex((queued) => queued.id === msg.id)
+      const dispatchChatKey = chatKeyRef.current
+      const queueAtStart =
+        useMothershipQueueStore.getState().queues[dispatchChatKey] ?? EMPTY_MESSAGE_QUEUE
+      let originalIndex = queueAtStart.findIndex((queued) => queued.id === msg.id)
       if (originalIndex === -1) {
         queuedMessageDispatchIdsRef.current.delete(msg.id)
         return
       }
+
+      setDispatchingHeadId(msg.id)
 
       let removedFromQueue = false
       const removeQueuedMessage = () => {
@@ -5453,7 +5545,7 @@ export function useChat(
           return
         }
         removedFromQueue = true
-        setMessageQueue((prev) => prev.filter((queued) => queued.id !== msg.id))
+        useMothershipQueueStore.getState().remove(dispatchChatKey, msg.id)
       }
 
       const restoreQueuedMessage = (handoff?: QueuedSendHandoffSeed) => {
@@ -5464,26 +5556,32 @@ export function useChat(
         if (!removedFromQueue || options.epoch !== queueDispatchEpochRef.current) {
           return
         }
-        setMessageQueue((prev) => {
-          if (prev.some((queued) => queued.id === msg.id)) return prev
-          const next = [...prev]
-          next.splice(Math.min(originalIndex, next.length), 0, msg)
-          return next
-        })
+        useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, msg)
       }
 
-      const activeQueuedSendHandoff = options.queuedSendHandoff ?? msg.queuedSendHandoff
+      let activeQueuedSendHandoff: QueuedSendHandoffSeed | undefined =
+        options.queuedSendHandoff ?? msg.queuedSendHandoff
       try {
-        const currentIndex = messageQueueRef.current.findIndex((queued) => queued.id === msg.id)
+        const queueAtSend =
+          useMothershipQueueStore.getState().queues[dispatchChatKey] ?? EMPTY_MESSAGE_QUEUE
+        const currentIndex = queueAtSend.findIndex((queued) => queued.id === msg.id)
         if (currentIndex === -1) {
           return
         }
         originalIndex = currentIndex
 
+        /**
+         * Read the live message from the store, not the closure-captured `msg`.
+         * Between when the dispatcher was scheduled and now, the user may have
+         * applied an in-place edit (`replaceAt`) — we must send the latest
+         * content, not the pre-edit snapshot.
+         */
+        const liveMsg = queueAtSend[currentIndex]
+        activeQueuedSendHandoff = options.queuedSendHandoff ?? liveMsg.queuedSendHandoff
         const consumed = await startSendMessage(
-          msg.content,
-          msg.fileAttachments,
-          msg.contexts,
+          liveMsg.content,
+          liveMsg.fileAttachments,
+          liveMsg.contexts,
           options.pendingStop,
           removeQueuedMessage,
           activeQueuedSendHandoff
@@ -5495,6 +5593,7 @@ export function useChat(
       } catch {
         restoreQueuedMessage(activeQueuedSendHandoff)
       } finally {
+        setDispatchingHeadId((current) => (current === msg.id ? null : current))
         queuedMessageDispatchIdsRef.current.delete(msg.id)
       }
     },
@@ -5515,7 +5614,8 @@ export function useChat(
           continue
         }
 
-        const msg = messageQueueRef.current[0]
+        const queue = useMothershipQueueStore.getState().queues[chatKeyRef.current]
+        const msg = queue?.[0]
         if (!msg) continue
 
         await dispatchQueuedMessage(msg, { epoch: action.epoch })
@@ -5545,12 +5645,13 @@ export function useChat(
   const removeFromQueue = useCallback((id: string) => {
     clearQueuedSendHandoffState(id)
     clearQueuedSendHandoffClaim(id)
-    setMessageQueue((prev) => prev.filter((m) => m.id !== id))
+    useMothershipQueueStore.getState().remove(chatKeyRef.current, id)
   }, [])
 
   const sendQueuedMessageImmediately = useCallback(
     async (id: string) => {
-      const msg = messageQueueRef.current.find((queued) => queued.id === id)
+      const queue = useMothershipQueueStore.getState().queues[chatKeyRef.current]
+      const msg = queue?.find((queued) => queued.id === id)
       if (!msg) return
       if (queuedMessageDispatchIdsRef.current.has(msg.id)) return
 
@@ -5603,13 +5704,44 @@ export function useChat(
   )
 
   const editQueuedMessage = useCallback((id: string): QueuedMessage | undefined => {
-    const msg = messageQueueRef.current.find((m) => m.id === id)
+    /**
+     * Reject edits on a message that is currently being dispatched — the send
+     * is already in flight and `removeQueuedMessage` will drop the slot when
+     * it completes, so accepting the edit would silently lose the user's
+     * new content. The UI also disables this affordance via `dispatchingHeadId`.
+     */
+    if (queuedMessageDispatchIdsRef.current.has(id)) return undefined
+    const activeChatKey = chatKeyRef.current
+    const queue = useMothershipQueueStore.getState().queues[activeChatKey] ?? EMPTY_MESSAGE_QUEUE
+    const msg = queue.find((m) => m.id === id)
     if (!msg) return undefined
-    clearQueuedSendHandoffState(id)
-    clearQueuedSendHandoffClaim(id)
-    setMessageQueue((prev) => prev.filter((m) => m.id !== id))
+    useMothershipQueueStore.getState().setEditing(activeChatKey, id)
     return msg
   }, [])
+
+  const cancelQueueEdit = useCallback(() => {
+    useMothershipQueueStore.getState().setEditing(chatKeyRef.current, null)
+  }, [])
+
+  /**
+   * Resume draining when a non-empty queue rehydrates with no active stream —
+   * e.g. user returns to a chat after navigating away. We wait until the chat
+   * history confirms there is no `activeStreamId` so we don't race the
+   * reconnect path; when a stream is in flight, `finalize -> notifyTurnEnded`
+   * already drains the queue on completion. Idempotent — the dispatch loop
+   * short-circuits if a task is already running.
+   */
+  const chatHistoryReady = chatHistory !== undefined
+  const remoteActiveStreamId = chatHistory?.activeStreamId ?? null
+  useEffect(() => {
+    if (!workspaceId) return
+    if (messageQueue.length === 0) return
+    if (sendingRef.current || pendingStopPromiseRef.current) return
+    if (queueDispatchTaskRef.current) return
+    if (resolvedChatId && !chatHistoryReady) return
+    if (remoteActiveStreamId) return
+    void enqueueQueueDispatchRef.current({ type: 'send_head' })
+  }, [workspaceId, messageQueue.length, resolvedChatId, chatHistoryReady, remoteActiveStreamId])
 
   useEffect(() => {
     return () => {
@@ -5621,6 +5753,12 @@ export function useChat(
       abortControllerRef.current = null
       clearActiveTurn()
       sendingRef.current = false
+      /**
+       * Editing state binds a queued slot to this hook's composer ref; once
+       * the hook unmounts there is nothing left to drive the bound composer,
+       * so we release the slot. The queued message itself stays intact.
+       */
+      useMothershipQueueStore.getState().setEditing(chatKeyRef.current, null)
     }
   }, [
     cancelActiveStreamRecovery,
@@ -5647,6 +5785,9 @@ export function useChat(
     removeFromQueue,
     sendNow,
     editQueuedMessage,
+    cancelQueueEdit,
+    editingQueuedId,
+    dispatchingHeadId,
     previewSession,
     genericResourceData,
     getCurrentRequestId,
