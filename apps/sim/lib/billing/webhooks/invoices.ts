@@ -30,6 +30,26 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
 const logger = createLogger('StripeInvoiceWebhooks')
 
+function getSubscriptionLinePeriod(
+  invoice: Stripe.Invoice,
+  stripeSubscriptionId: string
+): { periodStart: Date; periodEnd: Date } | null {
+  const subscriptionLine = invoice.lines?.data?.find(
+    (line) =>
+      line.parent?.type === 'subscription_item_details' &&
+      line.parent.subscription_item_details?.subscription === stripeSubscriptionId
+  )
+
+  if (!subscriptionLine?.period?.start || !subscriptionLine.period.end) {
+    return null
+  }
+
+  return {
+    periodStart: new Date(subscriptionLine.period.start * 1000),
+    periodEnd: new Date(subscriptionLine.period.end * 1000),
+  }
+}
+
 const METADATA_SUBSCRIPTION_INVOICE_TYPES = new Set<string>([
   'overage_billing',
   'overage_threshold_billing',
@@ -781,7 +801,16 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
         }
 
         if (wasBlocked && !isProrationInvoice) {
-          await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
+          const invoicePeriod = getSubscriptionLinePeriod(
+            invoice,
+            resolvedInvoice.stripeSubscriptionId
+          )
+          await resetUsageForSubscription({
+            plan: sub.plan,
+            referenceId: sub.referenceId,
+            periodStart: invoicePeriod?.periodStart ?? null,
+            periodEnd: invoicePeriod?.periodEnd ?? null,
+          })
         }
       }
     )
@@ -922,8 +951,22 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     if (records.length === 0) return
     const sub = records[0]
 
+    const invoicePeriod = getSubscriptionLinePeriod(invoice, stripeSubscriptionId)
+    if (!invoicePeriod) {
+      logger.error('Missing subscription line period on subscription cycle invoice', {
+        invoiceId: invoice.id,
+        stripeSubscriptionId,
+      })
+      return
+    }
+
     if (isEnterprise(sub.plan)) {
-      await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
+      await resetUsageForSubscription({
+        plan: sub.plan,
+        referenceId: sub.referenceId,
+        periodStart: invoicePeriod.periodStart,
+        periodEnd: invoicePeriod.periodEnd,
+      })
       return
     }
 
@@ -932,16 +975,13 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
       event.id,
       async () => {
         const stripe = requireStripeClient()
-        const periodStart = invoice.lines?.data?.[0]?.period?.start || invoice.period_start || null
-        const periodEnd =
-          invoice.lines?.data?.[0]?.period?.end ||
-          invoice.period_end ||
-          Math.floor(Date.now() / 1000)
+        const periodStart = Math.floor(invoicePeriod.periodStart.getTime() / 1000)
+        const periodEnd = Math.floor(invoicePeriod.periodEnd.getTime() / 1000)
         const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
 
         const totalOverage = await calculateSubscriptionOverage({
           ...sub,
-          periodStart: periodStart ? new Date(periodStart * 1000) : sub.periodStart,
+          periodStart: new Date(periodStart * 1000),
           periodEnd: new Date(periodEnd * 1000),
         })
 
@@ -1134,8 +1174,8 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
         await resetUsageForSubscription({
           plan: sub.plan,
           referenceId: sub.referenceId,
-          periodStart: periodStart ? new Date(periodStart * 1000) : sub.periodStart,
-          periodEnd: new Date(periodEnd * 1000),
+          periodStart: invoicePeriod.periodStart,
+          periodEnd: invoicePeriod.periodEnd,
         })
 
         return { totalOverage, creditsApplied, amountToBillStripe }

@@ -204,6 +204,8 @@ export async function handleSubscriptionCreated(subscriptionData: {
   referenceId: string
   plan: string | null
   status: string
+  periodStart?: Date | null
+  periodEnd?: Date | null
 }) {
   try {
     const otherActiveSubscriptions = await db
@@ -230,6 +232,8 @@ export async function handleSubscriptionCreated(subscriptionData: {
       await resetUsageForSubscription({
         plan: subscriptionData.plan,
         referenceId: subscriptionData.referenceId,
+        periodStart: subscriptionData.periodStart ?? null,
+        periodEnd: subscriptionData.periodEnd ?? null,
       })
 
       logger.info('Successfully reset usage for free -> paid transition', {
