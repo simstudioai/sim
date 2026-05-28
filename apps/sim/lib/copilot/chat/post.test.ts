@@ -167,15 +167,17 @@ describe('handleUnifiedChatPost', () => {
     )
 
     expect(response.status).toBe(200)
+    expect(generateWorkspaceContext).toHaveBeenCalledWith('ws-1', 'user-1')
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'claude-opus-4-7',
+        model: 'claude-opus-4-8',
+        workspaceContext: 'workspace context',
       }),
-      { selectedModel: 'claude-opus-4-7' }
+      { selectedModel: 'claude-opus-4-8' }
     )
     expect(createSSEStream).toHaveBeenCalledWith(
       expect.objectContaining({
-        titleModel: 'claude-opus-4-7',
+        titleModel: 'claude-opus-4-8',
         workspaceId: 'ws-1',
         orchestrateOptions: expect.objectContaining({
           workflowId: 'wf-1',
@@ -213,7 +215,7 @@ describe('handleUnifiedChatPost', () => {
     )
     expect(createSSEStream).toHaveBeenCalledWith(
       expect.objectContaining({
-        titleModel: 'claude-opus-4-7',
+        titleModel: 'claude-opus-4-8',
         workspaceId: 'ws-1',
         orchestrateOptions: expect.objectContaining({
           workspaceId: 'ws-1',

@@ -50,7 +50,7 @@ import type { ChatContext } from '@/stores/panel'
 export const maxDuration = 3600
 
 const logger = createLogger('UnifiedChatAPI')
-const DEFAULT_MODEL = 'claude-opus-4-7'
+const DEFAULT_MODEL = 'claude-opus-4-8'
 
 const FileAttachmentSchema = z.object({
   id: z.string(),
@@ -172,6 +172,7 @@ type UnifiedChatBranch =
         commands?: string[]
         prefetch?: boolean
         implicitFeedback?: string
+        workspaceContext?: string
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
         userId: string
@@ -556,7 +557,7 @@ async function resolveBranch(params: {
       workflowId: resolvedWorkflowId,
       workflowName: resolved.workflowName,
       workspaceId: resolvedWorkspaceId,
-        effectiveModel: selectedModel,
+      effectiveModel: selectedModel,
       selectedModel,
       mode: mode ?? 'agent',
       provider,
@@ -582,6 +583,7 @@ async function resolveBranch(params: {
             chatId: payloadParams.chatId,
             prefetch: payloadParams.prefetch,
             implicitFeedback: payloadParams.implicitFeedback,
+            workspaceContext: payloadParams.workspaceContext,
             userPermission: payloadParams.userPermission,
             userTimezone: payloadParams.userTimezone,
           },
@@ -852,11 +854,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       // apparent "gap" before the model call. Each promise is its own
       // span; they run concurrently under Promise.all below.
       const workspaceContextPromise =
-        branch.kind === 'workspace'
+        workspaceId
           ? withCopilotSpan(
               TraceSpan.CopilotChatBuildWorkspaceContext,
-              { [TraceAttr.WorkspaceId]: branch.workspaceId },
-              () => generateWorkspaceContext(branch.workspaceId, authenticatedUserId),
+              { [TraceAttr.WorkspaceId]: workspaceId },
+              () => generateWorkspaceContext(workspaceId, authenticatedUserId),
               activeOtelRoot.context
             )
           : Promise.resolve(undefined)
@@ -950,6 +952,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 commands: body.commands,
                 prefetch: body.prefetch,
                 implicitFeedback: body.implicitFeedback,
+                workspaceContext,
               })
             : branch.buildPayload({
                 message: body.message,
