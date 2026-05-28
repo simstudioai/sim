@@ -54,9 +54,19 @@ export const resendListContactsTool: ToolConfig<ListContactsParams, ListContacts
 
   outputs: {
     contacts: {
-      type: 'json',
-      description:
-        'Array of contacts with id, email, first_name, last_name, created_at, unsubscribed',
+      type: 'array',
+      description: 'Array of contacts',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Contact ID' },
+          email: { type: 'string', description: 'Contact email address' },
+          first_name: { type: 'string', description: 'Contact first name' },
+          last_name: { type: 'string', description: 'Contact last name' },
+          created_at: { type: 'string', description: 'Contact creation timestamp' },
+          unsubscribed: { type: 'boolean', description: 'Whether the contact is unsubscribed' },
+        },
+      },
     },
     hasMore: { type: 'boolean', description: 'Whether there are more contacts to retrieve' },
   },

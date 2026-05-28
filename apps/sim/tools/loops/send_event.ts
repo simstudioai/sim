@@ -61,7 +61,7 @@ export const loopsSendEventTool: ToolConfig<LoopsSendEventParams, LoopsSendEvent
       }
 
       const body: Record<string, unknown> = {
-        eventName: params.eventName,
+        eventName: params.eventName.trim(),
       }
 
       if (params.email) body.email = params.email.trim()
