@@ -873,12 +873,21 @@ export const billingBlockedReasonEnum = pgEnum('billing_blocked_reason', [
   'dispute',
 ])
 
+export const billingEntityTypeEnum = pgEnum('billing_entity_type', ['user', 'organization'])
+
 export const userStats = pgTable('user_stats', {
   id: text('id').primaryKey(),
   userId: text('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One record per user
+  /**
+   * Deprecated former usage hot-path counters.
+   *
+   * These used to be incremented from execution/API/trigger/chat/MCP/A2A
+   * billing paths on every usage event. New usage reporting must derive
+   * these dimensions from `usage_log` instead of writing this row.
+   */
   totalManualExecutions: integer('total_manual_executions').notNull().default(0),
   totalApiCalls: integer('total_api_calls').notNull().default(0),
   totalWebhookTriggers: integer('total_webhook_triggers').notNull().default(0),
@@ -887,30 +896,77 @@ export const userStats = pgTable('user_stats', {
   totalMcpExecutions: integer('total_mcp_executions').notNull().default(0),
   totalA2aExecutions: integer('total_a2a_executions').notNull().default(0),
   totalTokensUsed: bigint('total_tokens_used', { mode: 'number' }).notNull().default(0),
+  /**
+   * Deprecated former usage hot-path cost aggregate.
+   *
+   * `recordUsage` now appends attributed rows to `usage_log`; this column is
+   * retained only for legacy/admin reporting until consumers move to ledger
+   * aggregations.
+   */
   totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $5 (1,000 credits) for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
-  // Billing period tracking
+  /**
+   * Deprecated former usage hot-path current-period aggregate.
+   *
+   * Keep only as the pre-shift baseline for the active billing period.
+   * Canonical current-period usage is `currentPeriodCost` baseline plus
+   * attributed `usage_log` rows for the same billing entity and period.
+   */
   currentPeriodCost: decimal('current_period_cost').notNull().default('0'), // Usage in current billing period
   lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
+  /**
+   * Threshold/final billing tracker.
+   *
+   * This is intentionally still written when threshold billing or invoice
+   * finalization serializes overage collection. It is not incremented by the
+   * ordinary per-usage ledger write path.
+   */
   billedOverageThisPeriod: decimal('billed_overage_this_period').notNull().default('0'), // Amount of overage already billed via threshold billing
   // Pro usage snapshot when joining a team (to prevent double-billing)
   proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'), // Snapshot of Pro usage when joining team
   proPeriodCostSnapshotAt: timestamp('pro_period_cost_snapshot_at'), // When the snapshot was captured (= join moment). Used to cap daily-refresh computation so post-join refresh isn't deducted from pre-join personal Pro usage (and vice-versa for the org's pooled refresh).
-  // Pre-purchased credits (for Pro users only)
+  /**
+   * Credit balance tracker.
+   *
+   * Still debited/credited by billing lifecycle paths and threshold/final
+   * overage collection. It is not a per-usage aggregate counter.
+   */
   creditBalance: decimal('credit_balance').notNull().default('0'),
-  // Copilot usage tracking
+  /**
+   * Deprecated former Copilot hot-path cost/counter aggregates.
+   *
+   * Copilot/MCP Copilot usage should be reported from `usage_log` going
+   * forward. Current/last period Copilot columns remain as legacy reset
+   * trackers until those consumers are migrated.
+   */
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
   currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
   totalCopilotTokens: bigint('total_copilot_tokens', { mode: 'number' }).notNull().default(0),
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
-  // MCP Copilot usage tracking
+  /**
+   * Deprecated former MCP Copilot hot-path aggregates.
+   *
+   * New MCP Copilot billing usage should be reported from `usage_log`.
+   */
   totalMcpCopilotCalls: integer('total_mcp_copilot_calls').notNull().default(0),
   totalMcpCopilotCost: decimal('total_mcp_copilot_cost').notNull().default('0'),
   currentPeriodMcpCopilotCost: decimal('current_period_mcp_copilot_cost').notNull().default('0'),
-  // Storage tracking (for free/pro users)
+  /**
+   * Storage upload/delete hot-path tracker for personal plans.
+   *
+   * This remains a direct aggregate write for personal file storage changes;
+   * org-scoped storage writes update `organization.storageUsedBytes`.
+   */
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
+  /**
+   * Deprecated former execution hot-path activity timestamp.
+   *
+   * Successful workflow execution no longer updates `user_stats`; this column
+   * is retained only for legacy/admin reporting until replaced by an activity
+   * source that does not contend on this row.
+   */
   lastActive: timestamp('last_active').notNull().defaultNow(),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
@@ -1128,8 +1184,20 @@ export const organization = pgTable('organization', {
     taskCleanupHours?: number | null
   }>(),
   orgUsageLimit: decimal('org_usage_limit'),
+  /**
+   * Storage upload/delete hot-path tracker for org-scoped plans.
+   *
+   * This remains a direct aggregate write for organization file storage
+   * changes; personal storage writes update `user_stats.storageUsedBytes`.
+   */
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
+  /**
+   * Organization credit balance tracker.
+   *
+   * Still debited/credited by billing lifecycle paths and threshold/final
+   * overage collection. It is not a per-usage aggregate counter.
+   */
   creditBalance: decimal('credit_balance').notNull().default('0'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -2749,6 +2817,11 @@ export const usageLog = pgTable(
     metadata: jsonb('metadata'),
 
     cost: decimal('cost').notNull(),
+    eventKey: text('event_key'),
+    billingEntityType: billingEntityTypeEnum('billing_entity_type'),
+    billingEntityId: text('billing_entity_id'),
+    billingPeriodStart: timestamp('billing_period_start'),
+    billingPeriodEnd: timestamp('billing_period_end'),
 
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
     workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
@@ -2761,6 +2834,25 @@ export const usageLog = pgTable(
     sourceIdx: index('usage_log_source_idx').on(table.source),
     workspaceIdIdx: index('usage_log_workspace_id_idx').on(table.workspaceId),
     workflowIdIdx: index('usage_log_workflow_id_idx').on(table.workflowId),
+    eventKeyUnique: uniqueIndex('usage_log_event_key_unique')
+      .on(table.eventKey)
+      .where(sql`${table.eventKey} IS NOT NULL`),
+    billingEntityPeriodIdx: index('usage_log_billing_entity_period_idx')
+      .on(
+        table.billingEntityType,
+        table.billingEntityId,
+        table.billingPeriodStart,
+        table.billingPeriodEnd
+      )
+      .where(sql`${table.billingEntityType} IS NOT NULL`),
+    billingScopeAllOrNone: check(
+      'usage_log_billing_scope_all_or_none',
+      sql`(
+        (${table.billingEntityType} IS NULL AND ${table.billingEntityId} IS NULL AND ${table.billingPeriodStart} IS NULL AND ${table.billingPeriodEnd} IS NULL)
+        OR
+        (${table.billingEntityType} IS NOT NULL AND ${table.billingEntityId} IS NOT NULL AND ${table.billingPeriodStart} IS NOT NULL AND ${table.billingPeriodEnd} IS NOT NULL AND ${table.billingPeriodStart} < ${table.billingPeriodEnd})
+      )`
+    ),
     workspaceCreatedAtIdx: index('usage_log_workspace_created_at_idx').on(
       table.workspaceId,
       table.createdAt

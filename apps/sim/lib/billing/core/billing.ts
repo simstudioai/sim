@@ -7,6 +7,7 @@ import {
   type SubscriptionMetadata,
 } from '@/lib/billing/core/subscription'
 import { getOrgUsageLimit, getUserUsageData } from '@/lib/billing/core/usage'
+import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { getCreditBalance } from '@/lib/billing/credits/balance'
 import {
   computeDailyRefreshConsumed,
@@ -185,6 +186,7 @@ export async function computeOrgOverageAmount(params: {
       planDollars,
       seats: params.seats || 1,
       userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
+      billingEntity: { type: 'organization', id: params.organizationId },
     })
   }
 
@@ -223,6 +225,13 @@ export async function calculateSubscriptionOverage(sub: {
 
   if (isOrgScoped) {
     const pooled = await aggregateOrgMemberStats(sub.referenceId)
+    const ledgerUsage =
+      sub.periodStart && sub.periodEnd
+        ? await getBillingPeriodUsageCost(
+            { type: 'organization', id: sub.referenceId },
+            { start: sub.periodStart, end: sub.periodEnd }
+          )
+        : 0
 
     const orgData = await db
       .select({ departedMemberUsage: organization.departedMemberUsage })
@@ -239,7 +248,7 @@ export async function calculateSubscriptionOverage(sub: {
       periodStart: sub.periodStart ?? null,
       periodEnd: sub.periodEnd ?? null,
       organizationId: sub.referenceId,
-      pooledCurrentPeriodCost: pooled.currentPeriodCost,
+      pooledCurrentPeriodCost: pooled.currentPeriodCost + ledgerUsage,
       departedMemberUsage,
       memberIds: pooled.memberIds,
     })
@@ -249,9 +258,10 @@ export async function calculateSubscriptionOverage(sub: {
     logger.info('Calculated org-scoped overage', {
       subscriptionId: sub.id,
       plan: sub.plan,
-      currentMemberUsage: pooled.currentPeriodCost,
+      currentMemberUsage: pooled.currentPeriodCost + ledgerUsage,
       departedMemberUsage,
-      totalUsage: pooled.currentPeriodCost + departedMemberUsage,
+      ledgerUsage,
+      totalUsage: pooled.currentPeriodCost + ledgerUsage + departedMemberUsage,
       effectiveUsage,
       baseSubscriptionAmount,
       totalOverage,
@@ -275,11 +285,18 @@ export async function calculateSubscriptionOverage(sub: {
     const personalCurrentUsage = statsRow ? toNumber(toDecimal(statsRow.currentPeriodCost)) : 0
     const snapshotUsage = statsRow ? toNumber(toDecimal(statsRow.proPeriodCostSnapshot)) : 0
     const snapshotAt = statsRow?.proPeriodCostSnapshotAt ?? null
+    const ledgerUsage =
+      sub.periodStart && sub.periodEnd
+        ? await getBillingPeriodUsageCost(
+            { type: 'user', id: sub.referenceId },
+            { start: sub.periodStart, end: sub.periodEnd }
+          )
+        : 0
 
     const joinedOrgMidCycle = snapshotAt !== null || snapshotUsage > 0
     const totalProUsageDecimal = joinedOrgMidCycle
-      ? toDecimal(snapshotUsage)
-      : toDecimal(personalCurrentUsage)
+      ? toDecimal(snapshotUsage).plus(ledgerUsage)
+      : toDecimal(personalCurrentUsage).plus(ledgerUsage)
 
     if (joinedOrgMidCycle) {
       logger.info('Billing personal Pro only for pre-join usage (user joined org mid-cycle)', {
@@ -304,6 +321,7 @@ export async function calculateSubscriptionOverage(sub: {
         periodStart: sub.periodStart,
         periodEnd: refreshCap,
         planDollars,
+        billingEntity: { type: 'user', id: sub.referenceId },
       })
     }
 
@@ -319,6 +337,7 @@ export async function calculateSubscriptionOverage(sub: {
       joinedOrgMidCycle,
       personalCurrentUsage,
       snapshot: snapshotUsage,
+      ledgerUsage,
       billedUsage: toNumber(totalProUsageDecimal),
       dailyRefreshDeduction,
       basePrice,
@@ -332,13 +351,24 @@ export async function calculateSubscriptionOverage(sub: {
       .where(eq(userStats.userId, sub.referenceId))
       .limit(1)
     const personalCurrentUsage = statsRow ? toNumber(toDecimal(statsRow.currentPeriodCost)) : 0
+    const ledgerUsage =
+      sub.periodStart && sub.periodEnd
+        ? await getBillingPeriodUsageCost(
+            { type: 'user', id: sub.referenceId },
+            { start: sub.periodStart, end: sub.periodEnd }
+          )
+        : 0
     const { basePrice } = getPlanPricing(sub.plan || 'free')
-    totalOverageDecimal = Decimal.max(0, toDecimal(personalCurrentUsage).minus(basePrice))
+    totalOverageDecimal = Decimal.max(
+      0,
+      toDecimal(personalCurrentUsage).plus(ledgerUsage).minus(basePrice)
+    )
 
     logger.info('Calculated overage for plan', {
       subscriptionId: sub.id,
       plan: sub.plan || 'free',
-      usage: personalCurrentUsage,
+      usage: personalCurrentUsage + ledgerUsage,
+      ledgerUsage,
       basePrice,
       totalOverage: toNumber(totalOverageDecimal),
     })
@@ -431,6 +461,13 @@ export async function getSimplifiedBillingSummary(
       // `usageData` is derived from the caller's priority subscription
       // and may not match the requested org (multi-org admins, personal
       // priority sub, etc.), so it cannot be reused here.
+      const ledgerUsage =
+        subscription.periodStart && subscription.periodEnd
+          ? await getBillingPeriodUsageCost(
+              { type: 'organization', id: organizationId },
+              { start: subscription.periodStart, end: subscription.periodEnd }
+            )
+          : 0
       let refreshDeduction = 0
       if (isPaid(plan) && subscription.periodStart) {
         const planDollars = getPlanTierDollars(plan)
@@ -446,10 +483,11 @@ export async function getSimplifiedBillingSummary(
             planDollars,
             seats: subscription.seats || 1,
             userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
+            billingEntity: { type: 'organization', id: organizationId },
           })
         }
       }
-      const effectiveCurrentUsage = Math.max(0, rawCurrentUsage - refreshDeduction)
+      const effectiveCurrentUsage = Math.max(0, rawCurrentUsage + ledgerUsage - refreshDeduction)
 
       const { limit: orgUsageLimit } = await getOrgUsageLimit(
         organizationId,
