@@ -1,3 +1,4 @@
+import { prospeoHosting } from '@/tools/prospeo/hosting'
 import {
   extractProspeoError,
   type ProspeoBulkEnrichPersonParams,
@@ -14,6 +15,14 @@ export const bulkEnrichPersonTool: ToolConfig<
   name: 'Prospeo Bulk Enrich Person',
   description: 'Enrich up to 50 person records at once.',
   version: '1.0.0',
+
+  hosting: prospeoHosting<ProspeoBulkEnrichPersonParams>((_params, output) => {
+    // Prospeo reports the exact credits spent for the batch in total_cost.
+    if (typeof output.total_cost !== 'number') {
+      throw new Error('Prospeo bulk enrich person response missing total_cost')
+    }
+    return output.total_cost
+  }),
 
   params: {
     apiKey: {

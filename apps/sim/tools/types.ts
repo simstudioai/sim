@@ -21,6 +21,9 @@ export type BYOKProviderId =
   | 'cohere'
   | 'hunter'
   | 'peopledatalabs'
+  | 'findymail'
+  | 'prospeo'
+  | 'wiza'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
@@ -309,7 +312,7 @@ export type ToolHostingPricing<P = Record<string, unknown>> = PerRequestPricing 
  * Adding more keys only requires updating the count and adding the new env var —
  * no code changes needed.
  */
-interface ToolHostingConfig<P = Record<string, unknown>> {
+export interface ToolHostingConfig<P = Record<string, unknown>> {
   /** Optional predicate for tools where hosted keys only apply to some parameter combinations. */
   enabled?: (params: P) => boolean
   /**

@@ -1,3 +1,4 @@
+import { prospeoHosting } from '@/tools/prospeo/hosting'
 import {
   extractProspeoError,
   type ProspeoEnrichPersonParams,
@@ -11,6 +12,16 @@ export const enrichPersonTool: ToolConfig<ProspeoEnrichPersonParams, ProspeoEnri
     name: 'Prospeo Enrich Person',
     description: 'Enrich a person with complete B2B profile data, email address and mobile.',
     version: '1.0.0',
+
+    hosting: prospeoHosting<ProspeoEnrichPersonParams>((_params, output) => {
+      // No charge on a no-match or a repeat enrichment.
+      if (output.free_enrichment === true) return 0
+      const person = output.person as Record<string, unknown> | null
+      if (!person) return 0
+      // 10 credits when a mobile is revealed, otherwise 1 for the person match.
+      const mobile = person.mobile as { revealed?: boolean } | undefined
+      return mobile?.revealed ? 10 : 1
+    }),
 
     params: {
       apiKey: {
