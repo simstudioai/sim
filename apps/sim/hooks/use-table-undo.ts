@@ -386,7 +386,21 @@ export function useTableUndo({
           }
 
           case 'reorder-columns': {
-            const order = direction === 'undo' ? action.previousOrder : action.newOrder
+            const restored = direction === 'undo' ? action.previousOrder : action.newOrder
+            // The user may have pinned/unpinned since the original reorder;
+            // restoring the raw snapshot can leave a currently-pinned column
+            // in the middle, which breaks the sticky-offset walk in
+            // pinnedOffsets and causes the column to jump over its left
+            // neighbors on scroll.
+            const pinned = getPinnedColumnsRef.current?.() ?? []
+            let order = restored
+            if (pinned.length > 0) {
+              const pinnedSet = new Set(pinned)
+              order = [
+                ...restored.filter((n) => pinnedSet.has(n)),
+                ...restored.filter((n) => !pinnedSet.has(n)),
+              ]
+            }
             onColumnOrderChangeRef.current?.(order)
             updateMetadataMutation.mutate({ columnOrder: order })
             break
