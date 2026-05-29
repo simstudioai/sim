@@ -323,8 +323,13 @@ export function TableGrid({
 
   const { data: tableRunState } = useTableRunState(tableId)
   const activeDispatches = tableRunState?.dispatches
-  const totalRunning = tableRunState?.runningCellCount ?? 0
   const runningByRowId = tableRunState?.runningByRowId ?? EMPTY_RUNNING_BY_ROW
+  // Actual in-flight cell count = sum of the live per-row map (kept current by
+  // applyCell's SSE deltas, and the same source the per-row gutter uses). The
+  // dispatch-scope `runningCellCount` over-counts already-completed groups on
+  // rows still inside a dispatch's scope — e.g. a cascade where 3 of 4 columns
+  // finished would read "4 running" instead of "1".
+  const totalRunning = Object.values(runningByRowId).reduce((sum, n) => sum + n, 0)
 
   const tableRowCountRef = useRef(tableData?.rowCount ?? 0)
   tableRowCountRef.current = tableData?.rowCount ?? 0
