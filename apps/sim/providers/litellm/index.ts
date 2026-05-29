@@ -19,6 +19,7 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  enforceStrictSchema,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -146,18 +147,28 @@ export const litellmProvider: ProviderConfig = {
     if (request.temperature !== undefined) payload.temperature = request.temperature
     if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
 
-    if (request.responseFormat) {
-      payload.response_format = {
-        type: 'json_schema',
-        json_schema: {
-          name: request.responseFormat.name || 'response_schema',
-          schema: request.responseFormat.schema || request.responseFormat,
-          strict: request.responseFormat.strict !== false,
-        },
-      }
-
-      logger.info('Added JSON schema response format to LiteLLM request')
+    if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
+      payload.reasoning_effort = request.reasoningEffort
     }
+
+    const isStrictResponseFormat = request.responseFormat
+      ? request.responseFormat.strict !== false
+      : false
+
+    const responseFormatPayload = request.responseFormat
+      ? {
+          type: 'json_schema' as const,
+          json_schema: {
+            name: request.responseFormat.name || 'response_schema',
+            // Strict mode requires additionalProperties:false and all-required keys;
+            // OpenAI-backed routes 400 without it.
+            schema: isStrictResponseFormat
+              ? enforceStrictSchema(request.responseFormat.schema || request.responseFormat)
+              : request.responseFormat.schema || request.responseFormat,
+            strict: isStrictResponseFormat,
+          },
+        }
+      : undefined
 
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
     let hasActiveTools = false
@@ -182,6 +193,14 @@ export const litellmProvider: ProviderConfig = {
           model: payload.model,
         })
       }
+    }
+
+    // response_format + tools conflict on some backends (Anthropic rejects the pair,
+    // vLLM guided decoding suppresses tool calls), so defer the format past the tool loop.
+    const deferResponseFormat = !!responseFormatPayload && hasActiveTools
+    if (responseFormatPayload && !deferResponseFormat) {
+      payload.response_format = responseFormatPayload
+      logger.info('Added JSON schema response format to LiteLLM request')
     }
 
     const providerStartTime = Date.now()
@@ -271,6 +290,7 @@ export const litellmProvider: ProviderConfig = {
               endTime: new Date().toISOString(),
               duration: Date.now() - providerStartTime,
             },
+            isStreaming: true,
           },
         } as StreamingExecution
 
@@ -374,7 +394,9 @@ export const litellmProvider: ProviderConfig = {
           const toolName = toolCall.function.name
 
           try {
-            const toolArgs = JSON.parse(toolCall.function.arguments)
+            const toolArgs = toolCall.function.arguments
+              ? JSON.parse(toolCall.function.arguments)
+              : {}
             const tool = request.tools?.find((t) => t.id === toolName)
 
             if (!tool) return null
@@ -429,6 +451,8 @@ export const litellmProvider: ProviderConfig = {
           })),
         })
 
+        const respondedToolCallIds = new Set<string>()
+
         for (const settledResult of executionResults) {
           if (settledResult.status === 'rejected' || !settledResult.value) continue
 
@@ -469,7 +493,25 @@ export const litellmProvider: ProviderConfig = {
           currentMessages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
+            name: toolName,
             content: JSON.stringify(resultContent),
+          })
+          respondedToolCallIds.add(toolCall.id)
+        }
+
+        // Every tool_call needs a matching `tool` response or the next request 400s;
+        // stub any the model left unanswered (e.g. an unknown/filtered tool name).
+        for (const tc of toolCallsInResponse) {
+          if (respondedToolCallIds.has(tc.id)) continue
+          currentMessages.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            name: tc.function.name,
+            content: JSON.stringify({
+              error: true,
+              message: `Tool "${tc.function.name}" is not available`,
+              tool: tc.function.name,
+            }),
           })
         }
 
@@ -555,6 +597,12 @@ export const litellmProvider: ProviderConfig = {
           stream: true,
           stream_options: { include_usage: true },
         }
+        if (deferResponseFormat && responseFormatPayload) {
+          // Keep tools defined (Anthropic requires it once history holds tool results) and
+          // disable parallel calls (OpenAI's rule for strict outputs alongside tools).
+          streamingParams.response_format = responseFormatPayload
+          streamingParams.parallel_tool_calls = false
+        }
         const streamResponse = await litellm.chat.completions.create(
           streamingParams,
           request.abortSignal ? { signal: request.abortSignal } : undefined
@@ -626,10 +674,62 @@ export const litellmProvider: ProviderConfig = {
               endTime: new Date().toISOString(),
               duration: Date.now() - providerStartTime,
             },
+            isStreaming: true,
           },
         } as StreamingExecution
 
         return streamingResult as StreamingExecution
+      }
+
+      if (deferResponseFormat && responseFormatPayload) {
+        logger.info('Applying deferred JSON schema response format after tool processing')
+
+        const finalFormatStartTime = Date.now()
+        const finalPayload: any = {
+          model: payload.model,
+          messages: currentMessages,
+          response_format: responseFormatPayload,
+          // Keep tools defined (Anthropic requires it once history holds tool results) and
+          // disable parallel calls (OpenAI's rule for strict outputs alongside tools).
+          tools: payload.tools,
+          tool_choice: 'auto',
+          parallel_tool_calls: false,
+        }
+        if (request.temperature !== undefined) finalPayload.temperature = request.temperature
+        if (request.maxTokens != null) finalPayload.max_completion_tokens = request.maxTokens
+
+        currentResponse = await litellm.chat.completions.create(
+          finalPayload,
+          request.abortSignal ? { signal: request.abortSignal } : undefined
+        )
+
+        const finalFormatEndTime = Date.now()
+        timeSegments.push({
+          type: 'model',
+          name: request.model,
+          startTime: finalFormatStartTime,
+          endTime: finalFormatEndTime,
+          duration: finalFormatEndTime - finalFormatStartTime,
+        })
+        modelTime += finalFormatEndTime - finalFormatStartTime
+
+        const formattedContent = currentResponse.choices[0]?.message?.content
+        if (formattedContent) {
+          content = formattedContent.replace(/```json\n?|\n?```/g, '').trim()
+        }
+
+        if (currentResponse.usage) {
+          tokens.input += currentResponse.usage.prompt_tokens || 0
+          tokens.output += currentResponse.usage.completion_tokens || 0
+          tokens.total += currentResponse.usage.total_tokens || 0
+        }
+
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          currentResponse,
+          currentResponse.choices[0]?.message?.tool_calls,
+          { model: request.model, provider: 'litellm' }
+        )
       }
 
       const providerEndTime = Date.now()
@@ -660,7 +760,7 @@ export const litellmProvider: ProviderConfig = {
 
       let errorMessage = toError(error).message
       let errorType: string | undefined
-      let errorCode: number | undefined
+      let errorCode: string | number | undefined
 
       if (error && typeof error === 'object' && 'error' in error) {
         const litellmError = error.error as any

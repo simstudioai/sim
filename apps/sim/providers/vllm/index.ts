@@ -21,9 +21,8 @@ import {
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
-  trackForcedToolUsage,
 } from '@/providers/utils'
-import { createReadableStreamFromVLLMStream } from '@/providers/vllm/utils'
+import { checkForForcedToolUsage, createReadableStreamFromVLLMStream } from '@/providers/vllm/utils'
 import { useProvidersStore } from '@/stores/providers'
 import { executeTool } from '@/tools'
 
@@ -282,25 +281,7 @@ export const vllmProvider: ProviderConfig = {
 
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
-
-      const checkForForcedToolUsage = (
-        response: any,
-        toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
-      ) => {
-        if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
-          const toolCallsResponse = response.choices[0].message.tool_calls
-          const result = trackForcedToolUsage(
-            toolCallsResponse,
-            toolChoice,
-            logger,
-            'vllm',
-            forcedTools,
-            usedForcedTools
-          )
-          hasUsedForcedTool = result.hasUsedForcedTool
-          usedForcedTools = result.usedForcedTools
-        }
-      }
+      let hasUsedForcedTool = false
 
       let currentResponse = await vllm.chat.completions.create(
         payload,
@@ -327,8 +308,6 @@ export const vllmProvider: ProviderConfig = {
       let modelTime = firstResponseTime
       let toolsTime = 0
 
-      let hasUsedForcedTool = false
-
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
@@ -339,207 +318,233 @@ export const vllmProvider: ProviderConfig = {
         },
       ]
 
-      checkForForcedToolUsage(currentResponse, originalToolChoice)
-
-      while (iterationCount < MAX_TOOL_ITERATIONS) {
-        if (currentResponse.choices[0]?.message?.content) {
-          content = currentResponse.choices[0].message.content
-          if (request.responseFormat) {
-            content = content.replace(/```json\n?|\n?```/g, '').trim()
-          }
-        }
-
-        const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
-
-        enrichLastModelSegmentFromChatCompletions(
-          timeSegments,
+      if (originalToolChoice) {
+        const forcedResult = checkForForcedToolUsage(
           currentResponse,
-          toolCallsInResponse,
-          { model: request.model, provider: 'vllm' }
+          originalToolChoice,
+          forcedTools,
+          usedForcedTools
         )
-
-        if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
-          break
-        }
-
-        logger.info(
-          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
-        )
-
-        const toolsStartTime = Date.now()
-
-        const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
-          const toolCallStartTime = Date.now()
-          const toolName = toolCall.function.name
-
-          try {
-            const toolArgs = JSON.parse(toolCall.function.arguments)
-            const tool = request.tools?.find((t) => t.id === toolName)
-
-            if (!tool) return null
-
-            const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, {
-              signal: request.abortSignal,
-            })
-            const toolCallEndTime = Date.now()
-
-            return {
-              toolCall,
-              toolName,
-              toolParams,
-              result,
-              startTime: toolCallStartTime,
-              endTime: toolCallEndTime,
-              duration: toolCallEndTime - toolCallStartTime,
-            }
-          } catch (error) {
-            const toolCallEndTime = Date.now()
-            logger.error('Error processing tool call:', { error, toolName })
-
-            return {
-              toolCall,
-              toolName,
-              toolParams: {},
-              result: {
-                success: false,
-                output: undefined,
-                error: getErrorMessage(error, 'Tool execution failed'),
-              },
-              startTime: toolCallStartTime,
-              endTime: toolCallEndTime,
-              duration: toolCallEndTime - toolCallStartTime,
-            }
-          }
-        })
-
-        const executionResults = await Promise.allSettled(toolExecutionPromises)
-
-        currentMessages.push({
-          role: 'assistant',
-          content: null,
-          tool_calls: toolCallsInResponse.map((tc) => ({
-            id: tc.id,
-            type: 'function',
-            function: {
-              name: tc.function.name,
-              arguments: tc.function.arguments,
-            },
-          })),
-        })
-
-        for (const settledResult of executionResults) {
-          if (settledResult.status === 'rejected' || !settledResult.value) continue
-
-          const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
-            settledResult.value
-
-          timeSegments.push({
-            type: 'tool',
-            name: toolName,
-            startTime: startTime,
-            endTime: endTime,
-            duration: duration,
-            toolCallId: toolCall.id,
-          })
-
-          let resultContent: any
-          if (result.success && result.output) {
-            toolResults.push(result.output)
-            resultContent = result.output
-          } else {
-            resultContent = {
-              error: true,
-              message: result.error || 'Tool execution failed',
-              tool: toolName,
-            }
-          }
-
-          toolCalls.push({
-            name: toolName,
-            arguments: toolParams,
-            startTime: new Date(startTime).toISOString(),
-            endTime: new Date(endTime).toISOString(),
-            duration: duration,
-            result: resultContent,
-            success: result.success,
-          })
-
-          currentMessages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: JSON.stringify(resultContent),
-          })
-        }
-
-        const thisToolsTime = Date.now() - toolsStartTime
-        toolsTime += thisToolsTime
-
-        const nextPayload = {
-          ...payload,
-          messages: currentMessages,
-        }
-
-        if (typeof originalToolChoice === 'object' && hasUsedForcedTool && forcedTools.length > 0) {
-          const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
-
-          if (remainingTools.length > 0) {
-            nextPayload.tool_choice = {
-              type: 'function',
-              function: { name: remainingTools[0] },
-            }
-            logger.info(`Forcing next tool: ${remainingTools[0]}`)
-          } else {
-            nextPayload.tool_choice = 'auto'
-            logger.info('All forced tools have been used, switching to auto tool_choice')
-          }
-        }
-
-        const nextModelStartTime = Date.now()
-
-        currentResponse = await vllm.chat.completions.create(
-          nextPayload,
-          request.abortSignal ? { signal: request.abortSignal } : undefined
-        )
-
-        checkForForcedToolUsage(currentResponse, nextPayload.tool_choice)
-
-        const nextModelEndTime = Date.now()
-        const thisModelTime = nextModelEndTime - nextModelStartTime
-
-        timeSegments.push({
-          type: 'model',
-          name: request.model,
-          startTime: nextModelStartTime,
-          endTime: nextModelEndTime,
-          duration: thisModelTime,
-        })
-
-        modelTime += thisModelTime
-
-        if (currentResponse.choices[0]?.message?.content) {
-          content = currentResponse.choices[0].message.content
-          if (request.responseFormat) {
-            content = content.replace(/```json\n?|\n?```/g, '').trim()
-          }
-        }
-
-        if (currentResponse.usage) {
-          tokens.input += currentResponse.usage.prompt_tokens || 0
-          tokens.output += currentResponse.usage.completion_tokens || 0
-          tokens.total += currentResponse.usage.total_tokens || 0
-        }
-
-        iterationCount++
+        hasUsedForcedTool = forcedResult.hasUsedForcedTool
+        usedForcedTools = forcedResult.usedForcedTools
       }
 
-      if (iterationCount === MAX_TOOL_ITERATIONS) {
-        enrichLastModelSegmentFromChatCompletions(
-          timeSegments,
-          currentResponse,
-          currentResponse.choices[0]?.message?.tool_calls,
-          { model: request.model, provider: 'vllm' }
-        )
+      try {
+        while (iterationCount < MAX_TOOL_ITERATIONS) {
+          if (currentResponse.choices[0]?.message?.content) {
+            content = currentResponse.choices[0].message.content
+            if (request.responseFormat) {
+              content = content.replace(/```json\n?|\n?```/g, '').trim()
+            }
+          }
+
+          const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            currentResponse,
+            toolCallsInResponse,
+            { model: request.model, provider: 'vllm' }
+          )
+
+          if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
+            break
+          }
+
+          logger.info(
+            `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
+          )
+
+          const toolsStartTime = Date.now()
+
+          const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
+            const toolCallStartTime = Date.now()
+            const toolName = toolCall.function.name
+
+            try {
+              const toolArgs = JSON.parse(toolCall.function.arguments)
+              const tool = request.tools?.find((t) => t.id === toolName)
+
+              if (!tool) return null
+
+              const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
+              const result = await executeTool(toolName, executionParams, {
+                signal: request.abortSignal,
+              })
+              const toolCallEndTime = Date.now()
+
+              return {
+                toolCall,
+                toolName,
+                toolParams,
+                result,
+                startTime: toolCallStartTime,
+                endTime: toolCallEndTime,
+                duration: toolCallEndTime - toolCallStartTime,
+              }
+            } catch (error) {
+              const toolCallEndTime = Date.now()
+              logger.error('Error processing tool call:', { error, toolName })
+
+              return {
+                toolCall,
+                toolName,
+                toolParams: {},
+                result: {
+                  success: false,
+                  output: undefined,
+                  error: getErrorMessage(error, 'Tool execution failed'),
+                },
+                startTime: toolCallStartTime,
+                endTime: toolCallEndTime,
+                duration: toolCallEndTime - toolCallStartTime,
+              }
+            }
+          })
+
+          const executionResults = await Promise.allSettled(toolExecutionPromises)
+
+          currentMessages.push({
+            role: 'assistant',
+            content: null,
+            tool_calls: toolCallsInResponse.map((tc) => ({
+              id: tc.id,
+              type: 'function',
+              function: {
+                name: tc.function.name,
+                arguments: tc.function.arguments,
+              },
+            })),
+          })
+
+          for (const settledResult of executionResults) {
+            if (settledResult.status === 'rejected' || !settledResult.value) continue
+
+            const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
+              settledResult.value
+
+            timeSegments.push({
+              type: 'tool',
+              name: toolName,
+              startTime: startTime,
+              endTime: endTime,
+              duration: duration,
+              toolCallId: toolCall.id,
+            })
+
+            let resultContent: any
+            if (result.success && result.output) {
+              toolResults.push(result.output)
+              resultContent = result.output
+            } else {
+              resultContent = {
+                error: true,
+                message: result.error || 'Tool execution failed',
+                tool: toolName,
+              }
+            }
+
+            toolCalls.push({
+              name: toolName,
+              arguments: toolParams,
+              startTime: new Date(startTime).toISOString(),
+              endTime: new Date(endTime).toISOString(),
+              duration: duration,
+              result: resultContent,
+              success: result.success,
+            })
+
+            currentMessages.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(resultContent),
+            })
+          }
+
+          const thisToolsTime = Date.now() - toolsStartTime
+          toolsTime += thisToolsTime
+
+          const nextPayload = {
+            ...payload,
+            messages: currentMessages,
+          }
+
+          if (
+            typeof originalToolChoice === 'object' &&
+            hasUsedForcedTool &&
+            forcedTools.length > 0
+          ) {
+            const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
+
+            if (remainingTools.length > 0) {
+              nextPayload.tool_choice = {
+                type: 'function',
+                function: { name: remainingTools[0] },
+              }
+              logger.info(`Forcing next tool: ${remainingTools[0]}`)
+            } else {
+              nextPayload.tool_choice = 'auto'
+              logger.info('All forced tools have been used, switching to auto tool_choice')
+            }
+          }
+
+          const nextModelStartTime = Date.now()
+
+          currentResponse = await vllm.chat.completions.create(
+            nextPayload,
+            request.abortSignal ? { signal: request.abortSignal } : undefined
+          )
+
+          if (nextPayload.tool_choice && typeof nextPayload.tool_choice === 'object') {
+            const forcedResult = checkForForcedToolUsage(
+              currentResponse,
+              nextPayload.tool_choice,
+              forcedTools,
+              usedForcedTools
+            )
+            hasUsedForcedTool = forcedResult.hasUsedForcedTool
+            usedForcedTools = forcedResult.usedForcedTools
+          }
+
+          const nextModelEndTime = Date.now()
+          const thisModelTime = nextModelEndTime - nextModelStartTime
+
+          timeSegments.push({
+            type: 'model',
+            name: request.model,
+            startTime: nextModelStartTime,
+            endTime: nextModelEndTime,
+            duration: thisModelTime,
+          })
+
+          modelTime += thisModelTime
+
+          if (currentResponse.choices[0]?.message?.content) {
+            content = currentResponse.choices[0].message.content
+            if (request.responseFormat) {
+              content = content.replace(/```json\n?|\n?```/g, '').trim()
+            }
+          }
+
+          if (currentResponse.usage) {
+            tokens.input += currentResponse.usage.prompt_tokens || 0
+            tokens.output += currentResponse.usage.completion_tokens || 0
+            tokens.total += currentResponse.usage.total_tokens || 0
+          }
+
+          iterationCount++
+        }
+
+        if (iterationCount === MAX_TOOL_ITERATIONS) {
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            currentResponse,
+            currentResponse.choices[0]?.message?.tool_calls,
+            { model: request.model, provider: 'vllm' }
+          )
+        }
+      } catch (error) {
+        logger.error('Error in vLLM tool processing:', { error })
       }
 
       if (request.stream) {
@@ -550,7 +555,7 @@ export const vllmProvider: ProviderConfig = {
         const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto',
+          tool_choice: 'none',
           stream: true,
           stream_options: { include_usage: true },
         }
@@ -685,8 +690,3 @@ export const vllmProvider: ProviderConfig = {
     }
   },
 }
-
-/**
- * Enriches the last model segment with per-iteration content from a Chat
- * Completions response: assistant text, tool calls, finish reason, token usage.
- */
