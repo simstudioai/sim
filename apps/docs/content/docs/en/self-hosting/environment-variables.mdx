@@ -59,6 +59,17 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `GITHUB_CLIENT_ID` | GitHub OAuth client ID |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret |
 
+For Google integrations in self-hosted deployments, create a **Web application** OAuth client in Google Cloud and add the Sim callback for every Google service you plan to connect:
+
+```text
+https://<your-sim-host>/api/auth/oauth2/callback/google-sheets
+https://<your-sim-host>/api/auth/oauth2/callback/google-drive
+https://<your-sim-host>/api/auth/oauth2/callback/google-docs
+https://<your-sim-host>/api/auth/oauth2/callback/google-calendar
+```
+
+The host must match `NEXT_PUBLIC_APP_URL`. If the client ID, secret, or redirect URI do not match, Google returns `invalid_client` before Sim can complete the connection.
+
 ## Optional
 
 | Variable | Description |

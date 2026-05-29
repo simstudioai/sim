@@ -15,6 +15,8 @@ import {
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { getOAuthProviderConfigContract } from '@/lib/api/contracts/auth'
 import { client, useSession } from '@/lib/auth/auth-client'
 import type { OAuthReturnContext } from '@/lib/credentials/client-state'
 import { ADD_CONNECTOR_SEARCH_PARAM, writeOAuthReturnContext } from '@/lib/credentials/client-state'
@@ -30,6 +32,10 @@ import { useCreateCredentialDraft } from '@/hooks/queries/credentials'
 
 const logger = createLogger('OAuthModal')
 const EMPTY_SCOPES: string[] = []
+
+function shouldPreflightOAuthProvider(providerId: string): boolean {
+  return providerId === 'google' || providerId.startsWith('google-') || providerId === 'vertex-ai'
+}
 
 /**
  * Generates a default credential display name.
@@ -157,6 +163,16 @@ export function OAuthModal(props: OAuthModalProps) {
         if (!trimmedName) {
           setError('Display name is required.')
           return
+        }
+
+        if (shouldPreflightOAuthProvider(providerId)) {
+          const providerConfig = await requestJson(getOAuthProviderConfigContract, {
+            query: { providerId },
+          })
+          if (!providerConfig.available) {
+            setError(providerConfig.message)
+            return
+          }
         }
 
         await createDraft.mutateAsync({

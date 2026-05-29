@@ -12,6 +12,19 @@ export const authProviderStatusResponseSchema = z.object({
   registrationDisabled: z.boolean(),
 })
 
+export const oauthProviderConfigQuerySchema = z.object({
+  providerId: z.string().min(1),
+})
+
+export const oauthProviderConfigResponseSchema = z.object({
+  providerId: z.string(),
+  available: z.boolean(),
+  status: z.enum(['ready', 'missing_env', 'placeholder_env', 'invalid_env']),
+  message: z.string(),
+  redirectUri: z.string().optional(),
+  requiredEnv: z.array(z.string()),
+})
+
 const ssoMappingSchema = z
   .object({
     id: z.string().default('sub'),
@@ -123,3 +136,17 @@ export const getAuthProvidersContract = defineRouteContract({
 })
 
 export type AuthProviderStatusResponse = ContractJsonResponse<typeof getAuthProvidersContract>
+
+export const getOAuthProviderConfigContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/auth/oauth/provider-config',
+  query: oauthProviderConfigQuerySchema,
+  response: {
+    mode: 'json',
+    schema: oauthProviderConfigResponseSchema,
+  },
+})
+
+export type OAuthProviderConfigResponse = ContractJsonResponse<
+  typeof getOAuthProviderConfigContract
+>
