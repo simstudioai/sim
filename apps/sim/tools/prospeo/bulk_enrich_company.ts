@@ -1,3 +1,4 @@
+import { prospeoHosting } from '@/tools/prospeo/hosting'
 import {
   extractProspeoError,
   type ProspeoBulkEnrichCompanyParams,
@@ -14,6 +15,14 @@ export const bulkEnrichCompanyTool: ToolConfig<
   name: 'Prospeo Bulk Enrich Company',
   description: 'Enrich up to 50 company records at once.',
   version: '1.0.0',
+
+  hosting: prospeoHosting<ProspeoBulkEnrichCompanyParams>((_params, output) => {
+    // Prospeo reports the exact credits spent for the batch in total_cost.
+    if (typeof output.total_cost !== 'number') {
+      throw new Error('Prospeo bulk enrich company response missing total_cost')
+    }
+    return output.total_cost
+  }),
 
   params: {
     apiKey: {
