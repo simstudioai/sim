@@ -3,7 +3,7 @@ import { tableRowExecutions, tableRunDispatches, userTableRows } from '@sim/db/s
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNotNull, ne, or, type SQL, sql } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs/config'
 import { writeWorkflowGroupState } from '@/lib/table/cell-write'
 import { appendTableEvent } from '@/lib/table/events'
@@ -185,6 +185,15 @@ export async function insertDispatch(input: {
  *  gutter Run/Stop button. All three statuses are user-cancellable, so the
  *  gutter must surface Stop whenever any of them are present (else clicking
  *  Play during the queued window would re-run an already-queued cell).
+ *
+ *  Excludes orphan pre-stamps — `pending` rows with no `executionId` — which
+ *  are dead placeholders left when a dispatcher loop wrote the stamp but no
+ *  cell-task ever picked it up (lock contention, queue failure, crash). The
+ *  cell already shows its prior value and `classifyEligibility` treats these as
+ *  claimable, so counting them stuck the "X running" badge above zero forever
+ *  even though nothing was running. Same `executionId == null` test used by
+ *  {@link classifyEligibility} / {@link pickNextEligibleGroupForRow}.
+ *
  *  Hits the `(table_id, status)` partial index on table_row_executions. */
 export async function countRunningCells(
   tableId: string
@@ -198,7 +207,10 @@ export async function countRunningCells(
     .where(
       and(
         eq(tableRowExecutions.tableId, tableId),
-        inArray(tableRowExecutions.status, ['queued', 'running', 'pending'])
+        inArray(tableRowExecutions.status, ['queued', 'running', 'pending']),
+        // Exclude orphan pre-stamps (`pending` + null executionId). De Morgan of
+        // NOT(pending AND null) — `status` is NOT NULL so `ne` is well-defined.
+        or(ne(tableRowExecutions.status, 'pending'), isNotNull(tableRowExecutions.executionId))
       )
     )
     .groupBy(tableRowExecutions.rowId)
