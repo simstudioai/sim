@@ -336,6 +336,10 @@ describe('ollamaProvider.executeRequest', () => {
     expect(result.stream).toBe('OLLAMA_STREAM')
     expect(mockExecuteTool).toHaveBeenCalledTimes(1)
 
+    const finalCall = mockCreate.mock.calls[2][0]
+    expect(finalCall.tools).toBeUndefined()
+    expect(finalCall.tool_choice).toBeUndefined()
+
     streamOnComplete.current?.('final answer', {
       prompt_tokens: 2,
       completion_tokens: 4,

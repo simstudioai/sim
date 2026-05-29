@@ -482,10 +482,11 @@ export const ollamaProvider: ProviderConfig = {
 
         const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 
+        const { tools: _tools, tool_choice: _toolChoice, ...streamPayload } = payload
+
         const streamingParams: ChatCompletionCreateParamsStreaming = {
-          ...payload,
+          ...streamPayload,
           messages: currentMessages,
-          tool_choice: 'auto',
           stream: true,
           stream_options: { include_usage: true },
         }
