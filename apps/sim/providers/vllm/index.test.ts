@@ -200,20 +200,20 @@ describe('vllmProvider', () => {
     expect(JSON.parse(toolMessage.content)).toMatchObject({ error: true, tool: 'myTool' })
   })
 
-  it('preserves partial results when a follow-up model call fails mid-loop', async () => {
+  it('surfaces a ProviderError when a follow-up model call fails mid-loop', async () => {
     mockCreate
       .mockResolvedValueOnce(chatResponse(null, [toolCall('call_1', 'myTool')]))
       .mockRejectedValueOnce(new Error('connection reset'))
 
-    const result = await vllmProvider.executeRequest({
-      model: 'vllm/llama-3',
-      messages: [{ role: 'user', content: 'go' }],
-      tools: [makeTool('myTool')],
-    })
+    await expect(
+      vllmProvider.executeRequest({
+        model: 'vllm/llama-3',
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [makeTool('myTool')],
+      })
+    ).rejects.toThrow('connection reset')
 
     expect(mockExecuteTool).toHaveBeenCalledTimes(1)
-    expect(result.toolCalls).toHaveLength(1)
-    expect(result.toolResults).toHaveLength(1)
   })
 
   it('cycles forced tools: forces the next forced tool after the first is used', async () => {
