@@ -1,4 +1,3 @@
-import type { RequestId } from '@modelcontextprotocol/sdk/types.js'
 import { NextResponse } from 'next/server'
 
 const DEPRECATION_MESSAGE = 'Copilot MCP has been deprecated and is no longer available.'
@@ -21,12 +20,12 @@ export function copilotMcpDeprecatedResponse(): NextResponse {
  * JSON-RPC flavored 410 response for the deprecated Copilot MCP `POST` endpoint,
  * so MCP clients surface a clean error envelope instead of an opaque body.
  */
-export function copilotMcpDeprecatedJsonRpcResponse(id: RequestId = 0): NextResponse {
+export function copilotMcpDeprecatedJsonRpcResponse(): NextResponse {
   return NextResponse.json(
     {
       jsonrpc: '2.0',
-      id,
-      error: { code: -32601, message: DEPRECATION_MESSAGE },
+      id: null,
+      error: { code: -32000, message: DEPRECATION_MESSAGE },
     },
     {
       status: 410,
