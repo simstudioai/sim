@@ -9,7 +9,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { createAuthMiddleware } from 'better-auth/api'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { nextCookies } from 'better-auth/next-js'
 import {
   admin,
@@ -793,12 +793,16 @@ export const auth = betterAuth({
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path.startsWith('/sign-up') && isRegistrationDisabled)
-        throw new Error('Registration is disabled, please contact your admin.')
+        throw new APIError('FORBIDDEN', {
+          message: 'Registration is disabled, please contact your admin.',
+        })
 
       if (!isEmailPasswordEnabled) {
         const emailPasswordPaths = ['/sign-in/email', '/sign-up/email', '/email-otp']
         if (emailPasswordPaths.some((path) => ctx.path.startsWith(path)))
-          throw new Error('Email/password authentication is disabled. Please use SSO to sign in.')
+          throw new APIError('FORBIDDEN', {
+            message: 'Email/password authentication is disabled. Please use SSO to sign in.',
+          })
       }
 
       if (
@@ -826,13 +830,17 @@ export const auth = betterAuth({
           }
 
           if (!isAllowed) {
-            throw new Error('Access restricted. Please contact your administrator.')
+            throw new APIError('FORBIDDEN', {
+              message: 'Access restricted. Please contact your administrator.',
+            })
           }
         }
       }
 
       if (ctx.path.startsWith('/sign-up') && isSignupEmailBlocked(ctx.body?.email)) {
-        throw new Error('Sign-ups from this email domain are not allowed.')
+        throw new APIError('FORBIDDEN', {
+          message: 'Sign-ups from this email domain are not allowed.',
+        })
       }
 
       if (ctx.path === '/oauth2/authorize' || ctx.path === '/oauth2/token') {
