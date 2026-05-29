@@ -1527,13 +1527,6 @@
       "when": 1779996122972,
       "tag": "0218_chubby_zzzax",
       "breakpoints": true
-    },
-    {
-      "idx": 219,
-      "version": "7",
-      "when": 1780006621117,
-      "tag": "0219_robust_shard",
-      "breakpoints": true
     }
   ]
 }
