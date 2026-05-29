@@ -909,11 +909,13 @@ export const userStats = pgTable('user_stats', {
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One record per user
   /**
-   * Deprecated former usage hot-path counters.
+   * Retired usage hot-path counters.
    *
    * These used to be incremented from execution/API/trigger/chat/MCP/A2A
-   * billing paths on every usage event. New usage reporting must derive
-   * these dimensions from `usage_log` instead of writing this row.
+   * billing paths on every usage event. They now have NO writers and NO
+   * readers (the admin billing surface stopped exposing them) — usage
+   * dimensions derive from `usage_log` instead. Retained only to defer a
+   * destructive drop; remove via `DROP COLUMN` in a follow-up migration.
    */
   totalManualExecutions: integer('total_manual_executions').notNull().default(0),
   totalApiCalls: integer('total_api_calls').notNull().default(0),

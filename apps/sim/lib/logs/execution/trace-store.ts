@@ -104,7 +104,9 @@ export async function externalizeExecutionData(
       requireDurable: true,
     })
 
-    const slim: Record<string, unknown> = { [TRACE_STORE_REF_KEY]: ref }
+    const { preview: _preview, ...slimRef } = ref
+
+    const slim: Record<string, unknown> = { [TRACE_STORE_REF_KEY]: slimRef }
     for (const key of INLINE_MARKER_KEYS) {
       if (key in executionData) slim[key] = executionData[key]
     }

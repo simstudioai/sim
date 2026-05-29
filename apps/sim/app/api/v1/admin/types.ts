@@ -574,14 +574,6 @@ interface AdminUserBilling {
   userEmail: string
   stripeCustomerId: string | null
   // Usage stats
-  totalManualExecutions: number
-  totalApiCalls: number
-  totalWebhookTriggers: number
-  totalScheduledExecutions: number
-  totalChatExecutions: number
-  totalMcpExecutions: number
-  totalA2aExecutions: number
-  totalTokensUsed: number
   totalCost: string
   currentUsageLimit: string | null
   currentPeriodCost: string
