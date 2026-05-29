@@ -749,6 +749,7 @@ export const schemaMock = {
     model: 'model',
     tokensIn: 'tokensIn',
     tokensOut: 'tokensOut',
+    seq: 'seq',
     deletedAt: 'deletedAt',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
