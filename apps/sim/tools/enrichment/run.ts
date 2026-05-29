@@ -1,21 +1,7 @@
 import { ALL_ENRICHMENTS } from '@/enrichments'
-import type { EnrichmentOutputField } from '@/enrichments/types'
+import { mapFieldType } from '@/enrichments/providers'
 import type { EnrichmentRunParams, EnrichmentRunResponse } from '@/tools/enrichment/types'
-import type { OutputProperty, OutputType, ToolConfig } from '@/tools/types'
-
-/** Maps an enrichment output's column type to a tool OutputType. */
-function toOutputType(type: EnrichmentOutputField['type']): OutputType {
-  switch (type) {
-    case 'number':
-      return 'number'
-    case 'boolean':
-      return 'boolean'
-    case 'json':
-      return 'json'
-    default:
-      return 'string'
-  }
-}
+import type { OutputProperty, ToolConfig } from '@/tools/types'
 
 /** Union of every distinct output across all registry enrichments. */
 const enrichmentOutputs: Record<string, OutputProperty> = {}
@@ -23,7 +9,7 @@ for (const enrichment of ALL_ENRICHMENTS) {
   for (const output of enrichment.outputs) {
     if (!enrichmentOutputs[output.id]) {
       enrichmentOutputs[output.id] = {
-        type: toOutputType(output.type),
+        type: mapFieldType(output.type),
         description: `${output.name} (from the selected enrichment)`,
         optional: true,
       }

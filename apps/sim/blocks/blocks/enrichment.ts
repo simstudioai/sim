@@ -2,16 +2,9 @@ import { EnrichmentIcon } from '@/components/icons'
 import type { BlockConfig, OutputFieldDefinition, ParamType } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import { ALL_ENRICHMENTS, getEnrichment } from '@/enrichments'
-import type { EnrichmentInputField, EnrichmentOutputField } from '@/enrichments/types'
+import { mapFieldType } from '@/enrichments/providers'
+import type { EnrichmentOutputField } from '@/enrichments/types'
 import type { EnrichmentRunResponse } from '@/tools/enrichment/types'
-
-/** Maps an enrichment input/output column type to a block field type. */
-function fieldType(type: EnrichmentInputField['type'] | EnrichmentOutputField['type']): ParamType {
-  if (type === 'number') return 'number'
-  if (type === 'boolean') return 'boolean'
-  if (type === 'json') return 'json'
-  return 'string'
-}
 
 /** Stable subBlock id for an enrichment input (unique across enrichments). */
 const inputFieldId = (enrichmentId: string, inputId: string) => `${enrichmentId}__${inputId}`
@@ -35,7 +28,7 @@ const blockInputs: Record<string, { type: ParamType; description: string }> = {
 for (const enrichment of ALL_ENRICHMENTS) {
   for (const input of enrichment.inputs) {
     blockInputs[inputFieldId(enrichment.id, input.id)] = {
-      type: fieldType(input.type),
+      type: mapFieldType(input.type),
       description: `${input.name} (for ${enrichment.name})`,
     }
   }
@@ -60,7 +53,7 @@ const blockOutputs: Record<string, OutputFieldDefinition> = {
 }
 for (const [id, { field, operations }] of outputProducers) {
   blockOutputs[id] = {
-    type: fieldType(field.type),
+    type: mapFieldType(field.type),
     description: field.name,
     condition: { field: 'operation', value: operations },
   }

@@ -1,4 +1,25 @@
-import type { EnrichmentProvider } from '@/enrichments/types'
+import type {
+  EnrichmentInputField,
+  EnrichmentOutputField,
+  EnrichmentProvider,
+} from '@/enrichments/types'
+
+/**
+ * Narrow union of the field types enrichments declare. Assignable to both the
+ * tool `OutputType` and the block `ParamType` unions, so a single mapping
+ * function feeds both sides without per-call casts.
+ */
+export type EnrichmentFieldType = 'string' | 'number' | 'boolean' | 'json'
+
+/** Maps an enrichment input/output column type to a block/tool field type. */
+export function mapFieldType(
+  type: EnrichmentInputField['type'] | EnrichmentOutputField['type']
+): EnrichmentFieldType {
+  if (type === 'number') return 'number'
+  if (type === 'boolean') return 'boolean'
+  if (type === 'json') return 'json'
+  return 'string'
+}
 
 /** Coerces an unknown input value to a trimmed string (`''` when nullish). */
 export function str(value: unknown): string {
