@@ -45,9 +45,13 @@ import {
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
 import { useProviderModels } from '@/hooks/queries/providers'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
-import { PROVIDER_DEFINITIONS } from '@/providers/models'
+import {
+  DYNAMIC_MODEL_PROVIDERS,
+  getProviderModels,
+  PROVIDER_DEFINITIONS,
+} from '@/providers/models'
 import type { ProviderId } from '@/providers/types'
-import { getAllProviderIds, getProviderFromModel, getProviderModels } from '@/providers/utils'
+import { getAllProviderIds, getProviderFromModel } from '@/providers/utils'
 import type { ProviderName } from '@/stores/providers'
 
 const logger = createLogger('AccessControl')
@@ -256,15 +260,6 @@ function AccessControlSkeleton() {
   )
 }
 
-/** Providers whose models are fetched at runtime (on row expand) rather than from {@link PROVIDER_DEFINITIONS}. */
-const DYNAMIC_MODEL_PROVIDERS = new Set<ProviderName>([
-  'ollama',
-  'vllm',
-  'litellm',
-  'openrouter',
-  'fireworks',
-])
-
 interface ModelDenylistControls {
   isModelAllowed: (model: string) => boolean
   onToggleModel: (model: string) => void
@@ -391,7 +386,7 @@ function ProviderRow({
   const providerName =
     PROVIDER_DEFINITIONS[providerId]?.name ||
     providerId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-  const isDynamic = DYNAMIC_MODEL_PROVIDERS.has(providerId as ProviderName)
+  const isDynamic = (DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)
   const checkboxId = `provider-${providerId}`
 
   return (
