@@ -51,6 +51,7 @@ import { ElasticsearchBlock } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock } from '@/blocks/blocks/elevenlabs'
 import { EmailBisonBlock } from '@/blocks/blocks/emailbison'
 import { EnrichBlock } from '@/blocks/blocks/enrich'
+import { EnrichmentBlock } from '@/blocks/blocks/enrichment'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { EvernoteBlock } from '@/blocks/blocks/evernote'
 import { ExaBlock } from '@/blocks/blocks/exa'
@@ -305,6 +306,7 @@ export const registry: Record<string, BlockConfig> = {
   elevenlabs: ElevenLabsBlock,
   fathom: FathomBlock,
   enrich: EnrichBlock,
+  enrichment: EnrichmentBlock,
   evaluator: EvaluatorBlock,
   evernote: EvernoteBlock,
   exa: ExaBlock,
