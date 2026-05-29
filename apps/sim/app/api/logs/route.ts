@@ -81,7 +81,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       case 'duration':
         return sql`${workflowExecutionLogs.totalDurationMs}`
       case 'cost':
-        return sql`(${workflowExecutionLogs.cost}->>'total')::numeric`
+        // Indexed projection of the usage_log ledger (dollars); no live aggregation.
+        return sql`${workflowExecutionLogs.costTotal}`
       case 'status':
         return sql`${workflowExecutionLogs.status}`
       default:
@@ -201,7 +202,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       startedAt: workflowExecutionLogs.startedAt,
       endedAt: workflowExecutionLogs.endedAt,
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
-      cost: workflowExecutionLogs.cost,
+      costTotal: workflowExecutionLogs.costTotal,
       createdAt: workflowExecutionLogs.createdAt,
       workflowName: workflow.name,
       workflowDescription: workflow.description,
@@ -379,7 +380,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           }
         : null,
       jobTitle: null,
-      cost: (log.cost as WorkflowLogSummary['cost']) ?? null,
+      // List cost is the cost_total projection (faithful ledger sum). Null until
+      // completion (running) or until the one-time legacy backfill populates it.
+      cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
       pauseSummary: {
         status: log.pausedStatus ?? null,
         total: totalPauseCount,

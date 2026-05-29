@@ -27,7 +27,7 @@ export const v1ListLogsQuerySchema = z.object({
   details: z.enum(['basic', 'full']).optional().default('basic'),
   includeTraceSpans: booleanQueryFlagSchema.optional().default(false),
   includeFinalOutput: booleanQueryFlagSchema.optional().default(false),
-  limit: z.coerce.number().optional().default(100),
+  limit: z.coerce.number().min(1).max(1000).optional().default(100),
   cursor: z.string().optional(),
   order: z.enum(['desc', 'asc']).optional().default('desc'),
 })

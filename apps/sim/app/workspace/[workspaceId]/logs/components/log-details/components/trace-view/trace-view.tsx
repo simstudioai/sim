@@ -55,6 +55,13 @@ const MIN_BAR_PCT = 0.5
 
 interface TraceViewProps {
   traceSpans: TraceSpan[]
+  /**
+   * Authoritative, multiplier-inclusive run cost (dollars) from the persisted
+   * execution log. When provided it drives the header credit chip so the Trace
+   * tab and the Overview cost breakdown can never show different totals. Falls
+   * back to the root span's own cost only when absent (e.g. live previews).
+   */
+  runCostDollars?: number
 }
 
 interface FlatSpanEntry {
@@ -812,7 +819,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
  * in a way that mirrors the executor's internal structure so investigators can
  * follow block-by-block and segment-by-segment what happened and why.
  */
-export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps) {
+export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }: TraceViewProps) {
   const treeRef = useRef<HTMLDivElement>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [treePaneWidth, setTreePaneWidth] = useState(DEFAULT_TREE_PANE_WIDTH)
@@ -1021,7 +1028,7 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
           {blockCount} {blockCount === 1 ? 'span' : 'spans'}
         </span>
         {(() => {
-          const rootCost = formatCostAmount(normalizedSpans[0]?.cost?.total)
+          const rootCost = formatCostAmount(runCostDollars ?? normalizedSpans[0]?.cost?.total)
           return rootCost ? (
             <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption tabular-nums'>
               {rootCost}

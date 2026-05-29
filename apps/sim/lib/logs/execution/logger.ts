@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   member,
+  usageLog,
   userStats,
   user as userTable,
   workflow,
@@ -9,15 +10,20 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq, sql } from 'drizzle-orm'
-import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
+import { and, eq, sql } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import {
   checkUsageStatus,
   getOrgUsageLimit,
   maybeSendUsageThresholdEmail,
 } from '@/lib/billing/core/usage'
-import { type ModelUsageMetadata, recordUsage } from '@/lib/billing/core/usage-log'
+import {
+  type BillingContext,
+  deriveBillingContext,
+  type ModelUsageMetadata,
+  recordUsage,
+  stableEventKey,
+} from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -28,6 +34,7 @@ import {
 } from '@/lib/execution/payloads/large-value-metadata'
 import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
+import { externalizeExecutionData, stripSpanCosts } from '@/lib/logs/execution/trace-store'
 import type {
   BlockOutputData,
   ExecutionEnvironment,
@@ -48,6 +55,9 @@ const MAX_WORKFLOW_VALUE_BYTES = 64 * 1024
 const EXECUTION_LOG_STATEMENT_TIMEOUT_MS = 30_000
 const EXECUTION_LOG_LOCK_TIMEOUT_MS = 3_000
 const EXECUTION_LOG_IDLE_TIMEOUT_MS = 5_000
+// Bounds the wait for the per-execution usage-reconcile advisory lock. Generous
+// (favor waiting over dropping a charge); only trips on a pathological lock hold.
+const USAGE_RECONCILE_LOCK_TIMEOUT_MS = 10_000
 
 type ExecutionData = WorkflowExecutionLog['executionData']
 
@@ -548,13 +558,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
           hasTraceSpans: false,
           traceSpanCount: 0,
         },
-        cost: {
-          total: BASE_EXECUTION_CHARGE,
-          input: 0,
-          output: 0,
-          tokens: { input: 0, output: 0, total: 0 },
-          models: {},
-        },
       })
       .returning()
 
@@ -590,7 +593,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
       totalPromptTokens: number
       totalCompletionTokens: number
       baseExecutionCharge: number
-      modelCost: number
       models: Record<
         string,
         {
@@ -601,6 +603,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           tokens: { input: number; output: number; total: number }
         }
       >
+      charges?: Record<string, { total: number }>
     }
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
@@ -732,7 +735,18 @@ export class ExecutionLogger implements IExecutionLoggerService {
       },
       executionId
     )
-    const completedExecutionLargeValueKeys = collectLargeValueReferenceKeys(completedExecutionData)
+
+    stripSpanCosts((completedExecutionData as Record<string, unknown>).traceSpans)
+
+    const storedExecutionData = await externalizeExecutionData(
+      completedExecutionData as Record<string, unknown>,
+      {
+        workspaceId: existingLog?.workspaceId ?? null,
+        workflowId: existingLog?.workflowId ?? null,
+        executionId,
+      }
+    )
+    const completedExecutionLargeValueKeys = collectLargeValueReferenceKeys(storedExecutionData)
 
     const updatedLog = await db.transaction(async (tx) => {
       await setExecutionLogWriteTimeouts(tx)
@@ -745,8 +759,17 @@ export class ExecutionLogger implements IExecutionLoggerService {
           endedAt: new Date(endedAt),
           totalDurationMs: totalDuration,
           files: executionFiles.length > 0 ? executionFiles : null,
-          executionData: completedExecutionData,
-          cost: executionCost,
+          executionData: storedExecutionData,
+          // Faithful projection of the usage_log ledger. Neither cost_total nor
+          // models_used may regress below a prior boundary: a paused run that
+          // resumes into an empty-span error/cancel/cost-only fallback produces a
+          // base-only summary. GREATEST keeps the higher cumulative cost_total,
+          // and models_used is overwritten only when this boundary actually has
+          // models — so both stay == SUM(usage_log) on every monotonic path.
+          costTotal: sql`GREATEST(COALESCE(${workflowExecutionLogs.costTotal}, 0), ${costSummary.totalCost.toString()}::numeric)`,
+          ...(Object.keys(costSummary.models).length > 0
+            ? { modelsUsed: Object.keys(costSummary.models) }
+            : {}),
         })
         .where(eq(workflowExecutionLogs.executionId, executionId))
         .returning()
@@ -770,116 +793,136 @@ export class ExecutionLogger implements IExecutionLoggerService {
     })
 
     try {
-      // Skip workflow lookup if workflow was deleted
+      // Skip workflow lookup if workflow was deleted.
       const wf = updatedLog.workflowId
         ? (await db.select().from(workflow).where(eq(workflow.id, updatedLog.workflowId)))[0]
         : undefined
-      if (wf && billingUserId) {
-        const [usr] = await db
-          .select({ id: userTable.id, email: userTable.email, name: userTable.name })
-          .from(userTable)
-          .where(eq(userTable.id, billingUserId))
-          .limit(1)
 
-        if (usr?.email) {
-          const sub = await getHighestPrioritySubscription(usr.id)
+      const usr =
+        wf && billingUserId
+          ? (
+              await db
+                .select({ id: userTable.id, email: userTable.email, name: userTable.name })
+                .from(userTable)
+                .where(eq(userTable.id, billingUserId))
+                .limit(1)
+            )[0]
+          : undefined
 
-          const costDelta = costSummary.totalCost
+      // Resolve the billing context + the pre-increment usage snapshot for the
+      // threshold email BEFORE recording, so currentUsageAfter = before +
+      // costDelta doesn't double-count this boundary's own increment.
+      type EmailContext =
+        | {
+            scope: 'user'
+            userId: string
+            userEmail: string
+            userName: string | null
+            planName: string
+            before: Awaited<ReturnType<typeof checkUsageStatus>>
+          }
+        | {
+            scope: 'organization'
+            organizationId: string
+            planName: string
+            orgLimit: number
+            orgUsageBefore: number
+          }
+      let billingContext: BillingContext | undefined
+      let emailContext: EmailContext | undefined
 
-          const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
-          const { isOrgScopedSubscription } = await import('@/lib/billing/subscriptions/utils')
-          const planName = getDisplayPlanName(sub?.plan)
-          const scope: 'user' | 'organization' = isOrgScopedSubscription(sub, usr.id)
-            ? 'organization'
-            : 'user'
+      if (usr?.email) {
+        const sub = await getHighestPrioritySubscription(usr.id)
+        // Derive the billing context once from the subscription we just fetched
+        // and thread it into recordExecutionUsage so recordUsage doesn't
+        // re-resolve the subscription on the hot completion path.
+        billingContext = deriveBillingContext(usr.id, sub)
 
-          if (scope === 'user') {
-            const before = await checkUsageStatus(usr.id)
+        const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
+        const { isOrgScopedSubscription } = await import('@/lib/billing/subscriptions/utils')
+        const planName = getDisplayPlanName(sub?.plan)
 
-            await this.updateUserStats(
-              updatedLog.workflowId,
-              costSummary,
-              updatedLog.trigger as ExecutionTrigger['type'],
-              executionId,
-              billingUserId
-            )
-
-            const limit = before.usageData.limit
-            const percentBefore = before.usageData.percentUsed
-            const percentAfter =
-              limit > 0 ? Math.min(100, percentBefore + (costDelta / limit) * 100) : percentBefore
-            const currentUsageAfter = before.usageData.currentUsage + costDelta
-
-            await maybeSendUsageThresholdEmail({
-              scope: 'user',
-              userId: usr.id,
-              userEmail: usr.email,
-              userName: usr.name || undefined,
-              planName,
-              percentBefore,
-              percentAfter,
-              currentUsageAfter,
-              limit,
-            })
-          } else if (sub?.referenceId) {
-            // Get org usage limit using shared helper
-            const { limit: orgLimit } = await getOrgUsageLimit(sub.referenceId, sub.plan, sub.seats)
-
-            const [{ sum: orgUsageBefore }] = await db
-              .select({ sum: sql`COALESCE(SUM(${userStats.currentPeriodCost}), 0)` })
-              .from(member)
-              .leftJoin(userStats, eq(member.userId, userStats.userId))
-              .where(eq(member.organizationId, sub.referenceId))
-              .limit(1)
-            const orgUsageBeforeNum = Number.parseFloat(String(orgUsageBefore ?? '0'))
-
-            await this.updateUserStats(
-              updatedLog.workflowId,
-              costSummary,
-              updatedLog.trigger as ExecutionTrigger['type'],
-              executionId,
-              billingUserId
-            )
-
-            const percentBefore =
-              orgLimit > 0 ? Math.min(100, (orgUsageBeforeNum / orgLimit) * 100) : 0
-            const percentAfter =
-              orgLimit > 0
-                ? Math.min(100, percentBefore + (costDelta / orgLimit) * 100)
-                : percentBefore
-            const currentUsageAfter = orgUsageBeforeNum + costDelta
-
-            await maybeSendUsageThresholdEmail({
-              scope: 'organization',
-              organizationId: sub.referenceId,
-              planName,
-              percentBefore,
-              percentAfter,
-              currentUsageAfter,
-              limit: orgLimit,
-            })
+        if (isOrgScopedSubscription(sub, usr.id) && sub?.referenceId) {
+          const { limit: orgLimit } = await getOrgUsageLimit(sub.referenceId, sub.plan, sub.seats)
+          const [{ sum: orgUsageBefore }] = await db
+            .select({ sum: sql`COALESCE(SUM(${userStats.currentPeriodCost}), 0)` })
+            .from(member)
+            .leftJoin(userStats, eq(member.userId, userStats.userId))
+            .where(eq(member.organizationId, sub.referenceId))
+            .limit(1)
+          emailContext = {
+            scope: 'organization',
+            organizationId: sub.referenceId,
+            planName,
+            orgLimit,
+            orgUsageBefore: Number.parseFloat(String(orgUsageBefore ?? '0')),
           }
         } else {
-          await this.updateUserStats(
-            updatedLog.workflowId,
-            costSummary,
-            updatedLog.trigger as ExecutionTrigger['type'],
-            executionId,
-            billingUserId
-          )
+          emailContext = {
+            scope: 'user',
+            userId: usr.id,
+            userEmail: usr.email,
+            userName: usr.name,
+            planName,
+            before: await checkUsageStatus(usr.id),
+          }
         }
-      } else {
-        await this.updateUserStats(
-          updatedLog.workflowId,
-          costSummary,
-          updatedLog.trigger as ExecutionTrigger['type'],
-          executionId,
-          billingUserId
-        )
+      }
+
+      // Record usage exactly once for every path. costDelta is the amount
+      // actually recorded at this boundary (the increment), not the cumulative
+      // run total — so resumed runs don't double-count pre-pause cost below.
+      const costDelta = await this.recordExecutionUsage(
+        updatedLog.workflowId,
+        costSummary,
+        updatedLog.trigger as ExecutionTrigger['type'],
+        executionId,
+        billingUserId,
+        billingContext
+      )
+
+      // Best-effort usage-threshold email.
+      if (emailContext?.scope === 'user') {
+        const limit = emailContext.before.usageData.limit
+        const percentBefore = emailContext.before.usageData.percentUsed
+        const percentAfter =
+          limit > 0 ? Math.min(100, percentBefore + (costDelta / limit) * 100) : percentBefore
+        const currentUsageAfter = emailContext.before.usageData.currentUsage + costDelta
+
+        await maybeSendUsageThresholdEmail({
+          scope: 'user',
+          userId: emailContext.userId,
+          userEmail: emailContext.userEmail,
+          userName: emailContext.userName || undefined,
+          planName: emailContext.planName,
+          percentBefore,
+          percentAfter,
+          currentUsageAfter,
+          limit,
+        })
+      } else if (emailContext?.scope === 'organization') {
+        const { orgLimit, orgUsageBefore } = emailContext
+        const percentBefore = orgLimit > 0 ? Math.min(100, (orgUsageBefore / orgLimit) * 100) : 0
+        const percentAfter =
+          orgLimit > 0 ? Math.min(100, percentBefore + (costDelta / orgLimit) * 100) : percentBefore
+        const currentUsageAfter = orgUsageBefore + costDelta
+
+        await maybeSendUsageThresholdEmail({
+          scope: 'organization',
+          organizationId: emailContext.organizationId,
+          planName: emailContext.planName,
+          percentBefore,
+          percentAfter,
+          currentUsageAfter,
+          limit: orgLimit,
+        })
       }
     } catch (e) {
+      // Safety net: if a step above threw BEFORE the single record call, ensure
+      // the run is still billed. Reconciliation is idempotent, so re-recording
+      // after a successful call is a no-op.
       try {
-        await this.updateUserStats(
+        await this.recordExecutionUsage(
           updatedLog.workflowId,
           costSummary,
           updatedLog.trigger as ExecutionTrigger['type'],
@@ -902,8 +945,13 @@ export class ExecutionLogger implements IExecutionLoggerService {
       startedAt: updatedLog.startedAt.toISOString(),
       endedAt: updatedLog.endedAt?.toISOString() || endedAt,
       totalDurationMs: updatedLog.totalDurationMs || totalDurationMs,
-      executionData: updatedLog.executionData as WorkflowExecutionLog['executionData'],
-      cost: updatedLog.cost as WorkflowExecutionLog['cost'],
+      // Return the full in-memory execution data (cost-stripped, with traceSpans
+      // and finalOutput), not the slim externalized row — downstream consumers
+      // (notification delivery, events) need the complete payload without an
+      // extra storage round-trip.
+      executionData: completedExecutionData as WorkflowExecutionLog['executionData'],
+      // From the in-memory cost summary (not the deprecated cost jsonb column).
+      cost: executionCost as WorkflowExecutionLog['cost'],
       createdAt: updatedLog.createdAt.toISOString(),
     }
 
@@ -934,7 +982,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
       endedAt: workflowLog.endedAt?.toISOString() || workflowLog.startedAt.toISOString(),
       totalDurationMs: workflowLog.totalDurationMs || 0,
       executionData: workflowLog.executionData as WorkflowExecutionLog['executionData'],
-      cost: workflowLog.cost as WorkflowExecutionLog['cost'],
+      // cost_total projection of the usage_log ledger (not the deprecated jsonb).
+      cost: (workflowLog.costTotal != null
+        ? { total: Number(workflowLog.costTotal) }
+        : null) as WorkflowExecutionLog['cost'],
       createdAt: workflowLog.createdAt.toISOString(),
     }
   }
@@ -959,7 +1010,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     return trimmedUserId.length > 0 ? trimmedUserId : null
   }
 
-  private async updateUserStats(
+  private async recordExecutionUsage(
     workflowId: string | null,
     costSummary: {
       totalCost: number
@@ -969,7 +1020,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
       totalPromptTokens: number
       totalCompletionTokens: number
       baseExecutionCharge: number
-      modelCost: number
       models?: Record<
         string,
         {
@@ -980,28 +1030,31 @@ export class ExecutionLogger implements IExecutionLoggerService {
           tokens: { input: number; output: number; total: number }
         }
       >
+      charges?: Record<string, { total: number }>
     },
     trigger: ExecutionTrigger['type'],
     executionId?: string,
-    billingUserId?: string | null
-  ): Promise<void> {
+    billingUserId?: string | null,
+    // Pre-resolved billing context. The completion path already fetches the
+    // subscription for usage-threshold emails; passing the derived context here
+    // lets recordUsage skip a redundant subscription lookup per completion.
+    billingContext?: BillingContext
+  ): Promise<number> {
     const statsLog = logger.withMetadata({ workflowId: workflowId ?? undefined, executionId })
 
-    if (!isBillingEnabled) {
-      statsLog.debug('Billing is disabled, skipping user stats cost update')
-      return
-    }
-
-    if (costSummary.totalCost <= 0) {
-      statsLog.debug('No cost to update in user stats')
-      return
-    }
+    // The usage ledger (recordUsage below) is written regardless of
+    // BILLING_ENABLED so cost is available everywhere (incl. self-hosted).
+    // Only enforcement (overage/Stripe) is gated on the flag.
+    // Returns the amount actually recorded at THIS boundary (the increment), so
+    // callers drive usage-threshold math off the delta rather than the
+    // cumulative run total (which would double-count pre-pause cost on resume).
 
     if (!workflowId) {
-      statsLog.debug('Workflow was deleted, skipping user stats update')
-      return
+      statsLog.debug('Workflow was deleted, skipping usage recording')
+      return 0
     }
 
+    let recordedIncrement = 0
     try {
       const [workflowRecord] = await db
         .select()
@@ -1010,43 +1063,47 @@ export class ExecutionLogger implements IExecutionLoggerService {
         .limit(1)
 
       if (!workflowRecord) {
-        statsLog.error('Workflow not found for user stats update')
-        return
+        statsLog.error('Workflow not found for usage recording')
+        return 0
       }
 
       const userId = billingUserId?.trim() || null
       if (!userId) {
-        statsLog.error('Missing billing actor in execution context; skipping stats update', {
+        statsLog.error('Missing billing actor in execution context; skipping usage recording', {
           trigger,
         })
-        return
+        return 0
       }
 
-      const entries: Array<{
-        category: 'model' | 'fixed'
-        source: 'workflow'
+      // Build the run's *cumulative* target ledger lines from the cost summary.
+      // The usage_log is then reconciled to these targets: at each completion
+      // boundary (pause or terminal) we record only the increment versus what
+      // is already billed for this execution. This bills the full run exactly
+      // once across pause/resume without double-charging on resume, and keeps
+      // pre-pause work billed even if the run is later abandoned.
+      type TargetLine = {
+        category: 'model' | 'fixed' | 'tool'
         description: string
-        cost: number
+        target: number
         metadata?: ModelUsageMetadata | null
-      }> = []
+      }
+      const targets: TargetLine[] = []
 
       if (costSummary.baseExecutionCharge > 0) {
-        entries.push({
+        targets.push({
           category: 'fixed',
-          source: 'workflow',
           description: 'execution_fee',
-          cost: costSummary.baseExecutionCharge,
+          target: costSummary.baseExecutionCharge,
         })
       }
 
       if (costSummary.models) {
         for (const [modelName, modelData] of Object.entries(costSummary.models)) {
           if (modelData.total > 0) {
-            entries.push({
+            targets.push({
               category: 'model',
-              source: 'workflow',
               description: modelName,
-              cost: modelData.total,
+              target: modelData.total,
               metadata: {
                 inputTokens: modelData.tokens.input,
                 outputTokens: modelData.tokens.output,
@@ -1058,23 +1115,173 @@ export class ExecutionLogger implements IExecutionLoggerService {
         }
       }
 
-      await recordUsage({
-        userId,
-        entries,
-        workspaceId: workflowRecord.workspaceId ?? undefined,
-        workflowId,
-        executionId,
-      })
+      // Non-model billable charges (standalone hosted-key tool/integration
+      // blocks). These derive from already-gated span costs in
+      // calculateCostSummary — BYOK'd tools produce no cost upstream, so they
+      // never create a row here. Recording them closes the standalone-tool gap
+      // so the ledger fully reconciles with the run total (no double charge:
+      // agent-embedded tool cost stays folded into its model row).
+      if (costSummary.charges) {
+        for (const [description, charge] of Object.entries(costSummary.charges)) {
+          if (charge.total > 0) {
+            targets.push({ category: 'tool', description, target: charge.total })
+          }
+        }
+      }
 
-      // Check if user has hit overage threshold and bill incrementally
-      await checkAndBillOverageThreshold(userId)
+      if (targets.length === 0) {
+        statsLog.debug('No cost to record')
+        return 0
+      }
+
+      // Matches the billedBefore key resolution (toFixed(8)): a delta below this
+      // is finer than the idempotency key can distinguish across boundaries, so
+      // ignoring it keeps the key and the gate consistent.
+      const COST_EPSILON = 1e-8
+
+      // Build the positive-increment ledger entries for a given already-billed
+      // snapshot. The eventKey is scoped by the already-billed-so-far amount so
+      // increments across boundaries never collide, while a retried boundary
+      // (same already-billed) dedups via onConflictDoNothing.
+      //
+      // Reconciliation keys on `description` (model name / tool name), which is
+      // the billing identity — DO NOT normalize or relabel it. Correctness
+      // across pause/resume relies on the same usage carrying the same
+      // description at every boundary; the paused snapshot retains each block's
+      // original model label, so pre-pause cost stays under its original key
+      // (delta 0 at terminal) and only genuinely new usage is charged. A future
+      // change that relabels historical spans would break this invariant.
+      const buildDeltaEntries = (alreadyBilled: Map<string, number>) => {
+        const entries: Array<{
+          category: 'model' | 'fixed' | 'tool'
+          source: 'workflow'
+          description: string
+          cost: number
+          eventKey: string
+          metadata?: ModelUsageMetadata | null
+        }> = []
+        for (const line of targets) {
+          const billed = alreadyBilled.get(`${line.category}::${line.description}`) ?? 0
+          const delta = line.target - billed
+          if (delta <= COST_EPSILON) continue
+          entries.push({
+            category: line.category,
+            source: 'workflow',
+            description: line.description,
+            cost: delta,
+            eventKey: stableEventKey({
+              executionId: executionId ?? '',
+              category: line.category,
+              description: line.description,
+              billedBefore: billed.toFixed(8),
+            }),
+            ...(line.metadata !== undefined ? { metadata: line.metadata } : {}),
+          })
+        }
+        return entries
+      }
+
+      if (executionId) {
+        // Serialize concurrent completion boundaries for this execution so the
+        // read-then-insert reconciliation cannot race. pg_advisory_xact_lock is
+        // transaction-scoped (auto-released on commit/rollback, pool-safe) and
+        // bounded by lock_timeout. The critical section is one SELECT + one
+        // INSERT; the lock is uncontended in the normal (already-serialized)
+        // flow and only matters under a cross-process double-completion of the
+        // same execution, where it stops a stale already-billed read from
+        // dropping the larger delta.
+        await db.transaction(async (tx) => {
+          await tx.execute(
+            sql`select set_config('lock_timeout', ${`${USAGE_RECONCILE_LOCK_TIMEOUT_MS}ms`}, true)`
+          )
+          await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${executionId}, 0))`)
+
+          // Already-billed for this execution, scoped to the rows this path owns
+          // (source='workflow') so a same-executionId row from another source
+          // can't suppress a charge.
+          const billedRows = await tx
+            .select({
+              category: usageLog.category,
+              description: usageLog.description,
+              cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+            })
+            .from(usageLog)
+            .where(and(eq(usageLog.executionId, executionId), eq(usageLog.source, 'workflow')))
+            .groupBy(usageLog.category, usageLog.description)
+
+          const alreadyBilled = new Map<string, number>()
+          for (const row of billedRows) {
+            alreadyBilled.set(
+              `${row.category}::${row.description}`,
+              Number.parseFloat(row.cost ?? '0')
+            )
+          }
+
+          const entries = buildDeltaEntries(alreadyBilled)
+          if (entries.length > 0) {
+            await recordUsage({
+              userId,
+              entries,
+              workspaceId: workflowRecord.workspaceId ?? undefined,
+              workflowId,
+              executionId,
+              tx,
+              ...(billingContext ?? {}),
+            })
+            recordedIncrement = entries.reduce((acc, e) => acc + e.cost, 0)
+
+            // Refine cost_total to the EXACT post-reconciliation ledger sum,
+            // inside the same advisory-locked tx so it is atomic with the inserts
+            // and can't be clobbered by a concurrent boundary. Exact by
+            // construction: under the lock no delta collides, so the new sum is
+            // the prior workflow-source sum plus the deltas just inserted. This
+            // supersedes the main-transaction GREATEST baseline (which remains for
+            // early-return / no-executionId / failed-reconcile paths).
+            const ledgerSum =
+              [...alreadyBilled.values()].reduce((acc, v) => acc + v, 0) + recordedIncrement
+            await tx
+              .update(workflowExecutionLogs)
+              .set({ costTotal: ledgerSum.toString() })
+              .where(eq(workflowExecutionLogs.executionId, executionId))
+          }
+        })
+      } else {
+        // No execution scope to reconcile/lock against (not expected at a
+        // workflow completion): record the full targets directly.
+        const entries = buildDeltaEntries(new Map())
+        if (entries.length > 0) {
+          await recordUsage({
+            userId,
+            entries,
+            workspaceId: workflowRecord.workspaceId ?? undefined,
+            workflowId,
+            ...(billingContext ?? {}),
+          })
+          recordedIncrement = entries.reduce((acc, e) => acc + e.cost, 0)
+        }
+      }
+
+      // Enforcement only when billing is enabled: the ledger above is always
+      // written, but overage/Stripe billing is gated on BILLING_ENABLED.
+      if (isBillingEnabled) {
+        await checkAndBillOverageThreshold(userId)
+      }
     } catch (error) {
-      statsLog.error('Error updating user stats with cost information', {
-        error,
-        costSummary,
-      })
-      // Don't throw - we want execution to continue even if user stats update fails
+      // Swallowed so a billing-write failure never fails the execution. The
+      // reconciliation self-heals on a later boundary; a TERMINAL-boundary
+      // failure leaves the run under-billed (and cost_total may then exceed
+      // SUM(usage_log)), so log loudly enough to alert / reconcile out of band.
+      statsLog.error(
+        'Failed to record execution usage to usage_log ledger; charge may be unbilled',
+        {
+          error,
+          billingUserId,
+          costSummary,
+        }
+      )
     }
+
+    return recordedIncrement
   }
 
   /**

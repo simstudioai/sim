@@ -329,8 +329,30 @@ export const workflowExecutionLogs = pgTable(
     endedAt: timestamp('ended_at'),
     totalDurationMs: integer('total_duration_ms'),
 
+    /**
+     * Heavy trace data (traceSpans, finalOutput, workflowInput, executionState)
+     * is externalized to object storage; this column then holds a slim payload:
+     * a `traceStoreRef` (__simLargeValueRef) pointer to the stored object plus
+     * inline markers (hasTraceSpans, traceSpanCount, environment, trigger,
+     * truncation flags). It also still holds the FULL payload inline for legacy
+     * / not-yet-backfilled rows, for the storage-write-failure fallback, and for
+     * job_execution_logs. Required — not droppable. Read it via
+     * `materializeExecutionData`, which resolves the pointer.
+     */
     executionData: jsonb('execution_data').notNull().default('{}'),
+    /**
+     * @deprecated No longer written or read. Cost is sourced from the usage_log
+     * ledger (itemized breakdown) and the `cost_total` projection (run total).
+     * Retained only to defer a destructive drop; remove in a follow-up PR once
+     * the legacy `cost_total` backfill has populated pre-existing rows.
+     */
     cost: jsonb('cost'),
+    // Faithful, write-once projection of the run's usage_log ledger sum (dollars).
+    // Backs list cost display/filter/sort without live aggregation; never an
+    // independently-computed value (cost_total == SUM(usage_log) for the run).
+    costTotal: decimal('cost_total'),
+    // Model names used by the run (incl. zero-cost/BYOK), for the v1 model filter.
+    modelsUsed: text('models_used').array(),
     files: jsonb('files'), // File metadata for execution files
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
@@ -356,6 +378,11 @@ export const workflowExecutionLogs = pgTable(
       table.workspaceId,
       table.startedAt
     ),
+    workspaceCostTotalIdx: index('workflow_execution_logs_workspace_cost_total_idx').on(
+      table.workspaceId,
+      table.costTotal
+    ),
+    modelsUsedIdx: index('workflow_execution_logs_models_used_idx').using('gin', table.modelsUsed),
     workspaceEndedAtIdIdx: index('workflow_execution_logs_workspace_ended_at_id_idx').on(
       table.workspaceId,
       sql`date_trunc('milliseconds', ${table.endedAt})`,
@@ -2787,7 +2814,7 @@ export const auditLog = pgTable(
   })
 )
 
-export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed'])
+export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed', 'tool'])
 export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'workflow',
   'wand',
@@ -2857,6 +2884,7 @@ export const usageLog = pgTable(
       table.workspaceId,
       table.createdAt
     ),
+    executionIdIdx: index('usage_log_execution_id_idx').on(table.executionId),
   })
 )
 

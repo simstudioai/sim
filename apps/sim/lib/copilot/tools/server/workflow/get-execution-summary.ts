@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq, type SQL } from 'drizzle-orm'
 import { GetExecutionSummary } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('GetExecutionSummaryServerTool')
@@ -86,13 +87,14 @@ export const getExecutionSummaryServerTool: BaseServerTool<
       .select({
         executionId: workflowExecutionLogs.executionId,
         workflowId: workflowExecutionLogs.workflowId,
+        workspaceId: workflowExecutionLogs.workspaceId,
         workflowName: workflow.name,
         status: workflowExecutionLogs.status,
         level: workflowExecutionLogs.level,
         trigger: workflowExecutionLogs.trigger,
         startedAt: workflowExecutionLogs.startedAt,
         totalDurationMs: workflowExecutionLogs.totalDurationMs,
-        cost: workflowExecutionLogs.cost,
+        costTotal: workflowExecutionLogs.costTotal,
         executionData: workflowExecutionLogs.executionData,
       })
       .from(workflowExecutionLogs)
@@ -101,26 +103,36 @@ export const getExecutionSummaryServerTool: BaseServerTool<
       .orderBy(desc(workflowExecutionLogs.startedAt))
       .limit(clampedLimit)
 
-    const summaries: ExecutionSummary[] = rows.map((row) => {
-      const costData = row.cost as any
-      const errorMsg = row.level === 'error' ? extractErrorMessage(row.executionData) : null
+    const summaries: ExecutionSummary[] = await Promise.all(
+      rows.map(async (row) => {
+        // Only externalized rows need a fetch; error fields live in the heavy data.
+        const executionData =
+          row.level === 'error'
+            ? await materializeExecutionData(row.executionData as Record<string, unknown> | null, {
+                workspaceId: row.workspaceId,
+                workflowId: row.workflowId,
+                executionId: row.executionId,
+              })
+            : row.executionData
+        const errorMsg = row.level === 'error' ? extractErrorMessage(executionData) : null
 
-      return {
-        executionId: row.executionId,
-        workflowId: row.workflowId,
-        workflowName: row.workflowName,
-        status: row.status,
-        trigger: row.trigger,
-        startedAt: row.startedAt.toISOString(),
-        durationMs: row.totalDurationMs ?? null,
-        cost: costData?.total ? Number(costData.total) : null,
-        error: errorMsg
-          ? typeof errorMsg === 'string'
-            ? errorMsg
-            : JSON.stringify(errorMsg)
-          : null,
-      }
-    })
+        return {
+          executionId: row.executionId,
+          workflowId: row.workflowId,
+          workflowName: row.workflowName,
+          status: row.status,
+          trigger: row.trigger,
+          startedAt: row.startedAt.toISOString(),
+          durationMs: row.totalDurationMs ?? null,
+          cost: row.costTotal != null ? Number(row.costTotal) : null,
+          error: errorMsg
+            ? typeof errorMsg === 'string'
+              ? errorMsg
+              : JSON.stringify(errorMsg)
+            : null,
+        }
+      })
+    )
 
     logger.info('Execution summary prepared', {
       count: summaries.length,

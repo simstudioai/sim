@@ -3,13 +3,49 @@ import {
   jobExecutionLogs,
   pausedExecutions,
   permissions,
+  usageLog,
   workflow,
   workflowDeploymentVersion,
   workflowExecutionLogs,
 } from '@sim/db/schema'
 import { and, eq, type SQL } from 'drizzle-orm'
+import type { CostLedger } from '@/lib/api/contracts/logs'
+import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 
 type LookupColumn = 'id' | 'executionId'
+
+/**
+ * Builds the itemized cost breakdown for an execution from the usage_log ledger
+ * (the single source of truth). Returns null when no ledger rows exist (legacy
+ * or pre-ledger runs), so callers can fall back to the cost_total projection.
+ */
+async function buildCostLedger(executionId: string): Promise<CostLedger | null> {
+  const rows = await db
+    .select({
+      category: usageLog.category,
+      description: usageLog.description,
+      cost: usageLog.cost,
+      metadata: usageLog.metadata,
+    })
+    .from(usageLog)
+    .where(eq(usageLog.executionId, executionId))
+
+  if (rows.length === 0) return null
+
+  const items = rows.map((row) => {
+    const metadata = (row.metadata ?? {}) as { inputTokens?: number; outputTokens?: number }
+    return {
+      category: row.category as CostLedger['items'][number]['category'],
+      description: row.description,
+      cost: Number(row.cost),
+      ...(typeof metadata.inputTokens === 'number' ? { inputTokens: metadata.inputTokens } : {}),
+      ...(typeof metadata.outputTokens === 'number' ? { outputTokens: metadata.outputTokens } : {}),
+    }
+  })
+
+  const total = items.reduce((sum, item) => sum + item.cost, 0)
+  return { total, items }
+}
 
 interface FetchLogDetailArgs {
   userId: string
@@ -47,7 +83,7 @@ export async function fetchLogDetail({
       endedAt: workflowExecutionLogs.endedAt,
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
       executionData: workflowExecutionLogs.executionData,
-      cost: workflowExecutionLogs.cost,
+      costTotal: workflowExecutionLogs.costTotal,
       files: workflowExecutionLogs.files,
       createdAt: workflowExecutionLogs.createdAt,
       workflowName: workflow.name,
@@ -105,6 +141,18 @@ export async function fetchLogDetail({
       (totalPauseCount > 0 && resumedCount < totalPauseCount) ||
       (log.pausedStatus !== null && log.pausedStatus !== 'fully_resumed')
 
+    // Cost is sourced exclusively from the usage_log ledger (itemized breakdown)
+    // and its cost_total projection (run total). The cost jsonb is never read.
+    const costLedger = await buildCostLedger(log.executionId)
+    const totalDollars = costLedger?.total ?? (log.costTotal != null ? Number(log.costTotal) : null)
+
+    // Trace spans / heavy execution data may live in object storage; resolve the
+    // pointer here (no-op for inline / pre-externalization rows).
+    const executionData = await materializeExecutionData(
+      log.executionData as Record<string, unknown> | null,
+      { workspaceId, workflowId: log.workflowId, executionId: log.executionId }
+    )
+
     return {
       id: log.id,
       workflowId: log.workflowId,
@@ -119,7 +167,8 @@ export async function fetchLogDetail({
       createdAt: log.startedAt.toISOString(),
       workflow: workflowSummary,
       jobTitle: null,
-      cost: log.cost ?? null,
+      cost: totalDollars != null ? { total: totalDollars } : null,
+      costLedger,
       pauseSummary: {
         status: log.pausedStatus ?? null,
         total: totalPauseCount,
@@ -128,7 +177,7 @@ export async function fetchLogDetail({
       hasPendingPause,
       executionData: {
         totalDuration: log.totalDurationMs,
-        ...((log.executionData as Record<string, unknown> | null) ?? {}),
+        ...executionData,
         enhanced: true as const,
       },
       files: log.files ?? null,

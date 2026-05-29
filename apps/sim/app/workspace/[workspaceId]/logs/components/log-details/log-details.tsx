@@ -24,6 +24,7 @@ import {
 } from '@/components/emcn'
 import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
+import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -48,6 +49,16 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
+
+/**
+ * Renders an already-apportioned integer credit value. `dollars` is only used
+ * to distinguish a genuine zero ("0 credits") from a sub-credit charge that
+ * rounded down to zero ("<1 credit"); the credit figure itself is authoritative.
+ */
+function creditLabel(credits: number, dollars: number): string {
+  if (credits <= 0) return dollars > 0 ? '<1 credit' : '0 credits'
+  return `${credits.toLocaleString()} ${credits === 1 ? 'credit' : 'credits'}`
+}
 
 export const WorkflowOutputSection = memo(
   function WorkflowOutputSection({ output }: { output: Record<string, unknown> }) {
@@ -326,6 +337,54 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
     return { input: raw } as Record<string, unknown>
   }, [log.executionData])
 
+  // Cost breakdown, sourced solely from the usage_log ledger (single source of
+  // truth). Line items (Base Run / per-model / per-integration) get integer
+  // credits apportioned with a single round at the total so rows always
+  // reconcile (never round-then-sum, which drifts). Pre-ledger runs that only
+  // have the cost_total projection show the total alone — no itemization, no
+  // parallel jsonb reconstruction.
+  const costBreakdown = useMemo((): {
+    rows: Array<{ key: string; label: string; credits: number; dollars: number }>
+    totalCredits: number
+    totalDollars: number
+    tokens: { input: number; output: number }
+  } | null => {
+    const ledger = log.costLedger
+    if (ledger && ledger.items.length > 0) {
+      const credits = apportionCredits(
+        ledger.items.map((item, i) => ({ key: String(i), dollars: item.cost }))
+      )
+      const rows = ledger.items.map((item, i) => ({
+        key: String(i),
+        label:
+          item.category === 'fixed' && item.description === 'execution_fee'
+            ? 'Base Run'
+            : item.description,
+        credits: credits[String(i)] ?? 0,
+        dollars: item.cost,
+      }))
+      return {
+        rows,
+        totalCredits: dollarsToCredits(ledger.total),
+        totalDollars: ledger.total,
+        tokens: {
+          input: ledger.items.reduce((s, it) => s + (it.inputTokens ?? 0), 0),
+          output: ledger.items.reduce((s, it) => s + (it.outputTokens ?? 0), 0),
+        },
+      }
+    }
+
+    // Total-only (pre-ledger runs with just the cost_total projection).
+    const total = log.cost?.total
+    if (total == null) return null
+    return {
+      rows: [],
+      totalCredits: dollarsToCredits(total),
+      totalDollars: total,
+      tokens: { input: 0, output: 0 },
+    }
+  }, [log.costLedger, log.cost])
+
   const formattedTimestamp = formatDate(log.createdAt)
   const logStatus = getDisplayStatus(log.status)
 
@@ -529,67 +588,39 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
             {log.files && log.files.length > 0 && <FileCards files={log.files} isExecutionFile />}
 
             {/* Cost Breakdown */}
-            {hasCostInfo && (
+            {hasCostInfo && costBreakdown && (
               <div className='divide-y divide-[var(--border)] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
-                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Base Run
-                  </span>
-                  <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                    {formatCost(BASE_EXECUTION_CHARGE)}
-                  </span>
-                </div>
-                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Model Input
-                  </span>
-                  <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                    {formatCost(log.cost?.input || 0)}
-                  </span>
-                </div>
-                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Model Output
-                  </span>
-                  <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                    {formatCost(log.cost?.output || 0)}
-                  </span>
-                </div>
-                {(() => {
-                  const models = (log.cost as Record<string, unknown>)?.models as
-                    | Record<string, { toolCost?: number }>
-                    | undefined
-                  const totalToolCost = models
-                    ? Object.values(models).reduce((sum, m) => sum + (m?.toolCost || 0), 0)
-                    : 0
-                  return totalToolCost > 0 ? (
-                    <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                        Tool Usage
-                      </span>
-                      <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                        {formatCost(totalToolCost)}
-                      </span>
-                    </div>
-                  ) : null
-                })()}
+                {costBreakdown.rows.map((row) => (
+                  <div
+                    key={row.key}
+                    className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'
+                  >
+                    <span className='min-w-0 truncate font-medium text-[var(--text-tertiary)] text-caption'>
+                      {row.label}
+                    </span>
+                    <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                      {creditLabel(row.credits, row.dollars)}
+                    </span>
+                  </div>
+                ))}
                 <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                   <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Total
                   </span>
                   <span className='font-semibold text-[var(--text-primary)] text-caption tabular-nums'>
-                    {formatCost(log.cost?.total || 0)}
+                    {creditLabel(costBreakdown.totalCredits, costBreakdown.totalDollars)}
                   </span>
                 </div>
-                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Tokens
-                  </span>
-                  <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                    {log.cost?.tokens?.input || log.cost?.tokens?.prompt || 0} in ·{' '}
-                    {log.cost?.tokens?.output || log.cost?.tokens?.completion || 0} out
-                  </span>
-                </div>
+                {(costBreakdown.tokens.input > 0 || costBreakdown.tokens.output > 0) && (
+                  <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                      Tokens
+                    </span>
+                    <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                      {costBreakdown.tokens.input} in · {costBreakdown.tokens.output} out
+                    </span>
+                  </div>
+                )}
                 <div className='px-3 py-2'>
                   <p className='font-medium text-[var(--text-tertiary)] text-xs'>
                     Total includes a {formatCost(BASE_EXECUTION_CHARGE)} base charge plus model and
@@ -608,7 +639,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
             className='mt-3 min-h-0 flex-1 overflow-hidden focus-visible:outline-none'
           >
             {traceSpans?.length ? (
-              <TraceView traceSpans={traceSpans} />
+              <TraceView traceSpans={traceSpans} runCostDollars={log.cost?.total} />
             ) : log.executionData ? (
               <div className='flex h-full items-center justify-center px-4 text-center'>
                 <span className='font-medium text-[var(--text-tertiary)] text-sm'>

@@ -3,7 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
 import { getBlacklistedProvidersFromEnv, isHosted } from '@/lib/core/config/feature-flags'
 import {
@@ -700,11 +700,7 @@ export function getModelPricing(modelId: string): any {
  * @returns Formatted credit string (e.g. "200 credits", "<1 credit", "0 credits")
  */
 export function formatCost(cost: number): string {
-  if (cost === undefined || cost === null) return '—'
-  const credits = dollarsToCredits(cost)
-  if (credits <= 0 && cost > 0) return '<1 credit'
-  if (credits <= 0) return '0 credits'
-  return `${credits.toLocaleString()} credits`
+  return formatCreditCost(cost) ?? '—'
 }
 
 /**

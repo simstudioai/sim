@@ -5,6 +5,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq } from 'drizzle-orm'
 import { GetWorkflowLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import type { TraceSpan } from '@/lib/logs/types'
 
 const logger = createLogger('GetWorkflowLogsServerTool')
@@ -145,6 +146,8 @@ export const getWorkflowLogsServerTool: BaseServerTool<GetWorkflowLogsArgs, Simp
         .select({
           id: workflowExecutionLogs.id,
           executionId: workflowExecutionLogs.executionId,
+          workflowId: workflowExecutionLogs.workflowId,
+          workspaceId: workflowExecutionLogs.workspaceId,
           status: workflowExecutionLogs.status,
           level: workflowExecutionLogs.level,
           trigger: workflowExecutionLogs.trigger,
@@ -152,53 +155,62 @@ export const getWorkflowLogsServerTool: BaseServerTool<GetWorkflowLogsArgs, Simp
           endedAt: workflowExecutionLogs.endedAt,
           totalDurationMs: workflowExecutionLogs.totalDurationMs,
           executionData: workflowExecutionLogs.executionData,
-          cost: workflowExecutionLogs.cost,
         })
         .from(workflowExecutionLogs)
         .where(and(...conditions))
         .orderBy(desc(workflowExecutionLogs.startedAt))
-        .limit(executionId ? 1 : limit)
+        // Enforce the documented hard limit (the materialization fans out per row).
+        .limit(executionId ? 1 : Math.min(Math.max(1, limit), 3))
 
-      const simplifiedExecutions: SimplifiedExecution[] = executionLogs.map((log) => {
-        const executionData = log.executionData as ExecutionData
-        const traceSpans = executionData?.traceSpans ?? []
-        const blockExecutions = includeDetails
-          ? extractBlockExecutionsFromTraceSpans(traceSpans)
-          : []
+      const simplifiedExecutions: SimplifiedExecution[] = await Promise.all(
+        executionLogs.map(async (log) => {
+          const executionData = (await materializeExecutionData(
+            log.executionData as Record<string, unknown> | null,
+            {
+              workspaceId: log.workspaceId,
+              workflowId: log.workflowId,
+              executionId: log.executionId,
+            }
+          )) as ExecutionData
+          const traceSpans = executionData?.traceSpans ?? []
+          const blockExecutions = includeDetails
+            ? extractBlockExecutionsFromTraceSpans(traceSpans)
+            : []
 
-        const simplifiedBlocks: SimplifiedBlock[] = blockExecutions.map((block) => ({
-          id: block.blockId,
-          name: block.blockName,
-          startedAt: block.startedAt,
-          endedAt: block.endedAt,
-          durationMs: block.durationMs,
-          output: block.outputData,
-          error: block.status === 'error' ? block.errorMessage : undefined,
-        }))
+          const simplifiedBlocks: SimplifiedBlock[] = blockExecutions.map((block) => ({
+            id: block.blockId,
+            name: block.blockName,
+            startedAt: block.startedAt,
+            endedAt: block.endedAt,
+            durationMs: block.durationMs,
+            output: block.outputData,
+            error: block.status === 'error' ? block.errorMessage : undefined,
+          }))
 
-        const rawError =
-          executionData?.errorDetails?.error ||
-          executionData?.errorDetails?.message ||
-          executionData?.finalOutput?.error ||
-          executionData?.error ||
-          null
-        const errorMessage = rawError
-          ? typeof rawError === 'string'
-            ? rawError
-            : JSON.stringify(rawError)
-          : undefined
+          const rawError =
+            executionData?.errorDetails?.error ||
+            executionData?.errorDetails?.message ||
+            executionData?.finalOutput?.error ||
+            executionData?.error ||
+            null
+          const errorMessage = rawError
+            ? typeof rawError === 'string'
+              ? rawError
+              : JSON.stringify(rawError)
+            : undefined
 
-        return {
-          id: log.id,
-          executionId: log.executionId,
-          status: log.status,
-          startedAt: log.startedAt.toISOString(),
-          endedAt: log.endedAt ? log.endedAt.toISOString() : null,
-          durationMs: log.totalDurationMs ?? null,
-          ...(errorMessage ? { error: errorMessage } : {}),
-          ...(simplifiedBlocks.length > 0 ? { blocks: simplifiedBlocks } : {}),
-        }
-      })
+          return {
+            id: log.id,
+            executionId: log.executionId,
+            status: log.status,
+            startedAt: log.startedAt.toISOString(),
+            endedAt: log.endedAt ? log.endedAt.toISOString() : null,
+            durationMs: log.totalDurationMs ?? null,
+            ...(errorMessage ? { error: errorMessage } : {}),
+            ...(simplifiedBlocks.length > 0 ? { blocks: simplifiedBlocks } : {}),
+          }
+        })
+      )
 
       const resultSize = JSON.stringify(simplifiedExecutions).length
       logger.info('Workflow logs result prepared', {
