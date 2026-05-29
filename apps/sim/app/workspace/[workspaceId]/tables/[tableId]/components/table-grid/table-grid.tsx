@@ -40,7 +40,6 @@ import {
 import type { ColumnConfig } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
-import { RunStatusControl } from '../run-status-control'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, CELL_HEADER_CHECKBOX, COL_WIDTH, SELECTION_TINT_BG } from './constants'
@@ -160,10 +159,6 @@ interface TableGridProps {
   onStopRows: (rowIds: string[]) => void
   /** Single-row stop for the per-row gutter button. */
   onStopRow: (rowId: string) => void
-  /** Wholesale cancel — page-header "Stop all". */
-  onStopAll: () => void
-  /** Whether `useCancelTableRuns` is currently in flight. */
-  cancelRunsPending: boolean
   /**
    * Fired whenever the action-bar selection or running-count derivations
    * change. Wrapper uses this to render <TableActionBar>.
@@ -258,8 +253,6 @@ export function TableGrid({
   onRunRows,
   onStopRows,
   onStopRow,
-  onStopAll,
-  cancelRunsPending,
   onSelectionChange,
   queryOptions,
   columnRenameSinkRef,
@@ -2949,8 +2942,12 @@ export function TableGrid({
       rowId: row.id,
       groupId,
       executionId: exec?.executionId ?? null,
+      // Requires a real executionId: an error that never produced an execution
+      // (e.g. enqueue failure → status 'error' with executionId null) has no
+      // trace to open, so "View execution" must not offer it.
       canViewExecution:
         !isEnrichmentGroup &&
+        Boolean(exec?.executionId) &&
         (status === 'completed' || status === 'error' || status === 'running' || isPaused),
     }
   }, [normalizedSelection, rows, displayColumns, workflowGroupById])
@@ -3097,16 +3094,6 @@ export function TableGrid({
 
   return (
     <div ref={containerRef} className='flex h-full flex-col overflow-hidden'>
-      {embedded && totalRunning > 0 && (
-        <div className='flex shrink-0 items-center justify-end border-[var(--border)] border-b px-3 py-1.5'>
-          <RunStatusControl
-            running={totalRunning}
-            onStopAll={onStopAll}
-            isStopping={cancelRunsPending}
-          />
-        </div>
-      )}
-
       <div className='relative flex min-h-0 flex-1'>
         <div
           ref={scrollRef}

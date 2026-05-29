@@ -521,8 +521,6 @@ export function Table({
         onRunRows={onRunRows}
         onStopRows={onStopRows}
         onStopRow={onStopRow}
-        onStopAll={onStopAll}
-        cancelRunsPending={cancelRunsMutation.isPending}
         onSelectionChange={onSelectionChange}
         queryOptions={queryOptions}
         columnRenameSinkRef={columnRenameSinkRef}
