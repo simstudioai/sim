@@ -57,6 +57,10 @@ export interface DataRowProps {
    * queued indicators across page refresh during long Run-all dispatches.
    */
   activeDispatches: ActiveDispatch[] | undefined
+  /** Pixel `left` value for each pinned column key; absent keys are not pinned. */
+  pinnedOffsets?: Map<string, number>
+  /** Key of the rightmost pinned column, used to render a separator shadow. */
+  lastPinnedColKey?: string | null
 }
 
 function cellRangeRowChanged(
@@ -113,7 +117,9 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.onStopRow !== next.onStopRow ||
     prev.onRunRow !== next.onRunRow ||
     prev.workflowGroups !== next.workflowGroups ||
-    prev.activeDispatches !== next.activeDispatches
+    prev.activeDispatches !== next.activeDispatches ||
+    prev.pinnedOffsets !== next.pinnedOffsets ||
+    prev.lastPinnedColKey !== next.lastPinnedColKey
   ) {
     return false
   }
@@ -157,6 +163,8 @@ export const DataRow = React.memo(function DataRow({
   onRunRow,
   workflowGroups,
   activeDispatches,
+  pinnedOffsets,
+  lastPinnedColKey,
 }: DataRowProps) {
   const sel = normalizedSelection
   /**
@@ -264,13 +272,23 @@ export const DataRow = React.memo(function DataRow({
         const isLeftEdge = inRange ? colIndex === sel!.startCol : colIndex === 0
         const isRightEdge = inRange ? colIndex === sel!.endCol : colIndex === columns.length - 1
 
+        const pinnedLeft = pinnedOffsets?.get(column.key)
+        const isPinnedCell = pinnedLeft !== undefined
+        const isPinnedSeparator = column.key === lastPinnedColKey
+
         return (
           <td
             key={column.key}
             data-row={rowIndex}
             data-row-id={row.id}
             data-col={colIndex}
-            className={cn(CELL, (isHighlighted || isAnchor || isEditing) && 'relative')}
+            className={cn(
+              CELL,
+              (isHighlighted || isAnchor || isEditing) && 'relative',
+              isPinnedCell && 'z-[6] bg-[var(--bg)]',
+              isPinnedSeparator && '[box-shadow:2px_0_0_0_var(--border)]'
+            )}
+            style={isPinnedCell ? { position: 'sticky', left: pinnedLeft } : undefined}
             onMouseDown={(e) => {
               if (e.button !== 0 || isEditing) return
               onCellMouseDown(rowIndex, colIndex, e.shiftKey)

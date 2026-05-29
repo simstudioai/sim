@@ -44,6 +44,7 @@ export type TableUndoAction =
       cellData: Array<{ rowId: string; value: unknown }>
       previousOrder: string[] | null
       previousWidth: number | null
+      previousPinnedColumns: string[] | null
     }
   | { type: 'rename-column'; oldName: string; newName: string }
   | {
