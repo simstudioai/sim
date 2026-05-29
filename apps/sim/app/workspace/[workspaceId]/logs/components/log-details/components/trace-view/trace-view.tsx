@@ -715,8 +715,10 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   if (cacheRead) metaEntries.push({ label: 'Cache read', value: cacheRead })
   if (cacheWrite) metaEntries.push({ label: 'Cache write', value: cacheWrite })
   if (reasoning) metaEntries.push({ label: 'Reasoning tokens', value: reasoning })
-  const costTotal = formatCostAmount(span.cost?.total)
-  if (costTotal) metaEntries.push({ label: 'Cost', value: costTotal })
+  // Per-span cost is intentionally not shown: cost lives only in the usage_log
+  // ledger (the authoritative, multiplier-inclusive run total drives the header
+  // chip). Persisted spans are cost-stripped, so a per-span row would render on
+  // live runs but vanish on reload — show one consistent total instead.
   if (span.errorType) metaEntries.push({ label: 'Error type', value: span.errorType })
   if (span.iterationIndex !== undefined)
     metaEntries.push({ label: 'Iteration', value: String(span.iterationIndex + 1) })

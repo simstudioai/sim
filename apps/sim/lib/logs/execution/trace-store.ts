@@ -22,10 +22,24 @@ export const TRACE_STORE_REF_KEY = 'traceStoreRef'
  */
 const INLINE_MARKER_KEYS = ['hasTraceSpans', 'traceSpanCount'] as const
 
-interface TraceStoreContext {
+/**
+ * Read-path context. Resolves an externalized payload by storage key, authorized
+ * via the (already-authorized) workspace — no owner needed.
+ */
+interface TraceStoreReadContext {
   workspaceId: string | null
   workflowId: string | null
   executionId: string
+}
+
+/**
+ * Write-path context. Requires the execution owner's `userId`: the externalized
+ * object is tracked in `workspace_files`, whose `user_id` column is NOT NULL
+ * (FK -> user.id). Requiring it here makes "a write needs an owner" a
+ * compile-time invariant, so callers must resolve the owner before persisting.
+ */
+interface TraceStoreWriteContext extends TraceStoreReadContext {
+  userId: string
 }
 
 /**
@@ -66,10 +80,14 @@ export function stripSpanCosts(spans: unknown): void {
  */
 export async function externalizeExecutionData(
   executionData: Record<string, unknown>,
-  context: TraceStoreContext
+  context: TraceStoreWriteContext
 ): Promise<Record<string, unknown>> {
-  const { workspaceId, workflowId, executionId } = context
-  if (!workspaceId || !workflowId) return executionData
+  const { workspaceId, workflowId, executionId, userId } = context
+  // workspaceId/workflowId build the storage key and can be null for
+  // deleted-workflow rows. userId is type-guaranteed by TraceStoreWriteContext;
+  // the falsy check is a defensive guard against an empty string. If any are
+  // missing the durable write can't succeed, so keep the data inline.
+  if (!workspaceId || !workflowId || !userId) return executionData
 
   try {
     const json = JSON.stringify(executionData)
@@ -82,6 +100,7 @@ export async function externalizeExecutionData(
       workspaceId,
       workflowId,
       executionId,
+      userId,
       requireDurable: true,
     })
 
@@ -111,7 +130,7 @@ export async function externalizeExecutionData(
  */
 export async function materializeExecutionData(
   executionData: Record<string, unknown> | null | undefined,
-  context: TraceStoreContext
+  context: TraceStoreReadContext
 ): Promise<Record<string, unknown>> {
   if (!executionData) return {}
 

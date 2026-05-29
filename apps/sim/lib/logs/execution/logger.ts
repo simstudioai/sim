@@ -738,14 +738,22 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     stripSpanCosts((completedExecutionData as Record<string, unknown>).traceSpans)
 
-    const storedExecutionData = await externalizeExecutionData(
-      completedExecutionData as Record<string, unknown>,
-      {
+    // Externalization requires the execution owner (workspace_files.user_id is
+    // NOT NULL). billingUserId comes from environment.userId and is effectively
+    // always present for a real run; if it's somehow absent, keep data inline.
+    let storedExecutionData = completedExecutionData as Record<string, unknown>
+    if (billingUserId) {
+      storedExecutionData = await externalizeExecutionData(storedExecutionData, {
         workspaceId: existingLog?.workspaceId ?? null,
         workflowId: existingLog?.workflowId ?? null,
         executionId,
-      }
-    )
+        userId: billingUserId,
+      })
+    } else {
+      execLog.warn('Skipping execution-data externalization: missing owner userId', {
+        executionId,
+      })
+    }
     const completedExecutionLargeValueKeys = collectLargeValueReferenceKeys(storedExecutionData)
 
     const updatedLog = await db.transaction(async (tx) => {

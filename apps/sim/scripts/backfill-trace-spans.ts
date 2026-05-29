@@ -174,10 +174,20 @@ async function backfillTraceStorage(
         executionData.hasTraceSpans = traceSpanCount > 0
         executionData.traceSpanCount = traceSpanCount
         stripSpanCosts(executionData.traceSpans)
+        // workspace_files.user_id (NOT NULL) needs the execution owner; legacy
+        // rows carry it under executionData.environment.userId. Rows without an
+        // owner can't be externalized — count them as failed and skip.
+        const environment = executionData.environment as { userId?: string } | undefined
+        const ownerUserId = environment?.userId
+        if (!ownerUserId) {
+          failed++
+          continue
+        }
         const slim = await externalizeExecutionData(executionData, {
           workspaceId: row.workspaceId,
           workflowId: row.workflowId,
           executionId: row.executionId,
+          userId: ownerUserId,
         })
 
         if (!(TRACE_STORE_REF_KEY in slim)) {
