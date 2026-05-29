@@ -165,6 +165,7 @@ describe('litellmProvider.executeRequest', () => {
 
     const result = await run({
       tools: [tool('known')],
+      reasoningEffort: 'high',
       responseFormat: { name: 'r', schema: { type: 'object', properties: {} } },
     })
 
@@ -176,6 +177,7 @@ describe('litellmProvider.executeRequest', () => {
     expect(final.tools).toBeDefined()
     expect(final.tool_choice).toBe('none')
     expect(final.parallel_tool_calls).toBe(false)
+    expect(final.reasoning_effort).toBe('high')
     expect(result.content).toBe('{"answer":1}')
   })
 

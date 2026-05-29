@@ -687,20 +687,18 @@ export const litellmProvider: ProviderConfig = {
         logger.info('Applying deferred JSON schema response format after tool processing')
 
         const finalFormatStartTime = Date.now()
+        // Spread payload so all request fields carry over (model, temperature,
+        // max_completion_tokens, reasoning_effort, tools) — matching the streaming path.
+        // 'none' forces the structured answer instead of another tool_calls round that
+        // would leave content stale; tools stay defined for backends like Anthropic that
+        // reject a tool-result history without them; parallel calls off per OpenAI's rule.
         const finalPayload: any = {
-          model: payload.model,
+          ...payload,
           messages: currentMessages,
           response_format: responseFormatPayload,
-          // Force the structured answer: 'none' stops the model from returning another
-          // tool_calls round (which would leave content stale). Keep tools defined for
-          // backends (e.g. Anthropic) that reject a tool-result history without them, and
-          // disable parallel calls per OpenAI's strict-outputs-with-tools rule.
-          tools: payload.tools,
           tool_choice: 'none',
           parallel_tool_calls: false,
         }
-        if (request.temperature !== undefined) finalPayload.temperature = request.temperature
-        if (request.maxTokens != null) finalPayload.max_completion_tokens = request.maxTokens
 
         currentResponse = await litellm.chat.completions.create(
           finalPayload,
