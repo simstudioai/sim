@@ -375,9 +375,13 @@ export class RouterBlockHandler implements BlockHandler {
     if (Array.isArray(input)) {
       return input
     }
-    const parsed = parseJSON(input, [])
-    if (!Array.isArray(parsed)) {
+    const parsed = parseJSON(input, null)
+    if (parsed === null) {
       logger.error('Failed to parse routes:', { input })
+      return []
+    }
+    if (!Array.isArray(parsed)) {
+      logger.error('Routes parsed but is not an array:', { input, parsed })
       return []
     }
     return parsed
