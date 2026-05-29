@@ -1889,7 +1889,7 @@
     "description": "Interact with Azure DevOps pipelines, builds, and work items",
     "longDescription": "Integrate Azure DevOps into your workflow. List and inspect pipelines and builds, query and manage work items, and add or read comments.",
     "bgColor": "#0078D4",
-    "iconName": "AzureDevOpsIcon",
+    "iconName": "AzureIcon",
     "docsUrl": "https://docs.sim.ai/tools/azure_devops",
     "operations": [
       {
@@ -3136,6 +3136,24 @@
     "category": "tools",
     "integrationTypes": ["analytics", "developer-tools"],
     "tags": ["data-analytics", "automation"]
+  },
+  {
+    "type": "enrichment",
+    "slug": "data-enrichment",
+    "name": "Data Enrichment",
+    "description": "Enrich data with a Sim enrichment",
+    "longDescription": "Run a Sim enrichment to look up data — work email, phone number, company domain, company info, and more — from the fields you map in. Uses the same provider cascade as table enrichments.",
+    "bgColor": "#9333EA",
+    "iconName": "EnrichmentIcon",
+    "docsUrl": "https://docs.sim.ai/tools/enrichment",
+    "operations": [],
+    "operationCount": 0,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["sales"],
+    "tags": ["enrichment"]
   },
   {
     "type": "databricks",
@@ -13288,7 +13306,35 @@
     "authType": "oauth",
     "category": "tools",
     "integrationTypes": ["communication", "developer-tools"],
-    "tags": ["messaging", "webhooks", "automation"]
+    "tags": ["messaging", "webhooks", "automation"],
+    "landingContent": {
+      "install": {
+        "heading": "Add Sim to your Slack workspace",
+        "intro": "Sim connects to Slack through Slack’s official OAuth flow. The “Add to Slack” button lives inside your Sim account (after sign-in) — connect from there and the Sim bot is installed in your Slack workspace. The steps below show exactly how to reach it.",
+        "steps": [
+          {
+            "title": "Create your free Sim account",
+            "body": "Sign up at sim.ai — no credit card required."
+          },
+          {
+            "title": "Add a Slack block",
+            "body": "Open a workflow, drag in a Slack block, and open its credential dropdown."
+          },
+          {
+            "title": "Connect Slack",
+            "body": "Click Connect Slack, choose your workspace, and approve the requested permissions. This installs the Sim bot in your Slack workspace."
+          },
+          {
+            "title": "Invite the bot and build",
+            "body": "Invite the Sim bot to the channels it should act in, pick a Slack action, wire it into your agent, and run."
+          }
+        ]
+      },
+      "privacy": {
+        "body": "Sim requests only the Slack permissions its actions and triggers need, and never shows private channel names or messages to people who are not members of those channels in Slack.",
+        "href": "/privacy"
+      }
+    }
   },
   {
     "type": "smtp",
