@@ -4689,7 +4689,7 @@ export function ZoomInfoIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      viewBox='0 0 65 65'
+      viewBox='0.272461 0.272461 64 64'
       fill='none'
       xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
