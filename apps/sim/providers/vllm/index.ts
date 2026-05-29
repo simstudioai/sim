@@ -21,9 +21,8 @@ import {
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
-  trackForcedToolUsage,
 } from '@/providers/utils'
-import { createReadableStreamFromVLLMStream } from '@/providers/vllm/utils'
+import { checkForForcedToolUsage, createReadableStreamFromVLLMStream } from '@/providers/vllm/utils'
 import { useProvidersStore } from '@/stores/providers'
 import { executeTool } from '@/tools'
 
@@ -282,25 +281,7 @@ export const vllmProvider: ProviderConfig = {
 
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
-
-      const checkForForcedToolUsage = (
-        response: any,
-        toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
-      ) => {
-        if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
-          const toolCallsResponse = response.choices[0].message.tool_calls
-          const result = trackForcedToolUsage(
-            toolCallsResponse,
-            toolChoice,
-            logger,
-            'vllm',
-            forcedTools,
-            usedForcedTools
-          )
-          hasUsedForcedTool = result.hasUsedForcedTool
-          usedForcedTools = result.usedForcedTools
-        }
-      }
+      let hasUsedForcedTool = false
 
       let currentResponse = await vllm.chat.completions.create(
         payload,
@@ -327,8 +308,6 @@ export const vllmProvider: ProviderConfig = {
       let modelTime = firstResponseTime
       let toolsTime = 0
 
-      let hasUsedForcedTool = false
-
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
@@ -339,7 +318,16 @@ export const vllmProvider: ProviderConfig = {
         },
       ]
 
-      checkForForcedToolUsage(currentResponse, originalToolChoice)
+      if (originalToolChoice) {
+        const forcedResult = checkForForcedToolUsage(
+          currentResponse,
+          originalToolChoice,
+          forcedTools,
+          usedForcedTools
+        )
+        hasUsedForcedTool = forcedResult.hasUsedForcedTool
+        usedForcedTools = forcedResult.usedForcedTools
+      }
 
       while (iterationCount < MAX_TOOL_ITERATIONS) {
         if (currentResponse.choices[0]?.message?.content) {
@@ -502,7 +490,16 @@ export const vllmProvider: ProviderConfig = {
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
-        checkForForcedToolUsage(currentResponse, nextPayload.tool_choice)
+        if (nextPayload.tool_choice && typeof nextPayload.tool_choice === 'object') {
+          const forcedResult = checkForForcedToolUsage(
+            currentResponse,
+            nextPayload.tool_choice,
+            forcedTools,
+            usedForcedTools
+          )
+          hasUsedForcedTool = forcedResult.hasUsedForcedTool
+          usedForcedTools = forcedResult.usedForcedTools
+        }
 
         const nextModelEndTime = Date.now()
         const thisModelTime = nextModelEndTime - nextModelStartTime
@@ -550,7 +547,7 @@ export const vllmProvider: ProviderConfig = {
         const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto',
+          tool_choice: 'none',
           stream: true,
           stream_options: { include_usage: true },
         }
@@ -685,8 +682,3 @@ export const vllmProvider: ProviderConfig = {
     }
   },
 }
-
-/**
- * Enriches the last model segment with per-iteration content from a Chat
- * Completions response: assistant text, tool calls, finish reason, token usage.
- */

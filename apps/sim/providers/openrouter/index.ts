@@ -376,8 +376,8 @@ export const openRouterProvider: ProviderConfig = {
           })
 
           let resultContent: any
-          if (result.success) {
-            toolResults.push(result.output!)
+          if (result.success && result.output) {
+            toolResults.push(result.output)
             resultContent = result.output
           } else {
             resultContent = {
@@ -653,8 +653,3 @@ export const openRouterProvider: ProviderConfig = {
     }
   },
 }
-
-/**
- * Enriches the last model segment with per-iteration content from a Chat
- * Completions response: assistant text, tool calls, finish reason, token usage.
- */
