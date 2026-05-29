@@ -49,12 +49,16 @@ export async function validateSignupEmailMx(email: string): Promise<SignupEmailC
   if (!domain) return { allowed: true }
 
   let records: MxRecord[]
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined
   try {
     records = await Promise.race([
       dns.resolveMx(domain),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('mx_lookup_timeout')), MX_LOOKUP_TIMEOUT_MS)
-      ),
+      new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(
+          () => reject(new Error('mx_lookup_timeout')),
+          MX_LOOKUP_TIMEOUT_MS
+        )
+      }),
     ])
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
@@ -67,6 +71,8 @@ export async function validateSignupEmailMx(email: string): Promise<SignupEmailC
       error: getErrorMessage(error),
     })
     return { allowed: true }
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle)
   }
 
   if (!records || records.length === 0) {
