@@ -1889,7 +1889,7 @@
     "description": "Interact with Azure DevOps pipelines, builds, and work items",
     "longDescription": "Integrate Azure DevOps into your workflow. List and inspect pipelines and builds, query and manage work items, and add or read comments.",
     "bgColor": "#0078D4",
-    "iconName": "AzureDevOpsIcon",
+    "iconName": "AzureIcon",
     "docsUrl": "https://docs.sim.ai/tools/azure_devops",
     "operations": [
       {
@@ -3136,6 +3136,24 @@
     "category": "tools",
     "integrationTypes": ["analytics", "developer-tools"],
     "tags": ["data-analytics", "automation"]
+  },
+  {
+    "type": "enrichment",
+    "slug": "data-enrichment",
+    "name": "Data Enrichment",
+    "description": "Enrich data with a Sim enrichment",
+    "longDescription": "Run a Sim enrichment to look up data — work email, phone number, company domain, company info, and more — from the fields you map in. Uses the same provider cascade as table enrichments.",
+    "bgColor": "#9333EA",
+    "iconName": "EnrichmentIcon",
+    "docsUrl": "https://docs.sim.ai/tools/enrichment",
+    "operations": [],
+    "operationCount": 0,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["sales"],
+    "tags": ["enrichment"]
   },
   {
     "type": "databricks",

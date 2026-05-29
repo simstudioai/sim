@@ -9,6 +9,7 @@ import { TemplateCardButton } from '@/app/(landing)/integrations/(shell)/[slug]/
 import { IntegrationIcon } from '@/app/(landing)/integrations/components/integration-icon'
 import { blockTypeToIconMap } from '@/app/(landing)/integrations/data/icon-mapping'
 import integrations from '@/app/(landing)/integrations/data/integrations.json'
+import { INTEGRATION_LANDING_CONTENT } from '@/app/(landing)/integrations/data/landing-content'
 import type { AuthType, FAQItem, Integration } from '@/app/(landing)/integrations/data/types'
 import { TEMPLATES } from '@/app/workspace/[workspaceId]/home/components/template-prompts/consts'
 
@@ -216,6 +217,8 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
 
   const { name, description, longDescription, bgColor, docsUrl, operations, triggers, authType } =
     integration
+
+  const landingContent = INTEGRATION_LANDING_CONTENT[slug]
 
   const IconComponent = blockTypeToIconMap[integration.type]
   const faqs = buildFAQs(integration)
@@ -439,6 +442,64 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               <p className='text-[15px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
                 {longDescription}
               </p>
+            </section>
+            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+          </>
+        )}
+
+        {/* Install / Add to workspace (integration-specific) */}
+        {landingContent?.install && (
+          <>
+            <section aria-labelledby='install-heading' className='px-6 py-10'>
+              <h2
+                id='install-heading'
+                className='mb-4 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+              >
+                {landingContent.install.heading}
+              </h2>
+              <p className='mb-6 max-w-[700px] text-[15px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
+                {landingContent.install.intro}
+              </p>
+              <ol className='space-y-4' aria-label={`Steps to add ${name}`}>
+                {landingContent.install.steps.map((item, index) => (
+                  <li key={item.title} className='flex gap-4'>
+                    <span
+                      className='mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border border-[var(--landing-border-strong)] font-martian-mono text-[11px] text-[var(--landing-text-subtle)]'
+                      aria-hidden='true'
+                    >
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <div>
+                      <h3 className='mb-1 text-[15px] text-white tracking-[-0.02em]'>
+                        {item.title}
+                      </h3>
+                      <p className='text-[14px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
+                        {item.body}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <div className='mt-8 flex flex-wrap gap-2'>
+                <IntegrationCtaButton
+                  label={`Add ${name}`}
+                  className='inline-flex h-[32px] items-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                >
+                  Add to {name}
+                </IntegrationCtaButton>
+              </div>
+              {landingContent.privacy && (
+                <p className='mt-6 max-w-[700px] text-[13px] text-[var(--landing-text-muted)] leading-[150%] tracking-[0.02em]'>
+                  {landingContent.privacy.body}{' '}
+                  <Link
+                    href={landingContent.privacy.href}
+                    className='text-[var(--landing-text)] underline underline-offset-2 hover:text-white'
+                  >
+                    Privacy Policy
+                  </Link>
+                  .
+                </p>
+              )}
             </section>
             <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
           </>

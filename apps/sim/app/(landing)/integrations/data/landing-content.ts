@@ -1,0 +1,61 @@
+/**
+ * Hand-authored, integration-specific landing content that augments the
+ * generated `integrations.json`. Kept in a separate module so it survives
+ * regeneration by `scripts/generate-docs.ts`. Keyed by integration slug;
+ * the integration detail page renders these sections only when present.
+ */
+
+export interface IntegrationInstallStep {
+  title: string
+  body: string
+}
+
+export interface IntegrationLandingContent {
+  /**
+   * Install walkthrough for OAuth apps whose connection lives behind sign-in.
+   * Provides the "Add to {app}" instructions that app marketplaces require
+   * when the install button sits behind a login.
+   */
+  install?: {
+    heading: string
+    intro: string
+    steps: IntegrationInstallStep[]
+  }
+  /** Short data-handling summary shown next to a privacy-policy link. */
+  privacy?: {
+    body: string
+    href: string
+  }
+}
+
+export const INTEGRATION_LANDING_CONTENT: Record<string, IntegrationLandingContent> = {
+  slack: {
+    install: {
+      heading: 'Add Sim to your Slack workspace',
+      intro:
+        'Sim connects to Slack through Slack’s official OAuth flow. You add the connection from inside your Sim account, then the Sim bot is installed in your Slack workspace.',
+      steps: [
+        {
+          title: 'Create your free Sim account',
+          body: 'Sign up at sim.ai — no credit card required.',
+        },
+        {
+          title: 'Add a Slack block',
+          body: 'Open a workflow, drag in a Slack block, and open its credential dropdown.',
+        },
+        {
+          title: 'Connect Slack',
+          body: 'Click Connect Slack, choose your workspace, and approve the requested permissions. This installs the Sim bot in your Slack workspace.',
+        },
+        {
+          title: 'Invite the bot and build',
+          body: 'Invite the Sim bot to the channels it should act in, pick a Slack action, wire it into your agent, and run.',
+        },
+      ],
+    },
+    privacy: {
+      body: 'Sim requests only the Slack permissions its actions and triggers need, and never shows private channel names or messages to people who are not members of those channels in Slack.',
+      href: '/privacy',
+    },
+  },
+}
