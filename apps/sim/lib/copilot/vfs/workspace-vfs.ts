@@ -4,7 +4,6 @@ import {
   chat as chatTable,
   copilotChats,
   document,
-  form,
   jobExecutionLogs,
   knowledgeConnector,
   mcpServers as mcpServersTable,
@@ -927,7 +926,7 @@ export class WorkspaceVFS {
     deployedAt: Date | null,
     currentNormalized?: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>
   ): Promise<DeploymentData | null> {
-    const [chatRows, formRows, mcpRows, a2aRows, versionRows, allVersionRows] = await Promise.all([
+    const [chatRows, mcpRows, a2aRows, versionRows, allVersionRows] = await Promise.all([
       db
         .select({
           id: chatTable.id,
@@ -940,19 +939,6 @@ export class WorkspaceVFS {
         })
         .from(chatTable)
         .where(and(eq(chatTable.workflowId, workflowId), isNull(chatTable.archivedAt))),
-      db
-        .select({
-          id: form.id,
-          identifier: form.identifier,
-          title: form.title,
-          description: form.description,
-          authType: form.authType,
-          showBranding: form.showBranding,
-          customizations: form.customizations,
-          isActive: form.isActive,
-        })
-        .from(form)
-        .where(and(eq(form.workflowId, workflowId), isNull(form.archivedAt))),
       db
         .select({
           serverId: workflowMcpTool.serverId,
@@ -1018,11 +1004,7 @@ export class WorkspaceVFS {
     ])
 
     const hasAnyDeployment =
-      isDeployed ||
-      chatRows.length > 0 ||
-      formRows.length > 0 ||
-      mcpRows.length > 0 ||
-      a2aRows.length > 0
+      isDeployed || chatRows.length > 0 || mcpRows.length > 0 || a2aRows.length > 0
     if (!hasAnyDeployment && allVersionRows.length === 0) return null
 
     let needsRedeployment: boolean | undefined
@@ -1053,7 +1035,6 @@ export class WorkspaceVFS {
         ? { version: deployedVersion.version, createdAt: deployedVersion.createdAt }
         : null,
       chat: chatRows[0] ?? null,
-      form: formRows[0] ?? null,
       mcp: mcpRows,
       a2a: a2aRows[0] ?? null,
       versions: allVersionRows,

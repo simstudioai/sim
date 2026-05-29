@@ -1091,7 +1091,7 @@ export const Sidebar = memo(function Sidebar() {
     async (workspaceIdToDelete: string) => {
       const workspaceToDelete = workspaces.find((w) => w.id === workspaceIdToDelete)
       if (workspaceToDelete) {
-        await confirmDeleteWorkspace(workspaceToDelete, 'keep')
+        await confirmDeleteWorkspace(workspaceToDelete)
       }
     },
     [workspaces, confirmDeleteWorkspace]

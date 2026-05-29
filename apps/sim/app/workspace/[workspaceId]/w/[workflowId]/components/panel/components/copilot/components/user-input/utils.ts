@@ -150,7 +150,6 @@ type WorkflowBlockContext = Extract<ChatContext, { kind: 'workflow_block' }>
 type KnowledgeContext = Extract<ChatContext, { kind: 'knowledge' }>
 type TableContext = Extract<ChatContext, { kind: 'table' }>
 type FileContext = Extract<ChatContext, { kind: 'file' }>
-type TemplatesContext = Extract<ChatContext, { kind: 'templates' }>
 type LogsContext = Extract<ChatContext, { kind: 'logs' }>
 type IntegrationContext = Extract<ChatContext, { kind: 'integration' }>
 type SlashCommandContext = Extract<ChatContext, { kind: 'slash_command' }>
@@ -194,10 +193,6 @@ export function areContextsEqual(c: ChatContext, context: ChatContext): boolean 
     case 'file': {
       const ctx = context as FileContext
       return c.fileId === ctx.fileId
-    }
-    case 'templates': {
-      const ctx = context as TemplatesContext
-      return c.templateId === ctx.templateId
     }
     case 'logs': {
       const ctx = context as LogsContext

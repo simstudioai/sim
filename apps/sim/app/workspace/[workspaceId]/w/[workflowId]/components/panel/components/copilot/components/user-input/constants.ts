@@ -9,7 +9,6 @@ export type MentionFolderId =
   | 'knowledge'
   | 'blocks'
   | 'workflow-blocks'
-  | 'templates'
   | 'logs'
   | 'integrations'
 
@@ -135,23 +134,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
     }),
     useInsertFallback: true,
   },
-  templates: {
-    title: 'Templates',
-    dataKey: 'templatesList',
-    loadingKey: 'isLoadingTemplates',
-    ensureLoadedKey: 'ensureTemplatesLoaded',
-    getLabel: (item) => item.name || 'Untitled Template',
-    getId: (item) => item.id,
-    emptyMessage: 'No templates found',
-    noMatchMessage: 'No matching templates',
-    filterFn: (item, q) => (item.name || 'Untitled Template').toLowerCase().includes(q),
-    buildContext: (item) => ({
-      kind: 'templates',
-      templateId: item.id,
-      label: item.name || 'Untitled Template',
-    }),
-    useInsertFallback: false,
-  },
   logs: {
     title: 'Logs',
     dataKey: 'logsList',
@@ -198,7 +180,6 @@ export const FOLDER_ORDER: MentionFolderId[] = [
   'blocks',
   'workflow-blocks',
   'integrations',
-  'templates',
   'logs',
 ]
 

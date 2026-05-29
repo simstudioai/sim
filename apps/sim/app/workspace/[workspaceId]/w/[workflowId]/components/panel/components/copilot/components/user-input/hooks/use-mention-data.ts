@@ -7,7 +7,6 @@ import { requestJson } from '@/lib/api/client/request'
 import { listCopilotChatsContract } from '@/lib/api/contracts/copilot'
 import { listKnowledgeBasesContract } from '@/lib/api/contracts/knowledge/base'
 import { listLogsContract } from '@/lib/api/contracts/logs'
-import { listTemplatesContract } from '@/lib/api/contracts/templates'
 import { type IntegrationDescriptor, listIntegrations } from '@/blocks/integration-matcher'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -65,15 +64,6 @@ export interface WorkflowBlockItem {
 }
 
 /**
- * Represents a template for mention suggestions
- */
-export interface TemplateItem {
-  id: string
-  name: string
-  stars: number
-}
-
-/**
  * Represents a log/execution for mention suggestions
  */
 export interface LogItem {
@@ -100,7 +90,6 @@ export interface MentionDataReturn {
   knowledgeBases: KnowledgeItem[]
   blocksList: BlockItem[]
   workflowBlocks: WorkflowBlockItem[]
-  templatesList: TemplateItem[]
   logsList: LogItem[]
   integrations: readonly IntegrationDescriptor[]
 
@@ -110,7 +99,6 @@ export interface MentionDataReturn {
   isLoadingKnowledge: boolean
   isLoadingBlocks: boolean
   isLoadingWorkflowBlocks: boolean
-  isLoadingTemplates: boolean
   isLoadingLogs: boolean
   isLoadingIntegrations: boolean
 
@@ -118,13 +106,12 @@ export interface MentionDataReturn {
   ensurePastChatsLoaded: () => Promise<void>
   ensureKnowledgeLoaded: () => Promise<void>
   ensureBlocksLoaded: () => Promise<void>
-  ensureTemplatesLoaded: () => Promise<void>
   ensureLogsLoaded: () => Promise<void>
 }
 
 /**
  * Custom hook to fetch and manage data for mention suggestions
- * Loads data from APIs for chats, workflows, knowledge bases, blocks, templates, and logs
+ * Loads data from APIs for chats, workflows, knowledge bases, blocks, and logs
  *
  * @param props - Configuration including workflow and workspace IDs
  * @returns Mention data state and loading operations
@@ -146,9 +133,6 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
   useEffect(() => {
     setBlocksList([])
   }, [config.allowedIntegrations])
-
-  const [templatesList, setTemplatesList] = useState<TemplateItem[]>([])
-  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
 
   const [logsList, setLogsList] = useState<LogItem[]>([])
   const [isLoadingLogs, setIsLoadingLogs] = useState(false)
@@ -326,27 +310,6 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
   }, [isLoadingBlocks, blocksList.length, isBlockAllowed])
 
   /**
-   * Ensures templates are loaded
-   */
-  const ensureTemplatesLoaded = useCallback(async () => {
-    if (isLoadingTemplates || templatesList.length > 0) return
-    try {
-      setIsLoadingTemplates(true)
-      const data = await requestJson(listTemplatesContract, {
-        query: { limit: 50, offset: 0 },
-      })
-      const items = data.data
-      const mapped = items
-        .map((t) => ({ id: t.id, name: t.name || 'Untitled Template', stars: t.stars || 0 }))
-        .sort((a, b) => b.stars - a.stars)
-      setTemplatesList(mapped)
-    } catch {
-    } finally {
-      setIsLoadingTemplates(false)
-    }
-  }, [isLoadingTemplates, templatesList.length])
-
-  /**
    * Ensures logs are loaded
    */
   const ensureLogsLoaded = useCallback(async () => {
@@ -382,8 +345,6 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     isLoadingKnowledge,
     blocksList,
     isLoadingBlocks,
-    templatesList,
-    isLoadingTemplates,
     logsList,
     isLoadingLogs,
     workflowBlocks,
@@ -395,7 +356,6 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     ensurePastChatsLoaded,
     ensureKnowledgeLoaded,
     ensureBlocksLoaded,
-    ensureTemplatesLoaded,
     ensureLogsLoaded,
   }
 }

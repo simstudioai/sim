@@ -34,7 +34,6 @@ export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboa
 |----------|--------|
 | Mod+K | Open search |
 | Mod+Shift+A | Add new agent workflow |
-| Mod+Y | Go to templates |
 | Mod+L | Go to logs |
 
 ### Utility

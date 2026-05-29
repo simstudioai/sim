@@ -3,7 +3,6 @@ import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/feature-flags'
 import {
   getChatEmbedCSPPolicy,
-  getFormEmbedCSPPolicy,
   getMainCSPPolicy,
   getWorkflowExecutionCSPPolicy,
 } from './lib/core/security/csp'
@@ -224,29 +223,11 @@ const nextConfig: NextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
         ],
       },
-      // Form pages - allow iframe embedding from any origin
-      {
-        source: '/form/:path*',
-        headers: [
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-          // No X-Frame-Options to allow iframe embedding
-          {
-            key: 'Content-Security-Policy',
-            value: getFormEmbedCSPPolicy(),
-          },
-          // Permissive CORS for form API requests from embedded forms
-          { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
-          { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
-        ],
-      },
       // Apply security headers to routes not handled by middleware runtime CSP
       // Middleware handles: /, /login, /signup, /workspace/*
-      // Exclude chat and form routes which have their own permissive embed headers
+      // Exclude chat routes which have their own permissive embed headers
       {
-        source: '/((?!workspace|chat|form|login|signup|$).*)',
+        source: '/((?!workspace|chat|login|signup|$).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',

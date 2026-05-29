@@ -27,7 +27,7 @@ export interface PreprocessExecutionOptions {
   // Required fields
   workflowId: string
   userId: string // The authenticated user ID
-  triggerType: CoreTriggerType | 'form'
+  triggerType: CoreTriggerType
   executionId: string
   requestId: string
 

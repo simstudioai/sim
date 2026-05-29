@@ -183,15 +183,12 @@ export function useWorkspaceManagement({
   )
 
   const confirmDeleteWorkspace = useCallback(
-    async (workspaceToDelete: Workspace, templateAction?: 'keep' | 'delete') => {
+    async (workspaceToDelete: Workspace) => {
       try {
         logger.info('Deleting workspace:', workspaceToDelete.id)
 
-        const deleteTemplates = templateAction === 'delete'
-
         await deleteWorkspaceMutation.mutateAsync({
           workspaceId: workspaceToDelete.id,
-          deleteTemplates,
         })
 
         WorkspaceRecencyStorage.remove(workspaceToDelete.id)

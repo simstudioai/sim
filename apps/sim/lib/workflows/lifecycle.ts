@@ -3,7 +3,6 @@ import {
   a2aAgent,
   apiKey,
   chat,
-  form,
   webhook,
   workflow,
   workflowDeploymentVersion,
@@ -164,15 +163,6 @@ export async function archiveWorkflow(
       .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
 
     await tx
-      .update(form)
-      .set({
-        archivedAt: now,
-        updatedAt: now,
-        isActive: false,
-      })
-      .where(and(eq(form.workflowId, workflowId), isNull(form.archivedAt)))
-
-    await tx
       .update(workflowMcpTool)
       .set({
         archivedAt: now,
@@ -302,11 +292,6 @@ export async function restoreWorkflow(
       .where(eq(chat.workflowId, workflowId))
 
     await tx
-      .update(form)
-      .set({ archivedAt: null, updatedAt: now })
-      .where(eq(form.workflowId, workflowId))
-
-    await tx
       .update(workflowMcpTool)
       .set({ archivedAt: null, updatedAt: now })
       .where(eq(workflowMcpTool.workflowId, workflowId))
@@ -385,7 +370,7 @@ export async function archiveWorkflowsByIdsInWorkspace(
 
 /**
  * Disables all resources owned by a banned user by archiving every workspace
- * they own (cascading to workflows, chats, forms, KBs, tables, files, etc.)
+ * they own (cascading to workflows, chats, KBs, tables, files, etc.)
  * and deleting their personal API keys.
  */
 export async function disableUserResources(userId: string): Promise<void> {

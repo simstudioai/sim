@@ -10,7 +10,7 @@ import { getSession } from '@/lib/auth'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-dual-write'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
+import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import {
   loadWorkflowFromNormalizedTables,

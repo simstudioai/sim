@@ -140,7 +140,6 @@ export function useCreateWorkspace() {
 
 interface DeleteWorkspaceParams {
   workspaceId: string
-  deleteTemplates?: boolean
 }
 
 /**
@@ -151,10 +150,10 @@ export function useDeleteWorkspace() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, deleteTemplates = false }: DeleteWorkspaceParams) => {
+    mutationFn: async ({ workspaceId }: DeleteWorkspaceParams) => {
       return requestJson(deleteWorkspaceContract, {
         params: { id: workspaceId },
-        body: { deleteTemplates },
+        body: {},
       })
     },
     onSettled: (_data, _error, variables) => {

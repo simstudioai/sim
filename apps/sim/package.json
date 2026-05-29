@@ -135,7 +135,6 @@
     "google-auth-library": "10.5.0",
     "gray-matter": "^4.0.3",
     "groq-sdk": "^0.15.0",
-    "html-to-image": "1.11.13",
     "html-to-text": "^9.0.5",
     "idb-keyval": "6.2.2",
     "imapflow": "1.2.4",

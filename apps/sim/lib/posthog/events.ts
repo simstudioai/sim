@@ -353,12 +353,6 @@ export interface PostHogEventMap {
     has_workflow_yaml: boolean
   }
 
-  /** `template_modules` is a space-separated list of module tags, e.g. `"agent tables knowledge-base"`. */
-  template_used: {
-    template_title: string
-    template_modules: string
-  }
-
   settings_tab_viewed: {
     section: string
   }
