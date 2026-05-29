@@ -460,6 +460,7 @@ export class LoggingSession {
             totalCompletionTokens: 0,
             baseExecutionCharge: 0,
             models: {},
+            charges: {},
           }
         : calculateCostSummary(traceSpans)
 

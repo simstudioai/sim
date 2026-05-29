@@ -50,12 +50,18 @@ async function* pages(input: SourcePageInput): AsyncIterable<WorkflowLogRow[]> {
 
     // Heavy execution data may live in object storage; resolve pointers (bounded
     // concurrency) so the drain exports full execution data, not the slim row.
-    await mapWithConcurrency(rows, MATERIALIZE_CONCURRENCY, async (row) => {
-      row.executionData = (await materializeExecutionData(
-        row.executionData as Record<string, unknown> | null,
-        { workspaceId: row.workspaceId, workflowId: row.workflowId, executionId: row.executionId }
-      )) as WorkflowLogRow['executionData']
-    })
+    // Use the order-preserving returned array (the util's documented contract)
+    // and write back, rather than mutating rows inside the mapper.
+    const materialized = await mapWithConcurrency(rows, MATERIALIZE_CONCURRENCY, (row) =>
+      materializeExecutionData(row.executionData as Record<string, unknown> | null, {
+        workspaceId: row.workspaceId,
+        workflowId: row.workflowId,
+        executionId: row.executionId,
+      })
+    )
+    for (let i = 0; i < rows.length; i++) {
+      rows[i].executionData = materialized[i] as WorkflowLogRow['executionData']
+    }
 
     yield rows
     const last = rows[rows.length - 1]
