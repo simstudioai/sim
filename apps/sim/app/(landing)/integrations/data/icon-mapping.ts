@@ -151,6 +151,7 @@ import {
   QdrantIcon,
   QuiverIcon,
   RailwayIcon,
+  RB2BIcon,
   RDSIcon,
   RedditIcon,
   RedisIcon,
@@ -208,6 +209,7 @@ import {
   ZendeskIcon,
   ZepIcon,
   ZoomIcon,
+  ZoomInfoIcon,
 } from '@/components/icons'
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
@@ -359,6 +361,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   qdrant: QdrantIcon,
   quiver: QuiverIcon,
   railway: RailwayIcon,
+  rb2b: RB2BIcon,
   rds: RDSIcon,
   reddit: RedditIcon,
   redis: RedisIcon,
@@ -418,4 +421,5 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   zendesk: ZendeskIcon,
   zep: ZepIcon,
   zoom: ZoomIcon,
+  zoominfo: ZoomInfoIcon,
 }

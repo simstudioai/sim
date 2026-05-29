@@ -23,6 +23,9 @@ import { type NormalizedSelection, resolveCellExec } from './utils'
 export interface DataRowProps {
   row: TableRowType
   columns: DisplayColumn[]
+  /** Current workspace id — forwarded to cells so in-workspace resource URLs
+   *  render as tagged-resource chips. */
+  workspaceId: string
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
@@ -57,6 +60,10 @@ export interface DataRowProps {
    * queued indicators across page refresh during long Run-all dispatches.
    */
   activeDispatches: ActiveDispatch[] | undefined
+  /** Pixel `left` value for each pinned column key; absent keys are not pinned. */
+  pinnedOffsets?: Map<string, number>
+  /** Key of the rightmost pinned column, used to render a separator shadow. */
+  lastPinnedColKey?: string | null
 }
 
 function cellRangeRowChanged(
@@ -94,6 +101,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
   if (
     prev.row !== next.row ||
     prev.columns !== next.columns ||
+    prev.workspaceId !== next.workspaceId ||
     prev.rowIndex !== next.rowIndex ||
     prev.isFirstRow !== next.isFirstRow ||
     prev.editingColumnName !== next.editingColumnName ||
@@ -113,7 +121,9 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.onStopRow !== next.onStopRow ||
     prev.onRunRow !== next.onRunRow ||
     prev.workflowGroups !== next.workflowGroups ||
-    prev.activeDispatches !== next.activeDispatches
+    prev.activeDispatches !== next.activeDispatches ||
+    prev.pinnedOffsets !== next.pinnedOffsets ||
+    prev.lastPinnedColKey !== next.lastPinnedColKey
   ) {
     return false
   }
@@ -135,6 +145,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
 export const DataRow = React.memo(function DataRow({
   row,
   columns,
+  workspaceId,
   rowIndex,
   isFirstRow,
   editingColumnName,
@@ -157,6 +168,8 @@ export const DataRow = React.memo(function DataRow({
   onRunRow,
   workflowGroups,
   activeDispatches,
+  pinnedOffsets,
+  lastPinnedColKey,
 }: DataRowProps) {
   const sel = normalizedSelection
   /**
@@ -196,7 +209,12 @@ export const DataRow = React.memo(function DataRow({
             tabIndex={0}
             aria-checked={isRowSelected}
             aria-label={`Select row ${rowIndex + 1}`}
-            className='group/checkbox flex h-[20px] shrink-0 items-center justify-center'
+            className={cn(
+              'group/checkbox flex h-[20px] shrink-0 items-center justify-end',
+              // Lighter right inset for narrow indices (≤3 digits → numDivWidth ≤ 28);
+              // full 4px once the column widens (4+ digits, numDivWidth ≥ 36).
+              numDivWidth >= 36 ? 'pr-1' : 'pr-0.5'
+            )}
             style={{ width: numDivWidth }}
             onMouseDown={(e) => {
               if (e.button !== 0) return
@@ -208,7 +226,7 @@ export const DataRow = React.memo(function DataRow({
           >
             <span
               className={cn(
-                'text-center text-[var(--text-tertiary)] text-xs tabular-nums',
+                'text-right text-[var(--text-tertiary)] text-xs tabular-nums',
                 isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
               )}
             >
@@ -264,13 +282,23 @@ export const DataRow = React.memo(function DataRow({
         const isLeftEdge = inRange ? colIndex === sel!.startCol : colIndex === 0
         const isRightEdge = inRange ? colIndex === sel!.endCol : colIndex === columns.length - 1
 
+        const pinnedLeft = pinnedOffsets?.get(column.key)
+        const isPinnedCell = pinnedLeft !== undefined
+        const isPinnedSeparator = column.key === lastPinnedColKey
+
         return (
           <td
             key={column.key}
             data-row={rowIndex}
             data-row-id={row.id}
             data-col={colIndex}
-            className={cn(CELL, (isHighlighted || isAnchor || isEditing) && 'relative')}
+            className={cn(
+              CELL,
+              (isHighlighted || isAnchor || isEditing) && 'relative',
+              isPinnedCell && 'z-[6] bg-[var(--bg)]',
+              isPinnedSeparator && '[box-shadow:2px_0_0_0_var(--border)]'
+            )}
+            style={isPinnedCell ? { position: 'sticky', left: pinnedLeft } : undefined}
             onMouseDown={(e) => {
               if (e.button !== 0 || isEditing) return
               onCellMouseDown(rowIndex, colIndex, e.shiftKey)
@@ -310,6 +338,7 @@ export const DataRow = React.memo(function DataRow({
             )}
             <div className={CELL_CONTENT}>
               <CellContent
+                workspaceId={workspaceId}
                 value={
                   pendingCellValue && column.name in pendingCellValue
                     ? pendingCellValue[column.name]

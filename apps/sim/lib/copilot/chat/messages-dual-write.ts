@@ -7,9 +7,26 @@ import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 
 const logger = createLogger('CopilotMessagesDualWrite')
 
+/**
+ * Keep the first occurrence of each message id. A single `INSERT ... ON
+ * CONFLICT` cannot touch the same conflict target twice, so a repeated id
+ * would otherwise throw.
+ */
+function dedupeById(messages: PersistedMessage[]): PersistedMessage[] {
+  const seen = new Set<string>()
+  const out: PersistedMessage[] = []
+  for (const m of messages) {
+    if (seen.has(m.id)) continue
+    seen.add(m.id)
+    out.push(m)
+  }
+  return out
+}
+
 function toRow(
   chatId: string,
   message: PersistedMessage,
+  seq: number,
   options?: { chatModel?: string | null; streamId?: string | null }
 ): typeof copilotMessages.$inferInsert {
   const ts = new Date(message.timestamp)
@@ -18,6 +35,7 @@ function toRow(
     messageId: message.id,
     role: message.role,
     content: message,
+    seq,
     model: options?.chatModel ?? null,
     streamId: options?.streamId ?? null,
     createdAt: ts,
@@ -27,8 +45,15 @@ function toRow(
 
 /**
  * Append messages to the new `copilot_messages` table. Best-effort — errors
- * are logged but never thrown, since the legacy `copilot_chats.messages`
- * JSONB column remains the source of truth during the dual-write rollout.
+ * are logged but never thrown; the legacy `copilot_chats.messages` JSONB
+ * column stays the source of truth during the dual-write rollout.
+ *
+ * `seq` is `MAX(seq) + index`, computed in JS (not in SQL, where every row of
+ * a multi-row INSERT would read the same pre-insert MAX and collide). The
+ * read-then-insert is non-atomic, so interleaved appends to one chat can tie
+ * `seq`; that window is bounded by the cutover read order (`seq, created_at,
+ * id`) and `replaceCopilotChatMessages`, which re-densifies `seq` from the
+ * authoritative JSONB order on the next snapshot save.
  */
 export async function appendCopilotChatMessages(
   chatId: string,
@@ -37,9 +62,15 @@ export async function appendCopilotChatMessages(
 ): Promise<void> {
   if (messages.length === 0) return
   try {
+    const deduped = dedupeById(messages)
+    const [maxRow] = await db
+      .select({ maxSeq: sql<number | null>`max(${copilotMessages.seq})` })
+      .from(copilotMessages)
+      .where(eq(copilotMessages.chatId, chatId))
+    const base = (maxRow?.maxSeq ?? -1) + 1
     await db
       .insert(copilotMessages)
-      .values(messages.map((m) => toRow(chatId, m, options)))
+      .values(deduped.map((m, i) => toRow(chatId, m, base + i, options)))
       .onConflictDoUpdate({
         target: [copilotMessages.chatId, copilotMessages.messageId],
         set: {
@@ -47,6 +78,7 @@ export async function appendCopilotChatMessages(
           role: sql`excluded.role`,
           model: sql`COALESCE(excluded.model, ${copilotMessages.model})`,
           streamId: sql`COALESCE(excluded.stream_id, ${copilotMessages.streamId})`,
+          seq: sql`COALESCE(${copilotMessages.seq}, excluded.seq)`,
           updatedAt: sql`now()`,
         },
       })
@@ -69,7 +101,8 @@ export async function replaceCopilotChatMessages(
   options?: { chatModel?: string | null }
 ): Promise<void> {
   try {
-    const newMessageIds = messages.map((m) => m.id)
+    const deduped = dedupeById(messages)
+    const newMessageIds = deduped.map((m) => m.id)
     await db.transaction(async (tx) => {
       // Drop rows for messages not in the new snapshot.
       await tx
@@ -82,12 +115,12 @@ export async function replaceCopilotChatMessages(
               )
             : eq(copilotMessages.chatId, chatId)
         )
-      if (messages.length === 0) return
-      // Upsert remaining rows. ON CONFLICT preserves existing stream_id / model
-      // so a snapshot save doesn't clobber metadata set during streaming.
+      if (deduped.length === 0) return
+      // Snapshot is authoritative on order, so seq = array index is overwritten
+      // on conflict; stream_id / model are preserved via COALESCE.
       await tx
         .insert(copilotMessages)
-        .values(messages.map((m) => toRow(chatId, m, options)))
+        .values(deduped.map((m, i) => toRow(chatId, m, i, options)))
         .onConflictDoUpdate({
           target: [copilotMessages.chatId, copilotMessages.messageId],
           set: {
@@ -95,6 +128,7 @@ export async function replaceCopilotChatMessages(
             role: sql`excluded.role`,
             model: sql`COALESCE(excluded.model, ${copilotMessages.model})`,
             streamId: sql`COALESCE(excluded.stream_id, ${copilotMessages.streamId})`,
+            seq: sql`excluded.seq`,
             updatedAt: sql`now()`,
           },
         })

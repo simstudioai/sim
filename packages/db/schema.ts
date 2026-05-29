@@ -1991,6 +1991,7 @@ export const copilotMessages = pgTable(
     model: text('model'),
     tokensIn: integer('tokens_in'),
     tokensOut: integer('tokens_out'),
+    seq: integer('seq'),
     deletedAt: timestamp('deleted_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -2002,6 +2003,9 @@ export const copilotMessages = pgTable(
     ),
     chatCreatedAtIdx: index('copilot_messages_chat_created_at_idx')
       .on(table.chatId, table.createdAt, table.id)
+      .where(sql`${table.deletedAt} IS NULL`),
+    chatSeqIdx: index('copilot_messages_chat_seq_idx')
+      .on(table.chatId, table.seq)
       .where(sql`${table.deletedAt} IS NULL`),
     chatStreamIdx: index('copilot_messages_chat_stream_idx')
       .on(table.chatId, table.streamId)

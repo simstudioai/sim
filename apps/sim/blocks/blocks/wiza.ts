@@ -54,6 +54,15 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: '[{"v":"CEO","s":"i"},{"v":"Founder","s":"i"}]',
       condition: { field: 'operation', value: 'prospect_search' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Wiza job_title filter: a JSON array of include/exclude objects.
+Each object is {"v": "<job title>", "s": "i" | "e"} where "i" includes and "e" excludes the title. Use double quotes around a phrase for an exact match.
+Example: [{"v":"CEO","s":"i"},{"v":"intern","s":"e"}]
+Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the job titles to include/exclude...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'job_title_level',
@@ -102,6 +111,15 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: '[{"v":{"country":"united states"},"b":"city","s":"i"}]',
       condition: { field: 'operation', value: 'prospect_search' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Wiza person location filter: a JSON array of location objects.
+Each object is {"v": {"country": "...", "state": "...", "city": "..."}, "b": "country" | "state" | "city", "s": "i" | "e"} where "b" is the level to match, "s" includes ("i") or excludes ("e").
+Example: [{"v":{"country":"united states","state":"california"},"b":"state","s":"i"}]
+Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the person locations to include/exclude...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'skill',
@@ -142,6 +160,15 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: '[{"v":"wiza","s":"i"}]',
       condition: { field: 'operation', value: 'prospect_search' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Wiza current-company filter: a JSON array of include/exclude objects.
+Each object is {"v": "<company name>", "s": "i" | "e"} where "i" includes and "e" excludes the company.
+Example: [{"v":"wiza","s":"i"},{"v":"acme","s":"e"}]
+Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the current companies to include/exclude...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'past_company',
@@ -150,6 +177,15 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: '[{"v":"google","s":"i"}]',
       condition: { field: 'operation', value: 'prospect_search' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Wiza past-company filter: a JSON array of include/exclude objects.
+Each object is {"v": "<company name>", "s": "i" | "e"} where "i" includes and "e" excludes the company.
+Example: [{"v":"google","s":"i"}]
+Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the past companies to include/exclude...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'company_location',
@@ -158,6 +194,15 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: '[{"v":{"country":"canada"},"b":"country","s":"i"}]',
       condition: { field: 'operation', value: 'prospect_search' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Wiza company HQ location filter: a JSON array of location objects.
+Each object is {"v": {"country": "...", "state": "...", "city": "..."}, "b": "country" | "state" | "city", "s": "i" | "e"} where "b" is the level to match, "s" includes ("i") or excludes ("e").
+Example: [{"v":{"country":"canada","state":"ontario"},"b":"state","s":"i"}]
+Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the company HQ locations to include/exclude...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'company_industry',
@@ -166,6 +211,15 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: '[{"v":"computer software","s":"i"}]',
       condition: { field: 'operation', value: 'prospect_search' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Wiza company industry filter: a JSON array of include/exclude objects.
+Each object is {"v": "<industry>", "s": "i" | "e"} where "i" includes and "e" excludes the industry.
+Example: [{"v":"computer software","s":"i"},{"v":"retail","s":"e"}]
+Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the company industries to include/exclude...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'company_size',
@@ -190,6 +244,15 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: '{"job_title":[{"v":"CEO","s":"i"}], "company_size":["11-50"]}',
       condition: { field: 'operation', value: 'prospect_search' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Wiza prospect-search filters object as JSON.
+Available keys: first_name, last_name (string arrays); job_title, job_company, past_company, company_industry (arrays of {"v":"...","s":"i"|"e"}); location, company_location (arrays of {"v":{country,state,city},"b":"country"|"state"|"city","s":"i"|"e"}); job_title_level, job_role, job_sub_role, skill, school, major, linkedin_slug, company_size, company_type (string arrays).
+Example: {"job_title":[{"v":"CEO","s":"i"}],"company_size":["11-50","51-200"],"company_location":[{"v":{"country":"united states"},"b":"country","s":"i"}]}
+Return ONLY the JSON object - no explanations, no extra text.`,
+        placeholder: 'Describe the prospects to search for...',
+        generationType: 'json-object',
+      },
     },
 
     // Company Enrichment
@@ -235,7 +298,7 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
         { label: 'Phone', id: 'phone' },
         { label: 'Full', id: 'full' },
       ],
-      value: () => 'full',
+      value: () => 'partial',
       condition: { field: 'operation', value: 'start_individual_reveal' },
       required: { field: 'operation', value: 'start_individual_reveal' },
     },
@@ -421,7 +484,159 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the operation was successful' },
-    output: { type: 'json', description: 'Output data from the Wiza operation' },
+    total: {
+      type: 'number',
+      description: 'Total prospects matching filters (prospect_search)',
+    },
+    profiles: {
+      type: 'json',
+      description:
+        'Sample prospect profiles (prospect_search): [{full_name, linkedin_url, industry, job_title, job_title_role, job_title_sub_role, job_company_name, job_company_website, location_name}]',
+    },
+    id: {
+      type: 'number',
+      description: 'Reveal ID (start_individual_reveal, get_individual_reveal)',
+    },
+    status: {
+      type: 'string',
+      description:
+        'Reveal status (start_individual_reveal, get_individual_reveal): queued | resolving | finished | failed',
+    },
+    is_complete: {
+      type: 'boolean',
+      description:
+        'Whether the reveal has completed (start_individual_reveal, get_individual_reveal)',
+    },
+    name: { type: 'string', description: 'Full name (get_individual_reveal)' },
+    company: { type: 'string', description: 'Company name (get_individual_reveal)' },
+    enrichment_level: {
+      type: 'string',
+      description: 'Enrichment level used (get_individual_reveal)',
+    },
+    linkedin_profile_url: { type: 'string', description: 'LinkedIn URL (get_individual_reveal)' },
+    title: { type: 'string', description: 'Job title (get_individual_reveal)' },
+    location: { type: 'string', description: 'Location (get_individual_reveal)' },
+    email: { type: 'string', description: 'Primary email (get_individual_reveal)' },
+    email_type: { type: 'string', description: 'Primary email type (get_individual_reveal)' },
+    email_status: {
+      type: 'string',
+      description: 'Primary email status: valid | risky | unfound (get_individual_reveal)',
+    },
+    emails: {
+      type: 'json',
+      description: 'All emails found (get_individual_reveal): [{email, email_type, email_status}]',
+    },
+    mobile_phone: { type: 'string', description: 'Mobile phone (get_individual_reveal)' },
+    phone_number: { type: 'string', description: 'Direct/office phone (get_individual_reveal)' },
+    phone_status: {
+      type: 'string',
+      description: 'Phone status: found | unfound (get_individual_reveal)',
+    },
+    phones: {
+      type: 'json',
+      description: 'All phones found (get_individual_reveal): [{number, pretty_number, type}]',
+    },
+    company_name: {
+      type: 'string',
+      description: 'Company name (company_enrichment)',
+    },
+    company_domain: {
+      type: 'string',
+      description: 'Company domain (company_enrichment, get_individual_reveal)',
+    },
+    domain: { type: 'string', description: 'Domain (company_enrichment)' },
+    company_industry: {
+      type: 'string',
+      description: 'Industry (company_enrichment, get_individual_reveal)',
+    },
+    company_size: {
+      type: 'number',
+      description: 'Employee count (company_enrichment, get_individual_reveal)',
+    },
+    company_size_range: {
+      type: 'string',
+      description: 'Headcount range (company_enrichment, get_individual_reveal)',
+    },
+    company_founded: {
+      type: 'number',
+      description: 'Year founded (company_enrichment, get_individual_reveal)',
+    },
+    company_revenue_range: {
+      type: 'string',
+      description: 'Revenue range (company_enrichment)',
+    },
+    company_revenue: { type: 'string', description: 'Revenue (get_individual_reveal)' },
+    company_funding: {
+      type: 'string',
+      description: 'Total funding (company_enrichment, get_individual_reveal)',
+    },
+    company_type: {
+      type: 'string',
+      description: 'Company type (company_enrichment, get_individual_reveal)',
+    },
+    company_description: {
+      type: 'string',
+      description: 'Company description (company_enrichment, get_individual_reveal)',
+    },
+    company_ticker: { type: 'string', description: 'Stock ticker (company_enrichment)' },
+    company_last_funding_round: {
+      type: 'string',
+      description: 'Last funding round (company_enrichment)',
+    },
+    company_last_funding_amount: {
+      type: 'string',
+      description: 'Last funding amount (company_enrichment)',
+    },
+    company_last_funding_at: {
+      type: 'string',
+      description: 'Last funding date (company_enrichment)',
+    },
+    company_location: {
+      type: 'string',
+      description: 'Full location string (company_enrichment, get_individual_reveal)',
+    },
+    company_twitter: { type: 'string', description: 'Twitter URL (company_enrichment)' },
+    company_facebook: { type: 'string', description: 'Facebook URL (company_enrichment)' },
+    company_linkedin: {
+      type: 'string',
+      description: 'LinkedIn URL (company_enrichment, get_individual_reveal)',
+    },
+    company_linkedin_id: { type: 'string', description: 'LinkedIn ID (company_enrichment)' },
+    company_street: {
+      type: 'string',
+      description: 'Street address (company_enrichment, get_individual_reveal)',
+    },
+    company_locality: {
+      type: 'string',
+      description: 'City (company_enrichment, get_individual_reveal)',
+    },
+    company_region: {
+      type: 'string',
+      description: 'State/region (company_enrichment, get_individual_reveal)',
+    },
+    company_postal_code: {
+      type: 'string',
+      description: 'Postal code (company_enrichment, get_individual_reveal)',
+    },
+    company_country: {
+      type: 'string',
+      description: 'Country (company_enrichment, get_individual_reveal)',
+    },
+    company_subindustry: { type: 'string', description: 'Subindustry (get_individual_reveal)' },
+    credits: {
+      type: 'json',
+      description:
+        'Credits deducted — company_enrichment: { api_credits: { total, company_credits } }; get_individual_reveal: { api_credits: { total, email_credits, phone_credits, scrape_credits } }',
+    },
+    email_credits: {
+      type: 'json',
+      description: 'Remaining email credits — number or "unlimited" (get_credits)',
+    },
+    phone_credits: {
+      type: 'json',
+      description: 'Remaining phone credits — number or "unlimited" (get_credits)',
+    },
+    export_credits: { type: 'number', description: 'Remaining export credits (get_credits)' },
+    api_credits: { type: 'number', description: 'Remaining API credits (get_credits)' },
   },
 }

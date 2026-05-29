@@ -49,6 +49,7 @@
     "elevenlabs",
     "emailbison",
     "enrich",
+    "enrichment",
     "evernote",
     "exa",
     "extend",
@@ -148,6 +149,7 @@
     "qdrant",
     "quiver",
     "railway",
+    "rb2b",
     "rds",
     "reddit",
     "redis",
@@ -207,6 +209,7 @@
     "youtube",
     "zendesk",
     "zep",
-    "zoom"
+    "zoom",
+    "zoominfo"
   ]
 }

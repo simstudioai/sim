@@ -15,7 +15,7 @@ export const apolloAccountSearchTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key (master key required)',
     },
     q_organization_name: {

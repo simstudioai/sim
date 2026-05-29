@@ -18,7 +18,7 @@ export const apolloContactBulkUpdateTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key (master key required)',
     },
     contact_ids: {
@@ -95,25 +95,44 @@ export const apolloContactBulkUpdateTool: ToolConfig<
     }
 
     const data = await response.json()
+    const contacts = Array.isArray(data?.contacts) ? data.contacts : []
+    const entityProgressJob = data?.entity_progress_job ?? null
+    const jobId =
+      typeof data?.job_id === 'string'
+        ? data.job_id
+        : typeof entityProgressJob?.id === 'string'
+          ? entityProgressJob.id
+          : null
 
     return {
       success: true,
       output: {
-        message: data.message ?? null,
-        job_id: data.job_id ?? null,
+        contacts,
+        entity_progress_job: entityProgressJob,
+        job_id: jobId,
+        message: data?.message ?? null,
       },
     }
   },
 
   outputs: {
-    message: {
-      type: 'string',
-      description: 'Confirmation message from Apollo',
+    contacts: {
+      type: 'json',
+      description: 'Updated contacts (synchronous response, ≤100 contacts)',
+    },
+    entity_progress_job: {
+      type: 'json',
+      description: 'Async job descriptor (>100 contacts or async=true): {id, status, ...}',
       optional: true,
     },
     job_id: {
       type: 'string',
-      description: 'Async job ID (returned for >100 contacts)',
+      description: 'Async job ID extracted from entity_progress_job',
+      optional: true,
+    },
+    message: {
+      type: 'string',
+      description: 'Optional confirmation message from Apollo',
       optional: true,
     },
   },

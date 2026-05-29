@@ -17,7 +17,7 @@ export const apolloOpportunitySearchTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key',
     },
     sort_by_field: {

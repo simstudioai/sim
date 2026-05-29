@@ -100,9 +100,17 @@ export const wizaGetIndividualRevealTool: ToolConfig<
   },
 
   outputs: {
-    id: { type: 'number', description: 'Reveal ID' },
-    status: { type: 'string', description: 'queued | resolving | finished | failed' },
-    is_complete: { type: 'boolean', description: 'Whether the reveal has completed' },
+    id: { type: 'number', description: 'Reveal ID', optional: true },
+    status: {
+      type: 'string',
+      description: 'queued | resolving | finished | failed',
+      optional: true,
+    },
+    is_complete: {
+      type: 'boolean',
+      description: 'Whether the reveal has completed',
+      optional: true,
+    },
     name: { type: 'string', description: 'Full name', optional: true },
     company: { type: 'string', description: 'Company name', optional: true },
     enrichment_level: { type: 'string', description: 'Enrichment level used', optional: true },
@@ -158,6 +166,11 @@ export const wizaGetIndividualRevealTool: ToolConfig<
     company_linkedin: { type: 'string', description: 'Company LinkedIn URL', optional: true },
     company_location: { type: 'string', description: 'Full company location', optional: true },
     company_description: { type: 'string', description: 'Company description', optional: true },
-    credits: { type: 'json', description: 'Remaining credits balance', optional: true },
+    credits: {
+      type: 'json',
+      description:
+        'Credits deducted for this reveal (api_credits: { total, email_credits, phone_credits, scrape_credits })',
+      optional: true,
+    },
   },
 }

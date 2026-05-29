@@ -171,7 +171,8 @@ Download a signed document from a completed DocuSign envelope
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `base64Content` | string | Base64-encoded document content |
+| `file` | file | Stored downloaded document file |
+| `base64Content` | string | Deprecated legacy inline content. New downloads return file. |
 | `mimeType` | string | MIME type of the document |
 | `fileName` | string | Original file name |
 
