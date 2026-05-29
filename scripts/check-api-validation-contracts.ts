@@ -88,6 +88,9 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/mcp/copilot/route.ts',
   'apps/sim/app/api/mcp/copilot/.well-known/oauth-authorization-server/route.ts',
   'apps/sim/app/api/mcp/copilot/.well-known/oauth-protected-resource/route.ts',
+  // Deprecated v1 headless copilot chat API: gated to always return 410 Gone
+  // and consumes no client-supplied input.
+  'apps/sim/app/api/v1/copilot/chat/route.ts',
 ])
 
 /**
