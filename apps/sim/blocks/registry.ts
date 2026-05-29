@@ -165,6 +165,7 @@ import { PulseBlock, PulseV2Block } from '@/blocks/blocks/pulse'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { QuiverBlock } from '@/blocks/blocks/quiver'
 import { RailwayBlock } from '@/blocks/blocks/railway'
+import { RB2BBlock } from '@/blocks/blocks/rb2b'
 import { RDSBlock } from '@/blocks/blocks/rds'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { RedisBlock } from '@/blocks/blocks/redis'
@@ -432,6 +433,7 @@ export const registry: Record<string, BlockConfig> = {
   qdrant: QdrantBlock,
   quiver: QuiverBlock,
   railway: RailwayBlock,
+  rb2b: RB2BBlock,
   rds: RDSBlock,
   reddit: RedditBlock,
   redis: RedisBlock,

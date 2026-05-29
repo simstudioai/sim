@@ -1,0 +1,756 @@
+---
+title: RB2B
+description: Identify and enrich website visitors
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="rb2b"
+  color="#51FF00"
+/>
+
+## Usage Instructions
+
+Resolve IP addresses, hashed emails, and LinkedIn profiles into person-level identity and B2B enrichment data using the RB2B API. Convert IPs to hashed emails, MAIDs, and company domains; enrich emails into LinkedIn profiles, business profiles, and mobile IDs; and look up emails or phone numbers from LinkedIn. Requires an RB2B API key.
+
+
+
+## Tools
+
+### `rb2b_credit_check`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+### `rb2b_ip_to_hem`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+### `rb2b_ip_to_maid`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+### `rb2b_ip_to_company`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+### `rb2b_hem_to_business_profile`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+### `rb2b_hem_to_best_linkedin`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+### `rb2b_hem_to_linkedin`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+### `rb2b_hem_to_maid`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+### `rb2b_email_to_activity`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+### `rb2b_linkedin_to_business_profile`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+### `rb2b_linkedin_to_best_personal_email`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+### `rb2b_linkedin_to_personal_email`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+### `rb2b_linkedin_to_hashed_emails`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+### `rb2b_linkedin_to_mobile_phone`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+### `rb2b_linkedin_slug_search`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_remaining` | number | API credits remaining \(Credit Check\) |
+| `results` | json | Result list for IP/MAID/company/activity lookups |
+| `match_count` | number | Number of matches \(Email to Last Active Date\) |
+| `credits_charged` | number | Credits charged for the request |
+| `credits_exhausted` | boolean | Whether the account is out of credits |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `linkedin_slug` | string | LinkedIn slug |
+| `email` | string | Best personal email |
+| `emails` | array | Personal email addresses |
+| `mobile_phone` | string | Mobile phone number |
+| `business_md5_array` | array | MD5 hashes of business emails |
+| `business_sha256_array` | array | SHA-256 hashes of business emails |
+| `personal_md5_array` | array | MD5 hashes of personal emails |
+| `personal_sha256_array` | array | SHA-256 hashes of personal emails |
+| `first_name` | string | First name \(business profile\) |
+| `last_name` | string | Last name \(business profile\) |
+| `full_name` | string | Full name \(LinkedIn business profile\) |
+| `headline` | string | LinkedIn headline |
+| `title` | string | Job title |
+| `seniority` | string | Seniority level |
+| `country` | string | Country |
+| `current_industry` | string | Current industry |
+| `functional_area` | json | Functional area\(s\) |
+| `current_company` | string | Current company name |
+| `current_company_url` | string | Current company website |
+| `current_company_linkedinurl` | string | Current company LinkedIn URL |
+| `company` | json | Company details \(LinkedIn business profile\) |
+| `business_email` | string | Business email address |
+| `personal_email` | string | Personal email address |
+| `personal_emails` | array | Personal emails \(business profile\) |
+| `linkedinurl` | string | LinkedIn profile URL \(business profile\) |
+| `link_email` | string | Linked business email \(business profile\) |
+| `work_email_confirmed` | string | Whether the work email is confirmed |
+| `company_employee_count` | string | Company employee count |
+| `company_employee_range` | string | Company employee range band |
+| `company_revenue_range` | string | Company revenue range band |
+| `md5` | string | MD5 hash of the resolved email |
+
+
