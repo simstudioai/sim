@@ -43,7 +43,6 @@ export const adminV1MemberSchema = z.object({
 export const adminV1MemberDetailSchema = adminV1MemberSchema.extend({
   currentPeriodCost: z.string(),
   currentUsageLimit: z.string().nullable(),
-  lastActive: z.string().nullable(),
   billingBlocked: z.boolean(),
 })
 
@@ -75,18 +74,6 @@ export const adminV1SeatAnalyticsSchema = z.object({
   subscriptionPlan: z.string(),
   canAddSeats: z.boolean(),
   utilizationRate: z.number(),
-  activeMembers: z.number(),
-  inactiveMembers: z.number(),
-  memberActivity: z.array(
-    z.object({
-      userId: z.string(),
-      userName: z.string(),
-      userEmail: z.string(),
-      role: z.string(),
-      joinedAt: z.string(),
-      lastActive: z.string().nullable(),
-    })
-  ),
 })
 
 export const adminV1CreateOrganizationBodySchema = z.object({

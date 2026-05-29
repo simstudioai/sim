@@ -37,6 +37,8 @@ import {
   adminV1ListOrganizationMembersContract,
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import { getBillingPeriodUsageCostByUser } from '@/lib/billing/core/usage-log'
 import { addUserToOrganization } from '@/lib/billing/organizations/membership'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -96,7 +98,6 @@ export const GET = withRouteHandler(
             userEmail: user.email,
             currentPeriodCost: userStats.currentPeriodCost,
             currentUsageLimit: userStats.currentUsageLimit,
-            lastActive: userStats.lastActive,
             billingBlocked: userStats.billingBlocked,
           })
           .from(member)
@@ -109,6 +110,21 @@ export const GET = withRouteHandler(
       ])
 
       const total = countResult[0].count
+
+      // currentPeriodCost is only a baseline; add each member's attributed
+      // usage_log for the org's period so admin shows real current usage.
+      const subscription = await getOrganizationSubscription(organizationId)
+      const billingPeriod =
+        subscription?.periodStart && subscription?.periodEnd
+          ? { start: subscription.periodStart, end: subscription.periodEnd }
+          : null
+      const usageByUser = billingPeriod
+        ? await getBillingPeriodUsageCostByUser(
+            { type: 'organization', id: organizationId },
+            billingPeriod
+          )
+        : new Map<string, number>()
+
       const data: AdminMemberDetail[] = membersData.map((m) => ({
         id: m.id,
         userId: m.userId,
@@ -117,9 +133,10 @@ export const GET = withRouteHandler(
         createdAt: m.createdAt.toISOString(),
         userName: m.userName,
         userEmail: m.userEmail,
-        currentPeriodCost: m.currentPeriodCost ?? '0',
+        currentPeriodCost: (
+          Number(m.currentPeriodCost ?? 0) + (usageByUser.get(m.userId) ?? 0)
+        ).toString(),
         currentUsageLimit: m.currentUsageLimit,
-        lastActive: m.lastActive?.toISOString() ?? null,
         billingBlocked: m.billingBlocked ?? false,
       }))
 

@@ -137,8 +137,6 @@ interface TeamUsageLimit {
   userEmail: string
   currentLimit: number
   currentUsage: number
-  totalCost: number
-  lastActive: Date | null
   limitSetBy: string | null
   limitUpdatedAt: Date | null
 }

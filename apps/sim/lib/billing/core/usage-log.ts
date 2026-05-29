@@ -4,7 +4,7 @@ import { usageLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
@@ -30,6 +30,18 @@ export type UsageLogSource =
   | 'knowledge-base'
   | 'voice-input'
   | 'enrichment'
+
+/**
+ * usage_log sources that make up the "copilot" cost breakdown shown in billing
+ * summaries: the copilot agent, mothership/workspace chat, MCP copilot, and
+ * mothership blocks. Mirrors the source set billed via /api/billing/update-cost.
+ */
+export const COPILOT_USAGE_SOURCES: UsageLogSource[] = [
+  'copilot',
+  'workspace-chat',
+  'mcp_copilot',
+  'mothership_block',
+]
 
 /**
  * Metadata for 'model' category charges
@@ -156,43 +168,55 @@ async function resolveBillingContext(
  */
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
-  billingPeriod: { start: Date; end: Date }
+  billingPeriod: { start: Date; end: Date },
+  source?: UsageLogSource | UsageLogSource[]
 ): Promise<number> {
+  const conditions = [
+    eq(usageLog.billingEntityType, billingEntity.type),
+    eq(usageLog.billingEntityId, billingEntity.id),
+    eq(usageLog.billingPeriodStart, billingPeriod.start),
+    eq(usageLog.billingPeriodEnd, billingPeriod.end),
+  ]
+  if (source) {
+    conditions.push(
+      Array.isArray(source) ? inArray(usageLog.source, source) : eq(usageLog.source, source)
+    )
+  }
+
   const [row] = await db
     .select({
       cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
     })
     .from(usageLog)
-    .where(
-      and(
-        eq(usageLog.billingEntityType, billingEntity.type),
-        eq(usageLog.billingEntityId, billingEntity.id),
-        eq(usageLog.billingPeriodStart, billingPeriod.start),
-        eq(usageLog.billingPeriodEnd, billingPeriod.end)
-      )
-    )
+    .where(and(...conditions))
 
   return Number.parseFloat(row?.cost ?? '0')
 }
 
 export async function getBillingPeriodUsageCostByUser(
   billingEntity: BillingEntity,
-  billingPeriod: { start: Date; end: Date }
+  billingPeriod: { start: Date; end: Date },
+  source?: UsageLogSource | UsageLogSource[]
 ): Promise<Map<string, number>> {
+  const conditions = [
+    eq(usageLog.billingEntityType, billingEntity.type),
+    eq(usageLog.billingEntityId, billingEntity.id),
+    eq(usageLog.billingPeriodStart, billingPeriod.start),
+    eq(usageLog.billingPeriodEnd, billingPeriod.end),
+  ]
+  if (source) {
+    conditions.push(
+      Array.isArray(source) ? inArray(usageLog.source, source) : eq(usageLog.source, source)
+    )
+  }
+
   const rows = await db
     .select({
       userId: usageLog.userId,
       cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
     })
     .from(usageLog)
-    .where(
-      and(
-        eq(usageLog.billingEntityType, billingEntity.type),
-        eq(usageLog.billingEntityId, billingEntity.id),
-        eq(usageLog.billingPeriodStart, billingPeriod.start),
-        eq(usageLog.billingPeriodEnd, billingPeriod.end)
-      )
-    )
+    .where(and(...conditions))
     .groupBy(usageLog.userId)
 
   return new Map(rows.map((row) => [row.userId, Number.parseFloat(row.cost ?? '0')]))

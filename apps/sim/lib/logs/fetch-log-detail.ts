@@ -32,17 +32,35 @@ async function buildCostLedger(executionId: string): Promise<CostLedger | null> 
 
   if (rows.length === 0) return null
 
-  const items = rows.map((row) => {
+  type LedgerItem = CostLedger['items'][number]
+  const byKey = new Map<string, LedgerItem>()
+  for (const row of rows) {
     const metadata = (row.metadata ?? {}) as { inputTokens?: number; outputTokens?: number }
-    return {
-      category: row.category as CostLedger['items'][number]['category'],
-      description: row.description,
-      cost: Number(row.cost),
-      ...(typeof metadata.inputTokens === 'number' ? { inputTokens: metadata.inputTokens } : {}),
-      ...(typeof metadata.outputTokens === 'number' ? { outputTokens: metadata.outputTokens } : {}),
+    const category = row.category as LedgerItem['category']
+    const key = `${category}::${row.description}`
+    const existing = byKey.get(key)
+    if (existing) {
+      existing.cost += Number(row.cost)
+      if (typeof metadata.inputTokens === 'number') {
+        existing.inputTokens = Math.max(existing.inputTokens ?? 0, metadata.inputTokens)
+      }
+      if (typeof metadata.outputTokens === 'number') {
+        existing.outputTokens = Math.max(existing.outputTokens ?? 0, metadata.outputTokens)
+      }
+    } else {
+      byKey.set(key, {
+        category,
+        description: row.description,
+        cost: Number(row.cost),
+        ...(typeof metadata.inputTokens === 'number' ? { inputTokens: metadata.inputTokens } : {}),
+        ...(typeof metadata.outputTokens === 'number'
+          ? { outputTokens: metadata.outputTokens }
+          : {}),
+      })
     }
-  })
+  }
 
+  const items = [...byKey.values()]
   const total = items.reduce((sum, item) => sum + item.cost, 0)
   return { total, items }
 }

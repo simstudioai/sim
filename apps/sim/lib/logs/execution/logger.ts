@@ -852,18 +852,28 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
         if (isOrgScopedSubscription(sub, usr.id) && sub?.referenceId) {
           const { limit: orgLimit } = await getOrgUsageLimit(sub.referenceId, sub.plan, sub.seats)
-          const [{ sum: orgUsageBefore }] = await db
+          const [{ sum: orgBaselineSum }] = await db
             .select({ sum: sql`COALESCE(SUM(${userStats.currentPeriodCost}), 0)` })
             .from(member)
             .leftJoin(userStats, eq(member.userId, userStats.userId))
             .where(eq(member.organizationId, sub.referenceId))
             .limit(1)
+          // currentPeriodCost is only a baseline; add the org's attributed
+          // usage_log for the period so the threshold email reflects real usage.
+          const { getBillingPeriodUsageCost } = await import('@/lib/billing/core/usage-log')
+          const orgLedger =
+            sub.periodStart && sub.periodEnd
+              ? await getBillingPeriodUsageCost(
+                  { type: 'organization', id: sub.referenceId },
+                  { start: sub.periodStart, end: sub.periodEnd }
+                )
+              : 0
           emailContext = {
             scope: 'organization',
             organizationId: sub.referenceId,
             planName,
             orgLimit,
-            orgUsageBefore: Number.parseFloat(String(orgUsageBefore ?? '0')),
+            orgUsageBefore: Number.parseFloat(String(orgBaselineSum ?? '0')) + orgLedger,
           }
         } else {
           emailContext = {

@@ -4,7 +4,10 @@ import { createLogger } from '@sim/logger'
 import { and, count, eq, gt, ne } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
-import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
+import {
+  getBillingPeriodUsageCost,
+  getBillingPeriodUsageCostByUser,
+} from '@/lib/billing/core/usage-log'
 import {
   computeDailyRefreshConsumed,
   getOrgMemberRefreshBounds,
@@ -50,7 +53,6 @@ interface MemberUsageData {
   isOverLimit: boolean
   role: string
   joinedAt: Date
-  lastActive: Date | null
 }
 
 /**
@@ -93,16 +95,30 @@ export async function getOrganizationBillingData(
         // User stats fields
         currentPeriodCost: userStats.currentPeriodCost,
         currentUsageLimit: userStats.currentUsageLimit,
-        lastActive: userStats.lastActive,
       })
       .from(member)
       .innerJoin(user, eq(member.userId, user.id))
       .leftJoin(userStats, eq(member.userId, userStats.userId))
       .where(eq(member.organizationId, organizationId))
 
+    // Per-member current-period usage = userStats baseline + attributed usage_log
+    // rows. currentPeriodCost is no longer incremented on the hot path, so the
+    // baseline alone under-reports; add each member's ledger sum for the period.
+    const billingPeriod =
+      subscription.periodStart && subscription.periodEnd
+        ? { start: subscription.periodStart, end: subscription.periodEnd }
+        : null
+    const usageByUser = billingPeriod
+      ? await getBillingPeriodUsageCostByUser(
+          { type: 'organization', id: subscription.referenceId },
+          billingPeriod
+        )
+      : new Map<string, number>()
+
     // Process member data
     const members: MemberUsageData[] = membersWithUsage.map((memberRecord) => {
-      const currentUsage = Number(memberRecord.currentPeriodCost || 0)
+      const currentUsage =
+        Number(memberRecord.currentPeriodCost || 0) + (usageByUser.get(memberRecord.userId) ?? 0)
       const usageLimit = Number(memberRecord.currentUsageLimit || getFreeTierLimit())
       const percentUsed = usageLimit > 0 ? (currentUsage / usageLimit) * 100 : 0
 
@@ -116,17 +132,22 @@ export async function getOrganizationBillingData(
         isOverLimit: currentUsage > usageLimit,
         role: memberRecord.role,
         joinedAt: memberRecord.joinedAt,
-        lastActive: memberRecord.lastActive,
       }
     })
 
-    // Calculate aggregated statistics
-    let totalCurrentUsage = members.reduce((sum, m) => sum + m.currentUsage, 0)
-
-    if (subscription.periodStart && subscription.periodEnd) {
+    // Authoritative org total = member baselines + the org's full usage_log for
+    // the period (also captures rows from members no longer present). Computed
+    // from raw baselines, NOT members[].currentUsage — the latter already folds
+    // in per-member usage_log for display, so summing it AND adding the org
+    // ledger would double-count.
+    let totalCurrentUsage = membersWithUsage.reduce(
+      (sum, m) => sum + Number(m.currentPeriodCost || 0),
+      0
+    )
+    if (billingPeriod) {
       totalCurrentUsage += await getBillingPeriodUsageCost(
         { type: 'organization', id: subscription.referenceId },
-        { start: subscription.periodStart, end: subscription.periodEnd }
+        billingPeriod
       )
     }
 

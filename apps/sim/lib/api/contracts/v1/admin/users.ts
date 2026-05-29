@@ -23,19 +23,14 @@ export const adminV1UserBillingSchema = z.object({
   userName: z.string(),
   userEmail: z.string(),
   stripeCustomerId: z.string().nullable(),
-  totalCost: z.string(),
   currentUsageLimit: z.string().nullable(),
   currentPeriodCost: z.string(),
   lastPeriodCost: z.string().nullable(),
   billedOverageThisPeriod: z.string(),
   storageUsedBytes: z.number(),
-  lastActive: z.string().nullable(),
   billingBlocked: z.boolean(),
-  totalCopilotCost: z.string(),
   currentPeriodCopilotCost: z.string(),
   lastPeriodCopilotCost: z.string().nullable(),
-  totalCopilotTokens: z.number(),
-  totalCopilotCalls: z.number(),
 })
 
 export const adminV1UserBillingWithSubscriptionSchema = adminV1UserBillingSchema.extend({
