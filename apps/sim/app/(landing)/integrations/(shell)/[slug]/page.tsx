@@ -9,7 +9,6 @@ import { TemplateCardButton } from '@/app/(landing)/integrations/(shell)/[slug]/
 import { IntegrationIcon } from '@/app/(landing)/integrations/components/integration-icon'
 import { blockTypeToIconMap } from '@/app/(landing)/integrations/data/icon-mapping'
 import integrations from '@/app/(landing)/integrations/data/integrations.json'
-import { INTEGRATION_LANDING_CONTENT } from '@/app/(landing)/integrations/data/landing-content'
 import type { AuthType, FAQItem, Integration } from '@/app/(landing)/integrations/data/types'
 import { TEMPLATES } from '@/app/workspace/[workspaceId]/home/components/template-prompts/consts'
 
@@ -218,7 +217,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
   const { name, description, longDescription, bgColor, docsUrl, operations, triggers, authType } =
     integration
 
-  const landingContent = INTEGRATION_LANDING_CONTENT[slug]
+  const landingContent = integration.landingContent
 
   const IconComponent = blockTypeToIconMap[integration.type]
   const faqs = buildFAQs(integration)

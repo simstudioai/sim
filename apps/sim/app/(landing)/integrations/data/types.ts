@@ -19,6 +19,29 @@ export interface FAQItem {
   answer: string
 }
 
+export interface IntegrationInstallStep {
+  title: string
+  body: string
+}
+
+export interface IntegrationLandingContent {
+  /**
+   * Install walkthrough for OAuth apps whose connection lives behind sign-in.
+   * Provides the "Add to {app}" instructions that app marketplaces require
+   * when the install button sits behind a login.
+   */
+  install?: {
+    heading: string
+    intro: string
+    steps: IntegrationInstallStep[]
+  }
+  /** Short data-handling summary shown next to a privacy-policy link. */
+  privacy?: {
+    body: string
+    href: string
+  }
+}
+
 export interface Integration {
   type: string
   slug: string
@@ -36,4 +59,5 @@ export interface Integration {
   category: string
   integrationTypes?: string[]
   tags?: string[]
+  landingContent?: IntegrationLandingContent
 }

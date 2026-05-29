@@ -1,32 +1,12 @@
 /**
- * Hand-authored, integration-specific landing content that augments the
- * generated `integrations.json`. Kept in a separate module so it survives
- * regeneration by `scripts/generate-docs.ts`. Keyed by integration slug;
- * the integration detail page renders these sections only when present.
+ * Hand-authored, integration-specific landing content, keyed by integration
+ * slug. This is a pure-data generation input: `scripts/generate-docs.ts` reads
+ * it and bakes the matching entry into `integrations.json`, so the landing page
+ * consumes a single source (`integration.landingContent`) with no render-time
+ * augmentation. Has no app imports so the build script can import it safely.
  */
 
-export interface IntegrationInstallStep {
-  title: string
-  body: string
-}
-
-export interface IntegrationLandingContent {
-  /**
-   * Install walkthrough for OAuth apps whose connection lives behind sign-in.
-   * Provides the "Add to {app}" instructions that app marketplaces require
-   * when the install button sits behind a login.
-   */
-  install?: {
-    heading: string
-    intro: string
-    steps: IntegrationInstallStep[]
-  }
-  /** Short data-handling summary shown next to a privacy-policy link. */
-  privacy?: {
-    body: string
-    href: string
-  }
-}
+import type { IntegrationLandingContent } from '@/app/(landing)/integrations/data/types'
 
 export const INTEGRATION_LANDING_CONTENT: Record<string, IntegrationLandingContent> = {
   slack: {
