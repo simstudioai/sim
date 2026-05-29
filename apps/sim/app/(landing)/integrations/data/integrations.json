@@ -214,7 +214,7 @@
     "name": "AgentPhone",
     "description": "Provision numbers, send SMS and iMessage, and place voice calls with AgentPhone",
     "longDescription": "Give your workflow a phone. Provision SMS- and voice-enabled numbers, send messages and tapback reactions, place outbound voice calls, manage conversations and contacts, and track usage — all through a single AgentPhone API key.",
-    "bgColor": "linear-gradient(135deg, #1a1a1a 0%, #0a2a14 100%)",
+    "bgColor": "#000000",
     "iconName": "AgentPhoneIcon",
     "docsUrl": "https://docs.sim.ai/tools/agentphone",
     "operations": [
@@ -3730,7 +3730,7 @@
     "type": "elevenlabs",
     "slug": "elevenlabs",
     "name": "ElevenLabs",
-    "description": "Convert TTS using ElevenLabs",
+    "description": "Convert text to speech with ElevenLabs",
     "longDescription": "Integrate ElevenLabs into the workflow. Can convert text to speech.",
     "bgColor": "#181C1E",
     "iconName": "ElevenLabsIcon",
@@ -5785,7 +5785,7 @@
     "slug": "google-slides",
     "name": "Google Slides",
     "description": "Read, write, and create presentations",
-    "longDescription": "Integrate Google Slides into the workflow. Can read, write, create presentations, replace text, add slides, add images, get thumbnails, get page details, delete objects, duplicate objects, reorder slides, create tables, create shapes, and insert text.",
+    "longDescription": "Build, edit, and export branded Google Slides presentations end-to-end. Copy a template, replace text and image tokens, embed Sheets charts, style text and shapes with brand fonts and colors, manage tables and layouts, group elements, run atomic batch updates, and export to PDF or PPTX.",
     "bgColor": "#E0E0E0",
     "iconName": "GoogleSlidesIcon",
     "docsUrl": "https://docs.sim.ai/tools/google_slides",
@@ -5803,8 +5803,32 @@
         "description": "Create a new Google Slides presentation"
       },
       {
+        "name": "Copy Presentation",
+        "description": "Copy a template presentation in Drive to a new file. Use this before merging data so the original template is never modified."
+      },
+      {
+        "name": "Export Presentation",
+        "description": "Export a presentation to PDF, PPTX, ODP, TXT, PNG, JPEG, or SVG via the Drive export endpoint. Stores the exported file as an execution file when execution context is available."
+      },
+      {
+        "name": "Batch Update (Raw)",
+        "description": "Run a raw Slides API batchUpdate with a list of Request objects. Use this when the higher-level tools do not cover an operation, or to bundle multiple operations into a single atomic batch (all-or-nothing)."
+      },
+      {
         "name": "Replace All Text",
         "description": "Find and replace all occurrences of text throughout a Google Slides presentation"
+      },
+      {
+        "name": "Replace All Shapes With Image",
+        "description": "Find every shape whose text matches the given token (e.g. {{cover-image}}) and replace it with an image, preserving the shape"
+      },
+      {
+        "name": "Replace Image",
+        "description": "Replace the source of an existing image with a new image URL, preserving the image"
+      },
+      {
+        "name": "Update Image Properties",
+        "description": "Update image properties — brightness, contrast, transparency, crop, outline, link — on an existing image."
       },
       {
         "name": "Add Slide",
@@ -5843,11 +5867,139 @@
         "description": "Create a shape (rectangle, ellipse, text box, arrow, etc.) on a slide in a Google Slides presentation"
       },
       {
+        "name": "Create Line",
+        "description": "Create a line or connector on a slide."
+      },
+      {
         "name": "Insert Text",
         "description": "Insert text into a shape or table cell in a Google Slides presentation. Use this to add text to text boxes, shapes, or table cells."
+      },
+      {
+        "name": "Delete Text",
+        "description": "Delete text from a shape or table cell. Use range type ALL to clear all text, or FIXED_RANGE / FROM_START_INDEX to delete a specific span."
+      },
+      {
+        "name": "Update Text Style",
+        "description": "Update the styling of text in a shape or table cell (bold, italic, font family, font size, foreground/background color, link, etc.). Only the fields you set are applied."
+      },
+      {
+        "name": "Update Paragraph Style",
+        "description": "Update paragraph styling — alignment, line spacing, indents, space above/below — for text in a shape or table cell."
+      },
+      {
+        "name": "Create Paragraph Bullets",
+        "description": "Convert paragraphs in a shape or table cell into a bulleted or numbered list using a Google Slides bullet preset."
+      },
+      {
+        "name": "Delete Paragraph Bullets",
+        "description": "Remove bullets/numbering from paragraphs in a shape or table cell."
+      },
+      {
+        "name": "Update Shape Properties",
+        "description": "Update a shape"
+      },
+      {
+        "name": "Update Page Properties",
+        "description": "Update slide/page background — solid color or stretched picture — and other page properties."
+      },
+      {
+        "name": "Update Slide Properties",
+        "description": "Update slide-specific properties such as whether the slide is skipped during presentation."
+      },
+      {
+        "name": "Update Alt Text",
+        "description": "Set the accessibility title and/or description (alt text) of a page element such as an image, shape, or group."
+      },
+      {
+        "name": "Update Element Transform",
+        "description": "Move, resize, scale, or shear a page element. Translate is specified in points; applyMode controls whether the transform is absolute (default) or relative (multiplied with the current transform)."
+      },
+      {
+        "name": "Update Z-Order",
+        "description": "Bring elements to front, send to back, or step them one layer forward/backward."
+      },
+      {
+        "name": "Group Objects",
+        "description": "Group two or more page elements on the same slide into a single object group."
+      },
+      {
+        "name": "Ungroup Objects",
+        "description": "Ungroup one or more object groups, releasing their children back to the slide."
+      },
+      {
+        "name": "Update Line Properties",
+        "description": "Update line appearance — color, weight, dash style, arrows, link."
+      },
+      {
+        "name": "Update Line Category",
+        "description": "Change a connector line"
+      },
+      {
+        "name": "Reroute Line",
+        "description": "Reroute a connector line so it efficiently connects its endpoint shapes — useful after moving the shapes the line connects."
+      },
+      {
+        "name": "Insert Table Rows",
+        "description": "Insert one or more rows into a table, above or below a reference cell."
+      },
+      {
+        "name": "Insert Table Columns",
+        "description": "Insert one or more columns into a table, left or right of a reference cell."
+      },
+      {
+        "name": "Delete Table Row",
+        "description": "Delete the row containing the reference cell from a table."
+      },
+      {
+        "name": "Delete Table Column",
+        "description": "Delete the column containing the reference cell from a table."
+      },
+      {
+        "name": "Merge Table Cells",
+        "description": "Merge a rectangular range of table cells into a single cell. The range starts at (rowIndex, columnIndex) and covers rowSpan × columnSpan cells."
+      },
+      {
+        "name": "Unmerge Table Cells",
+        "description": "Unmerge any merged cells within the given table range."
+      },
+      {
+        "name": "Update Table Cell Properties",
+        "description": "Update background fill and content alignment for a range of table cells."
+      },
+      {
+        "name": "Update Table Border Properties",
+        "description": "Update border color, weight, and dash style for a position (e.g. ALL, INNER, OUTER) in a table range."
+      },
+      {
+        "name": "Update Table Column Properties",
+        "description": "Update column widths and other column-level table properties."
+      },
+      {
+        "name": "Update Table Row Properties",
+        "description": "Update minimum row heights and other row-level table properties."
+      },
+      {
+        "name": "Embed Sheets Chart",
+        "description": "Embed a chart from a Google Sheets spreadsheet onto a slide. LINKED charts can be refreshed; NOT_LINKED_IMAGE inserts a static image of the chart."
+      },
+      {
+        "name": "Refresh Sheets Chart",
+        "description": "Refresh an embedded linked Sheets chart so it reflects the latest spreadsheet data."
+      },
+      {
+        "name": "Replace All Shapes With Sheets Chart",
+        "description": "Find every shape matching a text token (e.g. {{revenue-chart}}) and replace each with the same embedded Sheets chart, preserving the shape"
+      },
+      {
+        "name": "Embed Video",
+        "description": "Embed a YouTube or Google Drive video on a slide."
+      },
+      {
+        "name": "Update Video Properties",
+        "description": "Update video playback options (autoPlay, mute, start/end) and outline."
       }
     ],
-    "operationCount": 14,
+    "operationCount": 52,
     "triggers": [],
     "triggerCount": 0,
     "authType": "oauth",
@@ -6417,7 +6569,7 @@
     "slug": "hubspot",
     "name": "HubSpot",
     "description": "Interact with HubSpot CRM or trigger workflows from HubSpot events",
-    "longDescription": "Integrate HubSpot into your workflow. Manage contacts, companies, deals, tickets, and other CRM objects with powerful automation capabilities. Can be used in trigger mode to start workflows when contacts are created, deleted, or updated.",
+    "longDescription": "Integrate HubSpot into your workflow. Manage contacts, companies, deals, tickets, and other CRM objects with powerful automation capabilities. Can be used in trigger mode to start workflows when records are created, updated, a specific property changes, or a contact joins a list.",
     "bgColor": "#FF7A59",
     "iconName": "HubspotIcon",
     "docsUrl": "https://docs.sim.ai/tools/hubspot",
@@ -6542,142 +6694,12 @@
     "operationCount": 29,
     "triggers": [
       {
-        "id": "hubspot_contact_created",
-        "name": "HubSpot Contact Created",
-        "description": "Trigger workflow when a new contact is created in HubSpot"
-      },
-      {
-        "id": "hubspot_contact_deleted",
-        "name": "HubSpot Contact Deleted",
-        "description": "Trigger workflow when a contact is deleted in HubSpot"
-      },
-      {
-        "id": "hubspot_contact_merged",
-        "name": "HubSpot Contact Merged",
-        "description": "Trigger workflow when contacts are merged in HubSpot"
-      },
-      {
-        "id": "hubspot_contact_privacy_deleted",
-        "name": "HubSpot Contact Privacy Deleted",
-        "description": "Trigger workflow when a contact is deleted for privacy compliance (GDPR, CCPA, etc.) in HubSpot"
-      },
-      {
-        "id": "hubspot_contact_property_changed",
-        "name": "HubSpot Contact Property Changed",
-        "description": "Trigger workflow when any property of a contact is updated in HubSpot"
-      },
-      {
-        "id": "hubspot_contact_restored",
-        "name": "HubSpot Contact Restored",
-        "description": "Trigger workflow when a deleted contact is restored in HubSpot"
-      },
-      {
-        "id": "hubspot_company_created",
-        "name": "HubSpot Company Created",
-        "description": "Trigger workflow when a new company is created in HubSpot"
-      },
-      {
-        "id": "hubspot_company_deleted",
-        "name": "HubSpot Company Deleted",
-        "description": "Trigger workflow when a company is deleted in HubSpot"
-      },
-      {
-        "id": "hubspot_company_merged",
-        "name": "HubSpot Company Merged",
-        "description": "Trigger workflow when companies are merged in HubSpot"
-      },
-      {
-        "id": "hubspot_company_property_changed",
-        "name": "HubSpot Company Property Changed",
-        "description": "Trigger workflow when any property of a company is updated in HubSpot"
-      },
-      {
-        "id": "hubspot_company_restored",
-        "name": "HubSpot Company Restored",
-        "description": "Trigger workflow when a deleted company is restored in HubSpot"
-      },
-      {
-        "id": "hubspot_conversation_creation",
-        "name": "HubSpot Conversation Creation",
-        "description": "Trigger workflow when a new conversation is created in HubSpot"
-      },
-      {
-        "id": "hubspot_conversation_deletion",
-        "name": "HubSpot Conversation Deletion",
-        "description": "Trigger workflow when a conversation is deleted in HubSpot"
-      },
-      {
-        "id": "hubspot_conversation_new_message",
-        "name": "HubSpot Conversation New Message",
-        "description": "Trigger workflow when a new message is added to a conversation in HubSpot"
-      },
-      {
-        "id": "hubspot_conversation_privacy_deletion",
-        "name": "HubSpot Conversation Privacy Deletion",
-        "description": "Trigger workflow when a conversation is deleted for privacy compliance (GDPR, CCPA, etc.) in HubSpot"
-      },
-      {
-        "id": "hubspot_conversation_property_changed",
-        "name": "HubSpot Conversation Property Changed",
-        "description": "Trigger workflow when any property of a conversation is updated in HubSpot"
-      },
-      {
-        "id": "hubspot_deal_created",
-        "name": "HubSpot Deal Created",
-        "description": "Trigger workflow when a new deal is created in HubSpot"
-      },
-      {
-        "id": "hubspot_deal_deleted",
-        "name": "HubSpot Deal Deleted",
-        "description": "Trigger workflow when a deal is deleted in HubSpot"
-      },
-      {
-        "id": "hubspot_deal_merged",
-        "name": "HubSpot Deal Merged",
-        "description": "Trigger workflow when deals are merged in HubSpot"
-      },
-      {
-        "id": "hubspot_deal_property_changed",
-        "name": "HubSpot Deal Property Changed",
-        "description": "Trigger workflow when any property of a deal is updated in HubSpot"
-      },
-      {
-        "id": "hubspot_deal_restored",
-        "name": "HubSpot Deal Restored",
-        "description": "Trigger workflow when a deleted deal is restored in HubSpot"
-      },
-      {
-        "id": "hubspot_ticket_created",
-        "name": "HubSpot Ticket Created",
-        "description": "Trigger workflow when a new ticket is created in HubSpot"
-      },
-      {
-        "id": "hubspot_ticket_deleted",
-        "name": "HubSpot Ticket Deleted",
-        "description": "Trigger workflow when a ticket is deleted in HubSpot"
-      },
-      {
-        "id": "hubspot_ticket_merged",
-        "name": "HubSpot Ticket Merged",
-        "description": "Trigger workflow when tickets are merged in HubSpot"
-      },
-      {
-        "id": "hubspot_ticket_property_changed",
-        "name": "HubSpot Ticket Property Changed",
-        "description": "Trigger workflow when any property of a ticket is updated in HubSpot"
-      },
-      {
-        "id": "hubspot_ticket_restored",
-        "name": "HubSpot Ticket Restored",
-        "description": "Trigger workflow when a deleted ticket is restored in HubSpot"
-      },
-      {
-        "id": "hubspot_webhook",
-        "name": "HubSpot Webhook (All Events)",
-        "description": "Trigger workflow on any HubSpot webhook event"
+        "id": "hubspot_poller",
+        "name": "HubSpot CRM Trigger",
+        "description": "Triggers when HubSpot CRM records (contacts, companies, deals, tickets, custom objects) are created or updated, or when contacts join a list"
       }
     ],
-    "triggerCount": 27,
+    "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
     "integrationTypes": ["crm", "analytics", "customer-support", "sales"],
@@ -10979,6 +11001,85 @@
     "tags": ["cloud", "ci-cd"]
   },
   {
+    "type": "rb2b",
+    "slug": "rb2b",
+    "name": "RB2B",
+    "description": "Identify and enrich website visitors",
+    "longDescription": "Resolve IP addresses, hashed emails, and LinkedIn profiles into person-level identity and B2B enrichment data using the RB2B API. Convert IPs to hashed emails, MAIDs, and company domains; enrich emails into LinkedIn profiles, business profiles, and mobile IDs; and look up emails or phone numbers from LinkedIn. Requires an RB2B API key.",
+    "bgColor": "#51FF00",
+    "iconName": "RB2BIcon",
+    "docsUrl": "https://docs.sim.ai/tools/rb2b",
+    "operations": [
+      {
+        "name": "Credit Check",
+        "description": "Check the number of API credits remaining on your RB2B account."
+      },
+      {
+        "name": "IP to HEM",
+        "description": "Convert an IP address (and optional user agent) into hashed email addresses (HEM) with accuracy scores."
+      },
+      {
+        "name": "IP to MAID",
+        "description": "Resolve an IP address (and optional user agent) into mobile advertising identifiers (MAIDs) observed over the last 60 days."
+      },
+      {
+        "name": "IP to Company",
+        "description": "Identify the company domains associated with an IP address, ranked by confidence."
+      },
+      {
+        "name": "Email/HEM to Business Profile",
+        "description": "Return a full business profile (name, title, company, industry, seniority and more) for an email address or MD5-hashed email."
+      },
+      {
+        "name": "Email/HEM to Best LinkedIn URL",
+        "description": "Return the most recently active LinkedIn profile URL for an email address or MD5-hashed email."
+      },
+      {
+        "name": "Email/HEM to LinkedIn Slug",
+        "description": "Return the LinkedIn slug (the profile identifier portion of the URL) for an email address or MD5-hashed email."
+      },
+      {
+        "name": "Email/HEM to MAID",
+        "description": "Return up to five mobile advertising identifiers (MAIDs) associated with an email address or MD5-hashed email."
+      },
+      {
+        "name": "Email to Last Active Date",
+        "description": "Return the last known active date for an email address."
+      },
+      {
+        "name": "LinkedIn to Business Profile",
+        "description": "Return a full business profile (name, title, company, emails and more) for a LinkedIn profile."
+      },
+      {
+        "name": "LinkedIn to Best Personal Email",
+        "description": "Return the personal email with the most recent known network activity for a LinkedIn profile."
+      },
+      {
+        "name": "LinkedIn to Personal Email",
+        "description": "Return the personal email addresses associated with a LinkedIn profile."
+      },
+      {
+        "name": "LinkedIn to Hashed Emails",
+        "description": "Return the business and personal hashed emails (MD5 and SHA-256) associated with a LinkedIn profile."
+      },
+      {
+        "name": "LinkedIn to Mobile Phone",
+        "description": "Return the mobile phone number with the most recent known network activity for a LinkedIn profile."
+      },
+      {
+        "name": "LinkedIn Slug Search",
+        "description": "Find a LinkedIn profile URL from a first name, last name, and company domain."
+      }
+    ],
+    "operationCount": 15,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["sales", "security"],
+    "tags": ["enrichment", "identity", "sales-engagement"]
+  },
+  {
     "type": "reddit",
     "slug": "reddit",
     "name": "Reddit",
@@ -15257,5 +15358,48 @@
     "category": "tools",
     "integrationTypes": ["communication", "productivity"],
     "tags": ["meeting", "calendar", "scheduling"]
+  },
+  {
+    "type": "zoominfo",
+    "slug": "zoominfo",
+    "name": "ZoomInfo",
+    "description": "Search and enrich B2B company and contact data with ZoomInfo.",
+    "longDescription": "Integrates ZoomInfo into the workflow. Search companies and contacts, enrich firmographic and contact data, find intent signals, and pull news — all using the ZoomInfo GTM API.",
+    "bgColor": "#EA1B15",
+    "iconName": "ZoomInfoIcon",
+    "docsUrl": "https://docs.sim.ai/tools/zoominfo",
+    "operations": [
+      {
+        "name": "Search Companies",
+        "description": "Search the ZoomInfo company database by name, industry, location, and size."
+      },
+      {
+        "name": "Search Contacts",
+        "description": "Search ZoomInfo for contacts (people) by name, job title, company, and other filters. Does not return emails or phone numbers — use Enrich Contacts for engagement data."
+      },
+      {
+        "name": "Enrich Companies",
+        "description": "Enrich up to 25 companies in one request with detailed firmographics, industry, financials, and more."
+      },
+      {
+        "name": "Enrich Contacts",
+        "description": "Enrich up to 25 contacts in one request with verified emails, phone numbers, job details, and more."
+      },
+      {
+        "name": "Search Intent",
+        "description": "Search for companies showing intent signals on specific topics."
+      },
+      {
+        "name": "Search News",
+        "description": "Search ZoomInfo news articles by category, URL, or date range."
+      }
+    ],
+    "operationCount": 6,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["sales"],
+    "tags": ["enrichment", "sales-engagement"]
   }
 ]

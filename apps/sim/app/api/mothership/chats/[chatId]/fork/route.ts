@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-tasks'
 import { parseRequest } from '@/lib/api/server'
+import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-dual-write'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
@@ -105,6 +106,8 @@ export const POST = withRouteHandler(
       if (!newChat) {
         return createInternalServerErrorResponse('Failed to create forked chat')
       }
+
+      await appendCopilotChatMessages(newId, forkedMessages, { chatModel: parent.model })
 
       // Clone copilot-service conversation state (messages, active_messages, memory files).
       // Best-effort: if the copilot service doesn't have a row for the source chat yet, skip.

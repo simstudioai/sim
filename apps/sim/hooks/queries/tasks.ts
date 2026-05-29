@@ -27,6 +27,7 @@ import {
 } from '@/lib/copilot/request/session/file-preview-session-contract'
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
+import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 export interface TaskMetadata {
   id: string
@@ -281,6 +282,7 @@ export function useDeleteTask(workspaceId?: string) {
     onSettled: (_data, _error, chatId) => {
       queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
       queryClient.removeQueries({ queryKey: taskKeys.detail(chatId) })
+      useMothershipQueueStore.getState().clearChat(chatId)
     },
   })
 }
@@ -296,8 +298,10 @@ export function useDeleteTasks(workspaceId?: string) {
     },
     onSettled: (_data, _error, chatIds) => {
       queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+      const queueStore = useMothershipQueueStore.getState()
       for (const chatId of chatIds) {
         queryClient.removeQueries({ queryKey: taskKeys.detail(chatId) })
+        queueStore.clearChat(chatId)
       }
     },
   })

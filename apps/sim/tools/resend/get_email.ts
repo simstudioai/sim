@@ -83,16 +83,42 @@ export const resendGetEmailTool: ToolConfig<GetEmailParams, GetEmailResult> = {
   outputs: {
     id: { type: 'string', description: 'Email ID' },
     from: { type: 'string', description: 'Sender email address' },
-    to: { type: 'json', description: 'Recipient email addresses' },
+    to: {
+      type: 'array',
+      description: 'Recipient email addresses',
+      items: { type: 'string', description: 'Recipient email address' },
+    },
     subject: { type: 'string', description: 'Email subject' },
     html: { type: 'string', description: 'HTML email content' },
     text: { type: 'string', description: 'Plain text email content', optional: true },
-    cc: { type: 'json', description: 'CC email addresses' },
-    bcc: { type: 'json', description: 'BCC email addresses' },
-    replyTo: { type: 'json', description: 'Reply-to email addresses' },
+    cc: {
+      type: 'array',
+      description: 'CC email addresses',
+      items: { type: 'string', description: 'CC email address' },
+    },
+    bcc: {
+      type: 'array',
+      description: 'BCC email addresses',
+      items: { type: 'string', description: 'BCC email address' },
+    },
+    replyTo: {
+      type: 'array',
+      description: 'Reply-to email addresses',
+      items: { type: 'string', description: 'Reply-to email address' },
+    },
     lastEvent: { type: 'string', description: 'Last event status (e.g., delivered, bounced)' },
     createdAt: { type: 'string', description: 'Email creation timestamp' },
     scheduledAt: { type: 'string', description: 'Scheduled send timestamp', optional: true },
-    tags: { type: 'json', description: 'Email tags as name-value pairs' },
+    tags: {
+      type: 'array',
+      description: 'Email tags as name-value pairs',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Tag name' },
+          value: { type: 'string', description: 'Tag value' },
+        },
+      },
+    },
   },
 }

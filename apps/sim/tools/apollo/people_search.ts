@@ -14,7 +14,7 @@ export const apolloPeopleSearchTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key',
     },
     person_titles: {
@@ -165,13 +165,17 @@ export const apolloPeopleSearchTool: ToolConfig<
 
     const data = await response.json()
 
+    // The legacy /mixed_people/search endpoint nests pagination under `pagination`,
+    // while api_search returns these top-level. Read both shapes defensively.
+    const pagination = data.pagination ?? {}
+
     return {
       success: true,
       output: {
         people: data.people || [],
-        page: data.pagination?.page || 1,
-        per_page: data.pagination?.per_page || 25,
-        total_entries: data.pagination?.total_entries || 0,
+        page: pagination.page ?? data.page ?? 1,
+        per_page: pagination.per_page ?? data.per_page ?? 25,
+        total_entries: pagination.total_entries ?? data.total_entries ?? 0,
       },
     }
   },

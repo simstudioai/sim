@@ -34,6 +34,10 @@ vi.mock('@/lib/billing/core/billing', () => ({
   isSubscriptionOrgScoped: vi.fn().mockResolvedValue(true),
 }))
 
+vi.mock('@/lib/billing/core/usage-log', () => ({
+  getBillingPeriodUsageCostByUser: vi.fn().mockResolvedValue(new Map()),
+}))
+
 vi.mock('@/lib/billing/credits/balance', () => ({
   addCredits: vi.fn(),
   getCreditBalance: vi.fn(),

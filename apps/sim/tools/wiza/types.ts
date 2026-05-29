@@ -13,25 +13,36 @@ export interface WizaGetCreditsResponse extends ToolResponse {
   }
 }
 
+export interface WizaIncludeExcludeFilter {
+  v: string
+  s: 'i' | 'e'
+}
+
+export interface WizaLocationFilter {
+  v: string | { country?: string; state?: string; city?: string }
+  b: 'country' | 'state' | 'city'
+  s: 'i' | 'e'
+}
+
 export interface WizaProspectSearchParams {
   apiKey: string
   size?: number
   filters?: Record<string, unknown>
   first_name?: string[]
   last_name?: string[]
-  job_title?: unknown[]
+  job_title?: WizaIncludeExcludeFilter[]
   job_title_level?: string[]
   job_role?: string[]
   job_sub_role?: string[]
-  location?: unknown[]
+  location?: WizaLocationFilter[]
   skill?: string[]
   school?: string[]
   major?: string[]
   linkedin_slug?: string[]
-  job_company?: unknown[]
-  past_company?: unknown[]
-  company_location?: unknown[]
-  company_industry?: unknown[]
+  job_company?: WizaIncludeExcludeFilter[]
+  past_company?: WizaIncludeExcludeFilter[]
+  company_location?: WizaLocationFilter[]
+  company_industry?: WizaIncludeExcludeFilter[]
   company_size?: string[]
   company_type?: string[]
 }
