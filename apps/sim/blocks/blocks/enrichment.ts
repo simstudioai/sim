@@ -44,19 +44,24 @@ for (const enrichment of ALL_ENRICHMENTS) {
     outputProducers.set(output.id, entry)
   }
 }
-const blockOutputs: Record<string, OutputFieldDefinition> = {
-  matched: { type: 'boolean', description: 'Whether the enrichment found a result' },
-  provider: {
-    type: 'string',
-    description: 'Provider whose result was returned (e.g. "Hunter", "People Data Labs")',
-  },
-}
+// Seed the enrichment outputs first so the reserved `matched` / `provider`
+// keys (assigned below) always win if a future enrichment ever declares an
+// output id that collides with them.
+const blockOutputs: Record<string, OutputFieldDefinition> = {}
 for (const [id, { field, operations }] of outputProducers) {
   blockOutputs[id] = {
     type: mapFieldType(field.type),
     description: field.name,
     condition: { field: 'operation', value: operations },
   }
+}
+blockOutputs.matched = {
+  type: 'boolean',
+  description: 'Whether the enrichment found a result',
+}
+blockOutputs.provider = {
+  type: 'string',
+  description: 'Provider whose result was returned (e.g. "Hunter", "People Data Labs")',
 }
 
 /**

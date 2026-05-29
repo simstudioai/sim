@@ -79,13 +79,15 @@ export const enrichmentRunTool: ToolConfig<EnrichmentRunParams, EnrichmentRunRes
     }
   },
 
+  // Reserved keys go LAST so they always win if an enrichment ever declares an
+  // output id of `matched` or `provider` (later spread / assignment wins in JS).
   outputs: {
+    ...enrichmentOutputs,
     matched: { type: 'boolean', description: 'Whether the enrichment found a result' },
     provider: {
       type: 'string',
       description: 'Provider whose result was returned (e.g. "Hunter", "People Data Labs")',
       optional: true,
     },
-    ...enrichmentOutputs,
   },
 }
