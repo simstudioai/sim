@@ -29,6 +29,13 @@ export class ProviderNotAllowedError extends Error {
   }
 }
 
+export class ModelNotAllowedError extends Error {
+  constructor(model: string) {
+    super(`Model "${model}" is not allowed based on your permission group settings`)
+    this.name = 'ModelNotAllowedError'
+  }
+}
+
 export class IntegrationNotAllowedError extends Error {
   constructor(blockType: string, reason?: string) {
     super(
@@ -168,6 +175,18 @@ async function getPermissionConfig(
   return getUserPermissionConfig(userId, workspaceId)
 }
 
+/**
+ * Returns true when `model` appears in the group's model denylist. Comparison is
+ * case-insensitive to match the normalization applied by `getProviderFromModel`.
+ */
+function isModelDenied(config: PermissionGroupConfig, model: string): boolean {
+  if (!config.deniedModels || config.deniedModels.length === 0) {
+    return false
+  }
+  const normalized = model.toLowerCase()
+  return config.deniedModels.some((denied) => denied.toLowerCase() === normalized)
+}
+
 export async function validateModelProvider(
   userId: string | undefined,
   workspaceId: string | undefined,
@@ -180,20 +199,27 @@ export async function validateModelProvider(
 
   const config = await getPermissionConfig(userId, workspaceId, ctx)
 
-  if (!config || config.allowedModelProviders === null) {
+  if (!config) {
     return
   }
 
-  const providerId = getProviderFromModel(model)
+  if (config.allowedModelProviders !== null) {
+    const providerId = getProviderFromModel(model)
 
-  if (!config.allowedModelProviders.includes(providerId)) {
-    logger.warn('Model provider blocked by permission group', {
-      userId,
-      workspaceId,
-      model,
-      providerId,
-    })
-    throw new ProviderNotAllowedError(providerId, model)
+    if (!config.allowedModelProviders.includes(providerId)) {
+      logger.warn('Model provider blocked by permission group', {
+        userId,
+        workspaceId,
+        model,
+        providerId,
+      })
+      throw new ProviderNotAllowedError(providerId, model)
+    }
+  }
+
+  if (isModelDenied(config, model)) {
+    logger.warn('Model blocked by permission group', { userId, workspaceId, model })
+    throw new ModelNotAllowedError(model)
   }
 }
 
@@ -421,16 +447,23 @@ export async function assertPermissionsAllowed(req: PermissionAssertion): Promis
       ? await getPermissionConfig(userId, workspaceId, ctx)
       : mergeEnvAllowlist(null)
 
-  if (model && config && config.allowedModelProviders !== null) {
-    const providerId = getProviderFromModel(model)
-    if (!config.allowedModelProviders.includes(providerId)) {
-      logger.warn('Model provider blocked by permission group', {
-        userId,
-        workspaceId,
-        model,
-        providerId,
-      })
-      throw new ProviderNotAllowedError(providerId, model)
+  if (model && config) {
+    if (config.allowedModelProviders !== null) {
+      const providerId = getProviderFromModel(model)
+      if (!config.allowedModelProviders.includes(providerId)) {
+        logger.warn('Model provider blocked by permission group', {
+          userId,
+          workspaceId,
+          model,
+          providerId,
+        })
+        throw new ProviderNotAllowedError(providerId, model)
+      }
+    }
+
+    if (isModelDenied(config, model)) {
+      logger.warn('Model blocked by permission group', { userId, workspaceId, model })
+      throw new ModelNotAllowedError(model)
     }
   }
 
