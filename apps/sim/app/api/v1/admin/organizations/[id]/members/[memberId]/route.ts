@@ -35,8 +35,7 @@ import {
   adminV1UpdateOrganizationMemberContract,
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
-import { getOrganizationSubscription } from '@/lib/billing/core/billing'
-import { getBillingPeriodUsageCostByUser } from '@/lib/billing/core/usage-log'
+import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -102,17 +101,7 @@ export const GET = withRouteHandler(
 
       // currentPeriodCost is only a baseline; add this member's attributed
       // usage_log for the org's period so admin shows real current usage.
-      const subscription = await getOrganizationSubscription(organizationId)
-      const billingPeriod =
-        subscription?.periodStart && subscription?.periodEnd
-          ? { start: subscription.periodStart, end: subscription.periodEnd }
-          : null
-      const ledgerByUser = billingPeriod
-        ? await getBillingPeriodUsageCostByUser(
-            { type: 'organization', id: organizationId },
-            billingPeriod
-          )
-        : new Map<string, number>()
+      const ledgerByUser = await getOrgMemberLedgerByUser(organizationId)
 
       const data: AdminMemberDetail = {
         id: memberData.id,

@@ -56,6 +56,32 @@ interface MemberUsageData {
 }
 
 /**
+ * Per-member usage_log cost for an org's current billing period, keyed by userId.
+ * `currentPeriodCost` is only a baseline (no longer incremented on the hot path),
+ * so callers add this ledger component to it for each member's real current-period
+ * usage. Pass `period` to reuse an already-fetched subscription window; omit it to
+ * look up the org's subscription here. Returns an empty map when there's no period.
+ */
+export async function getOrgMemberLedgerByUser(
+  organizationId: string,
+  period?: { start: Date; end: Date } | null
+): Promise<Map<string, number>> {
+  let billingPeriod = period ?? null
+  if (period === undefined) {
+    const subscription = await getOrganizationSubscription(organizationId)
+    billingPeriod =
+      subscription?.periodStart && subscription?.periodEnd
+        ? { start: subscription.periodStart, end: subscription.periodEnd }
+        : null
+  }
+  if (!billingPeriod) return new Map<string, number>()
+  return getBillingPeriodUsageCostByUser(
+    { type: 'organization', id: organizationId },
+    billingPeriod
+  )
+}
+
+/**
  * Get comprehensive organization billing and usage data
  */
 export async function getOrganizationBillingData(
@@ -108,12 +134,7 @@ export async function getOrganizationBillingData(
       subscription.periodStart && subscription.periodEnd
         ? { start: subscription.periodStart, end: subscription.periodEnd }
         : null
-    const usageByUser = billingPeriod
-      ? await getBillingPeriodUsageCostByUser(
-          { type: 'organization', id: subscription.referenceId },
-          billingPeriod
-        )
-      : new Map<string, number>()
+    const usageByUser = await getOrgMemberLedgerByUser(organizationId, billingPeriod)
 
     // Process member data
     const members: MemberUsageData[] = membersWithUsage.map((memberRecord) => {

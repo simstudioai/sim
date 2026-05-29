@@ -17,7 +17,7 @@ import {
 } from '@/lib/api/contracts/organization'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { getBillingPeriodUsageCostByUser } from '@/lib/billing/core/usage-log'
+import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -143,13 +143,12 @@ export const GET = withRouteHandler(
         // currentPeriodCost is only a baseline; add each member's attributed
         // usage_log for the period (batched, one query) so the roster shows real
         // usage rather than the frozen baseline.
-        const usageByUser =
+        const usageByUser = await getOrgMemberLedgerByUser(
+          organizationId,
           billingPeriodStart && billingPeriodEnd
-            ? await getBillingPeriodUsageCostByUser(
-                { type: 'organization', id: organizationId },
-                { start: billingPeriodStart, end: billingPeriodEnd }
-              )
-            : new Map<string, number>()
+            ? { start: billingPeriodStart, end: billingPeriodEnd }
+            : null
+        )
 
         const membersWithUsage = base.map((row) => ({
           ...row,
