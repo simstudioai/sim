@@ -1,36 +1,22 @@
 #!/usr/bin/env bun
 
 /**
- * One-shot backfill for the trace-spans-to-S3 + usage_log-cost migration.
+ * One-shot, idempotent, resumable backfill that externalizes inline heavy
+ * `execution_data` (traceSpans, finalOutput, workflowInput, ...) into the
+ * execution-context large-value store, matching the completion path (cost-stripped
+ * spans, trace pointer + markers, owner/dependency + execution_log reference
+ * registration). Skips running rows and rows already carrying the pointer.
  *
- * Two independent, idempotent, resumable passes:
+ * Requires object storage to be configured; self-hosted deployments without it
+ * keep `execution_data` inline (reads resolve inline transparently) and can skip
+ * this script entirely.
  *
- *   1. Cost projections (cheap, no object storage): populates
- *      `workflow_execution_logs.cost_total` and `models_used` from the existing
- *      (reconciling) `cost` jsonb so the logs list filter/sort/model-filter is
- *      uniform across old and new rows. Only touches rows where `cost_total` is
- *      still null. Run this before the `cost` column is dropped in a follow-up PR.
- *
- *   2. Trace storage (heavier): externalizes inline heavy `execution_data`
- *      (traceSpans, finalOutput, workflowInput, ...) into the execution-context
- *      large-value store, matching the completion path (cost-stripped spans,
- *      trace pointer + markers, owner/dependency + execution_log reference
- *      registration). Skips running rows and rows already carrying the pointer.
- *
- * Both passes are safe to re-run.
+ * NOTE: the companion `cost_total` / `models_used` backfill is done in SQL by
+ * migration 0220 (batched, idempotent), so it runs for everyone — including
+ * self-hosted — and is intentionally NOT part of this script.
  *
  * Usage:
- *   DATABASE_URL=... bun apps/sim/scripts/backfill-trace-spans.ts [flags]
- *
- * Flags:
- *   --projections-only   Run only pass 1 (cost_total / models_used).
- *   --trace-only         Run only pass 2 (externalize execution_data).
- *   --max-batches=<n>    Cap the number of batches per pass (default: unbounded).
- *
- * Examples:
- *   bun apps/sim/scripts/backfill-trace-spans.ts --projections-only
- *   bun apps/sim/scripts/backfill-trace-spans.ts --trace-only --max-batches=10
- *   bun apps/sim/scripts/backfill-trace-spans.ts
+ *   DATABASE_URL=... bun apps/sim/scripts/backfill-trace-spans.ts [--max-batches=<n>]
  */
 
 import { db } from '@sim/db'
@@ -47,7 +33,6 @@ import {
   TRACE_STORE_REF_KEY,
 } from '@/lib/logs/execution/trace-store'
 
-const PROJECTION_BATCH_SIZE = 1000
 const TRACE_BATCH_SIZE = 100
 
 /**
@@ -66,14 +51,10 @@ function countTraceSpans(spans: unknown): number {
 }
 
 interface Options {
-  projections: boolean
-  trace: boolean
   maxBatches: number
 }
 
 function parseArgs(argv: string[]): Options {
-  const projectionsOnly = argv.includes('--projections-only')
-  const traceOnly = argv.includes('--trace-only')
   const maxBatchesArg = argv.find((a) => a.startsWith('--max-batches='))
   const maxBatches = maxBatchesArg
     ? Number.parseInt(maxBatchesArg.slice('--max-batches='.length), 10)
@@ -83,53 +64,10 @@ function parseArgs(argv: string[]): Options {
     throw new Error('--max-batches must be a positive integer')
   }
 
-  return {
-    projections: !traceOnly,
-    trace: !projectionsOnly,
-    maxBatches,
-  }
+  return { maxBatches }
 }
 
-/** Pass 1: backfill cost_total + models_used from the cost jsonb. */
-async function backfillCostProjections(maxBatches: number): Promise<number> {
-  let updated = 0
-
-  for (let batch = 0; batch < maxBatches; batch++) {
-    // Candidate set is restricted to rows we can actually project (numeric
-    // `total` present). Every updated row leaves the set (cost_total becomes
-    // non-null); rows without a numeric total never match — so the set strictly
-    // drains and the loop terminates instead of re-selecting unprojectable rows.
-    const result = await db.execute<{ id: string }>(sql`
-      WITH candidates AS (
-        SELECT id FROM ${workflowExecutionLogs}
-        WHERE cost_total IS NULL
-          AND cost ? 'total'
-          AND (cost->>'total') ~ '^-?[0-9]+(\\.[0-9]+)?$'
-        LIMIT ${PROJECTION_BATCH_SIZE}
-      )
-      UPDATE ${workflowExecutionLogs} AS wel
-      SET
-        cost_total = NULLIF(wel.cost->>'total', '')::numeric,
-        models_used = CASE
-          WHEN jsonb_typeof(wel.cost->'models') = 'object'
-          THEN ARRAY(SELECT jsonb_object_keys(wel.cost->'models'))
-          ELSE wel.models_used
-        END
-      FROM candidates
-      WHERE wel.id = candidates.id
-      RETURNING wel.id
-    `)
-
-    const rowCount = result.length
-    updated += rowCount
-    console.log(`  [projections] batch ${batch + 1}: updated ${rowCount} (total ${updated})`)
-    if (rowCount < PROJECTION_BATCH_SIZE) break
-  }
-
-  return updated
-}
-
-/** Pass 2: externalize inline heavy execution_data into the large-value store. */
+/** Externalize inline heavy execution_data into the large-value store. */
 async function backfillTraceStorage(
   maxBatches: number
 ): Promise<{ migrated: number; failed: number }> {
@@ -233,17 +171,9 @@ async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2))
   const startedAt = Date.now()
 
-  if (options.projections) {
-    console.log('Backfilling cost projections (cost_total / models_used)…')
-    const updated = await backfillCostProjections(options.maxBatches)
-    console.log(`Projections done: ${updated} rows updated.`)
-  }
-
-  if (options.trace) {
-    console.log('Backfilling trace storage (externalizing execution_data)…')
-    const { migrated, failed } = await backfillTraceStorage(options.maxBatches)
-    console.log(`Trace storage done: ${migrated} migrated, ${failed} skipped/failed.`)
-  }
+  console.log('Backfilling trace storage (externalizing execution_data)…')
+  const { migrated, failed } = await backfillTraceStorage(options.maxBatches)
+  console.log(`Trace storage done: ${migrated} migrated, ${failed} skipped/failed.`)
 
   console.log(`Backfill complete in ${((Date.now() - startedAt) / 1000).toFixed(1)}s.`)
 }
