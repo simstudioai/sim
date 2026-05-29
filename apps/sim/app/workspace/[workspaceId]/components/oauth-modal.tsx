@@ -158,23 +158,25 @@ export function OAuthModal(props: OAuthModalProps) {
     setError(null)
 
     try {
+      const trimmedName = isConnect ? displayName.trim() : ''
       if (isConnect) {
-        const trimmedName = displayName.trim()
         if (!trimmedName) {
           setError('Display name is required.')
           return
         }
+      }
 
-        if (shouldPreflightOAuthProvider(providerId)) {
-          const providerConfig = await requestJson(getOAuthProviderConfigContract, {
-            query: { providerId },
-          })
-          if (!providerConfig.available) {
-            setError(providerConfig.message)
-            return
-          }
+      if (shouldPreflightOAuthProvider(providerId)) {
+        const providerConfig = await requestJson(getOAuthProviderConfigContract, {
+          query: { providerId },
+        })
+        if (!providerConfig.available) {
+          setError(providerConfig.message)
+          return
         }
+      }
 
+      if (isConnect) {
         await createDraft.mutateAsync({
           workspaceId,
           providerId,
