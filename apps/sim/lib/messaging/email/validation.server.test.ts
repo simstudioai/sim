@@ -7,7 +7,6 @@ const { mockResolveMx, envRef } = vi.hoisted(() => ({
   mockResolveMx: vi.fn(),
   envRef: {
     BLOCKED_EMAIL_MX_HOSTS: undefined as string | undefined,
-    DISABLE_SIGNUP_MX_VALIDATION: false,
   },
 }))
 
@@ -30,7 +29,6 @@ describe('validateSignupEmailMx', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     envRef.BLOCKED_EMAIL_MX_HOSTS = undefined
-    envRef.DISABLE_SIGNUP_MX_VALIDATION = false
   })
 
   it('blocks the known shared spam backend 215.im', async () => {
@@ -81,14 +79,6 @@ describe('validateSignupEmailMx', () => {
     const result = await validateSignupEmailMx('x@rotated-domain.top')
     expect(result.allowed).toBe(false)
     expect(result.reason).toBe('blocked_mx_backend')
-  })
-
-  it('respects the DISABLE_SIGNUP_MX_VALIDATION kill switch', async () => {
-    envRef.DISABLE_SIGNUP_MX_VALIDATION = true
-    mockResolveMx.mockResolvedValue(mx('smtp.215.im'))
-    const result = await validateSignupEmailMx('simuser_abc@lyi25swr.cn')
-    expect(result.allowed).toBe(true)
-    expect(mockResolveMx).not.toHaveBeenCalled()
   })
 
   it('allows when the email has no domain (defers to other validation)', async () => {

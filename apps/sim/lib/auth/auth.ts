@@ -78,6 +78,7 @@ import {
   isOrganizationsEnabled,
   isRegistrationDisabled,
   isSignupEmailValidationEnabled,
+  isSignupMxValidationEnabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
@@ -844,7 +845,7 @@ export const auth = betterAuth({
         })
       }
 
-      if (ctx.path.startsWith('/sign-up/email') && ctx.body?.email) {
+      if (isSignupMxValidationEnabled && ctx.path.startsWith('/sign-up/email') && ctx.body?.email) {
         const mxCheck = await validateSignupEmailMx(ctx.body.email)
         if (!mxCheck.allowed) {
           throw new APIError('FORBIDDEN', {

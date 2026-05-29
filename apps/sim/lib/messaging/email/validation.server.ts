@@ -41,11 +41,10 @@ export interface SignupEmailCheck {
  * users are never blocked by an infrastructure blip. Only a definitive
  * "domain has no MX" answer (`ENOTFOUND` / `ENODATA`) blocks.
  *
- * Server-only — imports `dns/promises`. Never import from client code.
+ * Server-only — imports `dns/promises`. Never import from client code. Gated by the caller
+ * behind `isSignupMxValidationEnabled`; this function performs the check unconditionally.
  */
 export async function validateSignupEmailMx(email: string): Promise<SignupEmailCheck> {
-  if (env.DISABLE_SIGNUP_MX_VALIDATION) return { allowed: true }
-
   const domain = email.split('@')[1]?.toLowerCase()
   if (!domain) return { allowed: true }
 
