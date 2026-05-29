@@ -34,12 +34,8 @@ export interface PermissionGroupConfig {
   allowedIntegrations: string[] | null
   allowedModelProviders: string[] | null
   /**
-   * Denylist of fully-qualified model IDs (e.g. `ollama/llama3`, `gpt-4o`) that
-   * members of this group may not use. Empty means no model is blocked. Applied
-   * on top of `allowedModelProviders`: a model is usable only when its provider
-   * is allowed AND the model is not present here. A denylist (rather than an
-   * allowlist) keeps dynamically-discovered models — vLLM, Ollama, LiteLLM —
-   * usable by default as the upstream catalog changes.
+   * Fully-qualified model IDs (e.g. `ollama/llama3`, `gpt-4o`) blocked for this
+   * group, checked after `allowedModelProviders`. Empty means nothing is blocked.
    */
   deniedModels: string[]
   hideTraceSpans: boolean

@@ -256,11 +256,7 @@ function AccessControlSkeleton() {
   )
 }
 
-/**
- * Providers whose model catalog is discovered at runtime from a user-configured
- * endpoint rather than the static {@link PROVIDER_DEFINITIONS} list. Their models
- * are fetched lazily via {@link useProviderModels} when a row is expanded.
- */
+/** Providers whose models are fetched at runtime (on row expand) rather than from {@link PROVIDER_DEFINITIONS}. */
 const DYNAMIC_MODEL_PROVIDERS = new Set<ProviderName>([
   'ollama',
   'vllm',
@@ -419,7 +415,7 @@ function ProviderRow({
           )}
         >
           <span className='truncate font-medium text-sm'>{providerName}</span>
-          {deniedCount > 0 && (
+          {isProviderAllowed && deniedCount > 0 && (
             <span className='rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
               {deniedCount} blocked
             </span>
@@ -1000,7 +996,7 @@ export function AccessControl() {
         const providerId = getProviderFromModel(model)
         counts[providerId] = (counts[providerId] ?? 0) + 1
       } catch {
-        // Model maps to an unavailable provider (e.g. server-blacklisted); skip its badge.
+        // Unknown/blacklisted provider — omit from counts.
       }
     }
     return counts
