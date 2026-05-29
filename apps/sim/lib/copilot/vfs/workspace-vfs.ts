@@ -25,6 +25,10 @@ import {
   type WorkspaceMdData,
 } from '@/lib/copilot/chat/workspace-context'
 import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
+import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/doc-compile'
+import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
+import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
+import { isRenderableDocExt, renderDocToGrid } from '@/lib/copilot/tools/server/files/doc-render'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
@@ -63,15 +67,16 @@ import { ensureWorkflowAliasBackingQuietly } from '@/lib/copilot/vfs/workflow-al
 import {
   buildWorkflowAliasLinks,
   isWorkflowAliasBackingPath,
-  WORKSPACE_PLANS_BACKING_FOLDER,
   WORKFLOW_ALIAS_LINKS_NAME,
   WORKFLOW_CHANGELOG_ALIAS_NAME,
   WORKFLOW_PLANS_ALIAS_DIR,
   WORKFLOW_PLANS_BACKING_FOLDER,
+  WORKSPACE_PLANS_BACKING_FOLDER,
+  workflowChangelogBackingPath,
   workspacePlanBackingPath,
   workspacePlansBackingFolderPath,
-  workflowChangelogBackingPath,
 } from '@/lib/copilot/vfs/workflow-aliases'
+import { isE2BDocEnabled, isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
@@ -81,7 +86,6 @@ import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/executi
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
-import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
 import { buildMothershipToolsForRequest } from '@/lib/mothership/settings/runtime'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -112,6 +116,22 @@ const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
 /** Static component files, computed once and shared across all VFS instances */
 let staticComponentFiles: Map<string, string> | null = null
+
+// On-the-fly doc reads (render/extract) download the binary into the Sim process
+// and base64-stage it to E2B, so bound the input like the compile path's staging
+// caps — otherwise an authenticated member could OOM the worker with a multi-GB
+// upload (uploads are capped at 5GB).
+const MAX_DOC_READ_INPUT_BYTES = 50 * 1024 * 1024
+
+/**
+ * True when the buffer is an actual compiled/uploaded binary (vs a source-backed
+ * generated doc). OOXML (pptx/docx/xlsx) is a ZIP (starts `PK`); PDFs may carry a
+ * BOM or leading whitespace before `%PDF`, so scan the head rather than offset 0.
+ */
+function isBinaryDocBuffer(buffer: Buffer, ext: string): boolean {
+  if (ext === 'pdf') return buffer.subarray(0, 1024).toString('latin1').includes('%PDF')
+  return buffer.subarray(0, 2).toString('latin1') === 'PK'
+}
 
 /**
  * Build the static component files from block and tool registries.
@@ -471,7 +491,7 @@ export class WorkspaceVFS {
 
   private async resolveWorkspaceFileForDynamicRead(
     path: string,
-    suffix: 'style' | 'compiled-check' | 'compiled'
+    suffix: 'style' | 'compiled-check' | 'compiled' | 'render' | 'extract'
   ): Promise<WorkspaceFileRecord | null> {
     if (!isMothershipBetaFeaturesEnabled && isWorkflowAliasBackingPath(path)) {
       return null
@@ -506,8 +526,9 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
+        const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
-        if (!taskId) return null
+        if (!e2bFmt && !taskId) return null
         const buffer = await fetchWorkspaceFileBuffer(record)
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
@@ -516,19 +537,32 @@ export class WorkspaceVFS {
             totalLines: 1,
           }
         }
-        const compiled = await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+        let compiled: Buffer
+        let contentType: string
+        if (e2bFmt) {
+          // E2B: load the compile-once S3 artifact (or build it on first read).
+          const out = await compileDoc({
+            source: code,
+            fileName: record.name,
+            workspaceId: this._workspaceId,
+          })
+          compiled = out.buffer
+          contentType = out.contentType
+        } else {
+          compiled = await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+          contentType =
+            ext === 'pdf'
+              ? 'application/pdf'
+              : ext === 'docx'
+                ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                : 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        }
         if (compiled.length > MAX_COMPILED_ATTACHMENT_BYTES) {
           return {
             content: `[Compiled artifact too large: ${record.name} (${compiled.length} bytes, limit ${MAX_COMPILED_ATTACHMENT_BYTES})]`,
             totalLines: 1,
           }
         }
-        const contentType =
-          ext === 'pdf'
-            ? 'application/pdf'
-            : ext === 'docx'
-              ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-              : 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
         return {
           content: `Compiled file: ${record.name} (${compiled.length} bytes, ${contentType})`,
           totalLines: 1,
@@ -561,6 +595,157 @@ export class WorkspaceVFS {
       }
     }
 
+    const renderMatch = /^files\/(?:by-id\/[^/]+|.+)\/render$/.test(path)
+    if (renderMatch) {
+      let record: WorkspaceFileRecord | null = null
+      try {
+        record = await this.resolveWorkspaceFileForDynamicRead(path, 'render')
+        if (!record) return null
+        const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
+        if (!isRenderableDocExt(ext)) {
+          return {
+            content: JSON.stringify({
+              ok: false,
+              error: 'Render supports .pptx, .docx, and .pdf only',
+            }),
+            totalLines: 1,
+          }
+        }
+        if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
+          return {
+            content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
+            totalLines: 1,
+          }
+        }
+        const buffer = await fetchWorkspaceFileBuffer(record)
+        if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
+          return {
+            content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
+            totalLines: 1,
+          }
+        }
+        // Already-binary uploads render directly; source files are compiled first
+        // (E2B regime -> doc sandbox: Node pptx/docx, Python pdf; otherwise
+        // isolated-vm pptxgenjs/docx-js/pdf-lib).
+        let bin: Buffer
+        if (isBinaryDocBuffer(buffer, ext)) {
+          bin = buffer
+        } else {
+          const code = buffer.toString('utf-8')
+          if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
+            return {
+              content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
+              totalLines: 1,
+            }
+          }
+          if (isE2BDocEnabled && getE2BDocFormat(record.name)) {
+            bin = (
+              await compileDoc({
+                source: code,
+                fileName: record.name,
+                workspaceId: this._workspaceId,
+              })
+            ).buffer
+          } else {
+            const taskId = BINARY_DOC_TASKS[ext]
+            if (!taskId) return null
+            bin = await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+          }
+        }
+        const { grid, pageCount } = await renderDocToGrid({
+          binary: bin,
+          ext,
+          workspaceId: this._workspaceId,
+        })
+        return {
+          content: `Rendered ${pageCount} page(s) of ${record.name} as a contact-sheet grid for visual QA. Inspect each page for text overflow/cutoff, overlapping elements, low contrast, misalignment, and leftover placeholder text; fix and re-render until clean.`,
+          totalLines: 1,
+          attachment: {
+            type: 'file',
+            name: `${record.name}.render.jpg`,
+            source: { type: 'base64', media_type: 'image/jpeg', data: grid.toString('base64') },
+          },
+        }
+      } catch (err) {
+        logger.warn('Render read failed via VFS', {
+          workspaceId: this._workspaceId,
+          path,
+          fileId: record?.id,
+          error: toError(err).message,
+        })
+        // Return an explicit error (not null) once the file resolved — a null read
+        // looks like a missing path and sends the agent hunting for the "correct"
+        // render path instead of surfacing the real compile/render failure.
+        return {
+          content: JSON.stringify({ ok: false, error: toError(err).message }),
+          totalLines: 1,
+        }
+      }
+    }
+
+    const extractMatch = /^files\/.+\/extract$/.test(path)
+    if (extractMatch && isE2BDocEnabled) {
+      let record: WorkspaceFileRecord | null = null
+      try {
+        record = await this.resolveWorkspaceFileForDynamicRead(path, 'extract')
+        if (!record) return null
+        const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
+        if (!isExtractableDocExt(ext)) {
+          return {
+            content: JSON.stringify({
+              ok: false,
+              error: 'Extraction supports .pdf, .pptx, .docx, and .xlsx only',
+            }),
+            totalLines: 1,
+          }
+        }
+        // Bound the input before downloading + base64-staging it in-process.
+        if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
+          return {
+            content: JSON.stringify({ ok: false, error: 'File is too large to extract' }),
+            totalLines: 1,
+          }
+        }
+        const buffer = await fetchWorkspaceFileBuffer(record)
+        if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
+          return {
+            content: JSON.stringify({ ok: false, error: 'File is too large to extract' }),
+            totalLines: 1,
+          }
+        }
+        // Extraction reads the binary. A source-backed generated doc (text source,
+        // no binary magic) should be read directly instead — point the agent there.
+        if (!isBinaryDocBuffer(buffer, ext)) {
+          return {
+            content: JSON.stringify({
+              ok: false,
+              error: 'This is a source-backed generated file; read its content directly instead.',
+            }),
+            totalLines: 1,
+          }
+        }
+        const { text, truncated } = await extractDocText({ binary: buffer, ext })
+        const note = truncated
+          ? '\n\n[... truncated — read the file directly for the full content]'
+          : ''
+        return {
+          content: `${text || '[no extractable text found]'}${note}`,
+          totalLines: 1,
+        }
+      } catch (err) {
+        logger.warn('Extract read failed via VFS', {
+          workspaceId: this._workspaceId,
+          path,
+          fileId: record?.id,
+          error: toError(err).message,
+        })
+        return {
+          content: JSON.stringify({ ok: false, error: toError(err).message }),
+          totalLines: 1,
+        }
+      }
+    }
+
     const compiledCheckMatch = /^files\/(?:by-id\/[^/]+|.+)\/compiled-check$/.test(path)
     if (compiledCheckMatch) {
       let record: WorkspaceFileRecord | null = null
@@ -568,9 +753,10 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled-check')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
+        const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
-        if (!taskId && !isMermaidFile) return null
+        if (!e2bFmt && !taskId && !isMermaidFile) return null
         const buffer = await fetchWorkspaceFileBuffer(record)
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
@@ -585,15 +771,27 @@ export class WorkspaceVFS {
           return { content: json, totalLines: 1 }
         }
         let result: { ok: boolean; error?: string; errorName?: string }
-        try {
-          if (!taskId) return null
-          await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
-          result = { ok: true }
-        } catch (err) {
-          if (err instanceof SandboxUserCodeError) {
-            result = { ok: false, error: toError(err).message, errorName: err.name }
-          } else {
-            throw err
+        if (e2bFmt) {
+          // Loads the artifact if present, else compiles once (and recalc-scans
+          // xlsx). Only a script error is { ok: false }; infra failures rethrow to
+          // the outer catch so an E2B/S3 outage isn't reported as a bad script.
+          result = await runE2BCompiledCheck({
+            source: code,
+            fileName: record.name,
+            workspaceId: this._workspaceId,
+            ext,
+          })
+        } else {
+          try {
+            if (!taskId) return null
+            await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+            result = { ok: true }
+          } catch (err) {
+            if (err instanceof SandboxUserCodeError) {
+              result = { ok: false, error: toError(err).message, errorName: err.name }
+            } else {
+              throw err
+            }
           }
         }
         const json = JSON.stringify(result)
@@ -1099,8 +1297,11 @@ export class WorkspaceVFS {
         const workspacePlanFiles = files.filter((file) => {
           if (!file.folderPath) return false
           return (
-            file.folderPath === `${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}` ||
-            file.folderPath.startsWith(`${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}/`)
+            file.folderPath ===
+              `${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}` ||
+            file.folderPath.startsWith(
+              `${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}/`
+            )
           )
         })
         const workspacePlanLinks = []

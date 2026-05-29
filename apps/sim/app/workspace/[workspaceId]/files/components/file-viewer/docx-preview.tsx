@@ -70,7 +70,6 @@ export const DocxPreview = memo(function DocxPreview({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const lastSuccessfulHtmlRef = useRef('')
   const zoomPercentRef = useRef(100)
   const {
     data: fileData,
@@ -200,7 +199,6 @@ export const DocxPreview = memo(function DocxPreview({
         })
         if (!cancelled && containerRef.current) {
           applyPostRenderStyling()
-          lastSuccessfulHtmlRef.current = containerRef.current.innerHTML
           setHasRenderedPreview(true)
           setDocumentRenderVersion((version) => version + 1)
         }
@@ -223,79 +221,10 @@ export const DocxPreview = memo(function DocxPreview({
     }
   }, [fileData, streamingContent, applyPostRenderStyling])
 
-  useEffect(() => {
-    if (streamingContent === undefined || !containerRef.current) return
-    if (streamingContent.trim().length === 0) return
-
-    let cancelled = false
-    const controller = new AbortController()
-
-    const debounceTimer = setTimeout(async () => {
-      const container = containerRef.current
-      if (!container || cancelled) return
-
-      const previousHtml = lastSuccessfulHtmlRef.current
-
-      try {
-        setRendering(true)
-
-        // boundary-raw-fetch: route returns binary DOCX (read via response.arrayBuffer()), not JSON
-        const response = await fetch(`/api/workspaces/${workspaceId}/docx/preview`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: streamingContent }),
-          signal: controller.signal,
-        })
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({ error: 'Preview failed' }))
-          throw new Error(err.error || 'Preview failed')
-        }
-
-        const arrayBuffer = await response.arrayBuffer()
-        if (cancelled || !containerRef.current) return
-        if (arrayBuffer.byteLength === 0) return
-
-        const { renderAsync } = await import('docx-preview')
-        if (cancelled || !containerRef.current) return
-
-        containerRef.current.innerHTML = ''
-        await renderAsync(new Uint8Array(arrayBuffer), containerRef.current, undefined, {
-          inWrapper: true,
-          ignoreWidth: false,
-          ignoreHeight: false,
-        })
-
-        if (!cancelled && containerRef.current) {
-          applyPostRenderStyling()
-          lastSuccessfulHtmlRef.current = containerRef.current.innerHTML
-          setHasRenderedPreview(true)
-          setDocumentRenderVersion((version) => version + 1)
-        }
-      } catch (err) {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          if (containerRef.current && previousHtml) {
-            containerRef.current.innerHTML = previousHtml
-            applyPostRenderStyling()
-            setHasRenderedPreview(true)
-            setDocumentRenderVersion((version) => version + 1)
-          }
-          const msg = toError(err).message || 'Failed to render document'
-          logger.info('Transient DOCX streaming preview error (suppressed)', { error: msg })
-        }
-      } finally {
-        if (!cancelled) {
-          setRendering(false)
-        }
-      }
-    }, 500)
-
-    return () => {
-      cancelled = true
-      clearTimeout(debounceTimer)
-      controller.abort()
-    }
-  }, [streamingContent, workspaceId, applyPostRenderStyling])
-
+  // The document is compiled to a committed binary (E2B doc sandbox, or
+  // isolated-vm when disabled) and rendered from the committed artifact above.
+  // There is no live per-tick preview: while the agent is still generating
+  // (streamingContent defined), the skeleton shows until the artifact lands.
   const error = streamingContent !== undefined ? null : resolvePreviewError(fetchError, renderError)
   if (error) return <PreviewError label='document' error={error} />
 

@@ -11,6 +11,7 @@ import {
 import { ensureWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
 import { isPlanAliasPath } from '@/lib/copilot/vfs/workflow-aliases'
+import { isE2BDocEnabled } from '@/lib/core/config/feature-flags'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -26,6 +27,7 @@ import {
   performRenameWorkspaceFile,
 } from '@/lib/workspace-files/orchestration'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
+import { compileDoc, DocCompileUserError, getE2BDocFormat } from './doc-compile'
 import { storeFileIntent } from './file-intent-store'
 
 const logger = createLogger('WorkspaceFileServerTool')
@@ -172,6 +174,74 @@ export function getDocumentFormatInfo(fileName: string): DocumentFormatInfo {
   return { isDoc: false }
 }
 
+export type CompileForWriteResult =
+  | { ok: true; sourceMime: string }
+  | { ok: false; message: string }
+
+/**
+ * Shared write-time doc handling for create + edit_content: validates and builds
+ * the document (E2B doc sandbox when enabled — Node pptx/docx, Python pdf/xlsx —
+ * else isolated-vm JS) and returns the source MIME to store, or a user-facing
+ * failure message. Non-doc files resolve to `fallbackMime`. Compilation happens
+ * here exactly once per write; the artifact is content-addressed so a read can
+ * later just load it.
+ */
+export async function compileDocForWrite(args: {
+  source: string
+  fileName: string
+  workspaceId: string
+  ownerKey: string
+  signal?: AbortSignal
+  fallbackMime: string
+}): Promise<CompileForWriteResult> {
+  const { source, fileName, workspaceId, ownerKey, signal, fallbackMime } = args
+  const docInfo = getDocumentFormatInfo(fileName)
+  const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(fileName) : null
+
+  if (!e2bFmt && fileName.toLowerCase().endsWith('.xlsx')) {
+    return {
+      ok: false,
+      message: isE2BDocEnabled
+        ? 'Excel (.xlsx) generation is currently behind a beta flag (MOTHERSHIP_BETA_FEATURES) and is not available.'
+        : 'Excel (.xlsx) generation requires the E2B document sandbox, which is not enabled in this environment.',
+    }
+  }
+
+  if (e2bFmt) {
+    // compileDoc is load-or-build, so an identical re-write reuses the cached
+    // binary instead of re-running E2B.
+    try {
+      await compileDoc({ source, fileName, workspaceId })
+    } catch (err) {
+      if (err instanceof DocCompileUserError) {
+        return {
+          ok: false,
+          message: `${e2bFmt.formatName} generation failed: ${err.message}. Fix the code and retry.`,
+        }
+      }
+      return {
+        ok: false,
+        message: `${e2bFmt.formatName} generation failed due to a system error: ${toError(err).message}. Retry shortly.`,
+      }
+    }
+    return { ok: true, sourceMime: e2bFmt.sourceMime }
+  }
+
+  if (docInfo.isDoc) {
+    try {
+      await runSandboxTask(docInfo.taskId!, { code: source, workspaceId }, { ownerKey, signal })
+    } catch (err) {
+      return {
+        ok: false,
+        message: `${docInfo.formatName} generation failed: ${toError(err).message}. Fix the code and retry.`,
+      }
+    }
+    return { ok: true, sourceMime: docInfo.sourceMime! }
+  }
+
+  return { ok: true, sourceMime: fallbackMime }
+}
+
 export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, WorkspaceFileResult> = {
   name: WorkspaceFile.id,
   async execute(
@@ -290,24 +360,18 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             return { success: false, message: `File "${target.fileName}" already exists` }
           }
 
-          const docInfo = getDocumentFormatInfo(fileName)
-          let contentType = inferContentType(fileName, explicitType)
-          if (docInfo.isDoc) {
-            try {
-              await runSandboxTask(
-                docInfo.taskId!,
-                { code: content, workspaceId },
-                { ownerKey: `user:${context.userId}`, signal: context.abortSignal }
-              )
-            } catch (err) {
-              const msg = toError(err).message
-              return {
-                success: false,
-                message: `${docInfo.formatName} generation failed: ${msg}. Fix the code and retry.`,
-              }
-            }
-            contentType = docInfo.sourceMime!
+          const compiled = await compileDocForWrite({
+            source: content,
+            fileName,
+            workspaceId,
+            ownerKey: `user:${context.userId}`,
+            signal: context.abortSignal,
+            fallbackMime: inferContentType(fileName, explicitType),
+          })
+          if (!compiled.ok) {
+            return { success: false, message: compiled.message }
           }
+          const contentType = compiled.sourceMime
 
           const fileBuffer = Buffer.from(content, 'utf-8')
           assertServerToolNotAborted(context)
@@ -319,7 +383,6 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             contentType,
             { folderId }
           )
-
           logger.info('Workspace file created via copilot', {
             fileId: result.id,
             name: fileName,

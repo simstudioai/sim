@@ -147,10 +147,24 @@ export function useWorkspaceFileContent(
   })
 }
 
+/**
+ * Thrown when the serve route returns 409 — a generated document (pptx/docx/pdf/
+ * xlsx) whose source is still being written/compiled. Distinct from a real fetch
+ * failure so the binary query can keep retrying (and the preview keeps showing
+ * its loading state) until the compiled artifact is ready.
+ */
+export class DocNotReadyError extends Error {
+  constructor() {
+    super('Document is still being generated')
+    this.name = 'DocNotReadyError'
+  }
+}
+
 async function fetchWorkspaceFileBinary(key: string, signal?: AbortSignal): Promise<ArrayBuffer> {
   const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&t=${Date.now()}`
   // boundary-raw-fetch: binary download consumed as ArrayBuffer
   const response = await fetch(serveUrl, { signal, cache: 'no-store' })
+  if (response.status === 409) throw new DocNotReadyError()
   if (!response.ok) throw new Error('Failed to fetch file content')
   return response.arrayBuffer()
 }
@@ -167,6 +181,16 @@ export function useWorkspaceFileBinary(workspaceId: string, fileId: string, key:
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: 30 * 1000,
     refetchOnWindowFocus: 'always',
+    // While a generated doc is still compiling, serve returns 409. Poll (stay in
+    // the loading state) until the artifact is ready instead of surfacing an
+    // error. The artifact is written before the source commits, so a fresh serve
+    // normally hits immediately; this only bridges S3 read-after-write lag and the
+    // brief mid-generation window, so a modest budget (~30s) is plenty. SSE
+    // content invalidation also re-fetches when the file actually updates.
+    retry: (failureCount, error) =>
+      error instanceof DocNotReadyError ? failureCount < 20 : failureCount < 2,
+    retryDelay: (failureCount, error) =>
+      error instanceof DocNotReadyError ? 1500 : Math.min(1000 * 2 ** failureCount, 5000),
   })
 }
 

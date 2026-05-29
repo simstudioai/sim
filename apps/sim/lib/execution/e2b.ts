@@ -16,6 +16,10 @@ export interface E2BExecutionRequest {
   sandboxFiles?: SandboxFile[]
   outputSandboxPath?: string
   outputSandboxPaths?: string[]
+  // Which sandbox template to run in. Defaults to 'code' (mothership-shell).
+  // Document generation passes 'doc' so it runs in the doc template
+  // (mothership-docs) that has python-pptx/docx/openpyxl/reportlab installed.
+  sandboxKind?: 'code' | 'doc'
 }
 
 export interface E2BShellExecutionRequest {
@@ -25,6 +29,10 @@ export interface E2BShellExecutionRequest {
   sandboxFiles?: SandboxFile[]
   outputSandboxPath?: string
   outputSandboxPaths?: string[]
+  // Which sandbox template to run in. Defaults to 'shell' (mothership-shell).
+  // The Node document engines (pptxgenjs/docx + react-icons/sharp) pass 'doc' so
+  // they run in the doc template (mothership-docs).
+  sandboxKind?: 'shell' | 'doc'
 }
 
 export interface E2BExecutionResult {
@@ -40,13 +48,21 @@ export interface E2BExecutionResult {
 
 const logger = createLogger('E2BExecution')
 
-async function createE2BSandbox(kind: 'code' | 'shell'): Promise<E2BSandbox> {
+async function createE2BSandbox(kind: 'code' | 'shell' | 'doc'): Promise<E2BSandbox> {
   const apiKey = env.E2B_API_KEY
   if (!apiKey) {
     throw new Error('E2B_API_KEY is required when E2B is enabled')
   }
 
-  const templateName = env.MOTHERSHIP_E2B_TEMPLATE_ID
+  // Document generation uses a dedicated template (python-pptx/docx/openpyxl/
+  // reportlab + fonts); shell/code execution use the general shell template.
+  // Doc fails closed: never run LLM-authored Python in E2B's default template
+  // (which is not vetted for this) just because the doc template id is unset.
+  if (kind === 'doc' && !env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID) {
+    throw new Error('Document compiler not configured (MOTHERSHIP_E2B_DOC_TEMPLATE_ID is unset)')
+  }
+  const templateName =
+    kind === 'doc' ? env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID : env.MOTHERSHIP_E2B_TEMPLATE_ID
   logger.info('Creating E2B sandbox', {
     kind,
     template: templateName || '(default)',
@@ -108,7 +124,7 @@ function requestedOutputSandboxPaths(req: {
 export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecutionResult> {
   const { code, language, timeoutMs } = req
 
-  const sandbox = await createE2BSandbox('code')
+  const sandbox = await createE2BSandbox(req.sandboxKind ?? 'code')
   const sandboxId = sandbox.sandboxId
 
   if (req.sandboxFiles?.length) {
@@ -228,7 +244,7 @@ export async function executeShellInE2B(
 ): Promise<E2BExecutionResult> {
   const { code, envs, timeoutMs } = req
 
-  const sandbox = await createE2BSandbox('shell')
+  const sandbox = await createE2BSandbox(req.sandboxKind ?? 'shell')
   const sandboxId = sandbox.sandboxId
 
   if (req.sandboxFiles?.length) {

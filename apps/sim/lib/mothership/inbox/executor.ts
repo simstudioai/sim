@@ -14,7 +14,7 @@ import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/hea
 import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
 import { taskPubSub } from '@/lib/copilot/tasks'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isE2BDocEnabled, isHosted } from '@/lib/core/config/feature-flags'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
@@ -198,6 +198,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       messageId: userMessageId,
       isHosted,
       workspaceContext,
+      ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(mothershipToolRuntime.tools.length > 0
         ? { mothershipTools: mothershipToolRuntime.tools }

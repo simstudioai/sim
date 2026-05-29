@@ -6,7 +6,7 @@ import { isPaid } from '@/lib/billing/plan-helpers'
 import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isE2BDocEnabled, isHosted } from '@/lib/core/config/feature-flags'
 import { registerCache } from '@/lib/monitoring/cache-registry'
 import { buildMothershipToolsForRequest } from '@/lib/mothership/settings/runtime'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -322,6 +322,9 @@ export async function buildCopilotRequestPayload(
     ...(params.userMetadata && (params.userMetadata.name || params.userMetadata.timezone)
       ? { userMetadata: params.userMetadata }
       : {}),
+    // Tell the copilot file subagent which document toolchain to write. Emitted
+    // only in Python mode so the JS path sends no new field (Go defaults to js).
+    ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
     isHosted,
   }
 }

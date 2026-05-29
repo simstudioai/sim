@@ -31,6 +31,7 @@ import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/definitions'
 import { env } from '@/lib/core/config/env'
+import { isE2BDocEnabled } from '@/lib/core/config/feature-flags'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -600,6 +601,7 @@ async function handleBuildToolCall(
       ...(resolvedWorkflowName ? { workflowName: resolvedWorkflowName } : {}),
       ...(resolvedWorkspaceId ? { workspaceId: resolvedWorkspaceId } : {}),
       ...(workspaceContext ? { workspaceContext } : {}),
+      ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
       userId,
       model: DEFAULT_COPILOT_MODEL,
       mode: 'agent',
