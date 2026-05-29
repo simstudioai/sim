@@ -1733,6 +1733,23 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  ['load_integration_tool']: {
+    parameters: {
+      properties: {
+        tool_ids: {
+          description:
+            'Exact integration tool ids to load before calling them, e.g. ["gmail_send_v2"]. Copy the "id" field verbatim from components/integrations/{service}/{operation}.json (including any version suffix).',
+          items: {
+            type: 'string',
+          },
+          type: 'array',
+        },
+      },
+      required: ['tool_ids'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   ['manage_credential']: {
     parameters: {
       type: 'object',
@@ -2782,27 +2799,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['request'],
-      type: 'object',
-    },
-    resultSchema: undefined,
-  },
-  ['tool_search_tool_regex']: {
-    parameters: {
-      properties: {
-        case_insensitive: {
-          description: 'Whether the regex should be case-insensitive (default true).',
-          type: 'boolean',
-        },
-        max_results: {
-          description: 'Maximum number of tools to return (optional).',
-          type: 'integer',
-        },
-        pattern: {
-          description: 'Regular expression to match tool names or descriptions.',
-          type: 'string',
-        },
-      },
-      required: ['pattern'],
       type: 'object',
     },
     resultSchema: undefined,

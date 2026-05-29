@@ -746,6 +746,9 @@ export function serializeIntegrationSchema(tool: ToolConfig): string {
 
   return JSON.stringify(
     {
+      // The full registry id is the agent-callable id (deferred tools are sent
+      // with this exact id; no stripping). Surface it verbatim so "copy the id
+      // field and load it" matches the callable tool and the block's tools.access.
       id: tool.id,
       name: tool.name,
       description: getCopilotToolDescription(tool, { isHosted }),

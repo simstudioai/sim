@@ -3,14 +3,14 @@ import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
+import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { registerCache } from '@/lib/monitoring/cache-registry'
 import { buildMothershipToolsForRequest } from '@/lib/mothership/settings/runtime'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { tools } from '@/tools/registry'
-import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
+import { stripVersionSuffix } from '@/tools/utils'
 
 const logger = createLogger('CopilotChatPayload')
 const TOOL_SCHEMA_CACHE_TTL_MS = 30_000
@@ -91,7 +91,6 @@ export async function buildIntegrationToolSchemas(
     const integrationTools: ToolSchema[] = []
     try {
       const { createUserToolSchema } = await import('@/tools/params')
-      const latestTools = getLatestVersionTools(tools)
       let shouldAppendEmailTagline = false
 
       try {
@@ -135,11 +134,10 @@ export async function buildIntegrationToolSchemas(
         }
       }
 
-      for (const [toolId, toolConfig] of Object.entries(latestTools)) {
+      for (const { toolId, config: toolConfig } of getExposedIntegrationTools()) {
         try {
-          const strippedName = stripVersionSuffix(toolId)
           if (allowedIntegrations && toolIdToBlockType) {
-            const owningBlock = toolIdToBlockType.get(strippedName)
+            const owningBlock = toolIdToBlockType.get(stripVersionSuffix(toolId))
             if (owningBlock && !allowedIntegrations.has(owningBlock)) {
               continue
             }
@@ -147,12 +145,12 @@ export async function buildIntegrationToolSchemas(
           const userSchema = createUserToolSchema(toolConfig, {
             surface: options.schemaSurface ?? 'copilot',
           })
-          const catalogEntry = getToolEntry(strippedName)
+          const catalogEntry = getToolEntry(toolId)
           integrationTools.push({
-            name: strippedName,
+            name: toolId,
             description: getCopilotToolDescription(toolConfig, {
               isHosted,
-              fallbackName: strippedName,
+              fallbackName: toolId,
               appendEmailTagline: shouldAppendEmailTagline,
             }),
             input_schema: { ...userSchema },

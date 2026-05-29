@@ -24,6 +24,7 @@ import {
   buildWorkspaceMd,
   type WorkspaceMdData,
 } from '@/lib/copilot/chat/workspace-context'
+import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
@@ -104,8 +105,6 @@ import {
 } from '@/lib/workspaces/permissions/utils'
 import { getAllBlocks } from '@/blocks/registry'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
-import { tools as toolRegistry } from '@/tools/registry'
-import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkspaceVFS')
@@ -138,32 +137,15 @@ function getStaticComponentFiles(): Map<string, string> {
   }
   blocksFiltered = allBlocks.length - visibleBlocks.length
 
-  const toolToService = new Map<string, string>()
-  for (const block of visibleBlocks) {
-    if (!block.tools?.access) continue
-    const service = stripVersionSuffix(block.type)
-    for (const toolId of block.tools.access) {
-      toolToService.set(toolId, service)
-    }
-  }
-
-  const latestTools = getLatestVersionTools(toolRegistry)
   let integrationCount = 0
 
   const oauthServices = new Map<string, { provider: string; operations: string[] }>()
   const apiKeyServices = new Map<string, { params: string[]; operations: string[] }>()
 
-  for (const [toolId, tool] of Object.entries(latestTools)) {
-    const baseName = stripVersionSuffix(toolId)
-    const service = toolToService.get(toolId) ?? toolToService.get(baseName)
-    if (!service) {
-      logger.debug('Tool not associated with any block, skipping VFS entry', { toolId })
-      continue
-    }
-
-    const prefix = `${service}_`
-    const operation = baseName.startsWith(prefix) ? baseName.slice(prefix.length) : baseName
-
+  // Integration tools come from the shared exposed-tool set (latest version of
+  // each operation owned by a visible block), the same set used to build the
+  // deferred callable tools — so discovery and execution can never drift.
+  for (const { config: tool, service, operation } of getExposedIntegrationTools()) {
     const path = `components/integrations/${service}/${operation}.json`
     files.set(path, serializeIntegrationSchema(tool))
     integrationCount++

@@ -77,7 +77,6 @@ import {
   RunWorkflowUntilBlock,
   ScrapePage,
   SearchOnline,
-  ToolSearchToolRegex,
   WorkspaceFile,
   WorkspaceFileOperation,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -3268,7 +3267,7 @@ export function useChat(
               const isPartial =
                 payload.partial === true ||
                 payload.status === MothershipStreamV1ToolStatus.generating
-              if (name === ToolSearchToolRegex.id || isToolHiddenInUi(name)) {
+              if (isToolHiddenInUi(name)) {
                 break
               }
               const ui = getToolUI(payload.ui)

@@ -55,6 +55,7 @@ export interface ToolCatalogEntry {
     | 'list_folders'
     | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
+    | 'load_integration_tool'
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_job'
@@ -92,7 +93,6 @@ export interface ToolCatalogEntry {
     | 'set_global_workflow_variables'
     | 'superagent'
     | 'table'
-    | 'tool_search_tool_regex'
     | 'touch_plan'
     | 'update_job_history'
     | 'update_workspace_mcp_server'
@@ -151,6 +151,7 @@ export interface ToolCatalogEntry {
     | 'list_folders'
     | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
+    | 'load_integration_tool'
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_job'
@@ -188,7 +189,6 @@ export interface ToolCatalogEntry {
     | 'set_global_workflow_variables'
     | 'superagent'
     | 'table'
-    | 'tool_search_tool_regex'
     | 'touch_plan'
     | 'update_job_history'
     | 'update_workspace_mcp_server'
@@ -1944,6 +1944,25 @@ export const ListWorkspaceMcpServers: ToolCatalogEntry = {
   },
 }
 
+export const LoadIntegrationTool: ToolCatalogEntry = {
+  id: 'load_integration_tool',
+  name: 'load_integration_tool',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    properties: {
+      tool_ids: {
+        description:
+          'Exact integration tool ids to load before calling them, e.g. ["gmail_send_v2"]. Copy the "id" field verbatim from components/integrations/{service}/{operation}.json (including any version suffix).',
+        items: { type: 'string' },
+        type: 'array',
+      },
+    },
+    required: ['tool_ids'],
+    type: 'object',
+  },
+}
+
 export const ManageCredential: ToolCatalogEntry = {
   id: 'manage_credential',
   name: 'manage_credential',
@@ -3029,31 +3048,6 @@ export const Table: ToolCatalogEntry = {
   internal: true,
 }
 
-export const ToolSearchToolRegex: ToolCatalogEntry = {
-  id: 'tool_search_tool_regex',
-  name: 'tool_search_tool_regex',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    properties: {
-      case_insensitive: {
-        description: 'Whether the regex should be case-insensitive (default true).',
-        type: 'boolean',
-      },
-      max_results: {
-        description: 'Maximum number of tools to return (optional).',
-        type: 'integer',
-      },
-      pattern: {
-        description: 'Regular expression to match tool names or descriptions.',
-        type: 'string',
-      },
-    },
-    required: ['pattern'],
-    type: 'object',
-  },
-}
-
 export const TouchPlan: ToolCatalogEntry = {
   id: 'touch_plan',
   name: 'touch_plan',
@@ -3896,6 +3890,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ListFolders.id]: ListFolders,
   [ListUserWorkspaces.id]: ListUserWorkspaces,
   [ListWorkspaceMcpServers.id]: ListWorkspaceMcpServers,
+  [LoadIntegrationTool.id]: LoadIntegrationTool,
   [ManageCredential.id]: ManageCredential,
   [ManageCustomTool.id]: ManageCustomTool,
   [ManageJob.id]: ManageJob,
@@ -3933,7 +3928,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
   [Superagent.id]: Superagent,
   [Table.id]: Table,
-  [ToolSearchToolRegex.id]: ToolSearchToolRegex,
   [TouchPlan.id]: TouchPlan,
   [UpdateJobHistory.id]: UpdateJobHistory,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,

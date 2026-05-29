@@ -53,6 +53,33 @@ vi.mock('@/tools/utils', () => ({
   stripVersionSuffix: vi.fn((toolId: string) => toolId),
 }))
 
+vi.mock('@/lib/copilot/integration-tools', () => ({
+  getExposedIntegrationTools: vi.fn(() => [
+    {
+      toolId: 'gmail_send',
+      config: { id: 'gmail_send', name: 'Gmail Send', description: 'Send emails using Gmail' },
+      service: 'gmail',
+      operation: 'send',
+    },
+    {
+      toolId: 'brandfetch_search',
+      config: {
+        id: 'brandfetch_search',
+        name: 'Brandfetch Search',
+        description: 'Search for brands by company name',
+      },
+      service: 'brandfetch',
+      operation: 'search',
+    },
+    {
+      toolId: 'run_workflow',
+      config: { id: 'run_workflow', name: 'Run Workflow', description: 'Run a workflow from the client' },
+      service: 'run',
+      operation: 'workflow',
+    },
+  ]),
+}))
+
 vi.mock('@/tools/params', () => ({
   createUserToolSchema: mockCreateUserToolSchema,
 }))
