@@ -8,7 +8,6 @@ const EMAIL_OPERATIONS = [
   'hem_to_best_linkedin',
   'hem_to_linkedin',
   'hem_to_maid',
-  'email_to_activity',
 ]
 
 const LINKEDIN_OPERATIONS = [
@@ -80,12 +79,22 @@ export const RB2BBlock: BlockConfig<Rb2bResponse> = {
       condition: { field: 'operation', value: 'ip_to_hem' },
     },
     {
-      id: 'email',
+      id: 'emailOrHash',
       title: 'Email or MD5 Hash',
       type: 'short-input',
+      canonicalParamId: 'email',
       placeholder: 'jane@example.com or an MD5 hash',
       condition: { field: 'operation', value: EMAIL_OPERATIONS },
       required: { field: 'operation', value: EMAIL_OPERATIONS },
+    },
+    {
+      id: 'emailAddress',
+      title: 'Email Address',
+      type: 'short-input',
+      canonicalParamId: 'email',
+      placeholder: 'jane@example.com',
+      condition: { field: 'operation', value: 'email_to_activity' },
+      required: { field: 'operation', value: 'email_to_activity' },
     },
     {
       id: 'linkedin_slug',

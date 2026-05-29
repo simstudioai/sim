@@ -1575,9 +1575,11 @@ export function ExaAIIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export function RB2BIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const clipId = `rb2b_clip_${id}`
   return (
     <svg viewBox='0 0 165 48' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
-      <g clipPath='url(#clip0_551_23712)'>
+      <g clipPath={`url(#${clipId})`}>
         <path d='M95.975 8.40234H87.5703V16.8057H95.975V8.40234Z' fill='#0C1316' />
         <path d='M121.405 8.40234H113V16.8057H121.405V8.40234Z' fill='#0C1316' />
         <path d='M112.998 16.8066H104.594V25.21H112.998V16.8066Z' fill='#0C1316' />
@@ -1606,7 +1608,7 @@ export function RB2BIcon(props: SVGProps<SVGSVGElement>) {
         <path d='M38.7953 8.40234H30.3906V19.7973H38.7953V8.40234Z' fill='#0C1316' />
       </g>
       <defs>
-        <clipPath id='clip0_551_23712'>
+        <clipPath id={clipId}>
           <rect width='165' height='48' fill='white' />
         </clipPath>
       </defs>
