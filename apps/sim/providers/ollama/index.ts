@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import { getOllamaUrl } from '@/lib/core/utils/urls'
@@ -10,6 +10,7 @@ import type { ModelsObject } from '@/providers/ollama/types'
 import { createReadableStreamFromOllamaStream } from '@/providers/ollama/utils'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
+  Message,
   ProviderConfig,
   ProviderRequest,
   ProviderResponse,
@@ -73,7 +74,7 @@ export const ollamaProvider: ProviderConfig = {
       baseURL: `${OLLAMA_HOST}/v1`,
     })
 
-    const allMessages = []
+    const allMessages: Message[] = []
 
     if (request.systemPrompt) {
       allMessages.push({
@@ -92,7 +93,7 @@ export const ollamaProvider: ProviderConfig = {
     if (request.messages) {
       allMessages.push(...request.messages)
     }
-    const formattedMessages = formatMessagesForProvider(allMessages, 'ollama')
+    const formattedMessages = formatMessagesForProvider(allMessages, 'ollama') as Message[]
 
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
@@ -180,7 +181,7 @@ export const ollamaProvider: ProviderConfig = {
           stream: createReadableStreamFromOllamaStream(streamResponse, (content, usage) => {
             streamingResult.execution.output.content = content
 
-            if (content) {
+            if (content && request.responseFormat) {
               streamingResult.execution.output.content = content
                 .replace(/```json\n?|\n?```/g, '')
                 .trim()
@@ -264,7 +265,7 @@ export const ollamaProvider: ProviderConfig = {
 
       let content = currentResponse.choices[0]?.message?.content || ''
 
-      if (content) {
+      if (content && request.responseFormat) {
         content = content.replace(/```json\n?|\n?```/g, '')
         content = content.trim()
       }
@@ -295,6 +296,9 @@ export const ollamaProvider: ProviderConfig = {
       while (iterationCount < MAX_TOOL_ITERATIONS) {
         if (currentResponse.choices[0]?.message?.content) {
           content = currentResponse.choices[0].message.content
+          if (request.responseFormat) {
+            content = content.replace(/```json\n?|\n?```/g, '').trim()
+          }
         }
 
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
@@ -450,8 +454,9 @@ export const ollamaProvider: ProviderConfig = {
 
         if (currentResponse.choices[0]?.message?.content) {
           content = currentResponse.choices[0].message.content
-          content = content.replace(/```json\n?|\n?```/g, '')
-          content = content.trim()
+          if (request.responseFormat) {
+            content = content.replace(/```json\n?|\n?```/g, '').trim()
+          }
         }
 
         if (currentResponse.usage) {
@@ -477,10 +482,11 @@ export const ollamaProvider: ProviderConfig = {
 
         const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 
+        const { tools: _tools, tool_choice: _toolChoice, ...streamPayload } = payload
+
         const streamingParams: ChatCompletionCreateParamsStreaming = {
-          ...payload,
+          ...streamPayload,
           messages: currentMessages,
-          tool_choice: 'auto',
           stream: true,
           stream_options: { include_usage: true },
         }
@@ -493,7 +499,7 @@ export const ollamaProvider: ProviderConfig = {
           stream: createReadableStreamFromOllamaStream(streamResponse, (content, usage) => {
             streamingResult.execution.output.content = content
 
-            if (content) {
+            if (content && request.responseFormat) {
               streamingResult.execution.output.content = content
                 .replace(/```json\n?|\n?```/g, '')
                 .trim()
@@ -589,12 +595,27 @@ export const ollamaProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
+      let errorMessage = getErrorMessage(error, 'Unknown error')
+      let errorType: string | undefined
+      let errorCode: string | undefined
+      let status: number | undefined
+
+      if (error instanceof OpenAI.APIError) {
+        errorMessage = error.message
+        errorType = error.type
+        errorCode = error.code ?? undefined
+        status = error.status
+      }
+
       logger.error('Error in Ollama request:', {
-        error,
+        error: errorMessage,
+        errorType,
+        errorCode,
+        status,
         duration: totalDuration,
       })
 
-      throw new ProviderError(toError(error).message, {
+      throw new ProviderError(errorMessage, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,
@@ -602,8 +623,3 @@ export const ollamaProvider: ProviderConfig = {
     }
   },
 }
-
-/**
- * Enriches the last model segment with per-iteration content from a Chat
- * Completions response: assistant text, tool calls, finish reason, token usage.
- */

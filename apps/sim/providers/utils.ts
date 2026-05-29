@@ -670,6 +670,59 @@ export function calculateCost(
 }
 
 /**
+ * Recursively enforces OpenAI strict-mode requirements on a JSON schema:
+ * - Sets `additionalProperties: false` on every object type.
+ * - Forces `required` to include ALL property keys.
+ *
+ * Required for any OpenAI-compatible backend that validates strict structured
+ * outputs (OpenAI, Azure OpenAI, and OpenAI routes behind proxies like LiteLLM),
+ * which reject schemas missing these constraints with an HTTP 400.
+ */
+export function enforceStrictSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  if (!schema || typeof schema !== 'object') return schema
+
+  const result = { ...schema }
+
+  if (result.type === 'object') {
+    result.additionalProperties = false
+
+    if (result.properties && typeof result.properties === 'object') {
+      const propKeys = Object.keys(result.properties as Record<string, unknown>)
+      result.required = propKeys
+      result.properties = Object.fromEntries(
+        Object.entries(result.properties as Record<string, unknown>).map(([key, value]) => [
+          key,
+          enforceStrictSchema(value as Record<string, unknown>),
+        ])
+      )
+    }
+  }
+
+  if (result.type === 'array' && result.items) {
+    result.items = enforceStrictSchema(result.items as Record<string, unknown>)
+  }
+
+  for (const keyword of ['anyOf', 'oneOf', 'allOf']) {
+    if (Array.isArray(result[keyword])) {
+      result[keyword] = (result[keyword] as Record<string, unknown>[]).map(enforceStrictSchema)
+    }
+  }
+
+  for (const defKey of ['$defs', 'definitions']) {
+    if (result[defKey] && typeof result[defKey] === 'object') {
+      result[defKey] = Object.fromEntries(
+        Object.entries(result[defKey] as Record<string, unknown>).map(([key, value]) => [
+          key,
+          enforceStrictSchema(value as Record<string, unknown>),
+        ])
+      )
+    }
+  }
+
+  return result
+}
+
+/**
  * Sums the `cost.total` from each tool result returned during a provider tool loop.
  * Tool results may carry a `cost` object injected by `applyHostedKeyCostToResult`.
  */
