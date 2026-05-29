@@ -1574,6 +1574,46 @@ export function ExaAIIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function RB2BIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='0 0 165 48' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <g clipPath='url(#clip0_551_23712)'>
+        <path d='M95.975 8.40234H87.5703V16.8057H95.975V8.40234Z' fill='#0C1316' />
+        <path d='M121.405 8.40234H113V16.8057H121.405V8.40234Z' fill='#0C1316' />
+        <path d='M112.998 16.8066H104.594V25.21H112.998V16.8066Z' fill='#0C1316' />
+        <path d='M104.596 25.2109H96.1914V33.6143H104.596V25.2109Z' fill='#0C1316' />
+        <path
+          d='M87.7852 39.5965V42.0166V47.9998H121.404V39.5965H96.1898V33.6133H87.7852V39.5965Z'
+          fill='#0C1316'
+        />
+        <path d='M112.786 0H95.9766V8.40336H112.786V0Z' fill='#0C1316' />
+        <path
+          d='M52.3773 8.40336H74.3639V0H52.3773H43.9727V48H52.3773H74.3639V39.5966H52.3773V28.2017H74.3639V19.7983H52.3773V8.40336Z'
+          fill='#0C1316'
+        />
+        <path d='M82.7718 8.40234H74.3672V19.7973H82.7718V8.40234Z' fill='#0C1316' />
+        <path d='M82.7679 28.2031H74.3633V39.5981H82.7679V28.2031Z' fill='#0C1316' />
+        <path d='M164.998 8.40234H156.594V19.7973H164.998V8.40234Z' fill='#0C1316' />
+        <path d='M164.998 28.2031H156.594V39.5981H164.998V28.2031Z' fill='#0C1316' />
+        <path
+          d='M134.608 19.7983V8.40336H156.594V0H134.608H126.203V48H134.608H156.594V39.5966H134.608V28.2017H156.594V19.7983H134.608Z'
+          fill='#0C1316'
+        />
+        <path
+          d='M8.40464 8.40336H30.3912V0H8.40464H0V48H8.40464V28.2017H21.9866V36.605H30.3912V48H38.7958V28.2017H30.3912V19.7983H8.40464V8.40336Z'
+          fill='#0C1316'
+        />
+        <path d='M38.7953 8.40234H30.3906V19.7973H38.7953V8.40234Z' fill='#0C1316' />
+      </g>
+      <defs>
+        <clipPath id='clip0_551_23712'>
+          <rect width='165' height='48' fill='white' />
+        </clipPath>
+      </defs>
+    </svg>
+  )
+}
+
 export function RedditIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
