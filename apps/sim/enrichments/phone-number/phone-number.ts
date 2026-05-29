@@ -5,7 +5,10 @@ import type { EnrichmentConfig } from '@/enrichments/types'
 
 /**
  * Phone Number enrichment. Finds a contact's phone number from their full name
- * and (optionally) company domain via a People Data Labs person match.
+ * and (optionally) company domain via a waterfall: People Data Labs first
+ * (cheapest, name-only capable), then Wiza and Prospeo mobile reveals as
+ * fallbacks. Wiza/Prospeo need a company domain, so they self-skip without one.
+ * The first provider to return a phone wins; all support hosted keys.
  */
 export const phoneNumberEnrichment: EnrichmentConfig = {
   id: 'phone-number',
@@ -34,6 +37,42 @@ export const phoneNumberEnrichment: EnrichmentConfig = {
       mapOutput: (output) => {
         const person = output.person as Record<string, unknown> | undefined
         const phone = firstNonEmpty(person?.phone_numbers) ?? str(person?.mobile_phone)
+        return phone ? { phone } : null
+      },
+    }),
+    toolProvider({
+      id: 'wiza',
+      label: 'Wiza',
+      toolId: 'wiza_individual_reveal',
+      buildParams: (inputs) => {
+        const fullName = str(inputs.fullName)
+        const domain = normalizeDomain(inputs.companyDomain)
+        if (!fullName || !domain) return null
+        // 'phone' reveals the mobile number (5 credits).
+        return { full_name: fullName, domain, enrichment_level: 'phone' }
+      },
+      mapOutput: (output) => {
+        const phones = Array.isArray(output.phones)
+          ? (output.phones as Record<string, unknown>[])
+          : []
+        const phone = str(output.mobile_phone) || str(output.phone_number) || str(phones[0]?.number)
+        return phone ? { phone } : null
+      },
+    }),
+    toolProvider({
+      id: 'prospeo',
+      label: 'Prospeo',
+      toolId: 'prospeo_enrich_person',
+      buildParams: (inputs) => {
+        const fullName = str(inputs.fullName)
+        const companyWebsite = normalizeDomain(inputs.companyDomain)
+        if (!fullName || !companyWebsite) return null
+        return { full_name: fullName, company_website: companyWebsite, enrich_mobile: true }
+      },
+      mapOutput: (output) => {
+        const person = output.person as Record<string, unknown> | undefined
+        const mobile = person?.mobile as Record<string, unknown> | undefined
+        const phone = str(mobile?.mobile)
         return phone ? { phone } : null
       },
     }),
