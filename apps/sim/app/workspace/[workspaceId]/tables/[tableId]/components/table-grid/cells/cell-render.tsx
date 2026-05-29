@@ -320,7 +320,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
             target='_blank'
             rel='noopener noreferrer'
             className={cn(
-              'min-w-0 overflow-clip text-ellipsis text-[var(--text-primary)] underline underline-offset-2 hover:opacity-70',
+              'min-w-0 overflow-clip text-ellipsis text-[var(--text-primary)] underline underline-offset-2 transition-colors hover-hover:text-[var(--text-secondary)]',
               isEditing && 'pointer-events-none'
             )}
             onClick={(e) => e.stopPropagation()}
