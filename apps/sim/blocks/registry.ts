@@ -57,6 +57,7 @@ import { EvernoteBlock } from '@/blocks/blocks/evernote'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { ExtendBlock, ExtendV2Block } from '@/blocks/blocks/extend'
 import { FathomBlock } from '@/blocks/blocks/fathom'
+import { FfmpegBlock } from '@/blocks/blocks/ffmpeg'
 import { FileBlock, FileV2Block, FileV3Block, FileV4Block } from '@/blocks/blocks/file'
 import { FindymailBlock } from '@/blocks/blocks/findymail'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
@@ -305,6 +306,7 @@ export const registry: Record<string, BlockConfig> = {
   elasticsearch: ElasticsearchBlock,
   elevenlabs: ElevenLabsBlock,
   fathom: FathomBlock,
+  ffmpeg: FfmpegBlock,
   enrich: EnrichBlock,
   enrichment: EnrichmentBlock,
   evaluator: EvaluatorBlock,

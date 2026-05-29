@@ -4157,6 +4157,61 @@
     "tags": ["meeting", "note-taking"]
   },
   {
+    "type": "ffmpeg",
+    "slug": "ffmpeg",
+    "name": "FFmpeg",
+    "description": "Process video and audio files with FFmpeg",
+    "longDescription": "Transcode, trim, compress, concatenate, and inspect video and audio files server-side with FFmpeg. Convert formats, extract audio, capture thumbnails, adjust volume, and change playback speed — no external service required.",
+    "bgColor": "#FFFFFF",
+    "iconName": "FFmpegIcon",
+    "docsUrl": "https://docs.sim.ai/tools/ffmpeg",
+    "operations": [
+      {
+        "name": "Convert Format",
+        "description": "Convert (transcode) a video or audio file to a different container/format"
+      },
+      {
+        "name": "Extract Audio",
+        "description": "Extract the audio track from a video file into an audio file"
+      },
+      {
+        "name": "Trim / Cut",
+        "description": "Cut a segment from a video or audio file using a start time and/or duration"
+      },
+      {
+        "name": "Compress / Scale",
+        "description": "Compress and/or rescale a video to reduce file size"
+      },
+      {
+        "name": "Get Media Info",
+        "description": "Inspect a media file and return metadata (duration, format, codecs, resolution)"
+      },
+      {
+        "name": "Extract Thumbnail",
+        "description": "Extract a single frame from a video at a given timestamp as an image"
+      },
+      {
+        "name": "Concatenate",
+        "description": "Join multiple media files of the same format and codec into a single output file"
+      },
+      {
+        "name": "Adjust Volume",
+        "description": "Adjust the audio volume of a video or audio file"
+      },
+      {
+        "name": "Change Speed",
+        "description": "Speed up or slow down playback of a video or audio file"
+      }
+    ],
+    "operationCount": 9,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["developer-tools", "documents"],
+    "tags": ["media-processing", "document-processing"]
+  },
+  {
     "type": "file_v4",
     "slug": "file",
     "name": "File",

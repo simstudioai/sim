@@ -663,6 +663,17 @@ import {
   fathomListTeamsTool,
 } from '@/tools/fathom'
 import {
+  ffmpegCompressTool,
+  ffmpegConcatTool,
+  ffmpegConvertTool,
+  ffmpegExtractAudioTool,
+  ffmpegProbeTool,
+  ffmpegSpeedTool,
+  ffmpegThumbnailTool,
+  ffmpegTrimTool,
+  ffmpegVolumeTool,
+} from '@/tools/ffmpeg'
+import {
   fileAppendTool,
   fileFetchTool,
   fileGetTool,
@@ -5040,6 +5051,15 @@ export const tools: Record<string, ToolConfig> = {
   fathom_get_transcript: fathomGetTranscriptTool,
   fathom_list_team_members: fathomListTeamMembersTool,
   fathom_list_teams: fathomListTeamsTool,
+  ffmpeg_convert: ffmpegConvertTool,
+  ffmpeg_extract_audio: ffmpegExtractAudioTool,
+  ffmpeg_trim: ffmpegTrimTool,
+  ffmpeg_compress: ffmpegCompressTool,
+  ffmpeg_probe: ffmpegProbeTool,
+  ffmpeg_thumbnail: ffmpegThumbnailTool,
+  ffmpeg_concat: ffmpegConcatTool,
+  ffmpeg_volume: ffmpegVolumeTool,
+  ffmpeg_speed: ffmpegSpeedTool,
   findymail_find_email_from_linkedin: findymailFindEmailFromLinkedInTool,
   findymail_find_email_from_name: findymailFindEmailFromNameTool,
   findymail_find_emails_by_domain: findymailFindEmailsByDomainTool,

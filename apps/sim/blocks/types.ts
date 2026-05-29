@@ -55,6 +55,7 @@ export type IntegrationTag =
   | 'speech-to-text'
   | 'image-generation'
   | 'video-generation'
+  | 'media-processing'
   | 'cloud'
   | 'google-workspace'
   | 'microsoft-365'

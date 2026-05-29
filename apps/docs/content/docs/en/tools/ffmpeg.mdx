@@ -1,0 +1,315 @@
+---
+title: FFmpeg
+description: Process video and audio files with FFmpeg
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ffmpeg"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+{/* MANUAL-CONTENT-START:usage */}
+The FFmpeg block runs the FFmpeg media engine on Sim's servers — there is no external service, API key, or OAuth to configure. It takes a media file as input (uploaded directly or referenced from a previous block as a `UserFile`), processes it, and returns the result as a new `UserFile` you can pass to any downstream block.
+
+Pick an **Operation**, supply the input file, and fill in the fields shown for that operation:
+
+| Operation | What it does | Key inputs | Output |
+| --- | --- | --- | --- |
+| **Convert Format** | Transcode to a different container/codec | `Output Format` (required, e.g. `mp4`, `webm`, `mp3`); optional `Video Codec` / `Audio Codec` | Converted media file |
+| **Extract Audio** | Pull the audio track out of a video | `Output Format` (defaults to `mp3`) | Audio file |
+| **Trim / Cut** | Keep a segment of the media | `Start Time` and/or `Duration` (seconds or `HH:MM:SS`) | Trimmed media file |
+| **Compress / Scale** | Reduce file size and/or rescale video | `Scale` (e.g. `1280x720`, `1280:-2`), `Quality (CRF)` 0–51, optional `Video Bitrate` | Compressed video file |
+| **Get Media Info** | Inspect the file with `ffprobe` | — | Metadata only (duration, codecs, resolution, streams) — no file |
+| **Extract Thumbnail** | Capture a single frame as an image | `Timestamp` (defaults to 1s), `Output Format` (`jpg`/`png`/`webp`) | Image file |
+| **Concatenate** | Join multiple clips into one | `Media Files` (2+, **same codec/format**) | Joined media file |
+| **Adjust Volume** | Change audio loudness | `Volume` — multiplier (`1.5`, `0.5`) or decibels (`10dB`, `-6dB`) | Media file |
+| **Change Speed** | Speed up or slow down playback | `Speed` multiplier (`2` = 2× faster, `0.5` = half) | Retimed media file |
+
+**File handling.** Inputs and outputs are standard Sim `UserFile` objects, so the block chains naturally — e.g. *Convert → Trim → Extract Thumbnail*, or feed the output of an upload/HTTP block straight into FFmpeg. Every operation except **Get Media Info** returns a `file` output; **Get Media Info** returns structured metadata instead.
+
+**Notes & limits.**
+- **Concatenate** uses FFmpeg's concat demuxer with stream copy, so all inputs must share the same codec, resolution, and format (typical for clips exported from one source). Mixed-codec inputs will fail.
+- **Change Speed** automatically retimes whichever streams exist — video via `setpts`, audio via `atempo` (chained for speeds beyond 0.5×–2×).
+- Input and output files are capped at 200 MB each.
+- Requires the FFmpeg binary on the server (bundled via `ffmpeg-static`; `ffprobe` from the system PATH is needed for **Get Media Info**).
+{/* MANUAL-CONTENT-END */}
+
+
+Transcode, trim, compress, concatenate, and inspect video and audio files server-side with FFmpeg. Convert formats, extract audio, capture thumbnails, adjust volume, and change playback speed — no external service required.
+
+
+
+## Tools
+
+### `ffmpeg_convert`
+
+Convert (transcode) a video or audio file to a different container/format
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `file` | file | Yes | The media file to convert |
+| `format` | string | Yes | Target output format/container \(e.g. mp4, webm, mov, mkv, mp3, wav\) |
+| `videoCodec` | string | No | Optional video codec override \(e.g. libx264, vp9\) |
+| `audioCodec` | string | No | Optional audio codec override \(e.g. aac, libmp3lame\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Processed media file |
+| `fileName` | string | Generated output file name |
+| `format` | string | Output or detected container format |
+| `size` | number | Output file size in bytes |
+| `durationSeconds` | number | Media duration in seconds |
+| `bitrate` | number | Overall bitrate in bits per second |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `hasVideo` | boolean | Whether a video stream is present |
+| `hasAudio` | boolean | Whether an audio stream is present |
+| `videoCodec` | string | Primary video codec |
+| `audioCodec` | string | Primary audio codec |
+| `streams` | array | All detected media streams |
+
+### `ffmpeg_extract_audio`
+
+Extract the audio track from a video file into an audio file
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `file` | file | Yes | The video file to extract audio from |
+| `format` | string | No | Output audio format \(mp3, wav, aac, flac, ogg, m4a, opus\). Defaults to mp3 |
+| `audioCodec` | string | No | Optional audio codec override \(e.g. aac, libmp3lame\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Processed media file |
+| `fileName` | string | Generated output file name |
+| `format` | string | Output or detected container format |
+| `size` | number | Output file size in bytes |
+| `durationSeconds` | number | Media duration in seconds |
+| `bitrate` | number | Overall bitrate in bits per second |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `hasVideo` | boolean | Whether a video stream is present |
+| `hasAudio` | boolean | Whether an audio stream is present |
+| `videoCodec` | string | Primary video codec |
+| `audioCodec` | string | Primary audio codec |
+| `streams` | array | All detected media streams |
+
+### `ffmpeg_trim`
+
+Cut a segment from a video or audio file using a start time and/or duration
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `file` | file | Yes | The media file to trim |
+| `startTime` | string | No | Start offset in seconds or HH:MM:SS\(.ms\), e.g. 5 or 00:00:05 |
+| `duration` | string | No | Duration to keep in seconds or HH:MM:SS\(.ms\), e.g. 30 or 00:00:30 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Processed media file |
+| `fileName` | string | Generated output file name |
+| `format` | string | Output or detected container format |
+| `size` | number | Output file size in bytes |
+| `durationSeconds` | number | Media duration in seconds |
+| `bitrate` | number | Overall bitrate in bits per second |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `hasVideo` | boolean | Whether a video stream is present |
+| `hasAudio` | boolean | Whether an audio stream is present |
+| `videoCodec` | string | Primary video codec |
+| `audioCodec` | string | Primary audio codec |
+| `streams` | array | All detected media streams |
+
+### `ffmpeg_compress`
+
+Compress and/or rescale a video to reduce file size
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `file` | file | Yes | The video file to compress |
+| `scale` | string | No | Optional output dimensions, e.g. 1280x720, 1280:720, or 1280:-2 \(keep aspect ratio\) |
+| `crf` | number | No | Constant Rate Factor \(0 = lossless, 23 = default, 51 = worst quality\) |
+| `videoBitrate` | string | No | Optional target video bitrate, e.g. 1M or 800k |
+| `videoCodec` | string | No | Optional video codec override \(defaults to libx264\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Processed media file |
+| `fileName` | string | Generated output file name |
+| `format` | string | Output or detected container format |
+| `size` | number | Output file size in bytes |
+| `durationSeconds` | number | Media duration in seconds |
+| `bitrate` | number | Overall bitrate in bits per second |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `hasVideo` | boolean | Whether a video stream is present |
+| `hasAudio` | boolean | Whether an audio stream is present |
+| `videoCodec` | string | Primary video codec |
+| `audioCodec` | string | Primary audio codec |
+| `streams` | array | All detected media streams |
+
+### `ffmpeg_probe`
+
+Inspect a media file and return metadata (duration, format, codecs, resolution)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `file` | file | Yes | The media file to inspect |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Processed media file |
+| `fileName` | string | Generated output file name |
+| `format` | string | Output or detected container format |
+| `size` | number | Output file size in bytes |
+| `durationSeconds` | number | Media duration in seconds |
+| `bitrate` | number | Overall bitrate in bits per second |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `hasVideo` | boolean | Whether a video stream is present |
+| `hasAudio` | boolean | Whether an audio stream is present |
+| `videoCodec` | string | Primary video codec |
+| `audioCodec` | string | Primary audio codec |
+| `streams` | array | All detected media streams |
+
+### `ffmpeg_thumbnail`
+
+Extract a single frame from a video at a given timestamp as an image
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `file` | file | Yes | The video file to extract a frame from |
+| `time` | string | No | Timestamp in seconds or HH:MM:SS\(.ms\), e.g. 5 or 00:00:05. Defaults to 1s |
+| `format` | string | No | Output image format \(jpg, png, webp\). Defaults to jpg |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Processed media file |
+| `fileName` | string | Generated output file name |
+| `format` | string | Output or detected container format |
+| `size` | number | Output file size in bytes |
+| `durationSeconds` | number | Media duration in seconds |
+| `bitrate` | number | Overall bitrate in bits per second |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `hasVideo` | boolean | Whether a video stream is present |
+| `hasAudio` | boolean | Whether an audio stream is present |
+| `videoCodec` | string | Primary video codec |
+| `audioCodec` | string | Primary audio codec |
+| `streams` | array | All detected media streams |
+
+### `ffmpeg_concat`
+
+Join multiple media files of the same format and codec into a single output file
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `files` | file[] | Yes | Two or more media files to join, in order. Files must share the same codec |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Processed media file |
+| `fileName` | string | Generated output file name |
+| `format` | string | Output or detected container format |
+| `size` | number | Output file size in bytes |
+| `durationSeconds` | number | Media duration in seconds |
+| `bitrate` | number | Overall bitrate in bits per second |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `hasVideo` | boolean | Whether a video stream is present |
+| `hasAudio` | boolean | Whether an audio stream is present |
+| `videoCodec` | string | Primary video codec |
+| `audioCodec` | string | Primary audio codec |
+| `streams` | array | All detected media streams |
+
+### `ffmpeg_volume`
+
+Adjust the audio volume of a video or audio file
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `file` | file | Yes | The media file to adjust |
+| `volume` | string | Yes | Volume as a multiplier \(e.g. 1.5, 0.5\) or decibels \(e.g. 10dB, -6dB\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Processed media file |
+| `fileName` | string | Generated output file name |
+| `format` | string | Output or detected container format |
+| `size` | number | Output file size in bytes |
+| `durationSeconds` | number | Media duration in seconds |
+| `bitrate` | number | Overall bitrate in bits per second |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `hasVideo` | boolean | Whether a video stream is present |
+| `hasAudio` | boolean | Whether an audio stream is present |
+| `videoCodec` | string | Primary video codec |
+| `audioCodec` | string | Primary audio codec |
+| `streams` | array | All detected media streams |
+
+### `ffmpeg_speed`
+
+Speed up or slow down playback of a video or audio file
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `file` | file | Yes | The media file to retime |
+| `speed` | number | Yes | Playback speed multiplier \(0.5 = half speed, 2 = double speed\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Processed media file |
+| `fileName` | string | Generated output file name |
+| `format` | string | Output or detected container format |
+| `size` | number | Output file size in bytes |
+| `durationSeconds` | number | Media duration in seconds |
+| `bitrate` | number | Overall bitrate in bits per second |
+| `width` | number | Video width in pixels |
+| `height` | number | Video height in pixels |
+| `hasVideo` | boolean | Whether a video stream is present |
+| `hasAudio` | boolean | Whether an audio stream is present |
+| `videoCodec` | string | Primary video codec |
+| `audioCodec` | string | Primary audio codec |
+| `streams` | array | All detected media streams |
+
+

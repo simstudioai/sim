@@ -585,6 +585,7 @@ export function normalizeFileInput(
  */
 export const BUILT_IN_TOOL_TYPES = new Set([
   'api',
+  'ffmpeg',
   'file',
   'function',
   'knowledge',
