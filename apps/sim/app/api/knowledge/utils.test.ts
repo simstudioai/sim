@@ -259,7 +259,12 @@ describe('Knowledge Utils', () => {
         {}
       )
 
-      expect(dbOps.order).toEqual(['insert', 'updateDoc'])
+      // Embeddings are inserted first, then the document counter update. A
+      // usage_log billing insert (recordUsage) may trail after updateDoc and is
+      // irrelevant to this ordering invariant, so assert position rather than
+      // exact array equality.
+      expect(dbOps.order[0]).toBe('insert')
+      expect(dbOps.order.indexOf('updateDoc')).toBeGreaterThan(0)
 
       expect(dbOps.updatePayloads[0]).toMatchObject({
         processingStatus: 'completed',

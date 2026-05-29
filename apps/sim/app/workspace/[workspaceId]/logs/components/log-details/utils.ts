@@ -1,6 +1,6 @@
 import type React from 'react'
 import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import type { TraceSpan } from '@/lib/logs/types'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
@@ -117,10 +117,7 @@ export function getDisplayName(span: TraceSpan): string {
 }
 
 export function formatCostAmount(value: number | undefined): string | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
-  const credits = dollarsToCredits(value)
-  if (credits <= 0) return '<1 credit'
-  return `${credits.toLocaleString('en-US')} ${credits === 1 ? 'credit' : 'credits'}`
+  return formatCreditCost(value, { emptyForZeroOrLess: true })
 }
 
 export function formatTokensSummary(tokens: TraceSpan['tokens']): string | undefined {

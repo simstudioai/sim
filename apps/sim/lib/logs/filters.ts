@@ -195,7 +195,8 @@ function buildSearchConditions(params: {
 }
 
 function buildCostCondition(operator: ComparisonOperator, value: number): SQL {
-  const costField = sql`(${workflowExecutionLogs.cost}->>'total')::numeric`
+  // Indexed projection of the usage_log ledger (dollars); no live aggregation.
+  const costField = sql`${workflowExecutionLogs.costTotal}`
 
   switch (operator) {
     case '=':

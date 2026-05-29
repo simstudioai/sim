@@ -329,8 +329,25 @@ export const workflowExecutionLogs = pgTable(
     endedAt: timestamp('ended_at'),
     totalDurationMs: integer('total_duration_ms'),
 
+    /**
+     * Heavy trace data (traceSpans, finalOutput, workflowInput, executionState)
+     * is externalized to object storage; this column then holds a slim payload:
+     * a `traceStoreRef` (__simLargeValueRef) pointer to the stored object plus
+     * inline markers (hasTraceSpans, traceSpanCount, environment, trigger,
+     * truncation flags). It also still holds the FULL payload inline for legacy
+     * / not-yet-backfilled rows, for the storage-write-failure fallback, and for
+     * job_execution_logs. Required — not droppable. Read it via
+     * `materializeExecutionData`, which resolves the pointer.
+     */
     executionData: jsonb('execution_data').notNull().default('{}'),
+    /** @deprecated Not written/read; cost lives in usage_log + the `cost_total` projection. Drop in a follow-up PR after the `cost_total` backfill. */
     cost: jsonb('cost'),
+    // Faithful, write-once projection of the run's usage_log ledger sum (dollars).
+    // Backs list cost display/filter/sort without live aggregation; never an
+    // independently-computed value (cost_total == SUM(usage_log) for the run).
+    costTotal: decimal('cost_total'),
+    // Model names used by the run (incl. zero-cost/BYOK), for the v1 model filter.
+    modelsUsed: text('models_used').array(),
     files: jsonb('files'), // File metadata for execution files
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
@@ -356,6 +373,11 @@ export const workflowExecutionLogs = pgTable(
       table.workspaceId,
       table.startedAt
     ),
+    workspaceCostTotalIdx: index('workflow_execution_logs_workspace_cost_total_idx').on(
+      table.workspaceId,
+      table.costTotal
+    ),
+    modelsUsedIdx: index('workflow_execution_logs_models_used_idx').using('gin', table.modelsUsed),
     workspaceEndedAtIdIdx: index('workflow_execution_logs_workspace_ended_at_id_idx').on(
       table.workspaceId,
       sql`date_trunc('milliseconds', ${table.endedAt})`,
@@ -881,39 +903,33 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One record per user
-  /**
-   * Deprecated former usage hot-path counters.
-   *
-   * These used to be incremented from execution/API/trigger/chat/MCP/A2A
-   * billing paths on every usage event. New usage reporting must derive
-   * these dimensions from `usage_log` instead of writing this row.
-   */
+  // Retired usage hot-path counters: no writers/readers; derive from usage_log.
+  // Drop via DROP COLUMN in a follow-up migration.
+  /** @deprecated Retired usage counter; derive from usage_log. */
   totalManualExecutions: integer('total_manual_executions').notNull().default(0),
+  /** @deprecated Retired usage counter; derive from usage_log. */
   totalApiCalls: integer('total_api_calls').notNull().default(0),
+  /** @deprecated Retired usage counter; derive from usage_log. */
   totalWebhookTriggers: integer('total_webhook_triggers').notNull().default(0),
+  /** @deprecated Retired usage counter; derive from usage_log. */
   totalScheduledExecutions: integer('total_scheduled_executions').notNull().default(0),
+  /** @deprecated Retired usage counter; derive from usage_log. */
   totalChatExecutions: integer('total_chat_executions').notNull().default(0),
+  /** @deprecated Retired usage counter; derive from usage_log. */
   totalMcpExecutions: integer('total_mcp_executions').notNull().default(0),
+  /** @deprecated Retired usage counter; derive from usage_log. */
   totalA2aExecutions: integer('total_a2a_executions').notNull().default(0),
+  /** @deprecated Retired usage counter; derive from usage_log. */
   totalTokensUsed: bigint('total_tokens_used', { mode: 'number' }).notNull().default(0),
-  /**
-   * Deprecated former usage hot-path cost aggregate.
-   *
-   * `recordUsage` now appends attributed rows to `usage_log`; this column is
-   * retained only for legacy/admin reporting until consumers move to ledger
-   * aggregations.
-   */
+  /** @deprecated Not written (recordUsage appends to usage_log); legacy/admin reads only. Move readers to ledger aggregation. */
   totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $5 (1,000 credits) for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
   /**
-   * Deprecated former usage hot-path current-period aggregate.
-   *
-   * Keep only as the pre-shift baseline for the active billing period.
-   * Canonical current-period usage is `currentPeriodCost` baseline plus
-   * attributed `usage_log` rows for the same billing entity and period.
+   * Active per-period baseline (not a per-usage hot-path counter). Current usage
+   * = this baseline + attributed usage_log rows for the period; reset at rollover.
    */
-  currentPeriodCost: decimal('current_period_cost').notNull().default('0'), // Usage in current billing period
+  currentPeriodCost: decimal('current_period_cost').notNull().default('0'),
   lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
   /**
    * Threshold/final billing tracker.
@@ -933,25 +949,21 @@ export const userStats = pgTable('user_stats', {
    * overage collection. It is not a per-usage aggregate counter.
    */
   creditBalance: decimal('credit_balance').notNull().default('0'),
-  /**
-   * Deprecated former Copilot hot-path cost/counter aggregates.
-   *
-   * Copilot/MCP Copilot usage should be reported from `usage_log` going
-   * forward. Current/last period Copilot columns remain as legacy reset
-   * trackers until those consumers are migrated.
-   */
+  /** @deprecated Not written; report Copilot cost from usage_log. Legacy/admin reads only. */
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
+  /** Active per-period Copilot baseline; reset at rollover (not a per-usage counter). */
   currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
+  /** Previous-period Copilot cost; set at rollover. */
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
+  /** @deprecated Not written; report Copilot tokens from usage_log. Legacy/admin reads only. */
   totalCopilotTokens: bigint('total_copilot_tokens', { mode: 'number' }).notNull().default(0),
+  /** @deprecated Not written; report Copilot calls from usage_log. Legacy/admin reads only. */
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
-  /**
-   * Deprecated former MCP Copilot hot-path aggregates.
-   *
-   * New MCP Copilot billing usage should be reported from `usage_log`.
-   */
+  /** @deprecated Not written; report MCP Copilot calls from usage_log. Legacy/admin reads only. */
   totalMcpCopilotCalls: integer('total_mcp_copilot_calls').notNull().default(0),
+  /** @deprecated Not written; report MCP Copilot cost from usage_log. Legacy/admin reads only. */
   totalMcpCopilotCost: decimal('total_mcp_copilot_cost').notNull().default('0'),
+  /** @deprecated No writer (never incremented or reset). MCP copilot usage lives in usage_log (source 'mcp_copilot'); read it from there, not this column. */
   currentPeriodMcpCopilotCost: decimal('current_period_mcp_copilot_cost').notNull().default('0'),
   /**
    * Storage upload/delete hot-path tracker for personal plans.
@@ -960,13 +972,7 @@ export const userStats = pgTable('user_stats', {
    * org-scoped storage writes update `organization.storageUsedBytes`.
    */
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
-  /**
-   * Deprecated former execution hot-path activity timestamp.
-   *
-   * Successful workflow execution no longer updates `user_stats`; this column
-   * is retained only for legacy/admin reporting until replaced by an activity
-   * source that does not contend on this row.
-   */
+  /** @deprecated Not updated by execution (no user_stats write on completion); legacy/admin reads only. */
   lastActive: timestamp('last_active').notNull().defaultNow(),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
@@ -2791,7 +2797,7 @@ export const auditLog = pgTable(
   })
 )
 
-export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed'])
+export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed', 'tool'])
 export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'workflow',
   'wand',
@@ -2861,6 +2867,7 @@ export const usageLog = pgTable(
       table.workspaceId,
       table.createdAt
     ),
+    executionIdIdx: index('usage_log_execution_id_idx').on(table.executionId),
   })
 )
 

@@ -87,7 +87,39 @@ export async function loadDeployedWorkflowStateForLogging(
 
 type CostTraceSpan = Pick<TraceSpan, 'cost' | 'model' | 'tokens'> & {
   type?: TraceSpan['type']
+  name?: TraceSpan['name']
   children?: CostTraceSpan[]
+}
+
+export interface CostSummaryModel {
+  input: number
+  output: number
+  total: number
+  toolCost?: number
+  tokens: { input: number; output: number; total: number }
+}
+
+/**
+ * Non-model billable charge (e.g. a standalone hosted-key tool block such as
+ * Exa/Tavily/falai run outside an agent). These spans contribute to the run's
+ * total cost but carry no `model`, so they live here rather than in `models`.
+ * Summed per span name so the ledger has one row per integration.
+ */
+export interface CostSummaryCharge {
+  total: number
+}
+
+export interface CostSummary {
+  totalCost: number
+  totalInputCost: number
+  totalOutputCost: number
+  totalTokens: number
+  totalPromptTokens: number
+  totalCompletionTokens: number
+  baseExecutionCharge: number
+  models: Record<string, CostSummaryModel>
+  /** Non-model billable charges keyed by span name (tool/integration costs). */
+  charges: Record<string, CostSummaryCharge>
 }
 
 type BillableTraceSpan = CostTraceSpan & { cost: NonNullable<TraceSpan['cost']> }
@@ -100,26 +132,7 @@ function isModelBreakdownSpan(span: CostTraceSpan): boolean {
   return span.type === 'model'
 }
 
-export function calculateCostSummary(traceSpans: CostTraceSpan[] | undefined): {
-  totalCost: number
-  totalInputCost: number
-  totalOutputCost: number
-  totalTokens: number
-  totalPromptTokens: number
-  totalCompletionTokens: number
-  baseExecutionCharge: number
-  modelCost: number
-  models: Record<
-    string,
-    {
-      input: number
-      output: number
-      total: number
-      toolCost?: number
-      tokens: { input: number; output: number; total: number }
-    }
-  >
-} {
+export function calculateCostSummary(traceSpans: CostTraceSpan[] | undefined): CostSummary {
   if (!traceSpans || traceSpans.length === 0) {
     return {
       totalCost: BASE_EXECUTION_CHARGE,
@@ -129,8 +142,8 @@ export function calculateCostSummary(traceSpans: CostTraceSpan[] | undefined): {
       totalPromptTokens: 0,
       totalCompletionTokens: 0,
       baseExecutionCharge: BASE_EXECUTION_CHARGE,
-      modelCost: 0,
       models: {},
+      charges: {},
     }
   }
 
@@ -181,16 +194,8 @@ export function calculateCostSummary(traceSpans: CostTraceSpan[] | undefined): {
   let totalTokens = 0
   let totalPromptTokens = 0
   let totalCompletionTokens = 0
-  const models: Record<
-    string,
-    {
-      input: number
-      output: number
-      total: number
-      toolCost?: number
-      tokens: { input: number; output: number; total: number }
-    }
-  > = {}
+  const models: Record<string, CostSummaryModel> = {}
+  const charges: Record<string, CostSummaryCharge> = {}
 
   for (const span of costSpans) {
     totalCost += span.cost.total || 0
@@ -220,10 +225,19 @@ export function calculateCostSummary(traceSpans: CostTraceSpan[] | undefined): {
       if (span.cost.toolCost) {
         models[model].toolCost = (models[model].toolCost || 0) + span.cost.toolCost
       }
+    } else if ((span.cost.total || 0) > 0) {
+      // Non-model billable span (e.g. a standalone hosted-key tool block).
+      // These previously contributed to the run total but were never itemized
+      // in the ledger (the "standalone tool gap"). Key by span name so each
+      // integration gets a single, reconciling charge row.
+      const description = span.name || span.type || 'tool'
+      if (!charges[description]) {
+        charges[description] = { total: 0 }
+      }
+      charges[description].total += span.cost.total || 0
     }
   }
 
-  const modelCost = totalCost
   totalCost += BASE_EXECUTION_CHARGE
 
   return {
@@ -234,7 +248,7 @@ export function calculateCostSummary(traceSpans: CostTraceSpan[] | undefined): {
     totalPromptTokens,
     totalCompletionTokens,
     baseExecutionCharge: BASE_EXECUTION_CHARGE,
-    modelCost,
     models,
+    charges,
   }
 }

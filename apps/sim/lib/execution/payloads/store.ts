@@ -31,6 +31,13 @@ export interface LargeValueStoreContext {
   userId?: string
   requireDurable?: boolean
   maxBytes?: number
+  /**
+   * When false, materialization does not register an execution_log reference for
+   * the key. Read-only consumers (e.g. viewing/exporting a completed log) set
+   * this: the value is already owned + referenced by its own execution, so
+   * re-registering on every read is wasteful and a needless failure point.
+   */
+  trackReference?: boolean
 }
 
 function getKind(value: unknown): LargeValueKind {
@@ -163,6 +170,11 @@ export async function storeLargeValue(
   const id = `lv_${generateShortId(12)}`
   let key = await persistValue(id, json, context)
   if (key) {
+    // Only clean up the uploaded object when registration definitively did NOT
+    // record ownership (returns false). If registration THROWS, the metadata
+    // state is uncertain (a row may have partially committed), so we propagate
+    // without deleting — deleting could orphan a metadata row pointing at a
+    // now-missing object.
     const registered = await registerPersistedValueOwner(key, size, referencedKeys, context)
     if (!registered) {
       await deleteUntrackedPersistedValue(key)
@@ -204,16 +216,22 @@ export async function materializeLargeValueRef(
     return materializeLargeValueRefSync(ref, context)
   }
 
-  const { addLargeValueReference } = await import('@/lib/execution/payloads/large-value-metadata')
-  await addLargeValueReference(
-    {
-      workspaceId: context.workspaceId,
-      workflowId: context.workflowId,
-      executionId: context.executionId,
-      source: 'execution_log',
-    },
-    ref.key
-  )
+  if (context.trackReference !== false) {
+    const { addLargeValueReference } = await import('@/lib/execution/payloads/large-value-metadata')
+    // Reference tracking is GC-critical: if it fails, fail the read rather than
+    // return a value whose reference was never recorded (it could later be
+    // garbage-collected out from under a live consumer). Read-only consumers
+    // that don't need a reference set trackReference: false to skip this.
+    await addLargeValueReference(
+      {
+        workspaceId: context.workspaceId,
+        workflowId: context.workflowId,
+        executionId: context.executionId,
+        source: 'execution_log',
+      },
+      ref.key
+    )
+  }
 
   try {
     const cached = materializeLargeValueRefSync(ref, context)

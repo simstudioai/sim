@@ -7,7 +7,7 @@ import {
   type SubscriptionMetadata,
 } from '@/lib/billing/core/subscription'
 import { getOrgUsageLimit, getUserUsageData } from '@/lib/billing/core/usage'
-import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
+import { COPILOT_USAGE_SOURCES, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { getCreditBalance } from '@/lib/billing/credits/balance'
 import {
   computeDailyRefreshConsumed,
@@ -128,6 +128,8 @@ async function aggregateOrgMemberStats(organizationId: string): Promise<{
     .where(eq(member.organizationId, organizationId))
 
   let currentPeriodCost = new Decimal(0)
+  // Copilot baseline (copilot source). All copilot-family usage (incl. MCP) lives
+  // in usage_log and is added via the copilot ledger by callers — not a baseline.
   let currentPeriodCopilotCost = new Decimal(0)
   let lastPeriodCopilotCost = new Decimal(0)
   const memberIds: string[] = []
@@ -454,20 +456,34 @@ export async function getSimplifiedBillingSummary(
       const pooled = await aggregateOrgMemberStats(organizationId)
 
       const rawCurrentUsage = pooled.currentPeriodCost
-      const totalCopilotCost = pooled.currentPeriodCopilotCost
       const totalLastPeriodCopilotCost = pooled.lastPeriodCopilotCost
 
       // Deduct daily-refresh credits against this specific org's pool.
       // `usageData` is derived from the caller's priority subscription
       // and may not match the requested org (multi-org admins, personal
       // priority sub, etc.), so it cannot be reused here.
-      const ledgerUsage =
+      const orgBillingPeriod =
         subscription.periodStart && subscription.periodEnd
+          ? { start: subscription.periodStart, end: subscription.periodEnd }
+          : null
+      const ledgerUsage = orgBillingPeriod
+        ? await getBillingPeriodUsageCost(
+            { type: 'organization', id: organizationId },
+            orgBillingPeriod
+          )
+        : 0
+      // Copilot breakdown = member baselines (copilot + MCP) + the copilot-family
+      // ledger for the period (COPILOT_USAGE_SOURCES: copilot/workspace-chat/
+      // mcp_copilot/mothership_block); the baseline columns are no longer incremented.
+      const totalCopilotCost =
+        pooled.currentPeriodCopilotCost +
+        (orgBillingPeriod
           ? await getBillingPeriodUsageCost(
               { type: 'organization', id: organizationId },
-              { start: subscription.periodStart, end: subscription.periodEnd }
+              orgBillingPeriod,
+              COPILOT_USAGE_SOURCES
             )
-          : 0
+          : 0)
       let refreshDeduction = 0
       if (isPaid(plan) && subscription.periodStart) {
         const planDollars = getPlanTierDollars(plan)
@@ -561,6 +577,8 @@ export async function getSimplifiedBillingSummary(
       .where(eq(userStats.userId, userId))
       .limit(1)
 
+    // Copilot baseline (copilot source). MCP copilot usage lives in usage_log and
+    // is added via the copilot ledger below, not a userStats baseline.
     const copilotCost =
       userStatsRows.length > 0 ? toNumber(toDecimal(userStatsRows[0].currentPeriodCopilotCost)) : 0
 
@@ -574,6 +592,25 @@ export async function getSimplifiedBillingSummary(
       const pooled = await aggregateOrgMemberStats(subscription.referenceId)
       totalCopilotCost = pooled.currentPeriodCopilotCost
       totalLastPeriodCopilotCost = pooled.lastPeriodCopilotCost
+    }
+
+    // Add the copilot-family ledger (COPILOT_USAGE_SOURCES: copilot/workspace-chat/
+    // mcp_copilot/mothership_block) on top of the baseline; those columns are no
+    // longer incremented per usage.
+    const copilotBillingPeriod =
+      usageData.billingPeriodStart && usageData.billingPeriodEnd
+        ? { start: usageData.billingPeriodStart, end: usageData.billingPeriodEnd }
+        : null
+    if (copilotBillingPeriod) {
+      const copilotEntity =
+        orgScoped && subscription?.referenceId
+          ? ({ type: 'organization', id: subscription.referenceId } as const)
+          : ({ type: 'user', id: userId } as const)
+      totalCopilotCost += await getBillingPeriodUsageCost(
+        copilotEntity,
+        copilotBillingPeriod,
+        COPILOT_USAGE_SOURCES
+      )
     }
 
     const percentUsed = usageData.limit > 0 ? (currentUsage / usageData.limit) * 100 : 0

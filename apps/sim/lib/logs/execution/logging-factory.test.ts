@@ -150,7 +150,6 @@ describe('calculateCostSummary', () => {
 
     expect(result.totalCost).toBe(BASE_EXECUTION_CHARGE)
     expect(result.baseExecutionCharge).toBe(BASE_EXECUTION_CHARGE)
-    expect(result.modelCost).toBe(0)
     expect(result.totalInputCost).toBe(0)
     expect(result.totalOutputCost).toBe(0)
     expect(result.totalTokens).toBe(0)
@@ -188,7 +187,6 @@ describe('calculateCostSummary', () => {
     const result = calculateCostSummary(traceSpans)
 
     expect(result.totalCost).toBe(0.03 + BASE_EXECUTION_CHARGE)
-    expect(result.modelCost).toBe(0.03)
     expect(result.totalInputCost).toBe(0.01)
     expect(result.totalOutputCost).toBe(0.02)
     expect(result.totalTokens).toBe(300)
@@ -221,7 +219,6 @@ describe('calculateCostSummary', () => {
     const result = calculateCostSummary(traceSpans)
 
     expect(result.totalCost).toBe(0.033 + BASE_EXECUTION_CHARGE)
-    expect(result.modelCost).toBe(0.033)
     expect(result.totalInputCost).toBe(0.011)
     expect(result.totalOutputCost).toBe(0.022)
     expect(result.totalTokens).toBe(450)
@@ -280,7 +277,6 @@ describe('calculateCostSummary', () => {
 
     const result = calculateCostSummary(traceSpans)
 
-    expect(result.modelCost).toBe(0.03)
     expect(result.totalCost).toBe(0.03 + BASE_EXECUTION_CHARGE)
     expect(result.models['claude-3']).toBeDefined()
     expect(result.models['claude-3'].total).toBe(0.03)
@@ -308,7 +304,6 @@ describe('calculateCostSummary', () => {
 
     const result = calculateCostSummary(traceSpans)
 
-    expect(result.modelCost).toBe(0.03)
     expect(result.models['gpt-4']).toBeDefined()
   })
 
@@ -345,7 +340,6 @@ describe('calculateCostSummary', () => {
 
     const result = calculateCostSummary(traceSpans)
 
-    expect(result.modelCost).toBe(0.03)
     expect(Object.keys(result.models)).toHaveLength(1)
   })
 
@@ -361,7 +355,6 @@ describe('calculateCostSummary', () => {
 
     const result = calculateCostSummary(traceSpans)
 
-    expect(result.modelCost).toBe(0.03)
     expect(result.totalCost).toBe(0.03 + BASE_EXECUTION_CHARGE)
     // Should not add to models if model is not specified
     expect(Object.keys(result.models)).toHaveLength(0)
@@ -427,7 +420,6 @@ describe('calculateCostSummary', () => {
 
     const result = calculateCostSummary(traceSpans)
 
-    expect(result.modelCost).toBe(0)
     expect(result.totalCost).toBe(BASE_EXECUTION_CHARGE)
     // Model is still tracked for token-usage display, but cost must be zero.
     expect(result.models['claude-opus-4-6'].total).toBe(0)
@@ -462,7 +454,6 @@ describe('calculateCostSummary', () => {
 
     const result = calculateCostSummary(traceSpans)
 
-    expect(result.modelCost).toBe(0.03)
     expect(result.totalCost).toBe(0.03 + BASE_EXECUTION_CHARGE)
     expect(result.models['gpt-4o'].total).toBe(0.03)
   })
@@ -494,9 +485,95 @@ describe('calculateCostSummary', () => {
 
     const result = calculateCostSummary(traceSpans)
 
-    expect(result.modelCost).toBe(0.045)
     expect(result.totalCost).toBe(0.045 + BASE_EXECUTION_CHARGE)
     expect(result.models['gpt-4o'].total).toBe(0.045)
     expect(result.models['gpt-4o'].toolCost).toBe(0.015)
+  })
+
+  test('records a standalone non-model billable span as a charge (closes the tool gap)', () => {
+    const traceSpans = [
+      {
+        id: 'exa-block',
+        name: 'Exa Search',
+        type: 'tool',
+        cost: { input: 0, output: 0, total: 0.01 },
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.charges['Exa Search']).toBeDefined()
+    expect(result.charges['Exa Search'].total).toBe(0.01)
+    expect(Object.keys(result.models)).toHaveLength(0)
+    // Ledger partition reconciles with the run total.
+    const ledgerSum =
+      result.baseExecutionCharge +
+      Object.values(result.models).reduce((s, m) => s + m.total, 0) +
+      Object.values(result.charges).reduce((s, c) => s + c.total, 0)
+    expect(ledgerSum).toBeCloseTo(result.totalCost, 10)
+  })
+
+  test('does not double-count: agent-embedded tool stays in the model row, not charges', () => {
+    const traceSpans = [
+      {
+        id: 'agent-span',
+        name: 'Agent',
+        type: 'agent',
+        model: 'gpt-4o',
+        cost: { input: 0.01, output: 0.02, total: 0.045, toolCost: 0.015 },
+        tokens: { input: 1000, output: 2000, total: 3000 },
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(Object.keys(result.charges)).toHaveLength(0)
+    expect(result.models['gpt-4o'].total).toBe(0.045)
+    expect(result.models['gpt-4o'].toolCost).toBe(0.015)
+  })
+
+  test('mixed model + standalone tool run reconciles to total', () => {
+    const traceSpans = [
+      {
+        id: 'agent',
+        name: 'Agent',
+        type: 'agent',
+        model: 'gpt-4o',
+        cost: { input: 0.01, output: 0.02, total: 0.03 },
+        tokens: { input: 100, output: 200, total: 300 },
+      },
+      {
+        id: 'exa',
+        name: 'Exa Search',
+        type: 'tool',
+        cost: { input: 0, output: 0, total: 0.01 },
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.models['gpt-4o'].total).toBe(0.03)
+    expect(result.charges['Exa Search'].total).toBe(0.01)
+    const ledgerSum =
+      result.baseExecutionCharge +
+      Object.values(result.models).reduce((s, m) => s + m.total, 0) +
+      Object.values(result.charges).reduce((s, c) => s + c.total, 0)
+    expect(ledgerSum).toBeCloseTo(result.totalCost, 10)
+  })
+
+  test('BYOK tool (no cost generated upstream) produces no charge row', () => {
+    const traceSpans = [
+      {
+        id: 'exa-byok',
+        name: 'Exa Search',
+        type: 'tool',
+        cost: { input: 0, output: 0, total: 0 },
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(Object.keys(result.charges)).toHaveLength(0)
+    expect(result.totalCost).toBe(BASE_EXECUTION_CHARGE)
   })
 })
