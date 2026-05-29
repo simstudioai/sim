@@ -135,6 +135,7 @@ export const deleteTableColumnBodySchema = z.object({
 export const tableMetadataSchema = z.object({
   columnWidths: z.record(z.string(), z.number().positive()).optional(),
   columnOrder: z.array(z.string()).optional(),
+  pinnedColumns: z.array(z.string()).optional(),
 }) satisfies z.ZodType<TableMetadata>
 
 export const updateTableMetadataBodySchema = z.object({

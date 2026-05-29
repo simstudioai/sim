@@ -10,6 +10,9 @@ interface CellContentProps {
   value: unknown
   exec?: RowExecutionMetadata
   column: DisplayColumn
+  /** Current workspace id — lets string cells holding an in-workspace resource
+   *  URL render as a tagged-resource chip instead of a plain external link. */
+  workspaceId: string
   isEditing: boolean
   initialCharacter?: string | null
   onSave: (value: unknown, reason: SaveReason) => void
@@ -34,6 +37,7 @@ export function CellContent({
   value,
   exec,
   column,
+  workspaceId,
   isEditing,
   initialCharacter,
   onSave,
@@ -41,7 +45,14 @@ export function CellContent({
   waitingOnLabels,
   isEnrichmentOutput,
 }: CellContentProps) {
-  const kind = resolveCellRender({ value, exec, column, waitingOnLabels, isEnrichmentOutput })
+  const kind = resolveCellRender({
+    value,
+    exec,
+    column,
+    waitingOnLabels,
+    isEnrichmentOutput,
+    currentWorkspaceId: workspaceId,
+  })
 
   return (
     <>

@@ -17,6 +17,8 @@ export interface EnrichmentRunOutcome {
    * of blanking it — a genuine "no match" still leaves this `null`.
    */
   error: string | null
+  /** Label of the provider whose result was returned, or `null` on no match. */
+  provider: string | null
 }
 
 /** True when at least one output value in the result is non-empty. */
@@ -77,7 +79,7 @@ export async function runEnrichment(
       const result = provider.mapOutput(response.output)
       if (result && hasResult(result)) {
         logger.info('Enrichment hit', { enrichmentId: enrichment.id, provider: provider.id })
-        return { result, cost, error: null }
+        return { result, cost, error: null, provider: provider.label }
       }
     } catch (err) {
       errorCount++
@@ -93,5 +95,5 @@ export async function runEnrichment(
   // No provider hit. Surface an error only when every provider that ran errored
   // (infra/auth/rate-limit) — a clean miss returns a blank result instead.
   const error = ranCount > 0 && errorCount === ranCount ? lastError : null
-  return { result: {}, cost, error }
+  return { result: {}, cost, error, provider: null }
 }
