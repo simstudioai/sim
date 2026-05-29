@@ -160,8 +160,6 @@ export const litellmProvider: ProviderConfig = {
           type: 'json_schema' as const,
           json_schema: {
             name: request.responseFormat.name || 'response_schema',
-            // Strict mode requires additionalProperties:false and all-required keys;
-            // OpenAI-backed routes 400 without it.
             schema: isStrictResponseFormat
               ? enforceStrictSchema(request.responseFormat.schema || request.responseFormat)
               : request.responseFormat.schema || request.responseFormat,
@@ -195,8 +193,6 @@ export const litellmProvider: ProviderConfig = {
       }
     }
 
-    // response_format + tools conflict on some backends (Anthropic rejects the pair,
-    // vLLM guided decoding suppresses tool calls), so defer the format past the tool loop.
     const deferResponseFormat = !!responseFormatPayload && hasActiveTools
     if (responseFormatPayload && !deferResponseFormat) {
       payload.response_format = responseFormatPayload
@@ -499,8 +495,6 @@ export const litellmProvider: ProviderConfig = {
           respondedToolCallIds.add(toolCall.id)
         }
 
-        // Every tool_call needs a matching `tool` response or the next request 400s;
-        // stub any the model left unanswered (e.g. an unknown/filtered tool name).
         for (const tc of toolCallsInResponse) {
           if (respondedToolCallIds.has(tc.id)) continue
           currentMessages.push({
@@ -593,15 +587,11 @@ export const litellmProvider: ProviderConfig = {
         const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           messages: currentMessages,
-          // Tools are resolved; force a final answer so the model can't emit another
-          // tool_calls round the stream reader would drop. Keep tools defined for
-          // backends (e.g. Anthropic) that reject a tool-result history without them.
           tool_choice: 'none',
           stream: true,
           stream_options: { include_usage: true },
         }
         if (deferResponseFormat && responseFormatPayload) {
-          // Disable parallel calls — OpenAI's rule for strict outputs alongside tools.
           streamingParams.response_format = responseFormatPayload
           streamingParams.parallel_tool_calls = false
         }
@@ -687,11 +677,6 @@ export const litellmProvider: ProviderConfig = {
         logger.info('Applying deferred JSON schema response format after tool processing')
 
         const finalFormatStartTime = Date.now()
-        // Spread payload so all request fields carry over (model, temperature,
-        // max_completion_tokens, reasoning_effort, tools) — matching the streaming path.
-        // 'none' forces the structured answer instead of another tool_calls round that
-        // would leave content stale; tools stay defined for backends like Anthropic that
-        // reject a tool-result history without them; parallel calls off per OpenAI's rule.
         const finalPayload: any = {
           ...payload,
           messages: currentMessages,
