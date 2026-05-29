@@ -1,5 +1,5 @@
 import { filterUndefined } from '@sim/utils/object'
-import { Mail } from 'lucide-react'
+import { Mail } from '@/components/emcn/icons'
 import { normalizeDomain, splitName, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
 
