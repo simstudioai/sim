@@ -593,13 +593,15 @@ export const litellmProvider: ProviderConfig = {
         const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto',
+          // Tools are resolved; force a final answer so the model can't emit another
+          // tool_calls round the stream reader would drop. Keep tools defined for
+          // backends (e.g. Anthropic) that reject a tool-result history without them.
+          tool_choice: 'none',
           stream: true,
           stream_options: { include_usage: true },
         }
         if (deferResponseFormat && responseFormatPayload) {
-          // Keep tools defined (Anthropic requires it once history holds tool results) and
-          // disable parallel calls (OpenAI's rule for strict outputs alongside tools).
+          // Disable parallel calls — OpenAI's rule for strict outputs alongside tools.
           streamingParams.response_format = responseFormatPayload
           streamingParams.parallel_tool_calls = false
         }
@@ -689,10 +691,12 @@ export const litellmProvider: ProviderConfig = {
           model: payload.model,
           messages: currentMessages,
           response_format: responseFormatPayload,
-          // Keep tools defined (Anthropic requires it once history holds tool results) and
-          // disable parallel calls (OpenAI's rule for strict outputs alongside tools).
+          // Force the structured answer: 'none' stops the model from returning another
+          // tool_calls round (which would leave content stale). Keep tools defined for
+          // backends (e.g. Anthropic) that reject a tool-result history without them, and
+          // disable parallel calls per OpenAI's strict-outputs-with-tools rule.
           tools: payload.tools,
-          tool_choice: 'auto',
+          tool_choice: 'none',
           parallel_tool_calls: false,
         }
         if (request.temperature !== undefined) finalPayload.temperature = request.temperature
