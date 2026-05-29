@@ -149,6 +149,7 @@
     "qdrant",
     "quiver",
     "railway",
+    "rb2b",
     "rds",
     "reddit",
     "redis",
@@ -208,6 +209,7 @@
     "youtube",
     "zendesk",
     "zep",
-    "zoom"
+    "zoom",
+    "zoominfo"
   ]
 }

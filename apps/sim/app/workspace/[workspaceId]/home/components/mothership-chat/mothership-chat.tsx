@@ -41,9 +41,12 @@ interface MothershipChatProps {
   ) => void
   onStopGeneration: () => void
   messageQueue: QueuedMessage[]
+  editingQueuedId: string | null
+  dispatchingHeadId: string | null
   onRemoveQueuedMessage: (id: string) => void
   onSendQueuedMessage: (id: string) => Promise<void>
   onEditQueuedMessage: (id: string) => QueuedMessage | undefined
+  onCancelQueueEdit: () => void
   userId?: string
   chatId?: string
   onContextAdd?: (context: ChatContext) => void
@@ -183,9 +186,12 @@ export function MothershipChat({
   onSubmit,
   onStopGeneration,
   messageQueue,
+  editingQueuedId,
+  dispatchingHeadId,
   onRemoveQueuedMessage,
   onSendQueuedMessage,
   onEditQueuedMessage,
+  onCancelQueueEdit,
   userId,
   chatId,
   onContextAdd,
@@ -313,9 +319,12 @@ export function MothershipChat({
         <div className={styles.footerInner}>
           <QueuedMessages
             messageQueue={messageQueue}
+            editingQueuedId={editingQueuedId}
+            dispatchingHeadId={dispatchingHeadId}
             onRemove={onRemoveQueuedMessage}
             onSendNow={onSendQueuedMessage}
             onEdit={handleEditQueued}
+            onCancelEdit={onCancelQueueEdit}
           />
           <UserInput
             ref={userInputRef}

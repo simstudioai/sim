@@ -33,7 +33,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const { email, redirectTo } = parsed.data.body
 
-    await auth.api.forgetPassword({
+    await auth.api.requestPasswordReset({
       body: {
         email,
         redirectTo,

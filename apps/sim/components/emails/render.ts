@@ -39,7 +39,11 @@ interface WorkspaceInvitation {
 export async function renderOTPEmail(
   otp: string,
   email: string,
-  type: 'sign-in' | 'email-verification' | 'forget-password' = 'email-verification',
+  type:
+    | 'sign-in'
+    | 'email-verification'
+    | 'change-email'
+    | 'forget-password' = 'email-verification',
   chatTitle?: string
 ): Promise<string> {
   return await render(OTPVerificationEmail({ otp, email, type, chatTitle }))

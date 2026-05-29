@@ -3,11 +3,13 @@ import { member, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
+import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
   getHighestPrioritySubscription,
   type HighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
 import { getPooledOrgCurrentPeriodCost, getUserUsageLimit } from '@/lib/billing/core/usage'
+import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import {
   computeDailyRefreshConsumed,
   getOrgMemberRefreshBounds,
@@ -37,11 +39,6 @@ interface UsageData {
   organizationId: string | null
 }
 
-/**
- * Sum `currentPeriodCost` across all members of an org, then subtract
- * daily-refresh credits (with per-user window bounds for mid-cycle
- * joiners).
- */
 async function computePooledOrgUsage(
   organizationId: string,
   sub: {
@@ -54,25 +51,16 @@ async function computePooledOrgUsage(
   const { memberIds, currentPeriodCost } = await getPooledOrgCurrentPeriodCost(organizationId)
   if (memberIds.length === 0) return 0
 
-  let pooled = currentPeriodCost
+  const billingPeriod =
+    sub.periodStart && sub.periodEnd
+      ? { start: sub.periodStart, end: sub.periodEnd }
+      : defaultBillingPeriod()
+  const ledgerUsage = await getBillingPeriodUsageCost(
+    { type: 'organization', id: organizationId },
+    billingPeriod
+  )
 
-  if (isPaid(sub.plan) && sub.periodStart) {
-    const planDollars = getPlanTierDollars(sub.plan)
-    if (planDollars > 0) {
-      const userBounds = await getOrgMemberRefreshBounds(organizationId, sub.periodStart)
-      const refresh = await computeDailyRefreshConsumed({
-        userIds: memberIds,
-        periodStart: sub.periodStart,
-        periodEnd: sub.periodEnd ?? null,
-        planDollars,
-        seats: sub.seats || 1,
-        userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
-      })
-      pooled = Math.max(0, pooled - refresh)
-    }
-  }
-
-  return pooled
+  return applyOrgRefresh(organizationId, sub, currentPeriodCost + ledgerUsage, memberIds)
 }
 
 /**
@@ -112,78 +100,57 @@ export async function checkUsageStatus(
     const scope: 'user' | 'organization' = subIsOrgScoped ? 'organization' : 'user'
     const organizationId: string | null = subIsOrgScoped && sub ? sub.referenceId : null
 
-    let currentUsage = 0
-
     if (subIsOrgScoped && sub) {
-      currentUsage = await computePooledOrgUsage(sub.referenceId, sub)
-    } else {
-      const statsRecords = await db
-        .select()
-        .from(userStats)
-        .where(eq(userStats.userId, userId))
-        .limit(1)
-
-      if (statsRecords.length === 0) {
-        logger.info('No usage stats found for user', { userId, limit })
-        return {
-          percentUsed: 0,
-          isWarning: false,
-          isExceeded: false,
-          currentUsage: 0,
-          limit,
-          scope: 'user',
-          organizationId: null,
-        }
-      }
-
-      const rawUsage = toNumber(toDecimal(statsRecords[0].currentPeriodCost))
-
-      let refresh = 0
-      if (sub && isPaid(sub.plan) && sub.periodStart) {
-        const planDollars = getPlanTierDollars(sub.plan)
-        if (planDollars > 0) {
-          refresh = await computeDailyRefreshConsumed({
-            userIds: [userId],
-            periodStart: sub.periodStart,
-            periodEnd: sub.periodEnd ?? null,
-            planDollars,
-          })
-        }
-      }
-      currentUsage = Math.max(0, rawUsage - refresh)
+      const currentUsage = await computePooledOrgUsage(sub.referenceId, sub)
+      return buildUsageData({ currentUsage, limit, scope, organizationId })
     }
 
-    const percentUsed = limit > 0 ? Math.min((currentUsage / limit) * 100, 100) : 100
-    const isExceeded = currentUsage >= limit
-    const isWarning = !isExceeded && percentUsed >= WARNING_THRESHOLD
+    const statsRecords = await db
+      .select()
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
+      .limit(1)
 
-    logger.info('Final usage statistics', {
-      userId,
-      currentUsage,
-      limit,
-      percentUsed,
-      isWarning,
-      isExceeded,
-      scope,
-      organizationId,
-    })
-
-    return {
-      percentUsed,
-      isWarning,
-      isExceeded,
-      currentUsage,
-      limit,
-      scope,
-      organizationId,
+    if (statsRecords.length === 0) {
+      logger.info('No usage stats found for user', { userId, limit })
+      return {
+        percentUsed: 0,
+        isWarning: false,
+        isExceeded: false,
+        currentUsage: 0,
+        limit,
+        scope: 'user',
+        organizationId: null,
+      }
     }
+
+    const billingPeriod =
+      sub?.periodStart && sub.periodEnd
+        ? { start: sub.periodStart, end: sub.periodEnd }
+        : defaultBillingPeriod()
+    const ledgerUsage = await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
+    let currentUsage = toNumber(toDecimal(statsRecords[0].currentPeriodCost)) + ledgerUsage
+    if (sub && isPaid(sub.plan) && sub.periodStart) {
+      const planDollars = getPlanTierDollars(sub.plan)
+      if (planDollars > 0) {
+        const refresh = await computeDailyRefreshConsumed({
+          userIds: [userId],
+          periodStart: sub.periodStart,
+          periodEnd: sub.periodEnd ?? null,
+          planDollars,
+          billingEntity: { type: 'user', id: userId },
+        })
+        currentUsage = Math.max(0, currentUsage - refresh)
+      }
+    }
+
+    return buildUsageData({ currentUsage, limit, scope, organizationId })
   } catch (error) {
     logger.error('Error checking usage status', {
       error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
       userId,
     })
 
-    // Block execution if we can't determine usage status
     logger.error('Cannot determine usage status - blocking execution', {
       userId,
       error: toError(error).message,
@@ -198,6 +165,74 @@ export async function checkUsageStatus(
       scope: 'user',
       organizationId: null,
     }
+  }
+}
+
+async function applyOrgRefresh(
+  organizationId: string,
+  sub: {
+    plan: string | null
+    seats: number | null
+    periodStart: Date | null
+    periodEnd: Date | null
+  },
+  currentUsage: number,
+  preloadedMemberIds?: string[]
+): Promise<number> {
+  if (!isPaid(sub.plan) || !sub.periodStart) {
+    return currentUsage
+  }
+
+  const memberIds =
+    preloadedMemberIds ?? (await getPooledOrgCurrentPeriodCost(organizationId)).memberIds
+  if (memberIds.length === 0) return currentUsage
+
+  const planDollars = getPlanTierDollars(sub.plan)
+  if (planDollars <= 0) return currentUsage
+
+  const userBounds = await getOrgMemberRefreshBounds(organizationId, sub.periodStart)
+  const refresh = await computeDailyRefreshConsumed({
+    userIds: memberIds,
+    periodStart: sub.periodStart,
+    periodEnd: sub.periodEnd ?? null,
+    planDollars,
+    seats: sub.seats || 1,
+    userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
+    billingEntity: { type: 'organization', id: organizationId },
+  })
+
+  return Math.max(0, currentUsage - refresh)
+}
+
+function buildUsageData(params: {
+  currentUsage: number
+  limit: number
+  scope: 'user' | 'organization'
+  organizationId: string | null
+}): UsageData {
+  const { currentUsage, limit, scope, organizationId } = params
+  const percentUsed = limit > 0 ? Math.min((currentUsage / limit) * 100, 100) : 100
+  const isExceeded = currentUsage >= limit
+  const isWarning = !isExceeded && percentUsed >= WARNING_THRESHOLD
+
+  logger.info('Final usage statistics', {
+    currentUsage,
+    limit,
+    percentUsed,
+    isWarning,
+    isExceeded,
+    scope,
+    organizationId,
+  })
+
+  return {
+    percentUsed,
+    isWarning,
+    isExceeded,
+    currentUsage,
+    limit,
+    scope,
+    organizationId,
   }
 }
 

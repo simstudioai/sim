@@ -107,7 +107,7 @@ export const resendSendTool: ToolConfig<MailSendParams, MailSendResult> = {
     return {
       success: true,
       output: {
-        success: result.success,
+        success: true,
         id: result.data?.id || '',
         to: params?.to || '',
         subject: params?.subject || '',

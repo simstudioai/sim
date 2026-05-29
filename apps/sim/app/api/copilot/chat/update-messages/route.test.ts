@@ -7,16 +7,25 @@ import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockFrom, mockWhere, mockLimit, mockUpdate, mockSet, mockUpdateWhere } =
-  vi.hoisted(() => ({
-    mockSelect: vi.fn(),
-    mockFrom: vi.fn(),
-    mockWhere: vi.fn(),
-    mockLimit: vi.fn(),
-    mockUpdate: vi.fn(),
-    mockSet: vi.fn(),
-    mockUpdateWhere: vi.fn(),
-  }))
+const {
+  mockSelect,
+  mockFrom,
+  mockWhere,
+  mockLimit,
+  mockUpdate,
+  mockSet,
+  mockUpdateWhere,
+  mockReturning,
+} = vi.hoisted(() => ({
+  mockSelect: vi.fn(),
+  mockFrom: vi.fn(),
+  mockWhere: vi.fn(),
+  mockLimit: vi.fn(),
+  mockUpdate: vi.fn(),
+  mockSet: vi.fn(),
+  mockUpdateWhere: vi.fn(),
+  mockReturning: vi.fn(),
+}))
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -51,8 +60,9 @@ describe('Copilot Chat Update Messages API Route', () => {
     mockWhere.mockReturnValue({ limit: mockLimit })
     mockLimit.mockResolvedValue([])
     mockUpdate.mockReturnValue({ set: mockSet })
-    mockUpdateWhere.mockResolvedValue(undefined)
     mockSet.mockReturnValue({ where: mockUpdateWhere })
+    mockUpdateWhere.mockReturnValue({ returning: mockReturning })
+    mockReturning.mockResolvedValue([{ model: 'gpt-4' }])
   })
 
   afterEach(() => {

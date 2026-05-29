@@ -1,7 +1,6 @@
 import type { Span } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { billingUpdateCostContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
@@ -155,21 +154,6 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       source,
     })
 
-    const totalTokens = inputTokens + outputTokens
-
-    const additionalStats: Record<string, ReturnType<typeof sql>> = {
-      totalCopilotCost: sql`total_copilot_cost + ${cost}`,
-      currentPeriodCopilotCost: sql`current_period_copilot_cost + ${cost}`,
-      totalCopilotCalls: sql`total_copilot_calls + 1`,
-      totalCopilotTokens: sql`total_copilot_tokens + ${totalTokens}`,
-    }
-
-    if (isMcp) {
-      additionalStats.totalMcpCopilotCost = sql`total_mcp_copilot_cost + ${cost}`
-      additionalStats.currentPeriodMcpCopilotCost = sql`current_period_mcp_copilot_cost + ${cost}`
-      additionalStats.totalMcpCopilotCalls = sql`total_mcp_copilot_calls + 1`
-    }
-
     await recordUsage({
       userId,
       entries: [
@@ -178,10 +162,11 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
           source,
           description: model,
           cost,
+          eventKey: idempotencyKey ? `update-cost:${idempotencyKey}` : undefined,
+          sourceReference: idempotencyKey ? `update-cost:${idempotencyKey}` : requestId,
           metadata: { inputTokens, outputTokens },
         },
       ],
-      additionalStats,
     })
     usageCommitted = true
 
