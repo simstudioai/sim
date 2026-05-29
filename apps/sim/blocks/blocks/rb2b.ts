@@ -79,10 +79,9 @@ export const RB2BBlock: BlockConfig<Rb2bResponse> = {
       condition: { field: 'operation', value: 'ip_to_hem' },
     },
     {
-      id: 'emailOrHash',
+      id: 'email',
       title: 'Email or MD5 Hash',
       type: 'short-input',
-      canonicalParamId: 'email',
       placeholder: 'jane@example.com or an MD5 hash',
       condition: { field: 'operation', value: EMAIL_OPERATIONS },
       required: { field: 'operation', value: EMAIL_OPERATIONS },
@@ -91,7 +90,6 @@ export const RB2BBlock: BlockConfig<Rb2bResponse> = {
       id: 'emailAddress',
       title: 'Email Address',
       type: 'short-input',
-      canonicalParamId: 'email',
       placeholder: 'jane@example.com',
       condition: { field: 'operation', value: 'email_to_activity' },
       required: { field: 'operation', value: 'email_to_activity' },
@@ -157,6 +155,10 @@ export const RB2BBlock: BlockConfig<Rb2bResponse> = {
     ],
     config: {
       tool: (params) => `rb2b_${params.operation}`,
+      params: (params) => {
+        const email = params.email ?? params.emailAddress
+        return email !== undefined ? { email } : {}
+      },
     },
   },
   inputs: {
@@ -165,7 +167,8 @@ export const RB2BBlock: BlockConfig<Rb2bResponse> = {
     ip_address: { type: 'string', description: 'IP address to resolve' },
     user_agent: { type: 'string', description: 'Optional user agent string' },
     include_sha256: { type: 'boolean', description: 'Include SHA-256 hashes (IP to HEM)' },
-    email: { type: 'string', description: 'Email address or MD5 hash of the email' },
+    email: { type: 'string', description: 'Email address or MD5 hash (HEM operations)' },
+    emailAddress: { type: 'string', description: 'Email address (Email to Last Active Date)' },
     linkedin_slug: { type: 'string', description: 'LinkedIn profile slug or URL' },
     first_name: { type: 'string', description: 'First name (LinkedIn Slug Search)' },
     last_name: { type: 'string', description: 'Last name (LinkedIn Slug Search)' },
