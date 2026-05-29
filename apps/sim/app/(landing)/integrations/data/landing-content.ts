@@ -33,7 +33,7 @@ export const INTEGRATION_LANDING_CONTENT: Record<string, IntegrationLandingConte
     install: {
       heading: 'Add Sim to your Slack workspace',
       intro:
-        'Sim connects to Slack through Slack’s official OAuth flow. You add the connection from inside your Sim account, then the Sim bot is installed in your Slack workspace.',
+        'Sim connects to Slack through Slack’s official OAuth flow. The “Add to Slack” button lives inside your Sim account (after sign-in) — connect from there and the Sim bot is installed in your Slack workspace. The steps below show exactly how to reach it.',
       steps: [
         {
           title: 'Create your free Sim account',
