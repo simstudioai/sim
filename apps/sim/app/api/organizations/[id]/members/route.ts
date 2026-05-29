@@ -152,8 +152,9 @@ export const GET = withRouteHandler(
 
         const membersWithUsage = base.map((row) => ({
           ...row,
-          currentPeriodCost:
-            Number(row.currentPeriodCost ?? 0) + (usageByUser.get(row.userId) ?? 0),
+          currentPeriodCost: (
+            Number(row.currentPeriodCost ?? 0) + (usageByUser.get(row.userId) ?? 0)
+          ).toString(),
           billingPeriodStart,
           billingPeriodEnd,
         }))
