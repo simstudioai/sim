@@ -191,12 +191,19 @@ const DOC_COMPILE_TIMEOUT_MS = 120_000
 // them). Indented at column 0 so it concatenates cleanly after the user's script.
 const XLSX_RECALC_SNIPPET = `
 import subprocess as __sim_sp, shutil as __sim_sh, os as __sim_os
-__sim_os.makedirs("/home/user/__recalc", exist_ok=True)
-__sim_sp.run(
-    ["soffice", "--headless", "--convert-to", "xlsx", "--outdir", "/home/user/__recalc", "/home/user/output.xlsx"],
-    check=True, timeout=120, capture_output=True,
-)
-__sim_sh.move("/home/user/__recalc/output.xlsx", "/home/user/output.xlsx")
+# Best-effort: bake cached formula values via LibreOffice. If recalc fails
+# (soffice crash/timeout/unsupported), keep the openpyxl workbook as-is — it's
+# still a valid file (formulas just lack cached values). Never fail the user's
+# compile over an infra recalc failure.
+try:
+    __sim_os.makedirs("/home/user/__recalc", exist_ok=True)
+    __sim_sp.run(
+        ["soffice", "--headless", "--convert-to", "xlsx", "--outdir", "/home/user/__recalc", "/home/user/output.xlsx"],
+        check=True, timeout=120, capture_output=True,
+    )
+    __sim_sh.move("/home/user/__recalc/output.xlsx", "/home/user/output.xlsx")
+except Exception as __sim_recalc_err:
+    print("xlsx recalc skipped:", __sim_recalc_err)
 `.trim()
 
 interface CompileArgs {
@@ -324,19 +331,27 @@ ${finalize}
     outputSandboxPath,
   })
 
-  // Only treat the run as a success when the script reached the finalizer
-  // (__DOC_OK__) AND produced the output file. A script that writes the file then
-  // throws would otherwise persist a partial/corrupt artifact (mirrors the Python
-  // path, which checks result.error first).
+  // Success requires the script to reach the finalizer (__DOC_OK__) AND produce
+  // the output file — a script that writes then throws must not persist a
+  // partial/corrupt artifact (mirrors the Python path).
   const out = `${result.stdout || ''}\n${result.error || ''}`
-  const failed = !!result.error || !out.includes('__DOC_OK__')
-  if (!failed && result.exportedFileContent) {
+  const errMatch = out.match(/__DOC_ERR__([\s\S]*)/)
+  if (out.includes('__DOC_OK__') && result.exportedFileContent) {
     return Buffer.from(result.exportedFileContent, 'base64')
   }
-  // Capture the full (possibly multi-line) error message after the marker.
-  const m = out.match(/__DOC_ERR__([\s\S]*)/)
-  const msg = m?.[1]?.trim() || result.error || 'the script produced no output'
-  throw new DocCompileUserError(`${ext.toUpperCase()} generation failed: ${msg}`)
+  if (errMatch) {
+    // The script ran and threw — a user-code error the agent should fix.
+    throw new DocCompileUserError(
+      `${ext.toUpperCase()} generation failed: ${errMatch[1]?.trim() || 'unknown error'}`
+    )
+  }
+  // No __DOC_OK__ and no __DOC_ERR__ → node never completed (sandbox died, command
+  // failure, or the output couldn't be read). That's a retriable system error, not
+  // the agent's code — surface it as a plain Error so callers don't tell the agent
+  // to "fix its code".
+  throw new Error(
+    `${ext.toUpperCase()} compile did not complete in the sandbox: ${result.error || 'no output produced'}`
+  )
 }
 
 /**

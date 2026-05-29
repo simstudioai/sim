@@ -82,7 +82,8 @@ elif ext == "xlsx":
             out.append(",".join("" if v is None else str(v) for v in row))
 
 # Bound the transferred text so a decompression bomb can't return gigabytes.
-text = "\\n".join(out)[:220000]
+# Headroom over MAX_EXTRACT_CHARS so the TS-side truncation flag can still fire.
+text = "\\n".join(out)[:${MAX_EXTRACT_CHARS + 20000}]
 print("__SIM_RESULT__=" + json.dumps({"text": text}))
 `.trim()
 

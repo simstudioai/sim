@@ -27,7 +27,13 @@ import {
   performRenameWorkspaceFile,
 } from '@/lib/workspace-files/orchestration'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
-import { compileDoc, DocCompileUserError, getE2BDocFormat } from './doc-compile'
+import {
+  compileDoc,
+  DOCXJS_SOURCE_MIME,
+  DocCompileUserError,
+  getE2BDocFormat,
+  PPTXGENJS_SOURCE_MIME,
+} from './doc-compile'
 import { storeFileIntent } from './file-intent-store'
 
 const logger = createLogger('WorkspaceFileServerTool')
@@ -35,8 +41,9 @@ const logger = createLogger('WorkspaceFileServerTool')
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const PDF_MIME = 'application/pdf'
-const PPTX_SOURCE_MIME = 'text/x-pptxgenjs'
-const DOCX_SOURCE_MIME = 'text/x-docxjs'
+// Single source of the JS source MIMEs is doc-compile.ts; reuse to avoid drift.
+const PPTX_SOURCE_MIME = PPTXGENJS_SOURCE_MIME
+const DOCX_SOURCE_MIME = DOCXJS_SOURCE_MIME
 const PDF_SOURCE_MIME = 'text/x-pdflibjs'
 
 type WorkspaceFileOperation = 'create' | 'append' | 'update' | 'delete' | 'rename' | 'patch'
