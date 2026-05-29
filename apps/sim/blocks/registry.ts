@@ -52,6 +52,7 @@ import { ElasticsearchBlock, ElasticsearchBlockMeta } from '@/blocks/blocks/elas
 import { ElevenLabsBlock, ElevenLabsBlockMeta } from '@/blocks/blocks/elevenlabs'
 import { EmailBisonBlock, EmailBisonBlockMeta } from '@/blocks/blocks/emailbison'
 import { EnrichBlock, EnrichBlockMeta } from '@/blocks/blocks/enrich'
+import { EnrichmentBlock, EnrichmentBlockMeta } from '@/blocks/blocks/enrichment'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { EvernoteBlock, EvernoteBlockMeta } from '@/blocks/blocks/evernote'
 import { ExaBlock, ExaBlockMeta } from '@/blocks/blocks/exa'
@@ -218,6 +219,7 @@ import { PulseBlock, PulseBlockMeta, PulseV2Block } from '@/blocks/blocks/pulse'
 import { QdrantBlock, QdrantBlockMeta } from '@/blocks/blocks/qdrant'
 import { QuiverBlock, QuiverBlockMeta } from '@/blocks/blocks/quiver'
 import { RailwayBlock, RailwayBlockMeta } from '@/blocks/blocks/railway'
+import { RB2BBlock, RB2BBlockMeta } from '@/blocks/blocks/rb2b'
 import { RDSBlock, RDSBlockMeta } from '@/blocks/blocks/rds'
 import { RedditBlock, RedditBlockMeta } from '@/blocks/blocks/reddit'
 import { RedisBlock, RedisBlockMeta } from '@/blocks/blocks/redis'
@@ -356,6 +358,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   elevenlabs: ElevenLabsBlock,
   emailbison: EmailBisonBlock,
   enrich: EnrichBlock,
+  enrichment: EnrichmentBlock,
   evaluator: EvaluatorBlock,
   evernote: EvernoteBlock,
   exa: ExaBlock,
@@ -485,6 +488,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   qdrant: QdrantBlock,
   quiver: QuiverBlock,
   railway: RailwayBlock,
+  rb2b: RB2BBlock,
   rds: RDSBlock,
   reddit: RedditBlock,
   redis: RedisBlock,
@@ -629,6 +633,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   elevenlabs: ElevenLabsBlockMeta,
   emailbison: EmailBisonBlockMeta,
   enrich: EnrichBlockMeta,
+  enrichment: EnrichmentBlockMeta,
   evernote: EvernoteBlockMeta,
   exa: ExaBlockMeta,
   extend: ExtendBlockMeta,
@@ -731,6 +736,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   qdrant: QdrantBlockMeta,
   quiver: QuiverBlockMeta,
   railway: RailwayBlockMeta,
+  rb2b: RB2BBlockMeta,
   rds: RDSBlockMeta,
   reddit: RedditBlockMeta,
   redis: RedisBlockMeta,

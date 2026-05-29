@@ -151,7 +151,11 @@ export const ComboBox = memo(function ComboBox({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // Permission-based filtering for model dropdowns
-  const { isProviderAllowed, isLoading: isPermissionLoading } = usePermissionConfig()
+  const {
+    isProviderAllowed,
+    isModelAllowed,
+    isLoading: isPermissionLoading,
+  } = usePermissionConfig()
 
   // Evaluate static options if provided as a function
   const staticOptions = useMemo(() => {
@@ -160,9 +164,9 @@ export const ComboBox = memo(function ComboBox({
     if (subBlockId === 'model') {
       return opts.filter((opt) => {
         const modelId = typeof opt === 'string' ? opt : opt.id
+        if (!isModelAllowed(modelId)) return false
         try {
-          const providerId = getProviderFromModel(modelId)
-          return isProviderAllowed(providerId)
+          return isProviderAllowed(getProviderFromModel(modelId))
         } catch {
           return true
         }
@@ -170,7 +174,7 @@ export const ComboBox = memo(function ComboBox({
     }
 
     return opts
-  }, [options, subBlockId, isProviderAllowed])
+  }, [options, subBlockId, isProviderAllowed, isModelAllowed])
 
   // Normalize fetched options to match ComboBoxOption format
   const normalizedFetchedOptions = useMemo((): ComboBoxOption[] => {
@@ -185,9 +189,9 @@ export const ComboBox = memo(function ComboBox({
     if (subBlockId === 'model' && fetchOptions && normalizedFetchedOptions.length > 0) {
       opts = opts.filter((opt) => {
         const modelId = typeof opt === 'string' ? opt : opt.id
+        if (!isModelAllowed(modelId)) return false
         try {
-          const providerId = getProviderFromModel(modelId)
-          return isProviderAllowed(providerId)
+          return isProviderAllowed(getProviderFromModel(modelId))
         } catch {
           return true
         }
@@ -212,6 +216,7 @@ export const ComboBox = memo(function ComboBox({
     hydratedOption,
     subBlockId,
     isProviderAllowed,
+    isModelAllowed,
   ])
 
   // Convert options to Combobox format

@@ -9,7 +9,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { createAuthMiddleware } from 'better-auth/api'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { nextCookies } from 'better-auth/next-js'
 import {
   admin,
@@ -78,6 +78,7 @@ import {
   isOrganizationsEnabled,
   isRegistrationDisabled,
   isSignupEmailValidationEnabled,
+  isSignupMxValidationEnabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
@@ -85,6 +86,7 @@ import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
@@ -793,12 +795,16 @@ export const auth = betterAuth({
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path.startsWith('/sign-up') && isRegistrationDisabled)
-        throw new Error('Registration is disabled, please contact your admin.')
+        throw new APIError('FORBIDDEN', {
+          message: 'Registration is disabled, please contact your admin.',
+        })
 
       if (!isEmailPasswordEnabled) {
         const emailPasswordPaths = ['/sign-in/email', '/sign-up/email', '/email-otp']
         if (emailPasswordPaths.some((path) => ctx.path.startsWith(path)))
-          throw new Error('Email/password authentication is disabled. Please use SSO to sign in.')
+          throw new APIError('FORBIDDEN', {
+            message: 'Email/password authentication is disabled. Please use SSO to sign in.',
+          })
       }
 
       if (
@@ -826,13 +832,26 @@ export const auth = betterAuth({
           }
 
           if (!isAllowed) {
-            throw new Error('Access restricted. Please contact your administrator.')
+            throw new APIError('FORBIDDEN', {
+              message: 'Access restricted. Please contact your administrator.',
+            })
           }
         }
       }
 
       if (ctx.path.startsWith('/sign-up') && isSignupEmailBlocked(ctx.body?.email)) {
-        throw new Error('Sign-ups from this email domain are not allowed.')
+        throw new APIError('FORBIDDEN', {
+          message: 'Sign-ups from this email domain are not allowed.',
+        })
+      }
+
+      if (isSignupMxValidationEnabled && ctx.path.startsWith('/sign-up/email') && ctx.body?.email) {
+        const mxCheck = await validateSignupEmailMx(ctx.body.email)
+        if (!mxCheck.allowed) {
+          throw new APIError('FORBIDDEN', {
+            message: 'Sign-ups from this email domain are not allowed.',
+          })
+        }
       }
 
       if (ctx.path === '/oauth2/authorize' || ctx.path === '/oauth2/token') {
@@ -2532,17 +2551,36 @@ export const auth = betterAuth({
               }
 
               const teamId = data.team_id || 'unknown'
-              const userId = data.user_id || data.bot_id || 'bot'
               const teamName = data.team || 'Slack Workspace'
 
-              const uniqueId = `${teamId}-${userId}`
+              /**
+               * Tag the accountId with the installing user's Slack id (from the OAuth
+               * v2 `authed_user.id`, preserved on `tokens.raw`) behind a `usr_` marker.
+               * The channels selector uses it to scope private-channel visibility to
+               * the installer's own Slack membership, per Slack Marketplace rules. The
+               * marker disambiguates it from a legacy bot id (same `U.../B...` shape);
+               * absent it, we keep the legacy format and today's behavior.
+               */
+              const authedUser = tokens.raw?.authed_user as { id?: string } | undefined
+              const installerUserId = authedUser?.id
+              const userSegment = installerUserId
+                ? `usr_${installerUserId}`
+                : data.user_id || data.bot_id || 'bot'
 
-              logger.info('Slack credential identifier', { teamId, userId, uniqueId, teamName })
+              const uniqueId = `${teamId}-${userSegment}`
+
+              logger.info('Slack credential identifier', {
+                teamId,
+                userSegment,
+                uniqueId,
+                teamName,
+                hasInstallerId: !!installerUserId,
+              })
 
               return {
                 id: `${uniqueId}-${generateId()}`,
                 name: teamName,
-                email: `${teamId}-${userId}@slack.bot`,
+                email: `${uniqueId}@slack.bot`,
                 emailVerified: false,
                 createdAt: new Date(),
                 updatedAt: new Date(),

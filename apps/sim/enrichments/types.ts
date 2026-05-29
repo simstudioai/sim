@@ -21,10 +21,14 @@ export interface EnrichmentOutputField {
   type: ColumnDefinition['type']
 }
 
-/** Per-row execution context handed to a provider's `run()` (runs server-side). */
+/**
+ * Execution context for an enrichment run (runs server-side). `tableId`/`rowId`
+ * are present for the table per-row path but optional — the workflow block path
+ * (`/api/tools/enrichment/run`) has no table/row and passes only `workspaceId`.
+ */
 export interface EnrichmentRunContext {
-  tableId: string
-  rowId: string
+  tableId?: string
+  rowId?: string
   workspaceId: string
   signal?: AbortSignal
 }
