@@ -1,6 +1,22 @@
 import type { SVGProps } from 'react'
 import { useId } from 'react'
 
+export function EnrichmentIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 24 24'
+      fill='currentColor'
+      role='img'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path d='M12 2.5l1.9 4.6 4.6 1.9-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.9L12 2.5z' />
+      <path d='M18.5 14l.95 2.3 2.3.95-2.3.95L18.5 20.5l-.95-2.3-2.3-.95 2.3-.95.95-2.3z' />
+      <path d='M5.5 14.5l.7 1.7 1.7.7-1.7.7-.7 1.7-.7-1.7-1.7-.7 1.7-.7.7-1.7z' />
+    </svg>
+  )
+}
+
 export function AgentMailIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 350 363' fill='none' xmlns='http://www.w3.org/2000/svg'>
