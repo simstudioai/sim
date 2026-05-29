@@ -302,6 +302,9 @@ export function TableGrid({
   const [dropSide, setDropSide] = useState<'left' | 'right'>('left')
   const dropSideRef = useRef(dropSide)
   dropSideRef.current = dropSide
+  const [pinnedColumns, setPinnedColumns] = useState<string[]>([])
+  const pinnedColumnsRef = useRef(pinnedColumns)
+  pinnedColumnsRef.current = pinnedColumns
   const metadataSeededRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -466,9 +469,13 @@ export function TableGrid({
     }
     const updatedOrder = columnOrderRef.current?.map((n) => (n === oldName ? newName : n))
     if (updatedOrder) setColumnOrder(updatedOrder)
+    const updatedPinned = pinnedColumnsRef.current.map((n) => (n === oldName ? newName : n))
+    const pinnedChanged = updatedPinned.some((n, i) => n !== pinnedColumnsRef.current[i])
+    if (pinnedChanged) setPinnedColumns(updatedPinned)
     updateMetadataRef.current({
       columnWidths: updatedWidths,
       ...(updatedOrder ? { columnOrder: updatedOrder } : {}),
+      ...(pinnedChanged ? { pinnedColumns: updatedPinned } : {}),
     })
   }
   // Populate the wrapper's sink so its sidebars can fire renames back into
@@ -483,12 +490,61 @@ export function TableGrid({
     setColumnWidths(widths)
   }
 
+  function handlePinnedColumnsChange(pinned: string[]) {
+    setPinnedColumns(pinned)
+    pinnedColumnsRef.current = pinned
+  }
+
+  function getPinnedColumns() {
+    return pinnedColumnsRef.current
+  }
+
+  const handlePinToggle = useCallback((columnName: string) => {
+    const col = columnsRef.current.find((c) => c.name === columnName)
+    const siblings: string[] = col?.workflowGroupId
+      ? columnsRef.current
+          .filter((c) => c.workflowGroupId === col.workflowGroupId)
+          .map((c) => c.name)
+      : [columnName]
+
+    const current = pinnedColumnsRef.current
+    const newPinned = current.includes(columnName)
+      ? current.filter((n) => !siblings.includes(n))
+      : [...current, ...siblings.filter((n) => !current.includes(n))]
+    setPinnedColumns(newPinned)
+    pinnedColumnsRef.current = newPinned
+
+    // Pinned-at-front is an invariant the rest of the grid relies on (sticky
+    // offsets walk displayColumns left→right and stop at the first unpinned
+    // entry). On unpin we must re-sort so the unpinned column doesn't stay
+    // sandwiched between still-pinned siblings, which would render the sticky
+    // zone with a gap.
+    const currentOrder = columnOrderRef.current ?? schemaColumnsRef.current.map((c) => c.name)
+    const pinnedSet = new Set(newPinned)
+    const newOrder = [
+      ...currentOrder.filter((n) => pinnedSet.has(n)),
+      ...currentOrder.filter((n) => !pinnedSet.has(n)),
+    ]
+    const orderChanged = newOrder.some((n, i) => n !== currentOrder[i])
+    if (orderChanged) {
+      setColumnOrder(newOrder)
+      columnOrderRef.current = newOrder
+    }
+    updateMetadataRef.current({
+      pinnedColumns: newPinned,
+      ...(orderChanged ? { columnOrder: newOrder } : {}),
+      columnWidths: columnWidthsRef.current,
+    })
+  }, [])
+
   const { pushUndo, undo, redo } = useTableUndo({
     workspaceId,
     tableId,
     onColumnOrderChange: handleColumnOrderChange,
     onColumnRename: handleColumnRename,
     onColumnWidthsChange: handleColumnWidthsChange,
+    onPinnedColumnsChange: handlePinnedColumnsChange,
+    getPinnedColumns,
     getColumnWidths,
   })
   const undoRef = useRef(undo)
@@ -529,6 +585,49 @@ export function TableGrid({
     tableData?.maxRows ?? 0,
     hasWorkflowColumns
   )
+
+  const pinnedColumnSet = useMemo(() => new Set(pinnedColumns), [pinnedColumns])
+
+  // Stable fingerprint of pinned-column widths only. Changes when a pinned
+  // column is resized; stays the same when an unpinned column is resized.
+  // Used as the sole dep that ties pinnedOffsets to column-width changes so
+  // that unpinned resizes don't recreate the Map and re-render all DataRows.
+  const pinnedWidthsKey = displayColumns
+    .filter((c) => pinnedColumnSet.has(c.name))
+    .map((c) => columnWidths[c.key] ?? COL_WIDTH)
+    .join(',')
+
+  /** Pinned column key → sticky `left` px offset. */
+  const pinnedOffsets = useMemo<Map<string, number>>(() => {
+    const offsets = new Map<string, number>()
+    let left = checkboxColWidth
+    const widths = columnWidthsRef.current
+    for (const col of displayColumns) {
+      if (pinnedColumnSet.has(col.name)) {
+        offsets.set(col.key, left)
+        left += widths[col.key] ?? COL_WIDTH
+      }
+    }
+    return offsets
+  }, [displayColumns, pinnedColumnSet, checkboxColWidth, pinnedWidthsKey])
+
+  const lastPinnedColKey = useMemo<string | null>(() => {
+    let last: string | null = null
+    for (const col of displayColumns) {
+      if (pinnedColumnSet.has(col.name)) last = col.key
+    }
+    return last
+  }, [displayColumns, pinnedColumnSet])
+
+  /** Right edge of the pinned sticky zone; used as the left inset for scroll-to-reveal. */
+  const pinnedStickyLeftEdge = useMemo(() => {
+    let edge = checkboxColWidth
+    const widths = columnWidthsRef.current
+    for (const [key, left] of pinnedOffsets) {
+      edge = Math.max(edge, left + (widths[key] ?? COL_WIDTH))
+    }
+    return edge
+  }, [pinnedOffsets, checkboxColWidth])
 
   const headerGroups = useMemo(
     () => buildHeaderGroups(displayColumns, tableWorkflowGroups),
@@ -1127,6 +1226,16 @@ export function TableGrid({
       }
     }
 
+    // Reorder is restricted to within a single zone so a cross-zone drop
+    // indicator never appears for an insertion the grid would refuse.
+    if (dragged) {
+      const pinned = pinnedColumnsRef.current
+      if (pinned.includes(dragged) !== pinned.includes(columnName)) {
+        if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
+        return
+      }
+    }
+
     // Workflow groups: skip per-`<th>` writes and let `handleScrollDragOver`
     // do the bookkeeping. The scroll handler computes side from the group's
     // full bounds, so it stays stable across sibling cursor moves; the per-th
@@ -1248,17 +1357,29 @@ export function TableGrid({
         ...remaining.slice(insertIndex),
       ]
 
-      const orderChanged = newOrder.some((name, i) => currentOrder[i] !== name)
+      // Belt-and-suspenders re-sort: dragover already blocks cross-zone drops,
+      // but if anything ever slips through, the pinned-at-front invariant gets
+      // restored here (relative order within each zone is preserved).
+      let finalOrder = newOrder
+      const currentPinned = pinnedColumnsRef.current
+      if (currentPinned.length > 0) {
+        const pinnedSet = new Set(currentPinned)
+        const pinnedInNew = newOrder.filter((n) => pinnedSet.has(n))
+        const unpinnedInNew = newOrder.filter((n) => !pinnedSet.has(n))
+        finalOrder = [...pinnedInNew, ...unpinnedInNew]
+      }
+
+      const orderChanged = finalOrder.some((name, i) => currentOrder[i] !== name)
       if (orderChanged) {
         pushUndoRef.current({
           type: 'reorder-columns',
           previousOrder: currentOrder,
-          newOrder,
+          newOrder: finalOrder,
         })
-        setColumnOrder(newOrder)
+        setColumnOrder(finalOrder)
         updateMetadataRef.current({
           columnWidths: columnWidthsRef.current,
-          columnOrder: newOrder,
+          columnOrder: finalOrder,
         })
       }
     }
@@ -1299,6 +1420,12 @@ export function TableGrid({
       if (cursorX < left + groupWidth) {
         // Inside the dragged column's own group → no-op drop, no indicator.
         if (draggedGid && col.workflowGroupId === draggedGid) {
+          if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
+          return
+        }
+        const pinned = pinnedColumnsRef.current
+        const draggedName = dragColumnNameRef.current
+        if (draggedName && pinned.includes(draggedName) !== pinned.includes(col.name)) {
           if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
           return
         }
@@ -1345,8 +1472,13 @@ export function TableGrid({
 
   useEffect(() => {
     if (!tableData?.metadata) return
-    if (!tableData.metadata.columnWidths && !tableData.metadata.columnOrder) return
-    // First load: seed both from the server and remember we've seeded.
+    if (
+      !tableData.metadata.columnWidths &&
+      !tableData.metadata.columnOrder &&
+      !tableData.metadata.pinnedColumns
+    )
+      return
+    // First load: seed all from the server and remember we've seeded.
     if (!metadataSeededRef.current) {
       metadataSeededRef.current = true
       if (tableData.metadata.columnWidths) {
@@ -1354,6 +1486,9 @@ export function TableGrid({
       }
       if (tableData.metadata.columnOrder) {
         setColumnOrder(tableData.metadata.columnOrder)
+      }
+      if (tableData.metadata.pinnedColumns) {
+        setPinnedColumns(tableData.metadata.pinnedColumns)
       }
       return
     }
@@ -1528,7 +1663,7 @@ export function TableGrid({
     const selector = `[data-table-scroll] [data-row="${rowIndex}"][data-col="${colIndex}"]`
     // `scrollIntoView` ignores the sticky `<thead>` and sticky gutter, so a cell
     // scrolled to the edge lands behind them. Scroll manually with insets equal
-    // to the sticky header height (top) and the row-number column width (left).
+    // to the sticky header height (top) and the full pinned left edge (left).
     const revealCell = (cell: HTMLElement) => {
       const scrollEl = scrollRef.current
       if (!scrollEl) return
@@ -1540,10 +1675,14 @@ export function TableGrid({
       } else if (rect.bottom > view.bottom) {
         scrollEl.scrollTop += rect.bottom - view.bottom
       }
-      if (rect.left < view.left + checkboxColWidth) {
-        scrollEl.scrollLeft -= view.left + checkboxColWidth - rect.left
-      } else if (rect.right > view.right) {
-        scrollEl.scrollLeft += rect.right - view.right
+      const targetColName = columnsRef.current[colIndex]?.name
+      const targetIsPinned = targetColName ? pinnedColumnSet.has(targetColName) : false
+      if (!targetIsPinned) {
+        if (rect.left < view.left + pinnedStickyLeftEdge) {
+          scrollEl.scrollLeft -= view.left + pinnedStickyLeftEdge - rect.left
+        } else if (rect.right > view.right) {
+          scrollEl.scrollLeft += rect.right - view.right
+        }
       }
     }
     let secondRaf = 0
@@ -1565,7 +1704,14 @@ export function TableGrid({
       cancelAnimationFrame(rafId)
       if (secondRaf) cancelAnimationFrame(secondRaf)
     }
-  }, [selectionAnchor, selectionFocus, isColumnSelection, rowVirtualizer, checkboxColWidth])
+  }, [
+    selectionAnchor,
+    selectionFocus,
+    isColumnSelection,
+    rowVirtualizer,
+    pinnedStickyLeftEdge,
+    pinnedColumnSet,
+  ])
 
   const handleCellClick = useCallback(
     (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => {
@@ -2497,26 +2643,6 @@ export function TableGrid({
     []
   )
 
-  const handleChangeType = useCallback((columnName: string, newType: ColumnDefinition['type']) => {
-    const column = columnsRef.current.find((c) => c.name === columnName)
-    const previousType = column?.type
-    updateColumnMutation.mutate(
-      { columnName, updates: { type: newType } },
-      {
-        onSuccess: () => {
-          if (previousType) {
-            pushUndoRef.current({
-              type: 'update-column-type',
-              columnName,
-              previousType,
-              newType,
-            })
-          }
-        },
-      }
-    )
-  }, [])
-
   const insertColumnInOrder = useCallback(
     (anchorColumn: string, newColumn: string, side: 'left' | 'right') => {
       const order = columnOrderRef.current ?? schemaColumnsRef.current.map((c) => c.name)
@@ -2725,6 +2851,7 @@ export function TableGrid({
         .map((r) => ({ rowId: r.id, value: r.data[columnToDelete] }))
       const previousWidth = columnWidthsRef.current[columnToDelete] ?? null
       const orderSnapshot = currentOrder ? [...currentOrder] : null
+      const pinnedSnapshot = [...pinnedColumnsRef.current]
 
       const onDeleted = () => {
         deletedOriginalPositions.push(entry.position)
@@ -2738,11 +2865,18 @@ export function TableGrid({
           cellData,
           previousOrder: orderSnapshot,
           previousWidth,
+          previousPinnedColumns: pinnedSnapshot,
         })
 
         const { [columnToDelete]: _removedWidth, ...cleanedWidths } = columnWidthsRef.current
         setColumnWidths(cleanedWidths)
         columnWidthsRef.current = cleanedWidths
+
+        const updatedPinned = pinnedColumnsRef.current.filter((n) => n !== columnToDelete)
+        if (updatedPinned.length !== pinnedColumnsRef.current.length) {
+          setPinnedColumns(updatedPinned)
+          pinnedColumnsRef.current = updatedPinned
+        }
 
         if (currentOrder) {
           currentOrder = currentOrder.filter((n) => n !== columnToDelete)
@@ -2750,9 +2884,13 @@ export function TableGrid({
           updateMetadataRef.current({
             columnWidths: cleanedWidths,
             columnOrder: currentOrder,
+            pinnedColumns: pinnedColumnsRef.current,
           })
         } else {
-          updateMetadataRef.current({ columnWidths: cleanedWidths })
+          updateMetadataRef.current({
+            columnWidths: cleanedWidths,
+            pinnedColumns: pinnedColumnsRef.current,
+          })
         }
 
         deleteNext(index + 1)
@@ -3173,66 +3311,88 @@ export function TableGrid({
                     {hasWorkflowGroup && (
                       <tr>
                         <th className='sticky left-0 z-[12] border-[var(--border)] border-b bg-[var(--bg)] px-1 py-[5px]' />
-                        {headerGroups.map((g) =>
-                          g.kind === 'workflow' ? (
-                            <WorkflowGroupMetaCell
-                              key={`meta-${g.startColIndex}`}
-                              workflowId={g.workflowId}
-                              size={g.size}
-                              startColIndex={g.startColIndex}
-                              columnName={displayColumns[g.startColIndex]?.name ?? ''}
-                              column={displayColumns[g.startColIndex]}
-                              workflows={workflows}
-                              isGroupSelected={
-                                isColumnSelection &&
-                                normalizedSelection !== null &&
-                                normalizedSelection.startCol <= g.startColIndex &&
-                                normalizedSelection.endCol >= g.startColIndex + g.size - 1
-                              }
-                              groupId={g.groupId}
-                              groupType={workflowGroupById.get(g.groupId)?.type}
-                              enrichmentId={workflowGroupById.get(g.groupId)?.enrichmentId}
-                              groupName={workflowGroupById.get(g.groupId)?.name}
-                              onSelectGroup={handleGroupSelect}
-                              onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
-                              onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
-                              selectedRowIds={selectedRowIds}
-                              onInsertLeft={
-                                userPermissions.canEdit ? handleInsertColumnLeft : undefined
-                              }
-                              onInsertRight={
-                                userPermissions.canEdit ? handleInsertColumnRight : undefined
-                              }
-                              onDeleteColumn={
-                                userPermissions.canEdit ? handleDeleteColumn : undefined
-                              }
-                              onDeleteGroup={
-                                userPermissions.canEdit ? handleDeleteWorkflowGroup : undefined
-                              }
-                              onViewWorkflow={
-                                workflowGroupById.get(g.groupId)?.type === 'enrichment'
-                                  ? undefined
-                                  : handleViewWorkflow
-                              }
-                              readOnly={!userPermissions.canEdit}
-                              onDragStart={
-                                userPermissions.canEdit ? handleColumnDragStart : undefined
-                              }
-                              onDragOver={
-                                userPermissions.canEdit ? handleColumnDragOver : undefined
-                              }
-                              onDragEnd={userPermissions.canEdit ? handleColumnDragEnd : undefined}
-                              onDragLeave={
-                                userPermissions.canEdit ? handleColumnDragLeave : undefined
-                              }
-                            />
-                          ) : (
+                        {headerGroups.map((g) => {
+                          const firstCol = displayColumns[g.startColIndex]
+                          const stickyLeft = firstCol ? pinnedOffsets.get(firstCol.key) : undefined
+                          if (g.kind === 'workflow') {
+                            const lastCol = displayColumns[g.startColIndex + g.size - 1]
+                            return (
+                              <WorkflowGroupMetaCell
+                                key={`meta-${g.startColIndex}`}
+                                workflowId={g.workflowId}
+                                size={g.size}
+                                startColIndex={g.startColIndex}
+                                columnName={firstCol?.name ?? ''}
+                                column={firstCol}
+                                workflows={workflows}
+                                isGroupSelected={
+                                  isColumnSelection &&
+                                  normalizedSelection !== null &&
+                                  normalizedSelection.startCol <= g.startColIndex &&
+                                  normalizedSelection.endCol >= g.startColIndex + g.size - 1
+                                }
+                                groupId={g.groupId}
+                                groupType={workflowGroupById.get(g.groupId)?.type}
+                                enrichmentId={workflowGroupById.get(g.groupId)?.enrichmentId}
+                                groupName={workflowGroupById.get(g.groupId)?.name}
+                                onSelectGroup={handleGroupSelect}
+                                onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
+                                onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
+                                selectedRowIds={selectedRowIds}
+                                onInsertLeft={
+                                  userPermissions.canEdit ? handleInsertColumnLeft : undefined
+                                }
+                                onInsertRight={
+                                  userPermissions.canEdit ? handleInsertColumnRight : undefined
+                                }
+                                onDeleteColumn={
+                                  userPermissions.canEdit ? handleDeleteColumn : undefined
+                                }
+                                onDeleteGroup={
+                                  userPermissions.canEdit ? handleDeleteWorkflowGroup : undefined
+                                }
+                                onViewWorkflow={
+                                  workflowGroupById.get(g.groupId)?.type === 'enrichment'
+                                    ? undefined
+                                    : handleViewWorkflow
+                                }
+                                readOnly={!userPermissions.canEdit}
+                                onDragStart={
+                                  userPermissions.canEdit ? handleColumnDragStart : undefined
+                                }
+                                onDragOver={
+                                  userPermissions.canEdit ? handleColumnDragOver : undefined
+                                }
+                                onDragEnd={
+                                  userPermissions.canEdit ? handleColumnDragEnd : undefined
+                                }
+                                onDragLeave={
+                                  userPermissions.canEdit ? handleColumnDragLeave : undefined
+                                }
+                                isPinned={firstCol ? pinnedColumnSet.has(firstCol.name) : false}
+                                onPinToggle={userPermissions.canEdit ? handlePinToggle : undefined}
+                                stickyLeft={stickyLeft}
+                                isLastPinned={lastCol?.key === lastPinnedColKey}
+                              />
+                            )
+                          }
+                          const isLastFrz = firstCol?.key === lastPinnedColKey
+                          return (
                             <th
                               key={`meta-${g.startColIndex}`}
-                              className='border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]'
+                              className={cn(
+                                'border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]',
+                                stickyLeft !== undefined && 'z-[11]',
+                                isLastFrz && '[box-shadow:2px_0_0_0_var(--border)]'
+                              )}
+                              style={
+                                stickyLeft !== undefined
+                                  ? { position: 'sticky', left: stickyLeft }
+                                  : undefined
+                              }
                             />
                           )
-                        )}
+                        })}
                         {userPermissions.canEdit && (
                           <th className='border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]' />
                         )}
@@ -3243,45 +3403,52 @@ export function TableGrid({
                         checked={isAllRowsSelected}
                         onCheckedChange={handleSelectAllToggle}
                       />
-                      {displayColumns.map((column, idx) => (
-                        <ColumnHeaderMenu
-                          key={column.key}
-                          column={column}
-                          colIndex={idx}
-                          readOnly={!userPermissions.canEdit}
-                          isRenaming={columnRename.editingId === column.name}
-                          isColumnSelected={
-                            isColumnSelection &&
-                            normalizedSelection !== null &&
-                            idx >= normalizedSelection.startCol &&
-                            idx <= normalizedSelection.endCol
-                          }
-                          renameValue={
-                            columnRename.editingId === column.name ? columnRename.editValue : ''
-                          }
-                          onRenameValueChange={columnRename.setEditValue}
-                          onRenameSubmit={columnRename.submitRename}
-                          onRenameCancel={columnRename.cancelRename}
-                          onColumnSelect={handleColumnSelect}
-                          onChangeType={handleChangeType}
-                          onInsertLeft={handleInsertColumnLeft}
-                          onInsertRight={handleInsertColumnRight}
-                          onDeleteColumn={handleDeleteColumn}
-                          onResizeStart={handleColumnResizeStart}
-                          onResize={handleColumnResize}
-                          onResizeEnd={handleColumnResizeEnd}
-                          onAutoResize={handleColumnAutoResize}
-                          onDragStart={handleColumnDragStart}
-                          onDragOver={handleColumnDragOver}
-                          onDragEnd={handleColumnDragEnd}
-                          onDragLeave={handleColumnDragLeave}
-                          workflows={workflows}
-                          workflowGroups={tableWorkflowGroups}
-                          sourceInfo={columnSourceInfo.get(column.name)}
-                          onOpenConfig={handleConfigureColumn}
-                          onViewWorkflow={handleViewWorkflow}
-                        />
-                      ))}
+                      {displayColumns.map((column, idx) => {
+                        const colIsPinned = pinnedColumnSet.has(column.name)
+                        const colStickyLeft = pinnedOffsets.get(column.key)
+                        return (
+                          <ColumnHeaderMenu
+                            key={column.key}
+                            column={column}
+                            colIndex={idx}
+                            readOnly={!userPermissions.canEdit}
+                            isRenaming={columnRename.editingId === column.name}
+                            isColumnSelected={
+                              isColumnSelection &&
+                              normalizedSelection !== null &&
+                              idx >= normalizedSelection.startCol &&
+                              idx <= normalizedSelection.endCol
+                            }
+                            renameValue={
+                              columnRename.editingId === column.name ? columnRename.editValue : ''
+                            }
+                            onRenameValueChange={columnRename.setEditValue}
+                            onRenameSubmit={columnRename.submitRename}
+                            onRenameCancel={columnRename.cancelRename}
+                            onColumnSelect={handleColumnSelect}
+                            onInsertLeft={handleInsertColumnLeft}
+                            onInsertRight={handleInsertColumnRight}
+                            onDeleteColumn={handleDeleteColumn}
+                            onResizeStart={handleColumnResizeStart}
+                            onResize={handleColumnResize}
+                            onResizeEnd={handleColumnResizeEnd}
+                            onAutoResize={handleColumnAutoResize}
+                            onDragStart={handleColumnDragStart}
+                            onDragOver={handleColumnDragOver}
+                            onDragEnd={handleColumnDragEnd}
+                            onDragLeave={handleColumnDragLeave}
+                            workflows={workflows}
+                            workflowGroups={tableWorkflowGroups}
+                            sourceInfo={columnSourceInfo.get(column.name)}
+                            onOpenConfig={handleConfigureColumn}
+                            onViewWorkflow={handleViewWorkflow}
+                            isPinned={colIsPinned}
+                            onPinToggle={userPermissions.canEdit ? handlePinToggle : undefined}
+                            stickyLeft={colStickyLeft}
+                            isLastPinned={column.key === lastPinnedColKey}
+                          />
+                        )
+                      })}
                       {userPermissions.canEdit && (
                         <NewColumnDropdown
                           trigger='inline-header'
@@ -3361,6 +3528,8 @@ export function TableGrid({
                               onRunRow={onRunRow}
                               workflowGroups={tableWorkflowGroups}
                               activeDispatches={activeDispatches}
+                              pinnedOffsets={pinnedOffsets.size > 0 ? pinnedOffsets : undefined}
+                              lastPinnedColKey={lastPinnedColKey}
                             />
                           )
                         })}

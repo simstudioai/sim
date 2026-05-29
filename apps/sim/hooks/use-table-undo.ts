@@ -31,6 +31,8 @@ interface UseTableUndoProps {
   onColumnOrderChange?: (order: string[]) => void
   onColumnRename?: (oldName: string, newName: string) => void
   onColumnWidthsChange?: (widths: Record<string, number>) => void
+  onPinnedColumnsChange?: (pinned: string[]) => void
+  getPinnedColumns?: () => string[]
   getColumnWidths?: () => Record<string, number>
 }
 
@@ -40,6 +42,8 @@ export function useTableUndo({
   onColumnOrderChange,
   onColumnRename,
   onColumnWidthsChange,
+  onPinnedColumnsChange,
+  getPinnedColumns,
   getColumnWidths,
 }: UseTableUndoProps) {
   const push = useTableUndoStore((s) => s.push)
@@ -69,6 +73,10 @@ export function useTableUndo({
   onColumnRenameRef.current = onColumnRename
   const onColumnWidthsChangeRef = useRef(onColumnWidthsChange)
   onColumnWidthsChangeRef.current = onColumnWidthsChange
+  const onPinnedColumnsChangeRef = useRef(onPinnedColumnsChange)
+  onPinnedColumnsChangeRef.current = onPinnedColumnsChange
+  const getPinnedColumnsRef = useRef(getPinnedColumns)
+  getPinnedColumnsRef.current = getPinnedColumns
   const getColumnWidthsRef = useRef(getColumnWidths)
   getColumnWidthsRef.current = getColumnWidths
 
@@ -206,11 +214,21 @@ export function useTableUndo({
             if (direction === 'undo') {
               deleteColumnMutation.mutate(action.columnName, {
                 onSuccess: () => {
+                  const metadata: Record<string, unknown> = {}
                   const currentWidths = getColumnWidthsRef.current?.() ?? {}
                   if (action.columnName in currentWidths) {
                     const { [action.columnName]: _, ...rest } = currentWidths
                     onColumnWidthsChangeRef.current?.(rest)
-                    updateMetadataMutation.mutate({ columnWidths: rest })
+                    metadata.columnWidths = rest
+                  }
+                  const currentPinned = getPinnedColumnsRef.current?.() ?? []
+                  if (currentPinned.includes(action.columnName)) {
+                    const newPinned = currentPinned.filter((n) => n !== action.columnName)
+                    onPinnedColumnsChangeRef.current?.(newPinned)
+                    metadata.pinnedColumns = newPinned
+                  }
+                  if (Object.keys(metadata).length > 0) {
+                    updateMetadataMutation.mutate(metadata)
                   }
                 },
               })
@@ -273,6 +291,27 @@ export function useTableUndo({
                       metadata.columnWidths = merged
                       onColumnWidthsChangeRef.current?.(merged)
                     }
+                    if (action.previousPinnedColumns !== null) {
+                      const wasColumnPinned = action.previousPinnedColumns.includes(
+                        action.columnName
+                      )
+                      if (wasColumnPinned) {
+                        const currentPinned = getPinnedColumnsRef.current?.() ?? []
+                        if (!currentPinned.includes(action.columnName)) {
+                          const insertIndex = action.previousPinnedColumns.indexOf(
+                            action.columnName
+                          )
+                          const restoredPinned = [...currentPinned]
+                          restoredPinned.splice(
+                            Math.min(insertIndex, restoredPinned.length),
+                            0,
+                            action.columnName
+                          )
+                          onPinnedColumnsChangeRef.current?.(restoredPinned)
+                          metadata.pinnedColumns = restoredPinned
+                        }
+                      }
+                    }
                     if (Object.keys(metadata).length > 0) {
                       updateMetadataMutation.mutate(metadata)
                     }
@@ -293,6 +332,14 @@ export function useTableUndo({
                     const { [action.columnName]: _, ...rest } = currentWidths
                     metadata.columnWidths = rest
                     onColumnWidthsChangeRef.current?.(rest)
+                  }
+                  if (action.previousPinnedColumns !== null) {
+                    const currentPinned = getPinnedColumnsRef.current?.() ?? []
+                    if (currentPinned.includes(action.columnName)) {
+                      const newPinned = currentPinned.filter((n) => n !== action.columnName)
+                      onPinnedColumnsChangeRef.current?.(newPinned)
+                      metadata.pinnedColumns = newPinned
+                    }
                   }
                   if (Object.keys(metadata).length > 0) {
                     updateMetadataMutation.mutate(metadata)
@@ -339,7 +386,21 @@ export function useTableUndo({
           }
 
           case 'reorder-columns': {
-            const order = direction === 'undo' ? action.previousOrder : action.newOrder
+            const restored = direction === 'undo' ? action.previousOrder : action.newOrder
+            // The user may have pinned/unpinned since the original reorder;
+            // restoring the raw snapshot can leave a currently-pinned column
+            // in the middle, which breaks the sticky-offset walk in
+            // pinnedOffsets and causes the column to jump over its left
+            // neighbors on scroll.
+            const pinned = getPinnedColumnsRef.current?.() ?? []
+            let order = restored
+            if (pinned.length > 0) {
+              const pinnedSet = new Set(pinned)
+              order = [
+                ...restored.filter((n) => pinnedSet.has(n)),
+                ...restored.filter((n) => !pinnedSet.has(n)),
+              ]
+            }
             onColumnOrderChangeRef.current?.(order)
             updateMetadataMutation.mutate({ columnOrder: order })
             break
