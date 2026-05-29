@@ -23,6 +23,9 @@ import { type NormalizedSelection, resolveCellExec } from './utils'
 export interface DataRowProps {
   row: TableRowType
   columns: DisplayColumn[]
+  /** Current workspace id — forwarded to cells so in-workspace resource URLs
+   *  render as tagged-resource chips. */
+  workspaceId: string
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
@@ -94,6 +97,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
   if (
     prev.row !== next.row ||
     prev.columns !== next.columns ||
+    prev.workspaceId !== next.workspaceId ||
     prev.rowIndex !== next.rowIndex ||
     prev.isFirstRow !== next.isFirstRow ||
     prev.editingColumnName !== next.editingColumnName ||
@@ -135,6 +139,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
 export const DataRow = React.memo(function DataRow({
   row,
   columns,
+  workspaceId,
   rowIndex,
   isFirstRow,
   editingColumnName,
@@ -310,6 +315,7 @@ export const DataRow = React.memo(function DataRow({
             )}
             <div className={CELL_CONTENT}>
               <CellContent
+                workspaceId={workspaceId}
                 value={
                   pendingCellValue && column.name in pendingCellValue
                     ? pendingCellValue[column.name]

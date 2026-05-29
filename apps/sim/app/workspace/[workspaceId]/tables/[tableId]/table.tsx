@@ -462,36 +462,46 @@ export function Table({
   return (
     <div className='relative flex h-full flex-col overflow-hidden'>
       {!embedded && (
-        <>
-          <ResourceHeader
-            icon={TableIcon}
-            breadcrumbs={breadcrumbs}
-            createTrigger={createTrigger}
-            actions={headerActions}
-            leadingActions={
-              selection.totalRunning > 0 ? (
-                <RunStatusControl
-                  running={selection.totalRunning}
-                  onStopAll={onStopAll}
-                  isStopping={cancelRunsMutation.isPending}
-                />
-              ) : null
-            }
-          />
-          <ResourceOptionsBar
-            sort={sortConfig}
-            onFilterToggle={() => setFilterOpen((prev) => !prev)}
-            filterActive={filterOpen || !!queryOptions.filter}
-          />
-          {filterOpen && (
-            <TableFilter
-              columns={columns}
-              filter={queryOptions.filter}
-              onApply={handleFilterApply}
-              onClose={() => setFilterOpen(false)}
+        <ResourceHeader
+          icon={TableIcon}
+          breadcrumbs={breadcrumbs}
+          createTrigger={createTrigger}
+          actions={headerActions}
+          leadingActions={
+            selection.totalRunning > 0 ? (
+              <RunStatusControl
+                running={selection.totalRunning}
+                onStopAll={onStopAll}
+                isStopping={cancelRunsMutation.isPending}
+              />
+            ) : null
+          }
+        />
+      )}
+      {/* Sort + filter render in both modes. In embedded (mothership) mode there's
+          no ResourceHeader, so the run/stop control rides in the options bar's
+          `extras` slot — keeping the bar populated whether or not a run is live. */}
+      <ResourceOptionsBar
+        sort={sortConfig}
+        onFilterToggle={() => setFilterOpen((prev) => !prev)}
+        filterActive={filterOpen || !!queryOptions.filter}
+        extras={
+          embedded && selection.totalRunning > 0 ? (
+            <RunStatusControl
+              running={selection.totalRunning}
+              onStopAll={onStopAll}
+              isStopping={cancelRunsMutation.isPending}
             />
-          )}
-        </>
+          ) : undefined
+        }
+      />
+      {filterOpen && (
+        <TableFilter
+          columns={columns}
+          filter={queryOptions.filter}
+          onApply={handleFilterApply}
+          onClose={() => setFilterOpen(false)}
+        />
       )}
       <TableGrid
         workspaceId={workspaceId}

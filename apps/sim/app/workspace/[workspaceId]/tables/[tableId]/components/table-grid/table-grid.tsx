@@ -7,7 +7,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { Skeleton, toast, useToast } from '@/components/emcn'
-import { TableX } from '@/components/emcn/icons'
+import { Loader, TableX } from '@/components/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
@@ -3331,6 +3331,7 @@ export function TableGrid({
                               key={row.id}
                               row={row}
                               columns={displayColumns}
+                              workspaceId={workspaceId}
                               rowIndex={index}
                               isFirstRow={index === 0}
                               editingColumnName={
@@ -3370,6 +3371,18 @@ export function TableGrid({
                               colSpan={displayColumns.length + 1}
                               style={{ height: paddingBottom }}
                             />
+                          </tr>
+                        )}
+                        {isFetchingNextPage && (
+                          <tr>
+                            <td colSpan={displayColumns.length + 1} className='h-[35px] p-0'>
+                              <div className='flex items-center justify-center'>
+                                <Loader
+                                  animate
+                                  className='size-[14px] shrink-0 text-[var(--text-tertiary)]'
+                                />
+                              </div>
+                            </td>
                           </tr>
                         )}
                       </>

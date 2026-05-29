@@ -9,6 +9,7 @@ import type { RowExecutionMetadata } from '@/lib/table'
 import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import { storageToDisplay } from '../../../utils'
 import type { DisplayColumn } from '../types'
+import { SimResourceCell, type SimResourceType } from './sim-resource-cell'
 
 export type CellRenderKind =
   // Workflow-output cells
@@ -26,6 +27,13 @@ export type CellRenderKind =
   | { kind: 'json'; text: string }
   | { kind: 'date'; text: string }
   | { kind: 'url'; text: string; href: string; domain: string }
+  | {
+      kind: 'sim-resource'
+      workspaceId: string
+      resourceType: SimResourceType
+      resourceId: string
+      href: string
+    }
   | { kind: 'text'; text: string }
   // Universal fallback
   | { kind: 'empty' }
@@ -38,6 +46,9 @@ interface ResolveCellRenderInput {
   /** Column is an enrichment-group output — a completed-but-empty cell renders
    *  "Not found" rather than a blank, since the enrichment ran and matched nothing. */
   isEnrichmentOutput?: boolean
+  /** Current workspace id — a URL pointing to a resource in this workspace
+   *  renders as a tagged-resource chip rather than a plain external link. */
+  currentWorkspaceId?: string
 }
 
 export function resolveCellRender({
@@ -46,6 +57,7 @@ export function resolveCellRender({
   column,
   waitingOnLabels,
   isEnrichmentOutput,
+  currentWorkspaceId,
 }: ResolveCellRenderInput): CellRenderKind {
   const isNull = value === null || value === undefined
   const isEmpty = isNull || value === ''
@@ -97,6 +109,18 @@ export function resolveCellRender({
   if (column.type === 'date') return { kind: 'date', text: String(value) }
   if (column.type === 'string') {
     const text = stringifyValue(value)
+    if (currentWorkspaceId) {
+      const resource = extractSimResourceInfo(text)
+      if (resource && resource.workspaceId === currentWorkspaceId) {
+        return {
+          kind: 'sim-resource',
+          workspaceId: resource.workspaceId,
+          resourceType: resource.resourceType,
+          resourceId: resource.resourceId,
+          href: resource.href,
+        }
+      }
+    }
     const urlInfo = extractUrlInfo(text)
     if (urlInfo) return { kind: 'url', text, href: urlInfo.href, domain: urlInfo.domain }
     return { kind: 'text', text }
@@ -129,6 +153,43 @@ function extractUrlInfo(text: string): { href: string; domain: string } | null {
     return { href: `https://${trimmed}`, domain: trimmed }
   }
   return null
+}
+
+/** Maps a workspace route section to the sim resource kind it addresses. */
+const SIM_RESOURCE_SECTIONS: Record<string, SimResourceType> = {
+  w: 'workflow',
+  tables: 'table',
+  knowledge: 'knowledge',
+  files: 'file',
+}
+
+/**
+ * Recognizes a `/workspace/{id}/{section}/{resourceId}` URL (absolute or
+ * relative) pointing to a sim resource and returns its descriptor. The href is
+ * the pathname so the link stays within the current deployment. Returns null
+ * for anything that isn't a single-segment resource route.
+ */
+function extractSimResourceInfo(
+  text: string
+): { workspaceId: string; resourceType: SimResourceType; resourceId: string; href: string } | null {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  let pathname: string
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      pathname = new URL(trimmed).pathname
+    } catch {
+      return null
+    }
+  } else if (trimmed.startsWith('/')) {
+    pathname = trimmed.split(/[?#]/)[0]
+  } else {
+    return null
+  }
+  const match = pathname.match(/^\/workspace\/([^/]+)\/(w|tables|knowledge|files)\/([^/]+)\/?$/)
+  if (!match) return null
+  const [, workspaceId, section, resourceId] = match
+  return { workspaceId, resourceType: SIM_RESOURCE_SECTIONS[section], resourceId, href: pathname }
 }
 
 interface CellRenderProps {
@@ -268,6 +329,17 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
             {kind.text}
           </a>
         </span>
+      )
+
+    case 'sim-resource':
+      return (
+        <SimResourceCell
+          workspaceId={kind.workspaceId}
+          resourceType={kind.resourceType}
+          resourceId={kind.resourceId}
+          href={kind.href}
+          isEditing={isEditing}
+        />
       )
 
     case 'text':
