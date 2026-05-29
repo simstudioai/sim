@@ -1,7 +1,7 @@
-ALTER TYPE "public"."usage_log_category" ADD VALUE IF NOT EXISTS 'tool';--> statement-breakpoint
 ALTER TABLE "workflow_execution_logs" ADD COLUMN IF NOT EXISTS "cost_total" numeric;--> statement-breakpoint
 ALTER TABLE "workflow_execution_logs" ADD COLUMN IF NOT EXISTS "models_used" text[];--> statement-breakpoint
 COMMIT;--> statement-breakpoint
+ALTER TYPE "public"."usage_log_category" ADD VALUE IF NOT EXISTS 'tool';--> statement-breakpoint
 CREATE OR REPLACE PROCEDURE backfill_wel_cost_total_0220() LANGUAGE plpgsql AS $$
 DECLARE
   updated integer;
