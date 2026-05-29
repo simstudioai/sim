@@ -97,6 +97,7 @@ export const PptxSandboxHost = memo(function PptxSandboxHost({
         onRenderCompleteRef.current?.()
       } catch (error) {
         nextContainer.remove()
+        // Aborted means a newer render superseded this one — don't report.
         if (controller.signal.aborted) return
 
         const message = toError(error).message || 'Failed to render presentation'

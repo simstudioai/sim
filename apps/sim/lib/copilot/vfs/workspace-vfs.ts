@@ -509,6 +509,78 @@ export class WorkspaceVFS {
   }
 
   /**
+   * Renders a renderable doc (pptx/docx/pdf) record to a contact-sheet image and
+   * returns it as a model-readable JPEG attachment. Shared by the `/render` and
+   * `/compiled` reads so a binary doc is NEVER attached as a raw (non-PDF)
+   * `document` block — the model only reads images and application/pdf. Compiles
+   * the source first when needed (E2B doc sandbox, else isolated-vm); uses the
+   * binary directly for already-binary uploads. Throws on compile/render failure
+   * (the caller's try/catch reports it).
+   */
+  private async renderDocRecordResult(
+    record: WorkspaceFileRecord,
+    ext: string,
+    buildMessage: (pageCount: number) => string
+  ): Promise<FileReadResult> {
+    if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
+      return {
+        content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
+        totalLines: 1,
+      }
+    }
+    const buffer = await fetchWorkspaceFileBuffer(record)
+    if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
+      return {
+        content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
+        totalLines: 1,
+      }
+    }
+    // Already-binary uploads render directly; source files are compiled first
+    // (E2B regime -> doc sandbox: Node pptx/docx, Python pdf; otherwise
+    // isolated-vm pptxgenjs/docx-js/pdf-lib).
+    let bin: Buffer
+    if (isBinaryDocBuffer(buffer, ext)) {
+      bin = buffer
+    } else {
+      const code = buffer.toString('utf-8')
+      if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
+        return {
+          content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
+          totalLines: 1,
+        }
+      }
+      if (isE2BDocEnabled && getE2BDocFormat(record.name)) {
+        bin = (
+          await compileDoc({ source: code, fileName: record.name, workspaceId: this._workspaceId })
+        ).buffer
+      } else {
+        const taskId = BINARY_DOC_TASKS[ext]
+        if (!taskId) {
+          return {
+            content: JSON.stringify({ ok: false, error: 'Cannot render this file' }),
+            totalLines: 1,
+          }
+        }
+        bin = await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+      }
+    }
+    const { grid, pageCount } = await renderDocToGrid({
+      binary: bin,
+      ext,
+      workspaceId: this._workspaceId,
+    })
+    return {
+      content: buildMessage(pageCount),
+      totalLines: 1,
+      attachment: {
+        type: 'file',
+        name: `${record.name}.render.jpg`,
+        source: { type: 'base64', media_type: 'image/jpeg', data: grid.toString('base64') },
+      },
+    }
+  }
+
+  /**
    * Attempt to read dynamic workspace file content from storage.
    * Handles explicit /content reads for images, PDFs, documents, and text files.
    * Also handles:
@@ -529,6 +601,29 @@ export class WorkspaceVFS {
         const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         if (!e2bFmt && !taskId) return null
+
+        // Only PDF can be attached as a model-readable `document` block —
+        // Bedrock/Anthropic document blocks accept application/pdf ONLY. Attaching
+        // a raw pptx/docx/xlsx binary is rejected by the provider (400). So for
+        // pptx/docx, render to page images (which the model CAN read) and return
+        // those directly — /compiled can never emit an invalid document block for
+        // these formats. xlsx isn't renderable; direct to /extract for its content.
+        if (ext !== 'pdf') {
+          if (isRenderableDocExt(ext)) {
+            const compiledName = record.name
+            return await this.renderDocRecordResult(
+              record,
+              ext,
+              (pageCount) =>
+                `${compiledName}: the raw ${ext.toUpperCase()} binary isn't model-readable, so it was rendered to ${pageCount} page image(s) for inspection.`
+            )
+          }
+          return {
+            content: `${record.name} is a spreadsheet — read "files/by-id/${record.id}/extract" for its contents.`,
+            totalLines: 1,
+          }
+        }
+
         const buffer = await fetchWorkspaceFileBuffer(record)
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
@@ -537,26 +632,15 @@ export class WorkspaceVFS {
             totalLines: 1,
           }
         }
-        let compiled: Buffer
-        let contentType: string
-        if (e2bFmt) {
-          // E2B: load the compile-once S3 artifact (or build it on first read).
-          const out = await compileDoc({
-            source: code,
-            fileName: record.name,
-            workspaceId: this._workspaceId,
-          })
-          compiled = out.buffer
-          contentType = out.contentType
-        } else {
-          compiled = await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
-          contentType =
-            ext === 'pdf'
-              ? 'application/pdf'
-              : ext === 'docx'
-                ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                : 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-        }
+        const compiled = e2bFmt
+          ? (
+              await compileDoc({
+                source: code,
+                fileName: record.name,
+                workspaceId: this._workspaceId,
+              })
+            ).buffer
+          : await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
         if (compiled.length > MAX_COMPILED_ATTACHMENT_BYTES) {
           return {
             content: `[Compiled artifact too large: ${record.name} (${compiled.length} bytes, limit ${MAX_COMPILED_ATTACHMENT_BYTES})]`,
@@ -564,14 +648,14 @@ export class WorkspaceVFS {
           }
         }
         return {
-          content: `Compiled file: ${record.name} (${compiled.length} bytes, ${contentType})`,
+          content: `Compiled file: ${record.name} (${compiled.length} bytes, application/pdf)`,
           totalLines: 1,
           attachment: {
             type: 'file',
             name: record.name,
             source: {
               type: 'base64',
-              media_type: contentType,
+              media_type: 'application/pdf',
               data: compiled.toString('base64'),
             },
           },
@@ -611,61 +695,13 @@ export class WorkspaceVFS {
             totalLines: 1,
           }
         }
-        if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
-          return {
-            content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
-            totalLines: 1,
-          }
-        }
-        const buffer = await fetchWorkspaceFileBuffer(record)
-        if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
-          return {
-            content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
-            totalLines: 1,
-          }
-        }
-        // Already-binary uploads render directly; source files are compiled first
-        // (E2B regime -> doc sandbox: Node pptx/docx, Python pdf; otherwise
-        // isolated-vm pptxgenjs/docx-js/pdf-lib).
-        let bin: Buffer
-        if (isBinaryDocBuffer(buffer, ext)) {
-          bin = buffer
-        } else {
-          const code = buffer.toString('utf-8')
-          if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
-            return {
-              content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
-              totalLines: 1,
-            }
-          }
-          if (isE2BDocEnabled && getE2BDocFormat(record.name)) {
-            bin = (
-              await compileDoc({
-                source: code,
-                fileName: record.name,
-                workspaceId: this._workspaceId,
-              })
-            ).buffer
-          } else {
-            const taskId = BINARY_DOC_TASKS[ext]
-            if (!taskId) return null
-            bin = await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
-          }
-        }
-        const { grid, pageCount } = await renderDocToGrid({
-          binary: bin,
+        const renderName = record.name
+        return await this.renderDocRecordResult(
+          record,
           ext,
-          workspaceId: this._workspaceId,
-        })
-        return {
-          content: `Rendered ${pageCount} page(s) of ${record.name} as a contact-sheet grid for visual QA. Inspect each page for text overflow/cutoff, overlapping elements, low contrast, misalignment, and leftover placeholder text; fix and re-render until clean.`,
-          totalLines: 1,
-          attachment: {
-            type: 'file',
-            name: `${record.name}.render.jpg`,
-            source: { type: 'base64', media_type: 'image/jpeg', data: grid.toString('base64') },
-          },
-        }
+          (pageCount) =>
+            `Rendered ${pageCount} page(s) of ${renderName} as a contact-sheet grid for visual QA. Inspect each page for text overflow/cutoff, overlapping elements, low contrast, misalignment, and leftover placeholder text; fix and re-render until clean.`
+        )
       } catch (err) {
         logger.warn('Render read failed via VFS', {
           workspaceId: this._workspaceId,
