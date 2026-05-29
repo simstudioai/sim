@@ -8,6 +8,7 @@ export const PERMISSION_GROUP_MEMBER_CONSTRAINTS = {
 export const permissionGroupConfigSchema = z.object({
   allowedIntegrations: z.array(z.string()).nullable().optional(),
   allowedModelProviders: z.array(z.string()).nullable().optional(),
+  deniedModels: z.array(z.string()).optional(),
   hideTraceSpans: z.boolean().optional(),
   hideKnowledgeBaseTab: z.boolean().optional(),
   hideTablesTab: z.boolean().optional(),
@@ -32,6 +33,15 @@ export const permissionGroupConfigSchema = z.object({
 export interface PermissionGroupConfig {
   allowedIntegrations: string[] | null
   allowedModelProviders: string[] | null
+  /**
+   * Denylist of fully-qualified model IDs (e.g. `ollama/llama3`, `gpt-4o`) that
+   * members of this group may not use. Empty means no model is blocked. Applied
+   * on top of `allowedModelProviders`: a model is usable only when its provider
+   * is allowed AND the model is not present here. A denylist (rather than an
+   * allowlist) keeps dynamically-discovered models — vLLM, Ollama, LiteLLM —
+   * usable by default as the upstream catalog changes.
+   */
+  deniedModels: string[]
   hideTraceSpans: boolean
   hideKnowledgeBaseTab: boolean
   hideTablesTab: boolean
@@ -56,6 +66,7 @@ export interface PermissionGroupConfig {
 export const DEFAULT_PERMISSION_GROUP_CONFIG: PermissionGroupConfig = {
   allowedIntegrations: null,
   allowedModelProviders: null,
+  deniedModels: [],
   hideTraceSpans: false,
   hideKnowledgeBaseTab: false,
   hideTablesTab: false,
@@ -87,6 +98,9 @@ export function parsePermissionGroupConfig(config: unknown): PermissionGroupConf
   return {
     allowedIntegrations: Array.isArray(c.allowedIntegrations) ? c.allowedIntegrations : null,
     allowedModelProviders: Array.isArray(c.allowedModelProviders) ? c.allowedModelProviders : null,
+    deniedModels: Array.isArray(c.deniedModels)
+      ? c.deniedModels.filter((m): m is string => typeof m === 'string')
+      : [],
     hideTraceSpans: typeof c.hideTraceSpans === 'boolean' ? c.hideTraceSpans : false,
     hideKnowledgeBaseTab:
       typeof c.hideKnowledgeBaseTab === 'boolean' ? c.hideKnowledgeBaseTab : false,
