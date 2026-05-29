@@ -13,7 +13,7 @@ const MAX_POLL_TIME_MS = 120000
 const MAX_CONSECUTIVE_POLL_ERRORS = 3
 
 /** Whether a reveal payload has reached a terminal state and no longer needs polling. */
-function isTerminalReveal(d: Record<string, unknown>): boolean {
+function isTerminalReveal(d: { status?: string | null; is_complete?: boolean | null }): boolean {
   return d.status === 'finished' || d.status === 'failed' || d.is_complete === true
 }
 
