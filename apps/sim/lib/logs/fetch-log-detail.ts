@@ -14,11 +14,6 @@ import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 
 type LookupColumn = 'id' | 'executionId'
 
-/**
- * Builds the itemized cost breakdown for an execution from the usage_log ledger
- * (the single source of truth). Returns null when no ledger rows exist (legacy
- * or pre-ledger runs), so callers can fall back to the cost_total projection.
- */
 async function buildCostLedger(executionId: string): Promise<CostLedger | null> {
   const rows = await db
     .select({
@@ -28,7 +23,7 @@ async function buildCostLedger(executionId: string): Promise<CostLedger | null> 
       metadata: usageLog.metadata,
     })
     .from(usageLog)
-    .where(eq(usageLog.executionId, executionId))
+    .where(and(eq(usageLog.executionId, executionId), eq(usageLog.source, 'workflow')))
 
   if (rows.length === 0) return null
 
@@ -63,6 +58,12 @@ async function buildCostLedger(executionId: string): Promise<CostLedger | null> 
   const items = [...byKey.values()]
   const total = items.reduce((sum, item) => sum + item.cost, 0)
   return { total, items }
+}
+
+export function jobCostTotal(raw: unknown): { total: number } | null {
+  const total = (raw as { total?: unknown } | null | undefined)?.total
+  const n = total == null ? Number.NaN : Number(total)
+  return Number.isFinite(n) ? { total: n } : null
 }
 
 interface FetchLogDetailArgs {
@@ -251,7 +252,7 @@ export async function fetchLogDetail({
     createdAt: jobLog.startedAt.toISOString(),
     workflow: null,
     jobTitle: ((execData.trigger as Record<string, unknown> | undefined)?.source as string) ?? null,
-    cost: jobLog.cost ?? null,
+    cost: jobCostTotal(jobLog.cost),
     pauseSummary: { status: null, total: 0, resumed: 0 },
     hasPendingPause: false,
     executionData: {

@@ -31,6 +31,7 @@ import { listLogsContract, type WorkflowLogSummary } from '@/lib/api/contracts/l
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { jobCostTotal } from '@/lib/logs/fetch-log-detail'
 import { buildFilterConditions } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 
@@ -408,7 +409,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       createdAt: log.startedAt.toISOString(),
       workflow: null,
       jobTitle: log.jobTitle ?? null,
-      cost: (log.cost as WorkflowLogSummary['cost']) ?? null,
+      cost: jobCostTotal(log.cost),
       pauseSummary: { status: null, total: 0, resumed: 0 },
       hasPendingPause: false,
     }
