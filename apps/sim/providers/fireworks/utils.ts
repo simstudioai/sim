@@ -2,11 +2,18 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { checkForForcedToolUsageOpenAI, createOpenAICompatibleStream } from '@/providers/utils'
 
-/** Fireworks supports native json_schema structured outputs for all models on its inference API. */
+/**
+ * Checks if a model supports native structured outputs (json_schema).
+ * Fireworks AI supports structured outputs across their inference API.
+ */
 export async function supportsNativeStructuredOutputs(_modelId: string): Promise<boolean> {
   return true
 }
 
+/**
+ * Creates a ReadableStream from a Fireworks streaming response.
+ * Uses the shared OpenAI-compatible streaming utility.
+ */
 export function createReadableStreamFromOpenAIStream(
   openaiStream: AsyncIterable<ChatCompletionChunk>,
   onComplete?: (content: string, usage: CompletionUsage) => void
@@ -14,6 +21,10 @@ export function createReadableStreamFromOpenAIStream(
   return createOpenAICompatibleStream(openaiStream, 'Fireworks', onComplete)
 }
 
+/**
+ * Checks if a forced tool was used in a Fireworks response.
+ * Uses the shared OpenAI-compatible forced tool usage helper.
+ */
 export function checkForForcedToolUsage(
   response: any,
   toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any },
