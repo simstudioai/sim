@@ -152,7 +152,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const needsMaterialize =
       params.details === 'full' && (params.includeFinalOutput || params.includeTraceSpans)
 
-    const formattedLogs = await mapWithConcurrency(data, MATERIALIZE_CONCURRENCY, async (log) => {
+    const buildBase = (log: (typeof data)[number]) => {
       const result: any = {
         id: log.id,
         workflowId: log.workflowId,
@@ -174,27 +174,36 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           description: log.workflowDescription,
           deleted: !log.workflowName,
         }
-
-        if (needsMaterialize && log.executionData) {
-          const execData = (await materializeExecutionData(
-            log.executionData as Record<string, unknown> | null,
-            {
-              workspaceId: log.workspaceId,
-              workflowId: log.workflowId,
-              executionId: log.executionId,
-            }
-          )) as any
-          if (params.includeFinalOutput && execData.finalOutput) {
-            result.finalOutput = execData.finalOutput
-          }
-          if (params.includeTraceSpans && execData.traceSpans) {
-            result.traceSpans = execData.traceSpans
-          }
-        }
       }
 
       return result
-    })
+    }
+
+    // Only run the bounded-concurrency materialization when the response actually
+    // needs object-storage reads; otherwise a plain synchronous map avoids the
+    // per-row worker/promise overhead.
+    const formattedLogs = needsMaterialize
+      ? await mapWithConcurrency(data, MATERIALIZE_CONCURRENCY, async (log) => {
+          const result = buildBase(log)
+          if (log.executionData) {
+            const execData = (await materializeExecutionData(
+              log.executionData as Record<string, unknown> | null,
+              {
+                workspaceId: log.workspaceId,
+                workflowId: log.workflowId,
+                executionId: log.executionId,
+              }
+            )) as any
+            if (params.includeFinalOutput && execData.finalOutput) {
+              result.finalOutput = execData.finalOutput
+            }
+            if (params.includeTraceSpans && execData.traceSpans) {
+              result.traceSpans = execData.traceSpans
+            }
+          }
+          return result
+        })
+      : data.map(buildBase)
 
     const limits = await getUserLimits(userId)
 

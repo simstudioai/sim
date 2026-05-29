@@ -115,16 +115,26 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             for (let j = 0; j < rows.length; j++) {
               const r = rows[j] as any
               const ed = materialized[j] as Record<string, any>
+              // A single malformed/unserializable row must not abort the whole CSV
+              // stream — derive the message/trace columns defensively and fall back
+              // to empty on error so the row's metadata still exports.
               let message = ''
-              let traces: any = null
-              if (ed) {
-                if (ed.finalOutput)
-                  message =
-                    typeof ed.finalOutput === 'string'
-                      ? ed.finalOutput
-                      : JSON.stringify(ed.finalOutput)
-                if (ed.message) message = ed.message
-                if (ed.traceSpans) traces = ed.traceSpans
+              let tracesJson = ''
+              try {
+                if (ed) {
+                  if (ed.finalOutput)
+                    message =
+                      typeof ed.finalOutput === 'string'
+                        ? ed.finalOutput
+                        : JSON.stringify(ed.finalOutput)
+                  if (ed.message) message = ed.message
+                  if (ed.traceSpans) tracesJson = JSON.stringify(ed.traceSpans)
+                }
+              } catch (rowError) {
+                logger.warn('Skipping unserializable execution data for export row', {
+                  executionId: r.executionId,
+                  error: rowError instanceof Error ? rowError.message : String(rowError),
+                })
               }
               const line = [
                 escapeCsv(r.startedAt?.toISOString?.() || r.startedAt),
@@ -136,7 +146,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
                 escapeCsv(r.workflowId ?? ''),
                 escapeCsv(r.executionId ?? ''),
                 escapeCsv(message),
-                escapeCsv(traces ? JSON.stringify(traces) : ''),
+                escapeCsv(tracesJson),
               ].join(',')
               controller.enqueue(encoder.encode(`${line}\n`))
             }
