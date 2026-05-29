@@ -223,7 +223,14 @@ describe('Wiza hosted key pricing', () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            data: { id: 1, status: 'finished', email: 'a@b.com', email_status: 'valid', emails: [], phones: [] },
+            data: {
+              id: 1,
+              status: 'finished',
+              email: 'a@b.com',
+              email_status: 'valid',
+              emails: [],
+              phones: [],
+            },
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )

@@ -486,13 +486,11 @@ Return ONLY the JSON object - no explanations, no extra text.`,
     },
     status: {
       type: 'string',
-      description:
-        'Reveal status (individual_reveal): queued | resolving | finished | failed',
+      description: 'Reveal status (individual_reveal): queued | resolving | finished | failed',
     },
     is_complete: {
       type: 'boolean',
-      description:
-        'Whether the reveal has completed (individual_reveal)',
+      description: 'Whether the reveal has completed (individual_reveal)',
     },
     name: { type: 'string', description: 'Full name (individual_reveal)' },
     company: { type: 'string', description: 'Company name (individual_reveal)' },
