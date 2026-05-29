@@ -30,7 +30,7 @@ In Sim, the Google Slides integration enables your agents to interact directly w
 
 ## Usage Instructions
 
-Integrate Google Slides into the workflow. Can read, write, create presentations, replace text, add slides, add images, get thumbnails, get page details, delete objects, duplicate objects, reorder slides, create tables, create shapes, and insert text.
+Build, edit, and export branded Google Slides presentations end-to-end. Copy a template, replace text and image tokens, embed Sheets charts, style text and shapes with brand fonts and colors, manage tables and layouts, group elements, run atomic batch updates, and export to PDF or PPTX.
 
 
 
@@ -379,5 +379,1024 @@ Insert text into a shape or table cell in a Google Slides presentation. Use this
 | `metadata` | object | Operation metadata including presentation ID and URL |
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_text_style`
+
+Update the styling of text in a shape or table cell (bold, italic, font family, font size, foreground/background color, link, etc.). Only the fields you set are applied.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the shape or table containing the text |
+| `rowIndex` | number | No | When targeting a table cell, the zero-based row index |
+| `columnIndex` | number | No | When targeting a table cell, the zero-based column index |
+| `rangeType` | string | No | Range to style: ALL \(default\), FROM_START_INDEX, or FIXED_RANGE |
+| `startIndex` | number | No | Start index for FROM_START_INDEX or FIXED_RANGE |
+| `endIndex` | number | No | End index for FIXED_RANGE |
+| `bold` | boolean | No | Whether the text is bold |
+| `italic` | boolean | No | Whether the text is italic |
+| `underline` | boolean | No | Whether the text is underlined |
+| `strikethrough` | boolean | No | Whether the text has strikethrough |
+| `smallCaps` | boolean | No | Whether the text is rendered in small caps |
+| `fontFamily` | string | No | Font family name \(must be a font available to Google Slides\) |
+| `fontSize` | number | No | Font size in points |
+| `foregroundColor` | string | No | Text color as hex \(e.g. #1A73E8\) |
+| `backgroundColor` | string | No | Text background color as hex \(e.g. #FFF8E1\) |
+| `linkUrl` | string | No | Convert the range to a hyperlink with this URL |
+| `baselineOffset` | string | No | Baseline offset: NONE, SUPERSCRIPT, or SUBSCRIPT |
+| `styleJson` | string | No | Advanced: raw TextStyle JSON merged with the simple fields above \(overrides them on conflict\) |
+| `fields` | string | No | Advanced: explicit FieldMask. If omitted, the mask is computed from the fields you provided \(or "*" when styleJson is used without explicit fields\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the text style was updated |
+| `objectId` | string | The object whose text was styled |
+| `fields` | string | FieldMask applied |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_paragraph_style`
+
+Update paragraph styling — alignment, line spacing, indents, space above/below — for text in a shape or table cell.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the shape or table containing the text |
+| `rowIndex` | number | No | When targeting a table cell, the zero-based row index |
+| `columnIndex` | number | No | When targeting a table cell, the zero-based column index |
+| `rangeType` | string | No | Range to style: ALL \(default\), FROM_START_INDEX, or FIXED_RANGE |
+| `startIndex` | number | No | Start index for FROM_START_INDEX or FIXED_RANGE |
+| `endIndex` | number | No | End index for FIXED_RANGE |
+| `alignment` | string | No | Text alignment: START, CENTER, END, or JUSTIFIED |
+| `lineSpacing` | number | No | Line spacing as a percentage \(100 = single, 200 = double\) |
+| `indentStart` | number | No | Start-edge indent in points |
+| `indentEnd` | number | No | End-edge indent in points |
+| `indentFirstLine` | number | No | First-line indent in points |
+| `spaceAbove` | number | No | Space above the paragraph in points |
+| `spaceBelow` | number | No | Space below the paragraph in points |
+| `direction` | string | No | Text direction: LEFT_TO_RIGHT or RIGHT_TO_LEFT |
+| `spacingMode` | string | No | Spacing mode: NEVER_COLLAPSE or COLLAPSE_LISTS |
+| `styleJson` | string | No | Advanced: raw ParagraphStyle JSON merged with the simple fields above |
+| `fields` | string | No | Advanced: explicit FieldMask. If omitted, computed from provided fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the paragraph style was updated |
+| `objectId` | string | The object whose paragraph was styled |
+| `fields` | string | FieldMask applied |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_delete_text`
+
+Delete text from a shape or table cell. Use range type ALL to clear all text, or FIXED_RANGE / FROM_START_INDEX to delete a specific span.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the shape or table containing the text |
+| `rowIndex` | number | No | When targeting a table cell, the zero-based row index |
+| `columnIndex` | number | No | When targeting a table cell, the zero-based column index |
+| `rangeType` | string | No | Range to delete: ALL \(default\), FROM_START_INDEX, or FIXED_RANGE |
+| `startIndex` | number | No | Start index for FROM_START_INDEX or FIXED_RANGE |
+| `endIndex` | number | No | End index for FIXED_RANGE |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the text was deleted |
+| `objectId` | string | The object whose text was deleted |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_create_paragraph_bullets`
+
+Convert paragraphs in a shape or table cell into a bulleted or numbered list using a Google Slides bullet preset.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the shape or table containing the text |
+| `rowIndex` | number | No | When targeting a table cell, the zero-based row index |
+| `columnIndex` | number | No | When targeting a table cell, the zero-based column index |
+| `rangeType` | string | No | Range to apply bullets to: ALL \(default\), FROM_START_INDEX, or FIXED_RANGE |
+| `startIndex` | number | No | Start index for FROM_START_INDEX or FIXED_RANGE |
+| `endIndex` | number | No | End index for FIXED_RANGE |
+| `bulletPreset` | string | No | Bullet preset \(e.g. BULLET_DISC_CIRCLE_SQUARE, BULLET_ARROW_DIAMOND_DISC, NUMBERED_DIGIT_ALPHA_ROMAN, NUMBERED_DIGIT_ALPHA_ROMAN_PARENS, NUMBERED_DIGIT_NESTED\). Defaults to BULLET_DISC_CIRCLE_SQUARE. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `created` | boolean | Whether bullets were created |
+| `objectId` | string | The object where bullets were created |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_delete_paragraph_bullets`
+
+Remove bullets/numbering from paragraphs in a shape or table cell.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the shape or table containing the text |
+| `rowIndex` | number | No | When targeting a table cell, the zero-based row index |
+| `columnIndex` | number | No | When targeting a table cell, the zero-based column index |
+| `rangeType` | string | No | Range to clear bullets from: ALL \(default\), FROM_START_INDEX, or FIXED_RANGE |
+| `startIndex` | number | No | Start index for FROM_START_INDEX or FIXED_RANGE |
+| `endIndex` | number | No | End index for FIXED_RANGE |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether bullets were deleted |
+| `objectId` | string | The object whose bullets were deleted |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_replace_all_shapes_with_image`
+
+Find every shape whose text matches the given token (e.g. \{\{cover-image\}\}) and replace it with an image, preserving the shape
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `imageUrl` | string | Yes | Publicly fetchable image URL \(PNG, JPEG, or GIF; max 50 MB and accessible to Google's servers\) |
+| `findText` | string | Yes | Text content of shapes to replace \(e.g. \{\{cover-image\}\}\) |
+| `matchCase` | boolean | No | Case-sensitive match \(default: true\) |
+| `imageReplaceMethod` | string | No | How the image fits the shape: CENTER_INSIDE \(preserve aspect, fit inside\) or CENTER_CROP \(fill, crop overflow\). Default: CENTER_INSIDE. |
+| `pageObjectIds` | string | No | Comma-separated slide IDs to limit replacement to specific slides |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `occurrencesChanged` | number | Number of shapes that were replaced with the image |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+|   ↳ `imageUrl` | string | The image URL inserted |
+|   ↳ `findText` | string | The matched text token |
+
+### `google_slides_replace_image`
+
+Replace the source of an existing image with a new image URL, preserving the image
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `imageObjectId` | string | Yes | Object ID of the existing image to replace |
+| `imageUrl` | string | Yes | New publicly fetchable image URL \(PNG, JPEG, or GIF, max 50 MB\) |
+| `imageReplaceMethod` | string | No | CENTER_INSIDE \(preserve aspect\) or CENTER_CROP \(fill, crop overflow\). Default: CENTER_INSIDE. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `replaced` | boolean | Whether the image was replaced |
+| `imageObjectId` | string | The image object that was replaced |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+|   ↳ `imageUrl` | string | The new image URL |
+
+### `google_slides_update_image_properties`
+
+Update image properties — brightness, contrast, transparency, crop, outline, link — on an existing image.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the image to update |
+| `brightness` | number | No | Brightness adjustment between -1.0 and 1.0 |
+| `contrast` | number | No | Contrast adjustment between -1.0 and 1.0 |
+| `transparency` | number | No | Transparency between 0.0 \(opaque\) and 1.0 \(fully transparent\) |
+| `linkUrl` | string | No | Make the image a hyperlink to this URL |
+| `outlineColor` | string | No | Outline color as hex \(e.g. #1A73E8\) |
+| `outlineWeight` | number | No | Outline weight in points |
+| `outlineDashStyle` | string | No | Outline dash style: SOLID, DOT, DASH, DASH_DOT, LONG_DASH, LONG_DASH_DOT |
+| `cropLeftOffset` | number | No | Crop offset from left edge \(0.0 to 1.0\) |
+| `cropRightOffset` | number | No | Crop offset from right edge \(0.0 to 1.0\) |
+| `cropTopOffset` | number | No | Crop offset from top edge \(0.0 to 1.0\) |
+| `cropBottomOffset` | number | No | Crop offset from bottom edge \(0.0 to 1.0\) |
+| `cropAngle` | number | No | Crop rotation angle in radians \(clockwise\) |
+| `propertiesJson` | string | No | Advanced: raw ImageProperties JSON merged with the simple fields above |
+| `fields` | string | No | Advanced: explicit FieldMask. If omitted, computed from provided fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the image properties were updated |
+| `objectId` | string | The image object updated |
+| `fields` | string | FieldMask applied |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_shape_properties`
+
+Update a shape
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the shape to update |
+| `fillColor` | string | No | Solid background fill color as hex \(e.g. #FF6F61\) |
+| `fillAlpha` | number | No | Fill opacity between 0.0 \(transparent\) and 1.0 \(opaque\) |
+| `fillUnset` | boolean | No | When true, removes any fill so the shape inherits its layout/master fill |
+| `outlineColor` | string | No | Outline color as hex |
+| `outlineWeight` | number | No | Outline weight in points |
+| `outlineDashStyle` | string | No | Outline dash style: SOLID, DOT, DASH, DASH_DOT, LONG_DASH, LONG_DASH_DOT |
+| `outlineUnset` | boolean | No | When true, removes any outline so the shape inherits its layout/master outline |
+| `linkUrl` | string | No | Make the shape a hyperlink to this URL |
+| `contentAlignment` | string | No | Vertical alignment of shape contents: TOP, MIDDLE, or BOTTOM |
+| `autofitType` | string | No | Autofit behavior: NONE, TEXT_AUTOFIT, or SHAPE_AUTOFIT |
+| `propertiesJson` | string | No | Advanced: raw ShapeProperties JSON merged with the simple fields above |
+| `fields` | string | No | Advanced: explicit FieldMask. If omitted, computed from provided fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the shape properties were updated |
+| `objectId` | string | The shape object updated |
+| `fields` | string | FieldMask applied |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_page_properties`
+
+Update slide/page background — solid color or stretched picture — and other page properties.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the slide/page to update |
+| `backgroundColor` | string | No | Solid background color as hex \(e.g. #0B1F3A\) |
+| `backgroundAlpha` | number | No | Background fill opacity between 0.0 and 1.0 |
+| `backgroundImageUrl` | string | No | Publicly fetchable image URL to use as a stretched picture background |
+| `backgroundUnset` | boolean | No | When true, removes the background so the slide inherits its layout background |
+| `propertiesJson` | string | No | Advanced: raw PageProperties JSON merged with the simple fields above |
+| `fields` | string | No | Advanced: explicit FieldMask. If omitted, computed from provided fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the page properties were updated |
+| `objectId` | string | The page object updated |
+| `fields` | string | FieldMask applied |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_slide_properties`
+
+Update slide-specific properties such as whether the slide is skipped during presentation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the slide to update |
+| `isSkipped` | boolean | No | Whether the slide is skipped in presentation mode |
+| `propertiesJson` | string | No | Advanced: raw SlideProperties JSON merged with the simple fields above |
+| `fields` | string | No | Advanced: explicit FieldMask. If omitted, computed from provided fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the slide properties were updated |
+| `objectId` | string | The slide object updated |
+| `fields` | string | FieldMask applied |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_page_element_alt_text`
+
+Set the accessibility title and/or description (alt text) of a page element such as an image, shape, or group.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the page element |
+| `title` | string | No | Accessibility title for the element |
+| `description` | string | No | Accessibility description \(alt text\) for the element |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether alt text was updated |
+| `objectId` | string | The element updated |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_page_element_transform`
+
+Move, resize, scale, or shear a page element. Translate is specified in points; applyMode controls whether the transform is absolute (default) or relative (multiplied with the current transform).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the page element to transform |
+| `scaleX` | number | No | Horizontal scale factor \(default 1\) |
+| `scaleY` | number | No | Vertical scale factor \(default 1\) |
+| `shearX` | number | No | Horizontal shear factor \(default 0\) |
+| `shearY` | number | No | Vertical shear factor \(default 0\) |
+| `translateX` | number | No | X position in points \(absolute\) or delta \(relative\) |
+| `translateY` | number | No | Y position in points \(absolute\) or delta \(relative\) |
+| `applyMode` | string | No | ABSOLUTE replaces the current transform; RELATIVE multiplies with it. Default ABSOLUTE. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the transform was updated |
+| `objectId` | string | The element transformed |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_page_elements_z_order`
+
+Bring elements to front, send to back, or step them one layer forward/backward.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectIds` | string | Yes | Comma-separated object IDs of the elements to reorder |
+| `operation` | string | Yes | BRING_TO_FRONT, BRING_FORWARD, SEND_BACKWARD, or SEND_TO_BACK |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reordered` | boolean | Whether the z-order was changed |
+| `objectIds` | array | Elements reordered |
+| `operation` | string | Operation applied |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_group_objects`
+
+Group two or more page elements on the same slide into a single object group.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `childrenObjectIds` | string | Yes | Comma-separated object IDs of the elements to group \(must be on the same slide\) |
+| `groupObjectId` | string | No | Optional object ID to assign to the new group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `grouped` | boolean | Whether the objects were grouped |
+| `groupObjectId` | string | Object ID of the new group |
+| `childrenObjectIds` | array | IDs of the grouped children |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_ungroup_objects`
+
+Ungroup one or more object groups, releasing their children back to the slide.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectIds` | string | Yes | Comma-separated object IDs of the groups to ungroup |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ungrouped` | boolean | Whether the objects were ungrouped |
+| `objectIds` | array | Group IDs that were ungrouped |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_create_line`
+
+Create a line or connector on a slide.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `pageObjectId` | string | Yes | Object ID of the slide to add the line to |
+| `lineCategory` | string | No | STRAIGHT \(default\), BENT, or CURVED |
+| `width` | number | No | Line width in points \(default 200\) |
+| `height` | number | No | Line height in points \(default 0 — horizontal line\) |
+| `positionX` | number | No | X position in points \(default 100\) |
+| `positionY` | number | No | Y position in points \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lineId` | string | Object ID of the new line |
+| `lineCategory` | string | Line category created |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `pageObjectId` | string | The slide ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_line_properties`
+
+Update line appearance — color, weight, dash style, arrows, link.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the line |
+| `lineColor` | string | No | Line color as hex |
+| `lineWeight` | number | No | Line weight in points |
+| `dashStyle` | string | No | Dash style: SOLID, DOT, DASH, DASH_DOT, LONG_DASH, LONG_DASH_DOT |
+| `startArrow` | string | No | Start arrow style: NONE, STEALTH_ARROW, FILL_ARROW, FILL_CIRCLE, FILL_SQUARE, FILL_DIAMOND, OPEN_ARROW, OPEN_CIRCLE, OPEN_SQUARE, OPEN_DIAMOND |
+| `endArrow` | string | No | End arrow style \(same values as startArrow\) |
+| `linkUrl` | string | No | Hyperlink URL |
+| `propertiesJson` | string | No | Advanced: raw LineProperties JSON merged with the simple fields above |
+| `fields` | string | No | Advanced: explicit FieldMask. If omitted, computed from provided fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the line properties were updated |
+| `objectId` | string | The line object updated |
+| `fields` | string | FieldMask applied |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_line_category`
+
+Change a connector line
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the connector line |
+| `lineCategory` | string | Yes | New line category: STRAIGHT, BENT, or CURVED |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the line category was updated |
+| `objectId` | string | The line object updated |
+| `lineCategory` | string | New line category |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_reroute_line`
+
+Reroute a connector line so it efficiently connects its endpoint shapes — useful after moving the shapes the line connects.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the connector line to reroute |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rerouted` | boolean | Whether the line was rerouted |
+| `objectId` | string | The line object rerouted |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_insert_table_rows`
+
+Insert one or more rows into a table, above or below a reference cell.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `tableObjectId` | string | Yes | Object ID of the table |
+| `rowIndex` | number | Yes | Zero-based row index of the reference cell |
+| `columnIndex` | number | Yes | Zero-based column index of the reference cell |
+| `number` | number | Yes | Number of rows to insert \(minimum 1\) |
+| `insertBelow` | boolean | No | Insert below the reference row instead of above \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inserted` | boolean | Whether rows were inserted |
+| `tableObjectId` | string | The table updated |
+| `number` | number | Number of rows inserted |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_insert_table_columns`
+
+Insert one or more columns into a table, left or right of a reference cell.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `tableObjectId` | string | Yes | Object ID of the table |
+| `rowIndex` | number | Yes | Zero-based row index of the reference cell |
+| `columnIndex` | number | Yes | Zero-based column index of the reference cell |
+| `number` | number | Yes | Number of columns to insert \(minimum 1\) |
+| `insertRight` | boolean | No | Insert to the right of the reference column instead of left \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inserted` | boolean | Whether columns were inserted |
+| `tableObjectId` | string | The table updated |
+| `number` | number | Number of columns inserted |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_delete_table_row`
+
+Delete the row containing the reference cell from a table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `tableObjectId` | string | Yes | Object ID of the table |
+| `rowIndex` | number | Yes | Zero-based row index identifying the row to delete |
+| `columnIndex` | number | Yes | Zero-based column index of any cell in the row |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the row was deleted |
+| `tableObjectId` | string | The table updated |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_delete_table_column`
+
+Delete the column containing the reference cell from a table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `tableObjectId` | string | Yes | Object ID of the table |
+| `rowIndex` | number | Yes | Zero-based row index of any cell in the column |
+| `columnIndex` | number | Yes | Zero-based column index identifying the column to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the column was deleted |
+| `tableObjectId` | string | The table updated |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_merge_table_cells`
+
+Merge a rectangular range of table cells into a single cell. The range starts at (rowIndex, columnIndex) and covers rowSpan × columnSpan cells.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the table |
+| `rowIndex` | number | Yes | Zero-based row index of the top-left cell |
+| `columnIndex` | number | Yes | Zero-based column index of the top-left cell |
+| `rowSpan` | number | Yes | Number of rows to merge \(minimum 1\) |
+| `columnSpan` | number | Yes | Number of columns to merge \(minimum 1\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `merged` | boolean | Whether the cells were merged |
+| `objectId` | string | The table updated |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_unmerge_table_cells`
+
+Unmerge any merged cells within the given table range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the table |
+| `rowIndex` | number | Yes | Zero-based row index of the top-left cell of the range |
+| `columnIndex` | number | Yes | Zero-based column index of the top-left cell of the range |
+| `rowSpan` | number | Yes | Number of rows in the range \(minimum 1\) |
+| `columnSpan` | number | Yes | Number of columns in the range \(minimum 1\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `unmerged` | boolean | Whether the cells were unmerged |
+| `objectId` | string | The table updated |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_table_cell_properties`
+
+Update background fill and content alignment for a range of table cells.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the table |
+| `rowIndex` | number | Yes | Zero-based row index of the top-left cell of the range |
+| `columnIndex` | number | Yes | Zero-based column index of the top-left cell of the range |
+| `rowSpan` | number | Yes | Number of rows in the range \(minimum 1\) |
+| `columnSpan` | number | Yes | Number of columns in the range \(minimum 1\) |
+| `backgroundColor` | string | No | Cell background color as hex \(e.g. #F1F3F4\) |
+| `backgroundAlpha` | number | No | Background fill opacity between 0.0 and 1.0 |
+| `contentAlignment` | string | No | Vertical alignment of cell content: TOP, MIDDLE, or BOTTOM |
+| `propertiesJson` | string | No | Advanced: raw TableCellProperties JSON merged with the simple fields above |
+| `fields` | string | No | Advanced: explicit FieldMask. If omitted, computed from provided fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the cell properties were updated |
+| `objectId` | string | The table updated |
+| `fields` | string | FieldMask applied |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_table_border_properties`
+
+Update border color, weight, and dash style for a position (e.g. ALL, INNER, OUTER) in a table range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the table |
+| `rowIndex` | number | Yes | Zero-based row index of the top-left cell of the range |
+| `columnIndex` | number | Yes | Zero-based column index of the top-left cell of the range |
+| `rowSpan` | number | Yes | Number of rows in the range \(minimum 1\) |
+| `columnSpan` | number | Yes | Number of columns in the range \(minimum 1\) |
+| `borderPosition` | string | No | Which borders to update: ALL \(default\), BOTTOM, INNER, INNER_HORIZONTAL, INNER_VERTICAL, LEFT, OUTER, RIGHT, TOP |
+| `borderColor` | string | No | Border color as hex |
+| `borderWeight` | number | No | Border weight in points |
+| `dashStyle` | string | No | Dash style: SOLID, DOT, DASH, DASH_DOT, LONG_DASH, LONG_DASH_DOT |
+| `propertiesJson` | string | No | Advanced: raw TableBorderProperties JSON merged with the simple fields above |
+| `fields` | string | No | Advanced: explicit FieldMask. If omitted, computed from provided fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the border properties were updated |
+| `objectId` | string | The table updated |
+| `fields` | string | FieldMask applied |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_table_column_properties`
+
+Update column widths and other column-level table properties.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the table |
+| `columnIndices` | string | Yes | Comma-separated zero-based column indices to update \(e.g. "0,2,3"\) |
+| `columnWidth` | number | No | Column width in points |
+| `propertiesJson` | string | No | Advanced: raw TableColumnProperties JSON merged with the simple fields above |
+| `fields` | string | No | Advanced: explicit FieldMask. If omitted, computed from provided fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the column properties were updated |
+| `objectId` | string | The table updated |
+| `fields` | string | FieldMask applied |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_table_row_properties`
+
+Update minimum row heights and other row-level table properties.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the table |
+| `rowIndices` | string | Yes | Comma-separated zero-based row indices to update \(e.g. "0,2,3"\) |
+| `minRowHeight` | number | No | Minimum row height in points |
+| `propertiesJson` | string | No | Advanced: raw TableRowProperties JSON merged with the simple fields above |
+| `fields` | string | No | Advanced: explicit FieldMask. If omitted, computed from provided fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the row properties were updated |
+| `objectId` | string | The table updated |
+| `fields` | string | FieldMask applied |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_create_sheets_chart`
+
+Embed a chart from a Google Sheets spreadsheet onto a slide. LINKED charts can be refreshed; NOT_LINKED_IMAGE inserts a static image of the chart.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `pageObjectId` | string | Yes | Object ID of the slide to add the chart to |
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID containing the chart |
+| `chartId` | number | Yes | Numeric chart ID within the spreadsheet |
+| `linkingMode` | string | No | LINKED \(default\) or NOT_LINKED_IMAGE |
+| `width` | number | No | Width in points \(default 400\) |
+| `height` | number | No | Height in points \(default 300\) |
+| `positionX` | number | No | X position in points \(default 100\) |
+| `positionY` | number | No | Y position in points \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chartObjectId` | string | Object ID of the inserted chart |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `pageObjectId` | string | The slide ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_refresh_sheets_chart`
+
+Refresh an embedded linked Sheets chart so it reflects the latest spreadsheet data.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the embedded chart to refresh |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `refreshed` | boolean | Whether the chart was refreshed |
+| `objectId` | string | The chart object refreshed |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_replace_all_shapes_with_sheets_chart`
+
+Find every shape matching a text token (e.g. \{\{revenue-chart\}\}) and replace each with the same embedded Sheets chart, preserving the shape
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID containing the chart |
+| `chartId` | number | Yes | Numeric chart ID within the spreadsheet |
+| `findText` | string | Yes | Text content of shapes to replace \(e.g. \{\{revenue-chart\}\}\) |
+| `matchCase` | boolean | No | Case-sensitive match \(default true\) |
+| `linkingMode` | string | No | LINKED \(default\) or NOT_LINKED_IMAGE |
+| `pageObjectIds` | string | No | Comma-separated slide IDs to limit replacement to specific slides |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `occurrencesChanged` | number | Number of shapes replaced with the chart |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+|   ↳ `findText` | string | The matched text token |
+|   ↳ `spreadsheetId` | string | Source spreadsheet ID |
+|   ↳ `chartId` | number | Source chart ID |
+
+### `google_slides_create_video`
+
+Embed a YouTube or Google Drive video on a slide.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `pageObjectId` | string | Yes | Object ID of the slide to add the video to |
+| `source` | string | Yes | YOUTUBE or DRIVE |
+| `videoId` | string | Yes | YouTube video ID or Drive file ID |
+| `width` | number | No | Width in points \(default 400\) |
+| `height` | number | No | Height in points \(default 225\) |
+| `positionX` | number | No | X position in points \(default 100\) |
+| `positionY` | number | No | Y position in points \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `videoObjectId` | string | Object ID of the inserted video |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `pageObjectId` | string | The slide ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_video_properties`
+
+Update video playback options (autoPlay, mute, start/end) and outline.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | Object ID of the video |
+| `autoPlay` | boolean | No | Play the video automatically when the slide is shown |
+| `mute` | boolean | No | Mute the video |
+| `start` | number | No | Playback start time in seconds |
+| `end` | number | No | Playback end time in seconds |
+| `outlineColor` | string | No | Outline color as hex |
+| `outlineWeight` | number | No | Outline weight in points |
+| `outlineDashStyle` | string | No | Outline dash style |
+| `propertiesJson` | string | No | Advanced: raw VideoProperties JSON merged with the simple fields above |
+| `fields` | string | No | Advanced: explicit FieldMask. If omitted, computed from provided fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the video properties were updated |
+| `objectId` | string | The video object updated |
+| `fields` | string | FieldMask applied |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_batch_update`
+
+Run a raw Slides API batchUpdate with a list of Request objects. Use this when the higher-level tools do not cover an operation, or to bundle multiple operations into a single atomic batch (all-or-nothing).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `requests` | string | Yes | JSON array of Slides API Request objects. Example: \[\{"replaceAllText":\{"containsText":\{"text":"\{\{title\}\}"\},"replaceText":"Q3 Review"\}\}, \{"updatePageProperties":\{"objectId":"slide_1","pageProperties":\{"pageBackgroundFill":\{"solidFill":\{"color":\{"rgbColor":\{"red":0.043,"green":0.122,"blue":0.231\}\}\}\}\},"fields":"pageBackgroundFill"\}\}\] |
+| `writeControl` | string | No | Optional JSON WriteControl object for optimistic concurrency, e.g. \{"requiredRevisionId":"..."\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `replies` | array | Array of reply objects, one per request \(parallel-indexed\) |
+| `writeControl` | json | WriteControl returned by the server \(revision tracking\) |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+|   ↳ `requestCount` | number | Number of replies returned |
+
+### `google_slides_copy_presentation`
+
+Copy a template presentation in Drive to a new file. Use this before merging data so the original template is never modified.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sourcePresentationId` | string | Yes | Drive file ID of the source/template presentation |
+| `title` | string | No | Title for the copy. Defaults to "Copy of &lt;source title&gt;". |
+| `folderId` | string | No | Drive folder ID where the copy should be placed |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `presentationId` | string | ID of the new copied presentation |
+| `title` | string | Title of the new presentation |
+| `metadata` | object | Operation metadata |
+|   ↳ `sourcePresentationId` | string | Source/template presentation ID |
+|   ↳ `presentationId` | string | New presentation ID |
+|   ↳ `title` | string | New presentation title |
+|   ↳ `mimeType` | string | MIME type of the presentation |
+|   ↳ `url` | string | URL to the new presentation |
+
+### `google_slides_export_presentation`
+
+Export a presentation to PDF, PPTX, ODP, TXT, PNG, JPEG, or SVG via the Drive export endpoint. Stores the exported file as an execution file when execution context is available.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `exportFormat` | string | No | Format: PDF \(default\), PPTX, ODP, TXT, PNG, JPEG, or SVG |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Stored exported presentation file |
+| `contentBase64` | string | Deprecated legacy inline content. New exports return file. |
+| `mimeType` | string | MIME type of the exported content |
+| `sizeBytes` | number | Size of the exported content in bytes |
+| `metadata` | object | Operation metadata |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+|   ↳ `exportFormat` | string | Export format used |
 
 

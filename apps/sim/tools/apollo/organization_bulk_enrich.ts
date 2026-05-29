@@ -17,28 +17,31 @@ export const apolloOrganizationBulkEnrichTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key',
     },
-    organizations: {
+    domains: {
       type: 'array',
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Array of organizations to enrich (max 10). Each item requires `name` and may include `domain` (e.g., [{"name": "Example Corp", "domain": "example.com"}])',
+        'Array of company domains to enrich (max 10, no www. or @, e.g., ["apollo.io", "stripe.com"])',
     },
   },
 
   request: {
-    url: 'https://api.apollo.io/api/v1/organizations/bulk_enrich',
+    url: (params: ApolloOrganizationBulkEnrichParams) => {
+      const qs = new URLSearchParams()
+      for (const domain of params.domains.slice(0, 10)) {
+        const trimmed = typeof domain === 'string' ? domain.trim() : ''
+        if (trimmed) qs.append('domains[]', trimmed)
+      }
+      return `https://api.apollo.io/api/v1/organizations/bulk_enrich?${qs.toString()}`
+    },
     method: 'POST',
     headers: (params: ApolloOrganizationBulkEnrichParams) => ({
-      'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
-    }),
-    body: (params: ApolloOrganizationBulkEnrichParams) => ({
-      organizations: params.organizations.slice(0, 10),
     }),
   },
 

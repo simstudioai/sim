@@ -11,6 +11,7 @@ const {
   mockEnqueueOutboxEvent,
   mockGetEffectiveBillingStatus,
   mockGetHighestPrioritySubscription,
+  mockGetBillingPeriodUsageCost,
   mockGetOrganizationSubscriptionUsable,
   mockHasUsableSubscriptionAccess,
   mockIsEnterprise,
@@ -29,6 +30,7 @@ const {
   mockEnqueueOutboxEvent: vi.fn(),
   mockGetEffectiveBillingStatus: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
+  mockGetBillingPeriodUsageCost: vi.fn(),
   mockGetOrganizationSubscriptionUsable: vi.fn(),
   mockHasUsableSubscriptionAccess: vi.fn(),
   mockIsEnterprise: vi.fn(),
@@ -87,6 +89,10 @@ vi.mock('@/lib/billing/core/billing', () => ({
 vi.mock('@/lib/billing/core/subscription', () => ({
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
   getOrganizationSubscriptionUsable: mockGetOrganizationSubscriptionUsable,
+}))
+
+vi.mock('@/lib/billing/core/usage-log', () => ({
+  getBillingPeriodUsageCost: mockGetBillingPeriodUsageCost,
 }))
 
 vi.mock('@/lib/billing/plan-helpers', () => ({
@@ -222,6 +228,7 @@ describe('checkAndBillOverageThreshold', () => {
     mockIsFree.mockReturnValue(false)
     mockIsEnterprise.mockReturnValue(false)
     mockIsOrgScopedSubscription.mockReturnValue(false)
+    mockGetBillingPeriodUsageCost.mockResolvedValue(0)
     mockDbSelect.mockImplementation(() => buildPersonalSelectChain())
     mockTxSelect.mockImplementation(() => buildStatsSelectChain())
     mockTxUpdate.mockImplementation(() => buildUpdateChain())

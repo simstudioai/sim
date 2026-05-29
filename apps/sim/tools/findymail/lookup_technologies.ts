@@ -67,6 +67,7 @@ export const lookupTechnologiesTool: ToolConfig<
         success: false,
         error:
           (errorData as Record<string, string>).message ||
+          (errorData as Record<string, string>).error ||
           `Findymail API error: ${response.status} ${response.statusText}`,
         output: { domain: '', technologies: [] },
       }

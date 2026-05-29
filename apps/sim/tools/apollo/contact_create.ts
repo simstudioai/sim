@@ -14,7 +14,7 @@ export const apolloContactCreateTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key',
     },
     first_name: {

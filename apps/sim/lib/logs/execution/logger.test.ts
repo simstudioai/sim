@@ -171,7 +171,7 @@ describe('ExecutionLogger', () => {
 
     test('summarizes oversized execution data before storage', () => {
       const loggerInstance = new ExecutionLogger() as any
-      const largePayload = 'x'.repeat(220_000)
+      const largePayload = 'x'.repeat(1_100_000)
       const executionState = {
         blockStates: {
           blockA: {
@@ -242,7 +242,7 @@ describe('ExecutionLogger', () => {
       )
       const storedBytes = Buffer.byteLength(JSON.stringify(compacted), 'utf8')
 
-      expect(storedBytes).toBeLessThanOrEqual(500 * 1024)
+      expect(storedBytes).toBeLessThanOrEqual(3 * 1024 * 1024)
       expect(compacted.executionDataTruncated).toBe(true)
       expect(compacted.executionState).toBeUndefined()
       expect(compacted.executionStateSummary).toEqual({

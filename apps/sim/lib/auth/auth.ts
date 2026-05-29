@@ -2532,17 +2532,36 @@ export const auth = betterAuth({
               }
 
               const teamId = data.team_id || 'unknown'
-              const userId = data.user_id || data.bot_id || 'bot'
               const teamName = data.team || 'Slack Workspace'
 
-              const uniqueId = `${teamId}-${userId}`
+              /**
+               * Tag the accountId with the installing user's Slack id (from the OAuth
+               * v2 `authed_user.id`, preserved on `tokens.raw`) behind a `usr_` marker.
+               * The channels selector uses it to scope private-channel visibility to
+               * the installer's own Slack membership, per Slack Marketplace rules. The
+               * marker disambiguates it from a legacy bot id (same `U.../B...` shape);
+               * absent it, we keep the legacy format and today's behavior.
+               */
+              const authedUser = tokens.raw?.authed_user as { id?: string } | undefined
+              const installerUserId = authedUser?.id
+              const userSegment = installerUserId
+                ? `usr_${installerUserId}`
+                : data.user_id || data.bot_id || 'bot'
 
-              logger.info('Slack credential identifier', { teamId, userId, uniqueId, teamName })
+              const uniqueId = `${teamId}-${userSegment}`
+
+              logger.info('Slack credential identifier', {
+                teamId,
+                userSegment,
+                uniqueId,
+                teamName,
+                hasInstallerId: !!installerUserId,
+              })
 
               return {
                 id: `${uniqueId}-${generateId()}`,
                 name: teamName,
-                email: `${teamId}-${userId}@slack.bot`,
+                email: `${uniqueId}@slack.bot`,
                 emailVerified: false,
                 createdAt: new Date(),
                 updatedAt: new Date(),

@@ -243,6 +243,7 @@ import { YouTubeBlock } from '@/blocks/blocks/youtube'
 import { ZendeskBlock } from '@/blocks/blocks/zendesk'
 import { ZepBlock } from '@/blocks/blocks/zep'
 import { ZoomBlock } from '@/blocks/blocks/zoom'
+import { ZoomInfoBlock } from '@/blocks/blocks/zoominfo'
 import type { BlockConfig } from '@/blocks/types'
 
 // Registry of all available blocks, alphabetically sorted
@@ -513,6 +514,7 @@ export const registry: Record<string, BlockConfig> = {
   zendesk: ZendeskBlock,
   zep: ZepBlock,
   zoom: ZoomBlock,
+  zoominfo: ZoomInfoBlock,
 }
 
 export const getBlock = (type: string): BlockConfig | undefined => {
