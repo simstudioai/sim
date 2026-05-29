@@ -50,7 +50,9 @@ export function SimResourceCell({
   const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId, {
     enabled: resourceType === 'knowledge',
   })
-  const { data: files = [] } = useWorkspaceFiles(resourceType === 'file' ? workspaceId : '')
+  const { data: files = [] } = useWorkspaceFiles(workspaceId, 'active', {
+    enabled: resourceType === 'file',
+  })
 
   const workflow =
     resourceType === 'workflow' ? workflows.find((w) => w.id === resourceId) : undefined

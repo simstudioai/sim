@@ -3,7 +3,7 @@ import { tableRowExecutions, tableRunDispatches, userTableRows } from '@sim/db/s
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, gt, inArray, isNull, not, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNotNull, ne, or, type SQL, sql } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs/config'
 import { writeWorkflowGroupState } from '@/lib/table/cell-write'
 import { appendTableEvent } from '@/lib/table/events'
@@ -208,12 +208,9 @@ export async function countRunningCells(
       and(
         eq(tableRowExecutions.tableId, tableId),
         inArray(tableRowExecutions.status, ['queued', 'running', 'pending']),
-        not(
-          and(
-            eq(tableRowExecutions.status, 'pending'),
-            isNull(tableRowExecutions.executionId)
-          ) as SQL
-        )
+        // Exclude orphan pre-stamps (`pending` + null executionId). De Morgan of
+        // NOT(pending AND null) — `status` is NOT NULL so `ne` is well-defined.
+        or(ne(tableRowExecutions.status, 'pending'), isNotNull(tableRowExecutions.executionId))
       )
     )
     .groupBy(tableRowExecutions.rowId)
