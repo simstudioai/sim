@@ -5,7 +5,7 @@ import {
   convertBuilderDataToJson,
   convertBuilderDataToJsonString,
 } from '@/executor/utils/builder-data'
-import { parseObjectStrings } from '@/executor/utils/json'
+import { parseJSON, parseObjectStrings } from '@/executor/utils/json'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('ResponseBlockHandler')
@@ -56,13 +56,9 @@ export class ResponseBlockHandler implements BlockHandler {
 
     if (dataMode === 'json' && inputs.data) {
       if (typeof inputs.data === 'string') {
-        try {
-          return JSON.parse(inputs.data)
-        } catch (error) {
-          logger.warn('Failed to parse JSON data, returning as string:', error)
-          return inputs.data
-        }
-      } else if (typeof inputs.data === 'object' && inputs.data !== null) {
+        return parseJSON(inputs.data, inputs.data)
+      }
+      if (typeof inputs.data === 'object' && inputs.data !== null) {
         return inputs.data
       }
       return inputs.data
