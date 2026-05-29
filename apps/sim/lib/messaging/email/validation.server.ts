@@ -6,23 +6,23 @@ import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('EmailValidationServer')
 
-/**
- * Mail backends abused by signup-spam botnets. The bots rotate throwaway
- * domains rapidly but funnel them through a small number of shared catch-all
- * mail providers, so the resolved MX host is a far more stable signal than the
- * domain itself. Matched as a case-insensitive substring against each MX
- * exchange. Extend at runtime via `BLOCKED_EMAIL_MX_HOSTS`.
- */
-const DEFAULT_BLOCKED_MX_HOSTS = ['215.im', 'gravityengine.cc'] as const
-
 const MX_LOOKUP_TIMEOUT_MS = 3000
 
+/**
+ * MX-host substrings to block, supplied at runtime via `BLOCKED_EMAIL_MX_HOSTS`.
+ *
+ * Signup-spam botnets rotate throwaway domains rapidly but funnel them through a
+ * small number of shared catch-all mail providers, so the resolved MX host is a
+ * far more stable signal than the domain itself. Each entry is matched as a
+ * case-insensitive substring against the domain's resolved MX exchanges. No
+ * hosts are hardcoded — operators configure their own denylist out of band.
+ */
 function getBlockedMxHosts(): string[] {
-  const extra =
+  return (
     env.BLOCKED_EMAIL_MX_HOSTS?.split(',')
       .map((h) => h.trim().toLowerCase())
       .filter(Boolean) ?? []
-  return [...DEFAULT_BLOCKED_MX_HOSTS, ...extra]
+  )
 }
 
 export interface SignupEmailCheck {

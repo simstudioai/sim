@@ -31,18 +31,27 @@ describe('validateSignupEmailMx', () => {
     envRef.BLOCKED_EMAIL_MX_HOSTS = undefined
   })
 
-  it('blocks the known shared spam backend 215.im', async () => {
-    mockResolveMx.mockResolvedValue(mx('smtp.215.im'))
-    const result = await validateSignupEmailMx('simuser_abc@lyi25swr.cn')
+  it('blocks a domain whose MX backend is on the configured denylist', async () => {
+    envRef.BLOCKED_EMAIL_MX_HOSTS = 'blocked-backend.example'
+    mockResolveMx.mockResolvedValue(mx('smtp.blocked-backend.example'))
+    const result = await validateSignupEmailMx('user@rotated-domain.test')
     expect(result.allowed).toBe(false)
     expect(result.reason).toBe('blocked_mx_backend')
   })
 
-  it('blocks gravityengine.cc backend', async () => {
-    mockResolveMx.mockResolvedValue(mx('email.gravityengine.cc'))
-    const result = await validateSignupEmailMx('x@acgfun.eu.org')
+  it('matches the denylist as a case-insensitive substring of the MX exchange', async () => {
+    envRef.BLOCKED_EMAIL_MX_HOSTS = 'Blocked-Backend.Example'
+    mockResolveMx.mockResolvedValue(mx('mx1.blocked-backend.example'))
+    const result = await validateSignupEmailMx('user@another-domain.test')
     expect(result.allowed).toBe(false)
     expect(result.reason).toBe('blocked_mx_backend')
+  })
+
+  it('does not block any backend when the denylist is empty (no hardcoded defaults)', async () => {
+    envRef.BLOCKED_EMAIL_MX_HOSTS = undefined
+    mockResolveMx.mockResolvedValue(mx('smtp.blocked-backend.example'))
+    const result = await validateSignupEmailMx('user@rotated-domain.test')
+    expect(result.allowed).toBe(true)
   })
 
   it('allows a legitimate domain (gmail)', async () => {
@@ -71,14 +80,6 @@ describe('validateSignupEmailMx', () => {
     mockResolveMx.mockRejectedValue(Object.assign(new Error('timeout'), { code: 'ETIMEOUT' }))
     const result = await validateSignupEmailMx('user@some-real-domain.com')
     expect(result.allowed).toBe(true)
-  })
-
-  it('honors additional backends from BLOCKED_EMAIL_MX_HOSTS', async () => {
-    envRef.BLOCKED_EMAIL_MX_HOSTS = 'newbadhost.example'
-    mockResolveMx.mockResolvedValue(mx('mx1.newbadhost.example'))
-    const result = await validateSignupEmailMx('x@rotated-domain.top')
-    expect(result.allowed).toBe(false)
-    expect(result.reason).toBe('blocked_mx_backend')
   })
 
   it('allows when the email has no domain (defers to other validation)', async () => {
