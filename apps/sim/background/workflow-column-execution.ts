@@ -282,6 +282,7 @@ async function runWorkflowAndWriteTerminal(
                   source: 'enrichment',
                   description: enrichment.name,
                   cost,
+                  sourceReference: `enrichment:${tableId}:${rowId}:${enrichment.id}`,
                   metadata: { enrichmentId: enrichment.id, tableId, rowId },
                 },
               ],

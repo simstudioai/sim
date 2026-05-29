@@ -141,6 +141,9 @@ export function Home({ chatId }: HomeProps = {}) {
     removeFromQueue,
     sendNow,
     editQueuedMessage,
+    cancelQueueEdit,
+    editingQueuedId,
+    dispatchingHeadId,
     previewSession,
     genericResourceData,
     getCurrentRequestId,
@@ -349,9 +352,12 @@ export function Home({ chatId }: HomeProps = {}) {
           onSubmit={handleSubmit}
           onStopGeneration={handleStopGeneration}
           messageQueue={messageQueue}
+          editingQueuedId={editingQueuedId}
+          dispatchingHeadId={dispatchingHeadId}
           onRemoveQueuedMessage={removeFromQueue}
           onSendQueuedMessage={sendNow}
           onEditQueuedMessage={editQueuedMessage}
+          onCancelQueueEdit={cancelQueueEdit}
           userId={session?.user?.id}
           chatId={resolvedChatId}
           onContextAdd={handleContextAdd}

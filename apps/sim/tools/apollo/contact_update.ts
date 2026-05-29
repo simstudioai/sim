@@ -14,7 +14,7 @@ export const apolloContactUpdateTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key',
     },
     contact_id: {
@@ -124,8 +124,7 @@ export const apolloContactUpdateTool: ToolConfig<
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Custom field values keyed by custom field ID (accepted by Apollo but not officially documented for PATCH /contacts/{id})',
+      description: 'Custom field values keyed by custom field ID',
     },
   },
 

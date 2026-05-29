@@ -7,6 +7,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { importWorkflowAsSuperuserContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-dual-write'
+import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
@@ -172,19 +174,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let copilotChatsImported = 0
 
     for (const chat of sourceCopilotChats) {
-      await db.insert(copilotChats).values({
-        userId: session.user.id,
-        workflowId: newWorkflowId,
-        title: chat.title ? `[Import] ${chat.title}` : null,
-        messages: chat.messages,
-        model: chat.model,
-        conversationId: null, // Don't copy conversation ID
-        previewYaml: chat.previewYaml,
-        planArtifact: chat.planArtifact,
-        config: chat.config,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
+      const [imported] = await db
+        .insert(copilotChats)
+        .values({
+          userId: session.user.id,
+          workflowId: newWorkflowId,
+          title: chat.title ? `[Import] ${chat.title}` : null,
+          messages: chat.messages,
+          model: chat.model,
+          conversationId: null, // Don't copy conversation ID
+          previewYaml: chat.previewYaml,
+          planArtifact: chat.planArtifact,
+          config: chat.config,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning({ id: copilotChats.id })
+      if (imported && Array.isArray(chat.messages) && chat.messages.length > 0) {
+        await appendCopilotChatMessages(imported.id, chat.messages as PersistedMessage[], {
+          chatModel: chat.model,
+        })
+      }
       copilotChatsImported++
     }
 

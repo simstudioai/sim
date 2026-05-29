@@ -17,7 +17,7 @@ export const apolloOrganizationSearchTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key',
     },
     organization_locations: {
@@ -78,43 +78,32 @@ export const apolloOrganizationSearchTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.apollo.io/api/v1/mixed_companies/search',
+    url: (params: ApolloOrganizationSearchParams) => {
+      const qs = new URLSearchParams()
+      qs.set('page', String(params.page || 1))
+      qs.set('per_page', String(Math.min(params.per_page || 25, 100)))
+
+      const appendArray = (key: string, values?: string[]) => {
+        if (!values?.length) return
+        for (const v of values) {
+          if (typeof v === 'string' && v) qs.append(`${key}[]`, v)
+        }
+      }
+      appendArray('organization_locations', params.organization_locations)
+      appendArray('organization_not_locations', params.organization_not_locations)
+      appendArray('organization_num_employees_ranges', params.organization_num_employees_ranges)
+      appendArray('q_organization_keyword_tags', params.q_organization_keyword_tags)
+      appendArray('organization_ids', params.organization_ids)
+      appendArray('q_organization_domains_list', params.q_organization_domains_list)
+      if (params.q_organization_name) qs.set('q_organization_name', params.q_organization_name)
+
+      return `https://api.apollo.io/api/v1/mixed_companies/search?${qs.toString()}`
+    },
     method: 'POST',
     headers: (params: ApolloOrganizationSearchParams) => ({
-      'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
     }),
-    body: (params: ApolloOrganizationSearchParams) => {
-      const body: Record<string, unknown> = {
-        page: params.page || 1,
-        per_page: Math.min(params.per_page || 25, 100),
-      }
-
-      if (params.organization_locations?.length) {
-        body.organization_locations = params.organization_locations
-      }
-      if (params.organization_not_locations?.length) {
-        body.organization_not_locations = params.organization_not_locations
-      }
-      if (params.organization_num_employees_ranges?.length) {
-        body.organization_num_employees_ranges = params.organization_num_employees_ranges
-      }
-      if (params.q_organization_keyword_tags?.length) {
-        body.q_organization_keyword_tags = params.q_organization_keyword_tags
-      }
-      if (params.q_organization_name) {
-        body.q_organization_name = params.q_organization_name
-      }
-      if (params.organization_ids?.length) {
-        body.organization_ids = params.organization_ids
-      }
-      if (params.q_organization_domains_list?.length) {
-        body.q_organization_domains_list = params.q_organization_domains_list
-      }
-
-      return body
-    },
   },
 
   transformResponse: async (response: Response) => {
