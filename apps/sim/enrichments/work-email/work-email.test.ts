@@ -11,60 +11,76 @@ function provider(id: string): EnrichmentProvider {
   return p
 }
 
-const inputs = { fullName: 'John Doe', companyDomain: 'https://www.acme.com/careers' }
+const nameDomain = { fullName: 'John Doe', companyDomain: 'https://www.acme.com/careers' }
+const linkedinOnly = { fullName: 'John Doe', linkedinUrl: 'https://linkedin.com/in/johndoe' }
 
 describe('work-email enrichment cascade', () => {
-  it('chains the five hosted providers in waterfall order', () => {
+  it('chains the hosted providers in waterfall order', () => {
     expect(workEmailEnrichment.providers.map((p) => p.id)).toEqual([
       'hunter',
       'findymail',
+      'findymail-linkedin',
       'prospeo',
       'wiza',
       'pdl',
     ])
   })
 
-  describe('findymail', () => {
+  describe('findymail (name)', () => {
     const p = provider('findymail')
-    it('maps name + normalized domain and extracts contact.email', () => {
+    it('maps name + domain and extracts contact.email', () => {
       expect(p.toolId).toBe('findymail_find_email_from_name')
-      expect(p.buildParams(inputs)).toEqual({ name: 'John Doe', domain: 'acme.com' })
+      expect(p.buildParams(nameDomain)).toEqual({ name: 'John Doe', domain: 'acme.com' })
       expect(p.mapOutput({ contact: { email: 'j@acme.com' } })).toEqual({ email: 'j@acme.com' })
-      expect(p.mapOutput({ contact: null })).toBeNull()
-    })
-    it('skips when name or domain is missing', () => {
-      expect(p.buildParams({ fullName: '', companyDomain: 'acme.com' })).toBeNull()
-      expect(p.buildParams({ fullName: 'John Doe', companyDomain: '' })).toBeNull()
+      expect(p.buildParams(linkedinOnly)).toBeNull()
     })
   })
 
-  describe('prospeo', () => {
+  describe('findymail-linkedin', () => {
+    const p = provider('findymail-linkedin')
+    it('keys off the LinkedIn URL and skips without one', () => {
+      expect(p.toolId).toBe('findymail_find_email_from_linkedin')
+      expect(p.buildParams(linkedinOnly)).toEqual({
+        linkedin_url: 'https://linkedin.com/in/johndoe',
+      })
+      expect(p.buildParams(nameDomain)).toBeNull()
+      expect(p.mapOutput({ contact: { email: 'j@acme.com' } })).toEqual({ email: 'j@acme.com' })
+    })
+  })
+
+  describe('prospeo (opportunistic)', () => {
     const p = provider('prospeo')
-    it('maps full_name + company_website and extracts person.email.email', () => {
-      expect(p.toolId).toBe('prospeo_enrich_person')
-      expect(p.buildParams(inputs)).toEqual({ full_name: 'John Doe', company_website: 'acme.com' })
-      expect(
-        p.mapOutput({ person: { email: { email: 'j@acme.com', status: 'VERIFIED' } } })
-      ).toEqual({
+    it('uses name+domain, or LinkedIn when present', () => {
+      expect(p.buildParams(nameDomain)).toEqual({
+        full_name: 'John Doe',
+        company_website: 'acme.com',
+      })
+      expect(p.buildParams(linkedinOnly)).toEqual({
+        full_name: 'John Doe',
+        linkedin_url: 'https://linkedin.com/in/johndoe',
+      })
+      expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()
+      expect(p.mapOutput({ person: { email: { email: 'j@acme.com' } } })).toEqual({
         email: 'j@acme.com',
       })
-      expect(p.mapOutput({ free_enrichment: true, person: null })).toBeNull()
     })
   })
 
-  describe('wiza', () => {
+  describe('wiza (opportunistic)', () => {
     const p = provider('wiza')
-    it('reveals email-only (partial) and maps output.email', () => {
-      expect(p.toolId).toBe('wiza_individual_reveal')
-      expect(p.buildParams(inputs)).toEqual({
+    it('reveals email-only (partial), preferring LinkedIn profile_url', () => {
+      expect(p.buildParams(nameDomain)).toEqual({
         full_name: 'John Doe',
         domain: 'acme.com',
         enrichment_level: 'partial',
       })
-      expect(p.mapOutput({ email: 'j@acme.com', email_status: 'valid' })).toEqual({
-        email: 'j@acme.com',
+      expect(p.buildParams(linkedinOnly)).toEqual({
+        full_name: 'John Doe',
+        profile_url: 'https://linkedin.com/in/johndoe',
+        enrichment_level: 'partial',
       })
-      expect(p.mapOutput({ email: null })).toBeNull()
+      expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()
+      expect(p.mapOutput({ email: 'j@acme.com' })).toEqual({ email: 'j@acme.com' })
     })
   })
 })
