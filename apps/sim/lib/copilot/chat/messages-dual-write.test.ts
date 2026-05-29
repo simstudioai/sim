@@ -26,6 +26,12 @@ const assistantMsg: PersistedMessage = {
   timestamp: '2026-01-01T00:00:01.000Z',
 }
 
+/** The first arg passed to the most recent `.values(...)` call. */
+function lastValuesRows() {
+  const calls = dbChainMockFns.values.mock.calls
+  return calls[calls.length - 1][0] as Array<Record<string, unknown>>
+}
+
 describe('messages-dual-write', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -43,7 +49,7 @@ describe('messages-dual-write', () => {
 
       expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
       expect(dbChainMockFns.values).toHaveBeenCalledTimes(1)
-      const rows = dbChainMockFns.values.mock.calls[0][0]
+      const rows = lastValuesRows()
       expect(rows).toHaveLength(2)
 
       expect(rows[0]).toMatchObject({
@@ -54,8 +60,8 @@ describe('messages-dual-write', () => {
         model: null,
         streamId: null,
       })
-      expect(rows[0].createdAt).toEqual(new Date(userMsg.timestamp))
-      expect(rows[0].updatedAt).toEqual(new Date(userMsg.timestamp))
+      expect(rows[0].createdAt as Date).toEqual(new Date(userMsg.timestamp))
+      expect(rows[0].updatedAt as Date).toEqual(new Date(userMsg.timestamp))
 
       expect(rows[1]).toMatchObject({
         chatId: 'chat-1',
@@ -63,13 +69,25 @@ describe('messages-dual-write', () => {
         role: 'assistant',
         content: assistantMsg,
       })
-      expect(rows[1].createdAt).toEqual(new Date(assistantMsg.timestamp))
+      expect(rows[1].createdAt as Date).toEqual(new Date(assistantMsg.timestamp))
     })
 
-    it('preserves per-message ordering via timestamp', async () => {
+    it('assigns seq as 0-based array index when the chat has no prior rows', async () => {
+      dbChainMockFns.where.mockResolvedValueOnce([{ maxSeq: null }])
+
       await appendCopilotChatMessages('chat-1', [userMsg, assistantMsg])
-      const rows = dbChainMockFns.values.mock.calls[0][0]
-      expect(rows[0].createdAt.getTime()).toBeLessThan(rows[1].createdAt.getTime())
+      const rows = lastValuesRows()
+      expect(rows[0].seq).toBe(0)
+      expect(rows[1].seq).toBe(1)
+    })
+
+    it('continues seq from MAX(seq)+1 when the chat already has rows', async () => {
+      dbChainMockFns.where.mockResolvedValueOnce([{ maxSeq: 4 }])
+
+      await appendCopilotChatMessages('chat-1', [userMsg, assistantMsg])
+      const rows = lastValuesRows()
+      expect(rows[0].seq).toBe(5)
+      expect(rows[1].seq).toBe(6)
     })
 
     it('passes chatModel and streamId options to every row', async () => {
@@ -78,14 +96,14 @@ describe('messages-dual-write', () => {
         streamId: 'stream-xyz',
       })
 
-      const rows = dbChainMockFns.values.mock.calls[0][0]
+      const rows = lastValuesRows()
       expect(rows[0].model).toBe('claude-sonnet-4-5')
       expect(rows[0].streamId).toBe('stream-xyz')
       expect(rows[1].model).toBe('claude-sonnet-4-5')
       expect(rows[1].streamId).toBe('stream-xyz')
     })
 
-    it('uses ON CONFLICT DO UPDATE with chat_id + message_id target', async () => {
+    it('uses ON CONFLICT DO UPDATE that PRESERVES existing seq', async () => {
       await appendCopilotChatMessages('chat-1', [userMsg])
 
       expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledTimes(1)
@@ -96,6 +114,14 @@ describe('messages-dual-write', () => {
       expect(conflictArg.set).toHaveProperty('model')
       expect(conflictArg.set).toHaveProperty('streamId')
       expect(conflictArg.set).toHaveProperty('updatedAt')
+      expect(conflictArg.set.seq.strings.join('')).toContain('COALESCE(')
+    })
+
+    it('collapses duplicate message ids to a single row', async () => {
+      await appendCopilotChatMessages('chat-1', [userMsg, { ...userMsg, content: 'dupe' }])
+      const rows = lastValuesRows()
+      expect(rows).toHaveLength(1)
+      expect(rows[0].messageId).toBe('msg-user-1')
     })
 
     it('swallows DB errors so the legacy JSONB write stays canonical', async () => {
@@ -120,12 +146,9 @@ describe('messages-dual-write', () => {
       expect(dbChainMockFns.delete).toHaveBeenCalledTimes(1)
       expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
 
-      const rows = dbChainMockFns.values.mock.calls[0][0]
+      const rows = lastValuesRows()
       expect(rows).toHaveLength(2)
-      expect(rows.map((r: { messageId: string }) => r.messageId)).toEqual([
-        'msg-user-1',
-        'msg-asst-1',
-      ])
+      expect(rows.map((r) => r.messageId)).toEqual(['msg-user-1', 'msg-asst-1'])
 
       expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledTimes(1)
       const conflictArg = dbChainMockFns.onConflictDoUpdate.mock.calls[0][0]
@@ -133,12 +156,32 @@ describe('messages-dual-write', () => {
       expect(conflictArg.set).toHaveProperty('model')
     })
 
+    it('assigns seq as the snapshot array index (0-based)', async () => {
+      await replaceCopilotChatMessages('chat-1', [userMsg, assistantMsg])
+      const rows = lastValuesRows()
+      expect(rows[0].seq).toBe(0)
+      expect(rows[1].seq).toBe(1)
+    })
+
+    it('OVERWRITES seq on conflict so positions re-densify after a delete', async () => {
+      await replaceCopilotChatMessages('chat-1', [userMsg])
+      const conflictArg = dbChainMockFns.onConflictDoUpdate.mock.calls[0][0]
+      expect(conflictArg.set.seq.strings.join('')).toBe('excluded.seq')
+    })
+
+    it('collapses duplicate message ids to a single row', async () => {
+      await replaceCopilotChatMessages('chat-1', [userMsg, { ...userMsg, content: 'dupe' }])
+      const rows = lastValuesRows()
+      expect(rows).toHaveLength(1)
+      expect(rows[0].seq).toBe(0)
+    })
+
     it('passes chatModel to every row in the snapshot', async () => {
       await replaceCopilotChatMessages('chat-1', [userMsg], {
         chatModel: 'gpt-4o-mini',
       })
 
-      const rows = dbChainMockFns.values.mock.calls[0][0]
+      const rows = lastValuesRows()
       expect(rows[0].model).toBe('gpt-4o-mini')
     })
 
