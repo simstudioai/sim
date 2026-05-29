@@ -13,7 +13,10 @@ import type Stripe from 'stripe'
 import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
 import { BILLING_LOCK_TIMEOUT_MS } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
-import { getBillingPeriodUsageCostByUser } from '@/lib/billing/core/usage-log'
+import {
+  COPILOT_USAGE_SOURCES,
+  getBillingPeriodUsageCostByUser,
+} from '@/lib/billing/core/usage-log'
 import { addCredits, getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
@@ -424,6 +427,15 @@ export async function resetUsageForSubscription(sub: {
           billingPeriod
         )
       : new Map<string, number>()
+    // Copilot-family ledger per user, so last-period copilot mirrors last-period
+    // cost (baseline + usage_log) instead of capturing the baseline alone.
+    const copilotLedgerByUser = billingPeriod
+      ? await getBillingPeriodUsageCostByUser(
+          { type: 'organization', id: sub.referenceId },
+          billingPeriod,
+          COPILOT_USAGE_SOURCES
+        )
+      : new Map<string, number>()
 
     await db.transaction(async (tx) => {
       await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
@@ -494,15 +506,27 @@ export async function resetUsageForSubscription(sub: {
           memberStatsRows.map((row) => sql`WHEN ${row.userId} THEN ${row.currentCopilot ?? '0'}`),
           sql` `
         )
+        // Last-period copilot = baseline copilot + copilot-family ledger, mirroring
+        // lastPeriodCost. (The reset below still subtracts only the baseline, since
+        // the ledger is period-scoped and rolls over on its own.)
+        const lastCopilotCostByUser = sql.join(
+          memberStatsRows.map((row) => {
+            const baselineCopilot = toNumber(toDecimal(row.currentCopilot))
+            const copilotLedger = copilotLedgerByUser.get(row.userId) ?? 0
+            return sql`WHEN ${row.userId} THEN ${(baselineCopilot + copilotLedger).toString()}`
+          }),
+          sql` `
+        )
         const capturedLastCost = sql`CASE ${userStats.userId} ${lastCostByUser} ELSE '0' END`
         const capturedCurrentCost = sql`CASE ${userStats.userId} ${currentCostByUser} ELSE '0' END`
         const capturedCurrentCopilotCost = sql`CASE ${userStats.userId} ${currentCopilotCostByUser} ELSE '0' END`
+        const capturedLastCopilotCost = sql`CASE ${userStats.userId} ${lastCopilotCostByUser} ELSE '0' END`
 
         await tx
           .update(userStats)
           .set({
             lastPeriodCost: capturedLastCost,
-            lastPeriodCopilotCost: capturedCurrentCopilotCost,
+            lastPeriodCopilotCost: capturedLastCopilotCost,
             currentPeriodCost: sql`GREATEST(0, ${userStats.currentPeriodCost} - (${capturedCurrentCost})::decimal)`,
             currentPeriodCopilotCost: sql`GREATEST(0, ${userStats.currentPeriodCopilotCost} - (${capturedCurrentCopilotCost})::decimal)`,
             billedOverageThisPeriod: '0',
@@ -536,6 +560,15 @@ export async function resetUsageForSubscription(sub: {
           )
         : new Map<string, number>()
       const userLedgerUsage = ledgerUsage.get(sub.referenceId) ?? 0
+      const copilotLedgerUsage = billingPeriod
+        ? ((
+            await getBillingPeriodUsageCostByUser(
+              { type: 'user', id: sub.referenceId },
+              billingPeriod,
+              COPILOT_USAGE_SOURCES
+            )
+          ).get(sub.referenceId) ?? 0)
+        : 0
 
       // Snapshot > 0: user joined a paid org mid-cycle. The pre-join
       // portion was billed on this invoice (snapshot); `currentPeriodCost`
@@ -546,7 +579,12 @@ export async function resetUsageForSubscription(sub: {
           .update(userStats)
           .set({
             lastPeriodCost: (snapshot + userLedgerUsage).toString(),
-            lastPeriodCopilotCost: '0',
+            // Pre-join personal copilot = the user-scoped copilot ledger only
+            // (post-join copilot usage is org-attributed, so this captures the
+            // pre-join portion). The copilot baseline stays with the org via the
+            // retained currentPeriodCopilotCost, so don't add it here (avoids a
+            // double count at the org's cycle-close).
+            lastPeriodCopilotCost: copilotLedgerUsage.toString(),
             proPeriodCostSnapshot: '0',
             proPeriodCostSnapshotAt: null,
             billedOverageThisPeriod: '0',
@@ -563,7 +601,9 @@ export async function resetUsageForSubscription(sub: {
           .update(userStats)
           .set({
             lastPeriodCost: totalLastPeriod,
-            lastPeriodCopilotCost: currentCopilot,
+            lastPeriodCopilotCost: (
+              toNumber(toDecimal(currentCopilot)) + copilotLedgerUsage
+            ).toString(),
             currentPeriodCost: sql`GREATEST(0, ${userStats.currentPeriodCost} - ${current}::decimal)`,
             currentPeriodCopilotCost: sql`GREATEST(0, ${userStats.currentPeriodCopilotCost} - ${currentCopilot}::decimal)`,
             proPeriodCostSnapshot: '0',

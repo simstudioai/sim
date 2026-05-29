@@ -4,18 +4,18 @@ import { usageLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('UsageLog')
 
 /**
  * Usage log category types
  */
-export type UsageLogCategory = 'model' | 'fixed'
+export type UsageLogCategory = 'model' | 'fixed' | 'tool'
 
 /**
  * Usage log source types
@@ -30,6 +30,18 @@ export type UsageLogSource =
   | 'knowledge-base'
   | 'voice-input'
   | 'enrichment'
+
+/**
+ * usage_log sources that make up the "copilot" cost breakdown shown in billing
+ * summaries: the copilot agent, mothership/workspace chat, MCP copilot, and
+ * mothership blocks. Mirrors the source set billed via /api/billing/update-cost.
+ */
+export const COPILOT_USAGE_SOURCES: UsageLogSource[] = [
+  'copilot',
+  'workspace-chat',
+  'mcp_copilot',
+  'mothership_block',
+]
 
 /**
  * Metadata for 'model' category charges
@@ -47,7 +59,7 @@ export type UsageLogMetadata = ModelUsageMetadata | Record<string, unknown> | nu
 
 export type BillingEntityType = 'user' | 'organization'
 
-interface BillingEntity {
+export interface BillingEntity {
   type: BillingEntityType
   id: string
 }
@@ -84,9 +96,16 @@ export interface RecordUsageParams {
   billingEntity?: BillingEntity
   /** Billing period bounds, resolved by caller when already known. */
   billingPeriod?: { start: Date; end: Date }
+  /**
+   * Optional transaction to run the ledger INSERT in. Callers that reconcile a
+   * read-then-insert under a lock (e.g. the per-execution advisory lock in the
+   * workflow completion path) pass their tx so the insert participates in the
+   * same locked transaction. Defaults to the pooled db.
+   */
+  tx?: DbOrTx
 }
 
-function stableEventKey(parts: Record<string, unknown>): string {
+export function stableEventKey(parts: Record<string, unknown>): string {
   const payload = Object.keys(parts)
     .sort()
     .map((key) => `${key}:${String(parts[key] ?? '')}`)
@@ -94,32 +113,53 @@ function stableEventKey(parts: Record<string, unknown>): string {
   return createHash('sha256').update(payload).digest('hex')
 }
 
+type ResolvedSubscription = Awaited<ReturnType<typeof getHighestPrioritySubscription>>
+
+export interface BillingContext {
+  billingEntity: BillingEntity
+  billingPeriod: { start: Date; end: Date }
+}
+
+/**
+ * Derive the billing entity + period from an ALREADY-resolved subscription.
+ * Callers that already hold the subscription (e.g. the workflow completion path,
+ * which fetches it for usage-threshold emails) can derive the context once and
+ * pass it into recordUsage so resolveBillingContext skips a redundant lookup.
+ * This is the single source of the entity/period derivation — keep it the only
+ * place that maps a subscription to a billing context.
+ */
+export function deriveBillingContext(
+  userId: string,
+  subscription: ResolvedSubscription
+): BillingContext {
+  const billingEntity: BillingEntity =
+    subscription && isOrgScopedSubscription(subscription, userId)
+      ? { type: 'organization', id: subscription.referenceId }
+      : { type: 'user', id: userId }
+
+  const billingPeriod =
+    subscription?.periodStart && subscription.periodEnd
+      ? { start: subscription.periodStart, end: subscription.periodEnd }
+      : defaultBillingPeriod()
+
+  return { billingEntity, billingPeriod }
+}
+
 async function resolveBillingContext(
   userId: string,
   billingEntity?: BillingEntity,
   billingPeriod?: { start: Date; end: Date }
-): Promise<{
-  billingEntity: BillingEntity
-  billingPeriod: { start: Date; end: Date }
-}> {
+): Promise<BillingContext> {
   if (billingEntity && billingPeriod) {
     return { billingEntity, billingPeriod }
   }
 
   const subscription = await getHighestPrioritySubscription(userId)
-  const resolvedEntity =
-    billingEntity ??
-    (subscription && isOrgScopedSubscription(subscription, userId)
-      ? { type: 'organization' as const, id: subscription.referenceId }
-      : { type: 'user' as const, id: userId })
-
-  const resolvedPeriod =
-    billingPeriod ??
-    (subscription?.periodStart && subscription.periodEnd
-      ? { start: subscription.periodStart, end: subscription.periodEnd }
-      : defaultBillingPeriod())
-
-  return { billingEntity: resolvedEntity, billingPeriod: resolvedPeriod }
+  const derived = deriveBillingContext(userId, subscription)
+  return {
+    billingEntity: billingEntity ?? derived.billingEntity,
+    billingPeriod: billingPeriod ?? derived.billingPeriod,
+  }
 }
 
 /**
@@ -128,43 +168,55 @@ async function resolveBillingContext(
  */
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
-  billingPeriod: { start: Date; end: Date }
+  billingPeriod: { start: Date; end: Date },
+  source?: UsageLogSource | UsageLogSource[]
 ): Promise<number> {
+  const conditions = [
+    eq(usageLog.billingEntityType, billingEntity.type),
+    eq(usageLog.billingEntityId, billingEntity.id),
+    eq(usageLog.billingPeriodStart, billingPeriod.start),
+    eq(usageLog.billingPeriodEnd, billingPeriod.end),
+  ]
+  if (source) {
+    conditions.push(
+      Array.isArray(source) ? inArray(usageLog.source, source) : eq(usageLog.source, source)
+    )
+  }
+
   const [row] = await db
     .select({
       cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
     })
     .from(usageLog)
-    .where(
-      and(
-        eq(usageLog.billingEntityType, billingEntity.type),
-        eq(usageLog.billingEntityId, billingEntity.id),
-        eq(usageLog.billingPeriodStart, billingPeriod.start),
-        eq(usageLog.billingPeriodEnd, billingPeriod.end)
-      )
-    )
+    .where(and(...conditions))
 
   return Number.parseFloat(row?.cost ?? '0')
 }
 
 export async function getBillingPeriodUsageCostByUser(
   billingEntity: BillingEntity,
-  billingPeriod: { start: Date; end: Date }
+  billingPeriod: { start: Date; end: Date },
+  source?: UsageLogSource | UsageLogSource[]
 ): Promise<Map<string, number>> {
+  const conditions = [
+    eq(usageLog.billingEntityType, billingEntity.type),
+    eq(usageLog.billingEntityId, billingEntity.id),
+    eq(usageLog.billingPeriodStart, billingPeriod.start),
+    eq(usageLog.billingPeriodEnd, billingPeriod.end),
+  ]
+  if (source) {
+    conditions.push(
+      Array.isArray(source) ? inArray(usageLog.source, source) : eq(usageLog.source, source)
+    )
+  }
+
   const rows = await db
     .select({
       userId: usageLog.userId,
       cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
     })
     .from(usageLog)
-    .where(
-      and(
-        eq(usageLog.billingEntityType, billingEntity.type),
-        eq(usageLog.billingEntityId, billingEntity.id),
-        eq(usageLog.billingPeriodStart, billingPeriod.start),
-        eq(usageLog.billingPeriodEnd, billingPeriod.end)
-      )
-    )
+    .where(and(...conditions))
     .groupBy(usageLog.userId)
 
   return new Map(rows.map((row) => [row.userId, Number.parseFloat(row.cost ?? '0')]))
@@ -178,12 +230,20 @@ export async function getBillingPeriodUsageCostByUser(
  * but usage writes no longer contend on the user_stats row.
  */
 export async function recordUsage(params: RecordUsageParams): Promise<void> {
-  if (!isBillingEnabled) {
-    return
-  }
-
-  const { userId, entries, workspaceId, workflowId, executionId, billingEntity, billingPeriod } =
-    params
+  // The usage ledger is written regardless of BILLING_ENABLED so it is the
+  // single, universal source of truth for cost (including self-hosted, where
+  // it powers the logs-page cost display). Billing *enforcement* (Stripe /
+  // overage) is gated separately by callers, not here.
+  const {
+    userId,
+    entries,
+    workspaceId,
+    workflowId,
+    executionId,
+    billingEntity,
+    billingPeriod,
+    tx,
+  } = params
 
   const validEntries = entries.filter((e) => e.cost > 0)
 
@@ -193,7 +253,7 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
 
   const context = await resolveBillingContext(userId, billingEntity, billingPeriod)
 
-  const insertedRows = await db
+  const insertedRows = await (tx ?? db)
     .insert(usageLog)
     .values(
       validEntries.map((entry, index) => {

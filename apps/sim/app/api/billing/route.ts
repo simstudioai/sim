@@ -140,7 +140,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         members: rawBillingData.members.map((m) => ({
           ...m,
           joinedAt: m.joinedAt.toISOString(),
-          lastActive: m.lastActive?.toISOString() || null,
         })),
       }
 
