@@ -5,8 +5,10 @@ import type { EnrichmentConfig } from '@/enrichments/types'
 
 /**
  * Work Email enrichment. Finds a person's work email from their full name and
- * company domain, trying Hunter first (deterministic finder) then People Data
- * Labs (record match) as a fallback.
+ * company domain via a provider waterfall: deterministic finders first (Hunter,
+ * Findymail), then enrichment/reveal providers (Prospeo, Wiza), then People Data
+ * Labs as a broad record-match fallback. The first provider to return an email
+ * wins; each provider supports hosted keys so the cascade runs without BYOK.
  */
 export const workEmailEnrichment: EnrichmentConfig = {
   id: 'work-email',
@@ -28,6 +30,55 @@ export const workEmailEnrichment: EnrichmentConfig = {
         const domain = normalizeDomain(inputs.companyDomain)
         if (!name || !domain) return null
         return { domain, first_name: name.firstName, last_name: name.lastName }
+      },
+      mapOutput: (output) => {
+        const email = str(output.email)
+        return email ? { email } : null
+      },
+    }),
+    toolProvider({
+      id: 'findymail',
+      label: 'Findymail',
+      toolId: 'findymail_find_email_from_name',
+      buildParams: (inputs) => {
+        const name = str(inputs.fullName)
+        const domain = normalizeDomain(inputs.companyDomain)
+        if (!name || !domain) return null
+        return { name, domain }
+      },
+      mapOutput: (output) => {
+        const contact = output.contact as Record<string, unknown> | null
+        const email = str(contact?.email)
+        return email ? { email } : null
+      },
+    }),
+    toolProvider({
+      id: 'prospeo',
+      label: 'Prospeo',
+      toolId: 'prospeo_enrich_person',
+      buildParams: (inputs) => {
+        const fullName = str(inputs.fullName)
+        const companyWebsite = normalizeDomain(inputs.companyDomain)
+        if (!fullName || !companyWebsite) return null
+        return { full_name: fullName, company_website: companyWebsite }
+      },
+      mapOutput: (output) => {
+        const person = output.person as Record<string, unknown> | undefined
+        const emailObj = person?.email as Record<string, unknown> | undefined
+        const email = str(emailObj?.email)
+        return email ? { email } : null
+      },
+    }),
+    toolProvider({
+      id: 'wiza',
+      label: 'Wiza',
+      toolId: 'wiza_individual_reveal',
+      buildParams: (inputs) => {
+        const fullName = str(inputs.fullName)
+        const domain = normalizeDomain(inputs.companyDomain)
+        if (!fullName || !domain) return null
+        // 'partial' reveals the email only (2 credits); avoids phone charges.
+        return { full_name: fullName, domain, enrichment_level: 'partial' }
       },
       mapOutput: (output) => {
         const email = str(output.email)
