@@ -6,6 +6,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min, ne } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
@@ -212,6 +213,7 @@ export async function performCreateWorkflow(
         ? params.sortOrder
         : await nextWorkflowSortOrder(params.workspaceId, folderId)
     const now = new Date()
+    const color = params.color ?? getNextWorkflowColor()
     const { workflowState, subBlockValues, startBlockId } = buildDefaultWorkflowArtifacts()
 
     await db.transaction(async (tx) => {
@@ -223,7 +225,7 @@ export async function performCreateWorkflow(
         sortOrder,
         name,
         description: params.description,
-        color: params.color,
+        color,
         lastSynced: now,
         createdAt: now,
         updatedAt: now,
@@ -248,7 +250,7 @@ export async function performCreateWorkflow(
       metadata: {
         name,
         description: params.description || undefined,
-        color: params.color,
+        color,
         workspaceId: params.workspaceId,
         folderId: folderId || undefined,
         sortOrder,
@@ -261,7 +263,7 @@ export async function performCreateWorkflow(
         id: workflowId,
         name,
         description: params.description,
-        color: params.color,
+        color,
         workspaceId: params.workspaceId,
         folderId,
         sortOrder,
