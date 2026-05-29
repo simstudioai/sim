@@ -482,24 +482,37 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               </ol>
               <div className='mt-8 flex flex-wrap gap-2'>
                 <IntegrationCtaButton
-                  label={`Add ${name}`}
+                  label={`Add to ${name}`}
                   className='inline-flex h-[32px] items-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                 >
                   Add to {name}
                 </IntegrationCtaButton>
               </div>
-              {landingContent.privacy && (
-                <p className='mt-6 max-w-[700px] text-[13px] text-[var(--landing-text-muted)] leading-[150%] tracking-[0.02em]'>
-                  {landingContent.privacy.body}{' '}
-                  <Link
-                    href={landingContent.privacy.href}
-                    className='text-[var(--landing-text)] underline underline-offset-2 hover:text-white'
-                  >
-                    Privacy Policy
-                  </Link>
-                  .
-                </p>
-              )}
+            </section>
+            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+          </>
+        )}
+
+        {/* Privacy & data (integration-specific) */}
+        {landingContent?.privacy && (
+          <>
+            <section aria-labelledby='privacy-heading' className='px-6 py-10'>
+              <h2
+                id='privacy-heading'
+                className='mb-4 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+              >
+                Privacy & data
+              </h2>
+              <p className='max-w-[700px] text-[15px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
+                {landingContent.privacy.body}{' '}
+                <Link
+                  href={landingContent.privacy.href}
+                  className='text-[var(--landing-text)] underline underline-offset-2 hover:text-white'
+                >
+                  Privacy Policy
+                </Link>
+                .
+              </p>
             </section>
             <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
           </>
