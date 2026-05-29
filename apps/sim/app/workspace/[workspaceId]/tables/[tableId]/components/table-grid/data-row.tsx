@@ -23,6 +23,9 @@ import { type NormalizedSelection, resolveCellExec } from './utils'
 export interface DataRowProps {
   row: TableRowType
   columns: DisplayColumn[]
+  /** Current workspace id — forwarded to cells so in-workspace resource URLs
+   *  render as tagged-resource chips. */
+  workspaceId: string
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
@@ -98,6 +101,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
   if (
     prev.row !== next.row ||
     prev.columns !== next.columns ||
+    prev.workspaceId !== next.workspaceId ||
     prev.rowIndex !== next.rowIndex ||
     prev.isFirstRow !== next.isFirstRow ||
     prev.editingColumnName !== next.editingColumnName ||
@@ -141,6 +145,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
 export const DataRow = React.memo(function DataRow({
   row,
   columns,
+  workspaceId,
   rowIndex,
   isFirstRow,
   editingColumnName,
@@ -204,7 +209,12 @@ export const DataRow = React.memo(function DataRow({
             tabIndex={0}
             aria-checked={isRowSelected}
             aria-label={`Select row ${rowIndex + 1}`}
-            className='group/checkbox flex h-[20px] shrink-0 items-center justify-center'
+            className={cn(
+              'group/checkbox flex h-[20px] shrink-0 items-center justify-end',
+              // Lighter right inset for narrow indices (≤3 digits → numDivWidth ≤ 28);
+              // full 4px once the column widens (4+ digits, numDivWidth ≥ 36).
+              numDivWidth >= 36 ? 'pr-1' : 'pr-0.5'
+            )}
             style={{ width: numDivWidth }}
             onMouseDown={(e) => {
               if (e.button !== 0) return
@@ -216,7 +226,7 @@ export const DataRow = React.memo(function DataRow({
           >
             <span
               className={cn(
-                'text-center text-[var(--text-tertiary)] text-xs tabular-nums',
+                'text-right text-[var(--text-tertiary)] text-xs tabular-nums',
                 isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
               )}
             >
@@ -328,6 +338,7 @@ export const DataRow = React.memo(function DataRow({
             )}
             <div className={CELL_CONTENT}>
               <CellContent
+                workspaceId={workspaceId}
                 value={
                   pendingCellValue && column.name in pendingCellValue
                     ? pendingCellValue[column.name]
