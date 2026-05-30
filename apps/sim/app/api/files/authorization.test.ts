@@ -38,14 +38,26 @@ vi.mock('@/lib/uploads', () => ({
   getFileMetadata: vi.fn().mockResolvedValue({}),
 }))
 
+const { APP_ORIGIN } = vi.hoisted(() => ({ APP_ORIGIN: 'https://app.test' }))
+
+vi.mock('@/lib/core/utils/urls', () => ({
+  getBaseUrl: () => APP_ORIGIN,
+  getInternalApiBaseUrl: () => APP_ORIGIN,
+  parseOriginList: () => [],
+}))
+
 import { verifyFileAccess } from '@/app/api/files/authorization'
 
 const VICTIM_KEY = 'kb/1780162789495-victim-secret.txt'
 const ATTACKER_USER = 'attacker-user'
 
-/** Internal serve URL that legitimately resolves to VICTIM_KEY. */
+/** Relative internal serve URL that resolves to a storage key (same-origin). */
 const internalUrlFor = (key: string) =>
   `/api/files/serve/s3/${encodeURIComponent(key)}?context=knowledge-base`
+
+/** Absolute serve URL on an arbitrary origin. */
+const absoluteServeUrl = (origin: string, key: string) =>
+  `${origin}/api/files/serve/s3/${encodeURIComponent(key)}?context=knowledge-base`
 
 describe('verifyKBFileAccess', () => {
   beforeEach(() => {
@@ -64,6 +76,35 @@ describe('verifyKBFileAccess', () => {
 
     expect(granted).toBe(true)
     expect(mockGetUserEntityPermissions).toHaveBeenCalledWith('owner-user', 'workspace', 'ws-owner')
+  })
+
+  it('grants access via an absolute serve URL on the application origin', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { workspaceId: 'ws-owner', fileUrl: absoluteServeUrl(APP_ORIGIN, VICTIM_KEY) },
+    ])
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+
+    const granted = await verifyFileAccess(VICTIM_KEY, 'owner-user', undefined, 'knowledge-base')
+
+    expect(granted).toBe(true)
+    expect(mockGetUserEntityPermissions).toHaveBeenCalledWith('owner-user', 'workspace', 'ws-owner')
+  })
+
+  it('denies a crafted external host whose path is /api/files/serve/<victim-key>', async () => {
+    // isInternalFileUrl is a substring check; an attacker-controlled host with the
+    // serve path resolves to the victim key. The origin allow-list must reject it.
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        workspaceId: 'ws-attacker',
+        fileUrl: absoluteServeUrl('https://attacker.example', VICTIM_KEY),
+      },
+    ])
+    mockGetUserEntityPermissions.mockResolvedValue('admin')
+
+    const granted = await verifyFileAccess(VICTIM_KEY, ATTACKER_USER, undefined, 'knowledge-base')
+
+    expect(granted).toBe(false)
+    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
   })
 
   it('denies access via an external URL that merely contains the key as a substring', async () => {

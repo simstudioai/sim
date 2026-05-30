@@ -3,16 +3,14 @@ import { document, knowledgeBase, workspaceFile } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, isNull, like, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { getEnv } from '@/lib/core/config/env'
+import { getBaseUrl, getInternalApiBaseUrl, parseOriginList } from '@/lib/core/utils/urls'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { BLOB_CHAT_CONFIG, S3_CHAT_CONFIG } from '@/lib/uploads/config'
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
-import {
-  extractStorageKey,
-  inferContextFromKey,
-  isInternalFileUrl,
-} from '@/lib/uploads/utils/file-utils'
+import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { isUuid } from '@/executor/constants'
 
@@ -375,24 +373,58 @@ async function verifyCopilotFileAccess(
 }
 
 /**
- * Resolve a knowledge-base document's stored `fileUrl` to the canonical storage
- * key it points at, but only when the URL is an internal Sim file-serve URL.
- *
- * External `http(s)://` URLs and `data:` URIs are accepted for ingestion but
- * intentionally return `null` here so they can never authorize access to an
- * internal storage object. Returns the storage key (e.g. `kb/<ts>-name.txt`)
- * only for internal knowledge-base URLs, `null` otherwise.
+ * Origins this app legitimately serves files from: the public base URL, the
+ * internal API base URL, and any configured `TRUSTED_ORIGINS`. A document
+ * `fileUrl` only authorizes storage access when it is relative (same-origin) or
+ * absolute with one of these origins.
  */
-function resolveInternalKbKey(fileUrl: string | null): string | null {
-  if (!fileUrl || !isInternalFileUrl(fileUrl)) {
+function getInternalServeOrigins(): Set<string> {
+  const origins = new Set<string>()
+  for (const resolve of [getBaseUrl, getInternalApiBaseUrl]) {
+    try {
+      origins.add(new URL(resolve()).origin)
+    } catch {
+      // NEXT_PUBLIC_APP_URL unset/invalid — skip; relative fileUrls still resolve.
+    }
+  }
+  for (const origin of parseOriginList(getEnv('TRUSTED_ORIGINS'))) {
+    origins.add(origin)
+  }
+  return origins
+}
+
+/**
+ * Resolve a knowledge-base document's stored `fileUrl` to the canonical storage
+ * key it points at, but only for internal Sim file-serve URLs.
+ *
+ * Relative paths are same-origin by definition; absolute URLs must match an
+ * internal serve origin. A foreign host that embeds `/api/files/serve/` in its
+ * path, and `data:` URIs, return `null` so an attacker-planted document can
+ * never authorize access to another tenant's storage object.
+ */
+function resolveInternalKbKey(fileUrl: string | null, allowedOrigins: Set<string>): string | null {
+  if (!fileUrl) {
     return null
   }
-  try {
-    const key = extractStorageKey(fileUrl)
-    return key.startsWith('kb/') ? key : null
-  } catch {
+  let pathname: string
+  if (fileUrl.startsWith('/')) {
+    pathname = fileUrl
+  } else {
+    try {
+      const parsed = new URL(fileUrl)
+      if (!allowedOrigins.has(parsed.origin)) {
+        return null
+      }
+      pathname = parsed.pathname
+    } catch {
+      return null
+    }
+  }
+  if (!pathname.startsWith('/api/files/serve/')) {
     return null
   }
+  const key = extractStorageKey(pathname)
+  return key.startsWith('kb/') ? key : null
 }
 
 /**
@@ -437,8 +469,9 @@ async function verifyKBFileAccess(
 
     // Owner is the earliest document whose fileUrl resolves to EXACTLY this key; substring
     // matches and cross-workspace references never establish ownership.
+    const allowedOrigins = getInternalServeOrigins()
     const owningDocument = candidateDocuments.find(
-      (doc) => resolveInternalKbKey(doc.fileUrl) === cloudKey
+      (doc) => resolveInternalKbKey(doc.fileUrl, allowedOrigins) === cloudKey
     )
 
     if (owningDocument) {
