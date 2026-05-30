@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth'
+import { normalizeSSODomain } from '@/lib/auth/sso/domain'
 import { hasSSOAccess } from '@/lib/billing'
 import { env } from '@/lib/core/config/env'
 import {
@@ -51,7 +52,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const body = parsed.data.body
-    const { providerId, issuer, domain, providerType, mapping, orgId } = body
+    const { providerId, issuer, providerType, mapping, orgId } = body
 
     if (orgId) {
       const [membership] = await db
@@ -65,6 +66,45 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (membership.role !== 'owner' && membership.role !== 'admin') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
+    }
+
+    const domain = normalizeSSODomain(body.domain)
+    if (!domain) {
+      return NextResponse.json({ error: 'Enter a valid domain like company.com' }, { status: 400 })
+    }
+
+    const isOwnedByCaller = (provider: {
+      userId: string | null
+      organizationId: string | null
+    }): boolean => {
+      if (orgId) return provider.organizationId === orgId
+      return provider.userId === session.user.id && !provider.organizationId
+    }
+
+    const existingProviders = await db
+      .select({
+        domain: ssoProvider.domain,
+        userId: ssoProvider.userId,
+        organizationId: ssoProvider.organizationId,
+      })
+      .from(ssoProvider)
+    const conflictingProvider = existingProviders.find(
+      (provider) => normalizeSSODomain(provider.domain) === domain && !isOwnedByCaller(provider)
+    )
+
+    if (conflictingProvider) {
+      logger.warn('Rejected SSO registration for domain owned by another tenant', {
+        domain,
+        orgId,
+        userId: session.user.id,
+      })
+      return NextResponse.json(
+        {
+          error: 'This domain is already registered for SSO by another organization.',
+          code: 'SSO_DOMAIN_ALREADY_REGISTERED',
+        },
+        { status: 409 }
+      )
     }
 
     const headers: Record<string, string> = {}

@@ -1,14 +1,18 @@
 import { db } from '@sim/db'
 import { document, knowledgeBase, workspaceFile } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull, like, or } from 'drizzle-orm'
+import { and, asc, eq, isNull, like, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { BLOB_CHAT_CONFIG, S3_CHAT_CONFIG } from '@/lib/uploads/config'
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
-import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import {
+  extractStorageKey,
+  inferContextFromKey,
+  isInternalFileUrl,
+} from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { isUuid } from '@/executor/constants'
 
@@ -371,8 +375,36 @@ async function verifyCopilotFileAccess(
 }
 
 /**
+ * Resolve a knowledge-base document's stored `fileUrl` to the canonical storage
+ * key it points at, but only when the URL is an internal Sim file-serve URL.
+ *
+ * External `http(s)://` URLs and `data:` URIs are accepted for ingestion but
+ * intentionally return `null` here so they can never authorize access to an
+ * internal storage object. Returns the storage key (e.g. `kb/<ts>-name.txt`)
+ * only for internal knowledge-base URLs, `null` otherwise.
+ */
+function resolveInternalKbKey(fileUrl: string | null): string | null {
+  if (!fileUrl || !isInternalFileUrl(fileUrl)) {
+    return null
+  }
+  try {
+    const key = extractStorageKey(fileUrl)
+    return key.startsWith('kb/') ? key : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Verify access to KB files
  * KB files: kb/filename
+ *
+ * Access is authorized against the workspace that *owns* the storage object,
+ * never against an arbitrary document that merely references it. Ownership is
+ * resolved by requiring a document's `fileUrl` to canonically resolve to the
+ * exact requested storage key (not a substring/`LIKE` match), and by pinning to
+ * the earliest such document — so a later document planted in another workspace
+ * cannot authorize the planting user against another tenant's file.
  */
 async function verifyKBFileAccess(
   cloudKey: string,
@@ -380,9 +412,13 @@ async function verifyKBFileAccess(
   customConfig?: StorageConfig
 ): Promise<boolean> {
   try {
-    const activeKbFileDocuments = await db
+    // The `LIKE` predicate only narrows candidates cheaply; it never decides
+    // authorization. Ordering by `uploadedAt` lets us pin ownership to the
+    // earliest document, which is the one the file was originally uploaded for.
+    const candidateDocuments = await db
       .select({
         workspaceId: knowledgeBase.workspaceId,
+        fileUrl: document.fileUrl,
       })
       .from(document)
       .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
@@ -398,26 +434,52 @@ async function verifyKBFileAccess(
           )
         )
       )
-      .limit(10)
+      .orderBy(asc(document.uploadedAt))
+      .limit(50)
 
-    for (const doc of activeKbFileDocuments) {
-      if (!doc.workspaceId) {
-        continue
+    // The owner is the earliest document whose fileUrl resolves to EXACTLY this
+    // storage key. Substring-only matches (e.g. an external URL that happens to
+    // contain the key) and documents in other workspaces that merely reference
+    // the key do not establish ownership. Pinning to the earliest match means a
+    // later document planted in the caller's own workspace can never authorize
+    // access to a file another workspace originally uploaded.
+    const owningDocument = candidateDocuments.find(
+      (doc) => resolveInternalKbKey(doc.fileUrl) === cloudKey
+    )
+
+    if (owningDocument) {
+      if (!owningDocument.workspaceId) {
+        logger.warn('KB file access denied: owning document has no workspace', {
+          userId,
+          cloudKey,
+        })
+        return false
       }
 
-      const permission = await getUserEntityPermissions(userId, 'workspace', doc.workspaceId)
+      const permission = await getUserEntityPermissions(
+        userId,
+        'workspace',
+        owningDocument.workspaceId
+      )
       if (permission !== null) {
-        logger.debug('KB file access granted (active document lookup)', {
+        logger.debug('KB file access granted (owning document lookup)', {
           userId,
-          workspaceId: doc.workspaceId,
+          workspaceId: owningDocument.workspaceId,
           cloudKey,
         })
         return true
       }
+      logger.warn('KB file access denied: user lacks permission on owning workspace', {
+        userId,
+        workspaceId: owningDocument.workspaceId,
+        cloudKey,
+      })
+      return false
     }
 
-    // KB file access must resolve through an active KB document. Metadata alone is not enough
-    // because parent archives intentionally keep the underlying file bytes around for history.
+    // KB file access must resolve through an active KB document that canonically
+    // owns the key. Metadata alone is not enough because parent archives
+    // intentionally keep the underlying file bytes around for history.
     const fileRecord = await getFileMetadataByKey(cloudKey, 'knowledge-base', {
       includeDeleted: true,
     })
@@ -427,7 +489,7 @@ async function verifyKBFileAccess(
       return false
     }
 
-    logger.warn('KB file access denied because no active KB document matched the file', {
+    logger.warn('KB file access denied because no owning KB document matched the file', {
       cloudKey,
       userId,
     })

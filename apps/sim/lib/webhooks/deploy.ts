@@ -23,6 +23,29 @@ import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 const logger = createLogger('DeployWebhookSync')
 const CREDENTIAL_SET_PREFIX = 'credentialSet:'
 
+/**
+ * Returns the id of a workflow that already owns an active (non-archived)
+ * webhook on the given path, when that workflow is different from the one being
+ * deployed. Webhook paths are user-controlled and the database only enforces
+ * uniqueness per deployment version, so without this guard two tenants could
+ * register the same public path and a delivery to one would fan out to the
+ * other. Returns `null` when the path is free or only used by this workflow.
+ */
+async function findConflictingWebhookPathOwner(params: {
+  path: string
+  workflowId: string
+}): Promise<string | null> {
+  const { path, workflowId } = params
+
+  const existing = await db
+    .select({ workflowId: webhook.workflowId })
+    .from(webhook)
+    .where(and(eq(webhook.path, path), isNull(webhook.archivedAt)))
+
+  const conflict = existing.find((row) => row.workflowId !== workflowId)
+  return conflict ? conflict.workflowId : null
+}
+
 interface TriggerSaveError {
   message: string
   status: number
@@ -534,6 +557,23 @@ export async function saveTriggerWebhooksForDeploy({
           message:
             'Authentication is enabled but no token is configured. Please set an authentication token or disable authentication.',
           status: 400,
+        },
+      }
+    }
+
+    const pathConflict = await findConflictingWebhookPathOwner({
+      path: triggerPath,
+      workflowId,
+    })
+    if (pathConflict) {
+      logger.warn(
+        `[${requestId}] Webhook path conflict for "${triggerPath}": already owned by workflow ${pathConflict}`
+      )
+      return {
+        success: false,
+        error: {
+          message: `Webhook path "${triggerPath}" is already in use. Choose a different path.`,
+          status: 409,
         },
       }
     }
