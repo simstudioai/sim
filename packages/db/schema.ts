@@ -747,11 +747,6 @@ export const webhook = pgTable(
       pathIdx: uniqueIndex('path_deployment_unique')
         .on(table.path, table.deploymentVersionId)
         .where(sql`${table.archivedAt} IS NULL`),
-      // Optimize queries for webhooks by workflow and block
-      workflowBlockIdx: index('idx_webhook_on_workflow_id_block_id').on(
-        table.workflowId,
-        table.blockId
-      ),
       workflowDeploymentIdx: index('webhook_workflow_deployment_idx').on(
         table.workflowId,
         table.deploymentVersionId
