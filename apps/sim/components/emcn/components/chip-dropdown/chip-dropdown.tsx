@@ -112,6 +112,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(function C
     variant = 'filled',
     active,
     fullWidth,
+    flush,
   },
   ref
 ) {
@@ -149,7 +150,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(function C
           type='button'
           disabled={disabled}
           className={cn(
-            chipVariants({ variant, active, fullWidth }),
+            chipVariants({ variant, active, fullWidth, flush }),
             hasTriggerBorder && TRIGGER_BORDER_CLASS,
             className
           )}
