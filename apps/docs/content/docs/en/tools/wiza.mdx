@@ -151,9 +151,9 @@ Enrich a company by name, domain, LinkedIn ID, or LinkedIn slug with detailed fi
 | `company_country` | string | Country |
 | `credits` | json | Credits deducted for this enrichment \(api_credits: \{ total, company_credits \}\) |
 
-### `wiza_start_individual_reveal`
+### `wiza_individual_reveal`
 
-Start an individual reveal to enrich a contact via LinkedIn URL, name+company, or email
+Reveal a contact via LinkedIn URL, name + company/domain, or email. Starts the reveal and polls until it resolves. Uses 2 credits per valid email and 5 credits per phone, charged only on success.
 
 #### Input
 
@@ -168,26 +168,6 @@ Start an individual reveal to enrich a contact via LinkedIn URL, name+company, o
 | `email` | string | No | Email address \(use alone or with other identifiers\) |
 | `accept_work` | boolean | No | Whether to accept work emails \(email_options\) |
 | `accept_personal` | boolean | No | Whether to accept personal emails \(email_options\) |
-| `callback_url` | string | No | Optional URL to receive a callback with the reveal update |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `id` | number | Individual reveal ID \(use with Get Individual Reveal\) |
-| `status` | string | Reveal status: queued, resolving, finished, or failed |
-| `is_complete` | boolean | Whether the reveal has completed |
-
-### `wiza_get_individual_reveal`
-
-Retrieve the status and enriched data for an individual reveal by ID
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Wiza API key |
-| `id` | string | Yes | Individual reveal ID returned from Start Individual Reveal |
 
 #### Output
 
@@ -227,7 +207,7 @@ Retrieve the status and enriched data for an individual reveal by ID
 | `company_linkedin` | string | Company LinkedIn URL |
 | `company_location` | string | Full company location |
 | `company_description` | string | Company description |
-| `credits` | json | Credits deducted for this reveal \(api_credits: \{ total, email_credits, phone_credits, scrape_credits \}\) |
+| `credits` | json | Credits consumed by the reveal |
 
 ### `wiza_get_credits`
 
