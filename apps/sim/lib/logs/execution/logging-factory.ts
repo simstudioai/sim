@@ -165,19 +165,32 @@ export function calculateCostSummary(traceSpans: CostTraceSpan[] | undefined): C
     const costSpans: BillableTraceSpan[] = []
 
     for (const span of spans) {
+      // `workflow`-typed spans are aggregate containers, not billable units: the
+      // synthetic "Workflow Execution" root (added to every run by
+      // buildTraceSpans) and any nested sub-workflow root carry a `cost.total`
+      // equal to the SUM of their descendants. Counting that aggregate in
+      // addition to the descendants double-charges the run, so treat these as
+      // pass-through: never count their own cost, always recurse into all
+      // children where the real billable leaves (agents, tools) live.
+      const isAggregateContainer = span.type === 'workflow'
       const hasOwnCost = hasBillableCost(span)
-      if (hasOwnCost) {
+      const countOwnCost = hasOwnCost && !isAggregateContainer
+
+      if (countOwnCost) {
         costSpans.push(span)
       }
 
       if (span.children && Array.isArray(span.children)) {
-        if (hasOwnCost) {
-          // Parent already accounts for its model segments; only recurse into
-          // non-model children (e.g. nested workflow spans) to find further
-          // billable units.
+        if (countOwnCost) {
+          // Authoritative leaf (e.g. an agent block whose block-level cost is set
+          // by the provider response and already accounts for its model
+          // segments): only recurse into non-model children to find further
+          // standalone billable units, skipping the model-breakdown duplicates.
           const nonModelChildren = span.children.filter((child) => !isModelBreakdownSpan(child))
           costSpans.push(...collectCostSpans(nonModelChildren))
         } else {
+          // Container (workflow / sub-workflow root) or a no-cost parent: recurse
+          // into everything so nested billable leaves are counted exactly once.
           costSpans.push(...collectCostSpans(span.children))
         }
       }
