@@ -37,7 +37,14 @@ const {
 
 function makeBuilder(rows: any[]): any {
   const thenable: any = Promise.resolve(rows)
-  thenable.where = () => makeBuilder(rows)
+  thenable.where = (condition: any) => {
+    const values = condition?.values
+    if (Array.isArray(values) && values.length > 0) {
+      const target = String(values[values.length - 1]).toLowerCase()
+      return makeBuilder(rows.filter((r) => String(r.domain ?? '').toLowerCase() === target))
+    }
+    return makeBuilder(rows)
+  }
   thenable.limit = () => Promise.resolve(rows)
   thenable.orderBy = () => Promise.resolve(rows)
   return thenable

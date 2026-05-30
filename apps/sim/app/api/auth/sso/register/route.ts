@@ -83,15 +83,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const existingProviders = await db
       .select({
-        domain: ssoProvider.domain,
         userId: ssoProvider.userId,
         organizationId: ssoProvider.organizationId,
       })
       .from(ssoProvider)
       .where(sql`lower(${ssoProvider.domain}) = ${domain}`)
-    const conflictingProvider = existingProviders.find(
-      (provider) => normalizeSSODomain(provider.domain) === domain && !isOwnedByCaller(provider)
-    )
+    const conflictingProvider = existingProviders.find((provider) => !isOwnedByCaller(provider))
 
     if (conflictingProvider) {
       logger.warn('Rejected SSO registration for domain owned by another tenant', {
