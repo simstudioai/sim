@@ -77,7 +77,9 @@ export function resolveCellRender({
     // Value wins over pending-upstream: a finished column stays finished even
     // while other blocks in the group are still running. An empty string is not
     // a value — it falls through so a completed enrichment can show "Not found".
-    if (!isEmpty) return { kind: 'value', text: stringifyValue(value) }
+    // Format the value exactly like a plain cell (resource chip / URL / JSON /
+    // date / boolean), keeping the typewriter reveal for plain streaming text.
+    if (!isEmpty) return resolveValueKind(value, column, currentWorkspaceId, { typewriter: true })
 
     if (inFlight && !(groupHasBlockErrors && !blockRunning)) {
       // A `pending` cell whose jobId starts with `paused-` is mid-pause
@@ -103,35 +105,61 @@ export function resolveCellRender({
     return { kind: 'empty' }
   }
 
-  if (column.type === 'boolean') return { kind: 'boolean', checked: Boolean(value) }
-  if (isNull) return { kind: 'empty' }
-  if (column.type === 'json') return { kind: 'json', text: JSON.stringify(value) }
-  if (column.type === 'date') return { kind: 'date', text: String(value) }
-  if (column.type === 'string') {
-    const text = stringifyValue(value)
-    if (currentWorkspaceId) {
-      const resource = extractSimResourceInfo(text)
-      if (resource && resource.workspaceId === currentWorkspaceId) {
-        return {
-          kind: 'sim-resource',
-          workspaceId: resource.workspaceId,
-          resourceType: resource.resourceType,
-          resourceId: resource.resourceId,
-          href: resource.href,
-        }
-      }
-    }
-    const urlInfo = extractUrlInfo(text)
-    if (urlInfo) return { kind: 'url', text, href: urlInfo.href, domain: urlInfo.domain }
-    return { kind: 'text', text }
-  }
-  return { kind: 'text', text: stringifyValue(value) }
+  return resolveValueKind(value, column, currentWorkspaceId, { typewriter: false })
 }
 
 function stringifyValue(value: unknown): string {
   if (typeof value === 'string') return value
   if (value === null || value === undefined) return ''
   return JSON.stringify(value)
+}
+
+/** Returns a `sim-resource` cell kind when `text` is a URL pointing to a
+ *  resource in the current workspace, else null. Shared by plain string cells
+ *  and workflow-output value cells so both surface in-workspace resource links
+ *  as tagged chips. */
+function resolveSimResourceKind(
+  text: string,
+  currentWorkspaceId: string | undefined
+): Extract<CellRenderKind, { kind: 'sim-resource' }> | null {
+  if (!currentWorkspaceId) return null
+  const resource = extractSimResourceInfo(text)
+  if (!resource || resource.workspaceId !== currentWorkspaceId) return null
+  return {
+    kind: 'sim-resource',
+    workspaceId: resource.workspaceId,
+    resourceType: resource.resourceType,
+    resourceId: resource.resourceId,
+    href: resource.href,
+  }
+}
+
+/**
+ * Maps a present (non-empty) cell value to its render kind based on the column
+ * type — the shared formatter for plain cells and workflow-output value cells,
+ * so a workflow output renders booleans, JSON, dates, resource chips and URL
+ * links exactly like a normal cell. `typewriter` selects the plain-text
+ * fallback: `value` (animated reveal, for streaming workflow outputs) vs `text`
+ * (static, for plain cells).
+ */
+function resolveValueKind(
+  value: unknown,
+  column: DisplayColumn,
+  currentWorkspaceId: string | undefined,
+  opts: { typewriter: boolean }
+): CellRenderKind {
+  if (column.type === 'boolean') return { kind: 'boolean', checked: Boolean(value) }
+  if (value === null || value === undefined) return { kind: 'empty' }
+  if (column.type === 'json') return { kind: 'json', text: JSON.stringify(value) }
+  if (column.type === 'date') return { kind: 'date', text: String(value) }
+  const text = stringifyValue(value)
+  if (column.type === 'string') {
+    const simKind = resolveSimResourceKind(text, currentWorkspaceId)
+    if (simKind) return simKind
+    const urlInfo = extractUrlInfo(text)
+    if (urlInfo) return { kind: 'url', text, href: urlInfo.href, domain: urlInfo.domain }
+  }
+  return opts.typewriter ? { kind: 'value', text } : { kind: 'text', text }
 }
 
 const BARE_DOMAIN_RE = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/
