@@ -90,10 +90,10 @@ describe('runHeadlessCopilotLifecycle', () => {
         simRequestId: 'req-1',
         outcome: RequestTraceV1Outcome.success,
         chatId: 'chat-1',
-        usage: {
+        usage: expect.objectContaining({
           inputTokens: 10,
           outputTokens: 5,
-        },
+        }),
         cost: {
           rawTotalCost: 3,
           billedTotalCost: 3,

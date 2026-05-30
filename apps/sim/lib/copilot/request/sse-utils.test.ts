@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it } from 'vitest'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ToolExecutor,
@@ -35,7 +35,9 @@ describe('shouldSkipToolCallEvent', () => {
 
   it('keeps non-vfs generating placeholders visible', () => {
     expect(
-      shouldSkipToolCallEvent(toolCallEvent('search-generating-placeholder', 'search_online', undefined, true))
+      shouldSkipToolCallEvent(
+        toolCallEvent('search-generating-placeholder', 'search_online', undefined, true)
+      )
     ).toBe(false)
   })
 })
