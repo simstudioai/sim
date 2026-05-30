@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import { account, credentialSetMember, webhook, workflowDeploymentVersion } from '@sim/db/schema'
+import {
+  account,
+  credentialSetMember,
+  webhook,
+  workflow,
+  workflowDeploymentVersion,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
@@ -28,8 +34,8 @@ const CREDENTIAL_SET_PREFIX = 'credentialSet:'
  * the given path, or `null` if the path is free or owned by this workflow.
  * Guards against cross-tenant path collisions, since paths are user-controlled
  * and only unique per deployment version. Mirrors the runtime dispatcher's
- * `isActive`/`archivedAt` filter so inactive (e.g. undeployed) webhooks — which
- * never receive deliveries — don't permanently reserve a path.
+ * filter (active, non-archived webhook on a non-archived workflow) so webhooks
+ * that can never receive deliveries don't permanently reserve a path.
  */
 async function findConflictingWebhookPathOwner(params: {
   path: string
@@ -40,7 +46,15 @@ async function findConflictingWebhookPathOwner(params: {
   const existing = await db
     .select({ workflowId: webhook.workflowId })
     .from(webhook)
-    .where(and(eq(webhook.path, path), eq(webhook.isActive, true), isNull(webhook.archivedAt)))
+    .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+    .where(
+      and(
+        eq(webhook.path, path),
+        eq(webhook.isActive, true),
+        isNull(webhook.archivedAt),
+        isNull(workflow.archivedAt)
+      )
+    )
 
   const conflict = existing.find((row) => row.workflowId !== workflowId)
   return conflict ? conflict.workflowId : null
