@@ -1,7 +1,7 @@
 import { db, member, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -88,6 +88,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         organizationId: ssoProvider.organizationId,
       })
       .from(ssoProvider)
+      .where(eq(sql`lower(${ssoProvider.domain})`, domain))
     const conflictingProvider = existingProviders.find(
       (provider) => normalizeSSODomain(provider.domain) === domain && !isOwnedByCaller(provider)
     )
