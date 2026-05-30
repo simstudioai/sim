@@ -3061,9 +3061,16 @@ export async function updateColumnConstraints(
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(data.tableId, async (table, trx) => {
-    await setTableTxTimeouts(trx, {
-      statementMs: scaledStatementTimeoutMs(table.rowCount ?? 0, { baseMs: 60_000, perRowMs: 2 }),
+    // Scale both statement and idle timeouts to row count: the required/unique
+    // validation runs between separate queries inside this transaction, leaving
+    // it briefly idle. Match `updateColumnType` so the default 5s
+    // `idle_in_transaction_session_timeout` can't abort a valid change on a
+    // large table.
+    const timeoutMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
+      baseMs: 60_000,
+      perRowMs: 2,
     })
+    await setTableTxTimeouts(trx, { statementMs: timeoutMs, idleMs: timeoutMs })
 
     const schema = table.schema
     const columnIndex = schema.columns.findIndex(
