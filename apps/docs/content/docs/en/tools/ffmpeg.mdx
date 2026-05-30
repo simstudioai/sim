@@ -34,8 +34,9 @@ Pick an **Operation**, supply the input file, and fill in the fields shown for t
 **Notes & limits.**
 - **Concatenate** uses FFmpeg's concat demuxer with stream copy, so all inputs must share the same codec, resolution, and format (typical for clips exported from one source). Mixed-codec inputs will fail.
 - **Change Speed** automatically retimes whichever streams exist — video via `setpts`, audio via `atempo` (chained for speeds beyond 0.5×–2×).
-- Input and output files are capped at 200 MB each.
-- Requires the FFmpeg binary on the server (bundled via `ffmpeg-static`; `ffprobe` from the system PATH is needed for **Get Media Info**).
+- Input and output files are capped at 200 MB each (this includes the joined output of **Concatenate**).
+- **Scale** and **Volume** accept only `width:height` dimensions and numeric/decibel values respectively — other characters are rejected.
+- Requires the FFmpeg binary on the server (bundled via `ffmpeg-static`). `ffprobe` from the system PATH is additionally needed for **Get Media Info** and **Change Speed** (which inspects streams before retiming).
 {/* MANUAL-CONTENT-END */}
 
 

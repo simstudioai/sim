@@ -192,7 +192,10 @@ function probeMedia(inputPath: string): Promise<ProbeResult> {
   return new Promise<ProbeResult>((resolve, reject) => {
     ffmpeg.ffprobe(inputPath, (err, metadata) => {
       if (err) {
-        reject(new Error(`FFprobe error: ${err.message}`))
+        const message = /cannot find ffprobe|ENOENT|not found/i.test(err.message)
+          ? 'ffprobe binary not found. Install it on the server (it ships with a full ffmpeg install: apk add ffmpeg / apt-get install ffmpeg / brew install ffmpeg).'
+          : `FFprobe error: ${err.message}`
+        reject(new Error(message))
         return
       }
       const videoStream = metadata.streams.find((s) => s.codec_type === 'video')
@@ -245,6 +248,18 @@ function buildAtempoChain(speed: number): string {
 function normalizeScale(scale: string): string {
   return scale.trim().replace(/x/gi, ':')
 }
+
+/**
+ * Strict `width:height` form (each a positive integer or a negative auto value
+ * like -1/-2). Rejects anything that could append extra filter stages.
+ */
+const SCALE_FILTER_PATTERN = /^-?\d{1,5}:-?\d{1,5}$/
+
+/**
+ * A linear multiplier (`1.5`, `0.5`) or a decibel value (`10dB`, `-6dB`).
+ * Rejects commas, brackets, and any other filter-graph metacharacters.
+ */
+const VOLUME_FILTER_PATTERN = /^-?\d+(\.\d+)?(dB)?$/i
 
 async function storeOutputFile(
   buffer: Buffer,
@@ -367,21 +382,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           .output(outputPath)
       )
 
-      const outputBuffer = await fs.readFile(outputPath)
       const mimeType = getMimeForFormat(outExt)
-      const fileName = `ffmpeg-concat-${Date.now()}.${outExt}`
-      const file = await storeOutputFile(
-        outputBuffer,
-        fileName,
-        mimeType,
-        executionContext,
-        authResult.userId
-      )
-
-      return NextResponse.json({
-        success: true,
-        output: { file, fileName, format: outExt, size: outputBuffer.length },
-      })
+      return await finalize(outputPath, outExt, mimeType, executionContext, authResult.userId)
     }
 
     // Single-input operations
@@ -451,12 +453,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (operation === 'compress') {
+      let scaleFilter: string | undefined
+      if (body.scale) {
+        scaleFilter = normalizeScale(body.scale)
+        if (!SCALE_FILTER_PATTERN.test(scaleFilter)) {
+          return NextResponse.json(
+            { error: 'Invalid scale. Use width:height with integers, e.g. 1280:720 or 1280:-2' },
+            { status: 400 }
+          )
+        }
+      }
       const outputPath = path.join(tempDir, `output.${outExt}`)
       await runFfmpeg((cmd) => {
-        let c = cmd.input(inputPath).videoCodec(body.videoCodec || 'libx264')
+        let c = cmd
+          .input(inputPath)
+          .videoCodec(body.videoCodec || 'libx264')
+          .audioCodec(body.audioCodec || 'copy')
         if (body.crf !== undefined) c = c.outputOptions(['-crf', String(body.crf)])
         if (body.videoBitrate) c = c.videoBitrate(body.videoBitrate)
-        if (body.scale) c = c.videoFilters(`scale=${normalizeScale(body.scale)}`)
+        if (scaleFilter) c = c.videoFilters(`scale=${scaleFilter}`)
         return c.toFormat(outExt).output(outputPath)
       })
       return await finalize(outputPath, outExt, mimeType, executionContext, authResult.userId)
@@ -480,10 +495,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { status: 400 }
         )
       }
+      const volume = body.volume.trim()
+      if (!VOLUME_FILTER_PATTERN.test(volume)) {
+        return NextResponse.json(
+          { error: 'Invalid volume. Use a multiplier (e.g. 1.5) or decibels (e.g. 10dB, -6dB)' },
+          { status: 400 }
+        )
+      }
       const outputPath = path.join(tempDir, `output.${outExt}`)
       const isVideo = isVideoExtension(inputExt)
       await runFfmpeg((cmd) => {
-        let c = cmd.input(inputPath).audioFilters(`volume=${body.volume}`)
+        let c = cmd.input(inputPath).audioFilters(`volume=${volume}`)
         if (isVideo) c = c.outputOptions(['-c:v', 'copy'])
         return c.toFormat(outExt).output(outputPath)
       })
