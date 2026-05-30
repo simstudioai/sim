@@ -238,7 +238,7 @@ export const FfmpegBlock: BlockConfig<FfmpegFileResponse> = {
           videoBitrate: params.videoBitrate,
           time: params.time,
           volume: params.volume,
-          speed: parseOptionalNumberInput(params.speed, 'Speed', { min: 0 }),
+          speed: parseOptionalNumberInput(params.speed, 'Speed', { min: 0.1, max: 100 }),
         }
       },
     },

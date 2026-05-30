@@ -56,7 +56,11 @@ export const ffmpegToolBodySchema = z
     /** Volume adjustment: a multiplier (`1.5`, `0.5`) or decibel value (`10dB`, `-6dB`). */
     volume: z.string().min(1).max(16).optional(),
     /** Playback speed multiplier for the `speed` operation (0.5 = half, 2 = double). */
-    speed: z.coerce.number().positive().max(100).optional(),
+    speed: z.coerce
+      .number()
+      .min(0.1, 'speed must be at least 0.1 (10x slower)')
+      .max(100, 'speed must be at most 100 (100x faster)')
+      .optional(),
     workspaceId: z.string().optional(),
     workflowId: z.string().optional(),
     executionId: z.string().optional(),

@@ -139,16 +139,26 @@ function getAudioCodec(format: string): string {
 }
 
 /**
- * Derives a sensible file extension for an input temp file from its name or MIME type.
+ * Reduces a user- or filename-derived extension to a safe `[a-z0-9]` token.
+ * Strips path separators, dots, and other metacharacters so the value can be
+ * interpolated into a temp file name without enabling path traversal.
+ */
+function safeExtension(value: string | undefined): string {
+  return (value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 8)
+}
+
+/**
+ * Derives a safe file extension for an input temp file from its name or MIME type.
  */
 function getInputExtension(file: UserFile): string {
-  const fromName = path
-    .extname(file.name || '')
-    .replace('.', '')
-    .toLowerCase()
+  const fromName = safeExtension(path.extname(file.name || ''))
   if (fromName) return fromName
-  const subtype = (file.type || '').split('/')[1]
-  return subtype ? subtype.toLowerCase() : 'dat'
+  const subtype = safeExtension((file.type || '').split('/')[1])
+  return subtype || 'dat'
 }
 
 function isVideoExtension(ext: string): boolean {
@@ -402,13 +412,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let mimeType = getMimeForFormat(inputExt)
 
     if (operation === 'convert') {
-      if (!body.format) {
+      outExt = safeExtension(body.format)
+      if (!outExt) {
         return NextResponse.json(
-          { error: 'format is required for the convert operation' },
+          { error: 'A valid output format is required for the convert operation (e.g. mp4, mp3)' },
           { status: 400 }
         )
       }
-      outExt = body.format.trim().toLowerCase()
       mimeType = getMimeForFormat(outExt)
       const outputPath = path.join(tempDir, `output.${outExt}`)
       await runFfmpeg((cmd) => {
@@ -421,7 +431,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (operation === 'extract_audio') {
-      outExt = (body.format?.trim() || 'mp3').toLowerCase()
+      outExt = safeExtension(body.format) || 'mp3'
       mimeType = getMimeForFormat(outExt)
       const outputPath = path.join(tempDir, `output.${outExt}`)
       await runFfmpeg((cmd) =>
@@ -478,7 +488,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (operation === 'thumbnail') {
-      outExt = (body.format?.trim() || 'jpg').toLowerCase()
+      outExt = safeExtension(body.format) || 'jpg'
       mimeType = getMimeForFormat(outExt)
       const time = body.time || '00:00:01'
       const outputPath = path.join(tempDir, `output.${outExt}`)
@@ -553,13 +563,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     context: ExecutionContext | null,
     userId?: string
   ): Promise<NextResponse> {
-    const outputBuffer = await fs.readFile(outputPath)
-    if (outputBuffer.length === 0) {
+    // Check size via stat before reading so an oversized output is rejected
+    // without first pulling the entire file into memory.
+    const { size: outputSize } = await fs.stat(outputPath)
+    if (outputSize === 0) {
       throw new Error('FFmpeg produced an empty output file')
     }
-    if (outputBuffer.length > MAX_FFMPEG_OUTPUT_BYTES) {
+    if (outputSize > MAX_FFMPEG_OUTPUT_BYTES) {
       throw new Error('Output file exceeds the maximum allowed size')
     }
+    const outputBuffer = await fs.readFile(outputPath)
     const fileName = `ffmpeg-${operation}-${Date.now()}.${format}`
     const file = await storeOutputFile(outputBuffer, fileName, mimeType, context, userId)
     logger.info(`[${requestId}] FFmpeg ${operation} completed`, {
