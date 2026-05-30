@@ -77,8 +77,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: string | null
       organizationId: string | null
     }): boolean => {
-      if (orgId) return provider.organizationId === orgId
-      return provider.userId === session.user.id && !provider.organizationId
+      if (provider.userId === session.user.id && !provider.organizationId) return true
+      return orgId ? provider.organizationId === orgId : false
     }
 
     const existingProviders = await db

@@ -169,6 +169,22 @@ describe('POST /api/auth/sso/register', () => {
     expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
   })
 
+  it('lets an org admin adopt their own user-scoped provider for the same domain', async () => {
+    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
+    dbState.providers = [{ domain: 'acme.com', userId: 'u1', organizationId: null }]
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    expect(res.status).toBe(200)
+    expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
+  })
+
+  it("still blocks an org admin from claiming another user's user-scoped domain", async () => {
+    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
+    dbState.providers = [{ domain: 'acme.com', userId: 'someone-else', organizationId: null }]
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    expect(res.status).toBe(409)
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
   it('normalizes the domain before persisting it', async () => {
     dbState.members = [{ organizationId: 'org1', role: 'owner' }]
     const res = await POST(request({ ...OIDC_BODY, domain: 'ACME.com', orgId: 'org1' }))
