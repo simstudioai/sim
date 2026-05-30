@@ -14,7 +14,7 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Design,
   tags: ['image-generation'],
-  bgColor: '#000000',
+  bgColor: '#FFFFFF',
   icon: QuiverIcon,
   authMode: AuthMode.ApiKey,
   subBlocks: [

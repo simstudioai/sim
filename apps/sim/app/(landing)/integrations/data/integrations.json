@@ -10922,7 +10922,7 @@
     "name": "Quiver",
     "description": "Generate and vectorize SVGs",
     "longDescription": "Generate SVG images from text prompts or vectorize raster images into SVGs using QuiverAI. Supports reference images, style instructions, and multiple output generation.",
-    "bgColor": "#000000",
+    "bgColor": "#FFFFFF",
     "iconName": "QuiverIcon",
     "docsUrl": "https://docs.sim.ai/tools/quiver",
     "operations": [
