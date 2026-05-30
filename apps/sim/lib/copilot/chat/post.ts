@@ -457,12 +457,19 @@ function buildOnComplete(params: {
         return
       }
 
+      // On a non-success terminal (e.g. a transient provider error like
+      // "overloaded"), persist whatever streamed before the failure — same as
+      // the cancelled path — instead of dropping the partial assistant output.
+      const assistantMessage = buildPersistedAssistantMessage(result, requestId)
+      const hasPartial =
+        !!assistantMessage.content?.trim() || (assistantMessage.contentBlocks?.length ?? 0) > 0
       await finalizeAssistantTurn({
         chatId,
         userMessageId,
-        ...(result.success
-          ? { assistantMessage: buildPersistedAssistantMessage(result, requestId) }
-          : {}),
+        ...(result.success || hasPartial ? { assistantMessage } : {}),
+        // Match the cancelled path so the partial still persists if onError
+        // raced ahead and already cleared the stream marker.
+        ...(result.success ? {} : { streamMarkerPolicy: 'active-or-cleared' as const }),
       })
 
       if (notifyWorkspaceStatus && workspaceId) {
