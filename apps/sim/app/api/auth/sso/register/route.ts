@@ -88,7 +88,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         organizationId: ssoProvider.organizationId,
       })
       .from(ssoProvider)
-      .where(eq(sql`lower(${ssoProvider.domain})`, domain))
+      .where(sql`lower(${ssoProvider.domain}) = ${domain}`)
     const conflictingProvider = existingProviders.find(
       (provider) => normalizeSSODomain(provider.domain) === domain && !isOwnedByCaller(provider)
     )
