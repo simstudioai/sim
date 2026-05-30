@@ -1,16 +1,14 @@
 import { db } from '@sim/db'
 import { document, knowledgeBase, workspaceFile } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, isNull, like, or } from 'drizzle-orm'
+import { and, eq, isNull, like, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { getEnv } from '@/lib/core/config/env'
-import { getBaseUrl, getInternalApiBaseUrl, parseOriginList } from '@/lib/core/utils/urls'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { BLOB_CHAT_CONFIG, S3_CHAT_CONFIG } from '@/lib/uploads/config'
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
-import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { isUuid } from '@/executor/constants'
 
@@ -373,71 +371,8 @@ async function verifyCopilotFileAccess(
 }
 
 /**
- * Origins this app legitimately serves files from: the public base URL, the
- * internal API base URL, and any configured `TRUSTED_ORIGINS`. A document
- * `fileUrl` only authorizes storage access when it is relative (same-origin) or
- * absolute with one of these origins.
- */
-function getInternalServeOrigins(): Set<string> {
-  const origins = new Set<string>()
-  for (const resolve of [getBaseUrl, getInternalApiBaseUrl]) {
-    try {
-      origins.add(new URL(resolve()).origin)
-    } catch {
-      // NEXT_PUBLIC_APP_URL unset/invalid — skip; relative fileUrls still resolve.
-    }
-  }
-  for (const origin of parseOriginList(getEnv('TRUSTED_ORIGINS'))) {
-    origins.add(origin)
-  }
-  return origins
-}
-
-/**
- * Resolve a knowledge-base document's stored `fileUrl` to the canonical storage
- * key it points at, but only for internal Sim file-serve URLs.
- *
- * Relative paths are same-origin by definition; absolute URLs must match an
- * internal serve origin. A foreign host that embeds `/api/files/serve/` in its
- * path, and `data:` URIs, return `null` so an attacker-planted document can
- * never authorize access to another tenant's storage object.
- */
-function resolveInternalKbKey(fileUrl: string | null, allowedOrigins: Set<string>): string | null {
-  if (!fileUrl) {
-    return null
-  }
-  let pathname: string
-  if (fileUrl.startsWith('/')) {
-    pathname = fileUrl
-  } else {
-    try {
-      const parsed = new URL(fileUrl)
-      if (!allowedOrigins.has(parsed.origin)) {
-        return null
-      }
-      pathname = parsed.pathname
-    } catch {
-      return null
-    }
-  }
-  if (!pathname.startsWith('/api/files/serve/')) {
-    return null
-  }
-  const key = extractStorageKey(pathname)
-  return key.startsWith('kb/') ? key : null
-}
-
-/**
  * Verify access to KB files
  * KB files: kb/filename
- *
- * Access is authorized against the workspace that *owns* the storage object,
- * never against an arbitrary document that merely references it. The owner is the
- * earliest document (in any state) whose `fileUrl` canonically resolves to the
- * exact requested key — not a substring/`LIKE` match. Access is granted only when
- * that owning document is still active; an archived or deleted owner keeps the file
- * retired, and a document planted later in another workspace can never become the
- * owner.
  */
 async function verifyKBFileAccess(
   cloudKey: string,
@@ -445,79 +380,44 @@ async function verifyKBFileAccess(
   customConfig?: StorageConfig
 ): Promise<boolean> {
   try {
-    // Ownership spans every document state: the earliest document to reference the key owns
-    // it, so a document planted later in another workspace can never claim a file whose
-    // original document was archived or deleted. LIKE only narrows candidates; the exact
-    // owner is resolved below.
-    const candidateDocuments = await db
+    const activeKbFileDocuments = await db
       .select({
         workspaceId: knowledgeBase.workspaceId,
-        fileUrl: document.fileUrl,
-        archivedAt: document.archivedAt,
-        deletedAt: document.deletedAt,
-        userExcluded: document.userExcluded,
-        kbDeletedAt: knowledgeBase.deletedAt,
       })
       .from(document)
       .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
       .where(
-        or(
-          like(document.fileUrl, `%${cloudKey}%`),
-          like(document.fileUrl, `%${encodeURIComponent(cloudKey)}%`)
+        and(
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt),
+          isNull(knowledgeBase.deletedAt),
+          or(
+            like(document.fileUrl, `%${cloudKey}%`),
+            like(document.fileUrl, `%${encodeURIComponent(cloudKey)}%`)
+          )
         )
       )
-      .orderBy(asc(document.uploadedAt))
-      .limit(50)
+      .limit(10)
 
-    const allowedOrigins = getInternalServeOrigins()
-    const owningDocument = candidateDocuments.find(
-      (doc) => resolveInternalKbKey(doc.fileUrl, allowedOrigins) === cloudKey
-    )
-
-    if (owningDocument) {
-      const isActive =
-        !owningDocument.archivedAt &&
-        !owningDocument.deletedAt &&
-        !owningDocument.userExcluded &&
-        !owningDocument.kbDeletedAt
-
-      // The owning document is archived/deleted/excluded: the file is retired and not served,
-      // and the attacker's later active document is not the owner, so it cannot claim it.
-      if (!isActive) {
-        logger.warn('KB file access denied: owning document is not active', { userId, cloudKey })
-        return false
+    for (const doc of activeKbFileDocuments) {
+      if (!doc.workspaceId) {
+        continue
       }
 
-      if (!owningDocument.workspaceId) {
-        logger.warn('KB file access denied: owning document has no workspace', {
-          userId,
-          cloudKey,
-        })
-        return false
-      }
-
-      const permission = await getUserEntityPermissions(
-        userId,
-        'workspace',
-        owningDocument.workspaceId
-      )
+      const permission = await getUserEntityPermissions(userId, 'workspace', doc.workspaceId)
       if (permission !== null) {
-        logger.debug('KB file access granted (owning document lookup)', {
+        logger.debug('KB file access granted (active document lookup)', {
           userId,
-          workspaceId: owningDocument.workspaceId,
+          workspaceId: doc.workspaceId,
           cloudKey,
         })
         return true
       }
-      logger.warn('KB file access denied: user lacks permission on owning workspace', {
-        userId,
-        workspaceId: owningDocument.workspaceId,
-        cloudKey,
-      })
-      return false
     }
 
-    // No owning document: metadata only lets us flag the deleted-file case; it never grants access.
+    // KB file access must resolve through an active KB document. Metadata alone is not enough
+    // because parent archives intentionally keep the underlying file bytes around for history.
     const fileRecord = await getFileMetadataByKey(cloudKey, 'knowledge-base', {
       includeDeleted: true,
     })
@@ -527,7 +427,7 @@ async function verifyKBFileAccess(
       return false
     }
 
-    logger.warn('KB file access denied because no owning KB document matched the file', {
+    logger.warn('KB file access denied because no active KB document matched the file', {
       cloudKey,
       userId,
     })
