@@ -114,19 +114,16 @@ function sanitizeFilename(name: string): string {
 }
 
 /**
- * Prefixes a single quote to values that spreadsheet applications would otherwise
- * interpret as formulas, preventing CSV formula injection when an exported file is
- * opened in Excel, LibreOffice, or Google Sheets. JSON exports preserve raw values.
+ * Prefixes a single quote to values starting with a spreadsheet formula trigger
+ * (`=`, `+`, `-`, `@`, tab, CR), neutralizing CSV injection in Excel/Sheets.
  */
 function neutralizeCsvFormula(value: string): string {
   return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
 }
 
 /**
- * Serializes a cell for CSV output. Only string cells are run through
- * {@link neutralizeCsvFormula}: numbers, booleans, dates, and JSON-serialized
- * objects can never stringify into a spreadsheet formula trigger, so they are
- * emitted verbatim to preserve fidelity (e.g. negative numbers stay numeric).
+ * Serializes a cell for CSV. Only string cells are formula-neutralized; numbers,
+ * booleans, dates, and JSON objects can never form a trigger and pass through verbatim.
  */
 function formatCsvValue(value: unknown): string {
   if (value === null || value === undefined) return ''

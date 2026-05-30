@@ -412,9 +412,7 @@ async function verifyKBFileAccess(
   customConfig?: StorageConfig
 ): Promise<boolean> {
   try {
-    // The `LIKE` predicate only narrows candidates cheaply; it never decides
-    // authorization. Ordering by `uploadedAt` lets us pin ownership to the
-    // earliest document, which is the one the file was originally uploaded for.
+    // LIKE only narrows candidates; ownership is decided below, pinned to the earliest upload.
     const candidateDocuments = await db
       .select({
         workspaceId: knowledgeBase.workspaceId,
@@ -437,12 +435,8 @@ async function verifyKBFileAccess(
       .orderBy(asc(document.uploadedAt))
       .limit(50)
 
-    // The owner is the earliest document whose fileUrl resolves to EXACTLY this
-    // storage key. Substring-only matches (e.g. an external URL that happens to
-    // contain the key) and documents in other workspaces that merely reference
-    // the key do not establish ownership. Pinning to the earliest match means a
-    // later document planted in the caller's own workspace can never authorize
-    // access to a file another workspace originally uploaded.
+    // Owner is the earliest document whose fileUrl resolves to EXACTLY this key; substring
+    // matches and cross-workspace references never establish ownership.
     const owningDocument = candidateDocuments.find(
       (doc) => resolveInternalKbKey(doc.fileUrl) === cloudKey
     )
@@ -477,9 +471,7 @@ async function verifyKBFileAccess(
       return false
     }
 
-    // KB file access must resolve through an active KB document that canonically
-    // owns the key. Metadata alone is not enough because parent archives
-    // intentionally keep the underlying file bytes around for history.
+    // No owning document: metadata only lets us flag the deleted-file case; it never grants access.
     const fileRecord = await getFileMetadataByKey(cloudKey, 'knowledge-base', {
       includeDeleted: true,
     })

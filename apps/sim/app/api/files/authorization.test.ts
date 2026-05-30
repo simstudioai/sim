@@ -67,8 +67,7 @@ describe('verifyKBFileAccess', () => {
   })
 
   it('denies access via an external URL that merely contains the key as a substring', async () => {
-    // The demonstrated PoC: a planted document whose fileUrl is an unrelated
-    // external URL containing the victim key. It must never authorize storage.
+    // PoC: a planted external URL containing the victim key must never authorize storage.
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
         workspaceId: 'ws-attacker',
@@ -83,8 +82,7 @@ describe('verifyKBFileAccess', () => {
   })
 
   it('denies a later document planted in another workspace (ownership pins to earliest doc)', async () => {
-    // db query orders by uploadedAt asc, so the owning (victim) document comes
-    // first; the attacker's later internal-URL document must not grant access.
+    // Ordered by uploadedAt asc: the victim owns the key, so the attacker's later doc is ignored.
     dbChainMockFns.limit.mockResolvedValueOnce([
       { workspaceId: 'ws-victim', fileUrl: internalUrlFor(VICTIM_KEY) },
       { workspaceId: 'ws-attacker', fileUrl: internalUrlFor(VICTIM_KEY) },
@@ -142,8 +140,7 @@ describe('verifyKBFileAccess', () => {
   })
 
   it('does not let a later workspace document override a null-workspace owner', async () => {
-    // The earliest (owning) document belongs to a workspace-less KB; a later
-    // document planted in the attacker's workspace must not become the owner.
+    // Earliest owner has no workspace; a later attacker-workspace doc must not become owner.
     dbChainMockFns.limit.mockResolvedValueOnce([
       { workspaceId: null, fileUrl: internalUrlFor(VICTIM_KEY) },
       { workspaceId: 'ws-attacker', fileUrl: internalUrlFor(VICTIM_KEY) },
