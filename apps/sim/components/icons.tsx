@@ -4749,7 +4749,7 @@ export function ZoomIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' aria-hidden='true'>
       <rect x='2' y='6' width='14' height='12' rx='2.5' fill='currentColor' />
-      <path d='M16 9 L22 6 V18 L16 15 Z' fill='#0B5CFF' />
+      <path d='M16 9 L22 6 V18 L16 15 Z' fill='currentColor' />
     </svg>
   )
 }
@@ -4985,7 +4985,7 @@ export function DynamoDBIcon(props: SVGProps<SVGSVGElement>) {
 export function IAMIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   return (
-    <svg {...props} viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'>
+    <svg {...props} viewBox='5 5 70 70' xmlns='http://www.w3.org/2000/svg'>
       <defs>
         <linearGradient x1='0%' y1='100%' x2='100%' y2='0%' id={id}>
           <stop stopColor='#BD0816' offset='0%' />
@@ -5004,7 +5004,7 @@ export function IAMIcon(props: SVGProps<SVGSVGElement>) {
 export function IdentityCenterIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   return (
-    <svg {...props} viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'>
+    <svg {...props} viewBox='23.75 23.75 32.5 32.5' xmlns='http://www.w3.org/2000/svg'>
       <defs>
         <linearGradient x1='0%' y1='100%' x2='100%' y2='0%' id={id}>
           <stop stopColor='#BD0816' offset='0%' />
@@ -5023,7 +5023,7 @@ export function IdentityCenterIcon(props: SVGProps<SVGSVGElement>) {
 export function STSIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   return (
-    <svg {...props} viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'>
+    <svg {...props} viewBox='5 5 70 70' xmlns='http://www.w3.org/2000/svg'>
       <defs>
         <linearGradient x1='0%' y1='100%' x2='100%' y2='0%' id={id}>
           <stop stopColor='#BD0816' offset='0%' />
@@ -5042,7 +5042,7 @@ export function STSIcon(props: SVGProps<SVGSVGElement>) {
 export function SESIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   return (
-    <svg {...props} viewBox='2.44 2.44 75.12 75.12' xmlns='http://www.w3.org/2000/svg'>
+    <svg {...props} viewBox='5 5 70 70' xmlns='http://www.w3.org/2000/svg'>
       <defs>
         <linearGradient x1='0%' y1='100%' x2='100%' y2='0%' id={id}>
           <stop stopColor='#BD0816' offset='0%' />
@@ -5061,7 +5061,7 @@ export function SESIcon(props: SVGProps<SVGSVGElement>) {
 export function SecretsManagerIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   return (
-    <svg {...props} viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'>
+    <svg {...props} viewBox='5 5 70 70' xmlns='http://www.w3.org/2000/svg'>
       <defs>
         <linearGradient x1='0%' y1='100%' x2='100%' y2='0%' id={id}>
           <stop stopColor='#BD0816' offset='0%' />
@@ -5414,7 +5414,7 @@ export function SSHIcon(props: SVGProps<SVGSVGElement>) {
 
 export function DagsterIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} viewBox='21 21 518 518' fill='none' xmlns='http://www.w3.org/2000/svg'>
+    <svg {...props} viewBox='56 56 448 448.001' fill='none' xmlns='http://www.w3.org/2000/svg'>
       <path
         d='M221.56 440.82C221.56 442.77 221.97 444.7 222.76 446.49C223.54 448.29 224.69 449.89 226.13 451.22C227.56 452.55 229.25 453.57 231.1 454.21C232.95 454.85 234.91 455.11 236.85 454.96C310.94 449.66 380.91 397.22 403.25 315.33C404.43 310.62 407.96 308.26 412.67 308.26C415.08 308.36 417.36 309.4 419.01 311.17C420.66 312.93 421.55 315.28 421.48 317.69C421.48 335.95 398.01 383.67 364.44 411.37C362.73 412.81 361.37 414.61 360.45 416.65C359.54 418.69 359.09 420.91 359.15 423.15C359.19 424.97 359.58 426.76 360.31 428.43C361.04 430.09 362.09 431.6 363.4 432.86C364.71 434.11 366.25 435.1 367.95 435.76C369.64 436.42 371.45 436.74 373.26 436.7C376.21 436.7 380.91 434.93 386.8 429.63C410.27 408.41 455 348.91 455 283.51C455 187.62 380.87 105 277.42 105C185.11 105 105.14 180.41 105.14 267.61C105.14 325.35 151 368.94 211.56 368.94C258.02 368.94 300.95 335.95 312.71 290.58C313.88 285.87 317.4 283.51 322.11 283.51C324.52 283.61 326.8 284.65 328.46 286.42C330.11 288.18 331 290.52 330.93 292.94C330.93 313.56 292.12 385.48 213.33 385.48C194.51 385.48 171 380.18 154.52 370.75C152.32 369.68 149.92 369.08 147.47 368.98C145.59 368.91 143.73 369.22 141.98 369.91C140.23 370.59 138.65 371.63 137.32 372.96C136 374.29 134.96 375.88 134.28 377.63C133.6 379.38 133.28 381.25 133.36 383.12C133.44 385.52 134.12 387.87 135.36 389.93C136.59 391.99 138.33 393.7 140.41 394.9C162.17 407.33 188.05 413.76 214.5 413.76C280.36 413.76 340.34 368.98 357.98 303C359.15 298.29 362.69 295.93 367.38 295.93C369.8 296.02 372.08 297.07 373.73 298.83C375.38 300.6 376.27 302.94 376.21 305.36C376.21 332.46 327.99 419.66 235.09 426.73C231.49 426.99 228.12 428.58 225.63 431.18C223.13 433.78 221.68 437.21 221.56 440.82V440.82Z'
         fill='#4F43DD'
@@ -6957,7 +6957,7 @@ export function VercelIcon(props: SVGProps<SVGSVGElement>) {
 
 export function CloudflareIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'>
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='16.843 67.616 478.418 356.61'>
       <path
         fill='#f38020'
         d='M331 326c11-26-4-38-19-38l-148-2c-4 0-4-6 1-7l150-2c17-1 37-15 43-33 0 0 10-21 9-24a97 97 0 0 0-187-11c-38-25-78 9-69 46-48 3-65 46-60 72 0 1 1 2 3 2h274c1 0 3-1 3-3z'
