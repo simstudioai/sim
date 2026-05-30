@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
+import { copilotChats, copilotMessages } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   authorizeWorkflowByWorkspacePermission,
   getActiveWorkflowRecord,
 } from '@sim/workflow-authz'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import {
   assertActiveWorkspaceAccess,
   checkWorkspaceAccess,
@@ -35,20 +35,31 @@ const copilotChatAuthColumns = {
 } as const
 
 /**
- * Column set for chat-detail callers that need the conversation transcript but
- * not the copilot-only TOAST-able fields (`previewYaml`, `planArtifact`,
- * `config`) or unused metadata (`model`, `pinned`, `lastSeenAt`). Selecting
- * only these columns avoids the Postgres detoast cost on the dropped fields,
- * which dominates latency for chats with large message histories.
+ * Column set for chat-detail callers that need chat metadata. The conversation
+ * transcript is no longer selected from `copilot_chats.messages` (JSONB) —
+ * reads now source it from the normalized `copilot_messages` table via
+ * `loadCopilotChatMessages`, which avoids detoasting the large messages blob on
+ * every load. The copilot-only TOAST-able fields (`previewYaml`,
+ * `planArtifact`, `config`) and unused metadata (`model`, `pinned`,
+ * `lastSeenAt`) remain excluded.
  */
 const copilotChatDetailColumns = {
   ...copilotChatAuthColumns,
   title: copilotChats.title,
-  messages: copilotChats.messages,
   conversationId: copilotChats.conversationId,
   resources: copilotChats.resources,
   createdAt: copilotChats.createdAt,
   updatedAt: copilotChats.updatedAt,
+} as const
+
+/**
+ * Returning column set for newly-inserted chats. A fresh chat has no
+ * `copilot_messages` rows yet, so the transcript is the just-inserted empty
+ * JSONB array — return it directly rather than issuing a second query.
+ */
+const copilotChatDetailReturningColumns = {
+  ...copilotChatDetailColumns,
+  messages: copilotChats.messages,
 } as const
 
 /**
@@ -63,6 +74,27 @@ const copilotChatLegacyDetailColumns = {
   planArtifact: copilotChats.planArtifact,
   config: copilotChats.config,
 } as const
+
+/**
+ * Load a chat's transcript from the normalized `copilot_messages` table in
+ * canonical order (`seq` first, then `created_at`/`id` as a deterministic
+ * tiebreak; `NULLS LAST` so any not-yet-sequenced row sorts after sequenced
+ * ones). Each row's `content` is the full message object — identical in shape
+ * to a legacy JSONB array element — so the downstream normalize/transcript
+ * pipeline is unchanged.
+ */
+async function loadCopilotChatMessages(chatId: string): Promise<Record<string, unknown>[]> {
+  const rows = await db
+    .select({ content: copilotMessages.content })
+    .from(copilotMessages)
+    .where(and(eq(copilotMessages.chatId, chatId), isNull(copilotMessages.deletedAt)))
+    .orderBy(
+      sql`${copilotMessages.seq} asc nulls last`,
+      asc(copilotMessages.createdAt),
+      asc(copilotMessages.id)
+    )
+  return rows.map((row) => row.content as Record<string, unknown>)
+}
 
 type CopilotChatAuthRow = Pick<
   typeof copilotChats.$inferSelect,
@@ -160,7 +192,11 @@ export async function getAccessibleCopilotChat(
     .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
     .limit(1)
 
-  return authorizeCopilotChatRow(chat, chatId, userId)
+  const authorized = await authorizeCopilotChatRow(chat, chatId, userId)
+  if (!authorized) return null
+
+  const messages = await loadCopilotChatMessages(chatId)
+  return { ...authorized, messages }
 }
 
 /**
@@ -181,7 +217,11 @@ export async function getAccessibleCopilotChatWithMessages(
     .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
     .limit(1)
 
-  return authorizeCopilotChatRow(chat, chatId, userId)
+  const authorized = await authorizeCopilotChatRow(chat, chatId, userId)
+  if (!authorized) return null
+
+  const messages = await loadCopilotChatMessages(chatId)
+  return { ...authorized, messages }
 }
 
 /**
@@ -261,7 +301,7 @@ export async function resolveOrCreateChat(params: {
       messages: [],
       lastSeenAt: now,
     })
-    .returning(copilotChatDetailColumns)
+    .returning(copilotChatDetailReturningColumns)
 
   if (!newChat) {
     logger.warn('Failed to create new copilot chat row', { userId, workflowId, workspaceId })
