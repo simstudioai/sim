@@ -89,6 +89,17 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
     expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
   })
 
+  it('returns null and does NOT query messages when the row is found but authorization fails', async () => {
+    // Row exists but belongs to a workflow the user cannot read.
+    dbChainMockFns.limit.mockResolvedValueOnce([{ ...chatRow, workflowId: 'wf-1' }])
+    mockAuthorizeWorkflow.mockResolvedValueOnce({ allowed: false, workflow: null })
+
+    const result = await getAccessibleCopilotChatWithMessages(CHAT_ID, USER_ID)
+
+    expect(result).toBeNull()
+    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+  })
+
   it('legacy getAccessibleCopilotChat also assembles messages from copilot_messages', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       { ...chatRow, model: 'm', planArtifact: null, config: null },
