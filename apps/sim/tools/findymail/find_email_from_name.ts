@@ -1,3 +1,4 @@
+import { findymailHosting } from '@/tools/findymail/hosting'
 import type {
   FindymailFindEmailFromNameParams,
   FindymailFindEmailFromNameResponse,
@@ -14,6 +15,11 @@ export const findEmailFromNameTool: ToolConfig<
   description:
     "Find someone's email from their name and a company domain or company name. Uses one finder credit when a verified email is found.",
   version: '1.0.0',
+
+  hosting: findymailHosting<FindymailFindEmailFromNameParams>((_params, output) => {
+    const contact = output.contact as { email?: string } | null
+    return contact?.email ? 1 : 0
+  }),
 
   params: {
     name: {
@@ -54,6 +60,7 @@ export const findEmailFromNameTool: ToolConfig<
         success: false,
         error:
           (errorData as Record<string, string>).message ||
+          (errorData as Record<string, string>).error ||
           `Findymail API error: ${response.status} ${response.statusText}`,
         output: { contact: null },
       }

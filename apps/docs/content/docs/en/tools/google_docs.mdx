@@ -56,7 +56,7 @@ Read content from a Google Docs document
 
 ### `google_docs_write`
 
-Write or update content in a Google Docs document
+Append content to a Google Docs document. Content is inserted literally; Markdown is not interpreted. For formatted output from Markdown, use the Create operation with the markdown toggle enabled.
 
 #### Input
 
@@ -88,6 +88,7 @@ Create a new Google Docs document
 | `content` | string | No | The content of the document to create |
 | `folderSelector` | string | No | Google Drive folder ID to create the document in \(e.g., 1ABCxyz...\) |
 | `folderId` | string | No | The ID of the folder to create the document in \(internal use\) |
+| `markdown` | boolean | No | When true, content is interpreted as Markdown and converted to formatted Google Docs content \(headings, bold/italic, lists, tables, links, code blocks, blockquotes\). Default: false \(content inserted as plain text\). |
 
 #### Output
 

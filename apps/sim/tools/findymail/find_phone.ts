@@ -1,3 +1,4 @@
+import { findymailHosting } from '@/tools/findymail/hosting'
 import type { FindymailFindPhoneParams, FindymailFindPhoneResponse } from '@/tools/findymail/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,6 +8,11 @@ export const findPhoneTool: ToolConfig<FindymailFindPhoneParams, FindymailFindPh
   description:
     "Find someone's phone number from a LinkedIn profile URL. Uses 10 finder credits if a phone is found. EU citizens are excluded for legal reasons.",
   version: '1.0.0',
+
+  hosting: findymailHosting<FindymailFindPhoneParams>((_params, output) => {
+    // Phone lookups consume 10 finder credits, only when a number is found.
+    return output.phone ? 10 : 0
+  }),
 
   params: {
     linkedin_url: {
@@ -42,6 +48,7 @@ export const findPhoneTool: ToolConfig<FindymailFindPhoneParams, FindymailFindPh
         success: false,
         error:
           (errorData as Record<string, string>).message ||
+          (errorData as Record<string, string>).error ||
           `Findymail API error: ${response.status} ${response.statusText}`,
         output: { phone: null, line_type: null },
       }

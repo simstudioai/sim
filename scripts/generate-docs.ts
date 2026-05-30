@@ -1,7 +1,7 @@
 #!/usr/bin/env ts-node
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
+import { fileURLToPath, pathToFileURL } from 'url'
 import { glob } from 'glob'
 
 console.log('Starting documentation generator...')
@@ -183,6 +183,7 @@ interface IntegrationEntry {
   category: string
   integrationTypes?: string[]
   tags?: string[]
+  landingContent?: Record<string, unknown>
 }
 
 /**
@@ -208,11 +209,13 @@ function copyIconsFile(): void {
 }
 
 /**
- * Generate icon mapping from all block definitions
- * Maps block types to their icon component names
- * Skips blocks that don't have documentation generated (same logic as generateBlockDoc)
+ * Generate icon mapping from block definitions.
+ * Docs need hidden historical version keys so old BlockInfoCard references and
+ * versioned docs links still render icons, while landing only needs visible blocks.
  */
-async function generateIconMapping(): Promise<Record<string, string>> {
+async function generateIconMapping(options: {
+  includeHidden: boolean
+}): Promise<Record<string, string>> {
   try {
     console.log('Generating icon mapping from block definitions...')
 
@@ -280,8 +283,8 @@ async function generateIconMapping(): Promise<Record<string, string>> {
             continue
           }
 
-          // Only add non-hidden blocks to icon mapping (docs won't be generated for hidden)
-          if (!hideFromToolbar) {
+          const isVersionedBlockType = /_v\d+$/.test(blockType)
+          if (!hideFromToolbar || (options.includeHidden && isVersionedBlockType)) {
             iconMapping[blockType] = iconName
           }
         }
@@ -663,6 +666,19 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
 
     const triggerRegistry = await buildTriggerRegistry()
     const { desc: toolDescMap, name: toolNameMap } = await buildToolDescriptionMap()
+
+    // Hand-authored, integration-specific landing content (install walkthrough,
+    // privacy blurb), keyed by slug. Imported as pure data — its only import is
+    // type-only and erased at runtime — and baked into the entries below so the
+    // landing page reads a single source instead of augmenting at render time.
+    const landingContentModule = await import(
+      pathToFileURL(path.join(LANDING_INTEGRATIONS_DATA_PATH, 'landing-content.ts')).href
+    )
+    const landingContentMap = (landingContentModule.INTEGRATION_LANDING_CONTENT ?? {}) as Record<
+      string,
+      Record<string, unknown>
+    >
+
     const integrations: IntegrationEntry[] = []
     const seenBaseTypes = new Set<string>()
     const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
@@ -776,6 +792,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
               }
             : {}),
           ...(config.tags ? { tags: config.tags } : {}),
+          ...(landingContentMap[slug] ? { landingContent: landingContentMap[slug] } : {}),
         })
       }
     }
@@ -3708,13 +3725,14 @@ async function generateAllBlockDocs() {
     // Copy icons from sim app to docs app
     copyIconsFile()
 
-    // Generate icon mapping from block definitions
-    const iconMapping = await generateIconMapping()
-    writeIconMapping(iconMapping)
+    // Generate icon mappings from block definitions
+    const docsIconMapping = await generateIconMapping({ includeHidden: true })
+    const visibleIconMapping = await generateIconMapping({ includeHidden: false })
+    writeIconMapping(docsIconMapping)
 
     // Generate landing integrations page data (JSON + icon mapping)
-    await writeIntegrationsJson(iconMapping)
-    writeIntegrationsIconMapping(iconMapping)
+    await writeIntegrationsJson(visibleIconMapping)
+    writeIntegrationsIconMapping(visibleIconMapping)
 
     // Get hidden and visible block types before generating docs
     const { hiddenTypes, visibleDisplayNames } = await getHiddenAndVisibleBlockTypes()

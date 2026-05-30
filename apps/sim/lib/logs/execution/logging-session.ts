@@ -3,7 +3,6 @@ import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
-import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
   calculateCostSummary,
@@ -82,6 +81,7 @@ export interface SessionStartParams {
   triggerData?: TriggerData
   skipLogCreation?: boolean // For resume executions - reuse existing log entry
   deploymentVersionId?: string // ID of the deployment version used (null for manual/editor executions)
+  workflowState?: WorkflowState
 }
 
 export interface SessionCompleteParams {
@@ -117,22 +117,6 @@ export interface SessionPausedParams {
   workflowInput?: any
 }
 
-interface AccumulatedCost {
-  total: number
-  input: number
-  output: number
-  tokens: { input: number; output: number; total: number }
-  models: Record<
-    string,
-    {
-      input: number
-      output: number
-      total: number
-      tokens: { input: number; output: number; total: number }
-    }
-  >
-}
-
 export class LoggingSession {
   private workflowId: string
   private executionId: string
@@ -150,15 +134,7 @@ export class LoggingSession {
   private completionPromise: Promise<void> | null = null
   private completionAttempt: CompletionAttempt | null = null
   private completionAttemptFailed = false
-  private accumulatedCost: AccumulatedCost = {
-    total: BASE_EXECUTION_CHARGE,
-    input: 0,
-    output: 0,
-    tokens: { input: 0, output: 0, total: 0 },
-    models: {},
-  }
   private pendingProgressWrites = new Set<Promise<void>>()
-  private costFlushed = false
   private postExecutionPromise: Promise<void> | null = null
 
   constructor(
@@ -248,7 +224,6 @@ export class LoggingSession {
       totalPromptTokens: number
       totalCompletionTokens: number
       baseExecutionCharge: number
-      modelCost: number
       models: Record<
         string,
         {
@@ -258,6 +233,9 @@ export class LoggingSession {
           tokens: { input: number; output: number; total: number }
         }
       >
+      // Non-model billable charges (standalone tool/integration costs). Carried
+      // through so the partition can't be silently dropped at this boundary.
+      charges?: Record<string, { total: number }>
     }
     finalOutput: Record<string, unknown>
     traceSpans: TraceSpan[]
@@ -291,46 +269,9 @@ export class LoggingSession {
     blockType: string,
     output: any
   ): Promise<void> {
-    // Accumulate cost synchronously before any await so that fire-and-forget
-    // callers still capture the full cost even if DB writes are not awaited.
-    const blockOutput = output?.output
-    if (
-      blockOutput?.cost &&
-      typeof blockOutput.cost.total === 'number' &&
-      blockOutput.cost.total > 0
-    ) {
-      const { cost, tokens, model } = blockOutput
-
-      this.accumulatedCost.total += cost.total || 0
-      this.accumulatedCost.input += cost.input || 0
-      this.accumulatedCost.output += cost.output || 0
-
-      if (tokens) {
-        this.accumulatedCost.tokens.input += tokens.input || 0
-        this.accumulatedCost.tokens.output += tokens.output || 0
-        this.accumulatedCost.tokens.total += tokens.total || 0
-      }
-
-      if (model) {
-        if (!this.accumulatedCost.models[model]) {
-          this.accumulatedCost.models[model] = {
-            input: 0,
-            output: 0,
-            total: 0,
-            tokens: { input: 0, output: 0, total: 0 },
-          }
-        }
-        this.accumulatedCost.models[model].input += cost.input || 0
-        this.accumulatedCost.models[model].output += cost.output || 0
-        this.accumulatedCost.models[model].total += cost.total || 0
-        if (tokens) {
-          this.accumulatedCost.models[model].tokens.input += tokens.input || 0
-          this.accumulatedCost.models[model].tokens.output += tokens.output || 0
-          this.accumulatedCost.models[model].tokens.total += tokens.total || 0
-        }
-      }
-    }
-
+    // Cost is recorded into the usage_log ledger and reconciled at completion
+    // boundaries (see recordExecutionUsage); onBlockComplete only persists the
+    // last-completed-block progress marker.
     await this.trackProgressWrite(
       this.persistLastCompletedBlock({
         blockId,
@@ -340,81 +281,18 @@ export class LoggingSession {
         success: !output?.output?.error,
       })
     )
-
-    if (
-      blockOutput?.cost &&
-      typeof blockOutput.cost.total === 'number' &&
-      blockOutput.cost.total > 0
-    ) {
-      void this.trackProgressWrite(this.flushAccumulatedCost())
-    }
-  }
-
-  private async flushAccumulatedCost(): Promise<void> {
-    try {
-      await db
-        .update(workflowExecutionLogs)
-        .set({
-          cost: {
-            total: this.accumulatedCost.total,
-            input: this.accumulatedCost.input,
-            output: this.accumulatedCost.output,
-            tokens: this.accumulatedCost.tokens,
-            models: this.accumulatedCost.models,
-          },
-        })
-        .where(
-          and(
-            eq(workflowExecutionLogs.workflowId, this.workflowId),
-            eq(workflowExecutionLogs.executionId, this.executionId)
-          )
-        )
-
-      this.costFlushed = true
-    } catch (error) {
-      logger.error(`Failed to flush accumulated cost for execution ${this.executionId}:`, {
-        error: toError(error).message,
-      })
-    }
-  }
-
-  private async loadExistingCost(): Promise<void> {
-    try {
-      const [existing] = await db
-        .select({ cost: workflowExecutionLogs.cost })
-        .from(workflowExecutionLogs)
-        .where(
-          and(
-            eq(workflowExecutionLogs.workflowId, this.workflowId),
-            eq(workflowExecutionLogs.executionId, this.executionId)
-          )
-        )
-        .limit(1)
-
-      if (existing?.cost) {
-        const cost = existing.cost as AccumulatedCost
-        this.accumulatedCost = {
-          total: cost.total || BASE_EXECUTION_CHARGE,
-          input: cost.input || 0,
-          output: cost.output || 0,
-          tokens: {
-            input: cost.tokens?.input || 0,
-            output: cost.tokens?.output || 0,
-            total: cost.tokens?.total || 0,
-          },
-          models: cost.models || {},
-        }
-      }
-    } catch (error) {
-      logger.error(`Failed to load existing cost for execution ${this.executionId}:`, {
-        error: toError(error).message,
-      })
-    }
   }
 
   async start(params: SessionStartParams): Promise<void> {
-    const { userId, workspaceId, variables, triggerData, skipLogCreation, deploymentVersionId } =
-      params
+    const {
+      userId,
+      workspaceId,
+      variables,
+      triggerData,
+      skipLogCreation,
+      deploymentVersionId,
+      workflowState,
+    } = params
 
     try {
       this.trigger = createTriggerObject(this.triggerType, triggerData)
@@ -426,11 +304,11 @@ export class LoggingSession {
         workspaceId,
         variables
       )
-      // Use deployed state if deploymentVersionId is provided (non-manual execution)
-      // Otherwise fall back to loading from normalized tables (manual/draft execution)
-      this.workflowState = deploymentVersionId
-        ? await loadDeployedWorkflowStateForLogging(this.workflowId)
-        : await loadWorkflowStateForExecution(this.workflowId)
+      this.workflowState =
+        workflowState ??
+        (deploymentVersionId
+          ? await loadDeployedWorkflowStateForLogging(this.workflowId)
+          : await loadWorkflowStateForExecution(this.workflowId))
 
       if (!skipLogCreation) {
         await executionLogger.startWorkflowExecution({
@@ -443,8 +321,9 @@ export class LoggingSession {
           deploymentVersionId,
         })
       } else {
+        // Resume: no cost reload needed. Billing reconciles from the usage_log
+        // ledger (pre-pause rows already exist) plus the live cost summary.
         this.isResume = true
-        await this.loadExistingCost()
       }
     } catch (error) {
       if (this.requestId) {
@@ -569,6 +448,8 @@ export class LoggingSession {
 
       const hasProvidedSpans = Array.isArray(traceSpans) && traceSpans.length > 0
 
+      // calculateCostSummary([]) / (undefined) already returns the base-charge
+      // summary, so the no-spans branch needs no separate literal.
       const costSummary = skipCost
         ? {
             totalCost: 0,
@@ -578,22 +459,10 @@ export class LoggingSession {
             totalPromptTokens: 0,
             totalCompletionTokens: 0,
             baseExecutionCharge: 0,
-            modelCost: 0,
             models: {},
+            charges: {},
           }
-        : hasProvidedSpans
-          ? calculateCostSummary(traceSpans)
-          : {
-              totalCost: BASE_EXECUTION_CHARGE,
-              totalInputCost: 0,
-              totalOutputCost: 0,
-              totalTokens: 0,
-              totalPromptTokens: 0,
-              totalCompletionTokens: 0,
-              baseExecutionCharge: BASE_EXECUTION_CHARGE,
-              modelCost: 0,
-              models: {},
-            }
+        : calculateCostSummary(traceSpans)
 
       const message = error?.message || 'Run failed before starting blocks'
 
@@ -702,19 +571,9 @@ export class LoggingSession {
         return
       }
 
-      const costSummary = traceSpans?.length
-        ? calculateCostSummary(traceSpans)
-        : {
-            totalCost: BASE_EXECUTION_CHARGE,
-            totalInputCost: 0,
-            totalOutputCost: 0,
-            totalTokens: 0,
-            totalPromptTokens: 0,
-            totalCompletionTokens: 0,
-            baseExecutionCharge: BASE_EXECUTION_CHARGE,
-            modelCost: 0,
-            models: {},
-          }
+      // calculateCostSummary handles empty/undefined spans by returning the
+      // base-charge summary, so no separate no-spans literal is needed.
+      const costSummary = calculateCostSummary(traceSpans)
 
       await this.completeExecutionWithFinalization({
         endedAt: endTime.toISOString(),
@@ -806,19 +665,9 @@ export class LoggingSession {
         return
       }
 
-      const costSummary = traceSpans?.length
-        ? calculateCostSummary(traceSpans)
-        : {
-            totalCost: BASE_EXECUTION_CHARGE,
-            totalInputCost: 0,
-            totalOutputCost: 0,
-            totalTokens: 0,
-            totalPromptTokens: 0,
-            totalCompletionTokens: 0,
-            baseExecutionCharge: BASE_EXECUTION_CHARGE,
-            modelCost: 0,
-            models: {},
-          }
+      // calculateCostSummary handles empty/undefined spans by returning the
+      // base-charge summary, so no separate no-spans literal is needed.
+      const costSummary = calculateCostSummary(traceSpans)
 
       await this.completeExecutionWithFinalization({
         endedAt: endTime.toISOString(),
@@ -895,7 +744,8 @@ export class LoggingSession {
 
       // Fallback: create a minimal logging session without full workflow state
       try {
-        const { userId, workspaceId, variables, triggerData, deploymentVersionId } = params
+        const { userId, workspaceId, variables, triggerData, deploymentVersionId, workflowState } =
+          params
         this.trigger = createTriggerObject(this.triggerType, triggerData)
         this.correlation = triggerData?.correlation
         this.environment = createEnvironmentObject(
@@ -905,14 +755,13 @@ export class LoggingSession {
           workspaceId,
           variables
         )
-        // Minimal workflow state when normalized/deployed data is unavailable
-        const minimalWorkflowState: WorkflowState = {
+        const fallbackWorkflowState: WorkflowState = workflowState ?? {
           blocks: {},
           edges: [],
           loops: {},
           parallels: {},
         }
-        this.workflowState = minimalWorkflowState
+        this.workflowState = fallbackWorkflowState
 
         await executionLogger.startWorkflowExecution({
           workflowId: this.workflowId,
@@ -1177,37 +1026,12 @@ export class LoggingSession {
     )
 
     try {
-      const hasAccumulatedCost =
-        this.costFlushed ||
-        this.accumulatedCost.total > BASE_EXECUTION_CHARGE ||
-        this.accumulatedCost.tokens.total > 0 ||
-        Object.keys(this.accumulatedCost.models).length > 0
-
-      const costSummary = hasAccumulatedCost
-        ? {
-            totalCost: this.accumulatedCost.total,
-            totalInputCost: this.accumulatedCost.input,
-            totalOutputCost: this.accumulatedCost.output,
-            totalTokens: this.accumulatedCost.tokens.total,
-            totalPromptTokens: this.accumulatedCost.tokens.input,
-            totalCompletionTokens: this.accumulatedCost.tokens.output,
-            baseExecutionCharge: BASE_EXECUTION_CHARGE,
-            modelCost: Math.max(0, this.accumulatedCost.total - BASE_EXECUTION_CHARGE),
-            models: this.accumulatedCost.models,
-          }
-        : params.traceSpans?.length
-          ? calculateCostSummary(params.traceSpans)
-          : {
-              totalCost: BASE_EXECUTION_CHARGE,
-              totalInputCost: 0,
-              totalOutputCost: 0,
-              totalTokens: 0,
-              totalPromptTokens: 0,
-              totalCompletionTokens: 0,
-              baseExecutionCharge: BASE_EXECUTION_CHARGE,
-              modelCost: 0,
-              models: {},
-            }
+      // Billing is reconciled from the usage_log ledger in recordExecutionUsage;
+      // here we only need a cost summary to compute the run total. Derive it
+      // from the in-memory trace spans when available (this fallback fires when
+      // persisting spans failed, not when computing them did), else just the
+      // base execution charge.
+      const costSummary = calculateCostSummary(params.traceSpans)
 
       const finalOutput = params.finalOutput || { _fallback: true, error: params.errorMessage }
 

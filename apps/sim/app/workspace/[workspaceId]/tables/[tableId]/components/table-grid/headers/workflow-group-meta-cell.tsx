@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { useCallback, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,16 +18,25 @@ import {
   Eye,
   EyeOff,
   Pencil,
+  Pin,
+  PinOff,
   PlayOutline,
   Trash,
 } from '@/components/emcn/icons'
-import type { RunMode } from '@/lib/api/contracts/tables'
+import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
+import type { WorkflowGroupType } from '@/lib/table'
+import { getEnrichment } from '@/enrichments/registry'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { SELECTION_TINT_BG } from '../constants'
 import type { DisplayColumn } from '../types'
 
 const WORKFLOW_META_BG_ALPHA = 12 // 0–255
+
+/** Fixed row-cap presets for the "Run N empty rows" shortcuts. Shared by the
+ *  group-header options menu and the inline quick-run dropdown so the two
+ *  surfaces stay in sync. */
+const LIMITED_RUN_PRESETS = [10, 1000] as const
 
 interface ColumnOptionsMenuProps {
   open: boolean
@@ -35,9 +44,9 @@ interface ColumnOptionsMenuProps {
   position: { x: number; y: number }
   column: DisplayColumn
   /** Override for the destructive item's label. Defaults to "Delete column"
-   *  (or "Delete workflow" when `onDeleteGroup` is set). Use "Hide column"
-   *  when the destructive action is non-lossy (workflow-output column where
-   *  removing it leaves the group with siblings). */
+   *  for both plain columns and workflow groups. Use "Hide column" when the
+   *  destructive action is non-lossy (workflow-output column where removing
+   *  it leaves the group with siblings). */
   deleteLabel?: string
   onOpenConfig: (columnName: string) => void
   onInsertLeft: (columnName: string) => void
@@ -51,12 +60,19 @@ interface ColumnOptionsMenuProps {
    *  exposes group-level run actions above the column actions. */
   onRunColumnAll?: () => void
   onRunColumnIncomplete?: () => void
+  /** Runs only the first `max` empty/unrun rows. Surfaces fixed "Run N rows"
+   *  shortcuts so users can sample a large table without firing every row. */
+  onRunColumnLimited?: (max: number) => void
   /** When set, surfaces a "Run N selected rows" item above Run all. */
   onRunColumnSelected?: () => void
   selectedRowCount?: number
   /** When set, the menu surfaces a "View workflow" item that opens a popup
    *  preview of the configured workflow. */
   onViewWorkflow?: () => void
+  /** Whether this column is currently pinned to the left. */
+  isPinned?: boolean
+  /** Toggle the pinned state of this column. */
+  onPinToggle?: (columnName: string) => void
 }
 
 /**
@@ -79,9 +95,12 @@ export function ColumnOptionsMenu({
   onDeleteGroup,
   onRunColumnAll,
   onRunColumnIncomplete,
+  onRunColumnLimited,
   onRunColumnSelected,
   selectedRowCount = 0,
   onViewWorkflow,
+  isPinned,
+  onPinToggle,
 }: ColumnOptionsMenuProps) {
   const showRunActions = Boolean(onRunColumnAll && onRunColumnIncomplete)
   const showRunSelected = Boolean(onRunColumnSelected) && selectedRowCount > 0
@@ -127,6 +146,12 @@ export function ColumnOptionsMenu({
                 <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
                   Run empty rows
                 </DropdownMenuItem>
+                {onRunColumnLimited &&
+                  LIMITED_RUN_PRESETS.map((max) => (
+                    <DropdownMenuItem key={max} onSelect={() => onRunColumnLimited(max)}>
+                      {`Run ${max.toLocaleString()} empty rows`}
+                    </DropdownMenuItem>
+                  ))}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSeparator />
@@ -142,6 +167,12 @@ export function ColumnOptionsMenu({
           <Pencil />
           Edit column
         </DropdownMenuItem>
+        {onPinToggle && (
+          <DropdownMenuItem onSelect={() => onPinToggle(column.name)}>
+            {isPinned ? <PinOff /> : <Pin />}
+            {isPinned ? 'Unpin column' : 'Pin column'}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => onInsertLeft(column.name)}>
           <ArrowLeft />
@@ -156,7 +187,7 @@ export function ColumnOptionsMenu({
           onSelect={() => (onDeleteGroup ? onDeleteGroup() : onDeleteColumn(column.name))}
         >
           {deleteLabel === 'Hide column' ? <EyeOff /> : <Trash />}
-          {deleteLabel ?? (onDeleteGroup ? 'Delete workflow' : 'Delete column')}
+          {deleteLabel ?? 'Delete column'}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -166,6 +197,13 @@ export function ColumnOptionsMenu({
 interface WorkflowGroupMetaCellProps {
   workflowId: string
   groupId: string
+  /** When `'enrichment'`, the cell shows the enrichment's name + icon instead
+   *  of a backing workflow's color chip + name. */
+  groupType?: WorkflowGroupType
+  /** Registry id for enrichment groups (resolves name/icon fallback). */
+  enrichmentId?: string
+  /** Persisted group name (the enrichment name at creation). */
+  groupName?: string
   size: number
   startColIndex: number
   columnName: string
@@ -175,7 +213,7 @@ interface WorkflowGroupMetaCellProps {
   isGroupSelected: boolean
   onSelectGroup: (startColIndex: number, size: number) => void
   onOpenConfig: (columnName: string) => void
-  onRunColumn?: (groupId: string, mode?: RunMode, rowIds?: string[]) => void
+  onRunColumn?: (groupId: string, mode?: RunMode, rowIds?: string[], limit?: RunLimit) => void
   onInsertLeft?: (columnName: string) => void
   onInsertRight?: (columnName: string) => void
   onDeleteColumn?: (columnName: string) => void
@@ -195,6 +233,14 @@ interface WorkflowGroupMetaCellProps {
   onDragEnd?: () => void
   onDragLeave?: () => void
   readOnly?: boolean
+  /** Left offset in pixels when pinned (drives `position: sticky`). */
+  stickyLeft?: number
+  /** Whether this is the rightmost pinned column group (renders a separator shadow). */
+  isLastPinned?: boolean
+  /** Whether this column group is currently pinned to the left. */
+  isPinned?: boolean
+  /** Toggle the pinned state for this column group. */
+  onPinToggle?: (columnName: string) => void
 }
 
 /**
@@ -205,6 +251,9 @@ interface WorkflowGroupMetaCellProps {
 export function WorkflowGroupMetaCell({
   workflowId,
   groupId,
+  groupType,
+  enrichmentId,
+  groupName,
   size,
   startColIndex,
   columnName,
@@ -225,10 +274,19 @@ export function WorkflowGroupMetaCell({
   onDragEnd,
   onDragLeave,
   readOnly,
+  stickyLeft,
+  isLastPinned,
+  isPinned,
+  onPinToggle,
 }: WorkflowGroupMetaCellProps) {
+  const isEnrichment = groupType === 'enrichment'
+  const enrichment = isEnrichment ? getEnrichment(enrichmentId) : undefined
+  const EnrichmentIcon = enrichment?.icon
   const wf = workflows?.find((w) => w.id === workflowId)
   const color = wf?.color ?? 'var(--text-muted)'
-  const name = wf?.name ?? 'Workflow'
+  const name = isEnrichment
+    ? (groupName ?? enrichment?.name ?? 'Enrichment')
+    : (wf?.name ?? 'Workflow')
 
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false)
   const [optionsMenuPosition, setOptionsMenuPosition] = useState({ x: 0, y: 0 })
@@ -237,105 +295,94 @@ export function WorkflowGroupMetaCell({
 
   const selectedCount = selectedRowIds?.length ?? 0
 
-  const handleRunAll = useCallback(() => {
+  function handleRunAll() {
     if (groupId) onRunColumn?.(groupId, 'all')
-  }, [groupId, onRunColumn])
+  }
 
-  const handleRunIncomplete = useCallback(() => {
+  function handleRunIncomplete() {
     if (groupId) onRunColumn?.(groupId, 'incomplete')
-  }, [groupId, onRunColumn])
+  }
 
-  const handleRunSelected = useCallback(() => {
+  function handleRunSelected() {
     if (groupId && selectedRowIds && selectedRowIds.length > 0) {
       onRunColumn?.(groupId, 'all', selectedRowIds)
     }
-  }, [groupId, onRunColumn, selectedRowIds])
+  }
 
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      if (!column) return
+  function handleRunLimited(max: number) {
+    if (groupId) onRunColumn?.(groupId, 'incomplete', undefined, { type: 'rows', max })
+  }
+
+  function handleContextMenu(e: React.MouseEvent) {
+    if (!column) return
+    e.preventDefault()
+    e.stopPropagation()
+    setOptionsMenuPosition({ x: e.clientX, y: e.clientY })
+    setOptionsMenuOpen(true)
+  }
+
+  function selectGroupAndOpenConfig(e: React.MouseEvent<HTMLTableCellElement>) {
+    // Ignore clicks that landed on an interactive child (badge, play button,
+    // dropdown items rendered via portal). Only the bare meta-cell area
+    // should select the group + open the config sidebar.
+    const target = e.target as HTMLElement
+    if (target.closest('button, [role="menuitem"], [role="menu"]')) return
+    // Drag-vs-click guard: when a drag just ended on this cell, swallow the
+    // synthetic click so we don't accidentally pop open the sidebar.
+    if (didDragRef.current) {
+      didDragRef.current = false
+      return
+    }
+    onSelectGroup(startColIndex, size)
+    if (columnName) onOpenConfig(columnName)
+  }
+
+  function handleDragStart(e: React.DragEvent) {
+    if (readOnly || !onDragStart || !columnName) {
       e.preventDefault()
-      e.stopPropagation()
-      setOptionsMenuPosition({ x: e.clientX, y: e.clientY })
-      setOptionsMenuOpen(true)
-    },
-    [column]
-  )
+      return
+    }
+    didDragRef.current = true
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', columnName)
 
-  const selectGroupAndOpenConfig = useCallback(
-    (e: React.MouseEvent<HTMLTableCellElement>) => {
-      // Ignore clicks that landed on an interactive child (badge, play button,
-      // dropdown items rendered via portal). Only the bare meta-cell area
-      // should select the group + open the config sidebar.
-      const target = e.target as HTMLElement
-      if (target.closest('button, [role="menuitem"], [role="menu"]')) return
-      // Drag-vs-click guard: when a drag just ended on this cell, swallow the
-      // synthetic click so we don't accidentally pop open the sidebar.
-      if (didDragRef.current) {
-        didDragRef.current = false
-        return
-      }
-      onSelectGroup(startColIndex, size)
-      if (columnName) onOpenConfig(columnName)
-    },
-    [columnName, onOpenConfig, onSelectGroup, size, startColIndex]
-  )
+    const ghost = document.createElement('div')
+    ghost.textContent = name
+    ghost.style.cssText =
+      'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--text-primary)'
+    document.body.appendChild(ghost)
+    e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+    requestAnimationFrame(() => ghost.parentNode?.removeChild(ghost))
 
-  const handleDragStart = useCallback(
-    (e: React.DragEvent) => {
-      if (readOnly || !onDragStart || !columnName) {
-        e.preventDefault()
-        return
-      }
-      didDragRef.current = true
-      e.dataTransfer.effectAllowed = 'move'
-      e.dataTransfer.setData('text/plain', columnName)
+    onDragStart(columnName)
+  }
 
-      const ghost = document.createElement('div')
-      ghost.textContent = name
-      ghost.style.cssText =
-        'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--text-primary)'
-      document.body.appendChild(ghost)
-      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
-      requestAnimationFrame(() => ghost.parentNode?.removeChild(ghost))
+  function handleDragOver(e: React.DragEvent) {
+    if (!onDragOver || !columnName) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const midX = rect.left + rect.width / 2
+    const side = e.clientX < midX ? 'left' : 'right'
+    onDragOver(columnName, side)
+  }
 
-      onDragStart(columnName)
-    },
-    [columnName, name, onDragStart, readOnly]
-  )
-
-  const handleDragOver = useCallback(
-    (e: React.DragEvent) => {
-      if (!onDragOver || !columnName) return
-      e.preventDefault()
-      e.dataTransfer.dropEffect = 'move'
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-      const midX = rect.left + rect.width / 2
-      const side = e.clientX < midX ? 'left' : 'right'
-      onDragOver(columnName, side)
-    },
-    [columnName, onDragOver]
-  )
-
-  const handleDragEnd = useCallback(() => {
+  function handleDragEnd() {
     didDragRef.current = false
     onDragEnd?.()
-  }, [onDragEnd])
+  }
 
-  const handleDragLeave = useCallback(
-    (e: React.DragEvent) => {
-      const th = e.currentTarget as HTMLElement
-      const related = e.relatedTarget as Node | null
-      if (related && th.contains(related)) return
-      if (related && related instanceof Element && related.closest('th')) return
-      onDragLeave?.()
-    },
-    [onDragLeave]
-  )
+  function handleDragLeave(e: React.DragEvent) {
+    const th = e.currentTarget as HTMLElement
+    const related = e.relatedTarget as Node | null
+    if (related && th.contains(related)) return
+    if (related && related instanceof Element && related.closest('th')) return
+    onDragLeave?.()
+  }
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  function handleDrop(e: React.DragEvent) {
     e.preventDefault()
-  }, [])
+  }
 
   const isDraggable = !readOnly && Boolean(onDragStart)
 
@@ -350,7 +397,12 @@ export function WorkflowGroupMetaCell({
       onDragEnd={isDraggable ? handleDragEnd : undefined}
       onDragLeave={isDraggable ? handleDragLeave : undefined}
       onDrop={isDraggable ? handleDrop : undefined}
-      className='group relative cursor-pointer border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[5px] text-left align-middle before:pointer-events-none before:absolute before:top-0 before:bottom-0 before:left-[-1px] before:w-px before:bg-[var(--border)] before:content-[""]'
+      className={cn(
+        'group relative cursor-pointer border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[5px] text-left align-middle before:pointer-events-none before:absolute before:top-0 before:bottom-0 before:left-[-1px] before:w-px before:bg-[var(--border)] before:content-[""]',
+        stickyLeft !== undefined && 'z-[11]',
+        isLastPinned && '[box-shadow:2px_0_0_0_var(--border)]'
+      )}
+      style={stickyLeft !== undefined ? { position: 'sticky', left: stickyLeft } : undefined}
     >
       <div
         className='pointer-events-none absolute inset-0'
@@ -369,14 +421,18 @@ export function WorkflowGroupMetaCell({
         style={{ background: color }}
       />
       <div className='flex h-[18px] min-w-0 items-center gap-1.5'>
-        <span
-          className='size-[10px] shrink-0 rounded-sm border-[2px]'
-          style={{
-            backgroundColor: color,
-            borderColor: `${color}60`,
-            backgroundClip: 'padding-box',
-          }}
-        />
+        {isEnrichment && EnrichmentIcon ? (
+          <EnrichmentIcon className='size-[12px] shrink-0 text-[var(--text-icon)]' />
+        ) : (
+          <span
+            className='size-[10px] shrink-0 rounded-sm border-[2px]'
+            style={{
+              backgroundColor: color,
+              borderColor: `${color}60`,
+              backgroundClip: 'padding-box',
+            }}
+          />
+        )}
         <span className='min-w-0 truncate font-medium text-[11px] text-[var(--text-secondary)]'>
           {name}
         </span>
@@ -406,6 +462,11 @@ export function WorkflowGroupMetaCell({
               )}
               <DropdownMenuItem onSelect={handleRunAll}>Run all rows</DropdownMenuItem>
               <DropdownMenuItem onSelect={handleRunIncomplete}>Run empty rows</DropdownMenuItem>
+              {LIMITED_RUN_PRESETS.map((max) => (
+                <DropdownMenuItem key={max} onSelect={() => handleRunLimited(max)}>
+                  {`Run ${max.toLocaleString()} empty rows`}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -423,9 +484,12 @@ export function WorkflowGroupMetaCell({
           onDeleteGroup={onDeleteGroup ? () => onDeleteGroup(groupId) : undefined}
           onRunColumnAll={onRunColumn ? handleRunAll : undefined}
           onRunColumnIncomplete={onRunColumn ? handleRunIncomplete : undefined}
+          onRunColumnLimited={onRunColumn ? handleRunLimited : undefined}
           onRunColumnSelected={onRunColumn && selectedCount > 0 ? handleRunSelected : undefined}
           selectedRowCount={selectedCount}
           onViewWorkflow={onViewWorkflow ? () => onViewWorkflow(workflowId) : undefined}
+          isPinned={isPinned}
+          onPinToggle={onPinToggle}
         />
       )}
     </th>

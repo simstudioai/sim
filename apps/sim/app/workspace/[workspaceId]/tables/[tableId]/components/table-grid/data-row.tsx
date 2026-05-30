@@ -3,6 +3,7 @@
 import React from 'react'
 import { Button, Checkbox } from '@/components/emcn'
 import { PlayOutline, Square } from '@/components/emcn/icons'
+import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
@@ -17,11 +18,14 @@ import {
   SELECTION_TINT_BG,
 } from './constants'
 import type { DisplayColumn } from './types'
-import { type NormalizedSelection, readExecution } from './utils'
+import { type NormalizedSelection, resolveCellExec } from './utils'
 
 export interface DataRowProps {
   row: TableRowType
   columns: DisplayColumn[]
+  /** Current workspace id — forwarded to cells so in-workspace resource URLs
+   *  render as tagged-resource chips. */
+  workspaceId: string
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
@@ -50,6 +54,16 @@ export interface DataRowProps {
    * for empty workflow-output cells whose group has unmet dependencies.
    */
   workflowGroups: WorkflowGroup[]
+  /**
+   * Active dispatches on the table — rows in scope ahead of the dispatcher's
+   * cursor render as `Queued` until the dispatcher pre-stamps them. Preserves
+   * queued indicators across page refresh during long Run-all dispatches.
+   */
+  activeDispatches: ActiveDispatch[] | undefined
+  /** Pixel `left` value for each pinned column key; absent keys are not pinned. */
+  pinnedOffsets?: Map<string, number>
+  /** Key of the rightmost pinned column, used to render a separator shadow. */
+  lastPinnedColKey?: string | null
 }
 
 function cellRangeRowChanged(
@@ -87,6 +101,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
   if (
     prev.row !== next.row ||
     prev.columns !== next.columns ||
+    prev.workspaceId !== next.workspaceId ||
     prev.rowIndex !== next.rowIndex ||
     prev.isFirstRow !== next.isFirstRow ||
     prev.editingColumnName !== next.editingColumnName ||
@@ -105,7 +120,10 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.numDivWidth !== next.numDivWidth ||
     prev.onStopRow !== next.onStopRow ||
     prev.onRunRow !== next.onRunRow ||
-    prev.workflowGroups !== next.workflowGroups
+    prev.workflowGroups !== next.workflowGroups ||
+    prev.activeDispatches !== next.activeDispatches ||
+    prev.pinnedOffsets !== next.pinnedOffsets ||
+    prev.lastPinnedColKey !== next.lastPinnedColKey
   ) {
     return false
   }
@@ -127,6 +145,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
 export const DataRow = React.memo(function DataRow({
   row,
   columns,
+  workspaceId,
   rowIndex,
   isFirstRow,
   editingColumnName,
@@ -148,6 +167,9 @@ export const DataRow = React.memo(function DataRow({
   onStopRow,
   onRunRow,
   workflowGroups,
+  activeDispatches,
+  pinnedOffsets,
+  lastPinnedColKey,
 }: DataRowProps) {
   const sel = normalizedSelection
   /**
@@ -178,8 +200,8 @@ export const DataRow = React.memo(function DataRow({
       <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
         <div
           className={cn(
-            'flex items-center gap-1',
-            hasWorkflowColumns ? 'justify-between' : 'justify-center'
+            'flex items-center',
+            hasWorkflowColumns ? 'justify-end gap-1.5 pr-1' : 'justify-center'
           )}
         >
           <div
@@ -187,7 +209,12 @@ export const DataRow = React.memo(function DataRow({
             tabIndex={0}
             aria-checked={isRowSelected}
             aria-label={`Select row ${rowIndex + 1}`}
-            className='group/checkbox flex h-[20px] shrink-0 items-center justify-center'
+            className={cn(
+              'group/checkbox flex h-[20px] shrink-0 items-center justify-end',
+              // Lighter right inset for narrow indices (≤3 digits → numDivWidth ≤ 28);
+              // full 4px once the column widens (4+ digits, numDivWidth ≥ 36).
+              numDivWidth >= 36 ? 'pr-1' : 'pr-0.5'
+            )}
             style={{ width: numDivWidth }}
             onMouseDown={(e) => {
               if (e.button !== 0) return
@@ -199,7 +226,7 @@ export const DataRow = React.memo(function DataRow({
           >
             <span
               className={cn(
-                'text-center text-[var(--text-tertiary)] text-xs tabular-nums',
+                'text-right text-[var(--text-tertiary)] text-xs tabular-nums',
                 isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
               )}
             >
@@ -221,10 +248,7 @@ export const DataRow = React.memo(function DataRow({
               size='sm'
               aria-label={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
               title={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
-              // mr-px keeps the hover bg off the cell's right border — without
-              // it the rounded-rect background paints over the divider line
-              // while the button is hovered.
-              className='mr-px size-[20px] shrink-0 p-0 text-[var(--text-primary)] hover-hover:bg-[var(--surface-2)]'
+              className='size-[20px] shrink-0 p-0 text-[var(--text-primary)] hover-hover:bg-[var(--surface-2)]'
               onClick={() => {
                 if (runningCount > 0) {
                   onStopRow(row.id)
@@ -258,13 +282,23 @@ export const DataRow = React.memo(function DataRow({
         const isLeftEdge = inRange ? colIndex === sel!.startCol : colIndex === 0
         const isRightEdge = inRange ? colIndex === sel!.endCol : colIndex === columns.length - 1
 
+        const pinnedLeft = pinnedOffsets?.get(column.key)
+        const isPinnedCell = pinnedLeft !== undefined
+        const isPinnedSeparator = column.key === lastPinnedColKey
+
         return (
           <td
             key={column.key}
             data-row={rowIndex}
             data-row-id={row.id}
             data-col={colIndex}
-            className={cn(CELL, (isHighlighted || isAnchor || isEditing) && 'relative')}
+            className={cn(
+              CELL,
+              (isHighlighted || isAnchor || isEditing) && 'relative',
+              isPinnedCell && 'z-[6] bg-[var(--bg)]',
+              isPinnedSeparator && '[box-shadow:2px_0_0_0_var(--border)]'
+            )}
+            style={isPinnedCell ? { position: 'sticky', left: pinnedLeft } : undefined}
             onMouseDown={(e) => {
               if (e.button !== 0 || isEditing) return
               onCellMouseDown(rowIndex, colIndex, e.shiftKey)
@@ -304,12 +338,19 @@ export const DataRow = React.memo(function DataRow({
             )}
             <div className={CELL_CONTENT}>
               <CellContent
+                workspaceId={workspaceId}
                 value={
                   pendingCellValue && column.name in pendingCellValue
                     ? pendingCellValue[column.name]
                     : row.data[column.name]
                 }
-                exec={readExecution(row, column.workflowGroupId)}
+                exec={resolveCellExec(
+                  row,
+                  column.workflowGroupId
+                    ? workflowGroups.find((g) => g.id === column.workflowGroupId)
+                    : undefined,
+                  activeDispatches
+                )}
                 column={column}
                 isEditing={isEditing}
                 initialCharacter={isEditing ? initialCharacter : undefined}
@@ -319,6 +360,12 @@ export const DataRow = React.memo(function DataRow({
                   column.workflowGroupId
                     ? (waitingByGroupId?.get(column.workflowGroupId) ?? undefined)
                     : undefined
+                }
+                isEnrichmentOutput={
+                  column.workflowGroupId
+                    ? workflowGroups.find((g) => g.id === column.workflowGroupId)?.type ===
+                      'enrichment'
+                    : false
                 }
               />
             </div>

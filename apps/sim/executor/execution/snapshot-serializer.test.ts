@@ -2,6 +2,8 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
+import type { DAG, DAGNode } from '@/executor/dag/builder'
+import { EdgeManager } from '@/executor/execution/edge-manager'
 import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
 import type { ExecutionContext } from '@/executor/types'
 
@@ -66,6 +68,57 @@ describe('serializePauseSnapshot', () => {
         1: [{ output: 'batch-1' }],
       },
     })
+  })
+
+  it('serializes deactivated edge state for resume', () => {
+    const context = createContext()
+    const sourceNode = {
+      id: 'condition',
+      block: {} as DAGNode['block'],
+      incomingEdges: new Set<string>(),
+      outgoingEdges: new Map([['if-edge', { target: 'target', sourceHandle: 'condition-if' }]]),
+      metadata: {},
+    }
+    const targetNode = {
+      id: 'target',
+      block: {} as DAGNode['block'],
+      incomingEdges: new Set(['condition']),
+      outgoingEdges: new Map(),
+      metadata: {},
+    }
+    const activeSourceNode = {
+      id: 'active-source',
+      block: {} as DAGNode['block'],
+      incomingEdges: new Set<string>(),
+      outgoingEdges: new Map([['active-edge', { target: 'active-target' }]]),
+      metadata: {},
+    }
+    const activeTargetNode = {
+      id: 'active-target',
+      block: {} as DAGNode['block'],
+      incomingEdges: new Set(['active-source']),
+      outgoingEdges: new Map(),
+      metadata: {},
+    }
+    const dag: DAG = {
+      nodes: new Map([
+        [sourceNode.id, sourceNode],
+        [targetNode.id, targetNode],
+        [activeSourceNode.id, activeSourceNode],
+        [activeTargetNode.id, activeTargetNode],
+      ]),
+      loopConfigs: new Map(),
+      parallelConfigs: new Map(),
+    }
+    const edgeManager = new EdgeManager(dag)
+    edgeManager.processOutgoingEdges(sourceNode, { selectedOption: 'else' })
+    edgeManager.processOutgoingEdges(activeSourceNode, { result: true })
+
+    const snapshot = serializePauseSnapshot(context, ['next-block'], dag, edgeManager)
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.state.deactivatedEdges).toHaveLength(1)
+    expect(serialized.state.nodesWithActivatedEdge).toEqual(['active-target'])
   })
 
   it('rejects oversized snapshot values without full JSON serialization', () => {

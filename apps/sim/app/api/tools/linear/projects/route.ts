@@ -45,17 +45,40 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const linearClient = new LinearClient({ accessToken })
-    let projects: Array<{ id: string; name: string }> = []
 
-    const team = await linearClient.team(teamId)
-    const projectsResult = await team.projects()
-    projects = projectsResult.nodes.map((project: Project) => ({
-      id: project.id,
-      name: project.name,
-    }))
+    /**
+     * teamId may be a single ID or a comma-separated list when the basic-mode
+     * team selector is in multi-select. Fetch projects from each team in
+     * parallel and dedupe by project ID (Linear projects can be cross-team).
+     */
+    const teamIds = teamId
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+
+    const perTeam = await Promise.all(
+      teamIds.map(async (id) => {
+        const team = await linearClient.team(id)
+        const result = await team.projects()
+        return result.nodes.map((project: Project) => ({
+          id: project.id,
+          name: project.name,
+        }))
+      })
+    )
+
+    const seen = new Set<string>()
+    const projects: Array<{ id: string; name: string }> = []
+    for (const teamProjects of perTeam) {
+      for (const project of teamProjects) {
+        if (seen.has(project.id)) continue
+        seen.add(project.id)
+        projects.push(project)
+      }
+    }
 
     if (projects.length === 0) {
-      logger.info('No projects found for team', { teamId })
+      logger.info('No projects found for team(s)', { teamIds })
     }
 
     return NextResponse.json({ projects })

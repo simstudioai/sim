@@ -102,8 +102,8 @@ For **every** tool file, check:
 - [ ] No fields are missing that the API provides and users would commonly need
 - [ ] No phantom fields defined that the API doesn't return
 - [ ] `optional: true` is set on fields that may not exist in all responses
-- [ ] When using `type: 'json'` and the shape is known, `properties` defines the inner fields
-- [ ] When using `type: 'array'`, `items` defines the item structure with `properties`
+- [ ] When using `type: 'json'` and the shape is known, `properties` defines the inner fields (tool outputs only — block outputs do not support `properties`)
+- [ ] When using `type: 'array'`, `items` defines the item structure with `properties` (tool outputs only)
 - [ ] Field descriptions are accurate and helpful
 
 ### Types (types.ts)
@@ -190,9 +190,8 @@ For **each tool** in `tools.access`:
 ### Block Outputs
 - [ ] Outputs cover the key fields returned by ALL tools (not just one operation)
 - [ ] Output types are correct (`'string'`, `'number'`, `'boolean'`, `'json'`)
-- [ ] `type: 'json'` outputs either:
-  - Describe inner fields in the description string (GOOD): `'User profile (id, name, username, bio)'`
-  - Use nested output definitions (BEST): `{ id: { type: 'string' }, name: { type: 'string' } }`
+- [ ] `type: 'json'` outputs describe inner fields in the description string: `'User profile (id, name, username, bio)'` or `'[{address, status, type}]'` for arrays
+- [ ] **Do NOT add a `properties: {...}` field on block outputs.** Block-level `OutputFieldDefinition` (from `@sim/workflow-types/blocks`) only accepts `{ type, description?, condition?, hiddenFromDisplay? }`. Nested `properties` is a tool-level construct (`OutputProperty`) — adding it to a block output will fail TypeScript at build time
 - [ ] No opaque `type: 'json'` with vague descriptions like `'Response data'`
 - [ ] Outputs that only appear for certain operations use `condition` if supported, or document which operations return them
 
@@ -232,13 +231,23 @@ If any tools support pagination:
 - [ ] Pagination response fields (`nextToken`, `cursor`, etc.) are included in tool outputs
 - [ ] Pagination subBlocks are set to `mode: 'advanced'`
 
-## Step 7: Validate Error Handling
+## Step 7: Validate Memory Load Safety
+
+If any tool lists, searches, exports, imports, downloads, uploads, paginates, batches, transforms arrays, or reads file/HTTP bodies, read `.agents/skills/memory-load-check/SKILL.md` and apply it to the integration.
+
+- [ ] List/search tools expose API limits and do not auto-fetch every page into memory
+- [ ] Transform logic does not build unbounded arrays, maps, sets, or `Promise.all` fan-outs
+- [ ] File and HTTP body reads use explicit byte caps or existing stream-limit helpers
+- [ ] Large result payloads are summarized, paginated, referenced, or capped rather than raw-dumped
+- [ ] Pagination and download tests cover caps, early stop behavior, or partial-result preservation when relevant
+
+## Step 8: Validate Error Handling
 
 - [ ] `transformResponse` checks for error conditions before accessing data
 - [ ] Error responses include meaningful messages (not just generic "failed")
 - [ ] HTTP error status codes are handled (check `response.ok` or status codes)
 
-## Step 8: Report and Fix
+## Step 9: Report and Fix
 
 ### Report Format
 
@@ -297,6 +306,7 @@ After fixing, confirm:
 - [ ] Validated OAuth scopes use centralized utilities (getScopesForService, getCanonicalScopesForProvider) — no hardcoded arrays
 - [ ] Validated scope descriptions exist in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts` for all scopes
 - [ ] Validated pagination consistency across tools and block
+- [ ] Validated memory load safety using `.agents/skills/memory-load-check/SKILL.md` when tools list/search/download/import/export/batch data
 - [ ] Validated error handling (error checks, meaningful messages)
 - [ ] Validated registry entries (tools and block, alphabetical, correct imports)
 - [ ] Reported all issues grouped by severity

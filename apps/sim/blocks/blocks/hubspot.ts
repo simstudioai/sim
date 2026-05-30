@@ -4,7 +4,6 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { HubSpotResponse } from '@/tools/hubspot/types'
 import { getTrigger } from '@/triggers'
-import { hubspotAllTriggerOptions } from '@/triggers/hubspot/utils'
 
 export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
   type: 'hubspot',
@@ -12,7 +11,7 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
   description: 'Interact with HubSpot CRM or trigger workflows from HubSpot events',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate HubSpot into your workflow. Manage contacts, companies, deals, tickets, and other CRM objects with powerful automation capabilities. Can be used in trigger mode to start workflows when contacts are created, deleted, or updated.',
+    'Integrate HubSpot into your workflow. Manage contacts, companies, deals, tickets, and other CRM objects with powerful automation capabilities. Can be used in trigger mode to start workflows when records are created, updated, a specific property changes, or a contact joins a list.',
   docsLink: 'https://docs.sim.ai/tools/hubspot',
   category: 'tools',
   integrationType: IntegrationType.CRM,
@@ -974,42 +973,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
         generationType: 'json-object',
       },
     },
-    {
-      id: 'selectedTriggerId',
-      title: 'Trigger Type',
-      type: 'dropdown',
-      mode: 'trigger',
-      options: hubspotAllTriggerOptions,
-      value: () => 'hubspot_contact_created',
-      required: true,
-    },
-    ...getTrigger('hubspot_contact_created').subBlocks.slice(1),
-    ...getTrigger('hubspot_contact_deleted').subBlocks.slice(1),
-    ...getTrigger('hubspot_contact_merged').subBlocks.slice(1),
-    ...getTrigger('hubspot_contact_privacy_deleted').subBlocks.slice(1),
-    ...getTrigger('hubspot_contact_property_changed').subBlocks.slice(1),
-    ...getTrigger('hubspot_contact_restored').subBlocks.slice(1),
-    ...getTrigger('hubspot_company_created').subBlocks.slice(1),
-    ...getTrigger('hubspot_company_deleted').subBlocks.slice(1),
-    ...getTrigger('hubspot_company_merged').subBlocks.slice(1),
-    ...getTrigger('hubspot_company_property_changed').subBlocks.slice(1),
-    ...getTrigger('hubspot_company_restored').subBlocks.slice(1),
-    ...getTrigger('hubspot_conversation_creation').subBlocks.slice(1),
-    ...getTrigger('hubspot_conversation_deletion').subBlocks.slice(1),
-    ...getTrigger('hubspot_conversation_new_message').subBlocks.slice(1),
-    ...getTrigger('hubspot_conversation_privacy_deletion').subBlocks.slice(1),
-    ...getTrigger('hubspot_conversation_property_changed').subBlocks.slice(1),
-    ...getTrigger('hubspot_deal_created').subBlocks.slice(1),
-    ...getTrigger('hubspot_deal_deleted').subBlocks.slice(1),
-    ...getTrigger('hubspot_deal_merged').subBlocks.slice(1),
-    ...getTrigger('hubspot_deal_property_changed').subBlocks.slice(1),
-    ...getTrigger('hubspot_deal_restored').subBlocks.slice(1),
-    ...getTrigger('hubspot_ticket_created').subBlocks.slice(1),
-    ...getTrigger('hubspot_ticket_deleted').subBlocks.slice(1),
-    ...getTrigger('hubspot_ticket_merged').subBlocks.slice(1),
-    ...getTrigger('hubspot_ticket_property_changed').subBlocks.slice(1),
-    ...getTrigger('hubspot_ticket_restored').subBlocks.slice(1),
-    ...getTrigger('hubspot_webhook').subBlocks.slice(1),
+    ...getTrigger('hubspot_poller').subBlocks,
   ],
   tools: {
     access: [
@@ -1285,84 +1249,10 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
     paging: { type: 'json', description: 'Pagination info with next/prev cursors' },
     metadata: { type: 'json', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    payload: {
-      type: 'json',
-      description: 'Full webhook payload array from HubSpot containing event details',
-    },
-    provider: {
-      type: 'string',
-      description: 'Provider name (hubspot)',
-    },
-    providerConfig: {
-      appId: {
-        type: 'string',
-        description: 'HubSpot App ID',
-      },
-      clientId: {
-        type: 'string',
-        description: 'HubSpot Client ID',
-      },
-      triggerId: {
-        type: 'string',
-        description: 'Trigger ID (e.g., hubspot_company_created)',
-      },
-      clientSecret: {
-        type: 'string',
-        description: 'HubSpot Client Secret',
-      },
-      developerApiKey: {
-        type: 'string',
-        description: 'HubSpot Developer API Key',
-      },
-      curlSetWebhookUrl: {
-        type: 'string',
-        description: 'curl command to set webhook URL',
-      },
-      curlCreateSubscription: {
-        type: 'string',
-        description: 'curl command to create subscription',
-      },
-      webhookUrlDisplay: {
-        type: 'string',
-        description: 'Webhook URL display value',
-      },
-      propertyName: {
-        type: 'string',
-        description: 'Optional property name filter (for property change triggers)',
-      },
-    },
   } as any,
   triggerAllowed: true,
   triggers: {
     enabled: true,
-    available: [
-      'hubspot_contact_created',
-      'hubspot_contact_deleted',
-      'hubspot_contact_merged',
-      'hubspot_contact_privacy_deleted',
-      'hubspot_contact_property_changed',
-      'hubspot_contact_restored',
-      'hubspot_company_created',
-      'hubspot_company_deleted',
-      'hubspot_company_merged',
-      'hubspot_company_property_changed',
-      'hubspot_company_restored',
-      'hubspot_conversation_creation',
-      'hubspot_conversation_deletion',
-      'hubspot_conversation_new_message',
-      'hubspot_conversation_privacy_deletion',
-      'hubspot_conversation_property_changed',
-      'hubspot_deal_created',
-      'hubspot_deal_deleted',
-      'hubspot_deal_merged',
-      'hubspot_deal_property_changed',
-      'hubspot_deal_restored',
-      'hubspot_ticket_created',
-      'hubspot_ticket_deleted',
-      'hubspot_ticket_merged',
-      'hubspot_ticket_property_changed',
-      'hubspot_ticket_restored',
-      'hubspot_webhook',
-    ],
+    available: ['hubspot_poller'],
   },
 }

@@ -207,6 +207,15 @@ export const getOpenRouterProviderModelsContract = defineRouteContract({
   },
 })
 
+export const getLitellmProviderModelsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/providers/litellm/models',
+  response: {
+    mode: 'json',
+    schema: providerModelsResponseSchema,
+  },
+})
+
 export const getFireworksProviderModelsContract = defineRouteContract({
   method: 'GET',
   path: '/api/providers/fireworks/models',

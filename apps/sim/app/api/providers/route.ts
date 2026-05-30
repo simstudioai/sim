@@ -19,6 +19,7 @@ import {
 import {
   assertPermissionsAllowed,
   IntegrationNotAllowedError,
+  ModelNotAllowedError,
   ProviderNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import type { StreamingExecution } from '@/executor/types'
@@ -132,7 +133,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           model,
         })
       } catch (err) {
-        if (err instanceof ProviderNotAllowedError || err instanceof IntegrationNotAllowedError) {
+        if (
+          err instanceof ProviderNotAllowedError ||
+          err instanceof ModelNotAllowedError ||
+          err instanceof IntegrationNotAllowedError
+        ) {
           return NextResponse.json({ error: err.message }, { status: 403 })
         }
         throw err

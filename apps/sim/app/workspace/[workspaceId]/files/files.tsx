@@ -1585,10 +1585,11 @@ export function Files() {
               }
             : undefined,
         dropdownItems:
-          isCurrentFolder && canEdit
+          isCurrentFolder && (canEdit || userPermissions.isLoading)
             ? [
                 {
                   label: 'Rename',
+                  disabled: !canEdit,
                   onClick: () => breadcrumbRenameRef.current.startRename(folder.id, folder.name),
                 },
               ]
@@ -1605,6 +1606,7 @@ export function Files() {
     router,
     workspaceId,
     canEdit,
+    userPermissions.isLoading,
     breadcrumbRename.editingId,
     breadcrumbRename.editValue,
   ])

@@ -9,6 +9,7 @@ const {
   mockUpload,
   mockDownload,
   mockDelete,
+  mockDeleteIfExists,
   mockGetBlockBlobClient,
   mockGetContainerClient,
   mockFromConnectionString,
@@ -19,6 +20,7 @@ const {
   mockUpload: vi.fn(),
   mockDownload: vi.fn(),
   mockDelete: vi.fn(),
+  mockDeleteIfExists: vi.fn(),
   mockGetBlockBlobClient: vi.fn(),
   mockGetContainerClient: vi.fn(),
   mockFromConnectionString: vi.fn(),
@@ -66,6 +68,7 @@ describe('Azure Blob Storage Client', () => {
       upload: mockUpload,
       download: mockDownload,
       delete: mockDelete,
+      deleteIfExists: mockDeleteIfExists,
       url: 'https://test.blob.core.windows.net/container/test-file',
     })
 
@@ -144,6 +147,7 @@ describe('Azure Blob Storage Client', () => {
             callback()
           }
         }),
+        off: vi.fn(() => mockReadableStream),
       }
 
       mockDownload.mockResolvedValueOnce({
@@ -156,18 +160,36 @@ describe('Azure Blob Storage Client', () => {
       expect(mockDownload).toHaveBeenCalled()
       expect(result).toEqual(testContent)
     })
+
+    it('should destroy the opened stream when content length exceeds the limit', async () => {
+      const mockDestroy = vi.fn()
+      const mockReadableStream = {
+        destroy: mockDestroy,
+        on: vi.fn(() => mockReadableStream),
+      }
+
+      mockDownload.mockResolvedValueOnce({
+        readableStreamBody: mockReadableStream,
+        contentLength: 1024,
+      })
+
+      await expect(downloadFromBlob('large-file-key', undefined, 10)).rejects.toThrow(
+        'storage download exceeds maximum size'
+      )
+      expect(mockDestroy).toHaveBeenCalledWith(expect.any(Error))
+    })
   })
 
   describe('deleteFromBlob', () => {
     it('should delete a file from Azure Blob Storage', async () => {
       const testKey = 'test-file-key'
 
-      mockDelete.mockResolvedValueOnce({})
+      mockDeleteIfExists.mockResolvedValueOnce({})
 
       await deleteFromBlob(testKey)
 
       expect(mockGetBlockBlobClient).toHaveBeenCalledWith(testKey)
-      expect(mockDelete).toHaveBeenCalled()
+      expect(mockDeleteIfExists).toHaveBeenCalled()
     })
   })
 

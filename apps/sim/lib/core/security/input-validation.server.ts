@@ -7,6 +7,7 @@ import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const logger = createLogger('InputValidation')
 
@@ -263,6 +264,10 @@ function isRedirectStatus(status: number): boolean {
   return status >= 300 && status < 400 && status !== 304
 }
 
+function isRetryableHttpStatus(status: number): boolean {
+  return status === 429 || (status >= 500 && status <= 599)
+}
+
 function resolveRedirectUrl(baseUrl: string, location: string): string {
   try {
     return new URL(location, baseUrl).toString()
@@ -381,6 +386,37 @@ export async function secureFetchWithPinnedIP(
         }
       }
 
+      const contentLength = headersRecord['content-length']
+      if (typeof maxResponseBytes === 'number' && maxResponseBytes > 0 && contentLength) {
+        const parsedLength = Number.parseInt(contentLength, 10)
+        if (Number.isFinite(parsedLength) && parsedLength > maxResponseBytes) {
+          cleanupAbort()
+          res.destroy()
+          req.destroy()
+          if (isRetryableHttpStatus(statusCode)) {
+            settledResolve({
+              ok: false,
+              status: statusCode,
+              statusText: res.statusMessage || '',
+              headers: new SecureFetchHeaders(headersRecord, setCookieArray),
+              body: null,
+              text: async () => '',
+              json: async () => ({}),
+              arrayBuffer: async () => new ArrayBuffer(0),
+            })
+            return
+          }
+          settledReject(
+            new PayloadSizeLimitError({
+              label: 'response body',
+              maxBytes: maxResponseBytes,
+              observedBytes: parsedLength,
+            })
+          )
+          return
+        }
+      }
+
       let totalBytes = 0
       const nodeRes = res
       const body = new ReadableStream<Uint8Array>({
@@ -394,7 +430,11 @@ export async function secureFetchWithPinnedIP(
             ) {
               cleanupAbort()
               controller.error(
-                new Error(`Response exceeded maximum size of ${maxResponseBytes} bytes`)
+                new PayloadSizeLimitError({
+                  label: 'response body',
+                  maxBytes: maxResponseBytes,
+                  observedBytes: totalBytes,
+                })
               )
               nodeRes.destroy()
               return

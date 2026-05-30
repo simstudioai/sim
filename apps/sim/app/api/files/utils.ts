@@ -191,7 +191,7 @@ function getSecureFileHeaders(filename: string, originalContentType: string) {
   }
 }
 
-function encodeFilenameForHeader(storageKey: string): string {
+export function encodeFilenameForHeader(storageKey: string): string {
   const filename = storageKey.split('/').pop() || storageKey
 
   const hasNonAscii = /[^\x00-\x7F]/.test(filename)
@@ -237,14 +237,4 @@ export function createErrorResponse(error: Error, status = 500): NextResponse {
 
 export function createSuccessResponse(data: ApiSuccessResponse): NextResponse {
   return NextResponse.json(data)
-}
-
-export function createOptionsResponse(): NextResponse {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  })
 }

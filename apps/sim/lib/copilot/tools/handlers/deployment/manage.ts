@@ -9,13 +9,13 @@ import {
 import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 import {
   performCreateWorkflowMcpServer,
   performDeleteWorkflowMcpServer,
   performUpdateWorkflowMcpServer,
 } from '@/lib/mcp/orchestration'
 import { performRevertToVersion } from '@/lib/workflows/orchestration'
+import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 import { ensureWorkflowAccess, ensureWorkspaceAccess } from '../access'
 import type {
   CheckDeploymentStatusParams,
@@ -38,22 +38,36 @@ export async function executeCheckDeploymentStatus(
     const workspaceId = workflowRecord.workspaceId
 
     const [apiDeploy, chatDeploy] = await Promise.all([
-      db.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1),
       db
-        .select()
+        .select({ isDeployed: workflow.isDeployed, deployedAt: workflow.deployedAt })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1),
+      db
+        .select({
+          id: chat.id,
+          identifier: chat.identifier,
+          title: chat.title,
+          description: chat.description,
+          authType: chat.authType,
+          allowedEmails: chat.allowedEmails,
+          outputConfigs: chat.outputConfigs,
+          password: chat.password,
+          customizations: chat.customizations,
+        })
         .from(chat)
         .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
         .limit(1),
     ])
 
-		const isApiDeployed = apiDeploy[0]?.isDeployed || false
-		const needsRedeployment = isApiDeployed ? await checkNeedsRedeployment(workflowId) : false
+    const isApiDeployed = apiDeploy[0]?.isDeployed || false
+    const needsRedeployment = isApiDeployed ? await checkNeedsRedeployment(workflowId) : false
     const apiDetails = {
       isDeployed: isApiDeployed,
       deployedAt: apiDeploy[0]?.deployedAt || null,
       endpoint: isApiDeployed ? `/api/workflows/${workflowId}/execute` : null,
       apiKey: workflowRecord.workspaceId ? 'Workspace API keys' : 'Personal API keys',
-			needsRedeployment,
+      needsRedeployment,
     }
 
     const isChatDeployed = !!chatDeploy[0]

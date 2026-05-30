@@ -4,6 +4,7 @@ import { devtools } from 'zustand/middleware'
 import { getToolOperationsIndex } from '@/lib/search/tool-operations'
 import { getTriggersForSidebar } from '@/lib/workflows/triggers/trigger-utils'
 import { getAllBlocks } from '@/blocks'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type {
   SearchBlockItem,
   SearchData,
@@ -19,6 +20,47 @@ const initialData: SearchData = {
   toolOperations: [],
   docs: [],
   isInitialized: false,
+}
+
+type CommandSearchableOption = {
+  label: string
+  id: string
+  hidden?: boolean
+}
+
+function getCommandSearchableOptions(subBlock: SubBlockConfig): CommandSearchableOption[] {
+  if (!subBlock.options) return []
+
+  try {
+    const options = typeof subBlock.options === 'function' ? subBlock.options() : subBlock.options
+    return Array.isArray(options) ? options : []
+  } catch {
+    return []
+  }
+}
+
+export function buildCommandSearchableOptionSearchValue(block: BlockConfig): string {
+  const terms = new Set<string>()
+
+  for (const subBlock of block.subBlocks) {
+    if (
+      (subBlock.type !== 'dropdown' && subBlock.type !== 'combobox') ||
+      !subBlock.commandSearchable
+    ) {
+      continue
+    }
+
+    for (const option of getCommandSearchableOptions(subBlock)) {
+      if (option.hidden) continue
+
+      const subBlockTitle = subBlock.title ?? subBlock.id
+      terms.add(subBlockTitle)
+      terms.add(option.label)
+      terms.add(option.id)
+    }
+  }
+
+  return Array.from(terms).join(' ')
 }
 
 export const useSearchModalStore = create<SearchModalState>()(
@@ -56,6 +98,7 @@ export const useSearchModalStore = create<SearchModalState>()(
             icon: block.icon,
             bgColor: block.bgColor || '#6B7280',
             type: block.type,
+            searchValue: `${block.name} ${block.type} block-${block.type} ${buildCommandSearchableOptionSearchValue(block)}`,
           }
 
           if (block.category === 'blocks' && block.type !== 'starter') {

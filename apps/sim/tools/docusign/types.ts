@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Common envelope output properties */
@@ -136,6 +137,7 @@ export interface DocuSignDownloadDocumentParams {
   accessToken: string
   envelopeId: string
   documentId?: string
+  _context?: Record<string, unknown>
 }
 
 export interface DocuSignListTemplatesParams {
@@ -208,7 +210,8 @@ export interface DocuSignVoidEnvelopeResponse extends ToolResponse {
 
 export interface DocuSignDownloadDocumentResponse extends ToolResponse {
   output: {
-    base64Content: string
+    base64Content?: string
+    file?: UserFile
     mimeType: string
     fileName: string
   }

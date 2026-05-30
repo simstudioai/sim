@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { taskContext } from '@trigger.dev/core/v3'
 import type { AsyncBackendType, JobQueueBackend } from '@/lib/core/async-jobs/types'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 
@@ -10,10 +11,15 @@ let cachedInlineBackend: JobQueueBackend | null = null
 
 /**
  * Determines which async backend to use based on environment configuration.
- * Follows the fallback chain: trigger.dev → database
+ * Falls back to the database backend when trigger.dev isn't enabled — except
+ * when this process IS a trigger.dev worker (`taskContext.isInsideTask`), in
+ * which case the SDK runtime is available regardless of env vars and we
+ * always want to enqueue back through trigger.dev. Without this carve-out, a
+ * worker pod missing `TRIGGER_DEV_ENABLED=true` silently routes cell jobs to
+ * the database backend that nothing's draining.
  */
 export function getAsyncBackendType(): AsyncBackendType {
-  if (isTriggerDevEnabled) {
+  if (isTriggerDevEnabled || taskContext.isInsideTask) {
     return 'trigger-dev'
   }
 

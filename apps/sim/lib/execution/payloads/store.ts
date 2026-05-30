@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { cacheLargeValue, materializeLargeValueRefSync } from '@/lib/execution/payloads/cache'
+import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import {
   LARGE_VALUE_REF_VERSION,
   type LargeValueKind,
@@ -30,6 +31,13 @@ export interface LargeValueStoreContext {
   userId?: string
   requireDurable?: boolean
   maxBytes?: number
+  /**
+   * When false, materialization does not register an execution_log reference for
+   * the key. Read-only consumers (e.g. viewing/exporting a completed log) set
+   * this: the value is already owned + referenced by its own execution, so
+   * re-registering on every read is wasteful and a needless failure point.
+   */
+  trackReference?: boolean
 }
 
 function getKind(value: unknown): LargeValueKind {
@@ -102,6 +110,55 @@ async function persistValue(
   }
 }
 
+async function registerPersistedValueOwner(
+  key: string | undefined,
+  size: number,
+  referencedKeys: string[],
+  context: LargeValueStoreContext
+): Promise<boolean> {
+  const { workspaceId, workflowId, executionId } = context
+  if (!key || !workspaceId || !workflowId || !executionId) {
+    return false
+  }
+
+  const { registerLargeValueOwner } = await import('@/lib/execution/payloads/large-value-metadata')
+  return await registerLargeValueOwner(
+    {
+      key,
+      workspaceId,
+      workflowId,
+      executionId,
+      size,
+    },
+    referencedKeys
+  )
+}
+
+async function deleteUntrackedPersistedValue(key: string): Promise<boolean> {
+  try {
+    const [{ StorageService }, { deleteFileMetadata }] = await Promise.all([
+      import('@/lib/uploads'),
+      import('@/lib/uploads/server/metadata'),
+    ])
+    const result = await StorageService.deleteFiles([key], 'execution')
+    const deleteFailed = result.failed.some((failed) => failed.key === key)
+    if (deleteFailed) {
+      logger.warn('Failed to delete untracked large execution value from storage', {
+        key,
+      })
+      return false
+    }
+    await deleteFileMetadata(key)
+    return true
+  } catch (error) {
+    logger.warn('Failed to clean up untracked large execution value', {
+      key,
+      error: toError(error).message,
+    })
+    return false
+  }
+}
+
 export async function storeLargeValue(
   value: unknown,
   json: string,
@@ -109,8 +166,24 @@ export async function storeLargeValue(
   context: LargeValueStoreContext
 ): Promise<LargeValueRef> {
   assertDurableLargeValueSize(size)
+  const referencedKeys = collectLargeValueKeys(value)
   const id = `lv_${generateShortId(12)}`
-  const key = await persistValue(id, json, context)
+  let key = await persistValue(id, json, context)
+  if (key) {
+    // Only clean up the uploaded object when registration definitively did NOT
+    // record ownership (returns false). If registration THROWS, the metadata
+    // state is uncertain (a row may have partially committed), so we propagate
+    // without deleting — deleting could orphan a metadata row pointing at a
+    // now-missing object.
+    const registered = await registerPersistedValueOwner(key, size, referencedKeys, context)
+    if (!registered) {
+      await deleteUntrackedPersistedValue(key)
+      if (context.requireDurable) {
+        throw new Error('Failed to persist large execution value metadata')
+      }
+      key = undefined
+    }
+  }
   const cached = cacheLargeValue(id, value, size, context, { recoverable: Boolean(key) })
   if (!key && !cached) {
     throw new Error('Cannot retain large execution value without durable storage')
@@ -139,16 +212,33 @@ export async function materializeLargeValueRef(
   assertLargeValueRefAccess(ref, context)
   assertInlineMaterializationSize(ref.size, context.maxBytes)
 
-  const cached = materializeLargeValueRefSync(ref, context)
-  if (cached !== undefined) {
-    return cached
+  if (!ref.key || !isValidLargeValueKey(ref)) {
+    return materializeLargeValueRefSync(ref, context)
   }
 
-  if (!ref.key || !isValidLargeValueKey(ref)) {
-    return undefined
+  if (context.trackReference !== false) {
+    const { addLargeValueReference } = await import('@/lib/execution/payloads/large-value-metadata')
+    // Reference tracking is GC-critical: if it fails, fail the read rather than
+    // return a value whose reference was never recorded (it could later be
+    // garbage-collected out from under a live consumer). Read-only consumers
+    // that don't need a reference set trackReference: false to skip this.
+    await addLargeValueReference(
+      {
+        workspaceId: context.workspaceId,
+        workflowId: context.workflowId,
+        executionId: context.executionId,
+        source: 'execution_log',
+      },
+      ref.key
+    )
   }
 
   try {
+    const cached = materializeLargeValueRefSync(ref, context)
+    if (cached !== undefined) {
+      return cached
+    }
+
     const value = await readLargeValueRefFromStorage(ref, {
       workspaceId: context.workspaceId,
       workflowId: context.workflowId,

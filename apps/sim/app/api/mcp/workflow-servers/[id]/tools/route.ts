@@ -9,7 +9,11 @@ import {
   workflowMcpServerParamsSchema,
 } from '@/lib/api/contracts/workflow-mcp-servers'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import {
+  mcpBodyReadErrorResponse,
+  readMcpJsonBodyWithLimit,
+  withMcpAuth,
+} from '@/lib/mcp/middleware'
 import { performCreateWorkflowMcpTool } from '@/lib/mcp/orchestration'
 import {
   createMcpErrorResponse,
@@ -96,7 +100,7 @@ export const POST = withRouteHandler(
     ) => {
       try {
         const { id: serverId } = workflowMcpServerParamsSchema.parse(await params)
-        const rawBody = getParsedBody(request) ?? (await request.json())
+        const rawBody = await readMcpJsonBodyWithLimit(request)
         const parsedBody = createWorkflowMcpToolBodySchema.safeParse(rawBody)
 
         if (!parsedBody.success) {
@@ -136,6 +140,8 @@ export const POST = withRouteHandler(
 
         return createMcpSuccessResponse({ tool }, 201)
       } catch (error) {
+        const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+        if (bodyErrorResponse) return bodyErrorResponse
         logger.error(`[${requestId}] Error adding tool:`, error)
         return createMcpErrorResponse(toError(error), 'Failed to add tool', 500)
       }

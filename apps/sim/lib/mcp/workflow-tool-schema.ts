@@ -8,7 +8,7 @@ import type { McpToolSchema } from './types'
  * Extended property definition for workflow tool schemas.
  * More specific than the generic McpToolSchema properties.
  */
-interface McpToolProperty {
+export interface McpToolProperty {
   [key: string]: unknown
   type: string
   description?: string
@@ -24,7 +24,7 @@ export interface McpToolInputSchema extends McpToolSchema {
   properties: Record<string, McpToolProperty>
 }
 
-interface McpToolDefinition {
+export interface McpToolDefinition {
   name: string
   description: string
   inputSchema: McpToolInputSchema

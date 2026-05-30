@@ -1,3 +1,4 @@
+import { findymailHosting } from '@/tools/findymail/hosting'
 import type {
   FindymailFindEmailFromLinkedInParams,
   FindymailFindEmailFromLinkedInResponse,
@@ -14,6 +15,11 @@ export const findEmailFromLinkedInTool: ToolConfig<
   description:
     "Find someone's email from a LinkedIn profile URL or username. Uses one finder credit when a verified email is found.",
   version: '1.0.0',
+
+  hosting: findymailHosting<FindymailFindEmailFromLinkedInParams>((_params, output) => {
+    const contact = output.contact as { email?: string } | null
+    return contact?.email ? 1 : 0
+  }),
 
   params: {
     linkedin_url: {
@@ -49,6 +55,7 @@ export const findEmailFromLinkedInTool: ToolConfig<
         success: false,
         error:
           (errorData as Record<string, string>).message ||
+          (errorData as Record<string, string>).error ||
           `Findymail API error: ${response.status} ${response.statusText}`,
         output: { contact: null },
       }

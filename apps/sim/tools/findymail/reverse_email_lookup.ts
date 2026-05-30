@@ -1,3 +1,4 @@
+import { findymailHosting } from '@/tools/findymail/hosting'
 import type {
   FindymailReverseEmailLookupParams,
   FindymailReverseEmailLookupResponse,
@@ -13,6 +14,13 @@ export const reverseEmailLookupTool: ToolConfig<
   description:
     'Find a business profile from an email address. Uses 1 finder credit if a profile is found, 2 credits if returning full profile data.',
   version: '1.0.0',
+
+  hosting: findymailHosting<FindymailReverseEmailLookupParams>((params, output) => {
+    const found = Boolean(output.email || output.linkedin_url || output.fullName)
+    if (!found) return 0
+    // 1 credit for a match, 2 when full profile enrichment is requested.
+    return params.with_profile ? 2 : 1
+  }),
 
   params: {
     email: {
@@ -56,6 +64,7 @@ export const reverseEmailLookupTool: ToolConfig<
         success: false,
         error:
           (errorData as Record<string, string>).message ||
+          (errorData as Record<string, string>).error ||
           `Findymail API error: ${response.status} ${response.statusText}`,
         output: {
           email: null,

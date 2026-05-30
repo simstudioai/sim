@@ -174,7 +174,7 @@ function recordToDocument(
 export const hubspotConnector: ConnectorConfig = {
   id: 'hubspot',
   name: 'HubSpot',
-  description: 'Sync CRM records from HubSpot into your knowledge base',
+  description: 'Sync CRM records from HubSpot',
   version: '1.0.0',
   icon: HubspotIcon,
 

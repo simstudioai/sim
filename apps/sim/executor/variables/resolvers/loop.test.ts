@@ -17,7 +17,11 @@ interface BlockDef {
   name: string
 }
 
-function createTestWorkflow(loops: Record<string, LoopDef> = {}, blockDefs: BlockDef[] = []) {
+function createTestWorkflow(
+  loops: Record<string, LoopDef> = {},
+  blockDefs: BlockDef[] = [],
+  parallels: Record<string, { id?: string; nodes: string[] }> = {}
+) {
   const normalizedLoops: Record<string, { id: string; nodes: string[]; iterations: number }> = {}
   for (const [key, loop] of Object.entries(loops)) {
     normalizedLoops[key] = {
@@ -41,7 +45,7 @@ function createTestWorkflow(loops: Record<string, LoopDef> = {}, blockDefs: Bloc
     blocks,
     connections: [],
     loops: normalizedLoops,
-    parallels: {},
+    parallels,
   }
 }
 
@@ -58,7 +62,8 @@ function createTestContext(
   currentNodeId: string,
   loopScope?: LoopScope,
   loopExecutions?: Map<string, LoopScope>,
-  blockOutputs?: Record<string, any>
+  blockOutputs?: Record<string, any>,
+  parallelBlockMapping?: Map<string, any>
 ): ResolutionContext {
   return {
     executionContext: {
@@ -66,6 +71,7 @@ function createTestContext(
       workflowId: 'workflow-1',
       executionId: 'execution-1',
       loopExecutions: loopExecutions ?? new Map(),
+      parallelBlockMapping,
     },
     executionState: {
       getBlockOutput: (id: string) => blockOutputs?.[id],
@@ -249,6 +255,34 @@ describe('LoopResolver', () => {
       expect(resolver.resolve('<loop.index>', ctx)).toBe(0)
     })
 
+    it('resolves generic loop context from inside a parallel nested in a loop', () => {
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['parallel-1'] } }, [], {
+        'parallel-1': { id: 'parallel-1', nodes: ['block-1'] },
+      })
+      const resolver = new LoopResolver(workflow)
+      const loopScope = createLoopScope({ iteration: 3 })
+      const ctx = createTestContext('block-1₍0₎', undefined, new Map([['loop-1', loopScope]]))
+
+      expect(resolver.resolve('<loop.index>', ctx)).toBe(3)
+    })
+
+    it('resolves inner cloned loop context independently from outer clone indexes', () => {
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['task'] } })
+      const resolver = new LoopResolver(workflow)
+      const loopExecutions = new Map<string, LoopScope>([
+        ['loop-1__obranch-1', createLoopScope({ iteration: 4, item: 'inner-branch-1' })],
+        ['loop-1__obranch-2', createLoopScope({ iteration: 9, item: 'outer-branch-2' })],
+      ])
+      const ctx = createTestContext(
+        'task__cloneabc__obranch-2__clonedef__obranch-1',
+        undefined,
+        loopExecutions
+      )
+
+      expect(resolver.resolve('<loop.index>', ctx)).toBe(4)
+      expect(resolver.resolve('<loop.currentItem>', ctx)).toBe('inner-branch-1')
+    })
+
     it.concurrent('should handle null item value', () => {
       const resolver = new LoopResolver(createTestWorkflow())
       const loopScope = createLoopScope({ item: null })
@@ -393,6 +427,62 @@ describe('LoopResolver', () => {
 
       expect(resolver.resolve('<loop1.result>', ctx)).toEqual(results)
       expect(resolver.resolve('<loop1.results>', ctx)).toEqual(results)
+    })
+
+    it('uses parallel block mappings to resolve cloned loop outputs in later batches', () => {
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
+      const resolver = new LoopResolver(workflow)
+      const loopExecutions = new Map<string, LoopScope>([
+        ['loop-1', createLoopScope()],
+        ['loop-1__obranch-2', createLoopScope()],
+      ])
+      const ctx = createTestContext(
+        'consumer₍0₎',
+        undefined,
+        loopExecutions,
+        {
+          'loop-1': { results: ['branch-0'] },
+          'loop-1__obranch-2': { results: ['branch-2'] },
+        },
+        new Map([
+          [
+            'consumer₍0₎',
+            { originalBlockId: 'consumer', parallelId: 'parallel-1', iterationIndex: 2 },
+          ],
+        ])
+      )
+
+      expect(resolver.resolve('<loop1.results>', ctx)).toEqual(['branch-2'])
+    })
+
+    it('uses outer branch suffix over inner parallel mappings for cloned loop outputs', () => {
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
+      const resolver = new LoopResolver(workflow)
+      const loopExecutions = new Map<string, LoopScope>([
+        ['loop-1__obranch-1', createLoopScope()],
+        ['loop-1__obranch-2', createLoopScope()],
+      ])
+      const ctx = createTestContext(
+        'consumer__cloneabc__obranch-2₍0₎',
+        undefined,
+        loopExecutions,
+        {
+          'loop-1__obranch-1': { results: ['outer-branch-1'] },
+          'loop-1__obranch-2': { results: ['outer-branch-2'] },
+        },
+        new Map([
+          [
+            'consumer__cloneabc__obranch-2₍0₎',
+            { originalBlockId: 'consumer', parallelId: 'inner-parallel', iterationIndex: 1 },
+          ],
+        ])
+      )
+
+      expect(resolver.resolve('<loop1.results>', ctx)).toEqual(['outer-branch-2'])
     })
 
     it.concurrent('should resolve result with nested path', () => {

@@ -744,6 +744,88 @@ describe('Automatic Internal Route Detection', () => {
     Object.assign(tools, originalTools)
   })
 
+  it('should reject internal tool responses that exceed the response body cap', async () => {
+    const mockTool = {
+      id: 'test_oversized_internal_tool',
+      name: 'Test Oversized Internal Tool',
+      description: 'A test tool with an oversized response',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: '/api/test/oversized',
+        method: 'GET',
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'should not run' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_oversized_internal_tool = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response('too large', {
+          status: 200,
+          headers: {
+            'content-length': '10485761',
+            'content-type': 'text/plain',
+          },
+        })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('test_oversized_internal_tool', {})
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('response size limit exceeded')
+    expect(mockTool.transformResponse).not.toHaveBeenCalled()
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('preserves structured 413 errors from internal tool routes', async () => {
+    const mockTool = {
+      id: 'test_internal_route_413_tool',
+      name: 'Test Internal Route 413 Tool',
+      description: 'A test tool with a route-produced payload limit error',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: '/api/test/payload-limit',
+        method: 'GET',
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'should not run' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_internal_route_413_tool = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'Generated image exceeds maximum size' }), {
+          status: 413,
+          headers: { 'content-type': 'application/json' },
+        })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('test_internal_route_413_tool', {})
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Generated image exceeds maximum size')
+    expect(result.error).not.toContain('Request body size limit exceeded')
+    expect(mockTool.transformResponse).not.toHaveBeenCalled()
+
+    Object.assign(tools, originalTools)
+  })
+
   it('should detect external routes (full URLs) and call directly with SSRF protection', async () => {
     // This test verifies that external URLs are called directly (not via proxy)
     // with SSRF protection via secureFetchWithPinnedIP
@@ -2712,6 +2794,130 @@ describe('Cost Field Handling', () => {
 
     // getCost should have been called with params and output
     expect(mockGetCost).toHaveBeenCalled()
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('should skip hosted key injection when hosting predicate is false', async () => {
+    const mockTool = {
+      id: 'test_conditional_hosting',
+      name: 'Test Conditional Hosting',
+      description: 'A test tool with conditional hosted keys',
+      version: '1.0.0',
+      params: {
+        provider: { type: 'string', required: false },
+        apiKey: { type: 'string', required: false },
+      },
+      hosting: {
+        enabled: (params: { provider?: string }) => params.provider === 'hosted-provider',
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        pricing: {
+          type: 'per_request' as const,
+          cost: 0.005,
+        },
+        rateLimit: {
+          mode: 'per_request' as const,
+          requestsPerMinute: 100,
+        },
+      },
+      request: {
+        url: '/api/test/conditional-hosting',
+        method: 'POST' as const,
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'success' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_conditional_hosting = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ success: true }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const mockContext = createToolExecutionContext({
+      userId: 'user-123',
+    } as any)
+    const result = await executeTool(
+      'test_conditional_hosting',
+      { provider: 'user-provider' },
+      { executionContext: mockContext }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+    expect(result.output.cost).toBeUndefined()
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('should skip hosted key injection when user provides an API key', async () => {
+    const mockTool = {
+      id: 'test_user_key_priority',
+      name: 'Test User Key Priority',
+      description: 'A test tool where user keys should win',
+      version: '1.0.0',
+      params: {
+        apiKey: { type: 'string', required: false },
+      },
+      hosting: {
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        pricing: {
+          type: 'per_request' as const,
+          cost: 0.005,
+        },
+        rateLimit: {
+          mode: 'per_request' as const,
+          requestsPerMinute: 100,
+        },
+      },
+      request: {
+        url: '/api/test/user-key-priority',
+        method: 'POST' as const,
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'success' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_user_key_priority = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ success: true }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const mockContext = createToolExecutionContext({
+      userId: 'user-123',
+    } as any)
+    const result = await executeTool(
+      'test_user_key_priority',
+      { apiKey: 'user-api-key' },
+      { executionContext: mockContext }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+    expect(result.output.cost).toBeUndefined()
 
     Object.assign(tools, originalTools)
   })

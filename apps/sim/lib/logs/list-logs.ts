@@ -30,6 +30,7 @@ import type {
   listLogsQuerySchema,
   WorkflowLogSummary,
 } from '@/lib/api/contracts/logs'
+import { jobCostTotal } from '@/lib/logs/fetch-log-detail'
 import { buildFilterConditions } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 
@@ -64,10 +65,7 @@ export function decodeCursor(cursor: string): CursorData | null {
  * caller is responsible for authenticating `userId`; this function enforces
  * workspace permission via the `permissions` join.
  */
-export async function listLogs(
-  params: ListLogsParams,
-  userId: string
-): Promise<ListLogsResponse> {
+export async function listLogs(params: ListLogsParams, userId: string): Promise<ListLogsResponse> {
   const sortBy = params.sortBy as SortBy
   const sortOrder = params.sortOrder as SortOrder
   const cursor = params.cursor ? decodeCursor(params.cursor) : null
@@ -84,7 +82,8 @@ export async function listLogs(
       case 'duration':
         return sql`${workflowExecutionLogs.totalDurationMs}`
       case 'cost':
-        return sql`(${workflowExecutionLogs.cost}->>'total')::numeric`
+        // Indexed projection of the usage_log ledger (dollars); no live aggregation.
+        return sql`${workflowExecutionLogs.costTotal}`
       case 'status':
         return sql`${workflowExecutionLogs.status}`
       default:
@@ -139,7 +138,10 @@ export async function listLogs(
         )
         if (c) levelConditions.push(c)
       } else if (level === 'running') {
-        const c = and(eq(workflowExecutionLogs.level, 'info'), isNull(workflowExecutionLogs.endedAt))
+        const c = and(
+          eq(workflowExecutionLogs.level, 'info'),
+          isNull(workflowExecutionLogs.endedAt)
+        )
         if (c) levelConditions.push(c)
       } else if (level === 'pending') {
         const c = and(
@@ -196,7 +198,7 @@ export async function listLogs(
       startedAt: workflowExecutionLogs.startedAt,
       endedAt: workflowExecutionLogs.endedAt,
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
-      cost: workflowExecutionLogs.cost,
+      costTotal: workflowExecutionLogs.costTotal,
       createdAt: workflowExecutionLogs.createdAt,
       workflowName: workflow.name,
       workflowDescription: workflow.description,
@@ -374,7 +376,9 @@ export async function listLogs(
           }
         : null,
       jobTitle: null,
-      cost: (log.cost as WorkflowLogSummary['cost']) ?? null,
+      // List cost is the cost_total projection (faithful ledger sum). Null until
+      // completion (running) or until the one-time legacy backfill populates it.
+      cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
       pauseSummary: {
         status: log.pausedStatus ?? null,
         total: totalPauseCount,
@@ -400,7 +404,7 @@ export async function listLogs(
       createdAt: log.startedAt.toISOString(),
       workflow: null,
       jobTitle: log.jobTitle ?? null,
-      cost: (log.cost as WorkflowLogSummary['cost']) ?? null,
+      cost: jobCostTotal(log.cost),
       pauseSummary: { status: null, total: 0, resumed: 0 },
       hasPendingPause: false,
     }

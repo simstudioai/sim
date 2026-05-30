@@ -199,7 +199,7 @@ async function sheetToDocument(
 export const googleSheetsConnector: ConnectorConfig = {
   id: 'google_sheets',
   name: 'Google Sheets',
-  description: 'Sync spreadsheet data from Google Sheets into your knowledge base',
+  description: 'Sync spreadsheet data from Google Sheets',
   version: '1.0.0',
   icon: GoogleSheetsIcon,
 

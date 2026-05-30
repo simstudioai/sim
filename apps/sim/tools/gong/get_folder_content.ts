@@ -1,4 +1,5 @@
 import type { GongGetFolderContentParams, GongGetFolderContentResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getFolderContentTool: ToolConfig<
@@ -34,7 +35,7 @@ export const getFolderContentTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/library/folder-content')
-      url.searchParams.set('folderId', params.folderId)
+      url.searchParams.set('folderId', params.folderId.trim())
       return url.toString()
     },
     method: 'GET',
@@ -47,7 +48,7 @@ export const getFolderContentTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to get folder content')
+      throw new Error(getGongErrorMessage(data, 'Failed to get folder content'))
     }
     const calls = (data.calls ?? []).map((c: Record<string, unknown>) => ({
       id: (c.id as string) ?? '',

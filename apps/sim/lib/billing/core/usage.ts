@@ -10,10 +10,12 @@ import {
   renderUsageThresholdEmail,
 } from '@/components/emails'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
+import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
   getHighestPrioritySubscription,
   type HighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
+import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import {
   computeDailyRefreshConsumed,
   getOrgMemberRefreshBounds,
@@ -56,24 +58,31 @@ export interface OrgUsageLimitResult {
  */
 export async function getPooledOrgCurrentPeriodCost(
   organizationId: string
-): Promise<{ memberIds: string[]; currentPeriodCost: number }> {
+): Promise<{ memberIds: string[]; currentPeriodCost: number; lastPeriodCost: number }> {
   const rows = await db
     .select({
       userId: member.userId,
       currentPeriodCost: userStats.currentPeriodCost,
+      lastPeriodCost: userStats.lastPeriodCost,
     })
     .from(member)
     .leftJoin(userStats, eq(member.userId, userStats.userId))
     .where(eq(member.organizationId, organizationId))
 
   let pooled = new Decimal(0)
+  let lastPeriodCost = new Decimal(0)
   const memberIds: string[] = []
   for (const row of rows) {
     memberIds.push(row.userId)
     pooled = pooled.plus(toDecimal(row.currentPeriodCost))
+    lastPeriodCost = lastPeriodCost.plus(toDecimal(row.lastPeriodCost))
   }
 
-  return { memberIds, currentPeriodCost: toNumber(pooled) }
+  return {
+    memberIds,
+    currentPeriodCost: toNumber(pooled),
+    lastPeriodCost: toNumber(lastPeriodCost),
+  }
 }
 
 /**
@@ -186,8 +195,17 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
 
     const stats = userStatsData[0]
     const orgScoped = isOrgScopedSubscription(subscription, userId)
+    const billingPeriod =
+      subscription?.periodStart && subscription.periodEnd
+        ? { start: subscription.periodStart, end: subscription.periodEnd }
+        : defaultBillingPeriod()
 
     let currentUsageDecimal = toDecimal(stats.currentPeriodCost)
+    if (!orgScoped) {
+      currentUsageDecimal = currentUsageDecimal.plus(
+        await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
+      )
+    }
 
     // For personally-scoped Pro users, include any snapshotted usage from
     // a prior org-join so the display reflects their total Pro usage.
@@ -204,6 +222,7 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
       }
     }
     let currentUsage = toNumber(currentUsageDecimal)
+    let lastPeriodCost = toNumber(toDecimal(stats.lastPeriodCost))
 
     let limit: number
     // Shared between the pooled-usage and pooled-refresh blocks so we
@@ -220,7 +239,12 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
 
       const pooled = await getPooledOrgCurrentPeriodCost(subscription.referenceId)
       orgMemberIds = pooled.memberIds
-      currentUsage = pooled.currentPeriodCost
+      lastPeriodCost = pooled.lastPeriodCost
+      const ledgerUsage = await getBillingPeriodUsageCost(
+        { type: 'organization', id: subscription.referenceId },
+        billingPeriod
+      )
+      currentUsage = pooled.currentPeriodCost + ledgerUsage
     } else {
       limit = stats.currentUsageLimit
         ? toNumber(toDecimal(stats.currentUsageLimit))
@@ -247,6 +271,7 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
               planDollars,
               seats: subscription.seats || 1,
               userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
+              billingEntity: { type: 'organization', id: subscription.referenceId },
             })
           }
         } else {
@@ -255,6 +280,7 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
             periodStart: billingPeriodStart,
             periodEnd: billingPeriodEnd,
             planDollars,
+            billingEntity: { type: 'user', id: userId },
           })
         }
       }
@@ -273,7 +299,7 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
       isExceeded,
       billingPeriodStart,
       billingPeriodEnd,
-      lastPeriodCost: toNumber(toDecimal(stats.lastPeriodCost)),
+      lastPeriodCost,
     }
   } catch (error) {
     logger.error('Failed to get user usage data', { userId, error })
@@ -582,51 +608,6 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
 }
 
 /**
- * Get usage limit information for team members (for admin dashboard)
- */
-export async function getTeamUsageLimits(organizationId: string): Promise<
-  Array<{
-    userId: string
-    userName: string
-    userEmail: string
-    currentLimit: number
-    currentUsage: number
-    totalCost: number
-    lastActive: Date | null
-  }>
-> {
-  try {
-    const teamMembers = await db
-      .select({
-        userId: member.userId,
-        userName: user.name,
-        userEmail: user.email,
-        currentLimit: userStats.currentUsageLimit,
-        currentPeriodCost: userStats.currentPeriodCost,
-        totalCost: userStats.totalCost,
-        lastActive: userStats.lastActive,
-      })
-      .from(member)
-      .innerJoin(user, eq(member.userId, user.id))
-      .leftJoin(userStats, eq(member.userId, userStats.userId))
-      .where(eq(member.organizationId, organizationId))
-
-    return teamMembers.map((memberData) => ({
-      userId: memberData.userId,
-      userName: memberData.userName,
-      userEmail: memberData.userEmail,
-      currentLimit: toNumber(toDecimal(memberData.currentLimit || getFreeTierLimit().toString())),
-      currentUsage: toNumber(toDecimal(memberData.currentPeriodCost)),
-      totalCost: toNumber(toDecimal(memberData.totalCost)),
-      lastActive: memberData.lastActive,
-    }))
-  } catch (error) {
-    logger.error('Failed to get team usage limits', { organizationId, error })
-    return []
-  }
-}
-
-/**
  * Returns the effective current period usage cost for a user, with daily
  * refresh credits deducted. Org-scoped subs return the pooled sum across
  * all org members; personally-scoped subs return this user's own cost.
@@ -642,7 +623,16 @@ export async function getEffectiveCurrentPeriodCost(userId: string): Promise<num
     const pooled = await getPooledOrgCurrentPeriodCost(subscription.referenceId)
     if (pooled.memberIds.length === 0) return 0
     refreshUserIds = pooled.memberIds
-    rawCost = pooled.currentPeriodCost
+    const billingPeriod =
+      subscription.periodStart && subscription.periodEnd
+        ? { start: subscription.periodStart, end: subscription.periodEnd }
+        : defaultBillingPeriod()
+    rawCost =
+      pooled.currentPeriodCost +
+      (await getBillingPeriodUsageCost(
+        { type: 'organization', id: subscription.referenceId },
+        billingPeriod
+      ))
   } else {
     const rows = await db
       .select({ current: userStats.currentPeriodCost })
@@ -651,7 +641,13 @@ export async function getEffectiveCurrentPeriodCost(userId: string): Promise<num
       .limit(1)
 
     if (rows.length === 0) return 0
-    rawCost = toNumber(toDecimal(rows[0].current))
+    const billingPeriod =
+      subscription?.periodStart && subscription.periodEnd
+        ? { start: subscription.periodStart, end: subscription.periodEnd }
+        : defaultBillingPeriod()
+    rawCost =
+      toNumber(toDecimal(rows[0].current)) +
+      (await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod))
   }
 
   if (!subscription || !isPaid(subscription.plan) || !subscription.periodStart) {
@@ -673,6 +669,10 @@ export async function getEffectiveCurrentPeriodCost(userId: string): Promise<num
     planDollars,
     seats: subscription.seats || 1,
     userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
+    billingEntity:
+      orgScoped && subscription
+        ? { type: 'organization', id: subscription.referenceId }
+        : { type: 'user', id: userId },
   })
 
   return Math.max(0, rawCost - refreshConsumed)

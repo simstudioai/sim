@@ -25,7 +25,6 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
@@ -54,6 +53,7 @@ import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-cr
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { queryLogsServerTool } from '@/lib/copilot/tools/server/workflow/query-logs'
+import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
 
 export type ExecuteResponseSuccess = z.output<typeof ExecuteResponseSuccessSchema>
 
@@ -97,6 +97,7 @@ const WRITE_ACTIONS: Record<string, string[]> = {
     'rename_column',
     'delete_column',
     'update_column',
+    'add_enrichment',
   ],
   [ManageCustomTool.id]: ['add', 'edit', 'delete'],
   [ManageMcpTool.id]: ['add', 'edit', 'delete'],

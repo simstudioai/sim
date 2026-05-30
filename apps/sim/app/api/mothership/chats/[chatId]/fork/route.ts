@@ -6,11 +6,13 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-tasks'
 import { parseRequest } from '@/lib/api/server'
+import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-dual-write'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
+  createForbiddenResponse,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createUnauthorizedResponse,
@@ -21,7 +23,10 @@ import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  assertActiveWorkspaceAccess,
+  isWorkspaceAccessDeniedError,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('ForkChatAPI')
 
@@ -102,6 +107,8 @@ export const POST = withRouteHandler(
         return createInternalServerErrorResponse('Failed to create forked chat')
       }
 
+      await appendCopilotChatMessages(newId, forkedMessages, { chatModel: parent.model })
+
       // Clone copilot-service conversation state (messages, active_messages, memory files).
       // Best-effort: if the copilot service doesn't have a row for the source chat yet, skip.
       try {
@@ -150,6 +157,9 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ success: true, id: newId })
     } catch (error) {
+      if (isWorkspaceAccessDeniedError(error)) {
+        return createForbiddenResponse('Workspace access denied')
+      }
       logger.error('Error forking chat:', error)
       return createInternalServerErrorResponse('Failed to fork chat')
     }

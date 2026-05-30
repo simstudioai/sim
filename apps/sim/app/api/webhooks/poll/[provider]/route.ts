@@ -6,6 +6,7 @@ import { webhookPollingContract } from '@/lib/api/contracts/webhooks'
 import { parseRequest } from '@/lib/api/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
+import { runDetached } from '@/lib/core/utils/background'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { pollProvider, VALID_POLLING_PROVIDERS } from '@/lib/webhooks/polling'
 
@@ -38,37 +39,38 @@ export const GET = withRouteHandler(
       }
 
       const LOCK_KEY = `${provider}-polling-lock`
-      let lockValue: string | undefined
+      const lockValue = requestId
+      const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS)
+      if (!locked) {
+        return NextResponse.json(
+          {
+            success: true,
+            message: 'Polling already in progress – skipped',
+            requestId,
+            status: 'skip',
+          },
+          { status: 202 }
+        )
+      }
 
-      try {
-        lockValue = requestId
-        const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS)
-        if (!locked) {
-          return NextResponse.json(
-            {
-              success: true,
-              message: 'Polling already in progress – skipped',
-              requestId,
-              status: 'skip',
-            },
-            { status: 202 }
-          )
-        }
-
-        const results = await pollProvider(provider)
-
-        return NextResponse.json({
-          success: true,
-          message: `${provider} polling completed`,
-          requestId,
-          status: 'completed',
-          ...results,
-        })
-      } finally {
-        if (lockValue) {
+      const pollingProvider = provider
+      runDetached(`${pollingProvider}-polling`, async () => {
+        try {
+          await pollProvider(pollingProvider)
+        } finally {
           await releaseLock(LOCK_KEY, lockValue).catch(() => {})
         }
-      }
+      })
+
+      return NextResponse.json(
+        {
+          success: true,
+          message: `${provider} polling started`,
+          requestId,
+          status: 'started',
+        },
+        { status: 202 }
+      )
     } catch (error) {
       const providerLabel = provider ?? 'webhook'
       logger.error(`Error during ${providerLabel} polling (${requestId}):`, error)

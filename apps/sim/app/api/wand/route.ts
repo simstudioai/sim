@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { wandGenerateContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
@@ -106,7 +106,6 @@ async function updateUserStatsForWand(
   }
 
   try {
-    const totalTokens = usage.total_tokens || 0
     const promptTokens = usage.prompt_tokens || 0
     const completionTokens = usage.completion_tokens || 0
 
@@ -138,12 +137,10 @@ async function updateUserStatsForWand(
           source: 'wand',
           description: modelName,
           cost: costToStore,
+          sourceReference: `wand:${requestId}`,
           metadata: { inputTokens: promptTokens, outputTokens: completionTokens },
         },
       ],
-      additionalStats: {
-        totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
-      },
     })
 
     await checkAndBillOverageThreshold(billingUserId)

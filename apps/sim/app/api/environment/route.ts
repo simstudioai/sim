@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { environment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -136,8 +137,8 @@ export const GET = withRouteHandler(async (request: Request) => {
     >
 
     return NextResponse.json({ data: decryptedVariables }, { status: 200 })
-  } catch (error: any) {
+  } catch (error) {
     logger.error(`[${requestId}] Environment fetch error`, error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: toError(error).message }, { status: 500 })
   }
 })

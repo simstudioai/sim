@@ -73,7 +73,11 @@ vi.mock('@/lib/copilot/integration-tools', () => ({
     },
     {
       toolId: 'run_workflow',
-      config: { id: 'run_workflow', name: 'Run Workflow', description: 'Run a workflow from the client' },
+      config: {
+        id: 'run_workflow',
+        name: 'Run Workflow',
+        description: 'Run a workflow from the client',
+      },
       service: 'run',
       operation: 'workflow',
     },
@@ -84,11 +88,16 @@ vi.mock('@/tools/params', () => ({
   createUserToolSchema: mockCreateUserToolSchema,
 }))
 
-import { buildCopilotRequestPayload, buildIntegrationToolSchemas } from './payload'
+import {
+  buildCopilotRequestPayload,
+  buildIntegrationToolSchemas,
+  clearIntegrationToolSchemaCacheForTests,
+} from './payload'
 
 describe('buildIntegrationToolSchemas', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clearIntegrationToolSchemaCacheForTests()
     mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
   })
 
@@ -148,6 +157,18 @@ describe('buildIntegrationToolSchemas', () => {
       expect.objectContaining({ id: 'brandfetch_search' }),
       { surface: 'copilot' }
     )
+  })
+
+  it('briefly reuses built schemas for the same user and surface', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
+
+    const first = await buildIntegrationToolSchemas('user-cache')
+    first[0].input_schema.mutated = true
+    const second = await buildIntegrationToolSchemas('user-cache')
+
+    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(1)
+    expect(mockCreateUserToolSchema).toHaveBeenCalledTimes(3)
+    expect(second[0].input_schema).not.toHaveProperty('mutated')
   })
 })
 

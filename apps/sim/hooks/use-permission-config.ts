@@ -21,6 +21,7 @@ export interface PermissionConfigResult {
   filterProviders: (providerIds: string[]) => string[]
   isBlockAllowed: (blockType: string) => boolean
   isProviderAllowed: (providerId: string) => boolean
+  isModelAllowed: (model: string) => boolean
   isInvitationsDisabled: boolean
   isPublicApiDisabled: boolean
 }
@@ -98,6 +99,14 @@ export function usePermissionConfig(): PermissionConfigResult {
     }
   }, [config.allowedModelProviders])
 
+  const isModelAllowed = useMemo(() => {
+    return (model: string) => {
+      if (config.deniedModels.length === 0) return true
+      const normalized = model.toLowerCase()
+      return !config.deniedModels.some((denied) => denied.toLowerCase() === normalized)
+    }
+  }, [config.deniedModels])
+
   const filterBlocks = useMemo(() => {
     return <T extends { type: string }>(blocks: T[]): T[] => {
       if (mergedAllowedIntegrations === null) return blocks
@@ -140,6 +149,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       filterProviders,
       isBlockAllowed,
       isProviderAllowed,
+      isModelAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
     }),
@@ -151,6 +161,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       filterProviders,
       isBlockAllowed,
       isProviderAllowed,
+      isModelAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
     ]

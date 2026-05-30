@@ -347,6 +347,9 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     removeFromQueue: copilotRemoveFromQueue,
     sendNow: copilotSendNow,
     editQueuedMessage: copilotEditQueuedMessage,
+    cancelQueueEdit: copilotCancelQueueEdit,
+    editingQueuedId: copilotEditingQueuedId,
+    dispatchingHeadId: copilotDispatchingHeadId,
     getCurrentRequestId: getCopilotCurrentRequestId,
   } = useChat(
     workspaceId,
@@ -885,9 +888,12 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   onSubmit={handleCopilotSubmit}
                   onStopGeneration={handleCopilotStopGeneration}
                   messageQueue={copilotMessageQueue}
+                  editingQueuedId={copilotEditingQueuedId}
+                  dispatchingHeadId={copilotDispatchingHeadId}
                   onRemoveQueuedMessage={copilotRemoveFromQueue}
                   onSendQueuedMessage={copilotSendNow}
                   onEditQueuedMessage={copilotEditQueuedMessage}
+                  onCancelQueueEdit={copilotCancelQueueEdit}
                   userId={session?.user?.id}
                   chatId={copilotResolvedChatId}
                   layout='copilot-view'

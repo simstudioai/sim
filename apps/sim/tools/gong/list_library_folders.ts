@@ -2,6 +2,7 @@ import type {
   GongListLibraryFoldersParams,
   GongListLibraryFoldersResponse,
 } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listLibraryFoldersTool: ToolConfig<
@@ -37,7 +38,7 @@ export const listLibraryFoldersTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/library/folders')
-      if (params.workspaceId) url.searchParams.set('workspaceId', params.workspaceId)
+      if (params.workspaceId?.trim()) url.searchParams.set('workspaceId', params.workspaceId.trim())
       return url.toString()
     },
     method: 'GET',
@@ -50,7 +51,7 @@ export const listLibraryFoldersTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to list library folders')
+      throw new Error(getGongErrorMessage(data, 'Failed to list library folders'))
     }
     const folders = (data.folders ?? []).map((f: Record<string, unknown>) => ({
       id: f.id ?? '',

@@ -301,7 +301,9 @@ export const fileDownloadBodySchema = z
 
 export const fileParseBodySchema = z
   .object({
-    filePath: z.union([z.string(), z.array(z.string())]).optional(),
+    filePath: z
+      .union([z.string(), z.array(z.string()).max(10, 'At most 10 files can be parsed at once')])
+      .optional(),
     fileType: z.string().optional().default(''),
     headers: z.record(z.string(), z.string()).optional(),
     workspaceId: z.string().optional().default(''),

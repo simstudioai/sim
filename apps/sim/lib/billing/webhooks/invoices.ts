@@ -13,6 +13,10 @@ import type Stripe from 'stripe'
 import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
 import { BILLING_LOCK_TIMEOUT_MS } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
+import {
+  COPILOT_USAGE_SOURCES,
+  getBillingPeriodUsageCostByUser,
+} from '@/lib/billing/core/usage-log'
 import { addCredits, getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
@@ -28,6 +32,26 @@ import { getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
 const logger = createLogger('StripeInvoiceWebhooks')
+
+function getSubscriptionLinePeriod(
+  invoice: Stripe.Invoice,
+  stripeSubscriptionId: string
+): { periodStart: Date; periodEnd: Date } | null {
+  const subscriptionLine = invoice.lines?.data?.find(
+    (line) =>
+      line.parent?.type === 'subscription_item_details' &&
+      line.parent.subscription_item_details?.subscription === stripeSubscriptionId
+  )
+
+  if (!subscriptionLine?.period?.start || !subscriptionLine.period.end) {
+    return null
+  }
+
+  return {
+    periodStart: new Date(subscriptionLine.period.start * 1000),
+    periodEnd: new Date(subscriptionLine.period.end * 1000),
+  }
+}
 
 const METADATA_SUBSCRIPTION_INVOICE_TYPES = new Set<string>([
   'overage_billing',
@@ -387,8 +411,32 @@ export async function getBilledOverageForSubscription(sub: {
     : 0
 }
 
-export async function resetUsageForSubscription(sub: { plan: string | null; referenceId: string }) {
+export async function resetUsageForSubscription(sub: {
+  plan: string | null
+  referenceId: string
+  periodStart?: Date | null
+  periodEnd?: Date | null
+}) {
+  const billingPeriod =
+    sub.periodStart && sub.periodEnd ? { start: sub.periodStart, end: sub.periodEnd } : null
+
   if (await isSubscriptionOrgScoped(sub)) {
+    const ledgerUsageByUser = billingPeriod
+      ? await getBillingPeriodUsageCostByUser(
+          { type: 'organization', id: sub.referenceId },
+          billingPeriod
+        )
+      : new Map<string, number>()
+    // Copilot-family ledger per user, so last-period copilot mirrors last-period
+    // cost (baseline + usage_log) instead of capturing the baseline alone.
+    const copilotLedgerByUser = billingPeriod
+      ? await getBillingPeriodUsageCostByUser(
+          { type: 'organization', id: sub.referenceId },
+          billingPeriod,
+          COPILOT_USAGE_SOURCES
+        )
+      : new Map<string, number>()
+
     await db.transaction(async (tx) => {
       await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
@@ -441,6 +489,15 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
           return
         }
 
+        const lastCostByUser = sql.join(
+          memberStatsRows.map((row) => {
+            const baseline = toNumber(toDecimal(row.current))
+            const ledgerUsage = ledgerUsageByUser.get(row.userId) ?? 0
+            const lastPeriodCost = (baseline + ledgerUsage).toString()
+            return sql`WHEN ${row.userId} THEN ${lastPeriodCost}`
+          }),
+          sql` `
+        )
         const currentCostByUser = sql.join(
           memberStatsRows.map((row) => sql`WHEN ${row.userId} THEN ${row.current ?? '0'}`),
           sql` `
@@ -449,14 +506,27 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
           memberStatsRows.map((row) => sql`WHEN ${row.userId} THEN ${row.currentCopilot ?? '0'}`),
           sql` `
         )
+        // Last-period copilot = baseline copilot + copilot-family ledger, mirroring
+        // lastPeriodCost. (The reset below still subtracts only the baseline, since
+        // the ledger is period-scoped and rolls over on its own.)
+        const lastCopilotCostByUser = sql.join(
+          memberStatsRows.map((row) => {
+            const baselineCopilot = toNumber(toDecimal(row.currentCopilot))
+            const copilotLedger = copilotLedgerByUser.get(row.userId) ?? 0
+            return sql`WHEN ${row.userId} THEN ${(baselineCopilot + copilotLedger).toString()}`
+          }),
+          sql` `
+        )
+        const capturedLastCost = sql`CASE ${userStats.userId} ${lastCostByUser} ELSE '0' END`
         const capturedCurrentCost = sql`CASE ${userStats.userId} ${currentCostByUser} ELSE '0' END`
         const capturedCurrentCopilotCost = sql`CASE ${userStats.userId} ${currentCopilotCostByUser} ELSE '0' END`
+        const capturedLastCopilotCost = sql`CASE ${userStats.userId} ${lastCopilotCostByUser} ELSE '0' END`
 
         await tx
           .update(userStats)
           .set({
-            lastPeriodCost: capturedCurrentCost,
-            lastPeriodCopilotCost: capturedCurrentCopilotCost,
+            lastPeriodCost: capturedLastCost,
+            lastPeriodCopilotCost: capturedLastCopilotCost,
             currentPeriodCost: sql`GREATEST(0, ${userStats.currentPeriodCost} - (${capturedCurrentCost})::decimal)`,
             currentPeriodCopilotCost: sql`GREATEST(0, ${userStats.currentPeriodCopilotCost} - (${capturedCurrentCopilotCost})::decimal)`,
             billedOverageThisPeriod: '0',
@@ -483,6 +553,22 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
       const current = currentStats[0].current || '0'
       const snapshot = toNumber(toDecimal(currentStats[0].snapshot))
       const currentCopilot = currentStats[0].currentCopilot || '0'
+      const ledgerUsage = billingPeriod
+        ? await getBillingPeriodUsageCostByUser(
+            { type: 'user', id: sub.referenceId },
+            billingPeriod
+          )
+        : new Map<string, number>()
+      const userLedgerUsage = ledgerUsage.get(sub.referenceId) ?? 0
+      const copilotLedgerUsage = billingPeriod
+        ? ((
+            await getBillingPeriodUsageCostByUser(
+              { type: 'user', id: sub.referenceId },
+              billingPeriod,
+              COPILOT_USAGE_SOURCES
+            )
+          ).get(sub.referenceId) ?? 0)
+        : 0
 
       // Snapshot > 0: user joined a paid org mid-cycle. The pre-join
       // portion was billed on this invoice (snapshot); `currentPeriodCost`
@@ -492,21 +578,32 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
         await db
           .update(userStats)
           .set({
-            lastPeriodCost: snapshot.toString(),
-            lastPeriodCopilotCost: '0',
+            lastPeriodCost: (snapshot + userLedgerUsage).toString(),
+            // Pre-join personal copilot = the user-scoped copilot ledger only
+            // (post-join copilot usage is org-attributed, so this captures the
+            // pre-join portion). The copilot baseline stays with the org via the
+            // retained currentPeriodCopilotCost, so don't add it here (avoids a
+            // double count at the org's cycle-close).
+            lastPeriodCopilotCost: copilotLedgerUsage.toString(),
             proPeriodCostSnapshot: '0',
             proPeriodCostSnapshotAt: null,
             billedOverageThisPeriod: '0',
           })
           .where(eq(userStats.userId, sub.referenceId))
       } else {
-        const totalLastPeriod = toNumber(toDecimal(current).plus(snapshot)).toString()
+        const totalLastPeriod = (
+          toNumber(toDecimal(current)) +
+          snapshot +
+          userLedgerUsage
+        ).toString()
         // Delta-reset for the same reason as the org branch above.
         await db
           .update(userStats)
           .set({
             lastPeriodCost: totalLastPeriod,
-            lastPeriodCopilotCost: currentCopilot,
+            lastPeriodCopilotCost: (
+              toNumber(toDecimal(currentCopilot)) + copilotLedgerUsage
+            ).toString(),
             currentPeriodCost: sql`GREATEST(0, ${userStats.currentPeriodCost} - ${current}::decimal)`,
             currentPeriodCopilotCost: sql`GREATEST(0, ${userStats.currentPeriodCopilotCost} - ${currentCopilot}::decimal)`,
             proPeriodCostSnapshot: '0',
@@ -744,7 +841,16 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
         }
 
         if (wasBlocked && !isProrationInvoice) {
-          await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
+          const invoicePeriod = getSubscriptionLinePeriod(
+            invoice,
+            resolvedInvoice.stripeSubscriptionId
+          )
+          await resetUsageForSubscription({
+            plan: sub.plan,
+            referenceId: sub.referenceId,
+            periodStart: invoicePeriod?.periodStart ?? null,
+            periodEnd: invoicePeriod?.periodEnd ?? null,
+          })
         }
       }
     )
@@ -885,8 +991,25 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     if (records.length === 0) return
     const sub = records[0]
 
+    const invoicePeriod = getSubscriptionLinePeriod(invoice, stripeSubscriptionId)
+    if (!invoicePeriod) {
+      logger.error('Missing subscription line period on subscription cycle invoice', {
+        invoiceId: invoice.id,
+        stripeSubscriptionId,
+      })
+      if (isEnterprise(sub.plan)) {
+        await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
+      }
+      return
+    }
+
     if (isEnterprise(sub.plan)) {
-      await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
+      await resetUsageForSubscription({
+        plan: sub.plan,
+        referenceId: sub.referenceId,
+        periodStart: invoicePeriod.periodStart,
+        periodEnd: invoicePeriod.periodEnd,
+      })
       return
     }
 
@@ -895,13 +1018,15 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
       event.id,
       async () => {
         const stripe = requireStripeClient()
-        const periodEnd =
-          invoice.lines?.data?.[0]?.period?.end ||
-          invoice.period_end ||
-          Math.floor(Date.now() / 1000)
+        const periodStart = Math.floor(invoicePeriod.periodStart.getTime() / 1000)
+        const periodEnd = Math.floor(invoicePeriod.periodEnd.getTime() / 1000)
         const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
 
-        const totalOverage = await calculateSubscriptionOverage(sub)
+        const totalOverage = await calculateSubscriptionOverage({
+          ...sub,
+          periodStart: new Date(periodStart * 1000),
+          periodEnd: new Date(periodEnd * 1000),
+        })
 
         const entityType = (await isSubscriptionOrgScoped(sub)) ? 'organization' : 'user'
         const entityId = sub.referenceId
@@ -1089,7 +1214,12 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
         // rolls `currentPeriodCost` forward by delta. Idempotent on its
         // own (delta subtraction of a value that's already been
         // subtracted is a no-op).
-        await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
+        await resetUsageForSubscription({
+          plan: sub.plan,
+          referenceId: sub.referenceId,
+          periodStart: invoicePeriod.periodStart,
+          periodEnd: invoicePeriod.periodEnd,
+        })
 
         return { totalOverage, creditsApplied, amountToBillStripe }
       }

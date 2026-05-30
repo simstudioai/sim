@@ -6,7 +6,7 @@
 import { createMockRequest } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockForgetPassword, mockLogger } = vi.hoisted(() => {
+const { mockRequestPasswordReset, mockLogger } = vi.hoisted(() => {
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -17,7 +17,7 @@ const { mockForgetPassword, mockLogger } = vi.hoisted(() => {
     child: vi.fn(),
   }
   return {
-    mockForgetPassword: vi.fn(),
+    mockRequestPasswordReset: vi.fn(),
     mockLogger: logger,
   }
 })
@@ -28,7 +28,7 @@ vi.mock('@/lib/core/utils/urls', () => ({
 vi.mock('@/lib/auth', () => ({
   auth: {
     api: {
-      forgetPassword: mockForgetPassword,
+      requestPasswordReset: mockRequestPasswordReset,
     },
   },
 }))
@@ -43,7 +43,7 @@ import { POST } from '@/app/api/auth/forget-password/route'
 describe('Forget Password API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockForgetPassword.mockResolvedValue(undefined)
+    mockRequestPasswordReset.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -62,7 +62,7 @@ describe('Forget Password API Route', () => {
     expect(response.status).toBe(200)
     expect(data.success).toBe(true)
 
-    expect(mockForgetPassword).toHaveBeenCalledWith({
+    expect(mockRequestPasswordReset).toHaveBeenCalledWith({
       body: {
         email: 'test@example.com',
         redirectTo: 'https://app.example.com/reset',
@@ -83,7 +83,7 @@ describe('Forget Password API Route', () => {
     expect(response.status).toBe(400)
     expect(data.message).toBe('Redirect URL must be a valid same-origin URL')
 
-    expect(mockForgetPassword).not.toHaveBeenCalled()
+    expect(mockRequestPasswordReset).not.toHaveBeenCalled()
   })
 
   it('should send password reset email without redirectTo', async () => {
@@ -97,7 +97,7 @@ describe('Forget Password API Route', () => {
     expect(response.status).toBe(200)
     expect(data.success).toBe(true)
 
-    expect(mockForgetPassword).toHaveBeenCalledWith({
+    expect(mockRequestPasswordReset).toHaveBeenCalledWith({
       body: {
         email: 'test@example.com',
         redirectTo: undefined,
@@ -115,7 +115,7 @@ describe('Forget Password API Route', () => {
     expect(response.status).toBe(400)
     expect(data.message).toBe('Email is required')
 
-    expect(mockForgetPassword).not.toHaveBeenCalled()
+    expect(mockRequestPasswordReset).not.toHaveBeenCalled()
   })
 
   it('should handle empty email', async () => {
@@ -129,13 +129,13 @@ describe('Forget Password API Route', () => {
     expect(response.status).toBe(400)
     expect(data.message).toBe('Please provide a valid email address')
 
-    expect(mockForgetPassword).not.toHaveBeenCalled()
+    expect(mockRequestPasswordReset).not.toHaveBeenCalled()
   })
 
   it('should handle auth service error with message', async () => {
     const errorMessage = 'User not found'
 
-    mockForgetPassword.mockRejectedValue(new Error(errorMessage))
+    mockRequestPasswordReset.mockRejectedValue(new Error(errorMessage))
 
     const req = createMockRequest('POST', {
       email: 'nonexistent@example.com',
@@ -153,7 +153,7 @@ describe('Forget Password API Route', () => {
   })
 
   it('should handle unknown error', async () => {
-    mockForgetPassword.mockRejectedValue('Unknown error')
+    mockRequestPasswordReset.mockRejectedValue('Unknown error')
 
     const req = createMockRequest('POST', {
       email: 'test@example.com',

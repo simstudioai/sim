@@ -7,7 +7,7 @@ import {
   workflowDeploymentVersion,
 } from '@sim/db/schema'
 import type { Logger } from '@sim/logger'
-import { and, eq, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, isNull, ne, or, sql } from 'drizzle-orm'
 import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing'
 import type { WebhookRecord, WorkflowRecord } from '@/lib/webhooks/polling/types'
 import {
@@ -61,7 +61,9 @@ export async function markWebhookSuccess(webhookId: string, logger: Logger): Pro
         failedCount: 0,
         updatedAt: new Date(),
       })
-      .where(eq(webhook.id, webhookId))
+      .where(
+        and(eq(webhook.id, webhookId), or(isNull(webhook.failedCount), ne(webhook.failedCount, 0)))
+      )
   } catch (err) {
     logger.error(`Failed to mark webhook ${webhookId} as successful:`, err)
   }

@@ -1,3 +1,4 @@
+import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type {
   ColumnDefinition,
   RowExecutionMetadata,
@@ -5,6 +6,7 @@ import type {
   TableRow as TableRowType,
   WorkflowGroup,
 } from '@/lib/table'
+import { areGroupDepsSatisfied, areOutputsFilled } from '@/lib/table/deps'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import type { DisplayColumn } from './types'
 
@@ -47,7 +49,10 @@ export function checkboxColLayout(
 ): { colWidth: number; numDivWidth: number } {
   const digits = maxRows > 0 ? Math.floor(Math.log10(maxRows)) + 1 : 1
   const numDivWidth = Math.max(20, digits * 8 + 4)
-  const colWidth = Math.max(32, numDivWidth + 8) + (hasWorkflowCols ? 16 : 0)
+  // When workflow columns are present a 20px run/stop button sits to the right of
+  // the number, separated by a 6px gap and a 4px right pad — 30px total. Reserving
+  // only the button width clipped the number on tables with many (wide) row indices.
+  const colWidth = Math.max(32, numDivWidth + 8) + (hasWorkflowCols ? 30 : 0)
   return { colWidth, numDivWidth }
 }
 
@@ -164,6 +169,53 @@ export function readExecution(
 ): RowExecutionMetadata | undefined {
   if (!groupId) return undefined
   return row?.executions?.[groupId]
+}
+
+/**
+ * Resolves a cell's execution state with the "about to run" overlay applied:
+ * for cells in an active dispatch's scope ahead of its cursor whose deps are
+ * already satisfied, returns a synthetic `pending` exec so the renderer
+ * shows `Queued`. Cells with a real DB exec always win — the overlay only
+ * fills the gap between dispatch start and the dispatcher's per-row pending
+ * stamp. Cells with unmet deps still render as `Waiting` (the renderer
+ * computes that from `waitingOnLabels`).
+ */
+export function resolveCellExec(
+  row: TableRowType,
+  group: WorkflowGroup | undefined,
+  activeDispatches: ActiveDispatch[] | undefined
+): RowExecutionMetadata | undefined {
+  if (!group) return undefined
+  const real = row.executions?.[group.id]
+  if (real) return real
+  if (!activeDispatches || activeDispatches.length === 0) return undefined
+  if (areOutputsFilled(group, row)) return undefined
+  if (!areGroupDepsSatisfied(group, row)) return undefined
+  for (const d of activeDispatches) {
+    // Capped dispatches run only the first N eligible rows ahead of the
+    // cursor, and this per-row resolver can't tell which rows fall within the
+    // budget — rendering every ahead-of-cursor row as Queued would massively
+    // over-count. The dispatcher's real per-row pending stamps (arriving via
+    // cell SSE) cover the actual rows instead.
+    if (d.limit) continue
+    if (!d.scope.groupIds.includes(group.id)) continue
+    // Auto-fire dispatches (row writes / schema changes) scope every group but
+    // the dispatcher honors `autoRun: false` per-cell ('autoRun-off'), so those
+    // cells never actually run — don't optimistically paint them Queued. Manual
+    // runs (Run all / Run column) bypass autoRun and DO run them, so keep the
+    // overlay's Queued there.
+    if (!d.isManualRun && group.autoRun === false) continue
+    if (d.scope.rowIds && !d.scope.rowIds.includes(row.id)) continue
+    if (row.position <= d.cursor) continue
+    return {
+      status: 'pending',
+      executionId: null,
+      jobId: null,
+      workflowId: group.workflowId,
+      error: null,
+    }
+  }
+  return undefined
 }
 
 export interface ExecStatusMix {

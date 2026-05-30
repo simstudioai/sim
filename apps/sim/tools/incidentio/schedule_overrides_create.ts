@@ -26,6 +26,12 @@ export const scheduleOverridesCreateTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The ID of the rotation to override (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
+    layer_id: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The ID of the layer this override applies to',
+    },
     schedule_id: {
       type: 'string',
       required: true,
@@ -81,6 +87,7 @@ export const scheduleOverridesCreateTool: ToolConfig<
       if (params.user_slack_id) user.slack_user_id = params.user_slack_id
 
       return {
+        layer_id: params.layer_id.trim(),
         rotation_id: params.rotation_id,
         schedule_id: params.schedule_id,
         user,
@@ -107,6 +114,7 @@ export const scheduleOverridesCreateTool: ToolConfig<
       description: 'The created schedule override',
       properties: {
         id: { type: 'string', description: 'The override ID' },
+        layer_id: { type: 'string', description: 'The schedule layer ID' },
         rotation_id: { type: 'string', description: 'The rotation ID' },
         schedule_id: { type: 'string', description: 'The schedule ID' },
         user: {

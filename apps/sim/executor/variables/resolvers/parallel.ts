@@ -4,10 +4,13 @@ import { isReference, normalizeName, parseReferencePath, REFERENCE } from '@/exe
 import { InvalidFieldError } from '@/executor/utils/block-reference'
 import {
   extractBranchIndex,
+  extractInnermostOuterBranchIndex,
   extractOuterBranchIndex,
   findEffectiveContainerId,
+  isSubflowNestedInside,
   stripCloneSuffixes,
   stripOuterBranchSuffix,
+  subflowContainsBlock,
 } from '@/executor/utils/subflow-utils'
 import {
   type AsyncPathNavigator,
@@ -98,10 +101,16 @@ export class ParallelResolver implements Resolver {
 
     // Resolve the effective (possibly cloned) parallel ID for scope lookups
     if (context.executionContext.parallelExecutions) {
+      const mappedBranchIndex =
+        (isGenericRef
+          ? extractInnermostOuterBranchIndex(context.currentNodeId)
+          : extractOuterBranchIndex(context.currentNodeId)) ??
+        context.executionContext.parallelBlockMapping?.get(context.currentNodeId)?.iterationIndex
       targetParallelId = findEffectiveContainerId(
         targetParallelId,
         context.currentNodeId,
-        context.executionContext.parallelExecutions
+        context.executionContext.parallelExecutions,
+        mappedBranchIndex
       )
     }
 
@@ -188,8 +197,17 @@ export class ParallelResolver implements Resolver {
 
   private resolveBranchIndex(targetParallelId: string, context: ResolutionContext): number | null {
     const mapping = context.executionContext.parallelBlockMapping?.get(context.currentNodeId)
-    if (mapping?.parallelId === targetParallelId) {
+    const originalTargetParallelId = stripOuterBranchSuffix(targetParallelId)
+    if (
+      mapping?.parallelId === targetParallelId ||
+      mapping?.parallelId === originalTargetParallelId
+    ) {
       return mapping.iterationIndex
+    }
+
+    const branchIndex = extractBranchIndex(context.currentNodeId)
+    if (targetParallelId !== originalTargetParallelId && branchIndex !== null) {
+      return branchIndex
     }
 
     const outerBranchIndex = extractOuterBranchIndex(context.currentNodeId)
@@ -197,7 +215,41 @@ export class ParallelResolver implements Resolver {
       return outerBranchIndex
     }
 
-    return extractBranchIndex(context.currentNodeId)
+    const parentBranchIndex = this.resolveParentParallelBranchIndex(
+      originalTargetParallelId,
+      context
+    )
+    if (parentBranchIndex !== undefined) {
+      return parentBranchIndex
+    }
+
+    return branchIndex
+  }
+
+  private resolveParentParallelBranchIndex(
+    targetParallelId: string,
+    context: ResolutionContext
+  ): number | undefined {
+    const parentMap = context.executionContext.subflowParentMap
+    if (!parentMap) return undefined
+
+    const baseId = stripCloneSuffixes(context.currentNodeId)
+    for (const [subflowId, entry] of parentMap) {
+      if (entry.parentType !== 'parallel' || entry.parentId !== targetParallelId) continue
+      if (entry.branchIndex === undefined) continue
+
+      const originalSubflowId = stripOuterBranchSuffix(subflowId)
+      if (this.workflow.loops?.[originalSubflowId]) {
+        if (subflowContainsBlock(this.workflow, 'loop', originalSubflowId, baseId)) {
+          return entry.branchIndex
+        }
+      } else if (this.workflow.parallels?.[originalSubflowId]) {
+        if (subflowContainsBlock(this.workflow, 'parallel', originalSubflowId, baseId)) {
+          return entry.branchIndex
+        }
+      }
+    }
+    return undefined
   }
 
   private findInnermostParallelForBlock(blockId: string): string | undefined {
@@ -206,7 +258,7 @@ export class ParallelResolver implements Resolver {
     if (!parallels) return undefined
 
     const candidateIds = Object.keys(parallels).filter((parallelId) =>
-      parallels[parallelId]?.nodes.includes(baseId)
+      subflowContainsBlock(this.workflow, 'parallel', parallelId, baseId)
     )
     if (candidateIds.length === 0) return undefined
     if (candidateIds.length === 1) return candidateIds[0]
@@ -215,49 +267,16 @@ export class ParallelResolver implements Resolver {
     // In a valid DAG, exactly one candidate will satisfy this (circular containment is impossible).
     return candidateIds.find((candidateId) =>
       candidateIds.every(
-        (otherId) => otherId === candidateId || !parallels[candidateId]?.nodes.includes(otherId)
+        (otherId) =>
+          otherId === candidateId ||
+          !isSubflowNestedInside(this.workflow, 'parallel', otherId, 'parallel', candidateId)
       )
     )
   }
 
   private isBlockInParallelOrDescendant(blockId: string, targetParallelId: string): boolean {
     const baseId = stripCloneSuffixes(blockId)
-    const parallels = this.workflow.parallels
-    if (!parallels) return false
-
-    const targetConfig = parallels[targetParallelId]
-    if (!targetConfig) return false
-
-    if (targetConfig.nodes.includes(baseId)) return true
-
-    const directParallelId = this.findInnermostParallelForBlock(blockId)
-    if (!directParallelId) return false
-    if (directParallelId === targetParallelId) return true
-
-    return this.isParallelNestedInside(directParallelId, targetParallelId)
-  }
-
-  private isParallelNestedInside(
-    childParallelId: string,
-    ancestorParallelId: string,
-    visited = new Set<string>()
-  ): boolean {
-    if (visited.has(ancestorParallelId)) return false
-    visited.add(ancestorParallelId)
-
-    const ancestorConfig = this.workflow.parallels?.[ancestorParallelId]
-    if (!ancestorConfig) return false
-
-    if (ancestorConfig.nodes.includes(childParallelId)) return true
-
-    for (const nodeId of ancestorConfig.nodes) {
-      if (this.workflow.parallels?.[nodeId]) {
-        if (this.isParallelNestedInside(childParallelId, nodeId, visited)) {
-          return true
-        }
-      }
-    }
-    return false
+    return subflowContainsBlock(this.workflow, 'parallel', targetParallelId, baseId)
   }
 
   private resolveCurrentItem(

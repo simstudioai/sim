@@ -1,0 +1,39 @@
+---
+title: Data Enrichment
+description: Enrich data with a Sim enrichment
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="enrichment"
+  color="#9333EA"
+/>
+
+## Usage Instructions
+
+Run a Sim enrichment to look up data — work email, phone number, company domain, company info, and more — from the fields you map in. Uses the same provider cascade as table enrichments.
+
+
+
+## Tools
+
+### `enrichment_run`
+
+Run a Sim enrichment (e.g. Work Email, Phone Number) and return its outputs
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `enrichmentId` | string | Yes | Registry enrichment id \(e.g. "work-email"\) |
+| `inputs` | json | Yes | Map of the enrichment's input ids to values |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matched` | boolean | Whether the enrichment found a result |
+| `provider` | string | Provider whose result was returned \(e.g. "Hunter", "People Data Labs"\) |
+
+

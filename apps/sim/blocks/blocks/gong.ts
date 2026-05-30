@@ -26,6 +26,7 @@ export const GongBlock: BlockConfig<GongResponse> = {
       type: 'dropdown',
       options: [
         { label: 'List Calls', id: 'list_calls' },
+        { label: 'Create Call', id: 'create_call' },
         { label: 'Get Call', id: 'get_call' },
         { label: 'Get Call Transcript', id: 'get_call_transcript' },
         { label: 'Get Extensive Calls', id: 'get_extensive_calls' },
@@ -45,6 +46,127 @@ export const GongBlock: BlockConfig<GongResponse> = {
         { label: 'Lookup Phone', id: 'lookup_phone' },
       ],
       value: () => 'list_calls',
+    },
+
+    // Create Call inputs
+    {
+      id: 'clientUniqueId',
+      title: 'Client Unique ID',
+      type: 'short-input',
+      placeholder: 'Unique call ID from your source system',
+      condition: { field: 'operation', value: 'create_call' },
+      required: { field: 'operation', value: 'create_call' },
+    },
+    {
+      id: 'actualStart',
+      title: 'Actual Start',
+      type: 'short-input',
+      placeholder: '2018-02-17T02:30:00-08:00',
+      condition: { field: 'operation', value: 'create_call' },
+      required: { field: 'operation', value: 'create_call' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone) or include a timezone offset.
+
+Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the call start time...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'primaryUser',
+      title: 'Primary User ID',
+      type: 'short-input',
+      placeholder: 'Gong user ID for the call host',
+      condition: { field: 'operation', value: 'create_call' },
+      required: { field: 'operation', value: 'create_call' },
+    },
+    {
+      id: 'parties',
+      title: 'Parties',
+      type: 'long-input',
+      placeholder: '[{"userId":"65192578128262669"}]',
+      condition: { field: 'operation', value: 'create_call' },
+      required: { field: 'operation', value: 'create_call' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of Gong call parties.
+Include the primary Gong user as an object with userId when provided. Parties can include name, phoneNumber, emailAddress, userId, mediaChannelId, and context.
+
+Return ONLY the JSON array - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the call participants...',
+      },
+    },
+    {
+      id: 'direction',
+      title: 'Direction',
+      type: 'dropdown',
+      options: [
+        { label: 'Inbound', id: 'Inbound' },
+        { label: 'Outbound', id: 'Outbound' },
+        { label: 'Conference', id: 'Conference' },
+        { label: 'Unknown', id: 'Unknown' },
+      ],
+      value: () => 'Inbound',
+      condition: { field: 'operation', value: 'create_call' },
+      required: { field: 'operation', value: 'create_call' },
+    },
+    {
+      id: 'downloadMediaUrl',
+      title: 'Download Media URL',
+      type: 'short-input',
+      placeholder: 'https://example.com/call-recording.mp3',
+      condition: { field: 'operation', value: 'create_call' },
+      required: { field: 'operation', value: 'create_call' },
+    },
+    {
+      id: 'title',
+      title: 'Title',
+      type: 'short-input',
+      placeholder: 'Discovery call with ACME',
+      condition: { field: 'operation', value: 'create_call' },
+    },
+    {
+      id: 'disposition',
+      title: 'Disposition',
+      type: 'short-input',
+      placeholder: 'Connected',
+      condition: { field: 'operation', value: 'create_call' },
+      mode: 'advanced',
+    },
+    {
+      id: 'purpose',
+      title: 'Purpose',
+      type: 'short-input',
+      placeholder: 'Demo Call',
+      condition: { field: 'operation', value: 'create_call' },
+      mode: 'advanced',
+    },
+    {
+      id: 'context',
+      title: 'Context',
+      type: 'long-input',
+      placeholder:
+        '[{"system":"Salesforce","objects":[{"objectType":"Opportunity","objectId":"006..."}]}]',
+      condition: { field: 'operation', value: 'create_call' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of Gong CRM context objects for the call.
+Use objects with system and objects fields when external CRM records are provided.
+
+Return ONLY the JSON array - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe CRM records to associate...',
+      },
+    },
+    {
+      id: 'callProviderCode',
+      title: 'Call Provider Code',
+      type: 'short-input',
+      placeholder: 'zoom',
+      condition: { field: 'operation', value: 'create_call' },
+      mode: 'advanced',
     },
 
     // List Calls inputs
@@ -82,7 +204,6 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
         field: 'operation',
         value: ['list_calls'],
       },
-      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -349,6 +470,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         field: 'operation',
         value: [
           'list_calls',
+          'create_call',
           'get_call_transcript',
           'get_extensive_calls',
           'list_library_folders',
@@ -492,6 +614,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
   tools: {
     access: [
       'gong_list_calls',
+      'gong_create_call',
       'gong_get_call',
       'gong_get_call_transcript',
       'gong_get_extensive_calls',
@@ -534,6 +657,17 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     operation: { type: 'string', description: 'Operation to perform' },
     accessKey: { type: 'string', description: 'Gong API Access Key' },
     accessKeySecret: { type: 'string', description: 'Gong API Access Key Secret' },
+    clientUniqueId: { type: 'string', description: 'Unique source-system call ID' },
+    actualStart: { type: 'string', description: 'Actual call start date/time' },
+    primaryUser: { type: 'string', description: 'Gong user ID for the call host' },
+    parties: { type: 'json', description: 'Call party array' },
+    direction: { type: 'string', description: 'Call direction' },
+    downloadMediaUrl: { type: 'string', description: 'URL where Gong can download call media' },
+    title: { type: 'string', description: 'Call title' },
+    disposition: { type: 'string', description: 'Call disposition' },
+    purpose: { type: 'string', description: 'Call purpose' },
+    context: { type: 'json', description: 'Call CRM context array' },
+    callProviderCode: { type: 'string', description: 'Provider conferencing or telephony code' },
     fromDateTime: {
       type: 'string',
       description: 'Start date/time in ISO-8601 format (list calls)',
@@ -569,7 +703,8 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
   outputs: {
     response: {
       type: 'json',
-      description: 'Gong API response data',
+      description:
+        'Gong API response data. Shape depends on the selected operation and can include callId, requestId, url, calls, callTranscripts, users, usersActivity, peopleInteractionStats, answeredScorecards, folders, scorecards, trackers, workspaces, flows, coachingData, emails, meetings, customerData, and pagination cursor fields.',
     },
   },
   triggers: {

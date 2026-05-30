@@ -31,6 +31,7 @@ const {
   mockFsWriteFile,
   mockJoin,
   actualPath,
+  mockUploadWorkspaceFile,
 } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const actualPath = require('path') as typeof import('path')
@@ -49,7 +50,7 @@ const {
       metadata: { pageCount: 1 },
     }),
     mockFsAccess: vi.fn().mockResolvedValue(undefined),
-    mockFsStat: vi.fn().mockImplementation(() => ({ isFile: () => true })),
+    mockFsStat: vi.fn().mockImplementation(() => ({ isFile: () => true, size: 17 })),
     mockFsReadFile: vi.fn().mockResolvedValue(Buffer.from('test file content')),
     mockFsWriteFile: vi.fn().mockResolvedValue(undefined),
     mockJoin: vi.fn((...args: string[]): string => {
@@ -59,6 +60,19 @@ const {
       return actualPath.join(...args)
     }),
     actualPath,
+    mockUploadWorkspaceFile: vi
+      .fn()
+      .mockImplementation(
+        async (workspaceId: string, _userId: string, _buffer: Buffer, fileName: string) => ({
+          id: 'wf_test',
+          name: fileName,
+          size: 0,
+          type: 'application/octet-stream',
+          url: `/api/files/serve/${workspaceId}/${fileName}`,
+          key: `${workspaceId}/${fileName}`,
+          context: 'workspace',
+        })
+      ),
   }
 })
 
@@ -102,6 +116,10 @@ vi.mock('@/lib/core/utils/logging', () => ({
 
 vi.mock('@/lib/uploads/contexts/execution', () => ({
   uploadExecutionFile: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  uploadWorkspaceFile: mockUploadWorkspaceFile,
 }))
 
 vi.mock('@/lib/uploads/server/metadata', () => ({
@@ -175,7 +193,10 @@ describe('File Parse API Route', () => {
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue({ canView: true })
     storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
     storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('test file content'))
+    mockFsStat.mockResolvedValue({ isFile: () => true, size: 17 })
+    mockFsReadFile.mockResolvedValue(Buffer.from('test file content'))
     mockIsSupportedFileType.mockReturnValue(true)
+    mockUploadWorkspaceFile.mockClear()
     mockParseFile.mockResolvedValue({
       content: 'parsed content',
       metadata: { pageCount: 1 },
@@ -311,6 +332,180 @@ describe('File Parse API Route', () => {
     expect(data.results).toHaveLength(2)
   })
 
+  it('should keep the multi-file download cap independent from the remaining parsed-output cap', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(
+        new Response('file content', {
+          status: 200,
+          headers: { 'content-type': 'text/plain' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response('second file content', {
+          status: 200,
+          headers: {
+            'content-length': String(20 * 1024 * 1024),
+            'content-type': 'text/plain',
+          },
+        })
+      )
+
+    const fourMbContent = 'a'.repeat(4 * 1024 * 1024)
+    mockParseBuffer
+      .mockResolvedValueOnce({
+        content: fourMbContent,
+        metadata: { pageCount: 1 },
+      })
+      .mockResolvedValueOnce({
+        content: 'second file',
+        metadata: { pageCount: 1 },
+      })
+
+    const req = createMockRequest('POST', {
+      filePath: ['https://example.com/file1.txt', 'https://example.com/file2.txt'],
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.results).toHaveLength(2)
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenNthCalledWith(
+      1,
+      'https://example.com/file1.txt',
+      '203.0.113.10',
+      expect.objectContaining({ maxResponseBytes: 100 * 1024 * 1024 })
+    )
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenNthCalledWith(
+      2,
+      'https://example.com/file2.txt',
+      '203.0.113.10',
+      expect.objectContaining({ maxResponseBytes: 100 * 1024 * 1024 })
+    )
+  })
+
+  it('should never dedup external URL fetches by path filename — two URLs sharing image.png both download', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(
+        new Response('first image bytes', {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response('second image bytes — different content', {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        })
+      )
+    mockIsSupportedFileType.mockReturnValue(false)
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+
+    const req = createMockRequest('POST', {
+      filePath: [
+        'https://files.slack.com/files-pri/T07-FAAA/download/image.png',
+        'https://files.slack.com/files-pri/T07-FBBB/download/image.png',
+      ],
+      workspaceId: 'workspace-id',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.results).toHaveLength(2)
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(2)
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenNthCalledWith(
+      1,
+      'https://files.slack.com/files-pri/T07-FAAA/download/image.png',
+      '203.0.113.10',
+      expect.any(Object)
+    )
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenNthCalledWith(
+      2,
+      'https://files.slack.com/files-pri/T07-FBBB/download/image.png',
+      '203.0.113.10',
+      expect.any(Object)
+    )
+    expect(mockUploadWorkspaceFile).toHaveBeenCalledTimes(2)
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+  })
+
+  it('should stop multi-file parsing once the combined parsed output is too large', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response('file content', {
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+      })
+    )
+
+    mockParseBuffer.mockResolvedValueOnce({
+      content: 'a'.repeat(5 * 1024 * 1024 + 1),
+      metadata: { pageCount: 1 },
+    })
+
+    const req = createMockRequest('POST', {
+      filePath: ['https://example.com/file1.txt', 'https://example.com/file2.txt'],
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(413)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('too large')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(1)
+  })
+
+  it('should include successful multi-file parse results when a later file exceeds the cap', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response('file content', {
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+      })
+    )
+
+    mockParseBuffer
+      .mockResolvedValueOnce({
+        content: 'first file',
+        metadata: { pageCount: 1 },
+      })
+      .mockResolvedValueOnce({
+        content: 'a'.repeat(5 * 1024 * 1024),
+        metadata: { pageCount: 1 },
+      })
+
+    const req = createMockRequest('POST', {
+      filePath: ['https://example.com/file1.txt', 'https://example.com/file2.txt'],
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.error).toContain('too large')
+    expect(data.results).toHaveLength(1)
+    expect(data.results[0].output.content).toBe('first file')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(2)
+  })
+
   it('should pass custom headers when fetching external URLs', async () => {
     inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
       isValid: true,
@@ -342,6 +537,58 @@ describe('File Parse API Route', () => {
         headers,
       })
     )
+  })
+
+  it('should reject oversized external downloads before reading the body', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response('oversized', {
+        status: 200,
+        headers: { 'content-length': '104857601', 'content-type': 'text/plain' },
+      })
+    )
+
+    const req = createMockRequest('POST', {
+      filePath: 'https://example.com/large.txt',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('too large')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'https://example.com/large.txt',
+      '203.0.113.10',
+      expect.objectContaining({
+        maxResponseBytes: 104857600,
+      })
+    )
+  })
+
+  it('should reject oversized local files before materializing them', async () => {
+    setupFileApiMocks({
+      cloudEnabled: false,
+      storageProvider: 'local',
+      authenticated: true,
+    })
+    mockFsStat.mockResolvedValue({ isFile: () => true, size: 104857601 })
+
+    const req = createMockRequest('POST', {
+      filePath: 'workspace/large.txt',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('too large')
+    expect(mockFsReadFile).not.toHaveBeenCalled()
   })
 
   it('should process execution file URLs with context query param', async () => {

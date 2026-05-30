@@ -3,7 +3,11 @@ import { toError } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { updateMcpServerBodySchema } from '@/lib/api/contracts/mcp'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import {
+  mcpBodyReadErrorResponse,
+  readMcpJsonBodyWithLimit,
+  withMcpAuth,
+} from '@/lib/mcp/middleware'
 import { performUpdateMcpServer } from '@/lib/mcp/orchestration'
 import {
   createMcpErrorResponse,
@@ -28,7 +32,7 @@ export const PATCH = withRouteHandler(
       try {
         const { id: serverId } = await params
 
-        const rawBody = getParsedBody(request) ?? (await request.json())
+        const rawBody = await readMcpJsonBodyWithLimit(request)
         const parsedBody = updateMcpServerBodySchema.safeParse(rawBody)
 
         if (!parsedBody.success) {
@@ -45,23 +49,25 @@ export const PATCH = withRouteHandler(
           }
         )
 
-        // Remove workspaceId from body to prevent it from being updated
-        const { workspaceId: _, ...updateData } = body
-
         const result = await performUpdateMcpServer({
           workspaceId,
           userId,
           actorName: userName,
           actorEmail: userEmail,
           serverId,
-          name: updateData.name,
-          description: updateData.description,
-          transport: updateData.transport,
-          url: updateData.url,
-          headers: updateData.headers,
-          timeout: updateData.timeout,
-          retries: updateData.retries,
-          enabled: updateData.enabled,
+          name: body.name,
+          description: body.description,
+          transport: body.transport,
+          url: body.url,
+          headers: body.headers,
+          timeout: body.timeout,
+          retries: body.retries,
+          enabled: body.enabled,
+          authType: body.authType,
+          oauthClientId: body.oauthClientId || null,
+          oauthClientIdProvided: body.oauthClientId !== undefined,
+          oauthClientSecret: body.oauthClientSecret,
+          oauthClientSecretProvided: body.oauthClientSecret !== undefined,
           request,
         })
         if (!result.success || !result.server) {
@@ -75,8 +81,13 @@ export const PATCH = withRouteHandler(
 
         logger.info(`[${requestId}] Successfully updated MCP server: ${serverId}`)
 
-        return createMcpSuccessResponse({ server: updatedServer })
+        const { oauthClientSecret: _secret, ...rest } = updatedServer
+        return createMcpSuccessResponse({
+          server: { ...rest, hasOauthClientSecret: !!_secret },
+        })
       } catch (error) {
+        const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+        if (bodyErrorResponse) return bodyErrorResponse
         logger.error(`[${requestId}] Error updating MCP server:`, error)
         return createMcpErrorResponse(toError(error), 'Failed to update MCP server', 500)
       }

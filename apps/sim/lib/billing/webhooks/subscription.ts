@@ -204,6 +204,8 @@ export async function handleSubscriptionCreated(subscriptionData: {
   referenceId: string
   plan: string | null
   status: string
+  periodStart?: Date | null
+  periodEnd?: Date | null
 }) {
   try {
     const otherActiveSubscriptions = await db
@@ -230,6 +232,8 @@ export async function handleSubscriptionCreated(subscriptionData: {
       await resetUsageForSubscription({
         plan: subscriptionData.plan,
         referenceId: subscriptionData.referenceId,
+        periodStart: subscriptionData.periodStart ?? null,
+        periodEnd: subscriptionData.periodEnd ?? null,
       })
 
       logger.info('Successfully reset usage for free -> paid transition', {
@@ -280,6 +284,8 @@ export async function handleSubscriptionDeleted(
     referenceId: string
     stripeSubscriptionId: string | null
     seats?: number | null
+    periodStart?: Date | null
+    periodEnd?: Date | null
   },
   stripeEventId?: string
 ) {
@@ -308,6 +314,8 @@ export async function handleSubscriptionDeleted(
           await resetUsageForSubscription({
             plan: subscription.plan,
             referenceId: subscription.referenceId,
+            periodStart: subscription.periodStart ?? null,
+            periodEnd: subscription.periodEnd ?? null,
           })
 
           const dormantResult = await transitionOrganizationToDormantState(
@@ -412,6 +420,8 @@ export async function handleSubscriptionDeleted(
         await resetUsageForSubscription({
           plan: subscription.plan,
           referenceId: subscription.referenceId,
+          periodStart: subscription.periodStart ?? null,
+          periodEnd: subscription.periodEnd ?? null,
         })
 
         let restoredProCount = 0

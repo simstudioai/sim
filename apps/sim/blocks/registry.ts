@@ -17,6 +17,7 @@ import { AsanaBlock } from '@/blocks/blocks/asana'
 import { AshbyBlock } from '@/blocks/blocks/ashby'
 import { AthenaBlock } from '@/blocks/blocks/athena'
 import { AttioBlock } from '@/blocks/blocks/attio'
+import { AzureDevOpsBlock } from '@/blocks/blocks/azure_devops'
 import { BoxBlock } from '@/blocks/blocks/box'
 import { BrandfetchBlock } from '@/blocks/blocks/brandfetch'
 import { BrightDataBlock } from '@/blocks/blocks/brightdata'
@@ -50,6 +51,7 @@ import { ElasticsearchBlock } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock } from '@/blocks/blocks/elevenlabs'
 import { EmailBisonBlock } from '@/blocks/blocks/emailbison'
 import { EnrichBlock } from '@/blocks/blocks/enrich'
+import { EnrichmentBlock } from '@/blocks/blocks/enrichment'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { EvernoteBlock } from '@/blocks/blocks/evernote'
 import { ExaBlock } from '@/blocks/blocks/exa'
@@ -97,11 +99,12 @@ import { HumanInTheLoopBlock } from '@/blocks/blocks/human_in_the_loop'
 import { HunterBlock } from '@/blocks/blocks/hunter'
 import { IAMBlock } from '@/blocks/blocks/iam'
 import { IdentityCenterBlock } from '@/blocks/blocks/identity_center'
-import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
+import { ImageGeneratorBlock, ImageGeneratorV2Block } from '@/blocks/blocks/image_generator'
 import { ImapBlock } from '@/blocks/blocks/imap'
 import { IncidentioBlock } from '@/blocks/blocks/incidentio'
 import { InfisicalBlock } from '@/blocks/blocks/infisical'
 import { InputTriggerBlock } from '@/blocks/blocks/input_trigger'
+import { InstantlyBlock } from '@/blocks/blocks/instantly'
 import { IntercomBlock, IntercomV2Block } from '@/blocks/blocks/intercom'
 import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
@@ -139,6 +142,7 @@ import { MongoDBBlock } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
 import { Neo4jBlock } from '@/blocks/blocks/neo4j'
+import { NewRelicBlock } from '@/blocks/blocks/new_relic'
 import { NoteBlock } from '@/blocks/blocks/note'
 import { NotionBlock, NotionV2Block } from '@/blocks/blocks/notion'
 import { ObsidianBlock } from '@/blocks/blocks/obsidian'
@@ -161,6 +165,8 @@ import { ProspeoBlock } from '@/blocks/blocks/prospeo'
 import { PulseBlock, PulseV2Block } from '@/blocks/blocks/pulse'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { QuiverBlock } from '@/blocks/blocks/quiver'
+import { RailwayBlock } from '@/blocks/blocks/railway'
+import { RB2BBlock } from '@/blocks/blocks/rb2b'
 import { RDSBlock } from '@/blocks/blocks/rds'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { RedisBlock } from '@/blocks/blocks/redis'
@@ -217,7 +223,11 @@ import { TypeformBlock } from '@/blocks/blocks/typeform'
 import { UpstashBlock } from '@/blocks/blocks/upstash'
 import { VariablesBlock } from '@/blocks/blocks/variables'
 import { VercelBlock } from '@/blocks/blocks/vercel'
-import { VideoGeneratorBlock, VideoGeneratorV2Block } from '@/blocks/blocks/video_generator'
+import {
+  VideoGeneratorBlock,
+  VideoGeneratorV2Block,
+  VideoGeneratorV3Block,
+} from '@/blocks/blocks/video_generator'
 import { VisionBlock, VisionV2Block } from '@/blocks/blocks/vision'
 import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
@@ -225,6 +235,7 @@ import { WebflowBlock } from '@/blocks/blocks/webflow'
 import { WebhookRequestBlock } from '@/blocks/blocks/webhook_request'
 import { WhatsAppBlock } from '@/blocks/blocks/whatsapp'
 import { WikipediaBlock } from '@/blocks/blocks/wikipedia'
+import { WizaBlock } from '@/blocks/blocks/wiza'
 import { WordPressBlock } from '@/blocks/blocks/wordpress'
 import { WorkdayBlock } from '@/blocks/blocks/workday'
 import { WorkflowBlock } from '@/blocks/blocks/workflow'
@@ -234,6 +245,7 @@ import { YouTubeBlock } from '@/blocks/blocks/youtube'
 import { ZendeskBlock } from '@/blocks/blocks/zendesk'
 import { ZepBlock } from '@/blocks/blocks/zep'
 import { ZoomBlock } from '@/blocks/blocks/zoom'
+import { ZoomInfoBlock } from '@/blocks/blocks/zoominfo'
 import type { BlockConfig } from '@/blocks/types'
 
 // Registry of all available blocks, alphabetically sorted
@@ -257,6 +269,7 @@ export const registry: Record<string, BlockConfig> = {
   ashby: AshbyBlock,
   athena: AthenaBlock,
   attio: AttioBlock,
+  azure_devops: AzureDevOpsBlock,
   box: BoxBlock,
   brandfetch: BrandfetchBlock,
   brightdata: BrightDataBlock,
@@ -293,6 +306,7 @@ export const registry: Record<string, BlockConfig> = {
   elevenlabs: ElevenLabsBlock,
   fathom: FathomBlock,
   enrich: EnrichBlock,
+  enrichment: EnrichmentBlock,
   evaluator: EvaluatorBlock,
   evernote: EvernoteBlock,
   exa: ExaBlock,
@@ -350,10 +364,12 @@ export const registry: Record<string, BlockConfig> = {
   iam: IAMBlock,
   identity_center: IdentityCenterBlock,
   image_generator: ImageGeneratorBlock,
+  image_generator_v2: ImageGeneratorV2Block,
   imap: ImapBlock,
   incidentio: IncidentioBlock,
   infisical: InfisicalBlock,
   input_trigger: InputTriggerBlock,
+  instantly: InstantlyBlock,
   intercom: IntercomBlock,
   intercom_v2: IntercomV2Block,
   jina: JinaBlock,
@@ -393,6 +409,7 @@ export const registry: Record<string, BlockConfig> = {
   mothership: MothershipBlock,
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
+  new_relic: NewRelicBlock,
   note: NoteBlock,
   notion: NotionBlock,
   notion_v2: NotionV2Block,
@@ -417,6 +434,8 @@ export const registry: Record<string, BlockConfig> = {
   pulse_v2: PulseV2Block,
   qdrant: QdrantBlock,
   quiver: QuiverBlock,
+  railway: RailwayBlock,
+  rb2b: RB2BBlock,
   rds: RDSBlock,
   reddit: RedditBlock,
   redis: RedisBlock,
@@ -480,6 +499,7 @@ export const registry: Record<string, BlockConfig> = {
   variables: VariablesBlock,
   video_generator: VideoGeneratorBlock,
   video_generator_v2: VideoGeneratorV2Block,
+  video_generator_v3: VideoGeneratorV3Block,
   vision: VisionBlock,
   vision_v2: VisionV2Block,
   wait: WaitBlock,
@@ -488,6 +508,7 @@ export const registry: Record<string, BlockConfig> = {
   webhook_request: WebhookRequestBlock,
   whatsapp: WhatsAppBlock,
   wikipedia: WikipediaBlock,
+  wiza: WizaBlock,
   wordpress: WordPressBlock,
   workday: WorkdayBlock,
   workflow: WorkflowBlock,
@@ -497,6 +518,7 @@ export const registry: Record<string, BlockConfig> = {
   zendesk: ZendeskBlock,
   zep: ZepBlock,
   zoom: ZoomBlock,
+  zoominfo: ZoomInfoBlock,
 }
 
 export const getBlock = (type: string): BlockConfig | undefined => {

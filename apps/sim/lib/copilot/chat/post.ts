@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
+import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-dual-write'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
 import {
   buildPersistedAssistantMessage,
@@ -44,7 +45,10 @@ import { taskPubSub } from '@/lib/copilot/tasks'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  getUserEntityPermissions,
+  isWorkspaceAccessDeniedError,
+} from '@/lib/workspaces/permissions/utils'
 import type { ChatContext } from '@/stores/panel'
 
 export const maxDuration = 3600
@@ -335,7 +339,14 @@ async function persistUserMessage(params: {
           updatedAt: new Date(),
         })
         .where(eq(copilotChats.id, chatId))
-        .returning({ messages: copilotChats.messages })
+        .returning({ messages: copilotChats.messages, model: copilotChats.model })
+
+      if (updated) {
+        await appendCopilotChatMessages(chatId, [userMsg], {
+          streamId: userMessageId,
+          chatModel: updated.model ?? null,
+        })
+      }
 
       const messagesAfter = Array.isArray(updated?.messages) ? updated.messages : undefined
       span.setAttributes({
@@ -1062,6 +1073,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
 
     if (isZodError(error)) {
       return validationErrorResponse(error, 'Invalid request data')
+    }
+
+    if (isWorkspaceAccessDeniedError(error)) {
+      return NextResponse.json({ error: 'Workspace access denied' }, { status: 403 })
     }
 
     logger.error(`[${requestId}] Error handling unified chat request`, {

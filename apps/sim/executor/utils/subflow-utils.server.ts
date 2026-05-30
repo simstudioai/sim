@@ -76,7 +76,8 @@ async function normalizeCollectionValue(ctx: ExecutionContext, value: unknown): 
 export async function resolveArrayInputAsync(
   ctx: ExecutionContext,
   items: any,
-  resolver: VariableResolver | null
+  resolver: VariableResolver | null,
+  currentNodeId = ''
 ): Promise<any[]> {
   if (typeof items !== 'string') {
     if (items === null) {
@@ -87,7 +88,7 @@ export async function resolveArrayInputAsync(
         return []
       }
       try {
-        const resolved = (await resolver.resolveInputs(ctx, 'subflow_items', { items })).items
+        const resolved = (await resolver.resolveInputs(ctx, currentNodeId, { items })).items
         return normalizeCollectionValue(ctx, resolved)
       } catch (error) {
         if (error instanceof Error && error.message.startsWith('Resolved items')) {
@@ -101,7 +102,7 @@ export async function resolveArrayInputAsync(
 
   if (items.startsWith(REFERENCE.START) && items.endsWith(REFERENCE.END) && resolver) {
     try {
-      const resolved = await resolver.resolveSingleReference(ctx, '', items, undefined, {
+      const resolved = await resolver.resolveSingleReference(ctx, currentNodeId, items, undefined, {
         allowLargeValueRefs: true,
       })
       return normalizeCollectionValue(ctx, resolved)

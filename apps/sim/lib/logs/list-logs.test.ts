@@ -76,7 +76,7 @@ function workflowRow(overrides: Record<string, unknown> = {}) {
     startedAt: new Date('2026-01-01T00:00:00.000Z'),
     endedAt: new Date('2026-01-01T00:00:01.000Z'),
     totalDurationMs: 1000,
-    cost: { total: 0.1 },
+    costTotal: '0.1',
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     workflowName: 'My Workflow',
     workflowDescription: null,

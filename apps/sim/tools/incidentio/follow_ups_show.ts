@@ -29,7 +29,7 @@ export const followUpsShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/follow_ups/${params.id}`,
+    url: (params) => `https://api.incident.io/v2/follow_ups/${params.id.trim()}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

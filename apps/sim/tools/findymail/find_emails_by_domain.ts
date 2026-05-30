@@ -1,3 +1,4 @@
+import { findymailHosting } from '@/tools/findymail/hosting'
 import type {
   FindymailFindEmailsByDomainParams,
   FindymailFindEmailsByDomainResponse,
@@ -14,6 +15,15 @@ export const findEmailsByDomainTool: ToolConfig<
   description:
     'Find verified contacts at a given domain matching one or more target roles (max 3 roles). Limited to 5 concurrent synchronous requests.',
   version: '1.0.0',
+
+  hosting: findymailHosting<FindymailFindEmailsByDomainParams>((_params, output) => {
+    // No contacts array means no verified contacts returned — no charge.
+    if (!Array.isArray(output.contacts)) {
+      return 0
+    }
+    // 1 finder credit per verified contact returned.
+    return output.contacts.length
+  }),
 
   params: {
     domain: {
@@ -55,6 +65,7 @@ export const findEmailsByDomainTool: ToolConfig<
         success: false,
         error:
           (errorData as Record<string, string>).message ||
+          (errorData as Record<string, string>).error ||
           `Findymail API error: ${response.status} ${response.statusText}`,
         output: { contacts: [] },
       }

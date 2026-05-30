@@ -763,7 +763,7 @@ export function useWorkflowExecution() {
 
                 // Invalidate subscription queries to update usage
                 setTimeout(() => {
-                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
                 }, 1000)
 
                 safeEnqueue(encodeSSE({ event: 'final', data: result }))
@@ -1296,7 +1296,7 @@ export function useWorkflowExecution() {
                   setActiveBlocks(activeWorkflowId, new Set())
                 }
                 setTimeout(() => {
-                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
                 }, 1000)
               }
             },

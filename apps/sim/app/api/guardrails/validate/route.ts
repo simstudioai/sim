@@ -12,6 +12,7 @@ import { validatePII } from '@/lib/guardrails/validate_pii'
 import { validateRegex } from '@/lib/guardrails/validate_regex'
 import {
   assertPermissionsAllowed,
+  ModelNotAllowedError,
   ProviderNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 
@@ -161,7 +162,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           model,
         })
       } catch (err) {
-        if (err instanceof ProviderNotAllowedError) {
+        if (err instanceof ProviderNotAllowedError || err instanceof ModelNotAllowedError) {
           return NextResponse.json({
             success: true,
             output: {

@@ -18,7 +18,14 @@ export async function createNeo4jDriver(config: Neo4jConnectionConfig) {
     protocol = config.encryption === 'enabled' ? 'bolt+s' : 'bolt'
   }
 
-  const uri = `${protocol}://${config.host}:${config.port}`
+  const useIPPinning = !protocol.endsWith('+s')
+  const resolvedIP = hostValidation.resolvedIP ?? config.host
+  const uriHost = useIPPinning
+    ? resolvedIP.includes(':')
+      ? `[${resolvedIP}]`
+      : resolvedIP
+    : config.host
+  const uri = `${protocol}://${uriHost}:${config.port}`
 
   const driverConfig: any = {
     maxConnectionPoolSize: 1,

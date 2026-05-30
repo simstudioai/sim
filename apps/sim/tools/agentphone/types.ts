@@ -41,6 +41,7 @@ export interface AgentPhoneConversationMessage {
   direction: string
   channel: string | null
   mediaUrl: string | null
+  mediaUrls: string[]
   receivedAt: string
 }
 

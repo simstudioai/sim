@@ -24,6 +24,7 @@ export type AttachmentProvider =
   | 'fireworks'
   | 'ollama'
   | 'vllm'
+  | 'litellm'
   | 'xai'
   | 'deepseek'
   | 'cerebras'
@@ -93,6 +94,7 @@ const PROVIDER_SUPPORTED_LABELS: Record<AttachmentProvider, string> = {
   fireworks: 'images through image_url message parts on vision models',
   ollama: 'images through image_url message parts on vision models',
   vllm: 'images through image_url message parts on multimodal models',
+  litellm: 'images through image_url message parts on multimodal models',
   xai: 'images through image_url message parts on Grok vision models',
   deepseek: 'no file attachments in the current API adapter',
   cerebras: 'no file attachments in the current API adapter',
@@ -109,6 +111,7 @@ export function getAttachmentProvider(providerId: ProviderId | string): Attachme
   if (providerId === 'fireworks') return 'fireworks'
   if (providerId === 'ollama') return 'ollama'
   if (providerId === 'vllm') return 'vllm'
+  if (providerId === 'litellm') return 'litellm'
   if (providerId === 'xai') return 'xai'
   if (providerId === 'deepseek') return 'deepseek'
   if (providerId === 'cerebras') return 'cerebras'
@@ -247,6 +250,7 @@ function isMimeTypeSupportedByProvider(
     case 'fireworks':
     case 'ollama':
     case 'vllm':
+    case 'litellm':
     case 'xai':
       return isImageMimeType(mimeType)
     case 'deepseek':

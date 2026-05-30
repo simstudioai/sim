@@ -179,7 +179,7 @@ Enrich data for up to 10 organizations at once using Apollo
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key |
-| `organizations` | array | Yes | Array of organizations to enrich \(max 10\). Each item requires `name` and may include `domain` \(e.g., \[\{"name": "Example Corp", "domain": "example.com"\}\]\) |
+| `domains` | array | Yes | Array of company domains to enrich \(max 10, no www. or @, e.g., \["apollo.io", "stripe.com"\]\) |
 
 #### Output
 
@@ -252,7 +252,7 @@ Update an existing contact in your Apollo database
 | `mobile_phone` | string | No | Mobile phone number |
 | `home_phone` | string | No | Home phone number |
 | `other_phone` | string | No | Alternative phone number |
-| `typed_custom_fields` | json | No | Custom field values keyed by custom field ID \(accepted by Apollo but not officially documented for PATCH /contacts/\{id\}\) |
+| `typed_custom_fields` | json | No | Custom field values keyed by custom field ID |
 
 #### Output
 
@@ -325,8 +325,10 @@ Update up to 100 existing contacts at once in your Apollo database. Each contact
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Confirmation message from Apollo |
-| `job_id` | string | Async job ID \(returned for &gt;100 contacts\) |
+| `contacts` | json | Updated contacts \(synchronous response, ≤100 contacts\) |
+| `entity_progress_job` | json | Async job descriptor \(&gt;100 contacts or async=true\): \{id, status, ...\} |
+| `job_id` | string | Async job ID extracted from entity_progress_job |
+| `message` | string | Optional confirmation message from Apollo |
 
 ### `apollo_account_create`
 
@@ -438,6 +440,7 @@ Update up to 1000 existing accounts at once in your Apollo database (higher limi
 | `account_ids` | array | No | Array of account IDs to update with the same values \(max 1000\). Use with name/owner_id for uniform updates. Use either this OR account_attributes. |
 | `name` | string | No | When using account_ids, apply this name to all accounts |
 | `owner_id` | string | No | When using account_ids, apply this owner to all accounts |
+| `account_stage_id` | string | No | When using account_ids, apply this account stage to all accounts |
 | `account_attributes` | json | No | Array of account objects with individual updates \(each must include id\). Example: \[\{"id": "acc1", "name": "Acme", "owner_id": "u1", "account_stage_id": "s1", "typed_custom_fields": \{"field_id": "value"\}\}\] |
 | `async` | boolean | No | When true, processes the update asynchronously. Only supported when using account_ids; returns 422 if used with account_attributes. |
 
@@ -445,8 +448,11 @@ Update up to 1000 existing accounts at once in your Apollo database (higher limi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Confirmation message from Apollo |
+| `accounts` | json | Updated accounts \(synchronous response\): \[\{id, account_stage_id, ...\}\] |
 | `account_ids` | json | IDs of accounts that were updated |
+| `entity_progress_job` | json | Async job descriptor \(when async=true is passed with account_ids\) |
+| `job_id` | string | Async job ID extracted from entity_progress_job |
+| `message` | string | Optional confirmation message from Apollo |
 
 ### `apollo_opportunity_create`
 

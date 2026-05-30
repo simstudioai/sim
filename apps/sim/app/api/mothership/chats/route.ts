@@ -11,13 +11,17 @@ import { parseRequest } from '@/lib/api/server'
 import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
 import {
   authenticateCopilotRequestSessionOnly,
+  createForbiddenResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  assertActiveWorkspaceAccess,
+  isWorkspaceAccessDeniedError,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MothershipChatsAPI')
 
@@ -68,6 +72,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ success: true, data: reconciled })
   } catch (error) {
+    if (isWorkspaceAccessDeniedError(error)) {
+      return createForbiddenResponse('Workspace access denied')
+    }
     logger.error('Error fetching mothership chats:', error)
     return createInternalServerErrorResponse('Failed to fetch chats')
   }
@@ -118,6 +125,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ success: true, id: chat.id })
   } catch (error) {
+    if (isWorkspaceAccessDeniedError(error)) {
+      return createForbiddenResponse('Workspace access denied')
+    }
     logger.error('Error creating mothership chat:', error)
     return createInternalServerErrorResponse('Failed to create chat')
   }

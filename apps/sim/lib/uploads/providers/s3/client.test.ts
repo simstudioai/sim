@@ -53,9 +53,7 @@ vi.mock('@/lib/core/config/env', () => ({
   isTruthy: (value: string | boolean | number | undefined) =>
     typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value),
   isFalsy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string'
-      ? value.toLowerCase() === 'false' || value === '0'
-      : value === false,
+    typeof value === 'string' ? value.toLowerCase() === 'false' || value === '0' : value === false,
 }))
 
 vi.mock('@/lib/uploads/setup', () => ({
@@ -228,6 +226,7 @@ describe('S3 Client', () => {
           }
           return mockStream
         }),
+        off: vi.fn(() => mockStream),
       }
 
       mockSend.mockResolvedValueOnce({
@@ -257,6 +256,7 @@ describe('S3 Client', () => {
           }
           return mockStream
         }),
+        off: vi.fn(() => mockStream),
       }
 
       mockSend.mockResolvedValueOnce({
@@ -267,6 +267,25 @@ describe('S3 Client', () => {
       const key = 'test-file.txt'
 
       await expect(downloadFromS3(key)).rejects.toThrow('Stream error')
+    })
+
+    it('should destroy the opened stream when content length exceeds the limit', async () => {
+      const mockDestroy = vi.fn()
+      const mockStream = {
+        destroy: mockDestroy,
+        on: vi.fn(() => mockStream),
+      }
+
+      mockSend.mockResolvedValueOnce({
+        Body: mockStream,
+        ContentLength: 1024,
+        $metadata: { httpStatusCode: 200 },
+      })
+
+      await expect(
+        downloadFromS3('large-file.txt', { bucket: 'test-bucket', region: 'test-region' }, 10)
+      ).rejects.toThrow('storage download exceeds maximum size')
+      expect(mockDestroy).toHaveBeenCalledWith(expect.any(Error))
     })
 
     it('should handle S3 client errors', async () => {

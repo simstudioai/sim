@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -17,6 +17,7 @@ import {
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
@@ -59,7 +60,6 @@ export function GeneralDeploy({
 }: GeneralDeployProps) {
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [showActiveDespiteSelection, setShowActiveDespiteSelection] = useState(false)
-  // Derived — no useEffect needed
   const previewMode: PreviewMode =
     selectedVersion !== null && !showActiveDespiteSelection ? 'selected' : 'active'
   const [showLoadDialog, setShowLoadDialog] = useState(false)
@@ -82,28 +82,22 @@ export function GeneralDeploy({
 
   const revertMutation = useRevertToVersion()
 
-  const handleSelectVersion = useCallback((version: number | null) => {
+  const handleSelectVersion = (version: number | null) => {
     setSelectedVersion(version)
     setShowActiveDespiteSelection(false)
-  }, [])
+  }
 
-  const handleLoadDeployment = useCallback(
-    (version: number) => {
-      if (!workflowId) return
-      setVersionToLoad({ workflowId, version })
-      setShowLoadDialog(true)
-    },
-    [workflowId]
-  )
+  const handleLoadDeployment = (version: number) => {
+    if (!workflowId) return
+    setVersionToLoad({ workflowId, version })
+    setShowLoadDialog(true)
+  }
 
-  const handlePromoteToLive = useCallback(
-    (version: number) => {
-      if (!workflowId) return
-      setVersionToPromote({ workflowId, version })
-      setShowPromoteDialog(true)
-    },
-    [workflowId]
-  )
+  const handlePromoteToLive = (version: number) => {
+    if (!workflowId) return
+    setVersionToPromote({ workflowId, version })
+    setShowPromoteDialog(true)
+  }
 
   const confirmLoadDeployment = async () => {
     if (!versionToLoad) return
@@ -168,12 +162,8 @@ export function GeneralDeploy({
     }
   }
 
-  const workflowToShow = useMemo(() => {
-    if (previewMode === 'selected' && selectedVersionState) {
-      return selectedVersionState
-    }
-    return deployedState
-  }, [previewMode, selectedVersionState, deployedState])
+  const workflowToShow =
+    previewMode === 'selected' && selectedVersionState ? selectedVersionState : deployedState
 
   const showToggle = selectedVersion !== null && deployedState
 
@@ -211,10 +201,7 @@ export function GeneralDeploy({
                 ? selectedVersionInfo.name || `v${selectedVersion}`
                 : 'Live Workflow'}
             </Label>
-            <div
-              className='absolute top-[-5px] right-0'
-              style={{ visibility: showToggle ? 'visible' : 'hidden' }}
-            >
+            <div className={cn('absolute top-[-5px] right-0', !showToggle && 'invisible')}>
               <ButtonGroup
                 value={previewMode}
                 onValueChange={(val) =>
