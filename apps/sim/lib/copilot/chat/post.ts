@@ -326,10 +326,19 @@ async function persistUserMessage(params: {
         contexts,
       })
 
+      // Append the user message idempotently: only concatenate when the array
+      // doesn't already contain a message with this id. A repeated id here is
+      // always a retry/double-submit of the same message (the client mints a
+      // fresh id per distinct send), so skipping the append avoids duplicate
+      // entries while keeping the stream marker / updatedAt current.
       const [updated] = await db
         .update(copilotChats)
         .set({
-          messages: sql`${copilotChats.messages} || ${JSON.stringify([userMsg])}::jsonb`,
+          messages: sql`CASE
+            WHEN ${copilotChats.messages} @> ${JSON.stringify([{ id: userMessageId }])}::jsonb
+            THEN ${copilotChats.messages}
+            ELSE ${copilotChats.messages} || ${JSON.stringify([userMsg])}::jsonb
+          END`,
           conversationId: userMessageId,
           updatedAt: new Date(),
         })
