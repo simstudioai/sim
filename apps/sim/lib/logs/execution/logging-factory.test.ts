@@ -658,4 +658,58 @@ describe('calculateCostSummary', () => {
     expect(result.models['gpt-4o'].total).toBe(0.03)
     expect(result.totalCost).toBeCloseTo(0.03 + BASE_EXECUTION_CHARGE, 10)
   })
+
+  test('does not double-count deeply nested (3-level) sub-workflow roots', () => {
+    // A → B → C: each level is its own synthetic { type: 'workflow' } root with
+    // an aggregate cost. Only the leaf agents at the bottom must be billed, once.
+    const leafAgent = (id: string, model: string, total: number) => ({
+      id,
+      name: 'Agent',
+      type: 'agent',
+      model,
+      cost: { input: total / 3, output: (total * 2) / 3, total },
+      tokens: { input: 100, output: 200, total: 300 },
+    })
+
+    const traceSpans = [
+      {
+        id: 'root',
+        name: 'Workflow Execution',
+        type: 'workflow',
+        cost: { total: 0.06 }, // aggregate of everything below
+        children: [
+          leafAgent('parent-agent', 'gpt-4o', 0.02),
+          {
+            id: 'sub-a-root',
+            name: 'Workflow Execution',
+            type: 'workflow',
+            cost: { total: 0.04 },
+            children: [
+              leafAgent('a-agent', 'gpt-4o', 0.01),
+              {
+                id: 'sub-b-root',
+                name: 'Workflow Execution',
+                type: 'workflow',
+                cost: { total: 0.03 },
+                children: [leafAgent('b-agent', 'claude-sonnet-4-6', 0.03)],
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.charges['Workflow Execution']).toBeUndefined()
+    // gpt-4o appears at two levels (0.02 + 0.01) and merges by model name.
+    expect(result.models['gpt-4o'].total).toBeCloseTo(0.03, 10)
+    expect(result.models['claude-sonnet-4-6'].total).toBeCloseTo(0.03, 10)
+    expect(result.totalCost).toBeCloseTo(0.06 + BASE_EXECUTION_CHARGE, 10)
+    const ledgerSum =
+      result.baseExecutionCharge +
+      Object.values(result.models).reduce((s, m) => s + m.total, 0) +
+      Object.values(result.charges).reduce((s, c) => s + c.total, 0)
+    expect(ledgerSum).toBeCloseTo(result.totalCost, 10)
+  })
 })
