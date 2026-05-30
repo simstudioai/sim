@@ -576,4 +576,86 @@ describe('calculateCostSummary', () => {
     expect(Object.keys(result.charges)).toHaveLength(0)
     expect(result.totalCost).toBe(BASE_EXECUTION_CHARGE)
   })
+
+  test('does not double-count the synthetic workflow root (aggregate cost over leaves)', () => {
+    // buildTraceSpans wraps every run in a synthetic { type: 'workflow' } root
+    // whose cost.total is the SUM of its leaves. Counting that root in addition
+    // to the leaves double-charges the run — the root must be a pass-through.
+    const traceSpans = [
+      {
+        id: 'workflow-execution',
+        name: 'Workflow Execution',
+        type: 'workflow',
+        cost: { total: 0.04 }, // == agent(0.03) + exa(0.01)
+        children: [
+          {
+            id: 'agent-1',
+            name: 'Agent',
+            type: 'agent',
+            model: 'gpt-4o',
+            cost: { input: 0.01, output: 0.02, total: 0.03 },
+            tokens: { input: 100, output: 200, total: 300 },
+          },
+          {
+            id: 'exa-1',
+            name: 'Exa Search',
+            type: 'tool',
+            cost: { input: 0, output: 0, total: 0.01 },
+          },
+        ],
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    // The 0.04 root aggregate is NOT added on top of its leaves.
+    expect(result.charges['Workflow Execution']).toBeUndefined()
+    expect(result.models['gpt-4o'].total).toBe(0.03)
+    expect(result.charges['Exa Search'].total).toBe(0.01)
+    expect(result.totalCost).toBeCloseTo(0.04 + BASE_EXECUTION_CHARGE, 10)
+    const ledgerSum =
+      result.baseExecutionCharge +
+      Object.values(result.models).reduce((s, m) => s + m.total, 0) +
+      Object.values(result.charges).reduce((s, c) => s + c.total, 0)
+    expect(ledgerSum).toBeCloseTo(result.totalCost, 10)
+  })
+
+  test('does not double-count nested sub-workflow roots', () => {
+    // A sub-workflow call nests another synthetic { type: 'workflow' } root
+    // (captureChildWorkflowLogs runs buildTraceSpans on the child). Both the
+    // outer root and the inner sub-workflow root carry aggregate costs; only the
+    // leaf agent inside should be billed.
+    const traceSpans = [
+      {
+        id: 'workflow-execution',
+        name: 'Workflow Execution',
+        type: 'workflow',
+        cost: { total: 0.03 },
+        children: [
+          {
+            id: 'subworkflow-root',
+            name: 'Workflow Execution',
+            type: 'workflow',
+            cost: { total: 0.03 },
+            children: [
+              {
+                id: 'child-agent',
+                name: 'Agent',
+                type: 'agent',
+                model: 'gpt-4o',
+                cost: { input: 0.01, output: 0.02, total: 0.03 },
+                tokens: { input: 100, output: 200, total: 300 },
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.charges['Workflow Execution']).toBeUndefined()
+    expect(result.models['gpt-4o'].total).toBe(0.03)
+    expect(result.totalCost).toBeCloseTo(0.03 + BASE_EXECUTION_CHARGE, 10)
+  })
 })
