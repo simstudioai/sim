@@ -24,12 +24,12 @@ const logger = createLogger('DeployWebhookSync')
 const CREDENTIAL_SET_PREFIX = 'credentialSet:'
 
 /**
- * Returns the id of a workflow that already owns an active (non-archived)
- * webhook on the given path, when that workflow is different from the one being
- * deployed. Webhook paths are user-controlled and the database only enforces
- * uniqueness per deployment version, so without this guard two tenants could
- * register the same public path and a delivery to one would fan out to the
- * other. Returns `null` when the path is free or only used by this workflow.
+ * Returns the id of a different workflow that already owns an active webhook on
+ * the given path, or `null` if the path is free or owned by this workflow.
+ * Guards against cross-tenant path collisions, since paths are user-controlled
+ * and only unique per deployment version. Mirrors the runtime dispatcher's
+ * `isActive`/`archivedAt` filter so inactive (e.g. undeployed) webhooks — which
+ * never receive deliveries — don't permanently reserve a path.
  */
 async function findConflictingWebhookPathOwner(params: {
   path: string
@@ -40,7 +40,7 @@ async function findConflictingWebhookPathOwner(params: {
   const existing = await db
     .select({ workflowId: webhook.workflowId })
     .from(webhook)
-    .where(and(eq(webhook.path, path), isNull(webhook.archivedAt)))
+    .where(and(eq(webhook.path, path), eq(webhook.isActive, true), isNull(webhook.archivedAt)))
 
   const conflict = existing.find((row) => row.workflowId !== workflowId)
   return conflict ? conflict.workflowId : null

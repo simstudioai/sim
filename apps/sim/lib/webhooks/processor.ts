@@ -305,17 +305,12 @@ async function findWebhookAndWorkflow(
 }
 
 /**
- * Find ALL webhooks matching a path.
+ * Finds all webhooks matching a path, scoped to a single workflow.
  *
- * Used for credential sets where multiple webhooks legitimately share the same
- * path. Legitimate fan-out is always scoped to a single workflow (credential
- * set sync only ever creates rows for one workflow), but webhook paths are
- * user-controlled and only unique per deployment version, so two different
- * workflows (tenants) can register the same public path. Dispatching a delivery
- * to webhooks across multiple workflows would let one tenant receive and process
- * another tenant's signed webhook payloads. To prevent that cross-tenant
- * collision we constrain the returned rows to the workflow that registered the
- * path first and drop any foreign rows.
+ * Legitimate fan-out (credential sets) is always within one workflow, but paths
+ * are user-controlled and only unique per deployment version, so two tenants can
+ * register the same path. On collision we keep only the workflow that registered
+ * the path first, so one tenant can never receive another's webhook deliveries.
  */
 export async function findAllWebhooksForPath(
   options: WebhookProcessorOptions
