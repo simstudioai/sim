@@ -12,7 +12,7 @@ import { authenticateRequest } from '@/app/api/v1/middleware'
 export const maxDuration = 3600
 
 const logger = createLogger('CopilotHeadlessAPI')
-const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
+const DEFAULT_COPILOT_MODEL = 'claude-opus-4-8'
 
 /**
  * POST /api/v1/copilot/chat
