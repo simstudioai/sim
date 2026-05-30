@@ -3243,12 +3243,17 @@ export async function updateWorkflowGroup(
   // unchanged (workflow deleted, block removed). The result is applied against
   // the fresh schema under the lock in phase 2.
   const remapLeafTypeByColumn = new Map<string, ColumnDefinition['type']>()
+  // The workflow id the leaf types above were resolved against. Phase 2 only
+  // applies the resolved types if the group still points at this workflow under
+  // the lock — a concurrent `workflowId` change would make them stale.
+  let resolvedForWorkflowId: string | undefined
   if (mappingUpdates.length > 0) {
     try {
       const preTable = await getTableById(data.tableId)
       const preGroup = preTable?.schema.workflowGroups?.find((g) => g.id === data.groupId)
       const targetWorkflowId = data.workflowId ?? preGroup?.workflowId
       if (targetWorkflowId) {
+        resolvedForWorkflowId = targetWorkflowId
         const [
           { loadWorkflowFromNormalizedTables },
           { flattenWorkflowOutputs },
@@ -3326,13 +3331,25 @@ export async function updateWorkflowGroup(
           return { ...o, blockId: u.blockId, path: u.path }
         })
 
-        const colByName = new Map(schema.columns.map((c) => [c.name, c]))
-        for (const u of mappingUpdates) {
-          const newType = remapLeafTypeByColumn.get(u.columnName)
-          if (!newType) continue
-          const oldType = colByName.get(u.columnName)?.type
-          if (newType !== oldType) {
-            remappedColumnTypes.set(u.columnName, newType)
+        // Only apply the out-of-lock leaf-type resolution if the group still
+        // points at the workflow we resolved against. If a concurrent writer
+        // changed `workflowId` between phase 1 and now, those types are stale —
+        // leave column types unchanged (best-effort, same as a resolution
+        // failure) rather than stamping types from the old workflow.
+        const finalWorkflowId = data.workflowId ?? group.workflowId
+        if (remapLeafTypeByColumn.size > 0 && resolvedForWorkflowId !== finalWorkflowId) {
+          logger.warn(
+            `[${requestId}] Workflow group "${data.groupId}" workflowId changed between leaf-type resolution and apply; leaving remapped column types unchanged.`
+          )
+        } else {
+          const colByName = new Map(schema.columns.map((c) => [c.name, c]))
+          for (const u of mappingUpdates) {
+            const newType = remapLeafTypeByColumn.get(u.columnName)
+            if (!newType) continue
+            const oldType = colByName.get(u.columnName)?.type
+            if (newType !== oldType) {
+              remappedColumnTypes.set(u.columnName, newType)
+            }
           }
         }
       }
