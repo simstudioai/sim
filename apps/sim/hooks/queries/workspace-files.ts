@@ -98,11 +98,15 @@ async function fetchWorkspaceFiles(
 /**
  * Hook to fetch workspace files
  */
-export function useWorkspaceFiles(workspaceId: string, scope: WorkspaceFileQueryScope = 'active') {
+export function useWorkspaceFiles(
+  workspaceId: string,
+  scope: WorkspaceFileQueryScope = 'active',
+  options?: { enabled?: boolean }
+) {
   return useQuery({
     queryKey: workspaceFilesKeys.list(workspaceId, scope),
     queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, scope, signal),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds - files can change frequently
     placeholderData: keepPreviousData, // Show cached data immediately
   })

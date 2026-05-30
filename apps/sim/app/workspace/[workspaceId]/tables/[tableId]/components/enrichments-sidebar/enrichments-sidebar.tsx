@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { X } from 'lucide-react'
-import { Button, Input } from '@/components/emcn'
-import { Search } from '@/components/emcn/icons'
+import { Input } from '@/components/emcn'
+import { Search, X } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition, WorkflowGroup } from '@/lib/table'
 import { ALL_ENRICHMENTS } from '@/enrichments'
@@ -33,8 +32,8 @@ export function EnrichmentsSidebar({ open, ...rest }: EnrichmentsSidebarProps) {
       role='dialog'
       aria-label='Enrichments'
       className={cn(
-        'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] shadow-overlay transition-transform duration-200 ease-out',
-        open ? 'translate-x-0' : 'translate-x-full'
+        'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] transition-transform duration-200 ease-out',
+        open ? 'translate-x-0 shadow-overlay' : 'translate-x-full'
       )}
     >
       {open && <EnrichmentsSidebarBody {...rest} />}
@@ -75,15 +74,14 @@ function EnrichmentsSidebarBody({
       <div className='flex h-full flex-col'>
         <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
           <h2 className='font-medium text-[var(--text-primary)] text-small'>Enrichment</h2>
-          <Button
-            variant='ghost'
-            size='sm'
+          <button
+            type='button'
             onClick={onClose}
-            className='!p-1 size-7 flex-none'
+            className='flex size-7 flex-none items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-hover)] hover-hover:text-[var(--text-primary)]'
             aria-label='Close'
           >
             <X className='size-[14px]' />
-          </Button>
+          </button>
         </div>
         <div className='flex flex-1 items-center justify-center px-6 text-center'>
           <p className='text-[var(--text-tertiary)] text-small'>
@@ -121,15 +119,14 @@ function EnrichmentsSidebarBody({
     <div className='flex h-full flex-col'>
       <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
         <h2 className='font-medium text-[var(--text-primary)] text-small'>Enrichments</h2>
-        <Button
-          variant='ghost'
-          size='sm'
+        <button
+          type='button'
           onClick={onClose}
-          className='!p-1 size-7 flex-none'
+          className='flex size-7 flex-none items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-hover)] hover-hover:text-[var(--text-primary)]'
           aria-label='Close'
         >
           <X className='size-[14px]' />
-        </Button>
+        </button>
       </div>
 
       <div className='px-2 pt-3'>
@@ -155,11 +152,10 @@ function EnrichmentsSidebarBody({
               const Icon = enrichment.icon
               return (
                 <li key={enrichment.id}>
-                  <Button
-                    variant='ghost'
+                  <button
                     type='button'
                     onClick={() => setSelected(enrichment)}
-                    className='flex w-full items-start justify-start gap-2.5 rounded-md px-2 py-2 text-left hover-hover:bg-[var(--surface-3)]'
+                    className='flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-hover)]'
                   >
                     <Icon className='mt-0.5 size-[14px] flex-none text-[var(--text-icon)]' />
                     <span className='flex min-w-0 flex-col gap-0.5'>
@@ -170,7 +166,7 @@ function EnrichmentsSidebarBody({
                         {enrichment.description}
                       </span>
                     </span>
-                  </Button>
+                  </button>
                 </li>
               )
             })}

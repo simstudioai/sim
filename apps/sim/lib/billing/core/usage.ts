@@ -608,51 +608,6 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
 }
 
 /**
- * Get usage limit information for team members (for admin dashboard)
- */
-export async function getTeamUsageLimits(organizationId: string): Promise<
-  Array<{
-    userId: string
-    userName: string
-    userEmail: string
-    currentLimit: number
-    currentUsage: number
-    totalCost: number
-    lastActive: Date | null
-  }>
-> {
-  try {
-    const teamMembers = await db
-      .select({
-        userId: member.userId,
-        userName: user.name,
-        userEmail: user.email,
-        currentLimit: userStats.currentUsageLimit,
-        currentPeriodCost: userStats.currentPeriodCost,
-        totalCost: userStats.totalCost,
-        lastActive: userStats.lastActive,
-      })
-      .from(member)
-      .innerJoin(user, eq(member.userId, user.id))
-      .leftJoin(userStats, eq(member.userId, userStats.userId))
-      .where(eq(member.organizationId, organizationId))
-
-    return teamMembers.map((memberData) => ({
-      userId: memberData.userId,
-      userName: memberData.userName,
-      userEmail: memberData.userEmail,
-      currentLimit: toNumber(toDecimal(memberData.currentLimit || getFreeTierLimit().toString())),
-      currentUsage: toNumber(toDecimal(memberData.currentPeriodCost)),
-      totalCost: toNumber(toDecimal(memberData.totalCost)),
-      lastActive: memberData.lastActive,
-    }))
-  } catch (error) {
-    logger.error('Failed to get team usage limits', { organizationId, error })
-    return []
-  }
-}
-
-/**
  * Returns the effective current period usage cost for a user, with daily
  * refresh credits deducted. Org-scoped subs return the pooled sum across
  * all org members; personally-scoped subs return this user's own cost.

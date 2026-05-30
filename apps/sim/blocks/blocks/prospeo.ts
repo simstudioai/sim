@@ -302,7 +302,7 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
       condition: { field: 'operation', value: 'prospeo_search_suggestions' },
     },
 
-    // API Key (always last)
+    // API Key — hidden on hosted Sim for operations with hosted-key support
     {
       id: 'apiKey',
       title: 'API Key',
@@ -310,6 +310,25 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
       required: true,
       placeholder: 'Enter your Prospeo API key',
       password: true,
+      hideWhenHosted: true,
+      condition: {
+        field: 'operation',
+        value: ['prospeo_search_suggestions', 'prospeo_account_information'],
+        not: true,
+      },
+    },
+    // API Key — always required for the free account/suggestion lookups (no hosted key)
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter your Prospeo API key',
+      password: true,
+      condition: {
+        field: 'operation',
+        value: ['prospeo_search_suggestions', 'prospeo_account_information'],
+      },
     },
   ],
   tools: {

@@ -51,16 +51,6 @@ export const GET = withRouteHandler(
         subscriptionPlan: analytics.subscriptionPlan,
         canAddSeats: analytics.canAddSeats,
         utilizationRate: analytics.utilizationRate,
-        activeMembers: analytics.activeMembers,
-        inactiveMembers: analytics.inactiveMembers,
-        memberActivity: analytics.memberActivity.map((m) => ({
-          userId: m.userId,
-          userName: m.userName,
-          userEmail: m.userEmail,
-          role: m.role,
-          joinedAt: m.joinedAt.toISOString(),
-          lastActive: m.lastActive?.toISOString() ?? null,
-        })),
       }
 
       logger.info(`Admin API: Retrieved seat analytics for organization ${organizationId}`)

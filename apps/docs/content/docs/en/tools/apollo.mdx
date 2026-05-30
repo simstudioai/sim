@@ -252,7 +252,7 @@ Update an existing contact in your Apollo database
 | `mobile_phone` | string | No | Mobile phone number |
 | `home_phone` | string | No | Home phone number |
 | `other_phone` | string | No | Alternative phone number |
-| `typed_custom_fields` | json | No | Custom field values keyed by custom field ID \(accepted by Apollo but not officially documented for PATCH /contacts/\{id\}\) |
+| `typed_custom_fields` | json | No | Custom field values keyed by custom field ID |
 
 #### Output
 
@@ -440,6 +440,7 @@ Update up to 1000 existing accounts at once in your Apollo database (higher limi
 | `account_ids` | array | No | Array of account IDs to update with the same values \(max 1000\). Use with name/owner_id for uniform updates. Use either this OR account_attributes. |
 | `name` | string | No | When using account_ids, apply this name to all accounts |
 | `owner_id` | string | No | When using account_ids, apply this owner to all accounts |
+| `account_stage_id` | string | No | When using account_ids, apply this account stage to all accounts |
 | `account_attributes` | json | No | Array of account objects with individual updates \(each must include id\). Example: \[\{"id": "acc1", "name": "Acme", "owner_id": "u1", "account_stage_id": "s1", "typed_custom_fields": \{"field_id": "value"\}\}\] |
 | `async` | boolean | No | When true, processes the update asynchronously. Only supported when using account_ids; returns 422 if used with account_attributes. |
 
@@ -447,9 +448,9 @@ Update up to 1000 existing accounts at once in your Apollo database (higher limi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `accounts` | json | Updated accounts \(synchronous response, ≤100 accounts\): \[\{id, account_stage_id, ...\}\] |
+| `accounts` | json | Updated accounts \(synchronous response\): \[\{id, account_stage_id, ...\}\] |
 | `account_ids` | json | IDs of accounts that were updated |
-| `entity_progress_job` | json | Async job descriptor \(&gt;100 accounts or async=true\) |
+| `entity_progress_job` | json | Async job descriptor \(when async=true is passed with account_ids\) |
 | `job_id` | string | Async job ID extracted from entity_progress_job |
 | `message` | string | Optional confirmation message from Apollo |
 

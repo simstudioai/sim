@@ -13,6 +13,7 @@ const {
   DEFAULT_PERMISSION_GROUP_CONFIG: {
     allowedIntegrations: null,
     allowedModelProviders: null,
+    deniedModels: [],
     hideTraceSpans: false,
     hideKnowledgeBaseTab: false,
     hideTablesTab: false,
@@ -94,6 +95,7 @@ import {
   getUserPermissionConfig,
   IntegrationNotAllowedError,
   McpToolsNotAllowedError,
+  ModelNotAllowedError,
   ProviderNotAllowedError,
   SkillsNotAllowedError,
   validateBlockType,
@@ -237,6 +239,42 @@ describe('validateModelProvider', () => {
 
     await validateModelProvider('user-123', 'workspace-1', 'gpt-4')
   })
+
+  it('throws ModelNotAllowedError when the model is on the denylist', async () => {
+    mockDbGroupMembership.value = [{ config: { deniedModels: ['gpt-4'] } }]
+    mockGetProviderFromModel.mockReturnValue('openai')
+
+    await expect(validateModelProvider('user-123', 'workspace-1', 'gpt-4')).rejects.toBeInstanceOf(
+      ModelNotAllowedError
+    )
+  })
+
+  it('denylist match is case-insensitive', async () => {
+    mockDbGroupMembership.value = [{ config: { deniedModels: ['Ollama/Llama3'] } }]
+    mockGetProviderFromModel.mockReturnValue('ollama')
+
+    await expect(
+      validateModelProvider('user-123', 'workspace-1', 'ollama/llama3')
+    ).rejects.toBeInstanceOf(ModelNotAllowedError)
+  })
+
+  it('enforces the denylist even when no provider allowlist is set', async () => {
+    mockDbGroupMembership.value = [
+      { config: { allowedModelProviders: null, deniedModels: ['gpt-4'] } },
+    ]
+    mockGetProviderFromModel.mockReturnValue('openai')
+
+    await expect(validateModelProvider('user-123', 'workspace-1', 'gpt-4')).rejects.toBeInstanceOf(
+      ModelNotAllowedError
+    )
+  })
+
+  it('allows a model that is not on the denylist', async () => {
+    mockDbGroupMembership.value = [{ config: { deniedModels: ['gpt-4'] } }]
+    mockGetProviderFromModel.mockReturnValue('openai')
+
+    await validateModelProvider('user-123', 'workspace-1', 'gpt-4o')
+  })
 })
 
 describe('validateMcpToolsAllowed', () => {
@@ -279,6 +317,19 @@ describe('assertPermissionsAllowed', () => {
         model: 'gpt-4',
       })
     ).rejects.toBeInstanceOf(ProviderNotAllowedError)
+  })
+
+  it('throws ModelNotAllowedError when the model is on the denylist', async () => {
+    mockDbGroupMembership.value = [{ config: { deniedModels: ['gpt-4'] } }]
+    mockGetProviderFromModel.mockReturnValue('openai')
+
+    await expect(
+      assertPermissionsAllowed({
+        userId: 'user-123',
+        workspaceId: 'workspace-1',
+        model: 'gpt-4',
+      })
+    ).rejects.toBeInstanceOf(ModelNotAllowedError)
   })
 
   it('throws IntegrationNotAllowedError when block type is blocked', async () => {

@@ -35,6 +35,7 @@ import {
   adminV1UpdateOrganizationMemberContract,
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
+import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -86,7 +87,6 @@ export const GET = withRouteHandler(
           userEmail: user.email,
           currentPeriodCost: userStats.currentPeriodCost,
           currentUsageLimit: userStats.currentUsageLimit,
-          lastActive: userStats.lastActive,
           billingBlocked: userStats.billingBlocked,
         })
         .from(member)
@@ -99,6 +99,10 @@ export const GET = withRouteHandler(
         return notFoundResponse('Member')
       }
 
+      // currentPeriodCost is only a baseline; add this member's attributed
+      // usage_log for the org's period so admin shows real current usage.
+      const ledgerByUser = await getOrgMemberLedgerByUser(organizationId)
+
       const data: AdminMemberDetail = {
         id: memberData.id,
         userId: memberData.userId,
@@ -107,9 +111,10 @@ export const GET = withRouteHandler(
         createdAt: memberData.createdAt.toISOString(),
         userName: memberData.userName,
         userEmail: memberData.userEmail,
-        currentPeriodCost: memberData.currentPeriodCost ?? '0',
+        currentPeriodCost: (
+          Number(memberData.currentPeriodCost ?? 0) + (ledgerByUser.get(memberData.userId) ?? 0)
+        ).toString(),
         currentUsageLimit: memberData.currentUsageLimit,
-        lastActive: memberData.lastActive?.toISOString() ?? null,
         billingBlocked: memberData.billingBlocked ?? false,
       }
 

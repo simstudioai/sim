@@ -20,6 +20,9 @@ export const byokProviderIdSchema = z.enum([
   'cohere',
   'hunter',
   'peopledatalabs',
+  'findymail',
+  'prospeo',
+  'wiza',
 ])
 
 export const byokKeySchema = z.object({

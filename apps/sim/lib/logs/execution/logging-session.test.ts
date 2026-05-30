@@ -75,7 +75,6 @@ vi.mock('@/lib/logs/execution/logging-factory', () => ({
     totalPromptTokens: 0,
     totalCompletionTokens: 0,
     baseExecutionCharge: 0,
-    modelCost: 0,
     models: {},
   }),
   createEnvironmentObject: vi.fn(),
@@ -84,6 +83,7 @@ vi.mock('@/lib/logs/execution/logging-factory', () => ({
   loadWorkflowStateForExecution: loadWorkflowStateForExecutionMock,
 }))
 
+import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
 import { LoggingSession } from './logging-session'
 
 describe('LoggingSession start snapshots', () => {
@@ -238,34 +238,54 @@ describe('LoggingSession completion retries', () => {
     )
   })
 
-  it('preserves accumulated cost during fallback completion', async () => {
+  it('derives fallback cost from trace spans when the primary completion fails', async () => {
     const session = new LoggingSession('workflow-1', 'execution-6', 'api', 'req-1') as any
 
-    session.accumulatedCost = {
-      total: 12,
-      input: 5,
-      output: 7,
-      tokens: { input: 11, output: 13, total: 24 },
-      models: {
-        'test-model': {
-          input: 5,
-          output: 7,
-          total: 12,
-          tokens: { input: 11, output: 13, total: 24 },
-        },
-      },
+    // Resume-accumulation is retired: the cost-only fallback now derives its
+    // cost summary from the in-memory trace spans (billing itself reconciles
+    // from the usage_log ledger in recordExecutionUsage). The primary complete()
+    // path consumes one calculateCostSummary call before it fails, so queue the
+    // same value twice (primary attempt + fallback).
+    const spanCostSummary = {
+      totalCost: 12,
+      totalInputCost: 5,
+      totalOutputCost: 7,
+      totalTokens: 24,
+      totalPromptTokens: 11,
+      totalCompletionTokens: 13,
+      baseExecutionCharge: 0,
+      models: {},
+      charges: {},
     }
-    session.costFlushed = true
+    vi.mocked(calculateCostSummary)
+      .mockReturnValueOnce(spanCostSummary)
+      .mockReturnValueOnce(spanCostSummary)
 
     completeWorkflowExecutionMock
       .mockRejectedValueOnce(new Error('success finalize failed'))
       .mockResolvedValueOnce({})
 
-    await expect(session.safeComplete({ finalOutput: { ok: true } })).resolves.toBeUndefined()
+    const traceSpans = [
+      {
+        id: 'span-1',
+        name: 'Block A',
+        type: 'tool',
+        duration: 25,
+        startTime: '2026-03-13T10:00:00.000Z',
+        endTime: '2026-03-13T10:00:00.025Z',
+        status: 'success',
+      },
+    ] as any
 
+    await expect(
+      session.safeComplete({ finalOutput: { ok: true }, traceSpans })
+    ).resolves.toBeUndefined()
+
+    expect(calculateCostSummary).toHaveBeenLastCalledWith(traceSpans)
     expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
         executionId: 'execution-6',
+        finalizationPath: 'fallback_completed',
         costSummary: expect.objectContaining({
           totalCost: 12,
           totalInputCost: 5,
@@ -440,24 +460,21 @@ describe('LoggingSession completion retries', () => {
     expect(session.complete).toHaveBeenCalledTimes(1)
   })
 
-  it('drains fire-and-forget cost flushes before terminal completion', async () => {
-    let releaseFlush: (() => void) | undefined
-    const flushPromise = new Promise<void>((resolve) => {
-      releaseFlush = resolve
+  it('drains fire-and-forget block-complete marker writes before terminal completion', async () => {
+    let releasePersist: (() => void) | undefined
+    const persistPromise = new Promise<void>((resolve) => {
+      releasePersist = resolve
     })
 
     const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1') as any
-    session.flushAccumulatedCost = vi.fn(() => flushPromise)
+    session.persistLastCompletedBlock = vi.fn(() => persistPromise)
     session.complete = vi.fn().mockResolvedValue(undefined)
 
-    await session.onBlockComplete('block-2', 'Transform', 'function', {
+    // onBlockComplete is now marker-only; its marker write is fire-and-forget
+    // but tracked, so terminal completion must drain it first.
+    void session.onBlockComplete('block-2', 'Transform', 'function', {
       endedAt: '2025-01-01T00:00:01.000Z',
-      output: {
-        value: true,
-        cost: { total: 1, input: 1, output: 0 },
-        tokens: { input: 1, output: 0, total: 1 },
-        model: 'test-model',
-      },
+      output: { value: true },
     })
 
     const completionPromise = session.safeComplete({ finalOutput: { ok: true } })
@@ -466,11 +483,11 @@ describe('LoggingSession completion retries', () => {
 
     expect(session.complete).not.toHaveBeenCalled()
 
-    releaseFlush?.()
+    releasePersist?.()
 
     await completionPromise
 
-    expect(session.flushAccumulatedCost).toHaveBeenCalledTimes(1)
+    expect(session.persistLastCompletedBlock).toHaveBeenCalledTimes(1)
     expect(session.complete).toHaveBeenCalledTimes(1)
   })
 
