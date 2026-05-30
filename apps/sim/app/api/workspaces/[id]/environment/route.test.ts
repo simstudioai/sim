@@ -71,10 +71,8 @@ describe('GET /api/workspaces/[id]/environment', () => {
 
       const body = await res.json()
       expect(body.data.workspace).toEqual({ OPENAI_API_KEY: '', DATABASE_URL: '' })
-      // Plaintext workspace secrets must never reach non-admins.
       expect(JSON.stringify(body.data.workspace)).not.toContain('sk-live-secret-value')
       expect(JSON.stringify(body.data.workspace)).not.toContain('postgres://')
-      // The caller's own personal values are still returned.
       expect(body.data.personal).toEqual(ENV_RESULT.personalDecrypted)
     }
   )

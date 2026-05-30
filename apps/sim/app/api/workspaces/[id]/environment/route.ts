@@ -56,9 +56,7 @@ export const GET = withRouteHandler(
       const { workspaceEncrypted, workspaceDecrypted, personalDecrypted, conflicts } =
         await getPersonalAndWorkspaceEnv(userId, workspaceId)
 
-      // Plaintext workspace secrets are restricted to workspace admins. Non-admins receive only
-      // the variable names (with empty values) so env references can still be validated and
-      // highlighted in the editor without exposing the decrypted secret values.
+      // Only workspace admins may read plaintext secrets; others get variable names with empty values.
       const workspace =
         permission === 'admin'
           ? workspaceDecrypted
