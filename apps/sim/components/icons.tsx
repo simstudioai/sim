@@ -1293,7 +1293,7 @@ export function GoogleSheetsIcon(props: SVGProps<SVGSVGElement>) {
 export const S3Icon = (props: SVGProps<SVGSVGElement>) => (
   <svg
     {...props}
-    viewBox='0.712 0.44 74.527 75.12'
+    viewBox='-3.097 -3 70 70'
     version='1.1'
     xmlns='http://www.w3.org/2000/svg'
     xmlnsXlink='http://www.w3.org/1999/xlink'
@@ -4932,7 +4932,7 @@ export function RDSIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      viewBox='2.44 2.44 75.12 75.12'
+      viewBox='5 5 70 70'
       version='1.1'
       xmlns='http://www.w3.org/2000/svg'
       xmlnsXlink='http://www.w3.org/1999/xlink'
@@ -4959,7 +4959,7 @@ export function DynamoDBIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      viewBox='3.52 2.44 72.96 75.12'
+      viewBox='5.001 5 70 70'
       version='1.1'
       xmlns='http://www.w3.org/2000/svg'
       xmlnsXlink='http://www.w3.org/1999/xlink'
@@ -5081,7 +5081,7 @@ export function SQSIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      viewBox='2.439 3.79 75.121 72.42'
+      viewBox='4.997 4.997 70.006 70.006'
       version='1.1'
       xmlns='http://www.w3.org/2000/svg'
       xmlnsXlink='http://www.w3.org/1999/xlink'
@@ -5110,7 +5110,7 @@ export function CloudFormationIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      viewBox='2.44 3.52 75.12 72.96'
+      viewBox='5 5 70 70'
       version='1.1'
       xmlns='http://www.w3.org/2000/svg'
       xmlnsXlink='http://www.w3.org/1999/xlink'
@@ -5136,7 +5136,7 @@ export function AthenaIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      viewBox='2.16 2.43 75.93 75.39'
+      viewBox='3.625 3.625 73.75 73.75'
       version='1.1'
       xmlns='http://www.w3.org/2000/svg'
       xmlnsXlink='http://www.w3.org/1999/xlink'
@@ -5163,7 +5163,7 @@ export function CloudWatchIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      viewBox='2.44 3.251 75.121 73.499'
+      viewBox='5 5 70.002 70.002'
       version='1.1'
       xmlns='http://www.w3.org/2000/svg'
       xmlnsXlink='http://www.w3.org/1999/xlink'
