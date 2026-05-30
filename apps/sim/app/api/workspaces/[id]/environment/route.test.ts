@@ -47,11 +47,13 @@ describe('GET /api/workspaces/[id]/environment', () => {
     vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     permissionsMockFns.mockGetWorkspaceById.mockResolvedValue({ id: WORKSPACE_ID })
+    permissionsMockFns.mockHasWorkspaceAdminAccess.mockResolvedValue(false)
     mockGetPersonalAndWorkspaceEnv.mockResolvedValue(ENV_RESULT)
   })
 
   it('returns decrypted workspace values to workspace admins', async () => {
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
+    permissionsMockFns.mockHasWorkspaceAdminAccess.mockResolvedValue(true)
 
     const res = await GET(createRequest(), createContext())
     expect(res.status).toBe(200)
@@ -62,9 +64,10 @@ describe('GET /api/workspaces/[id]/environment', () => {
   })
 
   it.each(['write', 'read'] as const)(
-    'returns only variable names (empty values) to %s members',
+    'returns only variable names (empty values) to non-admin %s members',
     async (permission) => {
       permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue(permission)
+      permissionsMockFns.mockHasWorkspaceAdminAccess.mockResolvedValue(false)
 
       const res = await GET(createRequest(), createContext())
       expect(res.status).toBe(200)
@@ -76,6 +79,17 @@ describe('GET /api/workspaces/[id]/environment', () => {
       expect(body.data.personal).toEqual(ENV_RESULT.personalDecrypted)
     }
   )
+
+  it('returns decrypted values to an admin-access user whose permission row is not "admin" (owner/org-admin)', async () => {
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+    permissionsMockFns.mockHasWorkspaceAdminAccess.mockResolvedValue(true)
+
+    const res = await GET(createRequest(), createContext())
+    expect(res.status).toBe(200)
+
+    const body = await res.json()
+    expect(body.data.workspace).toEqual(ENV_RESULT.workspaceDecrypted)
+  })
 
   it('rejects users without any workspace permission', async () => {
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue(null)

@@ -23,7 +23,11 @@ import {
   getPersonalAndWorkspaceEnv,
   invalidateEffectiveDecryptedEnvCache,
 } from '@/lib/environment/utils'
-import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
+import {
+  getUserEntityPermissions,
+  getWorkspaceById,
+  hasWorkspaceAdminAccess,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceEnvironmentAPI')
 
@@ -53,14 +57,16 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { workspaceEncrypted, workspaceDecrypted, personalDecrypted, conflicts } =
-        await getPersonalAndWorkspaceEnv(userId, workspaceId)
+      const [isAdmin, { workspaceEncrypted, workspaceDecrypted, personalDecrypted, conflicts }] =
+        await Promise.all([
+          hasWorkspaceAdminAccess(userId, workspaceId),
+          getPersonalAndWorkspaceEnv(userId, workspaceId),
+        ])
 
       // Only workspace admins may read plaintext secrets; others get variable names with empty values.
-      const workspace =
-        permission === 'admin'
-          ? workspaceDecrypted
-          : Object.fromEntries(Object.keys(workspaceEncrypted).map((key) => [key, '']))
+      const workspace = isAdmin
+        ? workspaceDecrypted
+        : Object.fromEntries(Object.keys(workspaceEncrypted).map((key) => [key, '']))
 
       return NextResponse.json(
         {
