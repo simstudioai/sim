@@ -149,6 +149,33 @@ describe('verifyKBFileAccess', () => {
     )
   })
 
+  it('denies a planted active document when the original owner document is archived', async () => {
+    // The earliest (victim) document is archived, so the file is retired; the attacker's
+    // later active document must not become the owner and grant cross-tenant access.
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { workspaceId: 'ws-victim', fileUrl: internalUrlFor(VICTIM_KEY), archivedAt: new Date() },
+      { workspaceId: 'ws-attacker', fileUrl: internalUrlFor(VICTIM_KEY) },
+    ])
+    mockGetUserEntityPermissions.mockResolvedValue('admin')
+
+    const granted = await verifyFileAccess(VICTIM_KEY, ATTACKER_USER, undefined, 'knowledge-base')
+
+    expect(granted).toBe(false)
+    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+  })
+
+  it('denies access when the owning document is soft-deleted (retired file not served)', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { workspaceId: 'ws-owner', fileUrl: internalUrlFor(VICTIM_KEY), deletedAt: new Date() },
+    ])
+    mockGetUserEntityPermissions.mockResolvedValue('admin')
+
+    const granted = await verifyFileAccess(VICTIM_KEY, 'owner-user', undefined, 'knowledge-base')
+
+    expect(granted).toBe(false)
+    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+  })
+
   it('denies access when a substring document points at a different key', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       { workspaceId: 'ws-attacker', fileUrl: internalUrlFor(`${VICTIM_KEY}-decoy`) },

@@ -432,11 +432,12 @@ function resolveInternalKbKey(fileUrl: string | null, allowedOrigins: Set<string
  * KB files: kb/filename
  *
  * Access is authorized against the workspace that *owns* the storage object,
- * never against an arbitrary document that merely references it. Ownership is
- * resolved by requiring a document's `fileUrl` to canonically resolve to the
- * exact requested storage key (not a substring/`LIKE` match), and by pinning to
- * the earliest such document — so a later document planted in another workspace
- * cannot authorize the planting user against another tenant's file.
+ * never against an arbitrary document that merely references it. The owner is the
+ * earliest document (in any state) whose `fileUrl` canonically resolves to the
+ * exact requested key — not a substring/`LIKE` match. Access is granted only when
+ * that owning document is still active; an archived or deleted owner keeps the file
+ * retired, and a document planted later in another workspace can never become the
+ * owner.
  */
 async function verifyKBFileAccess(
   cloudKey: string,
@@ -444,37 +445,49 @@ async function verifyKBFileAccess(
   customConfig?: StorageConfig
 ): Promise<boolean> {
   try {
-    // LIKE only narrows candidates; ownership is decided below, pinned to the earliest upload.
+    // Ownership spans every document state: the earliest document to reference the key owns
+    // it, so a document planted later in another workspace can never claim a file whose
+    // original document was archived or deleted. LIKE only narrows candidates; the exact
+    // owner is resolved below.
     const candidateDocuments = await db
       .select({
         workspaceId: knowledgeBase.workspaceId,
         fileUrl: document.fileUrl,
+        archivedAt: document.archivedAt,
+        deletedAt: document.deletedAt,
+        userExcluded: document.userExcluded,
+        kbDeletedAt: knowledgeBase.deletedAt,
       })
       .from(document)
       .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
       .where(
-        and(
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt),
-          isNull(knowledgeBase.deletedAt),
-          or(
-            like(document.fileUrl, `%${cloudKey}%`),
-            like(document.fileUrl, `%${encodeURIComponent(cloudKey)}%`)
-          )
+        or(
+          like(document.fileUrl, `%${cloudKey}%`),
+          like(document.fileUrl, `%${encodeURIComponent(cloudKey)}%`)
         )
       )
       .orderBy(asc(document.uploadedAt))
       .limit(50)
 
-    // Owner is the earliest document whose fileUrl resolves to EXACTLY this key; substring
-    // matches and cross-workspace references never establish ownership.
     const allowedOrigins = getInternalServeOrigins()
     const owningDocument = candidateDocuments.find(
       (doc) => resolveInternalKbKey(doc.fileUrl, allowedOrigins) === cloudKey
     )
 
     if (owningDocument) {
+      const isActive =
+        !owningDocument.archivedAt &&
+        !owningDocument.deletedAt &&
+        !owningDocument.userExcluded &&
+        !owningDocument.kbDeletedAt
+
+      // The owning document is archived/deleted/excluded: the file is retired and not served,
+      // and the attacker's later active document is not the owner, so it cannot claim it.
+      if (!isActive) {
+        logger.warn('KB file access denied: owning document is not active', { userId, cloudKey })
+        return false
+      }
+
       if (!owningDocument.workspaceId) {
         logger.warn('KB file access denied: owning document has no workspace', {
           userId,
