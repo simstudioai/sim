@@ -78,6 +78,7 @@ import {
   isOrganizationsEnabled,
   isRegistrationDisabled,
   isSignupEmailValidationEnabled,
+  isSignupMxValidationEnabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
@@ -85,6 +86,7 @@ import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
@@ -841,6 +843,15 @@ export const auth = betterAuth({
         throw new APIError('FORBIDDEN', {
           message: 'Sign-ups from this email domain are not allowed.',
         })
+      }
+
+      if (isSignupMxValidationEnabled && ctx.path.startsWith('/sign-up/email') && ctx.body?.email) {
+        const mxCheck = await validateSignupEmailMx(ctx.body.email)
+        if (!mxCheck.allowed) {
+          throw new APIError('FORBIDDEN', {
+            message: 'Sign-ups from this email domain are not allowed.',
+          })
+        }
       }
 
       if (ctx.path === '/oauth2/authorize' || ctx.path === '/oauth2/token') {

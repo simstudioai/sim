@@ -696,8 +696,10 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         scopes: [
           'channels:read',
           'channels:history',
+          'channels:manage',
           'groups:read',
           'groups:history',
+          'groups:write',
           'chat:write',
           'chat:write.public',
           'im:write',

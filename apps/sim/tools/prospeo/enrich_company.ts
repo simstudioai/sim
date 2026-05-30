@@ -1,3 +1,4 @@
+import { prospeoHosting } from '@/tools/prospeo/hosting'
 import {
   extractProspeoError,
   type ProspeoEnrichCompanyParams,
@@ -13,6 +14,12 @@ export const enrichCompanyTool: ToolConfig<
   name: 'Prospeo Enrich Company',
   description: 'Enrich a company with complete B2B data.',
   version: '1.0.0',
+
+  hosting: prospeoHosting<ProspeoEnrichCompanyParams>((_params, output) => {
+    // 1 credit per company match; no charge on a no-match or repeat enrichment.
+    if (output.free_enrichment === true) return 0
+    return output.company ? 1 : 0
+  }),
 
   params: {
     apiKey: {

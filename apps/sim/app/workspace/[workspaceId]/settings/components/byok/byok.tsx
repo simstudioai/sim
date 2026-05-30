@@ -19,6 +19,7 @@ import {
   AnthropicIcon,
   BrandfetchIcon,
   ExaAIIcon,
+  FindymailIcon,
   FirecrawlIcon,
   FireworksIcon,
   GeminiIcon,
@@ -32,7 +33,9 @@ import {
   ParallelIcon,
   PeopleDataLabsIcon,
   PerplexityIcon,
+  ProspeoIcon,
   SerperIcon,
+  WizaIcon,
 } from '@/components/icons'
 import { Input } from '@/components/ui'
 import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
@@ -171,6 +174,27 @@ const PROVIDERS: {
     icon: PeopleDataLabsIcon,
     description: 'Person and company enrichment, search, and identity',
     placeholder: 'Enter your People Data Labs API key',
+  },
+  {
+    id: 'findymail',
+    name: 'Findymail',
+    icon: FindymailIcon,
+    description: 'Email finder, verification, and phone lookup',
+    placeholder: 'Enter your Findymail API key',
+  },
+  {
+    id: 'prospeo',
+    name: 'Prospeo',
+    icon: ProspeoIcon,
+    description: 'Person and company enrichment and search',
+    placeholder: 'Enter your Prospeo API key',
+  },
+  {
+    id: 'wiza',
+    name: 'Wiza',
+    icon: WizaIcon,
+    description: 'Prospect search, individual reveal, and company enrichment',
+    placeholder: 'Enter your Wiza API key',
   },
 ]
 

@@ -214,7 +214,7 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
         placeholder: 'e.g. React, TypeScript, Node.js',
       },
     },
-    // API Key
+    // API Key — hidden on hosted Sim for operations with hosted-key support
     {
       id: 'apiKey',
       title: 'API Key',
@@ -222,6 +222,18 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
       required: true,
       placeholder: 'Enter your Findymail API key',
       password: true,
+      hideWhenHosted: true,
+      condition: { field: 'operation', value: 'findymail_get_credits', not: true },
+    },
+    // API Key — always required for the credit-balance lookup (no hosted key)
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter your Findymail API key',
+      password: true,
+      condition: { field: 'operation', value: 'findymail_get_credits' },
     },
   ],
   tools: {

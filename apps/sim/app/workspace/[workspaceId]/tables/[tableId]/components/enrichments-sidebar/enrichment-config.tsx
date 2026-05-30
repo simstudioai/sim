@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { X } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -15,7 +14,7 @@ import {
   Switch,
   toast,
 } from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
+import { ArrowLeft, X } from '@/components/emcn/icons'
 import type { AddWorkflowGroupBodyInput } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition, WorkflowGroup, WorkflowGroupOutput } from '@/lib/table'

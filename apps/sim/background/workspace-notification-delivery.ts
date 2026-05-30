@@ -26,6 +26,7 @@ import { RateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import type { AlertConfig } from '@/lib/notifications/alert-rules'
@@ -507,27 +508,6 @@ function formatLogDate(value: Date | string | null | undefined, fallback = ''): 
   return typeof value === 'string' ? value : fallback
 }
 
-function normalizeLogCost(value: unknown): WorkflowExecutionLog['cost'] {
-  if (!isRecord(value)) {
-    return undefined
-  }
-
-  const tokens = isRecord(value.tokens)
-    ? {
-        input: typeof value.tokens.input === 'number' ? value.tokens.input : undefined,
-        output: typeof value.tokens.output === 'number' ? value.tokens.output : undefined,
-        total: typeof value.tokens.total === 'number' ? value.tokens.total : undefined,
-      }
-    : undefined
-
-  return {
-    input: typeof value.input === 'number' ? value.input : undefined,
-    output: typeof value.output === 'number' ? value.output : undefined,
-    total: typeof value.total === 'number' ? value.total : undefined,
-    tokens,
-  }
-}
-
 function normalizeLogFiles(value: unknown): WorkflowExecutionLog['files'] {
   if (!Array.isArray(value)) {
     return undefined
@@ -545,10 +525,17 @@ function normalizeLogFiles(value: unknown): WorkflowExecutionLog['files'] {
   )
 }
 
-function normalizeWorkflowExecutionLog(
+async function normalizeWorkflowExecutionLog(
   row: typeof workflowExecutionLogs.$inferSelect
-): WorkflowExecutionLog {
+): Promise<WorkflowExecutionLog> {
   const startedAt = formatLogDate(row.startedAt)
+
+  // Heavy execution data may live in object storage; resolve the pointer so
+  // retry deliveries get finalOutput/traceSpans (no-op for inline rows).
+  const executionData = await materializeExecutionData(
+    isRecord(row.executionData) ? row.executionData : {},
+    { workspaceId: row.workspaceId, workflowId: row.workflowId, executionId: row.executionId }
+  )
 
   return {
     id: row.id,
@@ -561,8 +548,9 @@ function normalizeWorkflowExecutionLog(
     endedAt: formatLogDate(row.endedAt, startedAt),
     totalDurationMs: row.totalDurationMs ?? 0,
     files: normalizeLogFiles(row.files),
-    executionData: isRecord(row.executionData) ? row.executionData : {},
-    cost: normalizeLogCost(row.cost),
+    executionData: executionData as WorkflowExecutionLog['executionData'],
+    // cost_total projection of the usage_log ledger (not the deprecated jsonb).
+    cost: row.costTotal != null ? { total: Number(row.costTotal) } : undefined,
     createdAt: formatLogDate(row.createdAt, startedAt),
   }
 }
@@ -580,7 +568,7 @@ async function buildRetryLog(params: NotificationDeliveryParams): Promise<Workfl
     .limit(1)
 
   if (storedLog) {
-    return normalizeWorkflowExecutionLog(storedLog)
+    return await normalizeWorkflowExecutionLog(storedLog)
   }
 
   const now = new Date().toISOString()

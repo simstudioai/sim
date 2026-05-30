@@ -1,7 +1,7 @@
 #!/usr/bin/env ts-node
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
+import { fileURLToPath, pathToFileURL } from 'url'
 import { glob } from 'glob'
 
 console.log('Starting documentation generator...')
@@ -183,6 +183,7 @@ interface IntegrationEntry {
   category: string
   integrationTypes?: string[]
   tags?: string[]
+  landingContent?: Record<string, unknown>
 }
 
 /**
@@ -665,6 +666,19 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
 
     const triggerRegistry = await buildTriggerRegistry()
     const { desc: toolDescMap, name: toolNameMap } = await buildToolDescriptionMap()
+
+    // Hand-authored, integration-specific landing content (install walkthrough,
+    // privacy blurb), keyed by slug. Imported as pure data — its only import is
+    // type-only and erased at runtime — and baked into the entries below so the
+    // landing page reads a single source instead of augmenting at render time.
+    const landingContentModule = await import(
+      pathToFileURL(path.join(LANDING_INTEGRATIONS_DATA_PATH, 'landing-content.ts')).href
+    )
+    const landingContentMap = (landingContentModule.INTEGRATION_LANDING_CONTENT ?? {}) as Record<
+      string,
+      Record<string, unknown>
+    >
+
     const integrations: IntegrationEntry[] = []
     const seenBaseTypes = new Set<string>()
     const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
@@ -778,6 +792,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
               }
             : {}),
           ...(config.tags ? { tags: config.tags } : {}),
+          ...(landingContentMap[slug] ? { landingContent: landingContentMap[slug] } : {}),
         })
       }
     }

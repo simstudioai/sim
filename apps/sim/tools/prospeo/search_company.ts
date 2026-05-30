@@ -1,3 +1,4 @@
+import { prospeoHosting } from '@/tools/prospeo/hosting'
 import {
   extractProspeoError,
   PROSPEO_PAGINATION_OUTPUT,
@@ -15,6 +16,13 @@ export const searchCompanyTool: ToolConfig<
   name: 'Prospeo Search Company',
   description: 'Search for companies using 20+ filters to build account lists.',
   version: '1.0.0',
+
+  hosting: prospeoHosting<ProspeoSearchCompanyParams>((_params, output) => {
+    // 1 credit per page that returns at least one result; free on 30-day dedup.
+    if (output.free === true) return 0
+    const results = output.results
+    return Array.isArray(results) && results.length > 0 ? 1 : 0
+  }),
 
   params: {
     apiKey: {

@@ -4,7 +4,9 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 
@@ -41,7 +43,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       startedAt: workflowExecutionLogs.startedAt,
       endedAt: workflowExecutionLogs.endedAt,
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
-      cost: workflowExecutionLogs.cost,
+      costTotal: workflowExecutionLogs.costTotal,
       executionData: workflowExecutionLogs.executionData,
       workflowName: sql<string>`COALESCE(${workflow.name}, 'Deleted Workflow')`,
     }
@@ -96,11 +98,29 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
             if (!rows.length) break
 
-            for (const r of rows as any[]) {
+            // Heavy execution data may live in object storage; materialize per
+            // row with bounded concurrency so a 1000-row page doesn't fan out
+            // into 1000 simultaneous reads.
+            const materialized = await mapWithConcurrency(
+              rows as any[],
+              MATERIALIZE_CONCURRENCY,
+              (r) =>
+                materializeExecutionData(r.executionData as Record<string, unknown> | null, {
+                  workspaceId: params.workspaceId,
+                  workflowId: r.workflowId,
+                  executionId: r.executionId,
+                })
+            )
+
+            for (let j = 0; j < rows.length; j++) {
+              const r = rows[j] as any
+              const ed = materialized[j] as Record<string, any>
+              // A single malformed/unserializable row must not abort the whole CSV
+              // stream — derive the message/trace columns defensively and fall back
+              // to empty on error so the row's metadata still exports.
               let message = ''
-              let traces: any = null
+              let tracesJson = ''
               try {
-                const ed = (r as any).executionData
                 if (ed) {
                   if (ed.finalOutput)
                     message =
@@ -108,20 +128,25 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
                         ? ed.finalOutput
                         : JSON.stringify(ed.finalOutput)
                   if (ed.message) message = ed.message
-                  if (ed.traceSpans) traces = ed.traceSpans
+                  if (ed.traceSpans) tracesJson = JSON.stringify(ed.traceSpans)
                 }
-              } catch {}
+              } catch (rowError) {
+                logger.warn('Skipping unserializable execution data for export row', {
+                  executionId: r.executionId,
+                  error: rowError instanceof Error ? rowError.message : String(rowError),
+                })
+              }
               const line = [
                 escapeCsv(r.startedAt?.toISOString?.() || r.startedAt),
                 escapeCsv(r.level),
                 escapeCsv(r.workflowName),
                 escapeCsv(r.trigger),
                 escapeCsv(r.totalDurationMs ?? ''),
-                escapeCsv(r.cost?.total ?? r.cost?.value?.total ?? ''),
+                escapeCsv(r.costTotal ?? ''),
                 escapeCsv(r.workflowId ?? ''),
                 escapeCsv(r.executionId ?? ''),
                 escapeCsv(message),
-                escapeCsv(traces ? JSON.stringify(traces) : ''),
+                escapeCsv(tracesJson),
               ].join(',')
               controller.enqueue(encoder.encode(`${line}\n`))
             }

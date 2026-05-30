@@ -18,8 +18,10 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, gt, gte, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
+import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import { fireTableTrigger } from './trigger'
@@ -3935,18 +3937,26 @@ async function backfillGroupOutputsFromLogs(opts: {
   const logs = await db
     .select({
       executionId: workflowExecutionLogs.executionId,
+      workflowId: workflowExecutionLogs.workflowId,
+      workspaceId: workflowExecutionLogs.workspaceId,
       executionData: workflowExecutionLogs.executionData,
     })
     .from(workflowExecutionLogs)
     .where(inArray(workflowExecutionLogs.executionId, executionIds))
 
   const logByExecutionId = new Map<string, { traceSpans?: BackfillTraceSpan[] }>()
-  for (const log of logs) {
+  // Heavy execution data may live in object storage; resolve pointers (bounded
+  // concurrency) so trace spans are available for table-column enrichment.
+  await mapWithConcurrency(logs, MATERIALIZE_CONCURRENCY, async (log) => {
+    const executionData = await materializeExecutionData(
+      log.executionData as Record<string, unknown> | null,
+      { workspaceId: log.workspaceId, workflowId: log.workflowId, executionId: log.executionId }
+    )
     logByExecutionId.set(
       log.executionId,
-      (log.executionData as { traceSpans?: BackfillTraceSpan[] }) ?? {}
+      (executionData as { traceSpans?: BackfillTraceSpan[] }) ?? {}
     )
-  }
+  })
 
   const updates: Array<{ rowId: string; data: RowData }> = []
   for (const r of rowRecords) {
