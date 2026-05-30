@@ -2970,9 +2970,16 @@ export async function updateColumnType(
   requestId: string
 ): Promise<TableDefinition> {
   return withLockedTable(data.tableId, async (table, trx) => {
-    await setTableTxTimeouts(trx, {
-      statementMs: scaledStatementTimeoutMs(table.rowCount ?? 0, { baseMs: 60_000, perRowMs: 2 }),
+    // Scale both statement and idle timeouts to row count: the compatibility
+    // check below iterates every row in Node between the row SELECT and the
+    // schema UPDATE, leaving the transaction idle for that gap. The default 5s
+    // `idle_in_transaction_session_timeout` would abort a valid type change on
+    // a large table.
+    const timeoutMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
+      baseMs: 60_000,
+      perRowMs: 2,
     })
+    await setTableTxTimeouts(trx, { statementMs: timeoutMs, idleMs: timeoutMs })
 
     if (!(COLUMN_TYPES as readonly string[]).includes(data.newType)) {
       throw new Error(
