@@ -57,6 +57,17 @@ export function useSubscriptionUpgrade() {
         currentStripeSubscriptionId = undefined
       }
 
+      if (currentSubscriptionRowId && !currentStripeSubscriptionId) {
+        logger.error('Active paid subscription is missing its Stripe subscription ID', {
+          userId,
+          subscriptionRowId: currentSubscriptionRowId,
+          targetPlan,
+        })
+        throw new Error(
+          'We could not match your current plan with our payment provider. Please contact support before upgrading so you are not charged twice.'
+        )
+      }
+
       let referenceId = userId
 
       if (targetPlan === 'team') {
