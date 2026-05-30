@@ -142,4 +142,25 @@ describe('serializePauseSnapshot', () => {
       stringifySpy.mockRestore()
     }
   })
+
+  it('preserves an explicit useDraftState=true even when the context is a deployed (server-side) context', () => {
+    const context = createContext({
+      isDeployedContext: true,
+      metadata: {
+        requestId: 'request-1',
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        triggerType: 'manual',
+        useDraftState: true,
+        startTime: '2026-01-01T00:00:00.000Z',
+      },
+    })
+
+    const snapshot = serializePauseSnapshot(context, ['next-block'])
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.metadata.useDraftState).toBe(true)
+  })
 })
