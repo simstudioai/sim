@@ -1,4 +1,4 @@
-ALTER TABLE "copilot_messages" ADD COLUMN "seq" integer;--> statement-breakpoint
+ALTER TABLE "copilot_messages" ADD COLUMN IF NOT EXISTS "seq" integer;--> statement-breakpoint
 WITH ordered AS (
   SELECT c."id" AS chat_id, elem.value->>'id' AS message_id, elem.ord AS ord
   FROM "copilot_chats" c
@@ -16,4 +16,4 @@ ranked AS (
 UPDATE "copilot_messages" m SET "seq" = r.seq
 FROM ranked r
 WHERE m."chat_id" = r.chat_id AND m."message_id" = r.message_id;--> statement-breakpoint
-CREATE INDEX "copilot_messages_chat_seq_idx" ON "copilot_messages" USING btree ("chat_id","seq") WHERE "copilot_messages"."deleted_at" IS NULL;
+CREATE INDEX IF NOT EXISTS "copilot_messages_chat_seq_idx" ON "copilot_messages" USING btree ("chat_id","seq") WHERE "copilot_messages"."deleted_at" IS NULL;
