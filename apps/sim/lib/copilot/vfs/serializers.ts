@@ -264,8 +264,7 @@ export function serializeConnectorOverview(connectors: SerializableConnectorConf
 }
 
 /**
- * Serialize workspace file metadata for VFS files/{name}/meta.json
- * and files/by-id/{id}/meta.json.
+ * Serialize workspace file metadata for VFS files/{path}/{name}/meta.json.
  */
 export function serializeFileMeta(file: {
   id: string

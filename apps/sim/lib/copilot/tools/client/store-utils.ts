@@ -125,11 +125,6 @@ function describeFileReadTarget(segments: string[]): string {
 }
 
 function describeSpecialFilePathSubject(segments: string[]): string {
-  if (segments[1] === 'by-id') {
-    const namedRemainder = segments.slice(3, -1).join('/')
-    return namedRemainder || 'this file'
-  }
-
   return segments.slice(1, -1).join('/') || 'this file'
 }
 

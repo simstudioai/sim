@@ -1273,33 +1273,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['get_execution_summary']: {
-    parameters: {
-      type: 'object',
-      properties: {
-        limit: {
-          type: 'number',
-          description: 'Max number of executions to return (default: 10, max: 20).',
-        },
-        status: {
-          type: 'string',
-          description: "Filter by status: 'success', 'error', or 'all' (default: 'all').",
-          enum: ['success', 'error', 'all'],
-        },
-        workflowId: {
-          type: 'string',
-          description:
-            'Optional workflow ID. If omitted, returns executions across all workflows in the workspace.',
-        },
-        workspaceId: {
-          type: 'string',
-          description: 'Workspace ID to scope executions to.',
-        },
-      },
-      required: ['workspaceId'],
-    },
-    resultSchema: undefined,
-  },
   ['get_job_logs']: {
     parameters: {
       type: 'object',
@@ -1376,32 +1349,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['data_type'],
-    },
-    resultSchema: undefined,
-  },
-  ['get_workflow_logs']: {
-    parameters: {
-      type: 'object',
-      properties: {
-        executionId: {
-          type: 'string',
-          description:
-            'Optional execution ID to get logs for a specific execution. Use with get_execution_summary to find execution IDs first.',
-        },
-        includeDetails: {
-          type: 'boolean',
-          description: 'Include detailed info',
-        },
-        limit: {
-          type: 'number',
-          description: 'Max number of entries (hard limit: 3)',
-        },
-        workflowId: {
-          type: 'string',
-          description:
-            'Optional workflow ID. If not provided, uses the current workflow in context.',
-        },
-      },
     },
     resultSchema: undefined,
   },
@@ -2180,6 +2127,117 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['resources'],
+    },
+    resultSchema: undefined,
+  },
+  ['query_logs']: {
+    parameters: {
+      type: 'object',
+      properties: {
+        blockId: {
+          type: 'string',
+          description: "Optional (view='full'): only return this block's span subtree.",
+        },
+        blockName: {
+          type: 'string',
+          description: "Optional (view='full'): only return spans for this block name.",
+        },
+        costOperator: {
+          type: 'string',
+          description: "Filter (view='list'): comparison operator for cost.",
+          enum: ['=', '>', '<', '>=', '<=', '!='],
+        },
+        costValue: {
+          type: 'number',
+          description: "Filter (view='list'): cost threshold paired with costOperator.",
+        },
+        cursor: {
+          type: 'string',
+          description: "Pagination cursor (view='list') from a prior response's nextCursor.",
+        },
+        durationOperator: {
+          type: 'string',
+          description: "Filter (view='list'): comparison operator for duration (ms).",
+          enum: ['=', '>', '<', '>=', '<=', '!='],
+        },
+        durationValue: {
+          type: 'number',
+          description:
+            "Filter (view='list'): duration threshold (ms) paired with durationOperator.",
+        },
+        endDate: {
+          type: 'string',
+          description: "Filter (view='list'): ISO end of the time range.",
+        },
+        executionId: {
+          type: 'string',
+          description:
+            "Required for 'overview'/'full' (and 'pattern'): the execution to read. For 'list', an optional exact-match filter.",
+        },
+        folderIds: {
+          type: 'string',
+          description: "Filter (view='list'): comma-separated folder IDs (descendants included).",
+        },
+        folderName: {
+          type: 'string',
+          description: "Filter (view='list'): substring match on folder name.",
+        },
+        level: {
+          type: 'string',
+          description:
+            "Filter (view='list'): comma-separated levels: error, info, running, pending. Default all.",
+        },
+        limit: {
+          type: 'number',
+          description: "Max results (view='list'), 1-200 (default 100).",
+        },
+        pattern: {
+          type: 'string',
+          description:
+            "Optional substring/regex to grep within the execution's trace spans (requires executionId). Returns matching spans with snippets instead of the full log.",
+        },
+        search: {
+          type: 'string',
+          description: "Filter (view='list'): substring match on executionId.",
+        },
+        sortBy: {
+          type: 'string',
+          description: "Sort field (view='list').",
+          enum: ['date', 'duration', 'cost', 'status'],
+        },
+        sortOrder: {
+          type: 'string',
+          description: "Sort order (view='list').",
+          enum: ['asc', 'desc'],
+        },
+        startDate: {
+          type: 'string',
+          description: "Filter (view='list'): ISO start of the time range.",
+        },
+        triggers: {
+          type: 'string',
+          description: "Filter (view='list'): comma-separated trigger types.",
+        },
+        view: {
+          type: 'string',
+          description:
+            "Disclosure level: 'list' (summaries), 'overview' (one execution's trace tree, no I/O), or 'full' (one execution's trace spans with I/O).",
+          enum: ['list', 'overview', 'full'],
+        },
+        workflowIds: {
+          type: 'string',
+          description: "Filter (view='list'): comma-separated workflow IDs.",
+        },
+        workflowName: {
+          type: 'string',
+          description: "Filter (view='list'): substring match on workflow name.",
+        },
+        workspaceId: {
+          type: 'string',
+          description: 'Workspace ID to scope to.',
+        },
+      },
+      required: ['view'],
     },
     resultSchema: undefined,
   },

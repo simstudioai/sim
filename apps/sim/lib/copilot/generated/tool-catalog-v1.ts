@@ -40,12 +40,10 @@ export interface ToolCatalogEntry {
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
     | 'get_deployment_version'
-    | 'get_execution_summary'
     | 'get_job_logs'
     | 'get_page_contents'
     | 'get_platform_actions'
     | 'get_workflow_data'
-    | 'get_workflow_logs'
     | 'glob'
     | 'grep'
     | 'job'
@@ -69,6 +67,7 @@ export interface ToolCatalogEntry {
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
     | 'open_resource'
+    | 'query_logs'
     | 'read'
     | 'redeploy'
     | 'rename_file'
@@ -136,12 +135,10 @@ export interface ToolCatalogEntry {
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
     | 'get_deployment_version'
-    | 'get_execution_summary'
     | 'get_job_logs'
     | 'get_page_contents'
     | 'get_platform_actions'
     | 'get_workflow_data'
-    | 'get_workflow_logs'
     | 'glob'
     | 'grep'
     | 'job'
@@ -165,6 +162,7 @@ export interface ToolCatalogEntry {
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
     | 'open_resource'
+    | 'query_logs'
     | 'read'
     | 'redeploy'
     | 'rename_file'
@@ -1486,34 +1484,6 @@ export const GetDeploymentVersion: ToolCatalogEntry = {
   },
 }
 
-export const GetExecutionSummary: ToolCatalogEntry = {
-  id: 'get_execution_summary',
-  name: 'get_execution_summary',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      limit: {
-        type: 'number',
-        description: 'Max number of executions to return (default: 10, max: 20).',
-      },
-      status: {
-        type: 'string',
-        description: "Filter by status: 'success', 'error', or 'all' (default: 'all').",
-        enum: ['success', 'error', 'all'],
-      },
-      workflowId: {
-        type: 'string',
-        description:
-          'Optional workflow ID. If omitted, returns executions across all workflows in the workspace.',
-      },
-      workspaceId: { type: 'string', description: 'Workspace ID to scope executions to.' },
-    },
-    required: ['workspaceId'],
-  },
-}
-
 export const GetJobLogs: ToolCatalogEntry = {
   id: 'get_job_logs',
   name: 'get_job_logs',
@@ -1588,29 +1558,6 @@ export const GetWorkflowData: ToolCatalogEntry = {
       },
     },
     required: ['data_type'],
-  },
-}
-
-export const GetWorkflowLogs: ToolCatalogEntry = {
-  id: 'get_workflow_logs',
-  name: 'get_workflow_logs',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      executionId: {
-        type: 'string',
-        description:
-          'Optional execution ID to get logs for a specific execution. Use with get_execution_summary to find execution IDs first.',
-      },
-      includeDetails: { type: 'boolean', description: 'Include detailed info' },
-      limit: { type: 'number', description: 'Max number of entries (hard limit: 3)' },
-      workflowId: {
-        type: 'string',
-        description: 'Optional workflow ID. If not provided, uses the current workflow in context.',
-      },
-    },
   },
 }
 
@@ -2402,6 +2349,111 @@ export const OpenResource: ToolCatalogEntry = {
       },
     },
     required: ['resources'],
+  },
+}
+
+export const QueryLogs: ToolCatalogEntry = {
+  id: 'query_logs',
+  name: 'query_logs',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      blockId: {
+        type: 'string',
+        description: "Optional (view='full'): only return this block's span subtree.",
+      },
+      blockName: {
+        type: 'string',
+        description: "Optional (view='full'): only return spans for this block name.",
+      },
+      costOperator: {
+        type: 'string',
+        description: "Filter (view='list'): comparison operator for cost.",
+        enum: ['=', '>', '<', '>=', '<=', '!='],
+      },
+      costValue: {
+        type: 'number',
+        description: "Filter (view='list'): cost threshold paired with costOperator.",
+      },
+      cursor: {
+        type: 'string',
+        description: "Pagination cursor (view='list') from a prior response's nextCursor.",
+      },
+      durationOperator: {
+        type: 'string',
+        description: "Filter (view='list'): comparison operator for duration (ms).",
+        enum: ['=', '>', '<', '>=', '<=', '!='],
+      },
+      durationValue: {
+        type: 'number',
+        description: "Filter (view='list'): duration threshold (ms) paired with durationOperator.",
+      },
+      endDate: { type: 'string', description: "Filter (view='list'): ISO end of the time range." },
+      executionId: {
+        type: 'string',
+        description:
+          "Required for 'overview'/'full' (and 'pattern'): the execution to read. For 'list', an optional exact-match filter.",
+      },
+      folderIds: {
+        type: 'string',
+        description: "Filter (view='list'): comma-separated folder IDs (descendants included).",
+      },
+      folderName: {
+        type: 'string',
+        description: "Filter (view='list'): substring match on folder name.",
+      },
+      level: {
+        type: 'string',
+        description:
+          "Filter (view='list'): comma-separated levels: error, info, running, pending. Default all.",
+      },
+      limit: { type: 'number', description: "Max results (view='list'), 1-200 (default 100)." },
+      pattern: {
+        type: 'string',
+        description:
+          "Optional substring/regex to grep within the execution's trace spans (requires executionId). Returns matching spans with snippets instead of the full log.",
+      },
+      search: {
+        type: 'string',
+        description: "Filter (view='list'): substring match on executionId.",
+      },
+      sortBy: {
+        type: 'string',
+        description: "Sort field (view='list').",
+        enum: ['date', 'duration', 'cost', 'status'],
+      },
+      sortOrder: {
+        type: 'string',
+        description: "Sort order (view='list').",
+        enum: ['asc', 'desc'],
+      },
+      startDate: {
+        type: 'string',
+        description: "Filter (view='list'): ISO start of the time range.",
+      },
+      triggers: {
+        type: 'string',
+        description: "Filter (view='list'): comma-separated trigger types.",
+      },
+      view: {
+        type: 'string',
+        description:
+          "Disclosure level: 'list' (summaries), 'overview' (one execution's trace tree, no I/O), or 'full' (one execution's trace spans with I/O).",
+        enum: ['list', 'overview', 'full'],
+      },
+      workflowIds: {
+        type: 'string',
+        description: "Filter (view='list'): comma-separated workflow IDs.",
+      },
+      workflowName: {
+        type: 'string',
+        description: "Filter (view='list'): substring match on workflow name.",
+      },
+      workspaceId: { type: 'string', description: 'Workspace ID to scope to.' },
+    },
+    required: ['view'],
   },
 }
 
@@ -3875,12 +3927,10 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [GetBlockUpstreamReferences.id]: GetBlockUpstreamReferences,
   [GetDeployedWorkflowState.id]: GetDeployedWorkflowState,
   [GetDeploymentVersion.id]: GetDeploymentVersion,
-  [GetExecutionSummary.id]: GetExecutionSummary,
   [GetJobLogs.id]: GetJobLogs,
   [GetPageContents.id]: GetPageContents,
   [GetPlatformActions.id]: GetPlatformActions,
   [GetWorkflowData.id]: GetWorkflowData,
-  [GetWorkflowLogs.id]: GetWorkflowLogs,
   [Glob.id]: Glob,
   [Grep.id]: Grep,
   [Job.id]: Job,
@@ -3904,6 +3954,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [OauthGetAuthLink.id]: OauthGetAuthLink,
   [OauthRequestAccess.id]: OauthRequestAccess,
   [OpenResource.id]: OpenResource,
+  [QueryLogs.id]: QueryLogs,
   [Read.id]: Read,
   [Redeploy.id]: Redeploy,
   [RenameFile.id]: RenameFile,

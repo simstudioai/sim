@@ -203,9 +203,8 @@ export async function executeVfsRead(
     // and inspection paths use explicit suffixes like /content, /style,
     // /compiled-check, or /compiled.
     const shouldReadDynamicFileContent =
-      /^files\/by-id\/[^/]+\/(?:content|style|compiled-check|compiled)$/.test(path) ||
       /^recently-deleted\/files\/.+\/content$/.test(path) ||
-      /^files\/.+\/(?:content|style|compiled-check|compiled)$/.test(path)
+      /^files\/.+\/(?:content|style|compiled-check|compiled|render|extract)$/.test(path)
     const fileContent = shouldReadDynamicFileContent ? await vfs.readFileContent(path) : null
     if (fileContent) {
       const isAttachment = hasModelAttachment(fileContent)

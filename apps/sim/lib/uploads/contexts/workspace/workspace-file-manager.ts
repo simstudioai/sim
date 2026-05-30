@@ -693,31 +693,14 @@ export async function listWorkspaceFiles(
 
 /**
  * Normalize a workspace file reference to either a display name or canonical file ID.
- * Supports raw IDs, `files/{name}`, `files/{name}/content`, `files/{name}/meta.json`,
- * and canonical VFS aliases like `files/by-id/{fileId}/content`.
+ * Supports raw IDs, `files/{name}`, `files/{name}/content`, and `files/{name}/meta.json`.
+ * Files are addressed by their sanitized canonical path; id-based VFS paths are not supported.
  */
 export function normalizeWorkspaceFileReference(fileReference: string): string {
   const trimmed = fileReference.trim().replace(/^\/+/, '')
   const withoutDeletedPrefix = trimmed.startsWith('recently-deleted/')
     ? trimmed.slice('recently-deleted/'.length)
     : trimmed
-
-  if (withoutDeletedPrefix.startsWith('files/by-id/')) {
-    const byIdRef = withoutDeletedPrefix.slice('files/by-id/'.length)
-    const match = byIdRef.match(/^([^/]+)(?:\/(?:meta\.json|content))?$/)
-    if (match?.[1]) {
-      return match[1]
-    }
-  }
-
-  if (withoutDeletedPrefix.startsWith('by-id/')) {
-    const match = withoutDeletedPrefix
-      .slice('by-id/'.length)
-      .match(/^([^/]+)(?:\/(?:meta\.json|content))?$/)
-    if (match?.[1]) {
-      return match[1]
-    }
-  }
 
   if (withoutDeletedPrefix.startsWith('files/')) {
     const withoutPrefix = withoutDeletedPrefix.slice('files/'.length)

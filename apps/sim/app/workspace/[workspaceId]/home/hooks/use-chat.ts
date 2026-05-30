@@ -54,7 +54,6 @@ import {
   DeployMcp,
   FunctionExecute,
   GetPageContents,
-  GetWorkflowLogs,
   Glob,
   Grep,
   ManageCredential,
@@ -69,6 +68,7 @@ import {
   ManageSkillOperation,
   MoveFolder,
   MoveWorkflow,
+  QueryLogs,
   Read as ReadTool,
   Redeploy,
   RenameWorkflow,
@@ -719,9 +719,9 @@ function resolveToolDisplayTitle(name: string, args?: Record<string, unknown>): 
     return 'Running workflow'
   }
 
-  if (name === GetWorkflowLogs.id) {
+  if (name === QueryLogs.id) {
     const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
-    return workflowName ? `Getting logs for ${workflowName}` : 'Getting logs'
+    return workflowName ? `Querying logs for ${workflowName}` : 'Querying logs'
   }
 
   return undefined

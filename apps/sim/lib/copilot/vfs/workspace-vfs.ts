@@ -92,7 +92,6 @@ import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/works
 import {
   fetchWorkspaceFileBuffer,
   findWorkspaceFileRecord,
-  getWorkspaceFile,
   listWorkspaceFiles,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -341,8 +340,8 @@ function getStaticComponentFiles(): Map<string, string> {
  *   knowledgebases/{name}/connectors.json
  *   tables/{name}/meta.json
  *   files/{name}                         (workspace file leaf; dynamic content on read)
- *   files/by-id/{id}/style            (dynamic — style extraction for .docx/.pptx/.pdf)
- *   files/by-id/{id}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
+ *   files/{path}/{name}/style            (dynamic — style extraction for .docx/.pptx/.pdf)
+ *   files/{path}/{name}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
  *   jobs/{title}/meta.json
  *   jobs/{title}/history.json
  *   jobs/{title}/executions.json
@@ -496,11 +495,6 @@ export class WorkspaceVFS {
     if (!isMothershipBetaFeaturesEnabled && isWorkflowAliasBackingPath(path)) {
       return null
     }
-    const byIdMatch = path.match(new RegExp(`^files/by-id/([^/]+)/${suffix}$`))
-    if (byIdMatch?.[1]) {
-      return getWorkspaceFile(this._workspaceId, byIdMatch[1])
-    }
-
     const canonicalMatch = path.match(new RegExp(`^files/(.+)/${suffix}$`))
     if (!canonicalMatch?.[1]) return null
 
@@ -587,11 +581,11 @@ export class WorkspaceVFS {
    *   `files/{path}/{name}/style`           — style extraction (.docx / .pptx / .pdf)
    *   `files/{path}/{name}/compiled-check`  — compile JS-source binary files or validate Mermaid diagrams
    *   `files/{path}/{name}/compiled`        — compile JS-source binary files and return the compiled artifact as an attachment
-   * Legacy `files/by-id/{id}/...` dynamic paths remain supported as a compatibility adapter.
+   * Files are resolved by their sanitized canonical path only.
    * Returns null if the path doesn't match a dynamic file path or the file isn't found.
    */
   async readFileContent(path: string): Promise<FileReadResult | null> {
-    const compiledMatch = /^files\/(?:by-id\/[^/]+|.+)\/compiled$/.test(path)
+    const compiledMatch = /^files\/.+\/compiled$/.test(path)
     if (compiledMatch) {
       let record: WorkspaceFileRecord | null = null
       try {
@@ -618,8 +612,12 @@ export class WorkspaceVFS {
                 `${compiledName}: the raw ${ext.toUpperCase()} binary isn't model-readable, so it was rendered to ${pageCount} page image(s) for inspection.`
             )
           }
+          const extractPath = `${canonicalWorkspaceFilePath({
+            folderPath: record.folderPath,
+            name: record.name,
+          })}/extract`
           return {
-            content: `${record.name} is a spreadsheet — read "files/by-id/${record.id}/extract" for its contents.`,
+            content: `${record.name} is a spreadsheet — read "${extractPath}" for its contents.`,
             totalLines: 1,
           }
         }
@@ -679,7 +677,7 @@ export class WorkspaceVFS {
       }
     }
 
-    const renderMatch = /^files\/(?:by-id\/[^/]+|.+)\/render$/.test(path)
+    const renderMatch = /^files\/.+\/render$/.test(path)
     if (renderMatch) {
       let record: WorkspaceFileRecord | null = null
       try {
@@ -782,7 +780,7 @@ export class WorkspaceVFS {
       }
     }
 
-    const compiledCheckMatch = /^files\/(?:by-id\/[^/]+|.+)\/compiled-check$/.test(path)
+    const compiledCheckMatch = /^files\/.+\/compiled-check$/.test(path)
     if (compiledCheckMatch) {
       let record: WorkspaceFileRecord | null = null
       try {
@@ -843,7 +841,7 @@ export class WorkspaceVFS {
       }
     }
 
-    const styleMatch = /^files\/(?:by-id\/[^/]+|.+)\/style$/.test(path)
+    const styleMatch = /^files\/.+\/style$/.test(path)
     if (styleMatch) {
       let record: WorkspaceFileRecord | null = null
       try {

@@ -53,8 +53,7 @@ import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
-import { getExecutionSummaryServerTool } from '@/lib/copilot/tools/server/workflow/get-execution-summary'
-import { getWorkflowLogsServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-logs'
+import { queryLogsServerTool } from '@/lib/copilot/tools/server/workflow/query-logs'
 
 export type ExecuteResponseSuccess = z.output<typeof ExecuteResponseSuccessSchema>
 
@@ -135,8 +134,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [getBlocksMetadataServerTool.name]: getBlocksMetadataServerTool,
   [getTriggerBlocksServerTool.name]: getTriggerBlocksServerTool,
   [editWorkflowServerTool.name]: editWorkflowServerTool,
-  [getExecutionSummaryServerTool.name]: getExecutionSummaryServerTool,
-  [getWorkflowLogsServerTool.name]: getWorkflowLogsServerTool,
+  [queryLogsServerTool.name]: queryLogsServerTool,
   [getJobLogsServerTool.name]: getJobLogsServerTool,
   [searchDocumentationServerTool.name]: searchDocumentationServerTool,
   [searchOnlineServerTool.name]: searchOnlineServerTool,

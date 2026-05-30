@@ -46,15 +46,9 @@ describe('resolveToolDisplay', () => {
 
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
-        path: 'files/by-id/87c18b84-2f83-43a4-bed8-8a86f7d42022/compiled-check',
+        path: 'files/Reports/brief.docx/content',
       })?.text
-    ).toBe('Read the final file check for this file')
-
-    expect(
-      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
-        path: 'files/by-id/625094cc-2f64-4de9-a39c-452cb8283bb1/content',
-      })?.text
-    ).toBe('Read the content of this file')
+    ).toBe('Read the content of Reports/brief.docx')
 
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {
