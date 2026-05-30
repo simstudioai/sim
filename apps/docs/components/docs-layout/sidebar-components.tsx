@@ -4,6 +4,7 @@ import { type ReactNode, useState } from 'react'
 import type { Folder, Item, Separator } from 'fumadocs-core/page-tree'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { blockTypeToIconMap } from '@/components/ui/icon-mapping'
 import { i18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -41,6 +42,18 @@ function stripLangPrefix(path: string): string {
   return path
 }
 
+/**
+ * Resolves the provider icon for a tools sidebar item. Tool pages live under
+ * `/tools/<slug>`, where the slug matches a block type in the icon map.
+ */
+function getToolIcon(url: string) {
+  const path = stripLangPrefix(url)
+  if (!path.startsWith('/tools/')) return null
+  const slug = path.slice('/tools/'.length)
+  if (!slug || slug.includes('/')) return null
+  return blockTypeToIconMap[slug] ?? null
+}
+
 function isActive(url: string, pathname: string, nested = true): boolean {
   const normalizedPathname = stripLangPrefix(pathname)
   const normalizedUrl = stripLangPrefix(url)
@@ -55,7 +68,7 @@ const ITEM_BASE =
 const ITEM_ACTIVE_MOBILE = 'bg-fd-primary/10 font-medium text-fd-primary'
 
 const ITEM_DESKTOP =
-  'lg:mb-[0.0625rem] lg:block lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:font-normal lg:text-[13px] lg:leading-tight'
+  'lg:mb-[0.0625rem] lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:font-normal lg:text-[13px] lg:leading-tight'
 const ITEM_TEXT = 'lg:text-[#3b3b3b] lg:dark:text-[#cdcdcd]'
 const ITEM_HOVER = 'lg:hover:bg-[#f2f2f2] lg:dark:hover:bg-[#262626]'
 const ITEM_ACTIVE =
@@ -69,6 +82,7 @@ const FOLDER_ACTIVE =
 export function SidebarItem({ item }: { item: Item }) {
   const pathname = usePathname()
   const active = isActive(item.url, pathname, false)
+  const ToolIcon = getToolIcon(item.url)
 
   return (
     <Link
@@ -83,6 +97,7 @@ export function SidebarItem({ item }: { item: Item }) {
         active && ITEM_ACTIVE
       )}
     >
+      {ToolIcon && <ToolIcon className='size-[14px] flex-shrink-0' />}
       {item.name}
     </Link>
   )
