@@ -77,9 +77,13 @@ export function resolveCellRender({
     // Value wins over pending-upstream: a finished column stays finished even
     // while other blocks in the group are still running. An empty string is not
     // a value — it falls through so a completed enrichment can show "Not found".
-    // Format the value exactly like a plain cell (resource chip / URL / JSON /
-    // date / boolean), keeping the typewriter reveal for plain streaming text.
-    if (!isEmpty) return resolveValueKind(value, column, currentWorkspaceId, { typewriter: true })
+    // A value that's wholly a resource/URL string renders as a chip/link (any
+    // column type — workflow output is free-form); otherwise the plain `value`
+    // kind keeps the typewriter reveal for streaming text.
+    if (!isEmpty) {
+      const text = stringifyValue(value)
+      return resolveLinkKind(text, currentWorkspaceId) ?? { kind: 'value', text }
+    }
 
     if (inFlight && !(groupHasBlockErrors && !blockRunning)) {
       // A `pending` cell whose jobId starts with `paused-` is mid-pause
@@ -105,7 +109,15 @@ export function resolveCellRender({
     return { kind: 'empty' }
   }
 
-  return resolveValueKind(value, column, currentWorkspaceId, { typewriter: false })
+  if (column.type === 'boolean') return { kind: 'boolean', checked: Boolean(value) }
+  if (isNull) return { kind: 'empty' }
+  if (column.type === 'json') return { kind: 'json', text: JSON.stringify(value) }
+  if (column.type === 'date') return { kind: 'date', text: String(value) }
+  if (column.type === 'string') {
+    const text = stringifyValue(value)
+    return resolveLinkKind(text, currentWorkspaceId) ?? { kind: 'text', text }
+  }
+  return { kind: 'text', text: stringifyValue(value) }
 }
 
 function stringifyValue(value: unknown): string {
@@ -135,31 +147,22 @@ function resolveSimResourceKind(
 }
 
 /**
- * Maps a present (non-empty) cell value to its render kind based on the column
- * type — the shared formatter for plain cells and workflow-output value cells,
- * so a workflow output renders booleans, JSON, dates, resource chips and URL
- * links exactly like a normal cell. `typewriter` selects the plain-text
- * fallback: `value` (animated reveal, for streaming workflow outputs) vs `text`
- * (static, for plain cells).
+ * Promotes a cell value that is wholly a resource/URL string to a chip
+ * (in-workspace resource) or a favicon link, else null. Shared by plain string
+ * cells and workflow-output value cells. Workflow outputs apply this regardless
+ * of `column.type` (their type defaults to `json`, so gating on `string` would
+ * miss URL outputs); a stringified object never matches the whole-string URL
+ * check, so it stays JSON/text.
  */
-function resolveValueKind(
-  value: unknown,
-  column: DisplayColumn,
-  currentWorkspaceId: string | undefined,
-  opts: { typewriter: boolean }
-): CellRenderKind {
-  if (column.type === 'boolean') return { kind: 'boolean', checked: Boolean(value) }
-  if (value === null || value === undefined) return { kind: 'empty' }
-  if (column.type === 'json') return { kind: 'json', text: JSON.stringify(value) }
-  if (column.type === 'date') return { kind: 'date', text: String(value) }
-  const text = stringifyValue(value)
-  if (column.type === 'string') {
-    const simKind = resolveSimResourceKind(text, currentWorkspaceId)
-    if (simKind) return simKind
-    const urlInfo = extractUrlInfo(text)
-    if (urlInfo) return { kind: 'url', text, href: urlInfo.href, domain: urlInfo.domain }
-  }
-  return opts.typewriter ? { kind: 'value', text } : { kind: 'text', text }
+function resolveLinkKind(
+  text: string,
+  currentWorkspaceId: string | undefined
+): Extract<CellRenderKind, { kind: 'sim-resource' } | { kind: 'url' }> | null {
+  const simKind = resolveSimResourceKind(text, currentWorkspaceId)
+  if (simKind) return simKind
+  const urlInfo = extractUrlInfo(text)
+  if (urlInfo) return { kind: 'url', text, href: urlInfo.href, domain: urlInfo.domain }
+  return null
 }
 
 const BARE_DOMAIN_RE = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/
