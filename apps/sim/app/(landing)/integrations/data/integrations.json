@@ -10922,7 +10922,7 @@
     "name": "Quiver",
     "description": "Generate and vectorize SVGs",
     "longDescription": "Generate SVG images from text prompts or vectorize raster images into SVGs using QuiverAI. Supports reference images, style instructions, and multiple output generation.",
-    "bgColor": "#000000",
+    "bgColor": "#FFFFFF",
     "iconName": "QuiverIcon",
     "docsUrl": "https://docs.sim.ai/tools/quiver",
     "operations": [
@@ -14749,19 +14749,15 @@
         "description": "Enrich a company by name, domain, LinkedIn ID, or LinkedIn slug with detailed firmographic data"
       },
       {
-        "name": "Start Individual Reveal",
-        "description": "Start an individual reveal to enrich a contact via LinkedIn URL, name+company, or email"
-      },
-      {
-        "name": "Get Individual Reveal",
-        "description": "Retrieve the status and enriched data for an individual reveal by ID"
+        "name": "Individual Reveal",
+        "description": "Reveal a contact via LinkedIn URL, name + company/domain, or email. Starts the reveal and polls until it resolves. Uses 2 credits per valid email and 5 credits per phone, charged only on success."
       },
       {
         "name": "Get Credits",
         "description": "Retrieve the remaining credits on your Wiza account"
       }
     ],
-    "operationCount": 5,
+    "operationCount": 4,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
