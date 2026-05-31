@@ -33,6 +33,9 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
         { label: 'Delete Agent', id: 'cursor_delete_agent' },
         { label: 'List Artifacts', id: 'cursor_list_artifacts' },
         { label: 'Download Artifact', id: 'cursor_download_artifact' },
+        { label: 'List Models', id: 'cursor_list_models' },
+        { label: 'List Repositories', id: 'cursor_list_repositories' },
+        { label: 'Get API Key Info', id: 'cursor_get_api_key_info' },
       ],
       value: () => 'cursor_launch_agent',
     },
@@ -183,6 +186,9 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
       'cursor_delete_agent',
       'cursor_list_artifacts',
       'cursor_download_artifact',
+      'cursor_list_models',
+      'cursor_list_repositories',
+      'cursor_get_api_key_info',
     ],
     config: {
       tool: (params) => params.operation || 'cursor_launch_agent',
@@ -236,6 +242,9 @@ export const CursorV2Block: BlockConfig<CursorResponse> = {
       'cursor_delete_agent_v2',
       'cursor_list_artifacts_v2',
       'cursor_download_artifact_v2',
+      'cursor_list_models_v2',
+      'cursor_list_repositories_v2',
+      'cursor_get_api_key_info_v2',
     ],
     config: {
       tool: createVersionedToolSelector({
@@ -253,11 +262,19 @@ export const CursorV2Block: BlockConfig<CursorResponse> = {
     source: { type: 'json', description: 'Agent source repository info' },
     target: { type: 'json', description: 'Agent target branch/PR info' },
     summary: { type: 'string', description: 'Agent summary' },
-    createdAt: { type: 'string', description: 'Agent creation timestamp' },
+    createdAt: { type: 'string', description: 'Creation timestamp (agent or API key)' },
     agents: { type: 'json', description: 'Array of agent objects (list operation)' },
     nextCursor: { type: 'string', description: 'Pagination cursor (list operation)' },
     messages: { type: 'json', description: 'Conversation messages (get conversation operation)' },
     artifacts: { type: 'json', description: 'List of artifact files (list artifacts operation)' },
     file: { type: 'file', description: 'Downloaded artifact file (download artifact operation)' },
+    models: { type: 'json', description: 'Available model names (list models operation)' },
+    repositories: {
+      type: 'json',
+      description:
+        'Accessible repositories [{owner, name, repository}] (list repositories operation)',
+    },
+    apiKeyName: { type: 'string', description: 'API key name (api key info operation)' },
+    userEmail: { type: 'string', description: 'Key owner email (api key info operation)' },
   },
 }

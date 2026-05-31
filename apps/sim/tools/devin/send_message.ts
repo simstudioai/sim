@@ -16,6 +16,12 @@ export const devinSendMessageTool: ToolConfig<DevinSendMessageParams, DevinSendM
       visibility: 'user-only',
       description: 'Devin API key (service user credential starting with cog_)',
     },
+    orgId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Devin organization ID (prefixed with org-)',
+    },
     sessionId: {
       type: 'string',
       required: true,
@@ -31,7 +37,8 @@ export const devinSendMessageTool: ToolConfig<DevinSendMessageParams, DevinSendM
   },
 
   request: {
-    url: (params) => `https://api.devin.ai/v3/organizations/sessions/${params.sessionId}/messages`,
+    url: (params) =>
+      `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions/${params.sessionId.trim()}/messages`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -55,10 +62,11 @@ export const devinSendMessageTool: ToolConfig<DevinSendMessageParams, DevinSendM
         createdAt: data.created_at ?? null,
         updatedAt: data.updated_at ?? null,
         acusConsumed: data.acus_consumed ?? null,
-        tags: data.tags ?? null,
-        pullRequests: data.pull_requests ?? null,
+        tags: data.tags ?? [],
+        pullRequests: data.pull_requests ?? [],
         structuredOutput: data.structured_output ?? null,
         playbookId: data.playbook_id ?? null,
+        isArchived: data.is_archived ?? false,
       },
     }
   },
@@ -76,5 +84,6 @@ export const devinSendMessageTool: ToolConfig<DevinSendMessageParams, DevinSendM
     pullRequests: DEVIN_SESSION_OUTPUT_PROPERTIES.pullRequests,
     structuredOutput: DEVIN_SESSION_OUTPUT_PROPERTIES.structuredOutput,
     playbookId: DEVIN_SESSION_OUTPUT_PROPERTIES.playbookId,
+    isArchived: DEVIN_SESSION_OUTPUT_PROPERTIES.isArchived,
   },
 }

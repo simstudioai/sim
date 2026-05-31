@@ -3052,9 +3052,21 @@
       {
         "name": "Download Artifact",
         "description": "Download a generated artifact file from a cloud agent."
+      },
+      {
+        "name": "List Models",
+        "description": "List the models available for launching cloud agents."
+      },
+      {
+        "name": "List Repositories",
+        "description": "List the GitHub repositories accessible to the authenticated user."
+      },
+      {
+        "name": "Get API Key Info",
+        "description": "Retrieve details about the API key currently in use."
       }
     ],
-    "operationCount": 9,
+    "operationCount": 12,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -3298,9 +3310,37 @@
       {
         "name": "Send Message",
         "description": "Send a message to a Devin session. If the session is suspended, it will be automatically resumed. Returns the updated session state."
+      },
+      {
+        "name": "List Session Messages",
+        "description": "List the messages exchanged in a Devin session, including messages from both the user and Devin."
+      },
+      {
+        "name": "List Session Attachments",
+        "description": "List the files uploaded to or produced by a Devin session."
+      },
+      {
+        "name": "Get Session Tags",
+        "description": "Retrieve the tags currently applied to a Devin session."
+      },
+      {
+        "name": "Append Session Tags",
+        "description": "Add tags to a Devin session without removing existing tags (max 50 tags total)."
+      },
+      {
+        "name": "Replace Session Tags",
+        "description": "Replace all tags on a Devin session with a new set of tags (max 50 tags)."
+      },
+      {
+        "name": "Archive Session",
+        "description": "Archive a Devin session. Archived sessions can still be viewed but cannot be modified or resumed."
+      },
+      {
+        "name": "Terminate Session",
+        "description": "Terminate a Devin session. Optionally archive the session instead of permanently terminating it."
       }
     ],
-    "operationCount": 4,
+    "operationCount": 11,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -6470,7 +6510,7 @@
     "name": "Greptile",
     "description": "AI-powered codebase search and Q&A",
     "longDescription": "Query and search codebases using natural language with Greptile. Get AI-generated answers about your code, find relevant files, and understand complex codebases.",
-    "bgColor": "#e5e5e5",
+    "bgColor": "#5DE195",
     "iconName": "GreptileIcon",
     "docsUrl": "https://docs.sim.ai/tools/greptile",
     "operations": [
