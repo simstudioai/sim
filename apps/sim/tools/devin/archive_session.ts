@@ -1,15 +1,15 @@
 import type { ToolConfig } from '@/tools/types'
-import type { DevinCreateSessionParams, DevinCreateSessionResponse } from './types'
+import type { DevinArchiveSessionParams, DevinArchiveSessionResponse } from './types'
 import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
 
-export const devinCreateSessionTool: ToolConfig<
-  DevinCreateSessionParams,
-  DevinCreateSessionResponse
+export const devinArchiveSessionTool: ToolConfig<
+  DevinArchiveSessionParams,
+  DevinArchiveSessionResponse
 > = {
-  id: 'devin_create_session',
-  name: 'create_session',
+  id: 'devin_archive_session',
+  name: 'archive_session',
   description:
-    'Create a new Devin session with a prompt. Devin will autonomously work on the task described in the prompt.',
+    'Archive a Devin session. Archived sessions can still be viewed but cannot be modified or resumed.',
   version: '1.0.0',
 
   params: {
@@ -25,52 +25,21 @@ export const devinCreateSessionTool: ToolConfig<
       visibility: 'user-only',
       description: 'Devin organization ID (prefixed with org-)',
     },
-    prompt: {
+    sessionId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The task prompt for Devin to work on',
-    },
-    playbookId: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Optional playbook ID to guide the session',
-    },
-    maxAcuLimit: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Maximum ACU limit for the session',
-    },
-    tags: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Comma-separated tags for the session',
+      description: 'The session ID to archive',
     },
   },
 
   request: {
-    url: (params) => `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions`,
+    url: (params) =>
+      `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions/${params.sessionId.trim()}/archive`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      const body: Record<string, unknown> = {
-        prompt: params.prompt,
-      }
-      if (params.playbookId) body.playbook_id = params.playbookId
-      if (params.maxAcuLimit != null) {
-        body.max_acu_limit = params.maxAcuLimit
-      }
-      if (params.tags) {
-        body.tags = params.tags.split(',').map((t: string) => t.trim())
-      }
-      return body
-    },
   },
 
   transformResponse: async (response: Response) => {

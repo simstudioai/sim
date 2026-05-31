@@ -1,15 +1,15 @@
 import type { ToolConfig } from '@/tools/types'
-import type { DevinCreateSessionParams, DevinCreateSessionResponse } from './types'
+import type { DevinTerminateSessionParams, DevinTerminateSessionResponse } from './types'
 import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
 
-export const devinCreateSessionTool: ToolConfig<
-  DevinCreateSessionParams,
-  DevinCreateSessionResponse
+export const devinTerminateSessionTool: ToolConfig<
+  DevinTerminateSessionParams,
+  DevinTerminateSessionResponse
 > = {
-  id: 'devin_create_session',
-  name: 'create_session',
+  id: 'devin_terminate_session',
+  name: 'terminate_session',
   description:
-    'Create a new Devin session with a prompt. Devin will autonomously work on the task described in the prompt.',
+    'Terminate a Devin session. Optionally archive the session instead of permanently terminating it.',
   version: '1.0.0',
 
   params: {
@@ -25,52 +25,31 @@ export const devinCreateSessionTool: ToolConfig<
       visibility: 'user-only',
       description: 'Devin organization ID (prefixed with org-)',
     },
-    prompt: {
+    sessionId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The task prompt for Devin to work on',
+      description: 'The session ID to terminate',
     },
-    playbookId: {
-      type: 'string',
+    archive: {
+      type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional playbook ID to guide the session',
-    },
-    maxAcuLimit: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Maximum ACU limit for the session',
-    },
-    tags: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Comma-separated tags for the session',
+      description: 'Archive the session instead of permanently terminating it (default: false)',
     },
   },
 
   request: {
-    url: (params) => `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions`,
-    method: 'POST',
+    url: (params) => {
+      const searchParams = new URLSearchParams()
+      if (params.archive) searchParams.set('archive', 'true')
+      const qs = searchParams.toString()
+      return `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions/${params.sessionId.trim()}${qs ? `?${qs}` : ''}`
+    },
+    method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      const body: Record<string, unknown> = {
-        prompt: params.prompt,
-      }
-      if (params.playbookId) body.playbook_id = params.playbookId
-      if (params.maxAcuLimit != null) {
-        body.max_acu_limit = params.maxAcuLimit
-      }
-      if (params.tags) {
-        body.tags = params.tags.split(',').map((t: string) => t.trim())
-      }
-      return body
-    },
   },
 
   transformResponse: async (response: Response) => {

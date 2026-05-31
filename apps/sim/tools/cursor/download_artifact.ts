@@ -59,7 +59,11 @@ export const downloadArtifactTool: ToolConfig<DownloadArtifactParams, DownloadAr
       success: true,
       output: {
         content: `Downloaded artifact: ${data.output.file.name}`,
-        metadata: data.output.file,
+        metadata: {
+          name: data.output.file.name,
+          mimeType: data.output.file.mimeType,
+          size: data.output.file.size,
+        },
       },
     }
   },

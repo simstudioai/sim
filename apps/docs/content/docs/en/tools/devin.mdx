@@ -50,6 +50,7 @@ Create a new Devin session with a prompt. Devin will autonomously work on the ta
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Devin API key \(service user credential starting with cog_\) |
+| `orgId` | string | Yes | Devin organization ID \(prefixed with org-\) |
 | `prompt` | string | Yes | The task prompt for Devin to work on |
 | `playbookId` | string | No | Optional playbook ID to guide the session |
 | `maxAcuLimit` | number | No | Maximum ACU limit for the session |
@@ -81,6 +82,7 @@ Retrieve details of an existing Devin session including status, tags, pull reque
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Devin API key \(service user credential starting with cog_\) |
+| `orgId` | string | Yes | Devin organization ID \(prefixed with org-\) |
 | `sessionId` | string | Yes | The session ID to retrieve |
 
 #### Output
@@ -109,7 +111,9 @@ List Devin sessions in the organization. Returns up to 100 sessions by default.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Devin API key \(service user credential starting with cog_\) |
+| `orgId` | string | Yes | Devin organization ID \(prefixed with org-\) |
 | `limit` | number | No | Maximum number of sessions to return \(1-200, default: 100\) |
+| `after` | string | No | Pagination cursor \(endCursor from a previous response\) to fetch the next page |
 
 #### Output
 
@@ -124,6 +128,9 @@ List Devin sessions in the organization. Returns up to 100 sessions by default.
 |   ↳ `createdAt` | number | Creation timestamp \(Unix\) |
 |   ↳ `updatedAt` | number | Last updated timestamp \(Unix\) |
 |   ↳ `tags` | json | Session tags |
+| `endCursor` | string | Pagination cursor for the next page, or null if last page |
+| `hasNextPage` | boolean | Whether more sessions are available |
+| `total` | number | Total number of sessions, if provided |
 
 ### `devin_send_message`
 
@@ -134,6 +141,7 @@ Send a message to a Devin session. If the session is suspended, it will be autom
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Devin API key \(service user credential starting with cog_\) |
+| `orgId` | string | Yes | Devin organization ID \(prefixed with org-\) |
 | `sessionId` | string | Yes | The session ID to send the message to |
 | `message` | string | Yes | The message to send to Devin |
 
