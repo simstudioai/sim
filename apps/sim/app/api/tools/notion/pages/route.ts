@@ -21,7 +21,7 @@ const NOTION_PAGE_SIZE = 100
  * pages drained so a tenant with a very large workspace cannot make this route
  * loop unbounded. With `NOTION_PAGE_SIZE` of 100 this covers up to 2,000 items.
  */
-const MAX_PAGE_PAGES = 20
+const MAX_NOTION_PAGES = 20
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -57,7 +57,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const results: Record<string, unknown>[] = []
     let startCursor: string | undefined
 
-    for (let page = 0; page < MAX_PAGE_PAGES; page++) {
+    for (let page = 0; page < MAX_NOTION_PAGES; page++) {
       const response = await fetch('https://api.notion.com/v1/search', {
         method: 'POST',
         headers: {
@@ -94,9 +94,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
       startCursor = data.next_cursor as string
 
-      if (page === MAX_PAGE_PAGES - 1) {
+      if (page === MAX_NOTION_PAGES - 1) {
         logger.warn('Notion pages search hit pagination cap; results may be incomplete', {
-          maxPages: MAX_PAGE_PAGES,
+          maxPages: MAX_NOTION_PAGES,
           fetched: results.length,
         })
       }
