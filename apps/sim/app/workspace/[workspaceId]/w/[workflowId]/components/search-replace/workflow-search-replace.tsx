@@ -390,7 +390,7 @@ export function WorkflowSearchReplace() {
       const replaceIndex = afterReplaceIndexRef.current
       afterReplaceIndexRef.current = null
 
-      if (queryChanged || justOpened || !activeMatchId) {
+      if (queryChanged || justOpened) {
         handleSelectMatch(hydratedMatches[0].id)
       } else if (replaceIndex !== null) {
         handleSelectMatch(hydratedMatches[Math.min(replaceIndex, hydratedMatches.length - 1)].id)
