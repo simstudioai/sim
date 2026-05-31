@@ -1,7 +1,6 @@
 /**
  * @vitest-environment node
  */
-import { inputValidationMock, inputValidationMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDnsLookup, hostedFlag } = vi.hoisted(() => ({
@@ -15,31 +14,16 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   },
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
-
 vi.mock('dns/promises', () => ({
   default: { lookup: mockDnsLookup },
 }))
 
 import { validateConnectServerUrl } from '@/app/api/tools/onepassword/utils'
 
-/** Mirrors the real isPrivateOrReservedIP for the ranges exercised here. */
-function fakeIsPrivateOrReservedIP(ip: string): boolean {
-  if (ip.startsWith('10.') || ip.startsWith('192.168.')) return true
-  if (ip.startsWith('172.')) {
-    const second = Number.parseInt(ip.split('.')[1], 10)
-    if (second >= 16 && second <= 31) return true
-  }
-  if (ip.startsWith('169.254.')) return true
-  if (ip.startsWith('127.') || ip === '::1') return true
-  return false
-}
-
 describe('validateConnectServerUrl', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     hostedFlag.value = false
-    inputValidationMockFns.mockIsPrivateOrReservedIP.mockImplementation(fakeIsPrivateOrReservedIP)
   })
 
   it('rejects a non-URL string', async () => {
@@ -57,6 +41,8 @@ describe('validateConnectServerUrl', () => {
       ['RFC1918 192.168.x', 'http://192.168.1.1:8443'],
       ['RFC1918 172.16.x', 'http://172.16.0.9'],
       ['link-local metadata', 'http://169.254.169.254'],
+      ['IPv4-mapped IPv6 private', 'http://[::ffff:10.0.0.1]'],
+      ['IPv6 loopback', 'http://[::1]'],
     ])('blocks %s', async (_label, url) => {
       await expect(validateConnectServerUrl(url)).rejects.toThrow(
         'cannot point to a private or reserved IP address'
@@ -97,6 +83,12 @@ describe('validateConnectServerUrl', () => {
 
     it('still blocks link-local metadata', async () => {
       await expect(validateConnectServerUrl('http://169.254.169.254')).rejects.toThrow(
+        'cannot point to a link-local address'
+      )
+    })
+
+    it('still blocks IPv6 link-local', async () => {
+      await expect(validateConnectServerUrl('http://[fe80::1]')).rejects.toThrow(
         'cannot point to a link-local address'
       )
     })
