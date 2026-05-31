@@ -70,6 +70,8 @@ const CONTENT_FILTER_OPTIONS: ChipDropdownOption[] = [
   { value: 'empty', label: 'Empty' },
 ]
 
+const FILTER_SECTION_LABEL_CLASS = 'text-[var(--text-muted)] text-small'
+
 function connectorCell(connectorTypes?: string[]): ResourceCell {
   if (!connectorTypes || connectorTypes.length === 0) {
     return { label: EMPTY_CELL_PLACEHOLDER }
@@ -447,9 +449,7 @@ export function Knowledge() {
       <div className='flex w-[260px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-2'>
           <div className='flex h-5 items-center justify-between'>
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>
-              Connectors
-            </span>
+            <span className={FILTER_SECTION_LABEL_CLASS}>Connectors</span>
             {connectorFilter.length > 0 && (
               <Button
                 variant='ghost'
@@ -471,7 +471,7 @@ export function Knowledge() {
         </div>
         <div className='flex flex-col gap-2'>
           <div className='flex h-5 items-center justify-between'>
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>Content</span>
+            <span className={FILTER_SECTION_LABEL_CLASS}>Content</span>
             {contentFilter.length > 0 && (
               <Button
                 variant='ghost'
@@ -494,7 +494,7 @@ export function Knowledge() {
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-2'>
             <div className='flex h-5 items-center justify-between'>
-              <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
+              <span className={FILTER_SECTION_LABEL_CLASS}>Owner</span>
               {ownerFilter.length > 0 && (
                 <Button
                   variant='ghost'
