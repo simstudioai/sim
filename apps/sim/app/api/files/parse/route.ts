@@ -427,15 +427,22 @@ function assertParsedContentWithinLimit(content: string, maxBytes?: number): str
  * not be rejected. Providers such as Slack routinely emit slugs containing a literal `...`.
  *
  * Internal file URLs (`/api/files/serve/...`) ARE resolved to storage keys and filesystem
- * paths via `extractStorageKey`, so they keep full traversal protection — only the leading-`/`
- * "outside allowed directory" check is relaxed for them, since that prefix is expected.
+ * paths via `extractStorageKey`, so they keep full traversal protection. The external
+ * short-circuit explicitly excludes them: `parseFileSingle` routes anything matching
+ * `isInternalFileUrl` to `handleCloudFile` (even an absolute `https://host/api/files/serve/...`),
+ * so such inputs must stay subject to the `..`/`~` checks rather than being waved through as
+ * external URLs. Only the leading-`/` "outside allowed directory" check is relaxed for them,
+ * since that prefix is expected.
  */
 function validateFilePath(filePath: string): { isValid: boolean; error?: string } {
   if (filePath.includes('\0')) {
     return { isValid: false, error: 'Invalid path: null byte detected' }
   }
 
-  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+  if (
+    (filePath.startsWith('http://') || filePath.startsWith('https://')) &&
+    !isInternalFileUrl(filePath)
+  ) {
     return { isValid: true }
   }
 
