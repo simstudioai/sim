@@ -1,4 +1,4 @@
-import type { Project } from '@linear/sdk'
+import type { Project, Team } from '@linear/sdk'
 import { LinearClient } from '@linear/sdk'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -12,6 +12,50 @@ import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('LinearProjectsAPI')
+
+/** Linear's maximum page size for a single connection request. */
+const LINEAR_PAGE_SIZE = 250
+
+/**
+ * Upper bound on pages to drain from a single team's projects connection. At
+ * 250 projects/page this covers 2,500 projects per team; the cap guards
+ * against runaway loops on a broken `hasNextPage` rather than a realistic
+ * limit.
+ */
+const MAX_PROJECTS_PAGES = 10
+
+/**
+ * Drains a single team's projects connection by following
+ * `pageInfo.endCursor` until `hasNextPage` is false. Bounded by
+ * `MAX_PROJECTS_PAGES`; logs a warning if the cap is hit so a truncated list
+ * is visible rather than silently dropped.
+ */
+async function fetchAllTeamProjects(team: Team): Promise<Project[]> {
+  const projects: Project[] = []
+  let after: string | undefined
+
+  for (let page = 0; page < MAX_PROJECTS_PAGES; page++) {
+    const result = await team.projects({ first: LINEAR_PAGE_SIZE, after })
+    projects.push(...result.nodes)
+
+    if (!result.pageInfo.hasNextPage) {
+      return projects
+    }
+    after = result.pageInfo.endCursor ?? undefined
+    if (!after) {
+      return projects
+    }
+    if (page === MAX_PROJECTS_PAGES - 1) {
+      logger.warn('Linear projects pagination hit cap; project list may be incomplete', {
+        teamId: team.id,
+        cap: MAX_PROJECTS_PAGES,
+        fetched: projects.length,
+      })
+    }
+  }
+
+  return projects
+}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -59,8 +103,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const perTeam = await Promise.all(
       teamIds.map(async (id) => {
         const team = await linearClient.team(id)
-        const result = await team.projects()
-        return result.nodes.map((project: Project) => ({
+        const teamProjects = await fetchAllTeamProjects(team)
+        return teamProjects.map((project: Project) => ({
           id: project.id,
           name: project.name,
         }))

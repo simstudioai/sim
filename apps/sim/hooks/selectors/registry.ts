@@ -21,7 +21,12 @@ import { trelloSelectors } from '@/hooks/selectors/providers/trello/selectors'
 import { wealthboxSelectors } from '@/hooks/selectors/providers/wealthbox/selectors'
 import { webflowSelectors } from '@/hooks/selectors/providers/webflow/selectors'
 import { zoomSelectors } from '@/hooks/selectors/providers/zoom/selectors'
-import type { SelectorDefinition, SelectorKey, SelectorOption } from '@/hooks/selectors/types'
+import type {
+  SelectorDefinition,
+  SelectorKey,
+  SelectorOption,
+  SelectorQueryArgs,
+} from '@/hooks/selectors/types'
 
 export const selectorRegistry = {
   ...airtableSelectors,
@@ -55,6 +60,38 @@ export function getSelectorDefinition(key: SelectorKey): SelectorDefinition {
     throw new Error(`Missing selector definition for ${key}`)
   }
   return definition
+}
+
+const MAX_LOAD_ALL_PAGES = 50
+
+/**
+ * Loads the complete option list for a selector outside the React Query hook —
+ * for callers (search/replace, value resolution) that need every option in one
+ * call. Uses `fetchList` when defined, otherwise drains `fetchPage` (bounded by
+ * {@link MAX_LOAD_ALL_PAGES}). Returns an empty array for a selector that
+ * provides neither.
+ */
+export async function loadAllSelectorOptions(
+  definition: SelectorDefinition,
+  args: SelectorQueryArgs
+): Promise<SelectorOption[]> {
+  if (definition.fetchList) {
+    return definition.fetchList(args)
+  }
+
+  if (definition.fetchPage) {
+    const items: SelectorOption[] = []
+    let cursor: string | undefined
+    for (let page = 0; page < MAX_LOAD_ALL_PAGES; page++) {
+      const { items: pageItems, nextCursor } = await definition.fetchPage({ ...args, cursor })
+      items.push(...pageItems)
+      cursor = nextCursor
+      if (!cursor) break
+    }
+    return items
+  }
+
+  return []
 }
 
 export function mergeOption(options: SelectorOption[], option?: SelectorOption | null) {

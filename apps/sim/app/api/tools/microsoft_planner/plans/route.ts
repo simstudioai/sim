@@ -6,10 +6,18 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 
 const logger = createLogger('MicrosoftPlannerPlansAPI')
 
 export const dynamic = 'force-dynamic'
+
+/**
+ * Upper bound on Microsoft Graph pages drained when listing Planner plans.
+ * Planner uses server-side paging (`$top` is generally ignored), so this caps
+ * the `@odata.nextLink` follow loop to prevent an unbounded drain.
+ */
+const MAX_PLANS_PAGES = 20
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -40,25 +48,40 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const response = await fetch('https://graph.microsoft.com/v1.0/me/planner/plans', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    })
+    let nextUrl: string | undefined = 'https://graph.microsoft.com/v1.0/me/planner/plans'
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error(`[${requestId}] Microsoft Graph API error:`, errorText)
-      return NextResponse.json(
-        { error: 'Failed to fetch plans from Microsoft Graph' },
-        { status: response.status }
-      )
+    const rawPlans: { id: string; title: string }[] = []
+    for (let page = 0; page < MAX_PLANS_PAGES && nextUrl; page++) {
+      const response = await fetch(nextUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        logger.error(`[${requestId}] Microsoft Graph API error:`, errorText)
+        return NextResponse.json(
+          { error: 'Failed to fetch plans from Microsoft Graph' },
+          { status: response.status }
+        )
+      }
+
+      const data = await response.json()
+      if (Array.isArray(data.value)) {
+        rawPlans.push(...data.value)
+      }
+
+      const nextLink = getGraphNextPageUrl(data)
+      nextUrl = nextLink ? assertGraphNextPageUrl(nextLink) : undefined
+      if (nextUrl && page === MAX_PLANS_PAGES - 1) {
+        logger.warn(
+          `[${requestId}] Planner plans pagination hit ${MAX_PLANS_PAGES}-page cap; result may be incomplete`
+        )
+      }
     }
 
-    const data = await response.json()
-    const plans = data.value || []
-
-    const filteredPlans = plans.map((plan: { id: string; title: string }) => ({
+    const filteredPlans = rawPlans.map((plan: { id: string; title: string }) => ({
       id: plan.id,
       title: plan.title,
     }))
