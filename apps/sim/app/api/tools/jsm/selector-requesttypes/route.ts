@@ -30,9 +30,12 @@ interface JsmRequestTypeValue {
 
 /**
  * Drains the offset-paginated JSM `/servicedesk/{id}/requesttype` endpoint,
- * advancing `start` by `limit` until `isLastPage === true` (or `_links.next` is
- * absent). Bounded by `MAX_JSM_REQUEST_TYPES_PAGES`; emits a `logger.warn` and
- * returns the partial set rather than looping unbounded when the cap is hit.
+ * advancing `start` by the number of rows actually returned until
+ * `isLastPage === true` (or `_links.next` is absent, or a page comes back
+ * empty). Advancing by the real row count — not the requested `limit` —
+ * prevents skipping items if the server returns a short non-final page. Bounded
+ * by `MAX_JSM_REQUEST_TYPES_PAGES`; emits a `logger.warn` and returns the
+ * partial set rather than looping unbounded when the cap is hit.
  */
 async function fetchAllJsmRequestTypes(
   requestTypeUrl: string,
