@@ -100,6 +100,8 @@ const STATUS_FILTER_OPTIONS: ChipDropdownOption[] = [
   { value: 'disabled', label: 'Disabled' },
 ]
 
+const FILTER_SECTION_LABEL_CLASS = 'text-[var(--text-muted)] text-small'
+
 interface KnowledgeBaseProps {
   id: string
   knowledgeBaseName?: string
@@ -877,7 +879,7 @@ export function KnowledgeBase({
       <AutoWidthPanel>
         <div className='flex flex-col gap-2'>
           <div className='flex h-5 items-center justify-between'>
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
+            <span className={FILTER_SECTION_LABEL_CLASS}>Status</span>
             {enabledFilter !== 'all' && (
               <Button
                 variant='ghost'
@@ -1616,9 +1618,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
   return (
     <div className='mt-3 border-[var(--border-1)] border-t pt-3'>
       <div className='flex h-5 items-center justify-between'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>
-          Filter by tags
-        </span>
+        <span className={FILTER_SECTION_LABEL_CLASS}>Filter by tags</span>
         {activeCount > 0 && (
           <Button
             variant='ghost'
