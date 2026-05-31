@@ -172,16 +172,37 @@ describe('filterSheetRows', () => {
     })
     expect(result.applied).toBe(false)
     expect(result.columnFound).toBe(false)
+    expect(result.matchedRows).toBe(0)
     expect(result.values).toBe(VALUES)
     expect(result.totalRows).toBe(3)
   })
 
-  it('handles a header-only sheet without error', () => {
+  it('handles a header-only sheet and reports the column as found when it exists', () => {
     const headerOnly: unknown[][] = [['Name', 'Status']]
     const result = filterSheetRows(headerOnly, { filterColumn: 'Status', filterValue: 'Active' })
     expect(result.applied).toBe(false)
+    expect(result.columnFound).toBe(true)
+    expect(result.matchedRows).toBe(0)
     expect(result.totalRows).toBe(0)
     expect(result.values).toBe(headerOnly)
+  })
+
+  it('reports columnFound=false for a header-only sheet when the column is absent', () => {
+    const headerOnly: unknown[][] = [['Name', 'Status']]
+    const result = filterSheetRows(headerOnly, { filterColumn: 'Nonexistent', filterValue: 'x' })
+    expect(result.applied).toBe(false)
+    expect(result.columnFound).toBe(false)
+    expect(result.matchedRows).toBe(0)
+    expect(result.values).toBe(headerOnly)
+  })
+
+  it('reports columnFound=false for an empty values array', () => {
+    const empty: unknown[][] = []
+    const result = filterSheetRows(empty, { filterColumn: 'Status', filterValue: 'Active' })
+    expect(result.applied).toBe(false)
+    expect(result.columnFound).toBe(false)
+    expect(result.matchedRows).toBe(0)
+    expect(result.totalRows).toBe(0)
   })
 
   it('treats missing cells as empty strings', () => {

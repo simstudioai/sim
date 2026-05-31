@@ -81,6 +81,7 @@ describe('readV2Tool.transformResponse', () => {
     expect(result.output.values).toEqual(SHEET_DATA.values)
     expect(result.output.filter?.columnFound).toBe(false)
     expect(result.output.filter?.applied).toBe(false)
+    expect(result.output.filter?.matchedRows).toBe(0)
   })
 
   it('handles a response with no values array', async () => {

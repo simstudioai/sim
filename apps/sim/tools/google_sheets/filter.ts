@@ -119,18 +119,22 @@ export function filterSheetRows(
     return { values, applied: false, columnFound: true, matchedRows: totalRows, totalRows }
   }
 
-  if (values.length <= 1) {
-    return { values, applied: false, columnFound: true, matchedRows: 0, totalRows: 0 }
-  }
-
-  const headers = values[0]
+  const headers = values[0] ?? []
   const normalizedColumn = filterColumn.trim().toLowerCase()
   const columnIndex = headers.findIndex(
     (header) => String(header).trim().toLowerCase() === normalizedColumn
   )
+  const columnFound = columnIndex !== -1
 
-  if (columnIndex === -1) {
-    return { values, applied: false, columnFound: false, matchedRows: totalRows, totalRows }
+  // No data rows to evaluate (empty or header-only sheet): nothing matched, but
+  // still report whether the requested column actually exists in the header.
+  if (values.length <= 1) {
+    return { values, applied: false, columnFound, matchedRows: 0, totalRows: 0 }
+  }
+
+  // Column not found: leave rows untouched and report zero matches, not totalRows.
+  if (!columnFound) {
+    return { values, applied: false, columnFound: false, matchedRows: 0, totalRows }
   }
 
   const matchType = filterMatchType ?? DEFAULT_MATCH_TYPE
