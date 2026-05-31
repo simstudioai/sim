@@ -94,6 +94,7 @@ export interface ToolCatalogEntry {
     | 'set_global_workflow_variables'
     | 'superagent'
     | 'table'
+    | 'touch_plan'
     | 'update_job_history'
     | 'update_workspace_mcp_server'
     | 'user_memory'
@@ -190,6 +191,7 @@ export interface ToolCatalogEntry {
     | 'set_global_workflow_variables'
     | 'superagent'
     | 'table'
+    | 'touch_plan'
     | 'update_job_history'
     | 'update_workspace_mcp_server'
     | 'user_memory'
@@ -1169,7 +1171,11 @@ export const FunctionExecute: ToolCatalogEntry = {
             items: {
               type: 'object',
               properties: {
-                path: { type: 'string' },
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                },
                 sandboxPath: {
                   type: 'string',
                   description:
@@ -1185,7 +1191,11 @@ export const FunctionExecute: ToolCatalogEntry = {
             items: {
               type: 'object',
               properties: {
-                path: { type: 'string' },
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                },
                 sandboxPath: {
                   type: 'string',
                   description:
@@ -1247,7 +1257,11 @@ export const FunctionExecute: ToolCatalogEntry = {
                   description: 'Create a new file or overwrite an existing file at path.',
                   enum: ['create', 'overwrite'],
                 },
-                path: { type: 'string' },
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                },
                 sandboxPath: {
                   type: 'string',
                   description:
@@ -1319,7 +1333,11 @@ export const GenerateImage: ToolCatalogEntry = {
             items: {
               type: 'object',
               properties: {
-                path: { type: 'string' },
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                },
                 sandboxPath: {
                   type: 'string',
                   description:
@@ -1335,7 +1353,11 @@ export const GenerateImage: ToolCatalogEntry = {
             items: {
               type: 'object',
               properties: {
-                path: { type: 'string' },
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                },
                 sandboxPath: {
                   type: 'string',
                   description:
@@ -1387,7 +1409,11 @@ export const GenerateImage: ToolCatalogEntry = {
                   description: 'Create a new file or overwrite an existing file at path.',
                   enum: ['create', 'overwrite'],
                 },
-                path: { type: 'string' },
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                },
                 sandboxPath: {
                   type: 'string',
                   description:
@@ -3131,6 +3157,54 @@ export const Table: ToolCatalogEntry = {
   internal: true,
 }
 
+export const TouchPlan: ToolCatalogEntry = {
+  id: 'touch_plan',
+  name: 'touch_plan',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description:
+          'Plan file name or relative path under .plans, e.g. "implementation.md" or "phase-1/implementation.md". If no extension is supplied, ".md" is appended.',
+      },
+      scope: {
+        type: 'string',
+        description:
+          'Plan scope. Use "workspace" for root .plans/** main-agent plans. Use "workflow" for workflows/{workflow}/.plans/** subplans. If omitted with workflowPath, workflow scope is assumed; otherwise workspace scope is assumed.',
+        enum: ['workspace', 'workflow'],
+      },
+      title: {
+        type: 'string',
+        description: 'Optional short user-visible label for the plan creation.',
+      },
+      workflowPath: {
+        type: 'string',
+        description:
+          'Required for scope "workflow". Canonical workflow VFS path, e.g. "workflows/My%20Workflow" or "workflows/Folder/My%20Workflow". Copy from glob/read output; do not use workflow IDs.',
+      },
+    },
+    required: ['name'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      data: {
+        type: 'object',
+        description:
+          'Contains id, name, scope, vfsPath, backingVfsPath, and workflowId for workflow plans. Use vfsPath for follow-up workspace_file calls.',
+      },
+      message: { type: 'string', description: 'Human-readable outcome.' },
+      success: { type: 'boolean', description: 'Whether the plan file was created.' },
+    },
+    required: ['success', 'message'],
+  },
+  requiredPermission: 'write',
+  capabilities: ['file_output'],
+}
+
 export const UpdateJobHistory: ToolCatalogEntry = {
   id: 'update_job_history',
   name: 'update_job_history',
@@ -4007,6 +4081,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
   [Superagent.id]: Superagent,
   [Table.id]: Table,
+  [TouchPlan.id]: TouchPlan,
   [UpdateJobHistory.id]: UpdateJobHistory,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,
   [UserMemory.id]: UserMemory,
