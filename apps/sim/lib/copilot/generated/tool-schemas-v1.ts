@@ -788,6 +788,28 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['deploymentType', 'deploymentStatus'],
     },
   },
+  ['diff_workflows']: {
+    parameters: {
+      type: 'object',
+      properties: {
+        ref1: {
+          type: 'string',
+          description: 'Base side: a version number (e.g. "3"), "live", or "draft".',
+        },
+        ref2: {
+          type: 'string',
+          description: 'Target side: a version number (e.g. "4"), "live", or "draft".',
+        },
+        workflowId: {
+          type: 'string',
+          description:
+            'Optional workflow ID. If not provided, uses the current workflow in context.',
+        },
+      },
+      required: ['ref1', 'ref2'],
+    },
+    resultSchema: undefined,
+  },
   ['download_to_workspace_file']: {
     parameters: {
       type: 'object',
@@ -937,8 +959,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 properties: {
                   path: {
                     type: 'string',
-                    description:
-                      'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -957,8 +977,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 properties: {
                   path: {
                     type: 'string',
-                    description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1029,8 +1047,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description:
-                      'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1094,8 +1110,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 properties: {
                   path: {
                     type: 'string',
-                    description:
-                      'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1114,8 +1128,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 properties: {
                   path: {
                     type: 'string',
-                    description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1176,8 +1188,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description:
-                      'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1256,20 +1266,16 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['get_deployment_version']: {
+  ['get_deployment_log']: {
     parameters: {
       type: 'object',
       properties: {
-        version: {
-          type: 'number',
-          description: 'The deployment version number',
-        },
         workflowId: {
           type: 'string',
-          description: 'The workflow ID',
+          description:
+            'Optional workflow ID. If not provided, uses the current workflow in context.',
         },
       },
-      required: ['workflowId', 'version'],
     },
     resultSchema: undefined,
   },
@@ -1677,6 +1683,25 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'Workspace ID. Required when no current workspace context is available, such as headless MCP calls.',
         },
       },
+    },
+    resultSchema: undefined,
+  },
+  ['load_deployment']: {
+    parameters: {
+      type: 'object',
+      properties: {
+        version: {
+          type: 'string',
+          description:
+            'The deployment version number to load (e.g. "5"), or "live" for the active deployment.',
+        },
+        workflowId: {
+          type: 'string',
+          description:
+            'Optional workflow ID. If not provided, uses the current workflow in context.',
+        },
+      },
+      required: ['version'],
     },
     resultSchema: undefined,
   },
@@ -2130,6 +2155,24 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  ['promote_to_live']: {
+    parameters: {
+      type: 'object',
+      properties: {
+        version: {
+          type: 'number',
+          description: 'The deployment version number to promote to live.',
+        },
+        workflowId: {
+          type: 'string',
+          description:
+            'Optional workflow ID. If not provided, uses the current workflow in context.',
+        },
+      },
+      required: ['version'],
+    },
+    resultSchema: undefined,
+  },
   ['query_logs']: {
     parameters: {
       type: 'object',
@@ -2457,23 +2500,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['type', 'id'],
-    },
-    resultSchema: undefined,
-  },
-  ['revert_to_version']: {
-    parameters: {
-      type: 'object',
-      properties: {
-        version: {
-          type: 'number',
-          description: 'The deployment version number to revert to',
-        },
-        workflowId: {
-          type: 'string',
-          description: 'The workflow ID',
-        },
-      },
-      required: ['workflowId', 'version'],
     },
     resultSchema: undefined,
   },
@@ -2860,53 +2886,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       type: 'object',
     },
     resultSchema: undefined,
-  },
-  ['touch_plan']: {
-    parameters: {
-      type: 'object',
-      properties: {
-        name: {
-          type: 'string',
-          description:
-            'Plan file name or relative path under .plans, e.g. "implementation.md" or "phase-1/implementation.md". If no extension is supplied, ".md" is appended.',
-        },
-        scope: {
-          type: 'string',
-          description:
-            'Plan scope. Use "workspace" for root .plans/** main-agent plans. Use "workflow" for workflows/{workflow}/.plans/** subplans. If omitted with workflowPath, workflow scope is assumed; otherwise workspace scope is assumed.',
-          enum: ['workspace', 'workflow'],
-        },
-        title: {
-          type: 'string',
-          description: 'Optional short user-visible label for the plan creation.',
-        },
-        workflowPath: {
-          type: 'string',
-          description:
-            'Required for scope "workflow". Canonical workflow VFS path, e.g. "workflows/My%20Workflow" or "workflows/Folder/My%20Workflow". Copy from glob/read output; do not use workflow IDs.',
-        },
-      },
-      required: ['name'],
-    },
-    resultSchema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          description:
-            'Contains id, name, scope, vfsPath, backingVfsPath, and workflowId for workflow plans. Use vfsPath for follow-up workspace_file calls.',
-        },
-        message: {
-          type: 'string',
-          description: 'Human-readable outcome.',
-        },
-        success: {
-          type: 'boolean',
-          description: 'Whether the plan file was created.',
-        },
-      },
-      required: ['success', 'message'],
-    },
   },
   ['update_job_history']: {
     parameters: {

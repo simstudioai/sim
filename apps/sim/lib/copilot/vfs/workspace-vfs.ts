@@ -95,9 +95,13 @@ import {
   listWorkspaceFiles,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { hasWorkflowChanged } from '@/lib/workflows/comparison'
+import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadWorkflowDeploymentSnapshot,
+  loadWorkflowFromNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { listSkills } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
@@ -1103,8 +1107,7 @@ export class WorkspaceVFS {
             wf.id,
             workspaceId,
             wf.isDeployed,
-            wf.deployedAt,
-            normalized
+            wf.deployedAt
           )
           if (deploymentData) {
             this.files.set(`${prefix}deployment.json`, serializeDeployments(deploymentData))
@@ -1423,8 +1426,7 @@ export class WorkspaceVFS {
     workflowId: string,
     workspaceId: string,
     isDeployed: boolean,
-    deployedAt: Date | null,
-    currentNormalized?: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>
+    deployedAt: Date | null
   ): Promise<DeploymentData | null> {
     const [chatRows, formRows, mcpRows, a2aRows, versionRows, allVersionRows] = await Promise.all([
       db
@@ -1526,15 +1528,17 @@ export class WorkspaceVFS {
 
     let needsRedeployment: boolean | undefined
     const deployedVersion = versionRows[0]
-    if (isDeployed && deployedVersion?.state && currentNormalized) {
+    if (isDeployed && deployedVersion?.state) {
       try {
-        const currentState = {
-          blocks: currentNormalized.blocks,
-          edges: currentNormalized.edges,
-          loops: currentNormalized.loops,
-          parallels: currentNormalized.parallels,
-        }
-        needsRedeployment = hasWorkflowChanged(currentState as any, deployedVersion.state as any)
+        // Use the canonical deployment snapshot (includes variables) so this
+        // matches check_deployment_status exactly. The reshaped normalized load
+        // dropped variables, which made any workflow with deployment variables
+        // permanently report needsRedeployment: true.
+        const currentSnapshot = await loadWorkflowDeploymentSnapshot(workflowId)
+        needsRedeployment = computeNeedsRedeployment(
+          currentSnapshot,
+          deployedVersion.state as WorkflowState
+        )
       } catch (err) {
         logger.warn('Failed to compute needsRedeployment', {
           workflowId,

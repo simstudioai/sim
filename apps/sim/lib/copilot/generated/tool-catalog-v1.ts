@@ -29,6 +29,7 @@ export interface ToolCatalogEntry {
     | 'deploy_api'
     | 'deploy_chat'
     | 'deploy_mcp'
+    | 'diff_workflows'
     | 'download_to_workspace_file'
     | 'edit_content'
     | 'edit_workflow'
@@ -39,7 +40,7 @@ export interface ToolCatalogEntry {
     | 'get_block_outputs'
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
-    | 'get_deployment_version'
+    | 'get_deployment_log'
     | 'get_job_logs'
     | 'get_page_contents'
     | 'get_platform_actions'
@@ -53,6 +54,7 @@ export interface ToolCatalogEntry {
     | 'list_folders'
     | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
+    | 'load_deployment'
     | 'load_integration_tool'
     | 'manage_credential'
     | 'manage_custom_tool'
@@ -67,6 +69,7 @@ export interface ToolCatalogEntry {
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
     | 'open_resource'
+    | 'promote_to_live'
     | 'query_logs'
     | 'read'
     | 'redeploy'
@@ -76,7 +79,6 @@ export interface ToolCatalogEntry {
     | 'research'
     | 'respond'
     | 'restore_resource'
-    | 'revert_to_version'
     | 'run'
     | 'run_block'
     | 'run_from_block'
@@ -92,7 +94,6 @@ export interface ToolCatalogEntry {
     | 'set_global_workflow_variables'
     | 'superagent'
     | 'table'
-    | 'touch_plan'
     | 'update_job_history'
     | 'update_workspace_mcp_server'
     | 'user_memory'
@@ -124,6 +125,7 @@ export interface ToolCatalogEntry {
     | 'deploy_api'
     | 'deploy_chat'
     | 'deploy_mcp'
+    | 'diff_workflows'
     | 'download_to_workspace_file'
     | 'edit_content'
     | 'edit_workflow'
@@ -134,7 +136,7 @@ export interface ToolCatalogEntry {
     | 'get_block_outputs'
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
-    | 'get_deployment_version'
+    | 'get_deployment_log'
     | 'get_job_logs'
     | 'get_page_contents'
     | 'get_platform_actions'
@@ -148,6 +150,7 @@ export interface ToolCatalogEntry {
     | 'list_folders'
     | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
+    | 'load_deployment'
     | 'load_integration_tool'
     | 'manage_credential'
     | 'manage_custom_tool'
@@ -162,6 +165,7 @@ export interface ToolCatalogEntry {
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
     | 'open_resource'
+    | 'promote_to_live'
     | 'query_logs'
     | 'read'
     | 'redeploy'
@@ -171,7 +175,6 @@ export interface ToolCatalogEntry {
     | 'research'
     | 'respond'
     | 'restore_resource'
-    | 'revert_to_version'
     | 'run'
     | 'run_block'
     | 'run_from_block'
@@ -187,7 +190,6 @@ export interface ToolCatalogEntry {
     | 'set_global_workflow_variables'
     | 'superagent'
     | 'table'
-    | 'touch_plan'
     | 'update_job_history'
     | 'update_workspace_mcp_server'
     | 'user_memory'
@@ -976,6 +978,31 @@ export const DeployMcp: ToolCatalogEntry = {
   requiredPermission: 'admin',
 }
 
+export const DiffWorkflows: ToolCatalogEntry = {
+  id: 'diff_workflows',
+  name: 'diff_workflows',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      ref1: {
+        type: 'string',
+        description: 'Base side: a version number (e.g. "3"), "live", or "draft".',
+      },
+      ref2: {
+        type: 'string',
+        description: 'Target side: a version number (e.g. "4"), "live", or "draft".',
+      },
+      workflowId: {
+        type: 'string',
+        description: 'Optional workflow ID. If not provided, uses the current workflow in context.',
+      },
+    },
+    required: ['ref1', 'ref2'],
+  },
+}
+
 export const DownloadToWorkspaceFile: ToolCatalogEntry = {
   id: 'download_to_workspace_file',
   name: 'download_to_workspace_file',
@@ -1142,11 +1169,7 @@ export const FunctionExecute: ToolCatalogEntry = {
             items: {
               type: 'object',
               properties: {
-                path: {
-                  type: 'string',
-                  description:
-                    'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
-                },
+                path: { type: 'string' },
                 sandboxPath: {
                   type: 'string',
                   description:
@@ -1162,11 +1185,7 @@ export const FunctionExecute: ToolCatalogEntry = {
             items: {
               type: 'object',
               properties: {
-                path: {
-                  type: 'string',
-                  description:
-                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
-                },
+                path: { type: 'string' },
                 sandboxPath: {
                   type: 'string',
                   description:
@@ -1228,11 +1247,7 @@ export const FunctionExecute: ToolCatalogEntry = {
                   description: 'Create a new file or overwrite an existing file at path.',
                   enum: ['create', 'overwrite'],
                 },
-                path: {
-                  type: 'string',
-                  description:
-                    'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
-                },
+                path: { type: 'string' },
                 sandboxPath: {
                   type: 'string',
                   description:
@@ -1304,11 +1319,7 @@ export const GenerateImage: ToolCatalogEntry = {
             items: {
               type: 'object',
               properties: {
-                path: {
-                  type: 'string',
-                  description:
-                    'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
-                },
+                path: { type: 'string' },
                 sandboxPath: {
                   type: 'string',
                   description:
@@ -1324,11 +1335,7 @@ export const GenerateImage: ToolCatalogEntry = {
             items: {
               type: 'object',
               properties: {
-                path: {
-                  type: 'string',
-                  description:
-                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
-                },
+                path: { type: 'string' },
                 sandboxPath: {
                   type: 'string',
                   description:
@@ -1380,11 +1387,7 @@ export const GenerateImage: ToolCatalogEntry = {
                   description: 'Create a new file or overwrite an existing file at path.',
                   enum: ['create', 'overwrite'],
                 },
-                path: {
-                  type: 'string',
-                  description:
-                    'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
-                },
+                path: { type: 'string' },
                 sandboxPath: {
                   type: 'string',
                   description:
@@ -1469,18 +1472,19 @@ export const GetDeployedWorkflowState: ToolCatalogEntry = {
   },
 }
 
-export const GetDeploymentVersion: ToolCatalogEntry = {
-  id: 'get_deployment_version',
-  name: 'get_deployment_version',
+export const GetDeploymentLog: ToolCatalogEntry = {
+  id: 'get_deployment_log',
+  name: 'get_deployment_log',
   route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
     properties: {
-      version: { type: 'number', description: 'The deployment version number' },
-      workflowId: { type: 'string', description: 'The workflow ID' },
+      workflowId: {
+        type: 'string',
+        description: 'Optional workflow ID. If not provided, uses the current workflow in context.',
+      },
     },
-    required: ['workflowId', 'version'],
   },
 }
 
@@ -1889,6 +1893,30 @@ export const ListWorkspaceMcpServers: ToolCatalogEntry = {
       },
     },
   },
+}
+
+export const LoadDeployment: ToolCatalogEntry = {
+  id: 'load_deployment',
+  name: 'load_deployment',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      version: {
+        type: 'string',
+        description:
+          'The deployment version number to load (e.g. "5"), or "live" for the active deployment.',
+      },
+      workflowId: {
+        type: 'string',
+        description: 'Optional workflow ID. If not provided, uses the current workflow in context.',
+      },
+    },
+    required: ['version'],
+  },
+  requiresConfirmation: true,
+  requiredPermission: 'admin',
 }
 
 export const LoadIntegrationTool: ToolCatalogEntry = {
@@ -2352,6 +2380,26 @@ export const OpenResource: ToolCatalogEntry = {
   },
 }
 
+export const PromoteToLive: ToolCatalogEntry = {
+  id: 'promote_to_live',
+  name: 'promote_to_live',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      version: { type: 'number', description: 'The deployment version number to promote to live.' },
+      workflowId: {
+        type: 'string',
+        description: 'Optional workflow ID. If not provided, uses the current workflow in context.',
+      },
+    },
+    required: ['version'],
+  },
+  requiresConfirmation: true,
+  requiredPermission: 'admin',
+}
+
 export const QueryLogs: ToolCatalogEntry = {
   id: 'query_logs',
   name: 'query_logs',
@@ -2667,23 +2715,6 @@ export const RestoreResource: ToolCatalogEntry = {
       },
     },
     required: ['type', 'id'],
-  },
-  requiresConfirmation: true,
-  requiredPermission: 'admin',
-}
-
-export const RevertToVersion: ToolCatalogEntry = {
-  id: 'revert_to_version',
-  name: 'revert_to_version',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      version: { type: 'number', description: 'The deployment version number to revert to' },
-      workflowId: { type: 'string', description: 'The workflow ID' },
-    },
-    required: ['workflowId', 'version'],
   },
   requiresConfirmation: true,
   requiredPermission: 'admin',
@@ -3098,54 +3129,6 @@ export const Table: ToolCatalogEntry = {
   },
   subagentId: 'table',
   internal: true,
-}
-
-export const TouchPlan: ToolCatalogEntry = {
-  id: 'touch_plan',
-  name: 'touch_plan',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      name: {
-        type: 'string',
-        description:
-          'Plan file name or relative path under .plans, e.g. "implementation.md" or "phase-1/implementation.md". If no extension is supplied, ".md" is appended.',
-      },
-      scope: {
-        type: 'string',
-        description:
-          'Plan scope. Use "workspace" for root .plans/** main-agent plans. Use "workflow" for workflows/{workflow}/.plans/** subplans. If omitted with workflowPath, workflow scope is assumed; otherwise workspace scope is assumed.',
-        enum: ['workspace', 'workflow'],
-      },
-      title: {
-        type: 'string',
-        description: 'Optional short user-visible label for the plan creation.',
-      },
-      workflowPath: {
-        type: 'string',
-        description:
-          'Required for scope "workflow". Canonical workflow VFS path, e.g. "workflows/My%20Workflow" or "workflows/Folder/My%20Workflow". Copy from glob/read output; do not use workflow IDs.',
-      },
-    },
-    required: ['name'],
-  },
-  resultSchema: {
-    type: 'object',
-    properties: {
-      data: {
-        type: 'object',
-        description:
-          'Contains id, name, scope, vfsPath, backingVfsPath, and workflowId for workflow plans. Use vfsPath for follow-up workspace_file calls.',
-      },
-      message: { type: 'string', description: 'Human-readable outcome.' },
-      success: { type: 'boolean', description: 'Whether the plan file was created.' },
-    },
-    required: ['success', 'message'],
-  },
-  requiredPermission: 'write',
-  capabilities: ['file_output'],
 }
 
 export const UpdateJobHistory: ToolCatalogEntry = {
@@ -3959,6 +3942,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [DeployApi.id]: DeployApi,
   [DeployChat.id]: DeployChat,
   [DeployMcp.id]: DeployMcp,
+  [DiffWorkflows.id]: DiffWorkflows,
   [DownloadToWorkspaceFile.id]: DownloadToWorkspaceFile,
   [EditContent.id]: EditContent,
   [EditWorkflow.id]: EditWorkflow,
@@ -3969,7 +3953,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [GetBlockOutputs.id]: GetBlockOutputs,
   [GetBlockUpstreamReferences.id]: GetBlockUpstreamReferences,
   [GetDeployedWorkflowState.id]: GetDeployedWorkflowState,
-  [GetDeploymentVersion.id]: GetDeploymentVersion,
+  [GetDeploymentLog.id]: GetDeploymentLog,
   [GetJobLogs.id]: GetJobLogs,
   [GetPageContents.id]: GetPageContents,
   [GetPlatformActions.id]: GetPlatformActions,
@@ -3983,6 +3967,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ListFolders.id]: ListFolders,
   [ListUserWorkspaces.id]: ListUserWorkspaces,
   [ListWorkspaceMcpServers.id]: ListWorkspaceMcpServers,
+  [LoadDeployment.id]: LoadDeployment,
   [LoadIntegrationTool.id]: LoadIntegrationTool,
   [ManageCredential.id]: ManageCredential,
   [ManageCustomTool.id]: ManageCustomTool,
@@ -3997,6 +3982,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [OauthGetAuthLink.id]: OauthGetAuthLink,
   [OauthRequestAccess.id]: OauthRequestAccess,
   [OpenResource.id]: OpenResource,
+  [PromoteToLive.id]: PromoteToLive,
   [QueryLogs.id]: QueryLogs,
   [Read.id]: Read,
   [Redeploy.id]: Redeploy,
@@ -4006,7 +3992,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Research.id]: Research,
   [Respond.id]: Respond,
   [RestoreResource.id]: RestoreResource,
-  [RevertToVersion.id]: RevertToVersion,
   [Run.id]: Run,
   [RunBlock.id]: RunBlock,
   [RunFromBlock.id]: RunFromBlock,
@@ -4022,7 +4007,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
   [Superagent.id]: Superagent,
   [Table.id]: Table,
-  [TouchPlan.id]: TouchPlan,
   [UpdateJobHistory.id]: UpdateJobHistory,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,
   [UserMemory.id]: UserMemory,

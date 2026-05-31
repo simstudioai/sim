@@ -155,6 +155,30 @@ export interface CheckDeploymentStatusParams {
   workflowId?: string
 }
 
+export interface GetDeploymentLogParams {
+  workflowId?: string
+}
+
+export interface DiffWorkflowsParams {
+  workflowId?: string
+  /** Base/previous side: a version number, "live", or "draft". */
+  ref1: number | string
+  /** Target/current side: a version number, "live", or "draft". */
+  ref2: number | string
+}
+
+export interface LoadDeploymentParams {
+  workflowId?: string
+  /** Version number to load, or "live" for the active deployment. */
+  version: number | string
+}
+
+export interface PromoteToLiveParams {
+  workflowId?: string
+  /** Version number to promote to live. */
+  version: number
+}
+
 export interface ListWorkspaceMcpServersParams {
   workspaceId?: string
 }

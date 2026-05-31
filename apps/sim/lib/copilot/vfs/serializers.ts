@@ -642,7 +642,8 @@ export function serializeDeployments(data: DeploymentData): string {
 
 /**
  * Serialize deployment version history for VFS workflows/{name}/versions.json.
- * Lists all versions without full state — use get_deployment_version tool to fetch a version's state.
+ * Lists all versions without full state — use the diff_workflows tool to compare a version,
+ * or load_deployment to restore one into the draft.
  */
 export function serializeVersions(
   versions: Array<{
