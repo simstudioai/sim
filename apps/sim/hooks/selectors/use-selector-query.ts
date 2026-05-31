@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react'
+import { createLogger } from '@sim/logger'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
 import { usePersonalEnvironment } from '@/hooks/queries/environment'
@@ -30,10 +31,25 @@ export interface SelectorOptionsResult {
    * for non-paginated selectors.
    */
   hasMore: boolean
+  /**
+   * True when the paginated drain stopped at {@link MAX_AUTO_DRAIN_PAGES} with
+   * pages still remaining, so the option list is a partial view. Always false
+   * for non-paginated selectors.
+   */
+  truncated: boolean
   error: Error | null
 }
 
+const logger = createLogger('SelectorQuery')
+
 const EMPTY_PAGE: SelectorPage = { items: [], nextCursor: undefined }
+
+/**
+ * Safety bound on the background auto-drain. Real dropdowns settle in a handful
+ * of pages; this only trips for pathological result sets and prevents an
+ * unbounded request loop when a provider keeps handing back cursors.
+ */
+const MAX_AUTO_DRAIN_PAGES = 50
 
 export function useSelectorOptions(
   key: SelectorKey,
@@ -50,7 +66,8 @@ export function useSelectorOptions(
 
   const flatQuery = useQuery<SelectorOption[]>({
     queryKey: definition.getQueryKey(queryArgs),
-    queryFn: ({ signal }) => definition.fetchList({ ...queryArgs, signal }),
+    queryFn: ({ signal }) =>
+      definition.fetchList?.({ ...queryArgs, signal }) ?? Promise.resolve([]),
     enabled: !supportsPagination && isEnabled,
     staleTime: definition.staleTime ?? 30_000,
   })
@@ -72,13 +89,33 @@ export function useSelectorOptions(
   })
 
   const { hasNextPage, isFetchingNextPage, fetchNextPage, isError } = pagedQuery
+  const pageCount = pagedQuery.data?.pages.length ?? 0
+  const reachedDrainCap = pageCount >= MAX_AUTO_DRAIN_PAGES
   useEffect(() => {
     if (!supportsPagination) return
     if (isError) return
+    if (reachedDrainCap) {
+      if (hasNextPage) {
+        logger.warn('Selector hit auto-drain cap; option list is truncated', {
+          key,
+          pages: pageCount,
+        })
+      }
+      return
+    }
     if (hasNextPage && !isFetchingNextPage) {
       void fetchNextPage()
     }
-  }, [supportsPagination, hasNextPage, isFetchingNextPage, isError, fetchNextPage])
+  }, [
+    supportsPagination,
+    hasNextPage,
+    isFetchingNextPage,
+    isError,
+    fetchNextPage,
+    reachedDrainCap,
+    pageCount,
+    key,
+  ])
 
   const pagedOptions = useMemo<SelectorOption[] | undefined>(() => {
     if (!supportsPagination) return undefined
@@ -92,7 +129,8 @@ export function useSelectorOptions(
       isLoading: pagedQuery.isLoading,
       isFetching: pagedQuery.isFetching,
       isFetchingMore: pagedQuery.isFetchingNextPage,
-      hasMore: pagedQuery.hasNextPage ?? false,
+      hasMore: (pagedQuery.hasNextPage ?? false) && !reachedDrainCap,
+      truncated: reachedDrainCap && (pagedQuery.hasNextPage ?? false),
       error: (pagedQuery.error as Error | null) ?? null,
     }
   }
@@ -103,6 +141,7 @@ export function useSelectorOptions(
     isFetching: flatQuery.isFetching,
     isFetchingMore: false,
     hasMore: false,
+    truncated: false,
     error: (flatQuery.error as Error | null) ?? null,
   }
 }

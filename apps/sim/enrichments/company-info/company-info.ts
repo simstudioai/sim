@@ -3,30 +3,41 @@ import { Building2 } from 'lucide-react'
 import { normalizeDomain, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
 
-/** Returns the value when it's a finite number, else `undefined`. */
-function num(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
-}
-
 /**
- * Company Info enrichment. Looks up firmographics for a company domain, trying
- * People Data Labs first (richest record, incl. employee count) then Hunter as
- * a fallback.
+ * Company Info enrichment. Looks up a company by domain, trying Hunter first
+ * (free) then People Data Labs as a fallback. Outputs are limited to the fields
+ * both providers reliably return — employee count and description — so the
+ * result stays consistent regardless of which provider fills the cell.
+ * `employeeCount` is a string so Hunter's range bucket (e.g. `"11-50"`) and
+ * PDL's exact count map onto the same column.
  */
 export const companyInfoEnrichment: EnrichmentConfig = {
   id: 'company-info',
   name: 'Company Info',
-  description:
-    "Look up a company's industry, size, founding year, and description from its domain.",
+  description: "Look up a company's size and description from its domain.",
   icon: Building2,
   inputs: [{ id: 'domain', name: 'Company domain', type: 'string', required: true }],
   outputs: [
-    { id: 'industry', name: 'industry', type: 'string' },
-    { id: 'employeeCount', name: 'employee count', type: 'number' },
-    { id: 'foundedYear', name: 'founded year', type: 'number' },
+    { id: 'employeeCount', name: 'employee count', type: 'string' },
     { id: 'description', name: 'description', type: 'string' },
   ],
   providers: [
+    toolProvider({
+      id: 'hunter',
+      label: 'Hunter',
+      toolId: 'hunter_companies_find',
+      buildParams: (inputs) => {
+        const domain = normalizeDomain(inputs.domain)
+        if (!domain) return null
+        return { domain }
+      },
+      mapOutput: (output) => {
+        return filterUndefined({
+          employeeCount: str(output.size) || undefined,
+          description: str(output.description) || undefined,
+        })
+      },
+    }),
     toolProvider({
       id: 'pdl',
       label: 'People Data Labs',
@@ -39,27 +50,8 @@ export const companyInfoEnrichment: EnrichmentConfig = {
       mapOutput: (output) => {
         const company = output.company as Record<string, unknown> | undefined
         return filterUndefined({
-          industry: str(company?.industry) || undefined,
-          employeeCount: num(company?.employee_count),
-          foundedYear: num(company?.founded),
+          employeeCount: str(company?.employee_count) || undefined,
           description: str(company?.summary) || undefined,
-        })
-      },
-    }),
-    toolProvider({
-      id: 'hunter',
-      label: 'Hunter',
-      toolId: 'hunter_companies_find',
-      buildParams: (inputs) => {
-        const domain = normalizeDomain(inputs.domain)
-        if (!domain) return null
-        return { domain }
-      },
-      mapOutput: (output) => {
-        return filterUndefined({
-          industry: str(output.industry) || undefined,
-          foundedYear: num(output.founded_year),
-          description: str(output.description) || undefined,
         })
       },
     }),

@@ -478,14 +478,14 @@ export function Table({
           }
         />
       )}
-      {/* Sort + filter render in both modes. In embedded (mothership) mode there's
-          no ResourceHeader, so the run/stop control rides in the options bar's
-          `extras` slot — keeping the bar populated whether or not a run is live. */}
+      {/* Sort + filter render in both modes (left-aligned). In embedded (mothership)
+          mode there's no ResourceHeader, so the run/stop control rides in the options
+          bar's right-aligned `trailing` slot — opposite the left-aligned filter/sort. */}
       <ResourceOptionsBar
         sort={sortConfig}
         onFilterToggle={() => setFilterOpen((prev) => !prev)}
         filterActive={filterOpen || !!queryOptions.filter}
-        extras={
+        trailing={
           embedded && selection.totalRunning > 0 ? (
             <RunStatusControl
               running={selection.totalRunning}

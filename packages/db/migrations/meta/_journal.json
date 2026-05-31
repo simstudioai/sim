@@ -1541,6 +1541,13 @@
       "when": 1780081787541,
       "tag": "0220_early_hellion",
       "breakpoints": true
+    },
+    {
+      "idx": 221,
+      "version": "7",
+      "when": 1780111474238,
+      "tag": "0221_secret_hannibal_king",
+      "breakpoints": true
     }
   ]
 }

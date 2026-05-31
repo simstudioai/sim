@@ -349,7 +349,10 @@ export class PauseResumeManager {
           totalPauseCount,
           resumedCount,
           status: nextStatus,
-          metadata,
+          // Merge rather than replace: foreign keys like `cellContext` (stashed
+          // by the table cell task) live on the same metadata column and must
+          // survive a re-pause so chained-wait resumes can still write the row back.
+          metadata: { ...((existing.metadata as Record<string, unknown>) ?? {}), ...metadata },
           updatedAt: now,
           nextResumeAt: mergedNextResumeAt,
         })

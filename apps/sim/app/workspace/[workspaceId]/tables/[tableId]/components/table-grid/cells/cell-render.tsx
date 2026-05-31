@@ -77,7 +77,13 @@ export function resolveCellRender({
     // Value wins over pending-upstream: a finished column stays finished even
     // while other blocks in the group are still running. An empty string is not
     // a value — it falls through so a completed enrichment can show "Not found".
-    if (!isEmpty) return { kind: 'value', text: stringifyValue(value) }
+    // A value that's wholly a resource/URL string renders as a chip/link (any
+    // column type — workflow output is free-form); otherwise the plain `value`
+    // kind keeps the typewriter reveal for streaming text.
+    if (!isEmpty) {
+      const text = stringifyValue(value)
+      return resolveLinkKind(text, currentWorkspaceId) ?? { kind: 'value', text }
+    }
 
     if (inFlight && !(groupHasBlockErrors && !blockRunning)) {
       // A `pending` cell whose jobId starts with `paused-` is mid-pause
@@ -109,21 +115,7 @@ export function resolveCellRender({
   if (column.type === 'date') return { kind: 'date', text: String(value) }
   if (column.type === 'string') {
     const text = stringifyValue(value)
-    if (currentWorkspaceId) {
-      const resource = extractSimResourceInfo(text)
-      if (resource && resource.workspaceId === currentWorkspaceId) {
-        return {
-          kind: 'sim-resource',
-          workspaceId: resource.workspaceId,
-          resourceType: resource.resourceType,
-          resourceId: resource.resourceId,
-          href: resource.href,
-        }
-      }
-    }
-    const urlInfo = extractUrlInfo(text)
-    if (urlInfo) return { kind: 'url', text, href: urlInfo.href, domain: urlInfo.domain }
-    return { kind: 'text', text }
+    return resolveLinkKind(text, currentWorkspaceId) ?? { kind: 'text', text }
   }
   return { kind: 'text', text: stringifyValue(value) }
 }
@@ -132,6 +124,45 @@ function stringifyValue(value: unknown): string {
   if (typeof value === 'string') return value
   if (value === null || value === undefined) return ''
   return JSON.stringify(value)
+}
+
+/** Returns a `sim-resource` cell kind when `text` is a URL pointing to a
+ *  resource in the current workspace, else null. Shared by plain string cells
+ *  and workflow-output value cells so both surface in-workspace resource links
+ *  as tagged chips. */
+function resolveSimResourceKind(
+  text: string,
+  currentWorkspaceId: string | undefined
+): Extract<CellRenderKind, { kind: 'sim-resource' }> | null {
+  if (!currentWorkspaceId) return null
+  const resource = extractSimResourceInfo(text)
+  if (!resource || resource.workspaceId !== currentWorkspaceId) return null
+  return {
+    kind: 'sim-resource',
+    workspaceId: resource.workspaceId,
+    resourceType: resource.resourceType,
+    resourceId: resource.resourceId,
+    href: resource.href,
+  }
+}
+
+/**
+ * Promotes a cell value that is wholly a resource/URL string to a chip
+ * (in-workspace resource) or a favicon link, else null. Shared by plain string
+ * cells and workflow-output value cells. Workflow outputs apply this regardless
+ * of `column.type` (their type defaults to `json`, so gating on `string` would
+ * miss URL outputs); a stringified object never matches the whole-string URL
+ * check, so it stays JSON/text.
+ */
+function resolveLinkKind(
+  text: string,
+  currentWorkspaceId: string | undefined
+): Extract<CellRenderKind, { kind: 'sim-resource' } | { kind: 'url' }> | null {
+  const simKind = resolveSimResourceKind(text, currentWorkspaceId)
+  if (simKind) return simKind
+  const urlInfo = extractUrlInfo(text)
+  if (urlInfo) return { kind: 'url', text, href: urlInfo.href, domain: urlInfo.domain }
+  return null
 }
 
 const BARE_DOMAIN_RE = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/
