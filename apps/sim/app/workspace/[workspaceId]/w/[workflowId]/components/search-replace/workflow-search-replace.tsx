@@ -383,6 +383,7 @@ export function WorkflowSearchReplace() {
     prevQueryRef.current = query
 
     if (hydratedMatches.length === 0) {
+      afterReplaceIndexRef.current = null
       if (activeMatchId) setActiveMatchId(null)
       usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
       return
@@ -431,6 +432,7 @@ export function WorkflowSearchReplace() {
   const handleApply = (matchIds: string[]) => {
     if (!workflowId || isApplying || searchReadOnly) return
     setIsApplying(true)
+    let committed = false
 
     try {
       const selectedIds = new Set(matchIds)
@@ -527,8 +529,10 @@ export function WorkflowSearchReplace() {
         message: `Replaced ${replacedCount} field${replacedCount === 1 ? '' : 's'}.`,
         workflowId,
       })
+      committed = true
     } finally {
       setIsApplying(false)
+      if (!committed) afterReplaceIndexRef.current = null
     }
   }
 
