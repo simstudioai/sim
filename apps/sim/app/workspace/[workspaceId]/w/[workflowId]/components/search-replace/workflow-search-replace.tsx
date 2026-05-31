@@ -390,8 +390,9 @@ export function WorkflowSearchReplace() {
       const replaceIndex = afterReplaceIndexRef.current
       afterReplaceIndexRef.current = null
 
-      if (queryChanged || justOpened) {
-        // Intentional navigation: panel opened or query changed — go to first match.
+      if (queryChanged || justOpened || !activeMatchId) {
+        // Intentional navigation: query changed, panel just opened, or nothing was
+        // ever selected (e.g. hydration resolved after open with no matches) — go to first match.
         handleSelectMatch(hydratedMatches[0].id)
       } else if (replaceIndex !== null) {
         // Replace button was clicked: advance to the match now at the same position (clamped),
