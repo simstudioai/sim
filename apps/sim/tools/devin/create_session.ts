@@ -1,6 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 import type { DevinCreateSessionParams, DevinCreateSessionResponse } from './types'
 import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
+import { normalizeTags } from './utils'
 
 export const devinCreateSessionTool: ToolConfig<
   DevinCreateSessionParams,
@@ -66,9 +67,8 @@ export const devinCreateSessionTool: ToolConfig<
       if (params.maxAcuLimit != null) {
         body.max_acu_limit = params.maxAcuLimit
       }
-      if (params.tags) {
-        body.tags = params.tags.split(',').map((t: string) => t.trim())
-      }
+      const tags = normalizeTags(params.tags)
+      if (tags.length > 0) body.tags = tags
       return body
     },
   },

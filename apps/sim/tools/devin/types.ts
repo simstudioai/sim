@@ -6,7 +6,7 @@ export interface DevinCreateSessionParams {
   prompt: string
   playbookId?: string
   maxAcuLimit?: number
-  tags?: string
+  tags?: string | string[]
 }
 
 export interface DevinGetSessionParams {
@@ -53,14 +53,14 @@ export interface DevinAppendSessionTagsParams {
   apiKey: string
   orgId: string
   sessionId: string
-  tags: string
+  tags: string | string[]
 }
 
 export interface DevinReplaceSessionTagsParams {
   apiKey: string
   orgId: string
   sessionId: string
-  tags: string
+  tags: string | string[]
 }
 
 export interface DevinArchiveSessionParams {

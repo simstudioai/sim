@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { DevinAppendSessionTagsParams, DevinSessionTagsResponse } from './types'
+import { normalizeTags } from './utils'
 
 export const devinAppendSessionTagsTool: ToolConfig<
   DevinAppendSessionTagsParams,
@@ -33,7 +34,7 @@ export const devinAppendSessionTagsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated tags to append to the session',
+      description: 'Tags to append to the session (comma-separated string or array of strings)',
     },
   },
 
@@ -46,10 +47,7 @@ export const devinAppendSessionTagsTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => ({
-      tags: params.tags
-        .split(',')
-        .map((t: string) => t.trim())
-        .filter(Boolean),
+      tags: normalizeTags(params.tags),
     }),
   },
 

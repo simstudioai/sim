@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { DevinReplaceSessionTagsParams, DevinSessionTagsResponse } from './types'
+import { normalizeTags } from './utils'
 
 export const devinReplaceSessionTagsTool: ToolConfig<
   DevinReplaceSessionTagsParams,
@@ -33,7 +34,8 @@ export const devinReplaceSessionTagsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated tags that will overwrite the existing tags',
+      description:
+        'Tags that will overwrite the existing tags (comma-separated string or array of strings)',
     },
   },
 
@@ -46,10 +48,7 @@ export const devinReplaceSessionTagsTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => ({
-      tags: params.tags
-        .split(',')
-        .map((t: string) => t.trim())
-        .filter(Boolean),
+      tags: normalizeTags(params.tags),
     }),
   },
 

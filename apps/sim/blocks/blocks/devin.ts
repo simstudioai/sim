@@ -108,8 +108,11 @@ RULES:
       title: 'Tags',
       type: 'short-input',
       placeholder: 'Comma-separated tags',
-      condition: { field: 'operation', value: 'create_session' },
-      mode: 'advanced',
+      required: { field: 'operation', value: ['append_session_tags', 'replace_session_tags'] },
+      condition: {
+        field: 'operation',
+        value: ['create_session', 'append_session_tags', 'replace_session_tags'],
+      },
     },
     {
       id: 'sessionId',
@@ -126,14 +129,6 @@ RULES:
       placeholder: 'Enter message to send to Devin...',
       required: { field: 'operation', value: 'send_message' },
       condition: { field: 'operation', value: 'send_message' },
-    },
-    {
-      id: 'sessionTags',
-      title: 'Tags',
-      type: 'short-input',
-      placeholder: 'Comma-separated tags (max 50)',
-      required: { field: 'operation', value: ['append_session_tags', 'replace_session_tags'] },
-      condition: { field: 'operation', value: ['append_session_tags', 'replace_session_tags'] },
     },
     {
       id: 'limit',
@@ -189,9 +184,6 @@ RULES:
           const parsed = Number(params.limit)
           params.limit = Number.isFinite(parsed) ? parsed : undefined
         }
-        if (params.sessionTags != null && params.sessionTags !== '') {
-          params.tags = params.sessionTags
-        }
         if (typeof params.terminateArchive === 'string') {
           params.archive = params.terminateArchive === 'true'
         }
@@ -207,8 +199,7 @@ RULES:
     orgId: { type: 'string', description: 'Devin organization ID' },
     playbookId: { type: 'string', description: 'Playbook ID to guide the session' },
     maxAcuLimit: { type: 'number', description: 'Maximum ACU limit' },
-    tags: { type: 'string', description: 'Comma-separated tags' },
-    sessionTags: { type: 'string', description: 'Comma-separated tags to append or replace' },
+    tags: { type: 'string', description: 'Tags (comma-separated string or array of strings)' },
     limit: { type: 'number', description: 'Maximum number of results to return' },
     after: { type: 'string', description: 'Pagination cursor for the next page' },
     terminateArchive: {
