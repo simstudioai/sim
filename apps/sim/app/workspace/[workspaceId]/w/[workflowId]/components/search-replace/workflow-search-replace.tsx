@@ -169,6 +169,9 @@ export function WorkflowSearchReplace() {
       setActiveMatchId: state.setActiveMatchId,
     }))
   )
+  const prevQueryRef = useRef(query)
+  const prevIsOpenRef = useRef(false)
+  const afterReplaceIndexRef = useRef<number | null>(null)
   const { data: workspaceCredentials } = useWorkspaceCredentials({ workspaceId, enabled: isOpen })
 
   useRegisterGlobalCommands([
@@ -311,10 +314,7 @@ export function WorkflowSearchReplace() {
 
     return []
   }, [activeMatch, hydratedMatches])
-  const eligibleMatchIds = useMemo(
-    () => replaceAllTargetMatches.map((match) => match.id),
-    [replaceAllTargetMatches]
-  )
+  const eligibleMatchIds = replaceAllTargetMatches.map((match) => match.id)
   const controlTargetMatches = activeMatch ? [activeMatch] : []
   const usesResourceReplacement = controlTargetMatches.some(isConstrainedResourceMatch)
   const resourceReplacementContextKey =
@@ -324,23 +324,20 @@ export function WorkflowSearchReplace() {
   const replacement = resourceReplacementContextKey
     ? (resourceReplacementByContext[resourceReplacementContextKey] ?? '')
     : textReplacement
-  const handleReplacementChange = useCallback(
-    (nextReplacement: string) => {
-      if (!resourceReplacementContextKey) {
-        setReplacement(nextReplacement)
-        return
-      }
+  const handleReplacementChange = (nextReplacement: string) => {
+    if (!resourceReplacementContextKey) {
+      setReplacement(nextReplacement)
+      return
+    }
 
-      setResourceReplacementByContext((current) => ({
-        ...current,
-        [resourceReplacementContextKey]: nextReplacement,
-      }))
-    },
-    [resourceReplacementContextKey, setReplacement]
-  )
-  const compatibleResourceOptions = useMemo(
-    () => getCompatibleResourceReplacementOptions(controlTargetMatches, resourceOptions),
-    [controlTargetMatches, resourceOptions]
+    setResourceReplacementByContext((current) => ({
+      ...current,
+      [resourceReplacementContextKey]: nextReplacement,
+    }))
+  }
+  const compatibleResourceOptions = getCompatibleResourceReplacementOptions(
+    controlTargetMatches,
+    resourceOptions
   )
   const hasReplacement = replacement.trim().length > 0
   const activeReplacementIssue = activeMatch
@@ -359,25 +356,31 @@ export function WorkflowSearchReplace() {
         })
       : 'No replaceable matches.'
 
-  const applySubflowUpdate = useCallback(
-    (update: WorkflowSearchReplaceSubflowUpdate) => {
-      if (update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations) {
-        if (typeof update.nextValue !== 'number') return
-        collaborativeUpdateIterationCount(update.blockId, update.blockType, update.nextValue)
-        return
-      }
+  const applySubflowUpdate = (update: WorkflowSearchReplaceSubflowUpdate) => {
+    if (update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations) {
+      if (typeof update.nextValue !== 'number') return
+      collaborativeUpdateIterationCount(update.blockId, update.blockType, update.nextValue)
+      return
+    }
 
-      collaborativeUpdateIterationCollection(
-        update.blockId,
-        update.blockType,
-        String(update.nextValue)
-      )
-    },
-    [collaborativeUpdateIterationCollection, collaborativeUpdateIterationCount]
-  )
+    collaborativeUpdateIterationCollection(
+      update.blockId,
+      update.blockType,
+      String(update.nextValue)
+    )
+  }
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) {
+      prevIsOpenRef.current = false
+      usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
+      return
+    }
+
+    const justOpened = !prevIsOpenRef.current
+    prevIsOpenRef.current = true
+    const queryChanged = prevQueryRef.current !== query
+    prevQueryRef.current = query
 
     if (hydratedMatches.length === 0) {
       if (activeMatchId) setActiveMatchId(null)
@@ -386,7 +389,22 @@ export function WorkflowSearchReplace() {
     }
 
     if (!activeMatchId || !hydratedMatches.some((match) => match.id === activeMatchId)) {
-      handleSelectMatch(hydratedMatches[0].id)
+      const replaceIndex = afterReplaceIndexRef.current
+      afterReplaceIndexRef.current = null
+
+      if (queryChanged || justOpened) {
+        // Intentional navigation: panel opened or query changed — go to first match.
+        handleSelectMatch(hydratedMatches[0].id)
+      } else if (replaceIndex !== null) {
+        // Replace button was clicked: advance to the match now at the same position (clamped),
+        // which is the next match after the one that was just replaced.
+        handleSelectMatch(hydratedMatches[Math.min(replaceIndex, hydratedMatches.length - 1)].id)
+      } else {
+        // Content edited manually — don't steal focus or switch panels.
+        // Deselect so the user can navigate explicitly with the arrow keys.
+        setActiveMatchId(null)
+        usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
+      }
       return
     }
 
@@ -401,8 +419,12 @@ export function WorkflowSearchReplace() {
 
   const handleMoveActiveMatch = (delta: number) => {
     if (hydratedMatches.length === 0) return
-    const currentIndex = activeMatchIndex >= 0 ? activeMatchIndex : 0
-    const nextIndex = (currentIndex + delta + hydratedMatches.length) % hydratedMatches.length
+    if (activeMatchIndex < 0) {
+      // Nothing selected: ↓ goes to first match, ↑ goes to last.
+      handleSelectMatch(hydratedMatches[delta > 0 ? 0 : hydratedMatches.length - 1].id)
+      return
+    }
+    const nextIndex = (activeMatchIndex + delta + hydratedMatches.length) % hydratedMatches.length
     handleSelectMatch(hydratedMatches[nextIndex].id)
   }
 
@@ -512,6 +534,7 @@ export function WorkflowSearchReplace() {
 
   const handleReplaceActive = () => {
     if (!activeMatch) return
+    afterReplaceIndexRef.current = activeMatchIndex
     handleApply([activeMatch.id])
   }
 
@@ -522,7 +545,9 @@ export function WorkflowSearchReplace() {
   const matchCountLabel =
     hydratedMatches.length === 0
       ? 'No results'
-      : `${activeMatchIndex >= 0 ? activeMatchIndex + 1 : 1} of ${hydratedMatches.length}`
+      : activeMatchIndex >= 0
+        ? `${activeMatchIndex + 1} of ${hydratedMatches.length}`
+        : `0 of ${hydratedMatches.length}`
   return (
     <div
       role='dialog'
@@ -566,7 +591,7 @@ export function WorkflowSearchReplace() {
         >
           <ChevronRight
             className={cn(
-              'h-[14px] w-[14px] text-[var(--text-icon)] transition-transform',
+              'size-[14px] text-[var(--text-icon)] transition-transform',
               isReplaceExpanded && 'rotate-90'
             )}
           />
