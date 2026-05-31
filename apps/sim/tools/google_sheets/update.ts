@@ -63,7 +63,7 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
       const range = params.range || 'Sheet1!A2'
 
       const url = new URL(
-        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/${encodeURIComponent(range)}`
+        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId?.trim()}/values/${encodeURIComponent(range)}`
       )
 
       // Default to USER_ENTERED if not specified
@@ -251,7 +251,7 @@ export const updateV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Up
       const fullRange = `${sheetName}!${cellRange}`
 
       const url = new URL(
-        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/${encodeURIComponent(fullRange)}`
+        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId?.trim()}/values/${encodeURIComponent(fullRange)}`
       )
 
       const valueInputOption = params.valueInputOption || 'USER_ENTERED'
