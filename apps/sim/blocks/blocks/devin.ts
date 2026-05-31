@@ -184,8 +184,11 @@ RULES:
           const parsed = Number(params.limit)
           params.limit = Number.isFinite(parsed) ? parsed : undefined
         }
-        if (typeof params.terminateArchive === 'string') {
-          params.archive = params.terminateArchive === 'true'
+        if (params.terminateArchive != null && params.terminateArchive !== '') {
+          params.archive =
+            typeof params.terminateArchive === 'boolean'
+              ? params.terminateArchive
+              : params.terminateArchive === 'true'
         }
         return params
       },
