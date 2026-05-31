@@ -821,7 +821,7 @@ describe('Files Parse API - Path Traversal Security', () => {
       const response = await POST(request)
       const result = await response.json()
 
-      expect(result.error ?? '').not.toContain('path traversal detected')
+      expect(result.success).toBe(true)
       // The URL reaching the pinned fetch proves it passed validation and routed
       // to external-URL handling rather than being rejected as a local path.
       expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
