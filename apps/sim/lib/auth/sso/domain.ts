@@ -19,7 +19,10 @@ export function normalizeSSODomain(input: string): string | null {
   value = value.replace(/\.$/, '')
 
   if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(value)) return null
-  if (value.split('.').some((label) => label.length === 0 || label.length > 63)) return null
+
+  const labels = value.split('.')
+  if (labels.some((label) => label.length === 0 || label.length > 63)) return null
+  if (/^\d+$/.test(labels[labels.length - 1])) return null
 
   return value
 }
