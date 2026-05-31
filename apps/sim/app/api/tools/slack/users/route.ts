@@ -12,12 +12,20 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SlackUsersAPI')
 
+const SLACK_PAGE_LIMIT = 200
+const SLACK_MAX_USER_PAGES = 10
+
 interface SlackUser {
   id: string
   name: string
   real_name: string
   deleted: boolean
   is_bot: boolean
+}
+
+interface SlackUsersResult {
+  members: SlackUser[]
+  truncated: boolean
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
@@ -86,6 +94,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const data = await fetchSlackUsers(accessToken)
+    if (data.truncated) {
+      logger.warn('users.list hit pagination cap; user list may be incomplete')
+    }
 
     const users = (data.members || [])
       .filter((user: SlackUser) => !user.deleted && !user.is_bot)
@@ -134,27 +145,53 @@ async function fetchSlackUser(accessToken: string, userId: string) {
   return data
 }
 
-async function fetchSlackUsers(accessToken: string) {
-  const url = new URL('https://slack.com/api/users.list')
-  url.searchParams.append('limit', '200')
+/**
+ * Lists Slack workspace members, following `response_metadata.next_cursor` so
+ * the full set is returned. Bounded by `SLACK_MAX_USER_PAGES`; sets `truncated`
+ * rather than silently dropping members when the cap is hit.
+ */
+async function fetchSlackUsers(accessToken: string): Promise<SlackUsersResult> {
+  const members: SlackUser[] = []
+  let cursor: string | undefined
+  let truncated = false
 
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-  })
+  for (let page = 0; page < SLACK_MAX_USER_PAGES; page++) {
+    const url = new URL('https://slack.com/api/users.list')
+    url.searchParams.append('limit', String(SLACK_PAGE_LIMIT))
+    if (cursor) {
+      url.searchParams.append('cursor', cursor)
+    }
 
-  if (!response.ok) {
-    throw new Error(`Slack API error: ${response.status} ${response.statusText}`)
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Slack API error: ${response.status} ${response.statusText}`)
+    }
+
+    const data = await response.json()
+
+    if (!data.ok) {
+      throw new Error(data.error || 'Failed to fetch users')
+    }
+
+    if (Array.isArray(data.members)) {
+      members.push(...data.members)
+    }
+
+    cursor = data.response_metadata?.next_cursor?.trim() || undefined
+    if (!cursor) {
+      return { members, truncated }
+    }
+    if (page === SLACK_MAX_USER_PAGES - 1) {
+      truncated = true
+    }
   }
 
-  const data = await response.json()
-
-  if (!data.ok) {
-    throw new Error(data.error || 'Failed to fetch users')
-  }
-
-  return data
+  return { members, truncated }
 }

@@ -13,6 +13,48 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('LinearTeamsAPI')
 
+/** Linear's maximum page size for a single connection request. */
+const LINEAR_PAGE_SIZE = 250
+
+/**
+ * Upper bound on pages to drain from the teams connection. At 250 teams/page
+ * this covers 2,500 teams; the cap guards against runaway loops on a broken
+ * `hasNextPage` rather than a realistic limit.
+ */
+const MAX_TEAMS_PAGES = 10
+
+/**
+ * Drains the full Linear teams connection by following
+ * `pageInfo.endCursor` until `hasNextPage` is false. Bounded by
+ * `MAX_TEAMS_PAGES`; logs a warning if the cap is hit so a truncated list is
+ * visible rather than silently dropped.
+ */
+async function fetchAllTeams(linearClient: LinearClient): Promise<Team[]> {
+  const teams: Team[] = []
+  let after: string | undefined
+
+  for (let page = 0; page < MAX_TEAMS_PAGES; page++) {
+    const result = await linearClient.teams({ first: LINEAR_PAGE_SIZE, after })
+    teams.push(...result.nodes)
+
+    if (!result.pageInfo.hasNextPage) {
+      return teams
+    }
+    after = result.pageInfo.endCursor ?? undefined
+    if (!after) {
+      return teams
+    }
+    if (page === MAX_TEAMS_PAGES - 1) {
+      logger.warn('Linear teams pagination hit cap; team list may be incomplete', {
+        cap: MAX_TEAMS_PAGES,
+        fetched: teams.length,
+      })
+    }
+  }
+
+  return teams
+}
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const requestId = generateRequestId()
@@ -45,8 +87,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const linearClient = new LinearClient({ accessToken })
-    const teamsResult = await linearClient.teams()
-    const teams = teamsResult.nodes.map((team: Team) => ({
+    const allTeams = await fetchAllTeams(linearClient)
+    const teams = allTeams.map((team: Team) => ({
       id: team.id,
       name: team.name,
     }))

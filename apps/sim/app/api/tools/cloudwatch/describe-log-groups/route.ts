@@ -10,6 +10,12 @@ import { createCloudWatchLogsClient } from '@/app/api/tools/cloudwatch/utils'
 
 const logger = createLogger('CloudWatchDescribeLogGroups')
 
+/** AWS DescribeLogGroups caps `limit` at 50 items per page. */
+const LOG_GROUPS_PAGE_SIZE = 50
+
+/** Upper bound on pages drained to avoid unbounded loops on very large accounts. */
+const MAX_LOG_GROUPS_PAGES = 20
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
@@ -33,26 +39,58 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     try {
-      const command = new DescribeLogGroupsCommand({
-        ...(validatedData.prefix && { logGroupNamePrefix: validatedData.prefix }),
-        ...(validatedData.limit !== undefined && { limit: validatedData.limit }),
-      })
+      const totalLimit = validatedData.limit
+      const logGroups: {
+        logGroupName: string
+        arn: string
+        storedBytes: number
+        retentionInDays: number | undefined
+        creationTime: number | undefined
+      }[] = []
+      let nextToken: string | undefined
 
-      const response = await client.send(command)
+      for (let page = 0; page < MAX_LOG_GROUPS_PAGES; page++) {
+        const pageLimit =
+          totalLimit !== undefined
+            ? Math.min(LOG_GROUPS_PAGE_SIZE, totalLimit - logGroups.length)
+            : LOG_GROUPS_PAGE_SIZE
 
-      const logGroups = (response.logGroups ?? []).map((lg) => ({
-        logGroupName: lg.logGroupName ?? '',
-        arn: lg.arn ?? '',
-        storedBytes: lg.storedBytes ?? 0,
-        retentionInDays: lg.retentionInDays,
-        creationTime: lg.creationTime,
-      }))
+        const command = new DescribeLogGroupsCommand({
+          ...(validatedData.prefix && { logGroupNamePrefix: validatedData.prefix }),
+          limit: pageLimit,
+          ...(nextToken && { nextToken }),
+        })
 
-      logger.info(`Successfully described ${logGroups.length} log groups`)
+        const response = await client.send(command)
+
+        for (const lg of response.logGroups ?? []) {
+          logGroups.push({
+            logGroupName: lg.logGroupName ?? '',
+            arn: lg.arn ?? '',
+            storedBytes: lg.storedBytes ?? 0,
+            retentionInDays: lg.retentionInDays,
+            creationTime: lg.creationTime,
+          })
+        }
+
+        nextToken = response.nextToken
+        if (!nextToken) break
+        if (totalLimit !== undefined && logGroups.length >= totalLimit) break
+
+        if (page === MAX_LOG_GROUPS_PAGES - 1) {
+          logger.warn(
+            `DescribeLogGroups hit pagination cap of ${MAX_LOG_GROUPS_PAGES} pages; log group list may be incomplete`
+          )
+        }
+      }
+
+      const cappedLogGroups = totalLimit !== undefined ? logGroups.slice(0, totalLimit) : logGroups
+
+      logger.info(`Successfully described ${cappedLogGroups.length} log groups`)
 
       return NextResponse.json({
         success: true,
-        output: { logGroups },
+        output: { logGroups: cappedLogGroups },
       })
     } finally {
       client.destroy()
