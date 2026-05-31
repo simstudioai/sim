@@ -9,7 +9,7 @@ vi.mock('@sim/db', () => dbChainMock)
 import {
   appendCopilotChatMessages,
   replaceCopilotChatMessages,
-} from '@/lib/copilot/chat/messages-dual-write'
+} from '@/lib/copilot/chat/messages-store'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 
 const userMsg: PersistedMessage = {
@@ -32,7 +32,7 @@ function lastValuesRows() {
   return calls[calls.length - 1][0] as Array<Record<string, unknown>>
 }
 
-describe('messages-dual-write', () => {
+describe('messages-store', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -124,10 +124,12 @@ describe('messages-dual-write', () => {
       expect(rows[0].messageId).toBe('msg-user-1')
     })
 
-    it('swallows DB errors so the legacy JSONB write stays canonical', async () => {
+    it('propagates DB errors — copilot_messages is the sole store', async () => {
       dbChainMockFns.onConflictDoUpdate.mockRejectedValueOnce(new Error('connection lost'))
 
-      await expect(appendCopilotChatMessages('chat-1', [userMsg])).resolves.toBeUndefined()
+      await expect(appendCopilotChatMessages('chat-1', [userMsg])).rejects.toThrow(
+        'connection lost'
+      )
     })
   })
 
@@ -185,10 +187,10 @@ describe('messages-dual-write', () => {
       expect(rows[0].model).toBe('gpt-4o-mini')
     })
 
-    it('swallows DB errors so the legacy JSONB write stays canonical', async () => {
+    it('propagates DB errors — the snapshot is authoritative', async () => {
       dbChainMockFns.transaction.mockRejectedValueOnce(new Error('tx aborted'))
 
-      await expect(replaceCopilotChatMessages('chat-1', [userMsg])).resolves.toBeUndefined()
+      await expect(replaceCopilotChatMessages('chat-1', [userMsg])).rejects.toThrow('tx aborted')
     })
   })
 })

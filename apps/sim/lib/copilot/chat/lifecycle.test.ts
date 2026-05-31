@@ -122,13 +122,15 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
   })
 
   it('resolveOrCreateChat creates a new chat with an empty transcript', async () => {
-    // insert().values().returning() -> fresh chat with empty messages
-    dbChainMockFns.returning.mockResolvedValueOnce([{ ...chatRow, messages: [] }])
+    dbChainMockFns.returning.mockResolvedValueOnce([chatRow])
 
     const result = await resolveOrCreateChat({ userId: USER_ID, model: 'm' })
 
     expect(result.isNew).toBe(true)
     expect(result.conversationHistory).toEqual([])
+    expect(result.chat?.messages).toEqual([])
+    const insertValues = dbChainMockFns.values.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(Object.hasOwn(insertValues, 'messages')).toBe(false)
     // a brand-new chat must not trigger a messages read
     expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
   })
