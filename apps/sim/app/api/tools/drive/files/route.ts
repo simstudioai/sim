@@ -7,11 +7,20 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { drainGooglePagedList, GooglePageError } from '@/lib/oauth/google-pagination'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GoogleDriveFilesAPI')
+
+const MAX_DRIVE_FILE_PAGES = 20
+const DRIVE_FILE_PAGE_SIZE = 100
+
+interface DriveFilesResponse {
+  files?: DriveFile[]
+  nextPageToken?: string
+}
 
 function escapeForDriveQuery(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
@@ -138,33 +147,55 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (query) {
       qParts.push(`name contains '${escapeForDriveQuery(query)}'`)
     }
-    const q = encodeURIComponent(qParts.join(' and '))
+    const q = qParts.join(' and ')
 
-    const response = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=${q}&corpora=allDrives&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners,parents)`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
+    let files: DriveFile[]
+    try {
+      const drained = await drainGooglePagedList<DriveFile, DriveFilesResponse>({
+        buildUrl: (pageToken) => {
+          const url = new URL('https://www.googleapis.com/drive/v3/files')
+          url.searchParams.set('q', q)
+          url.searchParams.set('corpora', 'allDrives')
+          url.searchParams.set('supportsAllDrives', 'true')
+          url.searchParams.set('includeItemsFromAllDrives', 'true')
+          url.searchParams.set('pageSize', String(DRIVE_FILE_PAGE_SIZE))
+          url.searchParams.set(
+            'fields',
+            'nextPageToken,files(id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners,parents)'
+          )
+          if (pageToken) url.searchParams.set('pageToken', pageToken)
+          return url.toString()
         },
-      }
-    )
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
-      logger.error(`[${requestId}] Google Drive API error`, {
-        status: response.status,
-        error: error.error?.message || 'Failed to fetch files from Google Drive',
+        fetch: (url) =>
+          fetch(url, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }),
+        parseError: (response) =>
+          response.json().catch(() => ({ error: { message: 'Unknown error' } })),
+        getItems: (body) => body.files,
+        getNextPageToken: (body) => body.nextPageToken,
+        maxPages: MAX_DRIVE_FILE_PAGES,
+        label: 'Google Drive files',
       })
-      return NextResponse.json(
-        {
-          error: error.error?.message || 'Failed to fetch files from Google Drive',
-        },
-        { status: response.status }
-      )
+      files = drained.items
+    } catch (error) {
+      if (error instanceof GooglePageError) {
+        const errorBody = error.body as { error?: { message?: string } }
+        logger.error(`[${requestId}] Google Drive API error`, {
+          status: error.status,
+          error: errorBody?.error?.message || 'Failed to fetch files from Google Drive',
+        })
+        return NextResponse.json(
+          {
+            error: errorBody?.error?.message || 'Failed to fetch files from Google Drive',
+          },
+          { status: error.status }
+        )
+      }
+      throw error
     }
-
-    const data = await response.json()
-    let files: DriveFile[] = data.files || []
 
     if (mimeType === 'application/vnd.google-apps.spreadsheet') {
       files = files.filter(
