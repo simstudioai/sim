@@ -62,6 +62,7 @@ export const downloadArtifactTool: ToolConfig<DownloadArtifactParams, DownloadAr
         metadata: {
           name: data.output.file.name,
           mimeType: data.output.file.mimeType,
+          data: data.output.file.data,
           size: data.output.file.size,
         },
       },
@@ -76,6 +77,7 @@ export const downloadArtifactTool: ToolConfig<DownloadArtifactParams, DownloadAr
       properties: {
         name: { type: 'string', description: 'File name' },
         mimeType: { type: 'string', description: 'MIME type' },
+        data: { type: 'string', description: 'Base64-encoded file contents' },
         size: { type: 'number', description: 'File size in bytes' },
       },
     },

@@ -210,6 +210,7 @@ export interface DownloadArtifactResponse extends ToolResponse {
     metadata: {
       name: string
       mimeType: string
+      data: string
       size: number
     }
   }
