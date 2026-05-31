@@ -84,12 +84,11 @@ export const listRepositoriesV2Tool: ToolConfig<
   version: '2.0.0',
   transformResponse: async (response) => {
     const data = await response.json()
-    const repositories = data.repositories ?? []
 
     return {
       success: true,
       output: {
-        repositories: Array.isArray(repositories) ? repositories : [],
+        repositories: Array.isArray(data.repositories) ? data.repositories : [],
       },
     }
   },
