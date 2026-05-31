@@ -84,6 +84,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }),
       })
 
+      if (!response.ok) {
+        const details = await response.text().catch(() => '')
+        logger.error('Monday.com API HTTP error', {
+          status: response.status,
+          statusText: response.statusText,
+          details,
+        })
+        return NextResponse.json(
+          { error: `Monday.com API error: ${response.status} ${response.statusText}` },
+          { status: 500 }
+        )
+      }
+
       const data = (await response.json()) as MondayBoardsResponse
 
       if (data.errors?.length) {

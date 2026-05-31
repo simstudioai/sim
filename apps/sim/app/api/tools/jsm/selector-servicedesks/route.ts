@@ -60,11 +60,11 @@ async function fetchAllJsmServiceDesks(
     const pageValues = data.values ?? []
     values.push(...pageValues)
 
-    if (data.isLastPage === true || !data._links?.next) {
+    if (data.isLastPage === true || !data._links?.next || pageValues.length === 0) {
       return { values, lastResponse }
     }
 
-    start += JSM_SERVICE_DESKS_PAGE_SIZE
+    start += pageValues.length
 
     if (page === MAX_JSM_SERVICE_DESKS_PAGES - 1) {
       logger.warn('JSM service desk list hit pagination cap; list may be incomplete', {

@@ -60,11 +60,11 @@ async function fetchAllJsmRequestTypes(
     const pageValues = data.values ?? []
     values.push(...pageValues)
 
-    if (data.isLastPage === true || !data._links?.next) {
+    if (data.isLastPage === true || !data._links?.next || pageValues.length === 0) {
       return { values, lastResponse }
     }
 
-    start += JSM_REQUEST_TYPES_PAGE_SIZE
+    start += pageValues.length
 
     if (page === MAX_JSM_REQUEST_TYPES_PAGES - 1) {
       logger.warn('JSM request type list hit pagination cap; list may be incomplete', {
