@@ -426,8 +426,9 @@ export function WorkflowSearchReplace() {
     handleSelectMatch(hydratedMatches[nextIndex].id)
   }
 
-  const handleApply = (matchIds: string[]) => {
+  const handleApply = (matchIds: string[], replaceActiveIndex?: number) => {
     if (!workflowId || isApplying || searchReadOnly) return
+    if (replaceActiveIndex !== undefined) afterReplaceIndexRef.current = replaceActiveIndex
     setIsApplying(true)
     let committed = false
 
@@ -535,8 +536,7 @@ export function WorkflowSearchReplace() {
 
   const handleReplaceActive = () => {
     if (!activeMatch) return
-    afterReplaceIndexRef.current = activeMatchIndex
-    handleApply([activeMatch.id])
+    handleApply([activeMatch.id], activeMatchIndex)
   }
 
   const handleReplaceAll = () => {
