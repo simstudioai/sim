@@ -251,10 +251,7 @@ export function WorkflowSearchReplace() {
   )
 
   useEffect(() => {
-    if (!isOpen) {
-      usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
-      return
-    }
+    if (!isOpen) return
     searchInputRef.current?.focus()
     searchInputRef.current?.select()
   }, [isOpen])
