@@ -796,6 +796,39 @@ describe('Files Parse API - Path Traversal Security', () => {
       }
     })
 
+    it('should not treat .. inside external URLs as path traversal', async () => {
+      inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+        isValid: true,
+        resolvedIP: '203.0.113.10',
+      })
+      inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+        new Response('slack file content', {
+          status: 200,
+          headers: { 'content-type': 'text/plain' },
+        })
+      )
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+
+      // Slack truncates long titles with a literal ellipsis, so the slug contains `..`
+      const slackUrl =
+        'https://files.slack.com/files-pri/T08-F0B/_other__no_invitation_messages_get_sent_-_sim_on_railway...txt'
+
+      const request = new NextRequest('http://localhost:3000/api/files/parse', {
+        method: 'POST',
+        body: JSON.stringify({ filePath: slackUrl, workspaceId: 'workspace-id' }),
+      })
+
+      const response = await POST(request)
+      const result = await response.json()
+
+      expect(result.error).not.toMatch(/Access denied: path traversal detected/)
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+        slackUrl,
+        '203.0.113.10',
+        expect.any(Object)
+      )
+    })
+
     it('should handle encoded path traversal attempts', async () => {
       const encodedMaliciousPaths = [
         '/api/files/serve/%2e%2e%2f%2e%2e%2fetc%2fpasswd', // ../../../etc/passwd

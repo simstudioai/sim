@@ -419,11 +419,24 @@ function assertParsedContentWithinLimit(content: string, maxBytes?: number): str
 }
 
 /**
- * Validate file path for security - prevents null byte injection and path traversal attacks
+ * Validate file path for security - prevents null byte injection and path traversal attacks.
+ *
+ * External URLs (`http`/`https`) are fetched over HTTP — with SSRF protection applied
+ * downstream in `fetchExternalUrlToWorkspace` (DNS resolution + private/reserved IP blocking)
+ * — and are never resolved against the filesystem, so `..`/`~` are legal URL content and must
+ * not be rejected. Providers such as Slack routinely emit slugs containing a literal `...`.
+ *
+ * Internal file URLs (`/api/files/serve/...`) ARE resolved to storage keys and filesystem
+ * paths via `extractStorageKey`, so they keep full traversal protection — only the leading-`/`
+ * "outside allowed directory" check is relaxed for them, since that prefix is expected.
  */
 function validateFilePath(filePath: string): { isValid: boolean; error?: string } {
   if (filePath.includes('\0')) {
     return { isValid: false, error: 'Invalid path: null byte detected' }
+  }
+
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return { isValid: true }
   }
 
   if (filePath.includes('..')) {
