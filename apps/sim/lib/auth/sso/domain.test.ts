@@ -35,4 +35,10 @@ describe('normalizeSSODomain', () => {
     expect(normalizeSSODomain('not a domain')).toBeNull()
     expect(normalizeSSODomain('company')).toBeNull()
   })
+
+  it('rejects bare IP addresses and numeric TLDs', () => {
+    expect(normalizeSSODomain('10.0.0.1')).toBeNull()
+    expect(normalizeSSODomain('192.168.1.1')).toBeNull()
+    expect(normalizeSSODomain('company.123')).toBeNull()
+  })
 })
