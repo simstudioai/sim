@@ -391,16 +391,10 @@ export function WorkflowSearchReplace() {
       afterReplaceIndexRef.current = null
 
       if (queryChanged || justOpened || !activeMatchId) {
-        // Intentional navigation: query changed, panel just opened, or nothing was
-        // ever selected (e.g. hydration resolved after open with no matches) — go to first match.
         handleSelectMatch(hydratedMatches[0].id)
       } else if (replaceIndex !== null) {
-        // Replace button was clicked: advance to the match now at the same position (clamped),
-        // which is the next match after the one that was just replaced.
         handleSelectMatch(hydratedMatches[Math.min(replaceIndex, hydratedMatches.length - 1)].id)
       } else {
-        // Content edited manually — don't steal focus or switch panels.
-        // Deselect so the user can navigate explicitly with the arrow keys.
         setActiveMatchId(null)
         usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
       }
@@ -419,7 +413,6 @@ export function WorkflowSearchReplace() {
   const handleMoveActiveMatch = (delta: number) => {
     if (hydratedMatches.length === 0) return
     if (activeMatchIndex < 0) {
-      // Nothing selected: ↓ goes to first match, ↑ goes to last.
       handleSelectMatch(hydratedMatches[delta > 0 ? 0 : hydratedMatches.length - 1].id)
       return
     }
