@@ -971,6 +971,13 @@ function toRawPersistedContentBlock(block: ContentBlock): Record<string, unknown
   const persisted = toRawPersistedContentBlockBody(block)
   if (!persisted) return null
   if (block.parentToolCallId) persisted.parentToolCallId = block.parentToolCallId
+  // Carry deterministic span identity onto the live streaming snapshot so the
+  // rendered live message nests subagents via the span tree. Without this the
+  // live blocks lose spanId and parseBlocks falls back to legacy flat grouping,
+  // rendering nested subagents (e.g. deploy) at the top level mid-stream until
+  // the persisted message (which keeps spanId) replaces it.
+  if (block.spanId) persisted.spanId = block.spanId
+  if (block.parentSpanId) persisted.parentSpanId = block.parentSpanId
   return withBlockTiming(persisted, block)
 }
 
@@ -2616,8 +2623,21 @@ export function useChat(
       let activeSubagentParentToolCallId: string | undefined
       let activeCompactionId: string | undefined
       const subagentByParentToolCallId = new Map<string, string>()
+      // Deterministic identity index: spanId -> subagent name. Rebuilt on
+      // reconnect from existing blocks so replayed events route to the same
+      // tree node instead of opening a new top-level block.
+      const subagentBySpanId = new Map<string, string>()
 
       if (preserveState) {
+        // Rebuild the span-id index from every subagent marker so replayed
+        // events nest correctly after a reconnect.
+        for (const block of blocks) {
+          if (block.type === 'subagent' && block.spanId && block.content) {
+            subagentBySpanId.set(block.spanId, block.content)
+          }
+        }
+        // Restore the most recent still-open subagent for the legacy
+        // (no-spanId) routing fallback.
         for (let i = blocks.length - 1; i >= 0; i--) {
           if (blocks[i].type === 'subagent' && blocks[i].content) {
             activeSubagent = blocks[i].content
@@ -2654,13 +2674,15 @@ export function useChat(
       const ensureTextBlock = (
         subagentName: string | undefined,
         parentToolCallId: string | undefined,
-        ts?: string
+        ts?: string,
+        identity?: { spanId?: string; parentSpanId?: string }
       ): ContentBlock => {
         const last = blocks[blocks.length - 1]
         if (
           last?.type === 'text' &&
           last.subagent === subagentName &&
-          last.parentToolCallId === parentToolCallId
+          last.parentToolCallId === parentToolCallId &&
+          last.spanId === identity?.spanId
         ) {
           return last
         }
@@ -2668,6 +2690,8 @@ export function useChat(
         const b: ContentBlock = { type: 'text', content: '', timestamp: toEventMs(ts) }
         if (subagentName) b.subagent = subagentName
         if (parentToolCallId) b.parentToolCallId = parentToolCallId
+        if (identity?.spanId) b.spanId = identity.spanId
+        if (identity?.parentSpanId) b.parentSpanId = identity.parentSpanId
         blocks.push(b)
         return b
       }
@@ -2675,14 +2699,16 @@ export function useChat(
       const ensureThinkingBlock = (
         subagentName: string | undefined,
         parentToolCallId: string | undefined,
-        ts?: string
+        ts?: string,
+        identity?: { spanId?: string; parentSpanId?: string }
       ): ContentBlock => {
         const targetType = subagentName ? 'subagent_thinking' : 'thinking'
         const last = blocks[blocks.length - 1]
         if (
           last?.type === targetType &&
           last.subagent === subagentName &&
-          last.parentToolCallId === parentToolCallId
+          last.parentToolCallId === parentToolCallId &&
+          last.spanId === identity?.spanId
         ) {
           return last
         }
@@ -2690,15 +2716,22 @@ export function useChat(
         const b: ContentBlock = { type: targetType, content: '', timestamp: toEventMs(ts) }
         if (subagentName) b.subagent = subagentName
         if (parentToolCallId) b.parentToolCallId = parentToolCallId
+        if (identity?.spanId) b.spanId = identity.spanId
+        if (identity?.parentSpanId) b.parentSpanId = identity.parentSpanId
         blocks.push(b)
         return b
       }
 
       const resolveScopedSubagent = (
         agentId: string | undefined,
-        parentToolCallId: string | undefined
+        parentToolCallId: string | undefined,
+        spanId?: string
       ): string | undefined => {
         if (agentId) return agentId
+        if (spanId) {
+          const scoped = subagentBySpanId.get(spanId)
+          if (scoped) return scoped
+        }
         if (parentToolCallId) {
           const scoped = subagentByParentToolCallId.get(parentToolCallId)
           if (scoped) return scoped
@@ -2894,7 +2927,23 @@ export function useChat(
               : undefined
           const scopedAgentId =
             typeof parsed.scope?.agentId === 'string' ? parsed.scope.agentId : undefined
-          const scopedSubagent = resolveScopedSubagent(scopedAgentId, scopedParentToolCallId)
+          const scopedSpanId =
+            typeof parsed.scope?.spanId === 'string' ? parsed.scope.spanId : undefined
+          const scopedParentSpanId =
+            typeof parsed.scope?.parentSpanId === 'string' ? parsed.scope.parentSpanId : undefined
+          const scopedSubagent = resolveScopedSubagent(
+            scopedAgentId,
+            scopedParentToolCallId,
+            scopedSpanId
+          )
+          // Span identity is the deterministic nesting key. Attach it to every
+          // subagent-scoped block so the renderer can build the agent tree
+          // without name/tool-call reverse lookups. `parentToolCallId` is kept
+          // for legacy back-compat and tool linkage.
+          const spanIdentity: { spanId?: string; parentSpanId?: string } = {
+            ...(scopedSpanId ? { spanId: scopedSpanId } : {}),
+            ...(scopedParentSpanId ? { parentSpanId: scopedParentSpanId } : {}),
+          }
           switch (parsed.type) {
             case MothershipStreamV1EventType.session: {
               const payload = parsed.payload
@@ -2965,7 +3014,12 @@ export function useChat(
                     scopedSubagent,
                     scopedParentToolCallId
                   )
-                  const tb = ensureThinkingBlock(scopedSubagent, scopedParentForBlock, eventTs)
+                  const tb = ensureThinkingBlock(
+                    scopedSubagent,
+                    scopedParentForBlock,
+                    eventTs,
+                    spanIdentity
+                  )
                   tb.content = (tb.content ?? '') + chunk
                   flushText()
                   break
@@ -2980,7 +3034,12 @@ export function useChat(
                   scopedSubagent,
                   scopedParentToolCallId
                 )
-                const tb = ensureTextBlock(scopedSubagent, scopedParentForBlock, eventTs)
+                const tb = ensureTextBlock(
+                  scopedSubagent,
+                  scopedParentForBlock,
+                  eventTs,
+                  spanIdentity
+                )
                 const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
                 tb.content = (tb.content ?? '') + normalizedChunk
                 runningText += normalizedChunk
@@ -3363,6 +3422,7 @@ export function useChat(
                   ...(parentToolCallIdForBlock
                     ? { parentToolCallId: parentToolCallIdForBlock }
                     : {}),
+                  ...spanIdentity,
                   timestamp: Date.now(),
                 })
                 if (name === ReadTool.id || isResourceToolName(name)) {
@@ -3556,10 +3616,26 @@ export function useChat(
               const isPendingPause = spanData?.pending === true
               const name = typeof payload.agent === 'string' ? payload.agent : scopedAgentId
               if (payload.event === MothershipStreamV1SpanLifecycleEvent.start && name) {
+                // With span identity, an already-open block for the same spanId
+                // is the canonical dedup signal; fall back to the legacy
+                // name+parentToolCallId match only when spanId is absent.
+                const existingOpenForSpan = scopedSpanId
+                  ? blocks.some(
+                      (b) =>
+                        b.type === 'subagent' &&
+                        b.spanId === scopedSpanId &&
+                        b.endedAt === undefined
+                    )
+                  : false
                 const isSameActiveSubagent =
-                  activeSubagent === name &&
-                  activeSubagentParentToolCallId &&
-                  parentToolCallId === activeSubagentParentToolCallId
+                  existingOpenForSpan ||
+                  (!scopedSpanId &&
+                    activeSubagent === name &&
+                    Boolean(activeSubagentParentToolCallId) &&
+                    parentToolCallId === activeSubagentParentToolCallId)
+                if (scopedSpanId) {
+                  subagentBySpanId.set(scopedSpanId, name)
+                }
                 if (parentToolCallId) {
                   subagentByParentToolCallId.set(parentToolCallId, name)
                 }
@@ -3571,6 +3647,7 @@ export function useChat(
                     type: 'subagent',
                     content: name,
                     ...(parentToolCallId ? { parentToolCallId } : {}),
+                    ...spanIdentity,
                     timestamp: Date.now(),
                   })
                 }
@@ -3591,6 +3668,9 @@ export function useChat(
               } else if (payload.event === MothershipStreamV1SpanLifecycleEvent.end) {
                 if (isPendingPause) {
                   break
+                }
+                if (scopedSpanId) {
+                  subagentBySpanId.delete(scopedSpanId)
                 }
                 if (parentToolCallId) {
                   subagentByParentToolCallId.delete(parentToolCallId)
@@ -3617,7 +3697,19 @@ export function useChat(
                   activeSubagentParentToolCallId = undefined
                 }
                 const endNow = Date.now()
-                if (name) {
+                if (scopedSpanId) {
+                  for (let i = blocks.length - 1; i >= 0; i--) {
+                    const b = blocks[i]
+                    if (
+                      b.type === 'subagent' &&
+                      b.spanId === scopedSpanId &&
+                      b.endedAt === undefined
+                    ) {
+                      b.endedAt = endNow
+                      break
+                    }
+                  }
+                } else if (name) {
                   for (let i = blocks.length - 1; i >= 0; i--) {
                     const b = blocks[i]
                     if (
@@ -3635,6 +3727,7 @@ export function useChat(
                 blocks.push({
                   type: 'subagent_end',
                   ...(parentToolCallId ? { parentToolCallId } : {}),
+                  ...spanIdentity,
                   timestamp: endNow,
                 })
                 flush()

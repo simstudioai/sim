@@ -40,6 +40,7 @@ import {
   flushSubagentThinkingBlock,
   flushThinkingBlock,
   getScopedParentToolCallId,
+  getScopedSpanIdentity,
   getToolCallUI,
   getToolResultErrorMessage,
   handleClientCompletion,
@@ -155,7 +156,15 @@ export async function handleToolEvent(
     context.finalAssistantContent = ''
   }
 
-  await handleCallPhase(event.payload, context, execContext, options, parentToolCallId, scope)
+  await handleCallPhase(
+    event.payload,
+    context,
+    execContext,
+    options,
+    parentToolCallId,
+    scope,
+    getScopedSpanIdentity(event)
+  )
 }
 
 function handleResultPhase(
@@ -230,7 +239,8 @@ async function handleCallPhase(
   execContext: ExecutionContext,
   options: OrchestratorOptions,
   parentToolCallId: string | undefined,
-  scope: ToolScope
+  scope: ToolScope,
+  spanIdentity: { spanId?: string; parentSpanId?: string }
 ): Promise<void> {
   const { toolCallId, toolName } = data
   const args = data.arguments
@@ -262,7 +272,15 @@ async function handleCallPhase(
   }
 
   if (isSubagent) {
-    registerSubagentToolCall(context, toolCallId, toolName, args, parentToolCallId!, ui)
+    registerSubagentToolCall(
+      context,
+      toolCallId,
+      toolName,
+      args,
+      parentToolCallId!,
+      ui,
+      spanIdentity
+    )
   } else {
     registerMainToolCall(context, toolCallId, toolName, args, existing, ui)
   }
@@ -337,7 +355,8 @@ function registerSubagentToolCall(
   toolName: string,
   args: Record<string, unknown> | undefined,
   parentToolCallId: string,
-  ui: { title?: string; phaseLabel?: string; hidden?: boolean }
+  ui: { title?: string; phaseLabel?: string; hidden?: boolean },
+  spanIdentity: { spanId?: string; parentSpanId?: string }
 ): void {
   if (!context.subAgentToolCalls[parentToolCallId]) {
     context.subAgentToolCalls[parentToolCallId] = []
@@ -366,6 +385,7 @@ function registerSubagentToolCall(
         toolCall,
         calledBy: parentToolCall?.name,
         parentToolCallId,
+        ...spanIdentity,
       })
     }
   }

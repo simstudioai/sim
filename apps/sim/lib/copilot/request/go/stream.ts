@@ -351,6 +351,11 @@ export async function runStreamLoop(
         if (isSubagentSpanStreamEvent(streamEvent)) {
           const spanData = parseSubagentSpanData(streamEvent.payload.data)
           const toolCallId = streamEvent.scope?.parentToolCallId || spanData?.toolCallId
+          // Deterministic nesting identity. spanId / parentSpanId are the
+          // primary keys; the toolCallId-keyed stack below is the legacy
+          // fallback for streams that predate span identity.
+          const spanId = streamEvent.scope?.spanId
+          const parentSpanId = streamEvent.scope?.parentSpanId
           const subagentName = streamEvent.payload.agent
           const spanEvt = streamEvent.payload.event
           const isPendingPause = spanData?.pending === true
@@ -378,6 +383,8 @@ export async function runStreamLoop(
                   type: 'subagent',
                   content: subagentName,
                   parentToolCallId: toolCallId,
+                  ...(spanId ? { spanId } : {}),
+                  ...(parentSpanId ? { parentSpanId } : {}),
                   timestamp: Date.now(),
                 })
               }

@@ -817,4 +817,55 @@ describe('copilot go stream helpers', () => {
       }).goTraceId
     ).toBe('go-trace-1')
   })
+
+  it('records span identity on the subagent block from the scope', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      createSseResponse([
+        createEvent({
+          streamId: 'stream-1',
+          cursor: '1',
+          seq: 1,
+          requestId: 'req-1',
+          type: MothershipStreamV1EventType.span,
+          scope: {
+            lane: 'subagent',
+            agentId: 'deploy',
+            parentToolCallId: 'tc-deploy-inner',
+            spanId: 'S2',
+            parentSpanId: 'S1',
+          },
+          payload: {
+            kind: 'subagent',
+            event: 'start',
+            agent: 'deploy',
+            data: { tool_call_id: 'tc-deploy-inner', nested: true },
+          },
+        }),
+        createEvent({
+          streamId: 'stream-1',
+          cursor: '2',
+          seq: 2,
+          requestId: 'req-1',
+          type: MothershipStreamV1EventType.complete,
+          payload: { status: MothershipStreamV1CompletionStatus.complete },
+        }),
+      ])
+    )
+
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+
+    await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+      timeout: 1000,
+    })
+
+    const subagentBlock = context.contentBlocks.find((block) => block.type === 'subagent')
+    expect(subagentBlock).toBeDefined()
+    expect(subagentBlock?.spanId).toBe('S2')
+    expect(subagentBlock?.parentSpanId).toBe('S1')
+    expect(subagentBlock?.parentToolCallId).toBe('tc-deploy-inner')
+  })
 })

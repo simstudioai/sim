@@ -134,6 +134,15 @@ export interface ContentBlock {
   timestamp?: number
   endedAt?: number
   parentToolCallId?: string
+  /**
+   * Deterministic agent-run identity. `spanId` is the stable per-invocation id
+   * of the subagent that produced this block; `parentSpanId` links it to the
+   * run that invoked it (empty/"main" for top-level). These are the primary
+   * nesting keys used to build the agent tree; `parentToolCallId` is retained
+   * for tool linkage and legacy back-compat.
+   */
+  spanId?: string
+  parentSpanId?: string
 }
 
 export interface ChatMessageAttachment {

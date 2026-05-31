@@ -47,6 +47,8 @@ export interface PersistedContentBlock {
   timestamp?: number
   endedAt?: number
   parentToolCallId?: string
+  spanId?: string
+  parentSpanId?: string
 }
 
 export interface PersistedFileAttachment {
@@ -114,9 +116,21 @@ function withBlockParent<T>(target: T, src: { parentToolCallId?: string }): T {
   return target
 }
 
+/**
+ * Carry deterministic span identity (spanId / parentSpanId) across a block
+ * mapping so the nesting tree survives the persist → normalize → display round
+ * trip. Shared by both the write and read paths.
+ */
+function withBlockSpan<T>(target: T, src: { spanId?: string; parentSpanId?: string }): T {
+  const writable = target as { spanId?: string; parentSpanId?: string }
+  if (src.spanId) writable.spanId = src.spanId
+  if (src.parentSpanId) writable.parentSpanId = src.parentSpanId
+  return target
+}
+
 function mapContentBlock(block: ContentBlock): PersistedContentBlock {
   const persisted = mapContentBlockBody(block)
-  return withBlockParent(withBlockTiming(persisted, block), block)
+  return withBlockSpan(withBlockParent(withBlockTiming(persisted, block), block), block)
 }
 
 function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
@@ -320,6 +334,8 @@ interface RawBlock {
   timestamp?: number
   endedAt?: number
   parentToolCallId?: string
+  spanId?: string
+  parentSpanId?: string
   toolCall?: {
     id?: string
     name?: string
@@ -496,6 +512,12 @@ function normalizeBlock(block: RawBlock): PersistedContentBlock {
   }
   if (block.parentToolCallId && result.parentToolCallId === undefined) {
     result.parentToolCallId = block.parentToolCallId
+  }
+  if (block.spanId && result.spanId === undefined) {
+    result.spanId = block.spanId
+  }
+  if (block.parentSpanId && result.parentSpanId === undefined) {
+    result.parentSpanId = block.parentSpanId
   }
   return result
 }

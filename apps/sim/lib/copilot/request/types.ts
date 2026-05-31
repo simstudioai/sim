@@ -57,6 +57,14 @@ export interface ContentBlock {
   timestamp: number
   endedAt?: number
   parentToolCallId?: string
+  /**
+   * Deterministic agent-run identity. `spanId` is the stable per-invocation id
+   * of the subagent that produced the block; `parentSpanId` links it to the run
+   * that invoked it. These are the primary nesting keys; `parentToolCallId` is
+   * retained for tool linkage and legacy back-compat.
+   */
+  spanId?: string
+  parentSpanId?: string
 }
 
 export interface StreamingContext {

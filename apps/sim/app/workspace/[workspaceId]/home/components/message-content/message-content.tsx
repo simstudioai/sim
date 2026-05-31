@@ -150,13 +150,250 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
   }
 }
 
+const SPAN_ROOT = 'main'
+
+function createAgentGroupSegment(name: string, idKey: string, ordinal: number): AgentGroupSegment {
+  return {
+    type: 'agent_group',
+    id: `agent-${idKey}-${ordinal}`,
+    agentName: name,
+    agentLabel: resolveAgentLabel(name),
+    items: [],
+    isDelegating: false,
+    isOpen: false,
+  }
+}
+
+function appendTextItem(group: AgentGroupSegment, content: string): void {
+  const lastItem = group.items[group.items.length - 1]
+  if (lastItem?.type === 'text') {
+    lastItem.content += content
+  } else {
+    group.items.push({ type: 'text', content })
+  }
+}
+
+/**
+ * Deterministic span-identity grouping. Every subagent-scoped block carries the
+ * stable `spanId` of the run that produced it and a `parentSpanId` linking it to
+ * its caller. Groups are keyed by `spanId` and nested under their parent's group
+ * via `parentSpanId`, producing a real tree (e.g. Deploy inside Workflow) with
+ * no name/tool-call reverse lookups. Delegation tool_calls are absorbed — the
+ * subagent span is the canonical representation of the nested agent.
+ */
+function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
+  const segments: MessageSegment[] = []
+  const groupsBySpanId = new Map<string, AgentGroupSegment>()
+  let mothership: AgentGroupSegment | null = null
+
+  const ensureMothership = (): AgentGroupSegment => {
+    if (!mothership) {
+      mothership = createAgentGroupSegment('mothership', 'mothership', segments.length)
+      segments.push(mothership)
+    }
+    return mothership
+  }
+
+  const attachSpanGroup = (group: AgentGroupSegment, parentSpanId: string | undefined): void => {
+    if (parentSpanId && parentSpanId !== SPAN_ROOT) {
+      const parent = groupsBySpanId.get(parentSpanId)
+      if (parent) {
+        parent.items.push({ type: 'agent_group', group })
+        return
+      }
+    }
+    segments.push(group)
+  }
+
+  const ensureSpanGroup = (
+    name: string,
+    spanId: string,
+    parentSpanId: string | undefined,
+    ordinal: number
+  ): AgentGroupSegment => {
+    const existing = groupsBySpanId.get(spanId)
+    if (existing) return existing
+    const group = createAgentGroupSegment(name, spanId, ordinal)
+    groupsBySpanId.set(spanId, group)
+    attachSpanGroup(group, parentSpanId)
+    return group
+  }
+
+  const flushMainText = (content: string) => {
+    const last = segments[segments.length - 1]
+    if (last?.type === 'text') {
+      last.content += content
+    } else {
+      segments.push({ type: 'text', content })
+    }
+  }
+
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i]
+
+    if (block.type === 'subagent_text' || block.type === 'subagent_thinking') {
+      if (!block.content || !block.spanId) continue
+      let g = groupsBySpanId.get(block.spanId)
+      // Out-of-order safety: content can arrive before its subagent-start block
+      // (live streaming across resume legs). Create the span group on demand,
+      // nested via parentSpanId, instead of dropping the content.
+      if (!g && block.subagent) {
+        g = ensureSpanGroup(block.subagent, block.spanId, block.parentSpanId, i)
+      }
+      if (!g) continue
+      g.isDelegating = false
+      appendTextItem(g, block.content)
+      continue
+    }
+
+    if (block.type === 'thinking') {
+      if (!block.content?.trim()) continue
+      const last = segments[segments.length - 1]
+      if (last?.type === 'thinking' && last.endedAt === undefined) {
+        last.content += block.content
+        if (block.endedAt !== undefined) last.endedAt = block.endedAt
+      } else {
+        segments.push({
+          type: 'thinking',
+          id: `thinking-${i}`,
+          content: block.content,
+          startedAt: block.timestamp,
+          endedAt: block.endedAt,
+        })
+      }
+      continue
+    }
+
+    if (block.type === 'text') {
+      if (!block.content) continue
+      if (block.subagent && block.spanId) {
+        let g = groupsBySpanId.get(block.spanId)
+        // Out-of-order safety: see subagent_text branch above.
+        if (!g) g = ensureSpanGroup(block.subagent, block.spanId, block.parentSpanId, i)
+        if (g) {
+          g.isDelegating = false
+          appendTextItem(g, block.content)
+          continue
+        }
+      }
+      flushMainText(block.content)
+      continue
+    }
+
+    if (block.type === 'subagent') {
+      if (!block.content || !block.spanId) continue
+      // Absorb a trailing dispatch tool (e.g. workspace_file -> file) so it does
+      // not render as a separate Mothership entry alongside the agent group.
+      const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[block.content]
+      if (dispatchToolName && mothership) {
+        const last = mothership.items[mothership.items.length - 1]
+        if (last?.type === 'tool' && last.data.toolName === dispatchToolName) {
+          mothership.items.pop()
+        }
+      }
+      const g = ensureSpanGroup(block.content, block.spanId, block.parentSpanId, i)
+      // Show the working/delegating spinner from span open until the agent
+      // emits its first content or tool (or ends). The legacy path derived this
+      // from the dispatch tool_call, which the span path absorbs, so we set it
+      // here. It is cleared in the subagent_text/subagent_thinking, scoped text,
+      // tool_call, and subagent_end branches.
+      g.isDelegating = true
+      g.isOpen = true
+      continue
+    }
+
+    if (block.type === 'tool_call') {
+      if (!block.toolCall) continue
+      const tc = block.toolCall
+      if (isHiddenToolCall(tc.name)) continue
+      if (tc.name === ReadTool.id && isToolResultRead(tc.params)) continue
+      // Delegation tools are represented by their subagent span group; absorb.
+      if (SUBAGENT_KEYS.has(tc.name)) continue
+      const tool = toToolData(tc)
+      if (block.spanId) {
+        let g = groupsBySpanId.get(block.spanId)
+        // Out-of-order safety: a subagent's tool can stream before its
+        // subagent-start block (live streaming across resume legs). Create the
+        // span group on demand (nested via parentSpanId) so the tool nests
+        // under its agent instead of leaking to the top-level mothership flow.
+        if (!g && tc.calledBy) {
+          g = ensureSpanGroup(tc.calledBy, block.spanId, block.parentSpanId, i)
+        }
+        if (g) {
+          g.isDelegating = false
+          g.items.push({ type: 'tool', data: tool })
+          continue
+        }
+      }
+      ensureMothership().items.push({ type: 'tool', data: tool })
+      continue
+    }
+
+    if (block.type === 'options') {
+      if (!block.options?.length) continue
+      segments.push({ type: 'options', items: block.options })
+      continue
+    }
+
+    if (block.type === 'subagent_end') {
+      if (block.spanId) {
+        const g = groupsBySpanId.get(block.spanId)
+        if (g) {
+          g.isOpen = false
+          g.isDelegating = false
+        }
+      }
+      continue
+    }
+
+    if (block.type === 'stopped') {
+      segments.push({ type: 'stopped' })
+    }
+  }
+
+  // Recursively drop empty, closed, non-delegating nested groups so a subagent
+  // that started and ended without emitting anything does not leave a stray
+  // header row. The top-level filter below covers top-level groups.
+  const pruneEmptyNested = (items: AgentGroupItem[]): AgentGroupItem[] =>
+    items.filter((item) => {
+      if (item.type !== 'agent_group') return true
+      item.group.items = pruneEmptyNested(item.group.items)
+      return item.group.items.length > 0 || item.group.isOpen || item.group.isDelegating
+    })
+  for (const segment of segments) {
+    if (segment.type === 'agent_group') {
+      segment.items = pruneEmptyNested(segment.items)
+    }
+  }
+
+  return segments.filter(
+    (segment) =>
+      segment.type !== 'agent_group' ||
+      segment.items.length > 0 ||
+      segment.isDelegating ||
+      segment.isOpen
+  )
+}
+
 /**
  * Groups content blocks into agent-scoped segments.
  * Dispatch tool_calls (name matches a subagent key, no calledBy) are absorbed
  * into the agent header. Inner tool_calls are nested underneath their agent.
  * Orphan tool_calls (no calledBy, not a dispatch) group under "Mothership".
+ *
+ * New backends stamp every subagent block with deterministic span identity; in
+ * that case {@link parseBlocksWithSpanTree} builds a real nested tree. The
+ * legacy flat heuristics below are retained for transcripts persisted before
+ * span identity existed.
  */
-function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
+export function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
+  if (blocks.some((block) => Boolean(block.spanId))) {
+    return parseBlocksWithSpanTree(blocks)
+  }
+  return parseBlocksLegacy(blocks)
+}
+
+function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
   const segments: MessageSegment[] = []
   const groupsByKey = new Map<string, AgentGroupSegment>()
   let activeGroupKey: string | null = null

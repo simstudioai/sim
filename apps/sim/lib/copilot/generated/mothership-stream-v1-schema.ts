@@ -816,7 +816,13 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
           enum: ['subagent'],
           type: 'string',
         },
+        parentSpanId: {
+          type: 'string',
+        },
         parentToolCallId: {
+          type: 'string',
+        },
+        spanId: {
           type: 'string',
         },
       },

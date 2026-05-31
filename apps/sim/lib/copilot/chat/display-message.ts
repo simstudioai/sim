@@ -51,6 +51,12 @@ function toDisplayBlock(block: PersistedContentBlock): ContentBlock | undefined 
   if (block.parentToolCallId && displayed.parentToolCallId === undefined) {
     displayed.parentToolCallId = block.parentToolCallId
   }
+  if (block.spanId && displayed.spanId === undefined) {
+    displayed.spanId = block.spanId
+  }
+  if (block.parentSpanId && displayed.parentSpanId === undefined) {
+    displayed.parentSpanId = block.parentSpanId
+  }
   return withBlockTiming(displayed, block)
 }
 

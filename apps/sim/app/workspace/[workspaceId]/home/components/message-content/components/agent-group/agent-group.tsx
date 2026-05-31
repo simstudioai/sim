@@ -7,9 +7,24 @@ import type { ToolCallData } from '../../../../types'
 import { getAgentIcon } from '../../utils'
 import { ToolCallItem } from './tool-call-item'
 
+/**
+ * A subagent group nested inside another agent's output. Carries the same shape
+ * as a top-level group so {@link AgentGroup} can render it recursively, which is
+ * how deterministic parent/child nesting (e.g. Deploy inside Workflow) is drawn.
+ */
+export interface NestedAgentGroup {
+  id: string
+  agentName: string
+  agentLabel: string
+  items: AgentGroupItem[]
+  isDelegating: boolean
+  isOpen: boolean
+}
+
 export type AgentGroupItem =
   | { type: 'text'; content: string }
   | { type: 'tool'; data: ToolCallData }
+  | { type: 'agent_group'; group: NestedAgentGroup }
 
 interface AgentGroupProps {
   agentName: string
@@ -19,6 +34,10 @@ interface AgentGroupProps {
   isStreaming?: boolean
   autoCollapse?: boolean
   defaultExpanded?: boolean
+}
+
+function isToolItemDone(item: AgentGroupItem): boolean {
+  return item.type === 'tool' && isToolDone(item.data.status)
 }
 
 function isToolDone(status: ToolCallData['status']): boolean {
@@ -124,6 +143,20 @@ export function AgentGroup({
                         status={item.data.status}
                         streamingArgs={item.data.streamingArgs}
                       />
+                    )
+                  }
+                  if (item.type === 'agent_group') {
+                    return (
+                      <div key={item.group.id} className='pl-6'>
+                        <AgentGroup
+                          agentName={item.group.agentName}
+                          agentLabel={item.group.agentLabel}
+                          items={item.group.items}
+                          isDelegating={item.group.isDelegating}
+                          isStreaming={isStreaming}
+                          defaultExpanded={item.group.isOpen}
+                        />
+                      </div>
                     )
                   }
                   return (
