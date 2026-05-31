@@ -12,7 +12,10 @@ import {
   shouldRecreateExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
-import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
+import {
+  findConflictingWebhookPathOwner,
+  syncWebhooksForCredentialSet,
+} from '@/lib/webhooks/utils.server'
 import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -534,6 +537,23 @@ export async function saveTriggerWebhooksForDeploy({
           message:
             'Authentication is enabled but no token is configured. Please set an authentication token or disable authentication.',
           status: 400,
+        },
+      }
+    }
+
+    const pathConflict = await findConflictingWebhookPathOwner({
+      path: triggerPath,
+      workflowId,
+    })
+    if (pathConflict) {
+      logger.warn(
+        `[${requestId}] Webhook path conflict for "${triggerPath}": already owned by workflow ${pathConflict}`
+      )
+      return {
+        success: false,
+        error: {
+          message: `Webhook path "${triggerPath}" is already in use. Choose a different path.`,
+          status: 409,
         },
       }
     }

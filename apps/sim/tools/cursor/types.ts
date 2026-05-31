@@ -44,6 +44,12 @@ export interface DeleteAgentParams extends BaseCursorParams {
   agentId: string
 }
 
+export type ListModelsParams = BaseCursorParams
+
+export type ListRepositoriesParams = BaseCursorParams
+
+export type GetApiKeyInfoParams = BaseCursorParams
+
 interface AgentSource {
   repository: string
   ref: string
@@ -54,14 +60,14 @@ interface AgentTarget {
   url: string
   prUrl?: string
   autoCreatePr: boolean
-  openAsCursorGithubApp: boolean
-  skipReviewerRequest: boolean
+  openAsCursorGithubApp?: boolean
+  skipReviewerRequest?: boolean
 }
 
 interface AgentMetadata {
   id: string
   name: string
-  status: 'CREATING' | 'RUNNING' | 'FINISHED' | 'STOPPED' | 'FAILED'
+  status: string
   source: AgentSource
   target: AgentTarget
   summary?: string
@@ -150,14 +156,14 @@ export interface DeleteAgentResponse extends ToolResponse {
   }
 }
 
-interface GetApiKeyInfoResponse extends ToolResponse {
+export interface GetApiKeyInfoResponse extends ToolResponse {
   output: {
     content: string
     metadata: ApiKeyInfoMetadata
   }
 }
 
-interface ListModelsResponse extends ToolResponse {
+export interface ListModelsResponse extends ToolResponse {
   output: {
     content: string
     metadata: {
@@ -166,7 +172,7 @@ interface ListModelsResponse extends ToolResponse {
   }
 }
 
-interface ListRepositoriesResponse extends ToolResponse {
+export interface ListRepositoriesResponse extends ToolResponse {
   output: {
     content: string
     metadata: {
@@ -201,7 +207,12 @@ export interface DownloadArtifactParams extends BaseCursorParams {
 export interface DownloadArtifactResponse extends ToolResponse {
   output: {
     content: string
-    metadata: Record<string, unknown>
+    metadata: {
+      name: string
+      mimeType: string
+      data: string
+      size: number
+    }
   }
 }
 

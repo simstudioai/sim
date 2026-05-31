@@ -9,6 +9,13 @@ function formatConfluenceSpaceLabel(space: { name: string; key: string; status?:
   return space.status === 'archived' ? `${base} — archived` : base
 }
 
+function toSpaceOption(space: { name: string; key: string; status?: string }): {
+  id: string
+  label: string
+} {
+  return { id: space.key, label: formatConfluenceSpaceLabel(space) }
+}
+
 export const confluenceSelectors = {
   'confluence.spaces': {
     key: 'confluence.spaces',
@@ -21,28 +28,10 @@ export const confluenceSelectors = {
       context.domain ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
-    fetchList: async ({ context, signal }: SelectorQueryArgs) => {
-      const credentialId = ensureCredential(context, 'confluence.spaces')
-      const domain = ensureDomain(context, 'confluence.spaces')
-      const collected: { id: string; label: string }[] = []
-      let cursor: string | undefined
-      do {
-        const data = await requestJson(selectorContracts.confluenceSpacesSelectorContract, {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            domain,
-            cursor,
-          },
-          signal,
-        })
-        for (const space of data.spaces || []) {
-          collected.push({ id: space.key, label: formatConfluenceSpaceLabel(space) })
-        }
-        cursor = data.nextCursor
-      } while (cursor)
-      return collected
-    },
+    /**
+     * Drives pagination through {@link useSelectorOptions}, which drains every
+     * page via this callback. No `fetchList` — the paged path supersedes it.
+     */
     fetchPage: async ({ context, cursor, signal }) => {
       const credentialId = ensureCredential(context, 'confluence.spaces')
       const domain = ensureDomain(context, 'confluence.spaces')
@@ -56,10 +45,7 @@ export const confluenceSelectors = {
         signal,
       })
       return {
-        items: (data.spaces || []).map((space) => ({
-          id: space.key,
-          label: formatConfluenceSpaceLabel(space),
-        })),
+        items: (data.spaces || []).map(toSpaceOption),
         nextCursor: data.nextCursor,
       }
     },
@@ -83,7 +69,7 @@ export const confluenceSelectors = {
       })
       const space = (data.spaces || []).find((s) => s.key === detailId) ?? null
       if (!space) return null
-      return { id: space.key, label: formatConfluenceSpaceLabel(space) }
+      return toSpaceOption(space)
     },
   },
   'confluence.pages': {

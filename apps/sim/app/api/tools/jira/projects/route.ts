@@ -14,6 +14,77 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JiraProjectsAPI')
 
+const JIRA_PROJECTS_PAGE_SIZE = 50
+const MAX_JIRA_PROJECTS_PAGES = 40
+
+interface JiraProjectSearchPage {
+  values?: unknown[]
+  isLast?: boolean
+  maxResults?: number
+}
+
+/**
+ * Drains the offset-paginated Jira `/project/search` endpoint, advancing
+ * `startAt` by the server-returned page size until `isLast === true` (or a short
+ * page is seen). Bounded by `MAX_JIRA_PROJECTS_PAGES`; emits a `logger.warn` and
+ * returns the partial set rather than looping unbounded when the cap is hit.
+ */
+async function fetchAllJiraProjects(
+  apiUrl: string,
+  baseParams: URLSearchParams,
+  accessToken: string
+): Promise<{ values: unknown[]; lastResponse: Response }> {
+  const values: unknown[] = []
+  let startAt = 0
+  let lastResponse: Response
+
+  for (let page = 0; page < MAX_JIRA_PROJECTS_PAGES; page++) {
+    const params = new URLSearchParams(baseParams)
+    params.set('startAt', String(startAt))
+    params.set('maxResults', String(JIRA_PROJECTS_PAGE_SIZE))
+
+    const finalUrl = `${apiUrl}?${params.toString()}`
+    logger.info(`Fetching Jira projects from: ${finalUrl}`)
+
+    const response = await fetch(finalUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    })
+
+    logger.info(`Response status: ${response.status} ${response.statusText}`)
+
+    if (!response.ok) {
+      return { values, lastResponse: response }
+    }
+
+    const data = (await response.json()) as JiraProjectSearchPage
+    lastResponse = response
+
+    const pageValues = data.values ?? []
+    values.push(...pageValues)
+
+    const pageSize =
+      data.maxResults && data.maxResults > 0 ? data.maxResults : JIRA_PROJECTS_PAGE_SIZE
+    if (data.isLast === true || pageValues.length < pageSize) {
+      return { values, lastResponse }
+    }
+
+    startAt += pageValues.length
+
+    if (page === MAX_JIRA_PROJECTS_PAGES - 1) {
+      logger.warn('Jira project search hit pagination cap; project list may be incomplete', {
+        pages: MAX_JIRA_PROJECTS_PAGES,
+        collected: values.length,
+      })
+    }
+  }
+
+  return { values, lastResponse: lastResponse! }
+}
+
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
@@ -51,35 +122,28 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     queryParams.append('orderBy', 'name')
     queryParams.append('expand', 'description,lead,url,projectKeys')
 
-    const finalUrl = `${apiUrl}?${queryParams.toString()}`
-    logger.info(`Fetching Jira projects from: ${finalUrl}`)
+    const { values, lastResponse } = await fetchAllJiraProjects(apiUrl, queryParams, accessToken)
 
-    const response = await fetch(finalUrl, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    })
-
-    logger.info(`Response status: ${response.status} ${response.statusText}`)
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error('Jira API error:', { status: response.status, error: errorText })
+    if (!lastResponse.ok) {
+      const errorText = await lastResponse.text()
+      logger.error('Jira API error:', { status: lastResponse.status, error: errorText })
       return NextResponse.json(
-        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
-        { status: response.status }
+        {
+          error: parseAtlassianErrorMessage(
+            lastResponse.status,
+            lastResponse.statusText,
+            errorText
+          ),
+        },
+        { status: lastResponse.status }
       )
     }
 
-    const data = await response.json()
-
-    logger.info(`Jira API Response Status: ${response.status}`)
-    logger.info(`Found projects: ${data.values?.length || 0}`)
+    logger.info(`Jira API Response Status: ${lastResponse.status}`)
+    logger.info(`Found projects: ${values.length}`)
 
     const projects =
-      data.values?.map((project: any) => ({
+      values.map((project: any) => ({
         id: project.id,
         key: project.key,
         name: project.name,

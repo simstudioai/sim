@@ -211,4 +211,57 @@ Download a generated artifact file from a cloud agent. Returns the file for exec
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded artifact file stored in execution files |
 
+### `cursor_list_models`
+
+List the models available for launching cloud agents. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Cursor API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `models` | array | Array of available model names |
+
+### `cursor_list_repositories`
+
+List the GitHub repositories accessible to the authenticated user. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Cursor API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `repositories` | array | Array of accessible repositories |
+|   ↳ `owner` | string | Repository owner |
+|   ↳ `name` | string | Repository name |
+|   ↳ `repository` | string | Repository URL |
+
+### `cursor_get_api_key_info`
+
+Retrieve details about the API key currently in use. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Cursor API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `apiKeyName` | string | Name of the API key |
+| `createdAt` | string | API key creation timestamp |
+| `userEmail` | string | Email of the key owner |
+
 

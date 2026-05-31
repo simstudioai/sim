@@ -38,10 +38,17 @@ export const microsoftExcelDrivesBodySchema = credentialWorkflowBodySchema.exten
   driveId: optionalString,
 })
 
+/**
+ * The `/api/auth/oauth/microsoft/files` route is shared by the
+ * `microsoft.excel` and `microsoft.word` selectors. `fileType` lets the route
+ * search for and filter to the correct Office document type; it is optional and
+ * defaults to `excel` on the server for backward compatibility.
+ */
 export const microsoftFilesQuerySchema = credentialIdQuerySchema.extend({
   query: optionalString,
   driveId: optionalString,
   workflowId: optionalString,
+  fileType: z.enum(['excel', 'word']).optional(),
 })
 
 export const microsoftFileQuerySchema = credentialIdQuerySchema.extend({

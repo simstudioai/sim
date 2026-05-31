@@ -114,7 +114,12 @@ export interface SelectorDefinition {
   key: SelectorKey
   contracts?: readonly AnyApiRouteContract[]
   getQueryKey: (args: SelectorQueryArgs) => QueryKey
-  fetchList: (args: SelectorQueryArgs) => Promise<SelectorOption[]>
+  /**
+   * Loads the full option list in a single call. Required unless `fetchPage` is
+   * defined, in which case the hook drives pagination through `fetchPage` and
+   * `fetchList` is never invoked — provide one or the other, not both.
+   */
+  fetchList?: (args: SelectorQueryArgs) => Promise<SelectorOption[]>
   /**
    * Optional. When defined, the selector hook fetches one page at a time and
    * auto-drains remaining pages so the dropdown populates progressively.
