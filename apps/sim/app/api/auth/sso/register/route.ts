@@ -81,28 +81,33 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return orgId ? provider.organizationId === orgId : false
     }
 
-    const existingProviders = await db
-      .select({
-        userId: ssoProvider.userId,
-        organizationId: ssoProvider.organizationId,
-      })
-      .from(ssoProvider)
-      .where(sql`lower(${ssoProvider.domain}) = ${domain}`)
-    const conflictingProvider = existingProviders.find((provider) => !isOwnedByCaller(provider))
+    const findDomainConflict = async () =>
+      (
+        await db
+          .select({
+            userId: ssoProvider.userId,
+            organizationId: ssoProvider.organizationId,
+          })
+          .from(ssoProvider)
+          .where(sql`lower(${ssoProvider.domain}) = ${domain}`)
+      ).find((provider) => !isOwnedByCaller(provider))
 
-    if (conflictingProvider) {
-      logger.warn('Rejected SSO registration for domain owned by another tenant', {
-        domain,
-        orgId,
-        userId: session.user.id,
-      })
-      return NextResponse.json(
+    const domainConflictResponse = () =>
+      NextResponse.json(
         {
           error: 'This domain is already registered for SSO by another organization.',
           code: 'SSO_DOMAIN_ALREADY_REGISTERED',
         },
         { status: 409 }
       )
+
+    if (await findDomainConflict()) {
+      logger.warn('Rejected SSO registration for domain owned by another tenant', {
+        domain,
+        orgId,
+        userId: session.user.id,
+      })
+      return domainConflictResponse()
     }
 
     const headers: Record<string, string> = {}
@@ -445,6 +450,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         2
       ),
     })
+
+    if (await findDomainConflict()) {
+      logger.warn('Rejected SSO registration: domain was claimed during registration', {
+        domain,
+        orgId,
+        userId: session.user.id,
+      })
+      return domainConflictResponse()
+    }
 
     const registration = await auth.api.registerSSOProvider({
       body: providerConfig,
