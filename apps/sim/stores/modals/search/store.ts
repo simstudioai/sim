@@ -101,7 +101,7 @@ export const useSearchModalStore = create<SearchModalState>()(
             searchValue: `${block.name} ${block.type} block-${block.type} ${buildCommandSearchableOptionSearchValue(block)}`,
           }
 
-          if (block.category === 'blocks') {
+          if (block.category === 'blocks' && block.type !== 'starter') {
             regularBlocks.push(searchItem)
           } else if (block.category === 'tools') {
             tools.push(searchItem)

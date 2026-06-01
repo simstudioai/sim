@@ -29,6 +29,7 @@ import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 const logger = createLogger('WorkspaceHeader')
@@ -130,8 +131,9 @@ function WorkspaceHeaderImpl({
   const canCreateWorkspace = workspaceCreationPolicy?.canCreate ?? true
   const createWorkspaceDisabledReason =
     workspaceCreationPolicy?.canCreate === false ? workspaceCreationPolicy.reason : null
+  const { isInvitationsDisabled: isInvitationsDisabledByConfig } = usePermissionConfig()
   const inviteDisabledReason = activeWorkspaceFull?.inviteDisabledReason ?? null
-  const isInvitationsDisabled = inviteDisabledReason !== null
+  const isInvitationsDisabled = isInvitationsDisabledByConfig || inviteDisabledReason !== null
 
   useEffect(() => {
     const handleOpenInvite = () => {
