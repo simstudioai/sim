@@ -4,7 +4,6 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { MoreHorizontal, Search } from 'lucide-react'
 import {
-  Button,
   ChevronDown,
   Chip,
   ChipModal,
@@ -542,7 +541,7 @@ function WorkspaceHeaderImpl({
                                 }
                                 setEditingWorkspaceId(null)
                               }}
-                              className='w-full border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none selection:bg-[var(--selection-bg)] selection:text-[var(--bg)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
+                              className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
                               maxLength={100}
                               autoComplete='off'
                               autoCorrect='off'
@@ -776,20 +775,22 @@ function WorkspaceHeaderImpl({
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Button
-            variant='default'
+          <Chip
+            variant='filled'
+            flush
             onClick={() => setIsLeaveModalOpen(false)}
             disabled={isLeavingWorkspace}
           >
             Cancel
-          </Button>
-          <Button
+          </Chip>
+          <Chip
             variant='destructive'
+            flush
             onClick={handleLeaveWorkspace}
             disabled={isLeavingWorkspace}
           >
             {isLeavingWorkspace ? 'Leaving...' : 'Leave Workspace'}
-          </Button>
+          </Chip>
         </ChipModalFooter>
       </ChipModal>
     </div>
