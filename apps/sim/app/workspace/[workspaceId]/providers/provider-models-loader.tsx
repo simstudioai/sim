@@ -5,10 +5,13 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { useProviderModels } from '@/hooks/queries/providers'
 import {
+  updateBasetenProviderModels,
   updateFireworksProviderModels,
   updateLiteLLMProviderModels,
+  updateOllamaCloudProviderModels,
   updateOllamaProviderModels,
   updateOpenRouterProviderModels,
+  updateTogetherProviderModels,
   updateVLLMProviderModels,
 } from '@/providers/utils'
 import { type ProviderName, useProvidersStore } from '@/stores/providers'
@@ -31,6 +34,8 @@ function useSyncProvider(provider: ProviderName, workspaceId?: string) {
     try {
       if (provider === 'ollama') {
         updateOllamaProviderModels(data.models)
+      } else if (provider === 'ollama-cloud') {
+        void updateOllamaCloudProviderModels(data.models)
       } else if (provider === 'vllm') {
         updateVLLMProviderModels(data.models)
       } else if (provider === 'litellm') {
@@ -42,6 +47,10 @@ function useSyncProvider(provider: ProviderName, workspaceId?: string) {
         }
       } else if (provider === 'fireworks') {
         void updateFireworksProviderModels(data.models)
+      } else if (provider === 'together') {
+        void updateTogetherProviderModels(data.models)
+      } else if (provider === 'baseten') {
+        void updateBasetenProviderModels(data.models)
       }
     } catch (syncError) {
       logger.warn(`Failed to sync provider definitions for ${provider}`, syncError as Error)
@@ -63,9 +72,12 @@ export function ProviderModelsLoader() {
 
   useSyncProvider('base')
   useSyncProvider('ollama')
+  useSyncProvider('ollama-cloud', workspaceId)
   useSyncProvider('vllm')
   useSyncProvider('litellm')
   useSyncProvider('openrouter')
   useSyncProvider('fireworks', workspaceId)
+  useSyncProvider('together', workspaceId)
+  useSyncProvider('baseten', workspaceId)
   return null
 }

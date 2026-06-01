@@ -100,6 +100,62 @@ export async function getApiKeyWithBYOK(
     throw new Error(`API key is required for Fireworks ${model}`)
   }
 
+  const isTogetherModel =
+    provider === 'together' ||
+    useProvidersStore.getState().providers.together.models.includes(model)
+  if (isTogetherModel) {
+    if (workspaceId) {
+      const byokResult = await getBYOKKey(workspaceId, 'together')
+      if (byokResult) {
+        logger.info('Using BYOK key for Together AI', { model, workspaceId })
+        return byokResult
+      }
+    }
+    if (userProvidedKey) {
+      return { apiKey: userProvidedKey, isBYOK: false }
+    }
+    if (env.TOGETHER_API_KEY) {
+      return { apiKey: env.TOGETHER_API_KEY, isBYOK: false }
+    }
+    throw new Error(`API key is required for Together AI ${model}`)
+  }
+
+  const isBasetenModel =
+    provider === 'baseten' || useProvidersStore.getState().providers.baseten.models.includes(model)
+  if (isBasetenModel) {
+    if (workspaceId) {
+      const byokResult = await getBYOKKey(workspaceId, 'baseten')
+      if (byokResult) {
+        logger.info('Using BYOK key for Baseten', { model, workspaceId })
+        return byokResult
+      }
+    }
+    if (userProvidedKey) {
+      return { apiKey: userProvidedKey, isBYOK: false }
+    }
+    if (env.BASETEN_API_KEY) {
+      return { apiKey: env.BASETEN_API_KEY, isBYOK: false }
+    }
+    throw new Error(`API key is required for Baseten ${model}`)
+  }
+
+  const isOllamaCloudModel =
+    provider === 'ollama-cloud' ||
+    useProvidersStore.getState().providers['ollama-cloud'].models.includes(model)
+  if (isOllamaCloudModel) {
+    if (workspaceId) {
+      const byokResult = await getBYOKKey(workspaceId, 'ollama-cloud')
+      if (byokResult) {
+        logger.info('Using BYOK key for Ollama Cloud', { model, workspaceId })
+        return byokResult
+      }
+    }
+    if (userProvidedKey) {
+      return { apiKey: userProvidedKey, isBYOK: false }
+    }
+    throw new Error(`API key is required for Ollama Cloud ${model}`)
+  }
+
   const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
   if (isBedrockModel) {
     return { apiKey: PROVIDER_PLACEHOLDER_KEY, isBYOK: false }
