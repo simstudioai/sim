@@ -646,6 +646,24 @@ export async function markDispatchComplete(dispatchId: string): Promise<void> {
     .where(eq(tableRunDispatches.id, dispatchId))
 }
 
+/** Complete a dispatch only if it's still active, returning whether THIS call
+ *  performed the transition. Lets concurrent cells that all hit a hard stop
+ *  (e.g. usage limit) elect a single owner — only the winner emits the
+ *  user-facing event, instead of one toast per in-flight cell. */
+export async function completeDispatchIfActive(dispatchId: string): Promise<boolean> {
+  const transitioned = await db
+    .update(tableRunDispatches)
+    .set({ status: 'complete', completedAt: new Date() })
+    .where(
+      and(
+        eq(tableRunDispatches.id, dispatchId),
+        inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES])
+      )
+    )
+    .returning({ id: tableRunDispatches.id })
+  return transitioned.length > 0
+}
+
 export async function markDispatchCancelled(dispatchId: string): Promise<void> {
   await db
     .update(tableRunDispatches)

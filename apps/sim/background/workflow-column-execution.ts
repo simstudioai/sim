@@ -429,18 +429,25 @@ async function runWorkflowAndWriteTerminal(
           logger.warn(
             `Usage limit reached — halting dispatch (table=${tableId} row=${rowId} group=${groupId})`
           )
+          // With up to 20 concurrent cells all hitting the limit at once, only
+          // the cell that actually transitions the dispatch active→complete
+          // emits the event — otherwise the user sees a toast per in-flight
+          // cell. Cells with no owning dispatch (auto-fire) always emit.
+          let shouldEmit = true
           if (dispatchId) {
-            const { markDispatchComplete } = await import('@/lib/table/dispatcher')
-            await markDispatchComplete(dispatchId)
+            const { completeDispatchIfActive } = await import('@/lib/table/dispatcher')
+            shouldEmit = await completeDispatchIfActive(dispatchId)
           }
-          await appendTableEvent({
-            kind: 'usageLimitReached',
-            tableId,
-            dispatchId: dispatchId ?? '',
-            message:
-              preprocess.error?.message ??
-              'Usage limit exceeded. Please upgrade your plan to continue.',
-          })
+          if (shouldEmit) {
+            await appendTableEvent({
+              kind: 'usageLimitReached',
+              tableId,
+              dispatchId: dispatchId ?? '',
+              message:
+                preprocess.error?.message ??
+                'Usage limit exceeded. Please upgrade your plan to continue.',
+            })
+          }
           return 'blocked'
         }
         await writeState({
@@ -486,6 +493,12 @@ async function runWorkflowAndWriteTerminal(
           `Rate limited — waiting ${Math.round(waitMs)}ms before retry ${attempt + 1} (table=${tableId} row=${rowId} group=${groupId})`
         )
         await sleep(waitMs)
+        // Stop All can land mid-wait. On the trigger.dev backend `signal` never
+        // fires (cancelByKey is a no-op there), so re-check the DB tombstone and
+        // release this concurrency slot promptly instead of sleeping out the
+        // full retry budget.
+        const refreshed = await getRowById(tableId, rowId, workspaceId)
+        if (!refreshed || cancelledBeforeRun(refreshed.executions?.[groupId])) return 'error'
       }
 
       // SQL guard also rejects if a stop click stamped `cancelled` between this
