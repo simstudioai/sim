@@ -25,6 +25,10 @@ const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/tools')
 const ICONS_PATH = path.join(rootDir, 'apps/sim/components/icons.tsx')
 const DOCS_ICONS_PATH = path.join(rootDir, 'apps/docs/components/icons.tsx')
 const INTEGRATIONS_DATA_PATH = path.join(rootDir, 'apps/sim/lib/integrations')
+const LANDING_INTEGRATIONS_DATA_PATH = path.join(
+  rootDir,
+  'apps/sim/app/(landing)/integrations/data'
+)
 const TRIGGERS_PATH = path.join(rootDir, 'apps/sim/triggers')
 const TRIGGER_DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/triggers')
 
