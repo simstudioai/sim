@@ -38,6 +38,7 @@ import {
   resolveClientMetadata,
   upsertCimdClient,
 } from '@/lib/auth/cimd'
+import { buildRedisRateLimitStorage } from '@/lib/auth/rate-limit-storage'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import {
@@ -168,6 +169,20 @@ function isSignupEmailBlocked(email: string | undefined | null): boolean {
   return isEmailInDenylist(email, blockedSignupDomains)
 }
 
+const DEFAULT_SIGNUP_RATE_LIMIT_WINDOW_SECONDS = 3600
+const DEFAULT_SIGNUP_RATE_LIMIT_MAX = 20
+
+const signupRateLimitWindowSeconds =
+  Number(env.SIGNUP_RATE_LIMIT_WINDOW_SECONDS) || DEFAULT_SIGNUP_RATE_LIMIT_WINDOW_SECONDS
+const signupRateLimitMax = Number(env.SIGNUP_RATE_LIMIT_MAX) || DEFAULT_SIGNUP_RATE_LIMIT_MAX
+
+/**
+ * Shared store for the auth rate limiter. Redis-backed when configured so per-IP
+ * counts hold across replicas and deploys; otherwise `undefined`, leaving
+ * better-auth on its default in-memory store.
+ */
+const authRateLimitStorage = buildRedisRateLimitStorage()
+
 const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
   logger.warn('Ignoring invalid entry in TRUSTED_ORIGINS', { value })
 )
@@ -204,6 +219,28 @@ export const auth = betterAuth({
     provider: 'pg',
     schema,
   }),
+  rateLimit: {
+    // Mirror better-auth's default (on in production, off in dev/test) so local
+    // signup flows stay unthrottled.
+    enabled: env.NODE_ENV === 'production',
+    customRules: {
+      // Long-window per-IP cap on email signup. better-auth's built-in rule only
+      // guards bursts (3 / 10s), which a slow drip from one IP sails past; this
+      // bounds sustained abuse. Deliberately generous — an enterprise office
+      // behind a single NAT signs up well under this, and SSO / org-invite
+      // onboarding hit different endpoints that this rule does not touch.
+      '/sign-up/email': { window: signupRateLimitWindowSeconds, max: signupRateLimitMax },
+    },
+    ...(authRateLimitStorage ? { customStorage: authRateLimitStorage } : {}),
+  },
+  advanced: {
+    ipAddress: {
+      // Prefer Cloudflare's client IP (set by the edge, not forgeable by the
+      // caller) so the rate-limit key is the real client. Fall back to
+      // X-Forwarded-For for deployments without Cloudflare in front.
+      ipAddressHeaders: ['cf-connecting-ip', 'x-forwarded-for'],
+    },
+  },
   session: {
     cookieCache: {
       enabled: true,
