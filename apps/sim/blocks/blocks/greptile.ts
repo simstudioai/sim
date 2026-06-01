@@ -1,5 +1,5 @@
 import { GreptileIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GreptileResponse } from '@/tools/greptile/types'
 
@@ -196,3 +196,7 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
     sha: { type: 'string', description: 'Git commit SHA' },
   },
 }
+
+export const GreptileBlockMeta = {
+  tags: ['version-control', 'knowledge-base'],
+} as const satisfies BlockMeta
