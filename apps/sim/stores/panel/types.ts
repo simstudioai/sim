@@ -34,3 +34,4 @@ export type ChatContext =
   | { kind: 'docs'; label: string }
   | { kind: 'slash_command'; command: string; label: string }
   | { kind: 'integration'; blockType: string; label: string }
+  | { kind: 'skill'; skillId: string; label: string }

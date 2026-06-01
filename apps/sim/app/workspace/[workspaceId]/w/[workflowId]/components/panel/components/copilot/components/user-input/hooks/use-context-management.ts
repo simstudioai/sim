@@ -3,6 +3,7 @@ import {
   escapeRegex,
   filterOutContext,
   isContextAlreadySelected,
+  SKILL_CHIP_TRIGGER,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { ChatContext } from '@/stores/panel'
 
@@ -74,8 +75,13 @@ export function useContextManagement({ message, initialContexts }: UseContextMan
         // — whitespace, end-of-string, or punctuation — so `@Slack.` and
         // `@Slack,` survive the sync. A strict `(\s|$)` here would strip
         // contexts whenever the user ends a sentence with a mention.
-        const isSlashCommand = c.kind === 'slash_command'
-        const prefix = isSlashCommand ? '/' : '@'
+        // Skills store a wide EM SPACE sentinel (SKILL_CHIP_TRIGGER) as their
+        // trigger so the chip icon fits; slash commands keep '/'; everything
+        // else uses '@'. The sentinel is itself a whitespace character, but the
+        // `(^|\s)` boundary still matches the (regular) space or start that
+        // precedes it, then the literal sentinel.
+        const prefix =
+          c.kind === 'skill' ? SKILL_CHIP_TRIGGER : c.kind === 'slash_command' ? '/' : '@'
         const tokenPattern = new RegExp(
           `(^|\\s)${escapeRegex(prefix)}${escapeRegex(c.label)}(?![A-Za-z0-9_])`
         )

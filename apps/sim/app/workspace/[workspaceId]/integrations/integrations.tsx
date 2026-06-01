@@ -13,7 +13,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { useSession } from '@/lib/auth/auth-client'
 import {
   blockTypeToIconMap,
   formatIntegrationType,
@@ -25,10 +24,6 @@ import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/c
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
-import {
-  getSampleConnectedCredentials,
-  PREVIEW_CONNECTED_WITH_SAMPLES,
-} from '@/app/workspace/[workspaceId]/integrations/fixtures/sample-credentials'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 
 const ALL_CATEGORY = 'All'
@@ -135,19 +130,15 @@ export function Integrations() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORY)
 
-  const { data: session } = useSession()
-  const currentUserId = session?.user?.id || ''
-
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
     workspaceId,
     enabled: Boolean(workspaceId),
   })
 
-  const oauthCredentials = useMemo(() => {
-    const real = credentials.filter((c) => c.type === 'oauth' || c.type === 'service_account')
-    if (!PREVIEW_CONNECTED_WITH_SAMPLES) return real
-    return [...real, ...getSampleConnectedCredentials(workspaceId, currentUserId)]
-  }, [credentials, workspaceId, currentUserId])
+  const oauthCredentials = useMemo(
+    () => credentials.filter((c) => c.type === 'oauth' || c.type === 'service_account'),
+    [credentials]
+  )
 
   const connectedItems = useMemo<ConnectedDisplayItem[]>(() => {
     return oauthCredentials.flatMap((credential) => {

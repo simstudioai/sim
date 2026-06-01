@@ -23,7 +23,7 @@ import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/creden
 import type { OAuthProvider } from '@/lib/oauth'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
-import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
+import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   CommandList,
@@ -4229,12 +4229,14 @@ const WorkflowContent = React.memo(
         {(!embedded || sandbox) && <Panel workspaceId={sandbox ? workspaceId : undefined} />}
 
         {!embedded && !sandbox && oauthModal && (
-          <OAuthModal
+          <ConnectOAuthModal
             mode='reauthorize'
-            isOpen={true}
-            onClose={() => {
-              consumeOAuthReturnContext()
-              setOauthModal(null)
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) {
+                consumeOAuthReturnContext()
+                setOauthModal(null)
+              }
             }}
             provider={oauthModal.provider}
             toolName={oauthModal.providerName}

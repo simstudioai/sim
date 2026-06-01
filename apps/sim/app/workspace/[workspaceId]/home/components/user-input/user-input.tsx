@@ -13,28 +13,36 @@ import {
 } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { Button, Paperclip, Tooltip } from '@/components/emcn'
-import { useSession } from '@/lib/auth/auth-client'
+import { Button, Paperclip, Slash, Tooltip } from '@/components/emcn'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
-import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
+import type {
+  PlusMenuHandle,
+  SkillsMenuHandle,
+} from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import {
   AnimatedPlaceholderEffect,
   AttachedFilesList,
   autoResizeTextarea,
+  chipDisplayToken,
+  chipLinkToContext,
   DropOverlay,
   MAX_CHAT_TEXTAREA_HEIGHT,
   MicButton,
   mapResourceToContext,
   OVERLAY_CLASSES,
   PlusMenuDropdown,
+  parseChipLinks,
   SendButton,
+  SkillsMenuDropdown,
+  serializeSelectionForClipboard,
   TEXTAREA_BASE_CLASSES,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
+import { useSkillAutoMention } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-skill-auto-mention'
 import type {
   FileAttachmentForApi,
   MothershipResource,
@@ -51,7 +59,11 @@ import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import {
   computeMentionHighlightRanges,
   extractContextTokens,
+  restoreSkillTriggerText,
+  SKILL_CHIP_TRIGGER,
+  stripMentionTrigger,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSpeechToText } from '@/hooks/use-speech-to-text'
@@ -148,20 +160,22 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
   const { data: workflowsById = {} } = useWorkflowMap(workspaceId)
-  const { data: session } = useSession()
-  const [value, setValue] = useState(() => {
-    if (defaultValue) return defaultValue
-    if (!draftScopeKey) return ''
-    const text = useMothershipDraftsStore.getState().drafts[draftScopeKey]?.text
-    return typeof text === 'string' ? text : ''
-  })
+  const { data: skills = [] } = useSkills(workspaceId)
+  // SSR-safe initial value. The server has no localStorage, so reading a
+  // persisted draft here would diverge from the client's synchronous
+  // zustand-persist rehydration and trigger a hydration mismatch (flash).
+  // Draft text is restored after mount in the effect below instead.
+  const [value, setValue] = useState(defaultValue)
+  const valueRef = useRef(value)
+  valueRef.current = value
   const overlayRef = useRef<HTMLDivElement>(null)
   const plusMenuRef = useRef<PlusMenuHandle>(null)
+  const skillsMenuRef = useRef<SkillsMenuHandle>(null)
 
   const prevDefaultValueRef = useRef(defaultValue)
 
   const files = useFileAttachments({
-    userId: userId || session?.user?.id,
+    userId,
     workspaceId,
     disabled: false,
     isLoading: isSending,
@@ -220,6 +234,8 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     if (restoredContexts) contextManagement.setSelectedContexts(restoredContexts)
     if (restoredFiles) files.restoreAttachedFiles(restoredFiles)
     if (caretText !== null) {
+      setValue(caretText)
+      valueRef.current = caretText
       const textarea = textareaRef.current
       if (textarea) {
         textarea.focus()
@@ -313,17 +329,29 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     selectedContexts: contextManagement.selectedContexts,
     mentionMenu,
     setMessage: setValue,
-    setSelectedContexts: contextManagement.setSelectedContexts,
   })
 
   const integrationAutoMention = useIntegrationAutoMention({
     setSelectedContexts: contextManagement.setSelectedContexts,
   })
 
-  const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending && !hasUploadingFiles
+  const skillAutoMention = useSkillAutoMention({
+    skills,
+    setSelectedContexts: contextManagement.setSelectedContexts,
+  })
 
-  const valueRef = useRef(value)
-  valueRef.current = value
+  /**
+   * Bulk-chipifies a block of text on the non-keystroke paths (mount, template,
+   * draft restore, STT, queued message, multi-char paste): integration `@`
+   * names first (rewrites the text), then skill `/` triggers (swapped to the
+   * sentinel). Returns the fully converted text and registers both context kinds.
+   */
+  const applyAutoMentions = useCallback(
+    (text: string) => skillAutoMention.applyToText(integrationAutoMention.applyToText(text)),
+    [skillAutoMention.applyToText, integrationAutoMention.applyToText]
+  )
+
+  const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending && !hasUploadingFiles
 
   /**
    * Convert integration names on mount for any initial value seeded by
@@ -335,8 +363,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
    */
   useEffect(() => {
     if (!valueRef.current) return
-    const converted = integrationAutoMention.applyToText(valueRef.current)
-    if (converted !== valueRef.current) setValue(converted)
+    const original = valueRef.current
+    const converted = applyAutoMentions(original)
+    if (converted !== original) setValue(converted)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -350,15 +379,15 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   useEffect(() => {
     if (defaultValue === prevDefaultValueRef.current) return
     prevDefaultValueRef.current = defaultValue
-    if (defaultValue) setValue(integrationAutoMention.applyToText(defaultValue))
-  }, [defaultValue, integrationAutoMention.applyToText])
+    if (defaultValue) setValue(applyAutoMentions(defaultValue))
+  }, [defaultValue, applyAutoMentions])
 
   const sttPrefixRef = useRef('')
 
   function handleTranscript(text: string) {
     const prefix = sttPrefixRef.current
     const newVal = prefix ? `${prefix} ${text}` : text
-    const converted = integrationAutoMention.applyToText(newVal)
+    const converted = applyAutoMentions(newVal)
     setValue(converted)
     valueRef.current = converted
   }
@@ -401,12 +430,15 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const pendingCursorRef = useRef<number | null>(null)
   const mentionRangeRef = useRef<{ start: number; end: number } | null>(null)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const slashRangeRef = useRef<{ start: number; end: number } | null>(null)
+  const [slashQuery, setSlashQuery] = useState<string | null>(null)
 
   useImperativeHandle(
     ref,
     () => ({
       loadQueuedMessage: (msg: QueuedMessage) => {
-        setValue(integrationAutoMention.applyToText(msg.content))
+        const converted = applyAutoMentions(msg.content)
+        setValue(converted)
         const restored: AttachedFile[] = (msg.fileAttachments ?? []).map((a) => ({
           id: a.id,
           name: a.filename,
@@ -432,7 +464,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       files.restoreAttachedFiles,
       contextManagement.setSelectedContexts,
       textareaRef,
-      integrationAutoMention.applyToText,
+      applyAutoMentions,
     ]
   )
 
@@ -488,6 +520,51 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     },
     [textareaRef, handleContextAdd]
   )
+
+  const handleSkillSelect = useCallback(
+    (skill: SkillDefinition) => {
+      const textarea = textareaRef.current
+      if (textarea) {
+        const currentValue = valueRef.current
+        const range = slashRangeRef.current
+        let before: string
+        let after: string
+        let insertText: string
+        let newPos: number
+
+        if (range) {
+          before = currentValue.slice(0, range.start)
+          after = currentValue.slice(range.end)
+          const needsSpaceBefore =
+            range.start > 0 && !/\s/.test(currentValue.charAt(range.start - 1))
+          insertText = `${needsSpaceBefore ? ' ' : ''}${SKILL_CHIP_TRIGGER}${skill.name} `
+          newPos = before.length + insertText.length
+        } else {
+          const insertAt = textarea.selectionStart ?? currentValue.length
+          const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
+          insertText = `${needsSpaceBefore ? ' ' : ''}${SKILL_CHIP_TRIGGER}${skill.name} `
+          before = currentValue.slice(0, insertAt)
+          after = currentValue.slice(insertAt)
+          newPos = before.length + insertText.length
+        }
+
+        const newValue = `${before}${insertText}${after}`
+        pendingCursorRef.current = newPos
+        valueRef.current = newValue
+        slashRangeRef.current = null
+        setSlashQuery(null)
+        setValue(newValue)
+      }
+
+      handleContextAdd({ kind: 'skill', skillId: skill.id, label: skill.name })
+    },
+    [textareaRef, handleContextAdd]
+  )
+
+  const handleSkillsMenuClose = useCallback(() => {
+    slashRangeRef.current = null
+    setSlashQuery(null)
+  }, [])
 
   const handlePlusMenuClose = useCallback(() => {
     atInsertPosRef.current = null
@@ -621,8 +698,14 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         ...(f.path ? { path: f.path } : {}),
       }))
 
+    // Skill chips store an EM SPACE sentinel in place of '/' so the centered
+    // icon fits its overlay slot. Restore the literal '/' in the outgoing text
+    // so the message reads as clean `/skill-name` (skills travel via contexts
+    // regardless). Only the submitted copy is converted; the live input is not.
+    const submittedValue = restoreSkillTriggerText(currentValue)
+
     onSubmit(
-      currentValue,
+      submittedValue,
       fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined,
       currentContext.selectedContexts.length > 0 ? currentContext.selectedContexts : undefined
     )
@@ -641,6 +724,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     plusMenuRef.current?.close()
     mentionRangeRef.current = null
     setMentionQuery(null)
+    skillsMenuRef.current?.close()
+    slashRangeRef.current = null
+    setSlashQuery(null)
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
@@ -664,6 +750,27 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
           // Confirm the highlighted match if there is one. If no items match, fall
           // through so Enter still submits and Tab still does its default thing.
           if (plusMenuRef.current?.selectActive()) {
+            e.preventDefault()
+            return
+          }
+        }
+      }
+
+      if (slashRangeRef.current && !e.nativeEvent.isComposing) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          skillsMenuRef.current?.moveActive(1)
+          return
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          skillsMenuRef.current?.moveActive(-1)
+          return
+        }
+        if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey) {
+          // Confirm the highlighted skill if there is one. If no items match, fall
+          // through so Enter still submits and Tab still does its default thing.
+          if (skillsMenuRef.current?.selectActive()) {
             e.preventDefault()
             return
           }
@@ -701,21 +808,20 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       const selEnd = textarea?.selectionEnd ?? selStart
       const selectionLength = Math.abs(selEnd - selStart)
 
-      if (e.key === 'Backspace' || e.key === 'Delete') {
-        if (selectionLength > 0) {
-          mentionTokensWithContext.removeContextsInSelection(selStart, selEnd)
-        } else {
-          const ranges = mentionTokensWithContext.computeMentionRanges()
-          const target =
-            e.key === 'Backspace'
-              ? ranges.find((r) => selStart > r.start && selStart <= r.end)
-              : ranges.find((r) => selStart >= r.start && selStart < r.end)
+      // Single-chip delete: remove the token's text atomically. A selection
+      // delete falls through to the native edit; either way the context-sync
+      // effect prunes contexts whose last token is gone.
+      if ((e.key === 'Backspace' || e.key === 'Delete') && selectionLength === 0) {
+        const ranges = mentionTokensWithContext.mentionRanges
+        const target =
+          e.key === 'Backspace'
+            ? ranges.find((r) => selStart > r.start && selStart <= r.end)
+            : ranges.find((r) => selStart >= r.start && selStart < r.end)
 
-          if (target) {
-            e.preventDefault()
-            mentionTokensWithContext.deleteRange(target)
-            return
-          }
+        if (target) {
+          e.preventDefault()
+          mentionTokensWithContext.deleteRange(target)
+          return
         }
       }
 
@@ -764,6 +870,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const getActiveMentionAtRef = useRef(mentionMenu.getActiveMentionQueryAtPosition)
   getActiveMentionAtRef.current = mentionMenu.getActiveMentionQueryAtPosition
 
+  const getActiveSlashAtRef = useRef(mentionMenu.getActiveSlashQueryAtPosition)
+  getActiveSlashAtRef.current = mentionMenu.getActiveSlashQueryAtPosition
+
   const syncMentionState = useCallback(
     (textarea: HTMLTextAreaElement, text: string, caret: number) => {
       const active = getActiveMentionAtRef.current(caret, text)
@@ -794,6 +903,57 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     []
   )
 
+  const syncSlashState = useCallback(
+    (textarea: HTMLTextAreaElement, text: string, caret: number) => {
+      const active = getActiveSlashAtRef.current(caret, text)
+      // Any word-boundary character inside the query dismisses the menu. The
+      // boundary set intentionally excludes `/` so the slash itself doesn't
+      // self-dismiss the menu it just opened.
+      const isOpenable = active && !/[\s.,;:!?(){}[\]"'`\\<>]/.test(active.query)
+      if (!isOpenable) {
+        if (slashRangeRef.current !== null) {
+          slashRangeRef.current = null
+          setSlashQuery(null)
+          skillsMenuRef.current?.close()
+        }
+        return
+      }
+
+      const wasActive = slashRangeRef.current !== null
+      slashRangeRef.current = { start: active.start, end: active.end }
+      setSlashQuery(active.query)
+      if (!wasActive) {
+        // Anchor at the caret so the menu floats above the user's cursor.
+        const anchor = getCaretAnchor(textarea, active.start)
+        skillsMenuRef.current?.open(anchor)
+      }
+    },
+    []
+  )
+
+  const handleSlashTriggerClick = useCallback(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.focus()
+
+    const currentValue = valueRef.current
+    const insertAt = textarea.selectionStart ?? currentValue.length
+    // A `/` only triggers the menu when it starts a token (at start or after
+    // whitespace). Insert a leading space when the preceding char isn't one.
+    const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
+    const insertText = `${needsSpaceBefore ? ' ' : ''}/`
+    const before = currentValue.slice(0, insertAt)
+    const after = currentValue.slice(insertAt)
+    const newValue = `${before}${insertText}${after}`
+    const newCaret = before.length + insertText.length
+
+    valueRef.current = newValue
+    setValue(newValue)
+    textarea.value = newValue
+    textarea.setSelectionRange(newCaret, newCaret)
+    syncSlashState(textarea, newValue, newCaret)
+  }, [textareaRef, syncSlashState])
+
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const previousValue = valueRef.current
@@ -807,21 +967,45 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
           previousValue,
           nextValue,
         })
+        // Run skills on the post-integration value so a completed `/name` token
+        // chips. A confirmed skill rewrites its leading `/` to the wide sentinel
+        // (in the textarea and in the returned value) so the centered icon fits.
+        finalValue = skillAutoMention.processChange({
+          textarea: e.target,
+          previousValue,
+          nextValue: finalValue,
+        })
       } else if (nextValue.length > previousValue.length + 1) {
-        // Multi-char insertion (paste, drag-drop, IME commit) — bulk
-        // convert all matches and rewrite the textarea via `setRangeText`
-        // to keep the edit in a single native undo step.
-        finalValue = integrationAutoMention.applyToText(nextValue)
+        // Multi-char insertion (paste, drag-drop, IME commit) — bulk convert all
+        // matches and rewrite the textarea via `setRangeText` to keep the edit
+        // in a single native undo step.
+        finalValue = applyAutoMentions(nextValue)
         if (finalValue !== nextValue) {
+          const caretBefore = e.target.selectionStart ?? nextValue.length
           e.target.setRangeText(finalValue, 0, nextValue.length, 'preserve')
+          // Replacing the whole value leaves the selection spanning the replaced
+          // range (it would select all the text). Collapse the caret to its
+          // converted position: only insertions BEFORE the caret should shift
+          // it, so measure the converted length of just the leading slice (a
+          // converted name after the caret must not move it). The re-registered
+          // contexts dedupe in `mergeContexts`, so this is side-effect-safe.
+          const caretAfter = applyAutoMentions(nextValue.slice(0, caretBefore)).length
+          e.target.setSelectionRange(caretAfter, caretAfter)
         }
       }
 
       const caret = e.target.selectionStart ?? finalValue.length
       setValue(finalValue)
       syncMentionState(e.target, finalValue, caret)
+      syncSlashState(e.target, finalValue, caret)
     },
-    [integrationAutoMention.applyToText, integrationAutoMention.processChange, syncMentionState]
+    [
+      applyAutoMentions,
+      integrationAutoMention.processChange,
+      skillAutoMention.processChange,
+      syncMentionState,
+      syncSlashState,
+    ]
   )
 
   const handleSelectAdjust = useCallback(() => {
@@ -837,7 +1021,8 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       return
     }
     syncMentionState(textarea, textarea.value, pos)
-  }, [textareaRef, mentionTokensWithContext, syncMentionState])
+    syncSlashState(textarea, textarea.value, pos)
+  }, [textareaRef, mentionTokensWithContext, syncMentionState, syncSlashState])
 
   const handleInput = useCallback(
     (e: React.FormEvent<HTMLTextAreaElement>) => {
@@ -852,6 +1037,68 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   )
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const textarea = e.currentTarget
+
+    // Portable chip links (`[label](sim:kind/id)`) re-create their chip on
+    // paste-back. Rewrite each link span to its `@label ` token (the trailing
+    // space is REQUIRED so useContextManagement's sync effect doesn't purge the
+    // freshly-added context) and register the contexts directly.
+    const pastedText = e.clipboardData?.getData('text/plain') ?? ''
+    const links = parseChipLinks(pastedText)
+    if (links.length > 0) {
+      e.preventDefault()
+
+      const pastedContexts: ChatContext[] = []
+      let rewritten = ''
+      let cursor = 0
+      for (let i = 0; i < links.length; i++) {
+        const link = links[i]
+        let between = pastedText.slice(cursor, link.start)
+        // Self-heal: a run of plain spaces sitting ENTIRELY between two chips is
+        // glue the codec re-emits, so collapse it to one space — gaps accumulated
+        // by earlier pastes clean themselves up. Newlines and prose-bordering
+        // whitespace contain non-space chars and are left verbatim.
+        if (i > 0 && /^ +$/.test(between)) between = ' '
+        rewritten += between
+        const ctx = chipLinkToContext(link)
+        pastedContexts.push(ctx)
+        // Insert the kind-correct token (skill EM-SPACE sentinel, slash `/`, `@`
+        // else) so the chip re-renders with its proper trigger glyph and the
+        // context-sync effect (keyed on the same per-kind prefix) keeps it. Append
+        // a single separator ONLY when the next source char is non-whitespace
+        // (chip→chip / chip→word); existing whitespace and end-of-string already
+        // supply the boundary, so re-pasting never accumulates spaces.
+        const next = pastedText.charAt(link.end)
+        rewritten += /\S/.test(next) ? `${chipDisplayToken(ctx)} ` : chipDisplayToken(ctx)
+        cursor = link.end
+      }
+      rewritten += pastedText.slice(cursor)
+
+      const selStart = textarea.selectionStart ?? valueRef.current.length
+      const selEnd = textarea.selectionEnd ?? selStart
+      const needsSpaceBefore =
+        selStart > 0 &&
+        !/\s/.test(valueRef.current.charAt(selStart - 1)) &&
+        /^[@/\u2003]/.test(rewritten)
+      const insert = needsSpaceBefore ? ` ${rewritten}` : rewritten
+
+      textarea.setRangeText(insert, selStart, selEnd, 'end')
+      const newValue = textarea.value
+      const caret = selStart + insert.length
+
+      // Use addContext directly — NOT handleContextAdd — so pasting does NOT
+      // auto-open the resource side panel (handleContextAdd fires onContextAdd).
+      for (const ctx of pastedContexts) contextRef.current.addContext(ctx)
+
+      valueRef.current = newValue
+      setValue(newValue)
+      requestAnimationFrame(() => {
+        const ta = textareaRef.current
+        if (ta) ta.setSelectionRange(caret, caret)
+      })
+      return
+    }
+
     const items = e.clipboardData?.items
     if (!items) return
 
@@ -878,6 +1125,58 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       overlayRef.current.scrollTop = e.currentTarget.scrollTop
     }
   }, [])
+
+  /**
+   * On copy/cut, write a portable representation of the selection to the
+   * clipboard. Portable resource chips (table/file/folder/etc.) become
+   * `[label](sim:kind/id)` markdown links so they read cleanly anywhere AND
+   * re-create their chip when pasted back into the input. Skill chips (whose
+   * EM SPACE sentinel maps back to `/`) and `@integration` tokens stay readable
+   * text and round-trip by name. Returns true when it took over the clipboard
+   * (the caller must then perform the cut deletion itself, since the default
+   * was prevented).
+   */
+  const writeSanitizedClipboard = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>): boolean => {
+      const textarea = e.currentTarget
+      const start = textarea.selectionStart ?? 0
+      const end = textarea.selectionEnd ?? 0
+      const selected = textarea.value.slice(start, end)
+      if (!selected) return false
+      const serialized = serializeSelectionForClipboard(
+        selected,
+        contextRef.current.selectedContexts
+      )
+      if (serialized === selected) return false
+      e.preventDefault()
+      e.clipboardData.setData('text/plain', serialized)
+      return true
+    },
+    []
+  )
+
+  const handleCopy = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      writeSanitizedClipboard(e)
+    },
+    [writeSanitizedClipboard]
+  )
+
+  const handleCut = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      // When the selection holds a portable chip (skill or resource) we take over
+      // the clipboard, so the selected text must be removed here (default prevented).
+      // Either way the context-sync effect prunes contexts whose token is now gone.
+      if (!writeSanitizedClipboard(e)) return
+      const textarea = e.currentTarget
+      const start = textarea.selectionStart ?? 0
+      const end = textarea.selectionEnd ?? 0
+      textarea.setRangeText('', start, end, 'end')
+      valueRef.current = textarea.value
+      setValue(textarea.value)
+    },
+    [writeSanitizedClipboard]
+  )
 
   const overlayContent = useMemo(() => {
     const contexts = contextManagement.selectedContexts
@@ -909,10 +1208,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         elements.push(<span key={`text-${i}-${lastIndex}-${range.start}`}>{before}</span>)
       }
 
-      const mentionLabel =
-        range.token.startsWith('@') || range.token.startsWith('/')
-          ? range.token.slice(1)
-          : range.token
+      const mentionLabel = stripMentionTrigger(range.token)
       const matchingCtx = contexts.find((c) => c.label === mentionLabel)
 
       const wfId =
@@ -923,13 +1219,19 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         <ContextMentionIcon
           context={matchingCtx}
           workflowColor={wfId ? (workflowsById[wfId]?.color ?? null) : null}
-          className='absolute inset-0 m-auto h-[12px] w-[12px] translate-y-[1.25px] text-[var(--text-icon)]'
+          className='absolute inset-0 m-auto size-[12px] translate-y-[1.25px] text-[var(--text-icon)]'
         />
       ) : null
 
       elements.push(
         <span key={`mention-${i}-${range.start}-${range.end}`}>
           <span className='relative'>
+            {/* Spacer reserves the real trigger glyph's width so the overlay's
+                advance matches the transparent textarea char-for-char —
+                hardcoding a width here would drift the text. For '@' the glyph is
+                ~1em; skill chips store an EM SPACE sentinel (SKILL_CHIP_TRIGGER)
+                in place of the narrow '/' so the centered 12px icon fits its slot
+                exactly like '@' does. */}
             <span className='invisible'>{range.token.charAt(0)}</span>
             {mentionIconNode}
           </span>
@@ -984,7 +1286,8 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
           onKeyDown={handleKeyDown}
           onInput={handleInput}
           onPaste={handlePaste}
-          onCut={mentionTokensWithContext.handleCut}
+          onCopy={handleCopy}
+          onCut={handleCut}
           onSelect={handleSelectAdjust}
           onMouseUp={handleSelectAdjust}
           onScroll={handleScroll}
@@ -1005,6 +1308,15 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
             pendingCursorRef={pendingCursorRef}
             mentionQuery={mentionQuery ?? undefined}
           />
+          <SkillsMenuDropdown
+            ref={skillsMenuRef}
+            skills={skills}
+            onSkillSelect={handleSkillSelect}
+            onClose={handleSkillsMenuClose}
+            textareaRef={textareaRef}
+            pendingCursorRef={pendingCursorRef}
+            slashQuery={slashQuery ?? undefined}
+          />
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
@@ -1012,12 +1324,26 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
                 variant='ghost'
                 onClick={handleFileSelectStable}
                 aria-label='Attach file'
-                className='h-[28px] w-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
+                className='size-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
               >
-                <Paperclip className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+                <Paperclip className='size-[16px] text-[var(--text-icon)]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Attach file</Tooltip.Content>
+          </Tooltip.Root>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                type='button'
+                variant='ghost'
+                onClick={handleSlashTriggerClick}
+                aria-label='Skills'
+                className='size-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
+              >
+                <Slash className='size-[16px] text-[var(--text-icon)]' />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>Skills</Tooltip.Content>
           </Tooltip.Root>
         </div>
         <div className='flex items-center gap-1.5'>

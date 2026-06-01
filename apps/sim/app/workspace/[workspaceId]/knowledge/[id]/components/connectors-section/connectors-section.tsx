@@ -31,13 +31,9 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
-import {
-  getCanonicalScopesForProvider,
-  getProviderIdFromServiceId,
-  type OAuthProvider,
-} from '@/lib/oauth'
+import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
-import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
+import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
@@ -598,34 +594,39 @@ function ConnectorCard({
       )}
 
       {showOAuthModal && serviceId && providerId && !connector.credentialId && (
-        <OAuthModal
+        <ConnectOAuthModal
           mode='connect'
-          isOpen={showOAuthModal}
-          onClose={() => {
-            consumeOAuthReturnContext()
-            setShowOAuthModal(false)
+          origin='kb-connectors'
+          open={showOAuthModal}
+          onOpenChange={(open) => {
+            if (!open) {
+              consumeOAuthReturnContext()
+              setShowOAuthModal(false)
+            }
           }}
-          provider={providerId as OAuthProvider}
           serviceId={serviceId}
+          providerId={providerId}
+          requiredScopes={getCanonicalScopesForProvider(providerId)}
           workspaceId={workspaceId}
           knowledgeBaseId={knowledgeBaseId}
-          credentialCount={credentials?.length ?? 0}
         />
       )}
 
       {showOAuthModal && serviceId && providerId && connector.credentialId && (
-        <OAuthModal
+        <ConnectOAuthModal
           mode='reauthorize'
-          isOpen={showOAuthModal}
-          onClose={() => {
-            consumeOAuthReturnContext()
-            setShowOAuthModal(false)
+          open={showOAuthModal}
+          onOpenChange={(open) => {
+            if (!open) {
+              consumeOAuthReturnContext()
+              setShowOAuthModal(false)
+            }
           }}
-          provider={providerId as OAuthProvider}
           toolName={connectorDef?.name ?? connector.connectorType}
           requiredScopes={getCanonicalScopesForProvider(providerId)}
           newScopes={missingScopes}
           serviceId={serviceId}
+          providerId={providerId}
         />
       )}
     </div>

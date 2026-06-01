@@ -41,6 +41,12 @@ export {
   type ChipModalProps,
 } from './chip-modal/chip-modal'
 export {
+  ChipSwitch,
+  type ChipSwitchOption,
+  type ChipSwitchProps,
+} from './chip-switch/chip-switch'
+export { ChipTag, type ChipTagProps, chipTagVariants } from './chip-tag/chip-tag'
+export {
   CODE_LINE_HEIGHT_PX,
   Code,
   calculateGutterWidth,

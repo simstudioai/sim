@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { Button } from '@/components/emcn'
 import { PanelLeft } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
-import { useSession } from '@/lib/auth/auth-client'
 import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
@@ -21,6 +20,7 @@ import {
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
+import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
 import {
   CreditsChip,
@@ -36,14 +36,16 @@ const logger = createLogger('Home')
 
 interface HomeProps {
   chatId?: string
+  userName?: string
+  userId?: string
+  initialResourceId?: string | null
 }
 
-export function Home({ chatId }: HomeProps = {}) {
+export function Home({ chatId, userName, userId, initialResourceId = null }: HomeProps) {
+  useOAuthReturnRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const initialResourceId = searchParams.get('resource')
-  const { data: session } = useSession()
+  const firstName = userName?.split(' ')[0] ?? ''
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
@@ -306,8 +308,7 @@ export function Home({ chatId }: HomeProps = {}) {
         </div>
         <div className='flex min-h-full flex-col items-center justify-center px-6 pb-[2vh]'>
           <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
-            What should we get done
-            {session?.user?.name ? `, ${session.user.name.split(' ')[0]}` : ''}?
+            What should we get done{firstName ? `, ${firstName}` : ''}?
           </h1>
           <div ref={initialViewInputRef} className='w-full'>
             <UserInput
@@ -316,7 +317,7 @@ export function Home({ chatId }: HomeProps = {}) {
               onSubmit={handleSubmit}
               isSending={isSending}
               onStopGeneration={handleStopGeneration}
-              userId={session?.user?.id}
+              userId={userId}
               onContextAdd={handleContextAdd}
               onContextRemove={handleInitialContextRemove}
             />
@@ -344,7 +345,7 @@ export function Home({ chatId }: HomeProps = {}) {
           onSendQueuedMessage={sendNow}
           onEditQueuedMessage={editQueuedMessage}
           onCancelQueueEdit={cancelQueueEdit}
-          userId={session?.user?.id}
+          userId={userId}
           chatId={resolvedChatId}
           onContextAdd={handleContextAdd}
           onWorkspaceResourceSelect={handleWorkspaceResourceSelect}

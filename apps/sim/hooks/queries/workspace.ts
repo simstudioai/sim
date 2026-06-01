@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -255,6 +256,21 @@ async function fetchWorkspaceSettings(workspaceId: string, signal?: AbortSignal)
     settings,
     permissions,
   }
+}
+
+/**
+ * Prefetch a workspace's settings (and permissions) into the cache. Use on
+ * hover to warm data before navigating to a settings-style route.
+ * @param queryClient - The active QueryClient
+ * @param workspaceId - The workspace ID to prefetch settings for
+ */
+export function prefetchWorkspaceSettings(queryClient: QueryClient, workspaceId: string) {
+  if (!workspaceId) return
+  queryClient.prefetchQuery({
+    queryKey: workspaceKeys.settings(workspaceId),
+    queryFn: ({ signal }) => fetchWorkspaceSettings(workspaceId, signal),
+    staleTime: 30 * 1000,
+  })
 }
 
 /**

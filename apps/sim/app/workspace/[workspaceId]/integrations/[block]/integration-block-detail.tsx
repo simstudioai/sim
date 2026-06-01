@@ -1,18 +1,18 @@
 'use client'
 
-import { type ComponentType, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Chip, ChipDropdown, ChipLink } from '@/components/emcn'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { cn } from '@/lib/core/utils/cn'
-import { blockTypeToIconMap, type Integration } from '@/lib/integrations'
-import { OAUTH_PROVIDERS } from '@/lib/oauth'
-import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-oauth-modal'
 import {
-  ConnectServiceAccountModal,
-  type ServiceAccountProviderId,
-} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
+  blockTypeToIconMap,
+  type Integration,
+  resolveOAuthServiceForIntegration,
+} from '@/lib/integrations'
+import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
   CONNECT_MODE,
@@ -29,57 +29,6 @@ const TEMPLATE_CLUSTER_MAX = 3 as const
  * tiles cascade behind it.
  */
 const TEMPLATE_TILE_Z = ['z-30', 'z-20', 'z-10'] as const
-
-interface OAuthServiceMatch {
-  providerId: string
-  requiredScopes: string[]
-  serviceName: string
-  serviceIcon: ComponentType<{ className?: string }>
-  /**
-   * When set, the matched OAuth service also exposes a service-account flow
-   * (e.g. Google services with `google-service-account`, Atlassian services
-   * with `atlassian-service-account`). Drives the secondary "Add service
-   * account" entry in the connect dropdown.
-   */
-  serviceAccountProviderId?: ServiceAccountProviderId
-}
-
-/**
- * Narrows the runtime `OAuthServiceConfig.serviceAccountProviderId` string to
- * the {@link ServiceAccountProviderId} union. Anything outside the union is
- * unsupported by `ConnectServiceAccountModal` and is silently ignored — the
- * dropdown will fall back to the OAuth-only entry.
- */
-function asServiceAccountProviderId(
-  value: string | undefined
-): ServiceAccountProviderId | undefined {
-  if (value === 'google-service-account' || value === 'atlassian-service-account') return value
-  return undefined
-}
-
-/**
- * Looks up the OAuth service entry whose display name matches the integration
- * (case-insensitive). Returns `null` for non-OAuth integrations or when no
- * matching service is registered in `OAUTH_PROVIDERS`.
- */
-function resolveOAuthServiceForIntegration(integration: Integration): OAuthServiceMatch | null {
-  if (integration.authType !== 'oauth') return null
-  const target = integration.name.toLowerCase()
-  for (const provider of Object.values(OAUTH_PROVIDERS)) {
-    for (const service of Object.values(provider.services)) {
-      if (service.name.toLowerCase() === target) {
-        return {
-          providerId: service.providerId,
-          requiredScopes: service.scopes ?? [],
-          serviceName: service.name,
-          serviceIcon: service.icon as ComponentType<{ className?: string }>,
-          serviceAccountProviderId: asServiceAccountProviderId(service.serviceAccountProviderId),
-        }
-      }
-    }
-  }
-  return null
-}
 
 interface IntegrationBlockDetailProps {
   integration: Integration
@@ -178,6 +127,8 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
       </div>
       {oauthService && (
         <ConnectOAuthModal
+          mode='connect'
+          origin='integrations'
           open={oauthOpen}
           onOpenChange={setOAuthOpen}
           workspaceId={workspaceId}

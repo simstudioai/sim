@@ -154,6 +154,7 @@ export interface ChatMessageContext {
   folderId?: string
   chatId?: string
   blockType?: string
+  skillId?: string
 }
 
 export interface ChatMessage {

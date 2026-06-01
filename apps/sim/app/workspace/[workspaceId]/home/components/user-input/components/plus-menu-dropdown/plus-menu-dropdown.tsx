@@ -22,9 +22,19 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type {
+  MothershipResource,
+  MothershipResourceType,
+} from '@/app/workspace/[workspaceId]/home/types'
 
 export type AvailableResourceGroup = ReturnType<typeof useAvailableResources>[number]
+
+/**
+ * Resource types that are only offered via `@`-mention autocomplete and hidden
+ * from the `+` browse menu. Integrations are searchable inline (e.g. typing
+ * `@sla` surfaces Slack) but should not clutter the explicit attach menu.
+ */
+const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integration'])
 
 interface PlusMenuDropdownProps {
   availableResources: AvailableResourceGroup[]
@@ -71,17 +81,27 @@ export const PlusMenuDropdown = React.memo(
       setOpen(false)
     }, [])
 
+    // The `+` browse menu hides mention-only resource types; `@`-mention mode
+    // exposes the full catalog so integrations remain searchable inline.
+    const visibleResources = useMemo(
+      () =>
+        isMention
+          ? availableResources
+          : availableResources.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type)),
+      [isMention, availableResources]
+    )
+
     const workflowTree = useMemo(() => {
-      const workflowGroup = availableResources.find((g) => g.type === 'workflow')
-      const folderGroup = availableResources.find((g) => g.type === 'folder')
+      const workflowGroup = visibleResources.find((g) => g.type === 'workflow')
+      const folderGroup = visibleResources.find((g) => g.type === 'folder')
       return buildWorkflowFolderTree(workflowGroup?.items ?? [], folderGroup?.items ?? [])
-    }, [availableResources])
+    }, [visibleResources])
 
     const fileFolderTree = useMemo(() => {
-      const fileGroup = availableResources.find((g) => g.type === 'file')
-      const fileFolderGroup = availableResources.find((g) => g.type === 'filefolder')
+      const fileGroup = visibleResources.find((g) => g.type === 'file')
+      const fileFolderGroup = visibleResources.find((g) => g.type === 'filefolder')
       return buildFileFolderTree(fileGroup?.items ?? [], fileFolderGroup?.items ?? [])
-    }, [availableResources])
+    }, [visibleResources])
 
     const filteredItems = useMemo(() => {
       const rawQuery = isMention ? (mentionQuery ?? '') : search
@@ -89,14 +109,12 @@ export const PlusMenuDropdown = React.memo(
       // In mention mode always render a flat filtered list — empty query = show everything.
       if (!isMention && !q) return null
       if (isMention && !q) {
-        return availableResources.flatMap(({ type, items }) =>
-          items.map((item) => ({ type, item }))
-        )
+        return visibleResources.flatMap(({ type, items }) => items.map((item) => ({ type, item })))
       }
-      return availableResources.flatMap(({ type, items }) =>
+      return visibleResources.flatMap(({ type, items }) =>
         items.filter((item) => item.name.toLowerCase().includes(q)).map((item) => ({ type, item }))
       )
-    }, [isMention, mentionQuery, search, availableResources])
+    }, [isMention, mentionQuery, search, visibleResources])
 
     const filteredItemsRef = useRef(filteredItems)
     filteredItemsRef.current = filteredItems
@@ -313,7 +331,7 @@ export const PlusMenuDropdown = React.memo(
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                 )}
-                {availableResources
+                {visibleResources
                   .filter(
                     ({ type }) =>
                       type !== 'workflow' &&
