@@ -71,23 +71,27 @@ export class KnowledgeBaseFileOwnershipError extends Error {
 
 /**
  * Guard document `fileUrl`s at creation time. When a URL points at an internal
- * `kb/` storage object, require that the object is owned by the same workspace as
- * the target knowledge base, resolved from the trusted `workspace_files` binding.
+ * `kb/` storage object, require that the target knowledge base owns the object,
+ * resolved from the trusted `workspace_files` binding:
+ *
+ * - Workspace KB (`kbWorkspaceId` set): the binding's `workspaceId` must match.
+ * - Personal KB (`kbWorkspaceId` null): the binding's `userId` must be the KB
+ *   owner. A key bound to another tenant is rejected; an unbound key (legacy /
+ *   never reserved) passes since it carries no cross-tenant ownership.
+ *
  * External `http(s)`/`data:` URLs (ingestion sources) and non-`kb/` internal keys
  * pass through unchanged. This blocks a user from asserting ownership of another
- * tenant's `kb/` key via a planted `fileUrl`. All referenced bindings are
- * resolved in one query (no N+1 inside the `FOR UPDATE` window). Single-document
- * callers pass a one-element array.
+ * tenant's `kb/` key via a planted `fileUrl` — including in a personal KB, which
+ * otherwise could be moved into a workspace to launder the binding. All
+ * referenced bindings are resolved in one query (no N+1 inside the `FOR UPDATE`
+ * window). Single-document callers pass a one-element array.
  */
 async function assertKnowledgeBaseFileUrlsOwnership(
   fileUrls: string[],
   kbWorkspaceId: string | null,
+  kbUserId: string,
   requestId: string
 ): Promise<void> {
-  if (!kbWorkspaceId) {
-    return
-  }
-
   const keys = [
     ...new Set(
       fileUrls
@@ -100,16 +104,35 @@ async function assertKnowledgeBaseFileUrlsOwnership(
   }
 
   const bindings = await getFileMetadataByKeys(keys, 'knowledge-base')
-  const ownerByKey = new Map(bindings.map((binding) => [binding.key, binding.workspaceId]))
+  const bindingByKey = new Map(bindings.map((binding) => [binding.key, binding]))
 
   for (const key of keys) {
-    const ownerWorkspaceId = ownerByKey.get(key)
-    if (!ownerWorkspaceId || ownerWorkspaceId !== kbWorkspaceId) {
-      logger.warn(`[${requestId}] Rejected document referencing unowned knowledge-base file`, {
-        storageKey: key,
-        kbWorkspaceId,
-        bindingWorkspaceId: ownerWorkspaceId ?? null,
-      })
+    const binding = bindingByKey.get(key)
+
+    if (kbWorkspaceId) {
+      if (!binding || binding.workspaceId !== kbWorkspaceId) {
+        logger.warn(`[${requestId}] Rejected document referencing unowned knowledge-base file`, {
+          storageKey: key,
+          kbWorkspaceId,
+          bindingWorkspaceId: binding?.workspaceId ?? null,
+        })
+        throw new KnowledgeBaseFileOwnershipError(key)
+      }
+      continue
+    }
+
+    // Personal KB: reject a key whose binding belongs to a different user. An
+    // unbound key carries no ownership and is allowed (legacy personal files).
+    if (binding && binding.userId !== kbUserId) {
+      logger.warn(
+        `[${requestId}] Rejected personal-KB document referencing another tenant's file`,
+        {
+          storageKey: key,
+          kbUserId,
+          bindingUserId: binding.userId,
+          bindingWorkspaceId: binding.workspaceId ?? null,
+        }
+      )
       throw new KnowledgeBaseFileOwnershipError(key)
     }
   }
@@ -827,7 +850,11 @@ export async function createDocumentRecords(
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
     const kb = await tx
-      .select({ id: knowledgeBase.id, workspaceId: knowledgeBase.workspaceId })
+      .select({
+        id: knowledgeBase.id,
+        workspaceId: knowledgeBase.workspaceId,
+        userId: knowledgeBase.userId,
+      })
       .from(knowledgeBase)
       .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
       .limit(1)
@@ -840,6 +867,7 @@ export async function createDocumentRecords(
     await assertKnowledgeBaseFileUrlsOwnership(
       documents.map((docData) => docData.fileUrl),
       kbWorkspaceId,
+      kb[0].userId,
       requestId
     )
 
@@ -1389,7 +1417,11 @@ export async function createSingleDocument(
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
     const kb = await tx
-      .select({ id: knowledgeBase.id, workspaceId: knowledgeBase.workspaceId })
+      .select({
+        id: knowledgeBase.id,
+        workspaceId: knowledgeBase.workspaceId,
+        userId: knowledgeBase.userId,
+      })
       .from(knowledgeBase)
       .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
       .limit(1)
@@ -1398,7 +1430,12 @@ export async function createSingleDocument(
       throw new Error('Knowledge base not found')
     }
 
-    await assertKnowledgeBaseFileUrlsOwnership([documentData.fileUrl], kb[0].workspaceId, requestId)
+    await assertKnowledgeBaseFileUrlsOwnership(
+      [documentData.fileUrl],
+      kb[0].workspaceId,
+      kb[0].userId,
+      requestId
+    )
 
     await tx.insert(document).values(newDocument)
 

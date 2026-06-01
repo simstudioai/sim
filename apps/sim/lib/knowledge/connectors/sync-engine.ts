@@ -974,6 +974,7 @@ async function addDocument(
     const storageKey = extractStorageKey(urlPath)
     if (storageKey && storageKey !== urlPath) {
       await deleteFile({ key: storageKey, context: 'knowledge-base' }).catch(() => undefined)
+      await deleteFileMetadata(storageKey).catch(() => undefined)
     }
     throw error
   }
@@ -1069,6 +1070,7 @@ async function updateDocument(
     const storageKey = extractStorageKey(urlPath)
     if (storageKey && storageKey !== urlPath) {
       await deleteFile({ key: storageKey, context: 'knowledge-base' }).catch(() => undefined)
+      await deleteFileMetadata(storageKey).catch(() => undefined)
     }
     throw error
   }
