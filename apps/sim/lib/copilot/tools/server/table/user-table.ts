@@ -14,6 +14,7 @@ import {
   type CsvHeaderMapping,
   CsvImportValidationError,
   coerceRowsForTable,
+  getWorkspaceTableLimits,
   inferSchemaFromCsv,
   parseCsvBuffer,
   sanitizeName,
@@ -263,6 +264,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
+          const planLimits = await getWorkspaceTableLimits(workspaceId)
           const table = await createTable(
             {
               name: args.name,
@@ -270,6 +272,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               schema: args.schema,
               workspaceId,
               userId: context.userId,
+              maxRows: planLimits.maxRowsPerTable,
+              maxTables: planLimits.maxTables,
             },
             requestId
           )
@@ -761,6 +765,15 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const tableName = args.name || file.name.replace(/\.[^.]+$/, '')
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
+          const planLimits = await getWorkspaceTableLimits(workspaceId)
+
+          if (rows.length > planLimits.maxRowsPerTable) {
+            return {
+              success: false,
+              message: `"${file.name}" has ${rows.length.toLocaleString()} rows, which exceeds this plan's limit of ${planLimits.maxRowsPerTable.toLocaleString()} rows per table.`,
+            }
+          }
+
           const table = await createTable(
             {
               name: tableName,
@@ -768,12 +781,20 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               schema: { columns },
               workspaceId,
               userId: context.userId,
+              maxRows: planLimits.maxRowsPerTable,
+              maxTables: planLimits.maxTables,
             },
             requestId
           )
 
           const coerced = coerceRowsForTable(rows, { columns }, headerToColumn)
-          const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
+          let inserted: number
+          try {
+            inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
+          } catch (insertError) {
+            await deleteTable(table.id, requestId).catch(() => {})
+            throw insertError
+          }
 
           logger.info('Table created from file', {
             tableId: table.id,
