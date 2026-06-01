@@ -788,8 +788,28 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           try {
             inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
           } catch (insertError) {
-            await deleteTable(table.id, requestId).catch(() => {})
-            throw insertError
+            const cleanupRequestId = generateId().slice(0, 8)
+            await deleteTable(table.id, cleanupRequestId).catch((cleanupError) => {
+              logger.error('Failed to roll back table after import failure', {
+                tableId: table.id,
+                error: toError(cleanupError).message,
+              })
+            })
+            const reason = toError(insertError).message
+            const cause =
+              insertError instanceof Error && insertError.cause
+                ? toError(insertError.cause).message
+                : undefined
+            logger.error('Failed to import rows into new table', {
+              tableId: table.id,
+              fileName: file.name,
+              error: reason,
+              cause,
+            })
+            return {
+              success: false,
+              message: `Failed to import rows from "${file.name}" — the table was rolled back. ${cause ? `${reason} (${cause})` : reason}`,
+            }
           }
 
           logger.info('Table created from file', {

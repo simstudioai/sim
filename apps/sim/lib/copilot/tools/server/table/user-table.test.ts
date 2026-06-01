@@ -249,6 +249,7 @@ describe('userTableServerTool.create_from_file', () => {
     mockDownloadWorkspaceFile.mockResolvedValue(Buffer.from('name,age\nAlice,30\nBob,40'))
     mockGetWorkspaceTableLimits.mockResolvedValue({ maxRowsPerTable: 1000, maxTables: 3 })
     mockCreateTable.mockResolvedValue(buildTable({ id: 'tbl_new', name: 'people' }))
+    mockDeleteTable.mockResolvedValue(undefined)
     mockBatchInsertRows.mockImplementation(async (data: { rows: unknown[] }) =>
       data.rows.map((_, i) => ({ id: `row_${i}` }))
     )
@@ -286,8 +287,8 @@ describe('userTableServerTool.create_from_file', () => {
     expect(mockDeleteTable).not.toHaveBeenCalled()
   })
 
-  it('deletes the created table when row insertion fails', async () => {
-    mockBatchInsertRows.mockRejectedValueOnce(new Error('Maximum row limit (1000) reached'))
+  it('rolls back the created table and reports the reason when row insertion fails', async () => {
+    mockBatchInsertRows.mockRejectedValueOnce(new Error('Row 2: Column "email" must be unique'))
 
     const result = await userTableServerTool.execute(
       { operation: 'create_from_file', args: { fileId: 'file-1' } },
@@ -296,6 +297,8 @@ describe('userTableServerTool.create_from_file', () => {
 
     expect(result.success).toBe(false)
     expect(mockDeleteTable).toHaveBeenCalledWith('tbl_new', expect.any(String))
+    expect(result.message).toMatch(/rolled back/i)
+    expect(result.message).toMatch(/must be unique/i)
   })
 })
 
