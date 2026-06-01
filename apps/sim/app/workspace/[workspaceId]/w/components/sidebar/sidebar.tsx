@@ -1024,12 +1024,6 @@ export const Sidebar = memo(function Sidebar() {
     })
   }, [workflowId, workflowsLoading])
 
-  useEffect(() => {
-    if (!isOnWorkflowPage && !isCollapsed) {
-      setSidebarWidth(SIDEBAR_WIDTH.MIN)
-    }
-  }, [isOnWorkflowPage, isCollapsed, setSidebarWidth])
-
   const handleCreateWorkflow = useCallback(async () => {
     const workflowId = await createWorkflow()
     if (workflowId) {
@@ -1731,21 +1725,19 @@ export const Sidebar = memo(function Sidebar() {
           </div>
         </aside>
 
-        {(isCollapsed || isOnWorkflowPage) && (
-          <div
-            className={cn(
-              'absolute top-0 right-0 bottom-0 z-20 w-[8px] translate-x-1/2',
-              isCollapsed ? 'cursor-e-resize' : 'cursor-ew-resize'
-            )}
-            onMouseDown={isCollapsed ? undefined : handleMouseDown}
-            onClick={isCollapsed ? toggleCollapsed : undefined}
-            onKeyDown={isCollapsed ? handleEdgeKeyDown : undefined}
-            role={isCollapsed ? 'button' : 'separator'}
-            tabIndex={isCollapsed ? 0 : undefined}
-            aria-orientation={isCollapsed ? undefined : 'vertical'}
-            aria-label={isCollapsed ? 'Expand sidebar' : 'Resize sidebar'}
-          />
-        )}
+        <div
+          className={cn(
+            'absolute top-0 right-0 bottom-0 z-20 w-[8px] translate-x-1/2',
+            isCollapsed ? 'cursor-e-resize' : 'cursor-ew-resize'
+          )}
+          onMouseDown={isCollapsed ? undefined : handleMouseDown}
+          onClick={isCollapsed ? toggleCollapsed : undefined}
+          onKeyDown={isCollapsed ? handleEdgeKeyDown : undefined}
+          role={isCollapsed ? 'button' : 'separator'}
+          tabIndex={isCollapsed ? 0 : undefined}
+          aria-orientation={isCollapsed ? undefined : 'vertical'}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Resize sidebar'}
+        />
       </div>
 
       <SearchModal
