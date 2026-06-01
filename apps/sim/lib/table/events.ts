@@ -113,6 +113,16 @@ export type TableEvent =
        *  skip capped dispatches (see `resolveCellExec`). */
       limit?: { type: 'rows'; max: number }
     }
+  | {
+      /** A dispatch was stopped because the billed account is over its usage
+       *  limit. The client surfaces an upgrade prompt and redirects to billing.
+       *  Cells are intentionally left untouched (no error/cancelled marking);
+       *  the dispatch is halted via `markDispatchComplete`. */
+      kind: 'usageLimitReached'
+      tableId: string
+      dispatchId: string
+      message: string
+    }
 
 export interface TableEventEntry {
   eventId: number

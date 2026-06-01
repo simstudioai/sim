@@ -10,6 +10,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { isExecCancelled } from '@/lib/table/deps'
 import { appendTableEvent } from '@/lib/table/events'
 import type { RowData, RowExecutionMetadata, RowExecutions, WorkflowGroup } from '@/lib/table/types'
 
@@ -80,11 +81,13 @@ export async function writeWorkflowGroupState(
     )
     return 'skipped'
   }
-  if (
-    current?.status === 'cancelled' &&
-    current.executionId === executionId &&
-    payload.executionState.status !== 'cancelled'
-  ) {
+  // A `cancelled` cell rejects any worker write regardless of executionId — a
+  // stop click can only stamp the dispatcher pre-stamp's executionId (often
+  // null), so an executionId-matched guard would let the worker that later
+  // claims the cell with its real id resurrect it. `bypassStaleWorker` (a fresh
+  // `queued` claim from a new dispatch, or the authoritative cancel write
+  // itself) still passes; manual re-runs clear the tombstone before stamping.
+  if (!bypassStaleWorker && isExecCancelled(current)) {
     logger.info(
       `Skipping group write — cancelled (table=${tableId} row=${rowId} group=${groupId} executionId=${executionId})`
     )

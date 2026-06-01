@@ -329,6 +329,10 @@ export interface WorkflowGroupCellPayload {
   enrichmentId?: string
   workspaceId: string
   executionId: string
+  /** Owning dispatch, set by `dispatcherStep`. Lets the cell halt its dispatch
+   *  on a hard stop (e.g. usage limit). Absent for cascade/auto-fire payloads
+   *  that aren't driven by a dispatch. */
+  dispatchId?: string
 }
 
 /** Per-table concurrency cap. Mirrors trigger.dev's `concurrencyLimit: 20`. */
@@ -453,6 +457,30 @@ export async function cancelWorkflowGroupRuns(
   }
 
   const mutations: RowMutation[] = Array.from(byRow.values())
+
+  // Defense-in-depth for paused/awaiting cells: a cell that paused mid-run is
+  // stamped `pending` with a `paused-<executionId>` jobId and keeps a record in
+  // `paused_executions`. Mark those cancelling so a pending waitpoint short-
+  // circuits before it resumes (the resume worker also re-checks the cell's
+  // cancelled tombstone — that's the authoritative stop). No-op for cells with
+  // no paused record.
+  const pausedCancellations = inFlightRows
+    .filter((r) => r.executionId && r.jobId?.startsWith('paused-'))
+    .map((r) => ({ executionId: r.executionId as string, workflowId: r.workflowId }))
+  if (pausedCancellations.length > 0) {
+    const { PauseResumeManager } = await import(
+      '@/lib/workflows/executor/human-in-the-loop-manager'
+    )
+    await Promise.allSettled(
+      pausedCancellations.map((p) =>
+        PauseResumeManager.beginPausedCancellation(p.executionId, p.workflowId).catch((err) => {
+          logger.warn(`beginPausedCancellation failed for ${p.executionId}`, {
+            error: toError(err).message,
+          })
+        })
+      )
+    )
+  }
 
   // Abort in-flight cell runs. The interface method `cancelByKey` is a no-op
   // on the trigger.dev backend (no in-process AbortControllers) and aborts
