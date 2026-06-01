@@ -15,6 +15,7 @@ import {
 } from '@/components/emcn'
 import {
   Check,
+  Download,
   Duplicate,
   Eye,
   FolderPlus,
@@ -28,7 +29,6 @@ import {
   SquareArrowUpRight,
   Trash,
   Unlock,
-  Upload,
 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { WORKFLOW_COLORS } from '@/lib/workflows/colors'
@@ -563,7 +563,7 @@ export function ContextMenu({
               onClose()
             }}
           >
-            <Upload />
+            <Download />
             Export
           </DropdownMenuItem>
         )}

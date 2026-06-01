@@ -12,18 +12,17 @@ import {
   BubbleChatClose,
   BubbleChatPreview,
   Button,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   Duplicate,
   Layout,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   MoreHorizontal,
   Play,
   Popover,
@@ -35,7 +34,7 @@ import {
   Trash,
   toast,
 } from '@/components/emcn'
-import { Lock, Unlock, Upload } from '@/components/emcn/icons'
+import { Download, Lock, Unlock } from '@/components/emcn/icons'
 import { VariableIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -696,7 +695,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     onSelect={handleExportJson}
                     disabled={!userPermissions.canEdit || isExporting || !currentWorkflow}
                   >
-                    <Upload />
+                    <Download />
                     Export workflow
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -933,36 +932,39 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       </aside>
 
       {/* Delete Confirmation Modal */}
-      <Modal open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Workflow</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {currentWorkflow?.name ?? 'this workflow'}
-              </span>
-              ?{' '}
-              <span className='text-[var(--text-error)]'>
-                All associated blocks, executions, and configuration will be removed.
-              </span>{' '}
-              You can restore it from Recently Deleted in Settings.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => setIsDeleteModalOpen(false)}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDeleteWorkflow} disabled={isDeleting}>
-              {isDeleting ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+        srTitle='Delete Workflow'
+      >
+        <ChipModalHeader showDivider={false}>Delete Workflow</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {currentWorkflow?.name ?? 'this workflow'}
+            </span>
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              All associated blocks, executions, and configuration will be removed.
+            </span>{' '}
+            You can restore it from Recently Deleted in Settings.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={() => setIsDeleteModalOpen(false)}
+            disabled={isDeleting}
+          >
+            Cancel
+          </Chip>
+          <Chip variant='destructive' flush onClick={handleDeleteWorkflow} disabled={isDeleting}>
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
 
       {/* Floating Variables Modal */}
       <Variables readOnly={workflowLocked} />

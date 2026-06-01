@@ -16,8 +16,8 @@ import {
   PopoverTrigger,
   Tooltip,
   Trash,
-  Upload,
 } from '@/components/emcn'
+import { Download } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -977,7 +977,7 @@ export function Chat() {
                   }}
                   disabled={workflowMessages.length === 0}
                 >
-                  <Upload className='size-[13px]' />
+                  <Download className='size-[13px]' />
                   <span>Export</span>
                 </PopoverItem>
                 <PopoverItem

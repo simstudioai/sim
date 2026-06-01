@@ -15,8 +15,8 @@ import {
   PopoverItem,
   PopoverTrigger,
   Tooltip,
-  Upload,
 } from '@/components/emcn'
+import { Download } from '@/components/emcn/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { sendMothershipMessage } from '@/lib/mothership/events'
@@ -1406,7 +1406,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Export console CSV'
                             className='!p-1.5 -m-1.5'
                           >
-                            <Upload className='h-3.5 w-3.5' />
+                            <Download className='h-3.5 w-3.5' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
