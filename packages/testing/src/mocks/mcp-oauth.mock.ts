@@ -70,5 +70,11 @@ export const mcpOauthMock = {
   withMcpOauthRefreshLock: mcpOauthMockFns.mockWithMcpOauthRefreshLock,
   McpOauthRedirectRequired: McpOauthRedirectRequiredMock,
   McpOauthInsecureUrlError: McpOauthInsecureUrlErrorMock,
-  SimMcpOauthProvider: vi.fn().mockImplementation((value) => value),
+  SimMcpOauthProvider: vi.fn().mockImplementation(
+    class {
+      constructor(value: object) {
+        Object.assign(this, value)
+      }
+    }
+  ),
 }

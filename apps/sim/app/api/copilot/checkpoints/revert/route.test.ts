@@ -94,16 +94,23 @@ describe('Copilot Checkpoints Revert API Route', () => {
     vi.spyOn(Date, 'now').mockReturnValue(1640995200000)
 
     const originalDate = Date
-    vi.spyOn(global, 'Date').mockImplementation(((...args: any[]) => {
+    const buildDate = (args: any[]): Date => {
       if (args.length === 0) {
-        const mockDate = new originalDate('2024-01-01T00:00:00.000Z')
-        return mockDate
+        return new originalDate('2024-01-01T00:00:00.000Z')
       }
       if (args.length === 1) {
         return new originalDate(args[0])
       }
       return new originalDate(args[0], args[1], args[2], args[3], args[4], args[5], args[6])
-    }) as any)
+    }
+    vi.spyOn(global, 'Date').mockImplementation(
+      class {
+        constructor(...args: any[]) {
+          // biome-ignore lint/correctness/noConstructorReturn: vitest 4 constructs mocks via Reflect.construct; returning a real Date overrides the instance so `new Date(...)` yields a genuine Date the route can call .toISOString()/.getTime() on
+          return buildDate(args)
+        }
+      } as any
+    )
   })
 
   afterEach(() => {

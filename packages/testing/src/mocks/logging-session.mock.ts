@@ -36,21 +36,23 @@ export const loggingSessionMockFns = {
  * call returns an object whose methods point at the shared `vi.fn()` refs in
  * `loggingSessionMockFns`.
  */
-export const LoggingSessionMock = vi.fn().mockImplementation(() => ({
-  start: loggingSessionMockFns.mockStart,
-  complete: loggingSessionMockFns.mockComplete,
-  completeWithError: loggingSessionMockFns.mockCompleteWithError,
-  completeWithCancellation: loggingSessionMockFns.mockCompleteWithCancellation,
-  completeWithPause: loggingSessionMockFns.mockCompleteWithPause,
-  safeStart: loggingSessionMockFns.mockSafeStart,
-  waitForCompletion: loggingSessionMockFns.mockWaitForCompletion,
-  waitForPostExecution: loggingSessionMockFns.mockWaitForPostExecution,
-  safeComplete: loggingSessionMockFns.mockSafeComplete,
-  safeCompleteWithError: loggingSessionMockFns.mockSafeCompleteWithError,
-  safeCompleteWithCancellation: loggingSessionMockFns.mockSafeCompleteWithCancellation,
-  safeCompleteWithPause: loggingSessionMockFns.mockSafeCompleteWithPause,
-  markAsFailed: loggingSessionMockFns.mockMarkAsFailed,
-}))
+export const LoggingSessionMock = vi.fn().mockImplementation(
+  class {
+    start = loggingSessionMockFns.mockStart
+    complete = loggingSessionMockFns.mockComplete
+    completeWithError = loggingSessionMockFns.mockCompleteWithError
+    completeWithCancellation = loggingSessionMockFns.mockCompleteWithCancellation
+    completeWithPause = loggingSessionMockFns.mockCompleteWithPause
+    safeStart = loggingSessionMockFns.mockSafeStart
+    waitForCompletion = loggingSessionMockFns.mockWaitForCompletion
+    waitForPostExecution = loggingSessionMockFns.mockWaitForPostExecution
+    safeComplete = loggingSessionMockFns.mockSafeComplete
+    safeCompleteWithError = loggingSessionMockFns.mockSafeCompleteWithError
+    safeCompleteWithCancellation = loggingSessionMockFns.mockSafeCompleteWithCancellation
+    safeCompleteWithPause = loggingSessionMockFns.mockSafeCompleteWithPause
+    markAsFailed = loggingSessionMockFns.mockMarkAsFailed
+  }
+)
 
 /**
  * Static mock module for `@/lib/logs/execution/logging-session`.

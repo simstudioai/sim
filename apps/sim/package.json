@@ -227,7 +227,7 @@
     "@types/ssh2": "^1.15.5",
     "@types/three": "0.177.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "@vitest/coverage-v8": "^3.0.8",
+    "@vitest/coverage-v8": "^4.1.0",
     "autoprefixer": "10.4.21",
     "jsdom": "^26.0.0",
     "postcss": "^8",
@@ -235,7 +235,7 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5.7.3",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.0.8"
+    "vitest": "^4.1.0"
   },
   "trustedDependencies": [
     "canvas",

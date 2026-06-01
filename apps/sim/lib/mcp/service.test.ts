@@ -18,14 +18,20 @@ const {
   const mockConnect = vi.fn()
   const mockDisconnect = vi.fn()
   return {
-    MockMcpClient: vi.fn().mockImplementation(() => ({
-      connect: mockConnect,
-      disconnect: mockDisconnect,
-      listTools: mockListTools,
-      hasListChangedCapability: vi.fn(() => false),
-      onClose: vi.fn(),
-      getNegotiatedVersion: vi.fn(() => '2025-06-18'),
-    })),
+    MockMcpClient: vi.fn().mockImplementation(
+      class {
+        constructor() {
+          Object.assign(this, {
+            connect: mockConnect,
+            disconnect: mockDisconnect,
+            listTools: mockListTools,
+            hasListChangedCapability: vi.fn(() => false),
+            onClose: vi.fn(),
+            getNegotiatedVersion: vi.fn(() => '2025-06-18'),
+          })
+        }
+      }
+    ),
     mockListTools,
     mockConnect,
     mockDisconnect,
