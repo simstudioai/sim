@@ -9,6 +9,12 @@ export interface UploadTokenPayload {
   userId: string
   workspaceId: string
   context: StorageContext
+  /** Original file name, carried so the completion handler can record ownership metadata. */
+  fileName?: string
+  /** File MIME type, carried for ownership metadata at completion. */
+  contentType?: string
+  /** File size in bytes, carried for ownership metadata at completion. */
+  fileSize?: number
 }
 
 interface SignedPayload extends UploadTokenPayload {
@@ -82,6 +88,9 @@ export function verifyUploadToken(token: string): UploadTokenVerification {
       userId: parsed.userId,
       workspaceId: parsed.workspaceId,
       context: parsed.context as StorageContext,
+      ...(typeof parsed.fileName === 'string' ? { fileName: parsed.fileName } : {}),
+      ...(typeof parsed.contentType === 'string' ? { contentType: parsed.contentType } : {}),
+      ...(typeof parsed.fileSize === 'number' ? { fileSize: parsed.fileSize } : {}),
     },
   }
 }

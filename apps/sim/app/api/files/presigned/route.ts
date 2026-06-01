@@ -252,6 +252,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         contentType,
         size: fileSize,
       })
+    } else if (uploadType === 'knowledge-base') {
+      const workspaceId = request.nextUrl.searchParams.get('workspaceId')
+      if (!workspaceId?.trim()) {
+        throw new ValidationError(
+          'workspaceId query parameter is required for knowledge-base uploads'
+        )
+      }
+
+      const permission = await getUserEntityPermissions(sessionUserId, 'workspace', workspaceId)
+      if (permission !== 'write' && permission !== 'admin') {
+        return NextResponse.json(
+          { error: 'Write or Admin access required for knowledge-base uploads' },
+          { status: 403 }
+        )
+      }
+
+      presignedUrlResponse = await generatePresignedUploadUrl({
+        fileName,
+        contentType,
+        fileSize,
+        context: 'knowledge-base',
+        userId: sessionUserId,
+        expirationSeconds: 3600,
+        metadata: { workspaceId },
+      })
+
+      await insertFileMetadata({
+        key: presignedUrlResponse.key,
+        userId: sessionUserId,
+        workspaceId,
+        context: 'knowledge-base',
+        originalName: fileName,
+        contentType,
+        size: fileSize,
+      })
     } else {
       if (uploadType === 'profile-pictures') {
         if (!sessionUserId?.trim()) {

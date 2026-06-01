@@ -654,20 +654,16 @@ async function processChunk(
     const safeFileName = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
     const chunkKey = `kb/${timestamp}-${uniqueId}-chunk${chunkIndex + 1}-${safeFileName}`
 
-    const metadata: Record<string, string> = {
-      originalName: `${filename}_chunk${chunkIndex + 1}`,
-      uploadedAt: new Date().toISOString(),
-      purpose: 'knowledge-base',
-      ...(userId && { userId }),
-    }
-
+    // No metadata: these chunks are ephemeral OCR artifacts (deleted in the
+    // finally below) that are fetched via a direct presigned URL, never through
+    // verifyKBFileAccess. Omitting metadata avoids writing an orphan ownership
+    // binding row per chunk.
     const uploadResult = await StorageService.uploadFile({
       file: chunk.buffer,
       fileName: `${filename}_chunk${chunkIndex + 1}`,
       contentType: 'application/pdf',
       context: 'knowledge-base',
       customKey: chunkKey,
-      metadata,
     })
 
     uploadedKey = uploadResult.key

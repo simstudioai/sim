@@ -141,18 +141,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           throw new InvalidRequestError(validationError.message)
         }
 
-        if (workspaceId) {
-          const permission = await getUserEntityPermissions(
-            session.user.id,
-            'workspace',
-            workspaceId
+        if (!workspaceId) {
+          throw new InvalidRequestError('workspaceId is required for knowledge-base uploads')
+        }
+
+        const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+        if (permission !== 'write' && permission !== 'admin') {
+          return NextResponse.json(
+            { error: 'Write or Admin access required for knowledge-base uploads' },
+            { status: 403 }
           )
-          if (permission === null) {
-            return NextResponse.json(
-              { error: 'Insufficient permissions for workspace' },
-              { status: 403 }
-            )
-          }
         }
 
         logger.info(`Uploading knowledge-base file: ${originalName}`)
@@ -166,10 +164,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           uploadedAt: new Date().toISOString(),
           purpose: 'knowledge-base',
           userId: session.user.id,
-        }
-
-        if (workspaceId) {
-          metadata.workspaceId = workspaceId
+          workspaceId,
         }
 
         const fileInfo = await storageService.uploadFile({

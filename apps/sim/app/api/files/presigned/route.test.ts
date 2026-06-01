@@ -352,7 +352,7 @@ describe('/api/files/presigned', () => {
       })
 
       const request = new NextRequest(
-        'http://localhost:3000/api/files/presigned?type=knowledge-base',
+        'http://localhost:3000/api/files/presigned?type=knowledge-base&workspaceId=ws-1',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -810,7 +810,7 @@ describe('/api/files/presigned', () => {
       setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
 
       const request = new NextRequest(
-        'http://localhost:3000/api/files/presigned?type=knowledge-base',
+        'http://localhost:3000/api/files/presigned?type=knowledge-base&workspaceId=ws-1',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -825,6 +825,45 @@ describe('/api/files/presigned', () => {
       expect(response.status).toBe(200)
       expect(mockValidateFileType).toHaveBeenCalledWith('doc.pdf', 'application/pdf')
       expect(mockValidateAttachmentFileType).not.toHaveBeenCalled()
+    })
+
+    it('requires workspaceId for knowledge-base uploads', async () => {
+      setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
+
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=knowledge-base',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'doc.pdf',
+            contentType: 'application/pdf',
+            fileSize: 4096,
+          }),
+        }
+      )
+
+      const response = await POST(request)
+      expect(response.status).toBe(400)
+    })
+
+    it('returns 403 when the user lacks write access to the workspace', async () => {
+      setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
+      mockGetUserEntityPermissions.mockResolvedValue('read')
+
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=knowledge-base&workspaceId=ws-1',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'doc.pdf',
+            contentType: 'application/pdf',
+            fileSize: 4096,
+          }),
+        }
+      )
+
+      const response = await POST(request)
+      expect(response.status).toBe(403)
     })
   })
 })
