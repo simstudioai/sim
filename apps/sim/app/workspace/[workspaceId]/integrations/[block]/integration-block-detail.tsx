@@ -140,7 +140,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
             )
           ) : (
             <Chip variant='primary' leftIcon={Plus} onClick={handleAddInChat}>
-              Add in chat
+              Add to Sim
             </Chip>
           )}
         </div>
