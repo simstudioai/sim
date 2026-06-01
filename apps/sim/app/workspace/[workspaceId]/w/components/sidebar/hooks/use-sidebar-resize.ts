@@ -1,66 +1,56 @@
-import { useCallback, useEffect } from 'react'
-import { useShallow } from 'zustand/react/shallow'
+import { useCallback } from 'react'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 /**
- * Custom hook to handle sidebar resize functionality.
- * Manages mouse events for resizing and enforces min/max width constraints.
- * Maximum width is capped at 30% of the viewport width for optimal layout.
+ * Handles sidebar drag-resize with zero React renders during the drag.
  *
- * @returns Resize state and handlers
+ * On mousedown:
+ *   - Adds `is-resizing` to the sidebar DOM node immediately (no React render lag,
+ *     so the CSS transition is suppressed from the very first frame).
+ *   - Registers native mousemove/mouseup listeners.
+ *
+ * On mousemove:
+ *   - Writes the new width directly to the `--sidebar-width` CSS custom property.
+ *   - Does NOT touch React/Zustand state, so zero re-renders fire during the drag.
+ *
+ * On mouseup:
+ *   - Persists the final width to Zustand exactly once (triggers one re-render to
+ *     save to localStorage and sync dependent components).
+ *   - Cleans up the `is-resizing` class and body cursor/select overrides.
  */
 export function useSidebarResize() {
-  const { setSidebarWidth, isResizing, setIsResizing } = useSidebarStore(
-    useShallow((s) => ({
-      setSidebarWidth: s.setSidebarWidth,
-      isResizing: s.isResizing,
-      setIsResizing: s.setIsResizing,
-    }))
-  )
+  const setSidebarWidth = useSidebarStore((s) => s.setSidebarWidth)
 
-  /**
-   * Handles mouse down on resize handle
-   */
   const handleMouseDown = useCallback(() => {
-    setIsResizing(true)
-  }, [])
-
-  /**
-   * Setup resize event listeners and body styles when resizing
-   * Cleanup is handled automatically by the effect's return function
-   */
-  useEffect(() => {
-    if (!isResizing) return
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const newWidth = e.clientX
-      const maxWidth = window.innerWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE
-
-      if (newWidth >= SIDEBAR_WIDTH.MIN && newWidth <= maxWidth) {
-        setSidebarWidth(newWidth)
-      }
-    }
-
-    const handleMouseUp = () => {
-      setIsResizing(false)
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
+    const sidebar = document.querySelector<HTMLElement>('.sidebar-container')
+    sidebar?.classList.add('is-resizing')
     document.body.style.cursor = 'ew-resize'
     document.body.style.userSelect = 'none'
 
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
+    const onMouseMove = (e: MouseEvent) => {
+      const clamped = Math.min(
+        Math.max(e.clientX, SIDEBAR_WIDTH.MIN),
+        window.innerWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE
+      )
+      document.documentElement.style.setProperty('--sidebar-width', `${clamped}px`)
+    }
+
+    const onMouseUp = () => {
+      sidebar?.classList.remove('is-resizing')
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
-    }
-  }, [isResizing, setSidebarWidth])
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
 
-  return {
-    isResizing,
-    handleMouseDown,
-  }
+      const raw = document.documentElement.style.getPropertyValue('--sidebar-width')
+      const finalWidth = Number.parseFloat(raw)
+      if (!Number.isNaN(finalWidth)) setSidebarWidth(finalWidth)
+    }
+
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }, [setSidebarWidth])
+
+  return { handleMouseDown }
 }

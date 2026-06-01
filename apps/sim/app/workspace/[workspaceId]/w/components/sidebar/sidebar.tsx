@@ -486,7 +486,7 @@ export const Sidebar = memo(function Sidebar() {
     },
   })
 
-  const { handleMouseDown, isResizing } = useSidebarResize()
+  const { handleMouseDown } = useSidebarResize()
 
   const {
     regularWorkflows,
@@ -1233,10 +1233,7 @@ export const Sidebar = memo(function Sidebar() {
       />
       <div className='relative h-full'>
         <aside
-          className={cn(
-            'sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)]',
-            isResizing && 'is-resizing'
-          )}
+          className='sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)]'
           data-collapsed={isCollapsed || undefined}
           aria-label='Workspace sidebar'
           onClick={handleSidebarClick}
