@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
-import { Button, Loader, Upload } from '@/components/emcn'
+import { Button, Loader } from '@/components/emcn'
+import { Download } from '@/components/emcn/icons'
 import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileCards')
@@ -117,7 +118,7 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
           {isDownloading ? (
             <Loader className='mr-1 size-[10px]' animate />
           ) : (
-            <Upload className='mr-1 size-[10px]' />
+            <Download className='mr-1 size-[10px]' />
           )}
           {isDownloading ? 'Opening...' : 'Download'}
         </Button>
@@ -221,7 +222,7 @@ export function FileDownload({
       onClick={handleDownload}
       disabled={isDownloading}
     >
-      {isDownloading ? <Loader className='size-3' animate /> : <Upload className='size-[14px]' />}
+      {isDownloading ? <Loader className='size-3' animate /> : <Download className='size-[14px]' />}
       {isDownloading ? 'Downloading...' : 'Download'}
     </Button>
   )
