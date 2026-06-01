@@ -1732,9 +1732,9 @@ export const Sidebar = memo(function Sidebar() {
           )}
           onMouseDown={isCollapsed ? undefined : handleMouseDown}
           onClick={isCollapsed ? toggleCollapsed : undefined}
-          onKeyDown={isCollapsed ? handleEdgeKeyDown : undefined}
+          onKeyDown={handleEdgeKeyDown}
           role={isCollapsed ? 'button' : 'separator'}
-          tabIndex={isCollapsed ? 0 : undefined}
+          tabIndex={0}
           aria-orientation={isCollapsed ? undefined : 'vertical'}
           aria-label={isCollapsed ? 'Expand sidebar' : 'Resize sidebar'}
         />
