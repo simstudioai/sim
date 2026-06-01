@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { copilotMessages } from '@sim/db/schema'
 import { and, eq, notInArray, sql } from 'drizzle-orm'
-import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import { type PersistedMessage, stripToolResultOutput } from '@/lib/copilot/chat/persisted-message'
 import type { DbOrTx } from '@/lib/db/types'
 
 /**
@@ -31,7 +31,7 @@ function toRow(
     chatId,
     messageId: message.id,
     role: message.role,
-    content: message,
+    content: stripToolResultOutput(message),
     seq,
     model: options?.chatModel ?? null,
     streamId: options?.streamId ?? null,
