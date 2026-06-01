@@ -25,9 +25,11 @@ const {
 }))
 
 vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    chat: { completions: { create: mockCreate } },
-  })),
+  default: vi.fn().mockImplementation(
+    class {
+      chat = { completions: { create: mockCreate } }
+    }
+  ),
 }))
 
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 10 }))

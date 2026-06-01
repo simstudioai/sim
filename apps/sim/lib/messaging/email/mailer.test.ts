@@ -8,22 +8,26 @@ const mockAzurePollUntilDone = vi.fn()
 
 vi.mock('resend', () => {
   return {
-    Resend: vi.fn().mockImplementation(() => ({
-      emails: {
-        send: (...args: any[]) => mockSend(...args),
-      },
-      batch: {
-        send: (...args: any[]) => mockBatchSend(...args),
-      },
-    })),
+    Resend: vi.fn().mockImplementation(
+      class {
+        emails = {
+          send: (...args: any[]) => mockSend(...args),
+        }
+        batch = {
+          send: (...args: any[]) => mockBatchSend(...args),
+        }
+      }
+    ),
   }
 })
 
 vi.mock('@azure/communication-email', () => {
   return {
-    EmailClient: vi.fn().mockImplementation(() => ({
-      beginSend: (...args: any[]) => mockAzureBeginSend(...args),
-    })),
+    EmailClient: vi.fn().mockImplementation(
+      class {
+        beginSend = (...args: any[]) => mockAzureBeginSend(...args)
+      }
+    ),
   }
 })
 

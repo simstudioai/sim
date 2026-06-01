@@ -31,10 +31,14 @@ const { mockCreate, mockExecuteTool, streamOnComplete, MockAPIError } = vi.hoist
 const mockOpenAIConstructor = vi.hoisted(() => vi.fn())
 
 vi.mock('openai', () => {
-  const OpenAI = vi.fn((opts: unknown) => {
-    mockOpenAIConstructor(opts)
-    return { chat: { completions: { create: mockCreate } } }
-  })
+  const OpenAI = vi.fn().mockImplementation(
+    class {
+      chat = { completions: { create: mockCreate } }
+      constructor(opts: unknown) {
+        mockOpenAIConstructor(opts)
+      }
+    }
+  )
   ;(OpenAI as unknown as { APIError: typeof MockAPIError }).APIError = MockAPIError
   return { default: OpenAI }
 })

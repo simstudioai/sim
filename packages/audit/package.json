@@ -34,6 +34,6 @@
     "@sim/testing": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "typescript": "^5.7.3",
-    "vitest": "^3.0.8"
+    "vitest": "^4.1.0"
   }
 }
