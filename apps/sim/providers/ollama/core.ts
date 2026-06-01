@@ -166,7 +166,7 @@ export async function executeOllamaProviderRequest(
   const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
   try {
-    if (request.stream && (!tools || tools.length === 0)) {
+    if (request.stream && (!tools || tools.length === 0 || !hasActiveTools)) {
       logger.info(`Using streaming response for ${providerLabel} request`)
 
       const streamingParams: ChatCompletionCreateParamsStreaming = {
