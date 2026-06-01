@@ -8680,6 +8680,161 @@
     "tags": ["web-scraping", "enrichment"]
   },
   {
+    "type": "linq",
+    "slug": "linq",
+    "name": "Linq",
+    "description": "Send iMessage, SMS, and RCS messages and manage conversations with Linq",
+    "longDescription": "Reach people on iMessage, SMS, and RCS through Linq. Start chats, send messages with media, links, effects, and replies, send voice memos, react with tapbacks, manage group participants, check iMessage/RCS capability, configure contact cards, and subscribe to webhook events — all through a single Linq API key.",
+    "bgColor": "#000000",
+    "iconName": "LinqIcon",
+    "docsUrl": "https://docs.sim.ai/tools/linq",
+    "operations": [
+      {
+        "name": "Send Message",
+        "description": "Send a message to an existing chat, with optional media, link, effect, or reply"
+      },
+      {
+        "name": "Create Chat",
+        "description": "Start a new iMessage, SMS, or RCS chat and send the first message"
+      },
+      {
+        "name": "List Chats",
+        "description": "List chats, optionally filtered by sender or participant handle"
+      },
+      {
+        "name": "Get Chat",
+        "description": "Retrieve a chat by ID, including participants and line health"
+      },
+      {
+        "name": "Update Chat",
+        "description": "Update chat properties such as group display name and icon"
+      },
+      {
+        "name": "Mark Chat as Read",
+        "description": "Mark all messages in a chat as read"
+      },
+      {
+        "name": "Leave Chat",
+        "description": "Leave an iMessage group chat (4+ active participants; not supported for direct chats)"
+      },
+      {
+        "name": "Add Participant",
+        "description": "Add a participant to a group chat (3+ existing participants)"
+      },
+      {
+        "name": "Remove Participant",
+        "description": "Remove a participant from a group chat (minimum 3 participants must remain)"
+      },
+      {
+        "name": "Start Typing",
+        "description": "Show a typing indicator in a one-on-one chat (iMessage only, not group chats)"
+      },
+      {
+        "name": "Stop Typing",
+        "description": "Stop the typing indicator in a one-on-one chat (iMessage only, not group chats)"
+      },
+      {
+        "name": "Send Voice Memo",
+        "description": "Send a voice memo to a chat from a URL or a pre-uploaded attachment"
+      },
+      {
+        "name": "Share Contact Card",
+        "description": "Share your configured contact card (Name and Photo Sharing) with a chat"
+      },
+      {
+        "name": "List Messages",
+        "description": "List messages in a chat with pagination"
+      },
+      {
+        "name": "List Thread",
+        "description": "List all messages in the thread that contains a given message"
+      },
+      {
+        "name": "Get Message",
+        "description": "Retrieve a single message by ID, including parts, reactions, and delivery status"
+      },
+      {
+        "name": "Edit Message",
+        "description": "Edit the text of a sent message (up to 5 times, within 15 minutes of sending; iMessage only)"
+      },
+      {
+        "name": "Delete Message",
+        "description": "Delete a message from the Linq API only (does not unsend it; recipients still see it)"
+      },
+      {
+        "name": "React to Message",
+        "description": "Add or remove a tapback reaction on a message"
+      },
+      {
+        "name": "Create Attachment",
+        "description": "Upload a file to Linq as a reusable attachment (max 100MB) and get an attachment ID to send in messages"
+      },
+      {
+        "name": "Get Attachment",
+        "description": "Retrieve metadata for an attachment, including its download URL and status"
+      },
+      {
+        "name": "Delete Attachment",
+        "description": "Permanently delete an attachment owned by your account"
+      },
+      {
+        "name": "List Phone Numbers",
+        "description": "List all phone numbers assigned to your partner account, with line health"
+      },
+      {
+        "name": "Check iMessage",
+        "description": "Check whether an address (phone number or email) supports iMessage"
+      },
+      {
+        "name": "Check RCS",
+        "description": "Check whether an address (phone number or email) supports RCS"
+      },
+      {
+        "name": "Get Contact Card",
+        "description": "Retrieve contact cards, optionally filtered by phone number"
+      },
+      {
+        "name": "Create Contact Card",
+        "description": "Set up a contact card (Name and Photo Sharing) for a phone number"
+      },
+      {
+        "name": "Update Contact Card",
+        "description": "Partially update an existing active contact card for a phone number"
+      },
+      {
+        "name": "Create Webhook Subscription",
+        "description": "Subscribe an HTTPS endpoint to Linq webhook events"
+      },
+      {
+        "name": "List Webhook Subscriptions",
+        "description": "List all webhook subscriptions on your account"
+      },
+      {
+        "name": "Get Webhook Subscription",
+        "description": "Retrieve a webhook subscription by ID"
+      },
+      {
+        "name": "Update Webhook Subscription",
+        "description": "Update a webhook subscription (target URL, events, phone filter, or active state)"
+      },
+      {
+        "name": "Delete Webhook Subscription",
+        "description": "Delete a webhook subscription from your account"
+      },
+      {
+        "name": "List Webhook Events",
+        "description": "List all webhook event types available to subscribe to"
+      }
+    ],
+    "operationCount": 34,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["communication", "developer-tools"],
+    "tags": ["messaging", "automation", "webhooks"]
+  },
+  {
     "type": "loops",
     "slug": "loops",
     "name": "Loops",
