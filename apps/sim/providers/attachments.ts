@@ -22,6 +22,8 @@ export type AttachmentProvider =
   | 'mistral'
   | 'groq'
   | 'fireworks'
+  | 'together'
+  | 'baseten'
   | 'ollama'
   | 'vllm'
   | 'litellm'
@@ -92,6 +94,8 @@ const PROVIDER_SUPPORTED_LABELS: Record<AttachmentProvider, string> = {
   mistral: 'images through image_url message parts',
   groq: 'images through image_url message parts on multimodal models',
   fireworks: 'images through image_url message parts on vision models',
+  together: 'images through image_url message parts on vision models',
+  baseten: 'images through image_url message parts on vision models',
   ollama: 'images through image_url message parts on vision models',
   vllm: 'images through image_url message parts on multimodal models',
   litellm: 'images through image_url message parts on multimodal models',
@@ -109,7 +113,9 @@ export function getAttachmentProvider(providerId: ProviderId | string): Attachme
   if (providerId === 'mistral') return 'mistral'
   if (providerId === 'groq') return 'groq'
   if (providerId === 'fireworks') return 'fireworks'
-  if (providerId === 'ollama') return 'ollama'
+  if (providerId === 'together') return 'together'
+  if (providerId === 'baseten') return 'baseten'
+  if (providerId === 'ollama' || providerId === 'ollama-cloud') return 'ollama'
   if (providerId === 'vllm') return 'vllm'
   if (providerId === 'litellm') return 'litellm'
   if (providerId === 'xai') return 'xai'
@@ -248,6 +254,8 @@ function isMimeTypeSupportedByProvider(
     case 'mistral':
     case 'groq':
     case 'fireworks':
+    case 'together':
+    case 'baseten':
     case 'ollama':
     case 'vllm':
     case 'litellm':

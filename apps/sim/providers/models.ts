@@ -11,6 +11,7 @@ import type React from 'react'
 import {
   AnthropicIcon,
   AzureIcon,
+  BasetenIcon,
   BedrockIcon,
   CerebrasIcon,
   DeepseekIcon,
@@ -22,6 +23,7 @@ import {
   OllamaIcon,
   OpenAIIcon,
   OpenRouterIcon,
+  TogetherIcon,
   VertexIcon,
   VllmIcon,
   xAIIcon,
@@ -98,6 +100,38 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     contextInformationAvailable: false,
     models: [],
   },
+  together: {
+    id: 'together',
+    name: 'Together AI',
+    description: 'Fast inference for open-source models via Together AI',
+    defaultModel: '',
+    modelPatterns: [/^together\//],
+    icon: TogetherIcon,
+    color: '#EF2CC1',
+    isReseller: true,
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    contextInformationAvailable: false,
+    models: [],
+  },
+  baseten: {
+    id: 'baseten',
+    name: 'Baseten',
+    description: 'Fast inference for open-source models via Baseten Model APIs',
+    defaultModel: '',
+    modelPatterns: [/^baseten\//],
+    icon: BasetenIcon,
+    color: '#1A1A2E',
+    isReseller: true,
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    contextInformationAvailable: false,
+    models: [],
+  },
   openrouter: {
     id: 'openrouter',
     name: 'OpenRouter',
@@ -105,6 +139,21 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     defaultModel: '',
     modelPatterns: [/^openrouter\//],
     icon: OpenRouterIcon,
+    isReseller: true,
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    contextInformationAvailable: false,
+    models: [],
+  },
+  'ollama-cloud': {
+    id: 'ollama-cloud',
+    name: 'Ollama Cloud',
+    description: 'Hosted open-source models via Ollama Cloud (bring your own key)',
+    defaultModel: '',
+    modelPatterns: [/^ollama-cloud\//],
+    icon: OllamaIcon,
     isReseller: true,
     capabilities: {
       temperature: { min: 0, max: 2 },
@@ -2839,10 +2888,13 @@ export function getProviderModels(providerId: string): string[] {
 
 export const DYNAMIC_MODEL_PROVIDERS = [
   'ollama',
+  'ollama-cloud',
   'vllm',
   'litellm',
   'openrouter',
   'fireworks',
+  'together',
+  'baseten',
 ] as const
 
 function getAllStaticModelIds(): string[] {
@@ -2897,7 +2949,19 @@ export function suggestModelIdsForUnknownModel(_modelId: string, limit = 5): str
 
 export function getBaseModelProviders(): Record<string, ProviderId> {
   return Object.entries(PROVIDER_DEFINITIONS)
-    .filter(([providerId]) => !['ollama', 'vllm', 'litellm', 'openrouter'].includes(providerId))
+    .filter(
+      ([providerId]) =>
+        ![
+          'ollama',
+          'ollama-cloud',
+          'vllm',
+          'litellm',
+          'openrouter',
+          'fireworks',
+          'together',
+          'baseten',
+        ].includes(providerId)
+    )
     .reduce(
       (map, [providerId, provider]) => {
         provider.models.forEach((model) => {
@@ -3088,6 +3152,42 @@ export function updateLiteLLMModels(models: string[]): void {
 
 export function updateFireworksModels(models: string[]): void {
   PROVIDER_DEFINITIONS.fireworks.models = models.map((modelId) => ({
+    id: modelId,
+    pricing: {
+      input: 0,
+      output: 0,
+      updatedAt: new Date().toISOString().split('T')[0],
+    },
+    capabilities: {},
+  }))
+}
+
+export function updateTogetherModels(models: string[]): void {
+  PROVIDER_DEFINITIONS.together.models = models.map((modelId) => ({
+    id: modelId,
+    pricing: {
+      input: 0,
+      output: 0,
+      updatedAt: new Date().toISOString().split('T')[0],
+    },
+    capabilities: {},
+  }))
+}
+
+export function updateBasetenModels(models: string[]): void {
+  PROVIDER_DEFINITIONS.baseten.models = models.map((modelId) => ({
+    id: modelId,
+    pricing: {
+      input: 0,
+      output: 0,
+      updatedAt: new Date().toISOString().split('T')[0],
+    },
+    capabilities: {},
+  }))
+}
+
+export function updateOllamaCloudModels(models: string[]): void {
+  PROVIDER_DEFINITIONS['ollama-cloud'].models = models.map((modelId) => ({
     id: modelId,
     pricing: {
       input: 0,

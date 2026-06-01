@@ -3998,6 +3998,41 @@ export function OpenRouterIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function TogetherIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} height='1em' width='1em' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M23.197 4.503A6 6 0 0015 2.307a5.973 5.973 0 00-2.995 4.933l5.996.008v.515h-5.996c.039.937.298 1.87.8 2.74a6 6 0 1010.39-6z'
+        fill='#EF2CC1'
+      />
+      <path
+        d='M.805 4.5A6 6 0 003 12.697a5.972 5.972 0 005.77.127L5.779 7.627l.446-.257 2.997 5.192A6 6 0 10.804 4.5z'
+        fill='#CAAEF5'
+      />
+      <path
+        d='M12 23.894a6 6 0 005.999-6c0-2.13-1.1-3.996-2.775-5.06l-3.005 5.189-.444-.258 2.997-5.192A6 6 0 1012 23.894z'
+        fill='#FC4C02'
+      />
+    </svg>
+  )
+}
+
+export function BasetenIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      fill='currentColor'
+      fillRule='evenodd'
+      height='1em'
+      width='1em'
+      viewBox='0 0 24 24'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path d='M2.316 4.8h14.682v4.8H7.31a.302.302 0 00-.308.3v4.2c0 .171.14.3.308.3h9.688v4.8h-4.686a.302.302 0 00-.308.3v4.2c0 .171.141.3.308.3h4.378a.297.297 0 00.308-.3v-4.5h4.694a.302.302 0 00.308-.3v-4.2c0-.171-.14-.3-.308-.3h-4.694V9.6h4.694A.302.302 0 0022 9.3V5.1c0-.171-.14-.3-.308-.3h-4.694V.3c0-.171-.14-.3-.308-.3H2.316A.31.31 0 002 .3v4.2c0 .171.14.3.316.3z' />
+    </svg>
+  )
+}
+
 export function MondayIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
