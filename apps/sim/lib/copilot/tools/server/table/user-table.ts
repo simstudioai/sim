@@ -767,12 +767,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           assertNotAborted()
           const planLimits = await getWorkspaceTableLimits(workspaceId)
 
-          if (rows.length > planLimits.maxRowsPerTable) {
-            return {
-              success: false,
-              message: `"${file.name}" has ${rows.length.toLocaleString()} rows, which exceeds this plan's limit of ${planLimits.maxRowsPerTable.toLocaleString()} rows per table.`,
-            }
-          }
+          const droppedRows = Math.max(0, rows.length - planLimits.maxRowsPerTable)
+          const rowsToImport = droppedRows > 0 ? rows.slice(0, planLimits.maxRowsPerTable) : rows
 
           const table = await createTable(
             {
@@ -787,7 +783,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             requestId
           )
 
-          const coerced = coerceRowsForTable(rows, { columns }, headerToColumn)
+          const coerced = coerceRowsForTable(rowsToImport, { columns }, headerToColumn)
           let inserted: number
           try {
             inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
@@ -801,12 +797,19 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             fileName: file.name,
             columns: columns.length,
             rows: inserted,
+            droppedRows,
             userId: context.userId,
           })
 
+          const createdMessage = `Created table "${table.name}" with ${columns.length} columns and ${inserted.toLocaleString()} rows from "${file.name}"`
+          const message =
+            droppedRows > 0
+              ? `${createdMessage}. Dropped ${droppedRows.toLocaleString()} row(s) that exceed this plan's limit of ${planLimits.maxRowsPerTable.toLocaleString()} rows per table.`
+              : createdMessage
+
           return {
             success: true,
-            message: `Created table "${table.name}" with ${columns.length} columns and ${inserted} rows from "${file.name}"`,
+            message,
             data: {
               tableId: table.id,
               tableName: table.name,

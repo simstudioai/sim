@@ -268,7 +268,8 @@ describe('userTableServerTool.create_from_file', () => {
     expect(createArgs.maxTables).toBe(3)
   })
 
-  it('rejects a file exceeding the plan row limit without creating a table', async () => {
+  it('truncates to the plan row limit and reports dropped rows', async () => {
+    // File has 2 data rows (Alice, Bob); plan cap is 1.
     mockGetWorkspaceTableLimits.mockResolvedValueOnce({ maxRowsPerTable: 1, maxTables: 3 })
 
     const result = await userTableServerTool.execute(
@@ -276,9 +277,12 @@ describe('userTableServerTool.create_from_file', () => {
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
-    expect(result.success).toBe(false)
-    expect(result.message).toMatch(/exceeds this plan's limit/i)
-    expect(mockCreateTable).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect(mockCreateTable).toHaveBeenCalledTimes(1)
+    const insertCall = mockBatchInsertRows.mock.calls[0][0] as { rows: unknown[] }
+    expect(insertCall.rows).toHaveLength(1)
+    expect(result.data?.rowCount).toBe(1)
+    expect(result.message).toMatch(/dropped 1 row/i)
     expect(mockDeleteTable).not.toHaveBeenCalled()
   })
 
