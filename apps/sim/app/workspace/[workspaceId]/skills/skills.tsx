@@ -149,7 +149,7 @@ export function Skills() {
       disabled={isLoading}
       leftIcon={Plus}
     >
-      Add
+      Add to Sim
     </Chip>
   )
 
