@@ -1,3 +1,4 @@
+import { findymailHosting } from '@/tools/findymail/hosting'
 import type {
   FindymailFindEmployeesParams,
   FindymailFindEmployeesResponse,
@@ -14,6 +15,15 @@ export const findEmployeesTool: ToolConfig<
   description:
     'Find employees at a company by website and target job titles. Uses 1 credit per found contact. Does not return email addresses.',
   version: '1.0.0',
+
+  hosting: findymailHosting<FindymailFindEmployeesParams>((_params, output) => {
+    // No employees array means no contacts found — no charge.
+    if (!Array.isArray(output.employees)) {
+      return 0
+    }
+    // 1 finder credit per contact found.
+    return output.employees.length
+  }),
 
   params: {
     website: {

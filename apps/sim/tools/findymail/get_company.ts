@@ -1,3 +1,4 @@
+import { findymailHosting } from '@/tools/findymail/hosting'
 import type {
   FindymailGetCompanyParams,
   FindymailGetCompanyResponse,
@@ -10,6 +11,11 @@ export const getCompanyTool: ToolConfig<FindymailGetCompanyParams, FindymailGetC
   description:
     'Retrieve company information from a LinkedIn URL, domain, or company name. Uses 1 finder credit per successful response.',
   version: '1.0.0',
+
+  hosting: findymailHosting<FindymailGetCompanyParams>((_params, output) => {
+    // 1 finder credit per successful company match.
+    return output.name || output.domain ? 1 : 0
+  }),
 
   params: {
     linkedin_url: {

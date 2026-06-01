@@ -1,5 +1,5 @@
 import { GreptileIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GreptileResponse } from '@/tools/greptile/types'
 
@@ -12,8 +12,9 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
     'Query and search codebases using natural language with Greptile. Get AI-generated answers about your code, find relevant files, and understand complex codebases.',
   docsLink: 'https://docs.sim.ai/tools/greptile',
   category: 'tools',
-  integrationType: IntegrationType.DevOps,
-  bgColor: '#FFFFFF',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['version-control', 'knowledge-base'],
+  bgColor: '#5DE195',
   icon: GreptileIcon,
   subBlocks: [
     {
@@ -88,7 +89,7 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
     //   type: 'switch',
     //   condition: { field: 'operation', value: 'greptile_search' },
     // },
-    // Index operation inputs
+    // Index & Status shared inputs
     {
       id: 'remote',
       title: 'Git Remote',
@@ -98,14 +99,14 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
         { label: 'GitLab', id: 'gitlab' },
       ],
       value: () => 'github',
-      condition: { field: 'operation', value: 'greptile_index_repo' },
+      condition: { field: 'operation', value: ['greptile_index_repo', 'greptile_status'] },
     },
     {
       id: 'repository',
       title: 'Repository',
       type: 'short-input',
       placeholder: 'owner/repo',
-      condition: { field: 'operation', value: 'greptile_index_repo' },
+      condition: { field: 'operation', value: ['greptile_index_repo', 'greptile_status'] },
       required: true,
     },
     {
@@ -113,9 +114,10 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
       title: 'Branch',
       type: 'short-input',
       placeholder: 'main',
-      condition: { field: 'operation', value: 'greptile_index_repo' },
+      condition: { field: 'operation', value: ['greptile_index_repo', 'greptile_status'] },
       required: true,
     },
+    // Index-only inputs
     {
       id: 'reload',
       title: 'Force Re-index',
@@ -127,34 +129,6 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
       title: 'Email Notification',
       type: 'switch',
       condition: { field: 'operation', value: 'greptile_index_repo' },
-    },
-    // Status operation inputs
-    {
-      id: 'remote',
-      title: 'Git Remote',
-      type: 'dropdown',
-      options: [
-        { label: 'GitHub', id: 'github' },
-        { label: 'GitLab', id: 'gitlab' },
-      ],
-      value: () => 'github',
-      condition: { field: 'operation', value: 'greptile_status' },
-    },
-    {
-      id: 'repository',
-      title: 'Repository',
-      type: 'short-input',
-      placeholder: 'owner/repo',
-      condition: { field: 'operation', value: 'greptile_status' },
-      required: true,
-    },
-    {
-      id: 'branch',
-      title: 'Branch',
-      type: 'short-input',
-      placeholder: 'main',
-      condition: { field: 'operation', value: 'greptile_status' },
-      required: true,
     },
     // API Keys (common)
     {
@@ -222,74 +196,3 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
     sha: { type: 'string', description: 'Git commit SHA' },
   },
 }
-
-export const GreptileBlockMeta = {
-  tags: ['version-control', 'knowledge-base'],
-  templates: [
-    {
-      icon: GreptileIcon,
-      title: 'Greptile code search',
-      prompt:
-        'Create a workflow exposed as a chat endpoint that accepts natural-language code questions, runs them against a Greptile-indexed repository, and returns the AI-generated answer with file and line citations so engineers get grounded answers about the codebase.',
-      modules: ['agent', 'workflows'],
-      category: 'engineering',
-      tags: ['engineering', 'research', 'devops'],
-    },
-    {
-      icon: GreptileIcon,
-      title: 'Greptile-backed PR reviewer',
-      prompt:
-        'Build a workflow that runs when a GitHub pull request is opened, fetches the diff, asks Greptile how each changed function is used elsewhere in the codebase, and posts an architectural review comment highlighting impact, downstream callers, and risky patterns.',
-      modules: ['agent', 'workflows'],
-      category: 'engineering',
-      tags: ['engineering', 'devops', 'automation'],
-      alsoIntegrations: ['github'],
-    },
-    {
-      icon: GreptileIcon,
-      title: 'Onboarding doc generator',
-      prompt:
-        'Create a workflow that takes a repository name, indexes it with Greptile if not already indexed, then queries Greptile for the architecture overview, key modules, and entry points, and writes a polished onboarding document file new engineers can read on day one.',
-      modules: ['agent', 'files', 'workflows'],
-      category: 'engineering',
-      tags: ['engineering', 'content', 'team'],
-    },
-    {
-      icon: GreptileIcon,
-      title: 'Repository index orchestrator',
-      prompt:
-        'Create a scheduled workflow that runs nightly, lists every repository in a table, submits any newly created or updated repositories to Greptile for indexing, polls until indexing completes, and updates the table with index status and completion time.',
-      modules: ['scheduled', 'tables', 'agent', 'workflows'],
-      category: 'engineering',
-      tags: ['engineering', 'devops', 'automation'],
-    },
-    {
-      icon: GreptileIcon,
-      title: 'Code search audit log',
-      prompt:
-        'Build a workflow that wraps Greptile queries with structured logging — capturing question, repository, top-matched files, and answer — into a tables-backed audit log so leadership can see what knowledge the team is searching for and where docs are weakest.',
-      modules: ['tables', 'agent', 'workflows'],
-      category: 'engineering',
-      tags: ['engineering', 'analysis', 'enterprise'],
-    },
-    {
-      icon: GreptileIcon,
-      title: 'Incident root-cause assistant',
-      prompt:
-        'Create a workflow triggered during an incident that takes the failing endpoint or stack frame, asks Greptile where the relevant code lives and what changed most recently, and posts a structured root-cause hypothesis with file links to the incident Slack channel.',
-      modules: ['agent', 'workflows'],
-      category: 'engineering',
-      tags: ['engineering', 'devops', 'analysis'],
-      alsoIntegrations: ['slack'],
-    },
-    {
-      icon: GreptileIcon,
-      title: 'Greptile onboarding repo indexer',
-      prompt:
-        'Build a workflow that on a new repository indexes it with Greptile, then runs a set of architecture questions to generate a codebase overview — entry points, key services, and conventions — and writes the guide to a file for new engineers.',
-      modules: ['agent', 'files', 'workflows'],
-      category: 'engineering',
-      tags: ['engineering', 'content', 'automation'],
-    },
-  ],
-} as const satisfies BlockMeta

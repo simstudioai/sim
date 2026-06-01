@@ -12,12 +12,83 @@ const logger = createLogger('WebflowItemsAPI')
 
 export const dynamic = 'force-dynamic'
 
+const WEBFLOW_PAGE_LIMIT = 100
+const WEBFLOW_MAX_ITEMS_PAGES = 50
+
 interface WebflowItem {
   id: string
   fieldData?: {
     name?: string
     title?: string
     slug?: string
+  }
+}
+
+interface WebflowItemsPage {
+  items?: WebflowItem[]
+  pagination?: {
+    total?: number
+    limit?: number
+    offset?: number
+  }
+}
+
+/**
+ * Lists all items in a Webflow collection using `offset`/`limit` pagination
+ * (limit capped at 100), advancing the numeric `offset` until the accumulated
+ * count reaches `pagination.total` so the full set is returned. Bounded by
+ * `WEBFLOW_MAX_ITEMS_PAGES`; logs a warning rather than silently dropping items
+ * when the cap is hit.
+ */
+async function fetchAllItems(accessToken: string, collectionId: string): Promise<WebflowItem[]> {
+  const items: WebflowItem[] = []
+  let offset = 0
+
+  for (let page = 0; page < WEBFLOW_MAX_ITEMS_PAGES; page++) {
+    const url = new URL(`https://api.webflow.com/v2/collections/${collectionId}/items`)
+    url.searchParams.set('limit', String(WEBFLOW_PAGE_LIMIT))
+    url.searchParams.set('offset', String(offset))
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        accept: 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new WebflowFetchError(response.status, errorData)
+    }
+
+    const data = (await response.json()) as WebflowItemsPage
+    const pageItems = data.items || []
+    items.push(...pageItems)
+
+    const total = data.pagination?.total
+    offset += pageItems.length
+    if (pageItems.length === 0 || (typeof total === 'number' && items.length >= total)) {
+      return items
+    }
+
+    if (page === WEBFLOW_MAX_ITEMS_PAGES - 1) {
+      logger.warn('Webflow items listing hit pagination cap; item list may be incomplete', {
+        collectionId,
+        pages: WEBFLOW_MAX_ITEMS_PAGES,
+      })
+    }
+  }
+
+  return items
+}
+
+class WebflowFetchError extends Error {
+  constructor(
+    readonly status: number,
+    readonly details: unknown
+  ) {
+    super('Failed to fetch Webflow items')
+    this.name = 'WebflowFetchError'
   }
 }
 
@@ -61,31 +132,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const response = await fetch(
-      `https://api.webflow.com/v2/collections/${collectionId}/items?limit=100`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          accept: 'application/json',
-        },
+    let items: WebflowItem[]
+    try {
+      items = await fetchAllItems(accessToken, collectionId)
+    } catch (error) {
+      if (error instanceof WebflowFetchError) {
+        logger.error('Failed to fetch Webflow items', {
+          status: error.status,
+          error: error.details,
+          collectionId,
+        })
+        return NextResponse.json(
+          { error: 'Failed to fetch Webflow items', details: error.details },
+          { status: error.status }
+        )
       }
-    )
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      logger.error('Failed to fetch Webflow items', {
-        status: response.status,
-        error: errorData,
-        collectionId,
-      })
-      return NextResponse.json(
-        { error: 'Failed to fetch Webflow items', details: errorData },
-        { status: response.status }
-      )
+      throw error
     }
-
-    const data = (await response.json()) as { items?: WebflowItem[] }
-    const items = data.items || []
 
     let formattedItems = items.map((item) => {
       const fieldData = item.fieldData || {}

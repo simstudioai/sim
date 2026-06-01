@@ -61,7 +61,7 @@ describe('sim.workflows selector', () => {
   it('reads workflow options from the scoped workflow cache', async () => {
     const definition = getSelectorDefinition('sim.workflows')
 
-    const options = await definition.fetchList({
+    const options = await definition.fetchList!({
       key: 'sim.workflows',
       context: { workspaceId: 'ws-1', excludeWorkflowId: 'wf-2' },
     })
@@ -112,7 +112,7 @@ describe('sim.workflows selector', () => {
     })
 
     const definition = getSelectorDefinition('sim.workflows')
-    const options = await definition.fetchList({
+    const options = await definition.fetchList!({
       key: 'sim.workflows',
       context: { workspaceId: 'ws-1' },
     })

@@ -796,6 +796,68 @@ describe('Files Parse API - Path Traversal Security', () => {
       }
     })
 
+    it('should not treat .. inside external URLs as path traversal', async () => {
+      inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+        isValid: true,
+        resolvedIP: '203.0.113.10',
+      })
+      inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+        new Response('slack file content', {
+          status: 200,
+          headers: { 'content-type': 'text/plain' },
+        })
+      )
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+
+      // Slack truncates long titles with a literal ellipsis, so the slug contains `..`
+      const slackUrl =
+        'https://files.slack.com/files-pri/T08-F0B/_other__no_invitation_messages_get_sent_-_sim_on_railway...txt'
+
+      const request = new NextRequest('http://localhost:3000/api/files/parse', {
+        method: 'POST',
+        body: JSON.stringify({ filePath: slackUrl, workspaceId: 'workspace-id' }),
+      })
+
+      const response = await POST(request)
+      const result = await response.json()
+
+      expect(result.success).toBe(true)
+      // The URL reaching the pinned fetch proves it passed validation and routed
+      // to external-URL handling rather than being rejected as a local path.
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+        slackUrl,
+        '203.0.113.10',
+        expect.any(Object)
+      )
+    })
+
+    it('should still reject traversal in https URLs that look like internal serve URLs', async () => {
+      inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+        isValid: true,
+        resolvedIP: '203.0.113.10',
+      })
+      inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+        new Response('should never be fetched', { status: 200 })
+      )
+
+      // Absolute https URL containing `/api/files/serve/` matches isInternalFileUrl and would
+      // route to handleCloudFile — so it must keep traversal protection, not be waved through
+      // as an external URL.
+      const request = new NextRequest('http://localhost:3000/api/files/parse', {
+        method: 'POST',
+        body: JSON.stringify({
+          filePath: 'https://attacker.com/api/files/serve/../../../etc/passwd',
+        }),
+      })
+
+      const response = await POST(request)
+      const result = await response.json()
+
+      expect(result.success).toBe(false)
+      expect(result.error).toMatch(/Access denied: path traversal detected/)
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
+
     it('should handle encoded path traversal attempts', async () => {
       const encodedMaliciousPaths = [
         '/api/files/serve/%2e%2e%2f%2e%2e%2fetc%2fpasswd', // ../../../etc/passwd

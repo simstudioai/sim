@@ -23,8 +23,7 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       options: [
         { label: 'Prospect Search', id: 'prospect_search' },
         { label: 'Company Enrichment', id: 'company_enrichment' },
-        { label: 'Start Individual Reveal', id: 'start_individual_reveal' },
-        { label: 'Get Individual Reveal', id: 'get_individual_reveal' },
+        { label: 'Individual Reveal', id: 'individual_reveal' },
         { label: 'Get Credits', id: 'get_credits' },
       ],
       value: () => 'prospect_search',
@@ -36,6 +35,17 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
       placeholder: 'Enter your Wiza API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
+      condition: { field: 'operation', value: 'get_credits', not: true },
+    },
+    {
+      id: 'apiKey',
+      title: 'Wiza API Key',
+      type: 'short-input',
+      placeholder: 'Enter your Wiza API key',
+      password: true,
+      required: true,
+      condition: { field: 'operation', value: 'get_credits' },
     },
 
     // Prospect Search
@@ -286,7 +296,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
       mode: 'advanced',
     },
 
-    // Start Individual Reveal
+    // Individual Reveal
     {
       id: 'enrichment_level',
       title: 'Enrichment Level',
@@ -297,76 +307,58 @@ Return ONLY the JSON object - no explanations, no extra text.`,
         { label: 'Phone', id: 'phone' },
         { label: 'Full', id: 'full' },
       ],
-      value: () => 'partial',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
-      required: { field: 'operation', value: 'start_individual_reveal' },
+      value: () => 'full',
+      condition: { field: 'operation', value: 'individual_reveal' },
+      required: { field: 'operation', value: 'individual_reveal' },
     },
     {
       id: 'profile_url',
       title: 'LinkedIn Profile URL',
       type: 'short-input',
       placeholder: 'https://linkedin.com/in/johndoe',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
     },
     {
       id: 'full_name',
       title: 'Full Name',
       type: 'short-input',
       placeholder: 'John Doe',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
     },
     {
       id: 'company',
       title: 'Company',
       type: 'short-input',
       placeholder: 'Wiza',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
     },
     {
       id: 'domain',
       title: 'Company Domain',
       type: 'short-input',
       placeholder: 'wiza.co',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
     },
     {
       id: 'email',
       title: 'Email',
       type: 'short-input',
       placeholder: 'john@wiza.co',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
     },
     {
       id: 'accept_work',
       title: 'Accept Work Emails',
       type: 'switch',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
       mode: 'advanced',
     },
     {
       id: 'accept_personal',
       title: 'Accept Personal Emails',
       type: 'switch',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
+      condition: { field: 'operation', value: 'individual_reveal' },
       mode: 'advanced',
-    },
-    {
-      id: 'callback_url',
-      title: 'Callback URL',
-      type: 'short-input',
-      placeholder: 'https://example.com/wiza-callback',
-      condition: { field: 'operation', value: 'start_individual_reveal' },
-      mode: 'advanced',
-    },
-
-    // Get Individual Reveal
-    {
-      id: 'id',
-      title: 'Reveal ID',
-      type: 'short-input',
-      placeholder: 'Reveal ID returned from Start Individual Reveal',
-      condition: { field: 'operation', value: 'get_individual_reveal' },
-      required: { field: 'operation', value: 'get_individual_reveal' },
     },
   ],
 
@@ -374,8 +366,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
     access: [
       'wiza_prospect_search',
       'wiza_company_enrichment',
-      'wiza_start_individual_reveal',
-      'wiza_get_individual_reveal',
+      'wiza_individual_reveal',
       'wiza_get_credits',
     ],
     config: {
@@ -385,10 +376,8 @@ Return ONLY the JSON object - no explanations, no extra text.`,
             return 'wiza_prospect_search'
           case 'company_enrichment':
             return 'wiza_company_enrichment'
-          case 'start_individual_reveal':
-            return 'wiza_start_individual_reveal'
-          case 'get_individual_reveal':
-            return 'wiza_get_individual_reveal'
+          case 'individual_reveal':
+            return 'wiza_individual_reveal'
           case 'get_credits':
             return 'wiza_get_credits'
           default:
@@ -478,8 +467,6 @@ Return ONLY the JSON object - no explanations, no extra text.`,
     email: { type: 'string', description: 'Email address' },
     accept_work: { type: 'boolean', description: 'Whether to accept work emails' },
     accept_personal: { type: 'boolean', description: 'Whether to accept personal emails' },
-    callback_url: { type: 'string', description: 'Callback URL' },
-    id: { type: 'string', description: 'Individual reveal ID' },
   },
 
   outputs: {
@@ -494,46 +481,44 @@ Return ONLY the JSON object - no explanations, no extra text.`,
     },
     id: {
       type: 'number',
-      description: 'Reveal ID (start_individual_reveal, get_individual_reveal)',
+      description: 'Reveal ID (individual_reveal)',
     },
     status: {
       type: 'string',
-      description:
-        'Reveal status (start_individual_reveal, get_individual_reveal): queued | resolving | finished | failed',
+      description: 'Reveal status (individual_reveal): queued | resolving | finished | failed',
     },
     is_complete: {
       type: 'boolean',
-      description:
-        'Whether the reveal has completed (start_individual_reveal, get_individual_reveal)',
+      description: 'Whether the reveal has completed (individual_reveal)',
     },
-    name: { type: 'string', description: 'Full name (get_individual_reveal)' },
-    company: { type: 'string', description: 'Company name (get_individual_reveal)' },
+    name: { type: 'string', description: 'Full name (individual_reveal)' },
+    company: { type: 'string', description: 'Company name (individual_reveal)' },
     enrichment_level: {
       type: 'string',
-      description: 'Enrichment level used (get_individual_reveal)',
+      description: 'Enrichment level used (individual_reveal)',
     },
-    linkedin_profile_url: { type: 'string', description: 'LinkedIn URL (get_individual_reveal)' },
-    title: { type: 'string', description: 'Job title (get_individual_reveal)' },
-    location: { type: 'string', description: 'Location (get_individual_reveal)' },
-    email: { type: 'string', description: 'Primary email (get_individual_reveal)' },
-    email_type: { type: 'string', description: 'Primary email type (get_individual_reveal)' },
+    linkedin_profile_url: { type: 'string', description: 'LinkedIn URL (individual_reveal)' },
+    title: { type: 'string', description: 'Job title (individual_reveal)' },
+    location: { type: 'string', description: 'Location (individual_reveal)' },
+    email: { type: 'string', description: 'Primary email (individual_reveal)' },
+    email_type: { type: 'string', description: 'Primary email type (individual_reveal)' },
     email_status: {
       type: 'string',
-      description: 'Primary email status: valid | risky | unfound (get_individual_reveal)',
+      description: 'Primary email status: valid | risky | unfound (individual_reveal)',
     },
     emails: {
       type: 'json',
-      description: 'All emails found (get_individual_reveal): [{email, email_type, email_status}]',
+      description: 'All emails found (individual_reveal): [{email, email_type, email_status}]',
     },
-    mobile_phone: { type: 'string', description: 'Mobile phone (get_individual_reveal)' },
-    phone_number: { type: 'string', description: 'Direct/office phone (get_individual_reveal)' },
+    mobile_phone: { type: 'string', description: 'Mobile phone (individual_reveal)' },
+    phone_number: { type: 'string', description: 'Direct/office phone (individual_reveal)' },
     phone_status: {
       type: 'string',
-      description: 'Phone status: found | unfound (get_individual_reveal)',
+      description: 'Phone status: found | unfound (individual_reveal)',
     },
     phones: {
       type: 'json',
-      description: 'All phones found (get_individual_reveal): [{number, pretty_number, type}]',
+      description: 'All phones found (individual_reveal): [{number, pretty_number, type}]',
     },
     company_name: {
       type: 'string',
@@ -541,41 +526,41 @@ Return ONLY the JSON object - no explanations, no extra text.`,
     },
     company_domain: {
       type: 'string',
-      description: 'Company domain (company_enrichment, get_individual_reveal)',
+      description: 'Company domain (company_enrichment, individual_reveal)',
     },
     domain: { type: 'string', description: 'Domain (company_enrichment)' },
     company_industry: {
       type: 'string',
-      description: 'Industry (company_enrichment, get_individual_reveal)',
+      description: 'Industry (company_enrichment, individual_reveal)',
     },
     company_size: {
       type: 'number',
-      description: 'Employee count (company_enrichment, get_individual_reveal)',
+      description: 'Employee count (company_enrichment, individual_reveal)',
     },
     company_size_range: {
       type: 'string',
-      description: 'Headcount range (company_enrichment, get_individual_reveal)',
+      description: 'Headcount range (company_enrichment, individual_reveal)',
     },
     company_founded: {
       type: 'number',
-      description: 'Year founded (company_enrichment, get_individual_reveal)',
+      description: 'Year founded (company_enrichment, individual_reveal)',
     },
     company_revenue_range: {
       type: 'string',
       description: 'Revenue range (company_enrichment)',
     },
-    company_revenue: { type: 'string', description: 'Revenue (get_individual_reveal)' },
+    company_revenue: { type: 'string', description: 'Revenue (individual_reveal)' },
     company_funding: {
       type: 'string',
-      description: 'Total funding (company_enrichment, get_individual_reveal)',
+      description: 'Total funding (company_enrichment, individual_reveal)',
     },
     company_type: {
       type: 'string',
-      description: 'Company type (company_enrichment, get_individual_reveal)',
+      description: 'Company type (company_enrichment, individual_reveal)',
     },
     company_description: {
       type: 'string',
-      description: 'Company description (company_enrichment, get_individual_reveal)',
+      description: 'Company description (company_enrichment, individual_reveal)',
     },
     company_ticker: { type: 'string', description: 'Stock ticker (company_enrichment)' },
     company_last_funding_round: {
@@ -592,40 +577,40 @@ Return ONLY the JSON object - no explanations, no extra text.`,
     },
     company_location: {
       type: 'string',
-      description: 'Full location string (company_enrichment, get_individual_reveal)',
+      description: 'Full location string (company_enrichment, individual_reveal)',
     },
     company_twitter: { type: 'string', description: 'Twitter URL (company_enrichment)' },
     company_facebook: { type: 'string', description: 'Facebook URL (company_enrichment)' },
     company_linkedin: {
       type: 'string',
-      description: 'LinkedIn URL (company_enrichment, get_individual_reveal)',
+      description: 'LinkedIn URL (company_enrichment, individual_reveal)',
     },
     company_linkedin_id: { type: 'string', description: 'LinkedIn ID (company_enrichment)' },
     company_street: {
       type: 'string',
-      description: 'Street address (company_enrichment, get_individual_reveal)',
+      description: 'Street address (company_enrichment, individual_reveal)',
     },
     company_locality: {
       type: 'string',
-      description: 'City (company_enrichment, get_individual_reveal)',
+      description: 'City (company_enrichment, individual_reveal)',
     },
     company_region: {
       type: 'string',
-      description: 'State/region (company_enrichment, get_individual_reveal)',
+      description: 'State/region (company_enrichment, individual_reveal)',
     },
     company_postal_code: {
       type: 'string',
-      description: 'Postal code (company_enrichment, get_individual_reveal)',
+      description: 'Postal code (company_enrichment, individual_reveal)',
     },
     company_country: {
       type: 'string',
-      description: 'Country (company_enrichment, get_individual_reveal)',
+      description: 'Country (company_enrichment, individual_reveal)',
     },
-    company_subindustry: { type: 'string', description: 'Subindustry (get_individual_reveal)' },
+    company_subindustry: { type: 'string', description: 'Subindustry (individual_reveal)' },
     credits: {
       type: 'json',
       description:
-        'Credits deducted — company_enrichment: { api_credits: { total, company_credits } }; get_individual_reveal: { api_credits: { total, email_credits, phone_credits, scrape_credits } }',
+        'Credits deducted — company_enrichment: { api_credits: { total, company_credits } }; individual_reveal: { api_credits: { total, email_credits, phone_credits, scrape_credits } }',
     },
     email_credits: {
       type: 'json',

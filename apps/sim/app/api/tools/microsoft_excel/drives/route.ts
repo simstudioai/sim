@@ -8,10 +8,18 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { extractGraphError, GRAPH_ID_PATTERN } from '@/tools/microsoft_excel/utils'
+import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('MicrosoftExcelDrivesAPI')
+
+/**
+ * Upper bound on Microsoft Graph pages drained when listing site drives.
+ * Each page returns up to `$top=999` drives, so this caps the result set at
+ * roughly 10k drives while preventing an unbounded server-side loop.
+ */
+const MAX_DRIVES_PAGES = 10
 
 interface GraphDrive {
   id: string
@@ -88,25 +96,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     // List all drives for the site
-    const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives?$select=id,name,driveType,webUrl`
+    let nextUrl: string | undefined =
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/drives?$select=id,name,driveType,webUrl&$top=999`
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    })
-
-    if (!response.ok) {
-      const errorMessage = await extractGraphError(response)
-      logger.error(`[${requestId}] Microsoft Graph API error fetching drives`, {
-        status: response.status,
-        error: errorMessage,
+    const rawDrives: GraphDrive[] = []
+    for (let page = 0; page < MAX_DRIVES_PAGES && nextUrl; page++) {
+      const response = await fetch(nextUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       })
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+
+      if (!response.ok) {
+        const errorMessage = await extractGraphError(response)
+        logger.error(`[${requestId}] Microsoft Graph API error fetching drives`, {
+          status: response.status,
+          error: errorMessage,
+        })
+        return NextResponse.json({ error: errorMessage }, { status: response.status })
+      }
+
+      const data = await response.json()
+      if (Array.isArray(data.value)) {
+        rawDrives.push(...data.value)
+      }
+
+      const nextLink = getGraphNextPageUrl(data)
+      nextUrl = nextLink ? assertGraphNextPageUrl(nextLink) : undefined
+      if (nextUrl && page === MAX_DRIVES_PAGES - 1) {
+        logger.warn(
+          `[${requestId}] Site drives pagination hit ${MAX_DRIVES_PAGES}-page cap; result may be incomplete`
+        )
+      }
     }
 
-    const data = await response.json()
-    const drives = (data.value || []).map((drive: GraphDrive) => ({
+    const drives = rawDrives.map((drive: GraphDrive) => ({
       id: drive.id,
       name: drive.name,
       driveType: drive.driveType,

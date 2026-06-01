@@ -1,5 +1,5 @@
 import { QuiverIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { QuiverSvgResponse } from '@/tools/quiver/types'
@@ -12,8 +12,9 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
     'Generate SVG images from text prompts or vectorize raster images into SVGs using QuiverAI. Supports reference images, style instructions, and multiple output generation.',
   docsLink: 'https://docs.sim.ai/tools/quiver',
   category: 'tools',
-  integrationType: IntegrationType.Marketing,
-  bgColor: '#000000',
+  integrationType: IntegrationType.Design,
+  tags: ['image-generation'],
+  bgColor: '#FFFFFF',
   icon: QuiverIcon,
   authMode: AuthMode.ApiKey,
   subBlocks: [
@@ -236,76 +237,3 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
     },
   },
 }
-
-export const QuiverBlockMeta = {
-  tags: ['image-generation'],
-  templates: [
-    {
-      icon: QuiverIcon,
-      title: 'Quiver congressional trades watcher',
-      prompt:
-        'Build a scheduled workflow that monitors Quiver Quantitative for new congressional trades on tracked tickers, scores notability, and posts a Slack alert with the trade details.',
-      modules: ['scheduled', 'agent', 'workflows'],
-      category: 'operations',
-      tags: ['finance', 'monitoring'],
-      alsoIntegrations: ['slack'],
-    },
-    {
-      icon: QuiverIcon,
-      title: 'Quiver insider signal aggregator',
-      prompt:
-        'Create a scheduled workflow that pulls Quiver insider trades and lobbying activity for tracked tickers, aggregates a signal score, and writes a research table for the portfolio review.',
-      modules: ['scheduled', 'tables', 'agent', 'workflows'],
-      category: 'operations',
-      tags: ['finance', 'analysis'],
-    },
-    {
-      icon: QuiverIcon,
-      title: 'Quiver lobbying tracker',
-      prompt:
-        'Build a workflow that watches Quiver lobbying spend on tracked sectors, summarizes new filings, and emails a digest to portfolio managers weekly.',
-      modules: ['scheduled', 'agent', 'workflows'],
-      category: 'operations',
-      tags: ['finance', 'research'],
-      alsoIntegrations: ['gmail'],
-    },
-    {
-      icon: QuiverIcon,
-      title: 'Quiver patent watcher',
-      prompt:
-        'Create a scheduled workflow that monitors Quiver patent filings for tracked companies, scores relevance to thesis, and writes notable filings to a research log.',
-      modules: ['scheduled', 'tables', 'agent', 'workflows'],
-      category: 'operations',
-      tags: ['finance', 'research'],
-    },
-    {
-      icon: QuiverIcon,
-      title: 'Quiver government-contract alerter',
-      prompt:
-        'Build a workflow that watches Quiver for new government-contract awards on tracked tickers, posts a Slack alert with award size and agency, and writes the contract to a tracking table.',
-      modules: ['scheduled', 'tables', 'agent', 'workflows'],
-      category: 'operations',
-      tags: ['finance', 'monitoring'],
-      alsoIntegrations: ['slack'],
-    },
-    {
-      icon: QuiverIcon,
-      title: 'Quiver Wallstreetbets pulse',
-      prompt:
-        'Create a scheduled daily workflow that pulls Quiver WallStreetBets mentions and sentiment for tracked tickers, captures spike events, and posts notable surges to Slack.',
-      modules: ['scheduled', 'agent', 'workflows'],
-      category: 'operations',
-      tags: ['finance', 'monitoring'],
-      alsoIntegrations: ['slack'],
-    },
-    {
-      icon: QuiverIcon,
-      title: 'Quiver corporate-flights watcher',
-      prompt:
-        'Build a scheduled workflow that monitors Quiver corporate jet flight data, flags unusual destination patterns for tracked tickers, and writes findings to a research file.',
-      modules: ['scheduled', 'agent', 'files', 'workflows'],
-      category: 'operations',
-      tags: ['finance', 'research'],
-    },
-  ],
-} as const satisfies BlockMeta

@@ -214,8 +214,8 @@ export function WorkflowSidebar(props: WorkflowSidebarProps) {
       role='dialog'
       aria-label='Configure workflow'
       className={cn(
-        'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] shadow-overlay transition-transform duration-200 ease-out',
-        open ? 'translate-x-0' : 'translate-x-full'
+        'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] transition-transform duration-200 ease-out',
+        open ? 'translate-x-0 shadow-overlay' : 'translate-x-full'
       )}
     >
       {props.config && (

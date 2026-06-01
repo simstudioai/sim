@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { wizaHosting } from '@/tools/wiza/hosting'
 import type { WizaCompanyEnrichmentParams, WizaCompanyEnrichmentResponse } from '@/tools/wiza/types'
 
 export const wizaCompanyEnrichmentTool: ToolConfig<
@@ -10,6 +11,11 @@ export const wizaCompanyEnrichmentTool: ToolConfig<
   description:
     'Enrich a company by name, domain, LinkedIn ID, or LinkedIn slug with detailed firmographic data',
   version: '1.0.0',
+
+  hosting: wizaHosting<WizaCompanyEnrichmentParams>((_params, output) => {
+    // 2 API credits per successful company match; no charge on a no-match.
+    return output.company_name || output.company_domain || output.domain ? 2 : 0
+  }),
 
   params: {
     apiKey: {

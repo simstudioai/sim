@@ -76,6 +76,10 @@ interface ResourceOptionsBarProps {
   filterActive?: boolean
   filterTags?: FilterTag[]
   extras?: ReactNode
+  /** Right-aligned slot. Unlike `extras` (which sits with the left controls),
+   *  `trailing` is pushed to the far right via `justify-between` — used for the
+   *  table's run/stop control opposite the left-aligned filter/sort. */
+  trailing?: ReactNode
 }
 
 export const ResourceOptionsBar = memo(function ResourceOptionsBar({
@@ -86,6 +90,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
   filterActive,
   filterTags,
   extras,
+  trailing,
 }: ResourceOptionsBarProps) {
   /**
    * Coordinates the Filter popover and Sort menu as a single menu bar: clicking
@@ -96,7 +101,13 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
   const [openMenu, setOpenMenu] = useState<'filter' | 'sort' | null>(null)
 
   const hasContent =
-    search || sort || filter || onFilterToggle || extras || (filterTags && filterTags.length > 0)
+    search ||
+    sort ||
+    filter ||
+    onFilterToggle ||
+    extras ||
+    trailing ||
+    (filterTags && filterTags.length > 0)
   if (!hasContent) return null
 
   return (
@@ -179,6 +190,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
           ) : null}
           {sort && (onFilterToggle || !filter) && <SortDropdown config={sort} />}
         </div>
+        {trailing && <div className='flex shrink-0 items-center gap-1.5'>{trailing}</div>}
       </div>
     </div>
   )

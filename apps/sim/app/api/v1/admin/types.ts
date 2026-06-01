@@ -543,7 +543,6 @@ export interface AdminMemberDetail extends AdminMember {
   // Billing/usage info from userStats
   currentPeriodCost: string
   currentUsageLimit: string | null
-  lastActive: string | null
   billingBlocked: boolean
 }
 
@@ -574,28 +573,15 @@ interface AdminUserBilling {
   userEmail: string
   stripeCustomerId: string | null
   // Usage stats
-  totalManualExecutions: number
-  totalApiCalls: number
-  totalWebhookTriggers: number
-  totalScheduledExecutions: number
-  totalChatExecutions: number
-  totalMcpExecutions: number
-  totalA2aExecutions: number
-  totalTokensUsed: number
-  totalCost: string
   currentUsageLimit: string | null
   currentPeriodCost: string
   lastPeriodCost: string | null
   billedOverageThisPeriod: string
   storageUsedBytes: number
-  lastActive: string | null
   billingBlocked: boolean
-  // Copilot usage
-  totalCopilotCost: string
+  // Copilot usage (active per-period baselines)
   currentPeriodCopilotCost: string
   lastPeriodCopilotCost: string | null
-  totalCopilotTokens: number
-  totalCopilotCalls: number
 }
 
 export interface AdminUserBillingWithSubscription extends AdminUserBilling {
@@ -643,16 +629,6 @@ export interface AdminSeatAnalytics {
   subscriptionPlan: string
   canAddSeats: boolean
   utilizationRate: number
-  activeMembers: number
-  inactiveMembers: number
-  memberActivity: Array<{
-    userId: string
-    userName: string
-    userEmail: string
-    role: string
-    joinedAt: string
-    lastActive: string | null
-  }>
 }
 
 export interface AdminDeploymentVersion {

@@ -27,7 +27,14 @@ export const v1ListLogsQuerySchema = z.object({
   details: z.enum(['basic', 'full']).optional().default('basic'),
   includeTraceSpans: booleanQueryFlagSchema.optional().default(false),
   includeFinalOutput: booleanQueryFlagSchema.optional().default(false),
-  limit: z.coerce.number().optional().default(100),
+  // Clamp rather than reject: this limit was previously unbounded, so a hard
+  // .max() would 400 existing consumers passing a larger value. Page size is
+  // still capped to bound response size and materialization reads.
+  limit: z.coerce
+    .number()
+    .optional()
+    .default(100)
+    .transform((v) => Math.min(Math.max(1, Math.trunc(v)), 1000)),
   cursor: z.string().optional(),
   order: z.enum(['desc', 'asc']).optional().default('desc'),
 })

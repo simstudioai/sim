@@ -70,7 +70,9 @@ export const GET = withRouteHandler(
           startedAt: workflowLog.startedAt.toISOString(),
           endedAt: workflowLog.endedAt?.toISOString(),
           totalDurationMs: workflowLog.totalDurationMs,
-          cost: workflowLog.cost || null,
+          // Sourced from the cost_total projection of the usage_log ledger
+          // (the deprecated cost jsonb column was dropped).
+          cost: workflowLog.costTotal != null ? { total: Number(workflowLog.costTotal) } : null,
         },
       }
 

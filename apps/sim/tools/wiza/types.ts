@@ -105,7 +105,7 @@ export interface WizaCompanyEnrichmentResponse extends ToolResponse {
   }
 }
 
-export interface WizaStartIndividualRevealParams {
+export interface WizaIndividualRevealParams {
   apiKey: string
   enrichment_level: 'none' | 'partial' | 'phone' | 'full'
   profile_url?: string
@@ -115,10 +115,9 @@ export interface WizaStartIndividualRevealParams {
   email?: string
   accept_work?: boolean
   accept_personal?: boolean
-  callback_url?: string
 }
 
-interface WizaIndividualRevealData {
+export interface WizaIndividualRevealData {
   id: number | null
   status: string | null
   is_complete: boolean | null
@@ -164,20 +163,7 @@ interface WizaIndividualRevealData {
   credits: Record<string, unknown> | null
 }
 
-export interface WizaStartIndividualRevealResponse extends ToolResponse {
-  output: {
-    id: number | null
-    status: string | null
-    is_complete: boolean | null
-  }
-}
-
-export interface WizaGetIndividualRevealParams {
-  apiKey: string
-  id: string
-}
-
-export interface WizaGetIndividualRevealResponse extends ToolResponse {
+export interface WizaIndividualRevealResponse extends ToolResponse {
   output: WizaIndividualRevealData
 }
 
@@ -185,5 +171,4 @@ export type WizaResponse =
   | WizaGetCreditsResponse
   | WizaProspectSearchResponse
   | WizaCompanyEnrichmentResponse
-  | WizaStartIndividualRevealResponse
-  | WizaGetIndividualRevealResponse
+  | WizaIndividualRevealResponse

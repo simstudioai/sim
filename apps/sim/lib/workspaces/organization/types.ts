@@ -71,7 +71,6 @@ interface MemberUsageData {
   isOverLimit: boolean
   role: string
   joinedAt: string
-  lastActive: string | null
 }
 
 interface OrganizationBillingData {

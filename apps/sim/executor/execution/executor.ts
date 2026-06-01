@@ -427,7 +427,9 @@ export class DAGExecutor {
         ...this.contextExtensions.metadata,
         startTime: new Date().toISOString(),
         duration: 0,
-        useDraftState: this.contextExtensions.isDeployedContext !== true,
+        useDraftState:
+          this.contextExtensions.metadata?.useDraftState ??
+          this.contextExtensions.isDeployedContext !== true,
       },
       environmentVariables: this.environmentVariables,
       workflowVariables: this.workflowVariables,
