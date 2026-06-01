@@ -59,6 +59,10 @@ const ALLOWED_OPERATORS = new Set([
   '$in',
   '$nin',
   '$contains',
+  '$ncontains',
+  '$startsWith',
+  '$endsWith',
+  '$empty',
 ])
 
 /**
@@ -67,8 +71,9 @@ const ALLOWED_OPERATORS = new Set([
  *
  * Index behavior: equality ($eq, $in) uses the JSONB containment operator (@>) and
  * can leverage the GIN index on `user_table_rows.data` (jsonb_path_ops). Range
- * operators ($gt, $gte, $lt, $lte) and pattern match ($contains) fall back to
- * text extraction via `data->>'field'`, which defeats the GIN index and produces
+ * operators ($gt, $gte, $lt, $lte), pattern matches ($contains, $ncontains,
+ * $startsWith, $endsWith), and emptiness checks ($empty) fall back to text
+ * extraction via `data->>'field'`, which defeats the GIN index and produces
  * a sequential scan over the table's rows (bounded by a btree prefix on
  * `table_id`). Prefer equality filters on hot paths; assume range filters are
  * O(rows per table) until a per-column expression index is added.
@@ -357,7 +362,25 @@ function buildFieldCondition(
           break
 
         case '$contains':
-          conditions.push(buildContainsClause(tableName, field, value as string))
+          conditions.push(buildLikeClause(tableName, field, value as string, 'contains'))
+          break
+
+        case '$ncontains':
+          conditions.push(
+            buildLikeClause(tableName, field, value as string, 'contains', { negate: true })
+          )
+          break
+
+        case '$startsWith':
+          conditions.push(buildLikeClause(tableName, field, value as string, 'startsWith'))
+          break
+
+        case '$endsWith':
+          conditions.push(buildLikeClause(tableName, field, value as string, 'endsWith'))
+          break
+
+        case '$empty':
+          conditions.push(buildEmptyClause(tableName, field, coerceEmptyFlag(field, value)))
           break
 
         default:
@@ -460,10 +483,73 @@ function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, '\\$&')
 }
 
-/** Builds case-insensitive pattern match: `data->>'field' ILIKE '%value%'` */
-function buildContainsClause(tableName: string, field: string, value: string): SQL {
+/**
+ * Builds a case-insensitive pattern match against a JSONB cell using ILIKE.
+ * `position` controls wildcard placement: `contains` → `%value%`, `startsWith`
+ * → `value%`, `endsWith` → `%value`. When `negate` is set the match is inverted
+ * and null cells are included — "does not contain X" should keep empty rows,
+ * mirroring `$ne` (which also surfaces nulls). Cannot use the GIN index; falls
+ * back to a sequential scan bounded by the `table_id` btree prefix.
+ */
+function buildLikeClause(
+  tableName: string,
+  field: string,
+  value: string,
+  position: 'contains' | 'startsWith' | 'endsWith',
+  options?: { negate?: boolean }
+): SQL {
   const escapedField = field.replace(/'/g, "''")
-  return sql`${sql.raw(`${tableName}.data->>'${escapedField}'`)} ILIKE ${`%${escapeLikePattern(value)}%`}`
+  // Coerce defensively: filters arriving via the raw v1 API / tools may carry a
+  // non-string value (e.g. `{ $contains: 123 }`), and ILIKE compares text anyway.
+  const text = String(value)
+  // An empty pattern collapses to `%`/`%%`, which matches every non-null row —
+  // a silent footgun for raw-API callers (the UI gates empty values out). Reject
+  // it, consistent with the range/`$empty` operand validation.
+  if (text.length === 0) {
+    const opName = position === 'contains' && options?.negate ? 'ncontains' : position
+    throw new TableQueryValidationError(
+      `$${opName} on column "${field}" requires a non-empty value`
+    )
+  }
+  const escaped = escapeLikePattern(text)
+  const pattern =
+    position === 'startsWith'
+      ? `${escaped}%`
+      : position === 'endsWith'
+        ? `%${escaped}`
+        : `%${escaped}%`
+  const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
+  return options?.negate
+    ? sql`(${cell} IS NULL OR ${cell} NOT ILIKE ${pattern})`
+    : sql`${cell} ILIKE ${pattern}`
+}
+
+/**
+ * Coerces a `$empty` operand to a boolean. Accepts a real boolean (the UI path)
+ * and the string forms `'true'` / `'false'` (lenient raw-API input). Anything
+ * else throws rather than silently inverting the check — a 400 with a clear
+ * message beats returning the opposite row set.
+ */
+function coerceEmptyFlag(field: string, value: unknown): boolean {
+  if (typeof value === 'boolean') return value
+  if (value === 'true') return true
+  if (value === 'false') return false
+  throw new TableQueryValidationError(
+    `$empty on column "${field}" requires a boolean, got ${typeof value}`
+  )
+}
+
+/**
+ * Builds an emptiness check against a JSONB cell. `isEmpty` matches null cells
+ * (absent key or JSON null, both surfaced as SQL NULL by `->>`) and empty
+ * strings; the negation requires the cell to be present and non-empty.
+ */
+function buildEmptyClause(tableName: string, field: string, isEmpty: boolean): SQL {
+  const escapedField = field.replace(/'/g, "''")
+  const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
+  return isEmpty
+    ? sql`(${cell} IS NULL OR ${cell} = '')`
+    : sql`(${cell} IS NOT NULL AND ${cell} <> '')`
 }
 
 /**

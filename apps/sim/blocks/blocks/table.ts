@@ -379,6 +379,10 @@ IMPORTANT: Reference the table schema to know which columns exist and their type
 - **$in**: In array - {"column": {"$in": ["value1", "value2"]}}
 - **$nin**: Not in array - {"column": {"$nin": ["value1", "value2"]}}
 - **$contains**: String contains - {"column": {"$contains": "text"}}
+- **$ncontains**: Does not contain (matches empty cells) - {"column": {"$ncontains": "text"}}
+- **$startsWith**: Starts with - {"column": {"$startsWith": "text"}}
+- **$endsWith**: Ends with - {"column": {"$endsWith": "text"}}
+- **$empty**: Is empty (true) or non-empty (false) - {"column": {"$empty": true}}
 
 ### EXAMPLES
 
@@ -467,6 +471,10 @@ IMPORTANT: Reference the table schema to know which columns exist and their type
 - **$in**: In array - {"column": {"$in": ["value1", "value2"]}}
 - **$nin**: Not in array - {"column": {"$nin": ["value1", "value2"]}}
 - **$contains**: String contains - {"column": {"$contains": "text"}}
+- **$ncontains**: Does not contain (matches empty cells) - {"column": {"$ncontains": "text"}}
+- **$startsWith**: Starts with - {"column": {"$startsWith": "text"}}
+- **$endsWith**: Ends with - {"column": {"$endsWith": "text"}}
+- **$empty**: Is empty (true) or non-empty (false) - {"column": {"$empty": true}}
 
 ### EXAMPLES
 
