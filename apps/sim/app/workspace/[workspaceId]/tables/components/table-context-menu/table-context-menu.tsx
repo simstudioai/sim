@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
   Upload,
 } from '@/components/emcn'
-import { Database, Duplicate, Pencil, Trash } from '@/components/emcn/icons'
+import { Database, Download, Duplicate, Pencil, Trash } from '@/components/emcn/icons'
 
 interface TableContextMenuProps {
   isOpen: boolean
@@ -84,7 +84,7 @@ export function TableContextMenu({
         )}
         {onExportCsv && (
           <DropdownMenuItem disabled={disableExport} onSelect={onExportCsv}>
-            <Upload />
+            <Download />
             Export CSV
           </DropdownMenuItem>
         )}

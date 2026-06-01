@@ -22,8 +22,8 @@ import {
   Library,
   RefreshCw,
   toast,
-  Upload,
 } from '@/components/emcn'
+import { Download } from '@/components/emcn/icons'
 import type {
   WorkflowLogDetail,
   WorkflowLogRow,
@@ -1100,7 +1100,7 @@ export default function Logs() {
     () => [
       {
         label: 'Export',
-        icon: Upload,
+        icon: Download,
         onClick: handleExport,
         disabled: !userPermissions.canEdit || isExporting || logs.length === 0,
       },
