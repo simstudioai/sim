@@ -43,7 +43,7 @@
     "@types/node": "^20.5.1",
     "@vitest/coverage-v8": "^3.0.8",
     "typescript": "^5.7.3",
-    "vitest": "^3.0.8"
+    "vitest": "^4.1.8"
   },
   "engines": {
     "node": ">=16"
