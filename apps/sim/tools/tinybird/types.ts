@@ -3,7 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 /**
  * Base parameters for Tinybird API tools
  */
-export interface TinybirdBaseParams {
+interface TinybirdBaseParams {
   token: string
 }
 

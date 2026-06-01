@@ -3,19 +3,17 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
-  type BillingUsageData,
   createBillingPortalContract,
   getUserBillingContract,
   getUserUsageLimitContract,
   purchaseCreditsContract,
   type SubscriptionApiResponse,
-  type SubscriptionBillingData,
   updateUsageLimitContract,
 } from '@/lib/api/contracts/subscription'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
-export type { BillingUsageData, SubscriptionApiResponse, SubscriptionBillingData }
+export type { SubscriptionApiResponse }
 
 /**
  * Query key factories for subscription-related queries
@@ -55,7 +53,7 @@ interface UseSubscriptionDataOptions {
  * @param options - Optional configuration
  */
 export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
-  const { includeOrg = false, enabled = true, staleTime = 30 * 1000 } = options
+  const { includeOrg = false, enabled = true, staleTime = 5 * 60 * 1000 } = options
 
   return useQuery({
     queryKey: subscriptionKeys.user(includeOrg),
@@ -74,7 +72,7 @@ export function prefetchSubscriptionData(queryClient: QueryClient) {
   queryClient.prefetchQuery({
     queryKey: subscriptionKeys.user(false),
     queryFn: ({ signal }) => fetchSubscriptionData(false, signal),
-    staleTime: 30 * 1000,
+    staleTime: 5 * 60 * 1000,
   })
 }
 

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   oauthTokenGetContract,
@@ -97,7 +98,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         return NextResponse.json({ accessToken }, { status: 200 })
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to get OAuth token'
+        const message = getErrorMessage(error, 'Failed to get OAuth token')
         logger.warn(`[${requestId}] OAuth token error: ${message}`)
         return NextResponse.json({ error: message }, { status: 403 })
       }

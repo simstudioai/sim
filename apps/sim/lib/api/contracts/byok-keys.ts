@@ -7,6 +7,10 @@ export const byokProviderIdSchema = z.enum([
   'google',
   'mistral',
   'fireworks',
+  'together',
+  'baseten',
+  'ollama-cloud',
+  'falai',
   'firecrawl',
   'exa',
   'serper',
@@ -17,6 +21,11 @@ export const byokProviderIdSchema = z.enum([
   'parallel_ai',
   'brandfetch',
   'cohere',
+  'hunter',
+  'peopledatalabs',
+  'findymail',
+  'prospeo',
+  'wiza',
 ])
 
 export const byokKeySchema = z.object({

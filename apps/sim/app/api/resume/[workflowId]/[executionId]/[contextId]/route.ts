@@ -141,6 +141,7 @@ export const POST = withRouteHandler(
     try {
       const enqueueResult = await PauseResumeManager.enqueueOrStartResume({
         executionId,
+        workflowId,
         contextId,
         resumeInput,
         userId,
@@ -179,6 +180,10 @@ export const POST = withRouteHandler(
             timeoutMs: preprocessResult.executionTimeout?.sync,
           },
           executionId: enqueueResult.resumeExecutionId,
+          workspaceId: workflow.workspaceId || undefined,
+          workflowId,
+          userId: enqueueResult.userId,
+          allowLargeValueWorkflowScope: true,
           executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
             PauseResumeManager.startResumeExecution({
               ...resumeArgs,
@@ -249,7 +254,7 @@ export const POST = withRouteHandler(
             contextId: enqueueResult.contextId,
             failureReason: 'Failed to queue async resume execution',
           })
-          await PauseResumeManager.processQueuedResumes(executionId)
+          await PauseResumeManager.processQueuedResumes(executionId, workflowId)
           return NextResponse.json(
             { error: 'Failed to queue resume execution. Please try again.' },
             { status: 503 }
@@ -283,7 +288,7 @@ export const POST = withRouteHandler(
         executionId: enqueueResult.resumeExecutionId,
         message: 'Resume execution started.',
       })
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Resume request failed', {
         workflowId,
         executionId,
@@ -291,7 +296,7 @@ export const POST = withRouteHandler(
         error,
       })
       return NextResponse.json(
-        { error: error.message || 'Failed to queue resume request' },
+        { error: toError(error).message || 'Failed to queue resume request' },
         { status: 400 }
       )
     }

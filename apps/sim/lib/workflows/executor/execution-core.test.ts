@@ -215,6 +215,49 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     )
   })
 
+  it('starts logging with the workflow state that will be executed', async () => {
+    const executedWorkflowState = {
+      blocks: {
+        loop: { id: 'loop', type: 'loop', name: 'Loop', subBlocks: {} },
+        parallel: {
+          id: 'parallel',
+          type: 'parallel',
+          name: 'Parallel',
+          subBlocks: {},
+          data: { parentId: 'loop', extent: 'parent' },
+        },
+      },
+      edges: [],
+      loops: { loop: { id: 'loop', nodes: ['parallel'], iterations: 1, loopType: 'for' } },
+      parallels: { parallel: { id: 'parallel', nodes: [], count: 1 } },
+    }
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: {
+        ...createSnapshot(),
+        metadata: {
+          ...createSnapshot().metadata,
+          workflowStateOverride: executedWorkflowState,
+        },
+      } as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(safeStartMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowState: executedWorkflowState,
+      })
+    )
+  })
+
   it('uses external trigger selection for webhook executions without an explicit triggerBlockId', async () => {
     executorExecuteMock.mockResolvedValue({
       success: true,
@@ -237,6 +280,54 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     })
 
     expect(findStartBlockMock).toHaveBeenCalledWith(expect.anything(), 'external', false)
+  })
+
+  it('preserves manifest-backed workflow variables during execution setup', async () => {
+    const manifest = {
+      __simLargeArrayManifest: true,
+      version: 2,
+      kind: 'array',
+      totalCount: 1,
+      chunkCount: 1,
+      byteSize: 16,
+      chunks: [
+        {
+          ref: {
+            __simLargeValueRef: true,
+            version: 1,
+            id: 'lv_ABCDEFGHIJKL',
+            kind: 'array',
+            size: 16,
+            executionId: 'execution-1',
+          },
+          count: 1,
+          byteSize: 16,
+        },
+      ],
+      preview: [{ id: 1 }],
+    }
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: {
+        ...createSnapshot(),
+        workflowVariables: {
+          'var-1': { id: 'var-1', name: 'issues', type: 'array', value: manifest },
+        },
+      } as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(executorConstructorMock.mock.calls[0]?.[0]?.workflowVariables['var-1'].value).toEqual(
+      manifest
+    )
   })
 
   it('does not await user block start callback after persistence completes', async () => {

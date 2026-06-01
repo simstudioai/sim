@@ -18,15 +18,9 @@ const MAX_TOKENS_PER_REQUEST = 8000
 const MAX_CONCURRENT_BATCHES = envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 50)
 const EMBEDDING_REQUEST_TIMEOUT_MS = 60_000
 
-export type { EmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
-export {
-  DEFAULT_EMBEDDING_MODEL,
-  EMBEDDING_DIMENSIONS,
-  getEmbeddingModelInfo,
-  SUPPORTED_EMBEDDING_MODELS,
-} from '@/lib/knowledge/embedding-models'
+export { EMBEDDING_DIMENSIONS } from '@/lib/knowledge/embedding-models'
 
-export class EmbeddingAPIError extends Error {
+class EmbeddingAPIError extends Error {
   public status: number
 
   constructor(message: string, status: number) {

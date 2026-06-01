@@ -362,7 +362,7 @@ export interface CalcomCreateEventTypeParams {
   disableGuests?: boolean
 }
 
-export interface CalcomEventType {
+interface CalcomEventType {
   id: number
   title: string
   slug: string
@@ -446,7 +446,7 @@ export interface CalcomDeleteEventTypeResponse extends ToolResponse {
 /**
  * Common attendee structure for Cal.com bookings
  */
-export interface CalcomAttendee {
+interface CalcomAttendee {
   name: string
   email?: string
   timeZone: string
@@ -456,7 +456,7 @@ export interface CalcomAttendee {
 /**
  * Common booking structure returned by Cal.com API
  */
-export interface CalcomBooking {
+interface CalcomBooking {
   uid: string
   title: string
   description?: string
@@ -625,7 +625,7 @@ export interface CalcomAvailability {
 /**
  * Schedule object returned by Cal.com API
  */
-export interface CalcomSchedule {
+interface CalcomSchedule {
   id: number
   name: string
   timeZone: string

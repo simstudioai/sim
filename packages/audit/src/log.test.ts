@@ -36,9 +36,10 @@ vi.mock('@sim/utils/id', () => ({
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
 }))
 
+import { sleep } from '@sim/utils/helpers'
 import { AuditAction, AuditResourceType, recordAudit } from './index'
 
-const flush = () => new Promise((resolve) => setTimeout(resolve, 10))
+const flush = () => sleep(10)
 
 describe('AuditAction', () => {
   it('contains all expected action categories', () => {

@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { useParams } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   DELETED_WORKFLOW_COLOR,
@@ -77,6 +78,9 @@ function WorkflowsListInner({
               return (
                 <div
                   key={workflow.workflowId}
+                  role='button'
+                  aria-disabled={!canToggle}
+                  tabIndex={canToggle ? 0 : undefined}
                   className={cn(
                     'flex h-[44px] items-center gap-4 px-6 hover-hover:bg-[var(--surface-3)] dark:hover-hover:bg-[var(--surface-4)]',
                     canToggle ? 'cursor-pointer' : 'cursor-default',
@@ -87,11 +91,15 @@ function WorkflowsListInner({
                       onToggleWorkflow(workflow.workflowId)
                     }
                   }}
+                  onKeyDown={(event) => {
+                    if (!canToggle) return
+                    handleKeyboardActivation(event, () => onToggleWorkflow(workflow.workflowId))
+                  }}
                 >
                   {/* Workflow name with color */}
                   <div className='flex w-[160px] flex-shrink-0 items-center gap-2 pr-2'>
                     <div
-                      className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
+                      className='size-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
                       style={{
                         backgroundColor: workflowColor,
                         borderColor: workflowBorderColor(workflowColor),

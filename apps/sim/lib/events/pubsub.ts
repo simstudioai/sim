@@ -9,6 +9,7 @@ import { EventEmitter } from 'events'
 import { createLogger } from '@sim/logger'
 import Redis, { type RedisOptions } from 'ioredis'
 import { env } from '@/lib/core/config/env'
+import { getRedisConnectionDefaults } from '@/lib/core/config/redis'
 
 const logger = createLogger('PubSub')
 
@@ -31,13 +32,12 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
 
   constructor(
     redisUrl: string,
+    connectionDefaults: ReturnType<typeof getRedisConnectionDefaults>,
     private config: PubSubChannelConfig
   ) {
     const commonOpts = {
-      keepAlive: 1000,
-      connectTimeout: 10000,
+      ...connectionDefaults,
       maxRetriesPerRequest: null,
-      enableOfflineQueue: true,
       retryStrategy: (times: number) => {
         if (times > 10) return 30000
         return Math.min(times * 500, 5000)
@@ -139,16 +139,18 @@ class LocalPubSubChannel<T> implements PubSubChannel<T> {
 
 export function createPubSubChannel<T>(config: PubSubChannelConfig): PubSubChannel<T> {
   const redisUrl = env.REDIS_URL
+  if (!redisUrl) return new LocalPubSubChannel<T>(config)
 
-  if (redisUrl) {
-    try {
-      logger.info(`${config.label}: Using Redis`)
-      return new RedisPubSubChannel<T>(redisUrl, config)
-    } catch (err) {
-      logger.error(`Failed to create Redis ${config.label}, falling back to local:`, err)
-      return new LocalPubSubChannel<T>(config)
-    }
+  // Resolve config-derived defaults outside the try so a missing
+  // REDIS_TLS_SERVERNAME (config error) surfaces instead of silently degrading
+  // to the in-process EventEmitter — that would break cross-replica pub/sub.
+  const connectionDefaults = getRedisConnectionDefaults(redisUrl)
+
+  try {
+    logger.info(`${config.label}: Using Redis`)
+    return new RedisPubSubChannel<T>(redisUrl, connectionDefaults, config)
+  } catch (err) {
+    logger.error(`Failed to create Redis ${config.label}, falling back to local:`, err)
+    return new LocalPubSubChannel<T>(config)
   }
-
-  return new LocalPubSubChannel<T>(config)
 }

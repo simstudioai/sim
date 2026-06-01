@@ -16,7 +16,6 @@ import {
   workflowsOrchestrationMock,
   workflowsOrchestrationMockFns,
   workflowsPersistenceUtilsMock,
-  workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -28,7 +27,7 @@ const { mockCheckChatAccess } = vi.hoisted(() => ({
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
 const mockEncryptSecret = encryptionMockFns.mockEncryptSecret
-const mockDeployWorkflow = workflowsPersistenceUtilsMockFns.mockDeployWorkflow
+const mockPerformFullDeploy = workflowsOrchestrationMockFns.mockPerformFullDeploy
 const mockPerformChatUndeploy = workflowsOrchestrationMockFns.mockPerformChatUndeploy
 const mockNotifySocketDeploymentChanged =
   workflowsOrchestrationMockFns.mockNotifySocketDeploymentChanged
@@ -73,7 +72,7 @@ describe('Chat Edit API Route', () => {
     })
 
     mockEncryptSecret.mockResolvedValue({ encrypted: 'encrypted-password' })
-    mockDeployWorkflow.mockResolvedValue({ success: true, version: 1 })
+    mockPerformFullDeploy.mockResolvedValue({ success: true, version: 1 })
     mockNotifySocketDeploymentChanged.mockResolvedValue(undefined)
   })
 

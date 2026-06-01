@@ -155,12 +155,12 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
 
   useEffect(() => {
     if (visibleNotifications.length === 0) {
-      if (isPaused) setIsPaused(false)
+      if (isPausedRef.current) setIsPaused(false)
       for (const timer of timersRef.current.values()) clearTimeout(timer)
       timersRef.current.clear()
       return
     }
-    if (isPaused) return
+    if (isPausedRef.current) return
 
     const timers = timersRef.current
     const activeIds = new Set<string>()
@@ -174,7 +174,8 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
         setTimeout(() => {
           timers.delete(n.id)
           setExitingIds((prev) => new Set(prev).add(n.id))
-          setTimeout(() => {
+          const exitTimer = setTimeout(() => {
+            timers.delete(`${n.id}-exit`)
             if (isPausedRef.current) return
             removeNotification(n.id)
             setExitingIds((prev) => {
@@ -183,6 +184,7 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
               return next
             })
           }, EXIT_ANIMATION_MS)
+          timers.set(`${n.id}-exit`, exitTimer)
         }, AUTO_DISMISS_MS)
       )
     }
@@ -193,7 +195,12 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
         timers.delete(id)
       }
     }
-  }, [visibleNotifications, removeNotification, isPaused])
+
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer)
+      timers.clear()
+    }
+  }, [visibleNotifications, removeNotification])
 
   useEffect(() => {
     const timers = timersRef.current
@@ -232,7 +239,7 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
               <div className='flex items-start gap-2'>
                 <div className='line-clamp-2 min-w-0 flex-1 font-medium text-[var(--text-body)] text-caption'>
                   {notification.level === 'error' && (
-                    <span className='mr-2 mb-0.5 inline-block h-[8px] w-[8px] rounded-xs bg-[var(--text-error)] align-middle' />
+                    <span className='mr-2 mb-0.5 inline-block size-[8px] rounded-xs bg-[var(--text-error)] align-middle' />
                   )}
                   {notification.message}
                 </div>
@@ -246,7 +253,7 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
                         aria-label='Dismiss notification'
                         className='!p-1 -m-0.5 shrink-0 rounded-[5px] hover-hover:bg-[var(--surface-active)]'
                       >
-                        <X className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+                        <X className='size-[14px] text-[var(--text-icon)]' />
                       </Button>
                     </Tooltip.Trigger>
                     <Tooltip.Content>

@@ -61,7 +61,7 @@ export interface AirweaveSearchParams {
 /**
  * Individual search result from Airweave.
  */
-export interface AirweaveSearchResult {
+interface AirweaveSearchResult {
   entity_id: string
   source_name: string
   md_content?: string

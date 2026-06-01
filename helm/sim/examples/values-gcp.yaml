@@ -1,5 +1,46 @@
-# GCP-specific values for Sim 
-# Example configuration for Google Kubernetes Engine (GKE) deployment
+# values-gcp.yaml
+#
+# When to use: Google Kubernetes Engine (GKE). Configures Persistent Disk
+# storage, Google Cloud Load Balancer with managed certs, Workload Identity
+# annotations, and Tesla T4/V100 GPU node selectors for Ollama.
+#
+# Prerequisites:
+#   - GKE cluster (Kubernetes 1.25+)
+#   - Workload Identity enabled (for IAM-bound ServiceAccount)
+#   - (optional) Managed certificate or cert-manager for TLS
+#   - (optional) GPU node pool with accelerator labels for Ollama
+#
+# Install:
+#   helm install sim ./helm/sim \
+#     --namespace sim --create-namespace \
+#     --values ./helm/sim/examples/values-gcp.yaml \
+#     --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+#     --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+#     --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+#     --set app.env.CRON_SECRET="$CRON_SECRET" \
+#     --set postgresql.auth.password="$POSTGRES_PASSWORD"
+#
+# Choosing a secret strategy
+# --------------------------
+# Pick one of three modes — see helm/sim/README.md for details.
+#
+#   1. Inline (default below): set values directly in app.env. The chart
+#      writes every key into a chart-managed Secret. Simplest, but stores
+#      plaintext in your values file.
+#
+#   2. existingSecret: pre-create a Kubernetes Secret out-of-band and
+#      reference it via app.secrets.existingSecret.name. You are
+#      responsible for ensuring the Secret contains every key your app
+#      needs (BETTER_AUTH_SECRET, ENCRYPTION_KEY, INTERNAL_API_SECRET,
+#      OPENAI_API_KEY, ...). The chart-managed Secret is not rendered in
+#      this mode, so anything missing from your Secret will be empty at
+#      runtime.
+#
+#   3. External Secrets Operator (ESO): sync from Google Secret Manager
+#      via the External Secrets Operator. Map every key via
+#      externalSecrets.remoteRefs.app.<KEY>. The chart fails template
+#      rendering if a key is set in app.env but not mapped — see the
+#      commented ESO block at the bottom of this file.
 
 # Global configuration
 global:
@@ -258,3 +299,35 @@ extraVolumeMounts:
   - name: google-cloud-key
     mountPath: /var/secrets/google
     readOnly: true
+# -----------------------------------------------------------------------------
+# External Secrets Operator (ESO) — recommended for production on GCP
+# -----------------------------------------------------------------------------
+# To switch from inline secrets to ESO:
+#   1. Install external-secrets in the cluster (https://external-secrets.io).
+#   2. Create a ClusterSecretStore backed by Google Secret Manager and bind
+#      Workload Identity from this namespace's ServiceAccount.
+#   3. Remove entries from app.env above (or leave them and the chart will
+#      fail-fast naming each unmapped key).
+#   4. Uncomment the block below and replace the paths with the names of the
+#      secrets in your project.
+#
+# externalSecrets:
+#   enabled: true
+#   secretStoreRef:
+#     name: "gcp-secret-store"          # name of your ClusterSecretStore
+#     kind: "ClusterSecretStore"
+#   remoteRefs:
+#     app:
+#       BETTER_AUTH_SECRET:  "sim-better-auth-secret"
+#       ENCRYPTION_KEY:      "sim-encryption-key"
+#       INTERNAL_API_SECRET: "sim-internal-api-secret"
+#       CRON_SECRET:         "sim-cron-secret"
+#       API_ENCRYPTION_KEY:  "sim-api-encryption-key"
+#       # Provider keys typical for a GCP deployment. Vertex AI auth is
+#       # usually handled by Workload Identity, so VERTEX_CREDENTIALS is
+#       # only needed when running outside the GCP credential chain.
+#       OPENAI_API_KEY:      "sim-openai-api-key"
+#       # ANTHROPIC_API_KEY: "sim-anthropic-api-key"
+#       # VERTEX_CREDENTIALS: "sim-vertex-credentials-json"
+#     postgresql:
+#       password: "sim-postgresql-password"

@@ -18,7 +18,7 @@
 
 import { context, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import type { TraceSpan } from '@/lib/logs/types'
 
@@ -421,7 +421,7 @@ export async function traceBlockExecution<T>(
       } catch (error) {
         span.setStatus({
           code: SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : 'Block execution failed',
+          message: getErrorMessage(error, 'Block execution failed'),
         })
         span.recordException(toError(error))
         throw error
@@ -999,6 +999,50 @@ export const PlatformEvents = {
       'tool.id': attrs.toolId,
       'model.name': attrs.modelName,
       'cost.default_cost': attrs.defaultCost,
+    })
+  },
+
+  /**
+   * Track a successful hosted-key acquisition that had to wait — either for a slot at
+   * the head of the FIFO queue, or for the actor/dimension bucket to refill once at the
+   * head. `queuePosition` is the position at the moment of enqueue (0 = ready to proceed).
+   */
+  hostedKeyQueueWaited: (attrs: {
+    provider: string
+    workspaceId: string
+    waitedMs: number
+    attempts: number
+    reason: 'actor_requests' | 'dimension' | 'queue_position'
+    dimension?: string
+    queuePosition?: number
+  }) => {
+    trackPlatformEvent('platform.hosted_key.queue_waited', {
+      'provider.id': attrs.provider,
+      'workspace.id': attrs.workspaceId,
+      'queue.waited_ms': attrs.waitedMs,
+      'queue.attempts': attrs.attempts,
+      'queue.reason': attrs.reason,
+      ...(attrs.dimension && { 'queue.dimension': attrs.dimension }),
+      ...(attrs.queuePosition != null && { 'queue.position': attrs.queuePosition }),
+    })
+  },
+
+  /**
+   * Track a hosted-key acquisition that exceeded the queue wait cap and fell back to a 429.
+   */
+  hostedKeyQueueWaitExceeded: (attrs: {
+    provider: string
+    workspaceId: string
+    waitedMs: number
+    reason: 'actor_requests' | 'dimension' | 'queue_position'
+    dimension?: string
+  }) => {
+    trackPlatformEvent('platform.hosted_key.queue_wait_exceeded', {
+      'provider.id': attrs.provider,
+      'workspace.id': attrs.workspaceId,
+      'queue.waited_ms': attrs.waitedMs,
+      'queue.reason': attrs.reason,
+      ...(attrs.dimension && { 'queue.dimension': attrs.dimension }),
     })
   },
 

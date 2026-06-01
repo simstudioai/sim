@@ -14,6 +14,7 @@ import type {
 import { createLogger } from '@sim/logger'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { env } from './lib/core/config/env'
+import { parseOtlpHeaders } from './lib/monitoring/otlp'
 
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR)
 
@@ -45,29 +46,6 @@ const ALLOWED_SPAN_PREFIXES = ['gen_ai.', 'copilot.', 'sim →', 'sim.', 'tool.e
 
 function isBusinessSpan(spanName: string): boolean {
   return ALLOWED_SPAN_PREFIXES.some((prefix) => spanName.startsWith(prefix))
-}
-
-// Parse `OTEL_EXPORTER_OTLP_HEADERS`: `key1=value1,key2=value2`
-// (URL-encoded values, whitespace tolerated).
-function parseOtlpHeadersEnv(raw: string): Record<string, string> {
-  const out: Record<string, string> = {}
-  if (!raw) return out
-  for (const part of raw.split(',')) {
-    const trimmed = part.trim()
-    if (!trimmed) continue
-    const eq = trimmed.indexOf('=')
-    if (eq <= 0) continue
-    const key = trimmed.slice(0, eq).trim()
-    const rawVal = trimmed.slice(eq + 1).trim()
-    let val = rawVal
-    try {
-      val = decodeURIComponent(rawVal)
-    } catch {
-      // value wasn't URL-encoded; keep as-is.
-    }
-    if (key) out[key] = val
-  }
-  return out
 }
 
 // Append `/v1/traces` to the OTLP base URL unless already present.
@@ -214,7 +192,7 @@ async function initializeOpenTelemetry() {
       },
     })
 
-    const otlpHeaders = parseOtlpHeadersEnv(process.env.OTEL_EXPORTER_OTLP_HEADERS || '')
+    const otlpHeaders = parseOtlpHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS || '')
     const exporterUrl = normalizeOtlpTracesUrl(telemetryConfig.endpoint)
 
     const exporter = new OTLPTraceExporter({

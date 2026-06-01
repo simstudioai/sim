@@ -1,5 +1,5 @@
 import type { Logger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import type OpenAI from 'openai'
 import type { IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -8,6 +8,7 @@ import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  enforceStrictSchema,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -30,60 +31,6 @@ import {
 
 type PreparedTools = ReturnType<typeof prepareToolsWithUsageControl>
 type ToolChoice = PreparedTools['toolChoice']
-
-/**
- * Recursively enforces OpenAI strict mode requirements on a JSON schema.
- * - Sets additionalProperties: false on all object types.
- * - Ensures required includes ALL property keys.
- */
-function enforceStrictSchema(schema: Record<string, unknown>): Record<string, unknown> {
-  if (!schema || typeof schema !== 'object') return schema
-
-  const result = { ...schema }
-
-  // If this is an object type, enforce strict requirements
-  if (result.type === 'object') {
-    result.additionalProperties = false
-
-    // Recursively process properties and ensure required includes all keys
-    if (result.properties && typeof result.properties === 'object') {
-      const propKeys = Object.keys(result.properties as Record<string, unknown>)
-      result.required = propKeys // Strict mode requires ALL properties
-      result.properties = Object.fromEntries(
-        Object.entries(result.properties as Record<string, unknown>).map(([key, value]) => [
-          key,
-          enforceStrictSchema(value as Record<string, unknown>),
-        ])
-      )
-    }
-  }
-
-  // Handle array items
-  if (result.type === 'array' && result.items) {
-    result.items = enforceStrictSchema(result.items as Record<string, unknown>)
-  }
-
-  // Handle anyOf, oneOf, allOf
-  for (const keyword of ['anyOf', 'oneOf', 'allOf']) {
-    if (Array.isArray(result[keyword])) {
-      result[keyword] = (result[keyword] as Record<string, unknown>[]).map(enforceStrictSchema)
-    }
-  }
-
-  // Handle $defs / definitions
-  for (const defKey of ['$defs', 'definitions']) {
-    if (result[defKey] && typeof result[defKey] === 'object') {
-      result[defKey] = Object.fromEntries(
-        Object.entries(result[defKey] as Record<string, unknown>).map(([key, value]) => [
-          key,
-          enforceStrictSchema(value as Record<string, unknown>),
-        ])
-      )
-    }
-  }
-
-  return result
-}
 
 export interface ResponsesProviderConfig {
   providerId: string
@@ -133,7 +80,7 @@ export async function executeResponsesProviderRequest(
     allMessages.push(...request.messages)
   }
 
-  const initialInput = buildResponsesInputFromMessages(allMessages)
+  const initialInput = buildResponsesInputFromMessages(allMessages, config.providerId)
 
   const basePayload: Record<string, unknown> = {
     model: config.modelName,
@@ -476,7 +423,9 @@ export async function executeResponsesProviderRequest(
           }
 
           const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-          const result = await executeTool(toolName, executionParams)
+          const result = await executeTool(toolName, executionParams, {
+            signal: request.abortSignal,
+          })
           const toolCallEndTime = Date.now()
 
           return {
@@ -499,7 +448,7 @@ export async function executeResponsesProviderRequest(
             result: {
               success: false,
               output: undefined,
-              error: error instanceof Error ? error.message : 'Tool execution failed',
+              error: getErrorMessage(error, 'Tool execution failed'),
             },
             startTime: toolCallStartTime,
             endTime: toolCallEndTime,

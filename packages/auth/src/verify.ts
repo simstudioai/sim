@@ -27,7 +27,7 @@ export function createVerifyAuth(options: VerifyAuthOptions) {
     }),
     plugins: [
       oneTimeToken({
-        expiresIn: 24 * 60 * 60,
+        expiresIn: 24 * 60,
       }),
     ],
   })

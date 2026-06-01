@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { generateRandomString } from '@sim/utils/random'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleSlidesAddImageTool')
@@ -122,7 +123,7 @@ export const addImageTool: ToolConfig<AddImageParams, AddImageResponse> = {
       }
 
       // Generate a unique object ID for the new image
-      const imageObjectId = `image_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+      const imageObjectId = `image_${Date.now()}_${generateRandomString(7)}`
 
       // Convert points to EMU (default sizes if not specified)
       const widthEmu = (params.width || 300) * PT_TO_EMU

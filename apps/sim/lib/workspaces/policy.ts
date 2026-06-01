@@ -306,7 +306,7 @@ export async function getWorkspaceCreationPolicy({
   }
 }
 
-export async function countNonOrganizationOwnedWorkspaces(userId: string): Promise<number> {
+async function countNonOrganizationOwnedWorkspaces(userId: string): Promise<number> {
   const [result] = await db
     .select({ value: count() })
     .from(workspace)

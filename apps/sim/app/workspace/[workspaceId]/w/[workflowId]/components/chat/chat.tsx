@@ -902,6 +902,8 @@ export function Chat() {
   return (
     <div
       ref={preventZoomRef}
+      role='dialog'
+      aria-label='Chat'
       className='fixed z-30 flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
       style={{
         left: `${actualPosition.x}px`,
@@ -916,6 +918,7 @@ export function Chat() {
     >
       {/* Header with drag handle */}
       <div
+        role='presentation'
         className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >
@@ -925,20 +928,25 @@ export function Chat() {
 
         {/* Start inputs button and output selector - with max-width to prevent overflow */}
         <div
+          role='presentation'
           className='ml-auto flex min-w-0 flex-shrink items-center gap-1.5'
           onMouseDown={(e) => e.stopPropagation()}
         >
           {shouldShowConfigureStartInputsButton && (
-            <div
+            <button
+              type='button'
               className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-0.5 font-medium font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-active)]'
               title='Add chat inputs to Start block'
               onMouseDown={(e) => {
+                e.stopPropagation()
+              }}
+              onClick={(e) => {
                 e.stopPropagation()
                 handleConfigureStartInputs()
               }}
             >
               <span className='whitespace-nowrap'>Add inputs</span>
-            </div>
+            </button>
           )}
 
           <OutputSelect
@@ -961,7 +969,7 @@ export function Chat() {
                 className='!p-1.5 -m-1.5'
                 onClick={(e) => e.stopPropagation()}
               >
-                <MoreVertical className='h-[14px] w-[14px]' strokeWidth={2} />
+                <MoreVertical className='size-[14px]' strokeWidth={2} />
               </Button>
             </PopoverTrigger>
             <PopoverContent
@@ -979,7 +987,7 @@ export function Chat() {
                   }}
                   disabled={workflowMessages.length === 0}
                 >
-                  <ArrowDownToLine className='h-[13px] w-[13px]' />
+                  <ArrowDownToLine className='size-[13px]' />
                   <span>Download</span>
                 </PopoverItem>
                 <PopoverItem
@@ -989,7 +997,7 @@ export function Chat() {
                   }}
                   disabled={workflowMessages.length === 0}
                 >
-                  <Trash className='h-[13px] w-[13px]' />
+                  <Trash className='size-[13px]' />
                   <span>Clear</span>
                 </PopoverItem>
               </PopoverScrollArea>
@@ -998,7 +1006,7 @@ export function Chat() {
 
           {/* Close button */}
           <Button variant='ghost' className='!p-1.5 -m-1.5' onClick={handleClose}>
-            <X className='h-[16px] w-[16px]' />
+            <X className='size-[16px]' />
           </Button>
         </div>
       </div>
@@ -1035,14 +1043,14 @@ export function Chat() {
             <div>
               <div className='rounded-lg border border-[var(--terminal-status-error-border)] bg-[var(--terminal-status-error-bg)]'>
                 <div className='flex items-start gap-2'>
-                  <AlertCircle className='mt-0.5 h-3 w-3 shrink-0 text-[var(--text-error)]' />
+                  <AlertCircle className='mt-0.5 size-3 shrink-0 text-[var(--text-error)]' />
                   <div className='flex-1'>
                     <div className='mb-1 font-medium text-[var(--text-error)] text-caption'>
                       File upload error
                     </div>
                     <div className='space-y-1'>
                       {uploadErrors.map((err, idx) => (
-                        <div key={idx} className='text-[var(--text-error)] text-micro'>
+                        <div key={`${err}-${idx}`} className='text-[var(--text-error)] text-micro'>
                           {err}
                         </div>
                       ))}
@@ -1098,9 +1106,9 @@ export function Chat() {
                           e.stopPropagation()
                           removeFile(file.id)
                         }}
-                        className='absolute top-0.5 right-0.5 h-4 w-4 p-0 opacity-0 transition-opacity group-hover:opacity-100'
+                        className='absolute top-0.5 right-0.5 size-4 p-0 opacity-0 transition-opacity group-hover:opacity-100'
                       >
-                        <X className='h-2.5 w-2.5' />
+                        <X className='size-2.5' />
                       </Button>
                     </div>
                   )
@@ -1145,9 +1153,9 @@ export function Chat() {
                   <Button
                     onClick={handleStopStreaming}
                     variant='ghost'
-                    className='h-[22px] w-[22px] rounded-full bg-[#383838] p-0 transition-colors hover-hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover-hover:bg-[#CFCFCF]'
+                    className='size-[22px] rounded-full bg-[#383838] p-0 transition-colors hover-hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover-hover:bg-[#CFCFCF]'
                   >
-                    <Square className='h-2.5 w-2.5 fill-white text-white dark:fill-black dark:text-black' />
+                    <Square className='size-2.5 fill-white text-white dark:fill-black dark:text-black' />
                   </Button>
                 ) : (
                   <Button
@@ -1166,10 +1174,7 @@ export function Chat() {
                         : 'bg-[#808080] dark:bg-[#808080]'
                     )}
                   >
-                    <ArrowUp
-                      className='h-3.5 w-3.5 text-white dark:text-black'
-                      strokeWidth={2.25}
-                    />
+                    <ArrowUp className='size-3.5 text-white dark:text-black' strokeWidth={2.25} />
                   </Button>
                 )}
               </div>

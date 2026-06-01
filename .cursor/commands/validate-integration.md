@@ -82,8 +82,8 @@ For **every** tool file, check:
 - [ ] No fields are missing that the API provides and users would commonly need
 - [ ] No phantom fields defined that the API doesn't return
 - [ ] `optional: true` is set on fields that may not exist in all responses
-- [ ] When using `type: 'json'` and the shape is known, `properties` defines the inner fields
-- [ ] When using `type: 'array'`, `items` defines the item structure with `properties`
+- [ ] When using `type: 'json'` and the shape is known, `properties` defines the inner fields (tool outputs only — block outputs do not support `properties`)
+- [ ] When using `type: 'array'`, `items` defines the item structure with `properties` (tool outputs only)
 - [ ] Field descriptions are accurate and helpful
 
 ### Types (types.ts)
@@ -170,9 +170,8 @@ For **each tool** in `tools.access`:
 ### Block Outputs
 - [ ] Outputs cover the key fields returned by ALL tools (not just one operation)
 - [ ] Output types are correct (`'string'`, `'number'`, `'boolean'`, `'json'`)
-- [ ] `type: 'json'` outputs either:
-  - Describe inner fields in the description string (GOOD): `'User profile (id, name, username, bio)'`
-  - Use nested output definitions (BEST): `{ id: { type: 'string' }, name: { type: 'string' } }`
+- [ ] `type: 'json'` outputs describe inner fields in the description string: `'User profile (id, name, username, bio)'` or `'[{address, status, type}]'` for arrays
+- [ ] **Do NOT add a `properties: {...}` field on block outputs.** Block-level `OutputFieldDefinition` (from `@sim/workflow-types/blocks`) only accepts `{ type, description?, condition?, hiddenFromDisplay? }`. Nested `properties` is a tool-level construct (`OutputProperty`) — adding it to a block output will fail TypeScript at build time
 - [ ] No opaque `type: 'json'` with vague descriptions like `'Response data'`
 - [ ] Outputs that only appear for certain operations use `condition` if supported, or document which operations return them
 

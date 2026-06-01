@@ -20,7 +20,7 @@ import {
   updateA2AAgentContract,
 } from '@/lib/api/contracts/a2a-agents'
 
-export type { A2AAgent, A2AAgentCard }
+export type { A2AAgent }
 
 /**
  * Query keys for A2A agents
@@ -184,7 +184,7 @@ export function useDeleteA2AAgent() {
 /**
  * Publish/unpublish agent params
  */
-export interface PublishA2AAgentParams {
+interface PublishA2AAgentParams {
   agentId: string
   workspaceId: string
   action: 'publish' | 'unpublish' | 'refresh'

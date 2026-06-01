@@ -25,6 +25,7 @@ export interface ParallelConfig {
   nodes: string[]
   distribution?: unknown[] | Record<string, unknown> | string
   parallelType?: 'count' | 'collection'
+  batchSize?: number
 }
 
 export interface Subflow {
@@ -52,6 +53,7 @@ export interface BlockData {
   whileCondition?: string
   doWhileCondition?: string
   parallelType?: 'collection' | 'count'
+  batchSize?: number
   type?: string
   canonicalModes?: Record<string, 'basic' | 'advanced'>
 }
@@ -76,6 +78,55 @@ export interface BlockState {
   data?: BlockData
   layout?: BlockLayoutState
   locked?: boolean
+}
+
+export interface WorkflowLockBlock {
+  locked?: boolean | null
+  data?: unknown
+}
+
+/**
+ * Reads a workflow block's parent ID from runtime block data.
+ */
+export function getWorkflowBlockParentId(block?: WorkflowLockBlock): string | undefined {
+  const data = block?.data
+  if (typeof data !== 'object' || data === null || !('parentId' in data)) return undefined
+
+  const parentId = (data as Record<string, unknown>).parentId
+  return typeof parentId === 'string' && parentId.length > 0 ? parentId : undefined
+}
+
+/**
+ * Checks whether any parent container in a block's ancestry is locked.
+ */
+export function isWorkflowBlockAncestorLocked(
+  blockId: string,
+  blocks: Record<string, WorkflowLockBlock>
+): boolean {
+  const visited = new Set<string>()
+  let parentId = getWorkflowBlockParentId(blocks[blockId])
+
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId)
+    const parent = blocks[parentId]
+    if (!parent) return false
+    if (parent.locked) return true
+    parentId = getWorkflowBlockParentId(parent)
+  }
+
+  return false
+}
+
+/**
+ * Checks whether a block is locked directly or protected by a locked ancestor.
+ */
+export function isWorkflowBlockProtected(
+  blockId: string,
+  blocks: Record<string, WorkflowLockBlock>
+): boolean {
+  const block = blocks[blockId]
+  if (!block) return false
+  return Boolean(block.locked || isWorkflowBlockAncestorLocked(blockId, blocks))
 }
 
 export interface SubBlockState {
@@ -129,6 +180,7 @@ export interface Parallel {
   distribution?: any[] | Record<string, any> | string
   count?: number
   parallelType?: 'count' | 'collection'
+  batchSize?: number
   enabled: boolean
   locked?: boolean
 }

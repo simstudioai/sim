@@ -26,7 +26,7 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
       type: 'object',
       required: false,
       description:
-        'Filter conditions (MongoDB-style operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains)',
+        'Filter conditions (MongoDB-style operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $ncontains, $startsWith, $endsWith, $empty)',
       visibility: 'user-or-llm',
     },
     sort: {

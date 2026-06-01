@@ -179,6 +179,7 @@ const mockBlocksFromDb = [
       name: 'Parallel Container',
       position: { x: 600, y: 50 },
       height: 250,
+      count: 3,
       data: { width: 500, height: 300, parallelType: 'count', count: 3 },
     }),
     mockWorkflowId
@@ -225,7 +226,10 @@ const mockSubflowsFromDb = [
     config: {
       id: 'parallel-1',
       nodes: ['block-3'],
+      count: 5,
       distribution: ['item1', 'item2'],
+      parallelType: 'count',
+      batchSize: 1,
     },
   },
 ]
@@ -260,7 +264,8 @@ const mockWorkflowState = createWorkflowState({
       name: 'Parallel Container',
       position: { x: 600, y: 50 },
       height: 250,
-      data: { width: 500, height: 300, parallelType: 'count', count: 3 },
+      count: 3,
+      data: { width: 500, height: 300, parallelType: 'count', count: 3, batchSize: 1 },
     }),
     'block-3': createApiBlock({
       id: 'block-3',
@@ -292,6 +297,8 @@ const mockWorkflowState = createWorkflowState({
       id: 'parallel-1',
       nodes: ['block-3'],
       distribution: ['item1', 'item2'],
+      parallelType: 'count',
+      batchSize: 1,
     },
   },
 })
@@ -303,6 +310,42 @@ describe('Database Helpers', () => {
 
   afterEach(() => {
     vi.resetAllMocks()
+  })
+
+  describe('buildWorkflowDeploymentSnapshot', () => {
+    it('combines normalized workflow state with persisted variables', () => {
+      const snapshot = dbHelpers.buildWorkflowDeploymentSnapshot(
+        {
+          blocks: asAppBlocks({ block: createStarterBlock({ id: 'block' }) }),
+          edges: [],
+          loops: {},
+          parallels: {},
+          isFromNormalizedTables: true,
+        },
+        {
+          variable: {
+            id: 'variable',
+            name: 'threshold',
+            type: 'number',
+            value: 5,
+          },
+        }
+      )
+
+      expect(snapshot.blocks.block).toBeDefined()
+      expect(snapshot.edges).toEqual([])
+      expect(snapshot.loops).toEqual({})
+      expect(snapshot.parallels).toEqual({})
+      expect(snapshot.variables).toEqual({
+        variable: {
+          id: 'variable',
+          name: 'threshold',
+          type: 'number',
+          value: 5,
+        },
+      })
+      expect(snapshot.lastSaved).toEqual(expect.any(Number))
+    })
   })
 
   describe('loadWorkflowFromNormalizedTables', () => {
@@ -382,8 +425,16 @@ describe('Database Helpers', () => {
         count: 5,
         distribution: ['item1', 'item2'],
         parallelType: 'count',
+        batchSize: 1,
         enabled: true,
       })
+      expect(result?.blocks['parallel-1'].data).toEqual(
+        expect.objectContaining({
+          count: 5,
+          parallelType: 'count',
+          batchSize: 1,
+        })
+      )
     })
 
     it('should return null when no blocks are found', async () => {
@@ -673,6 +724,20 @@ describe('Database Helpers', () => {
         workflowId: mockWorkflowId,
         type: 'loop',
       })
+      expect(capturedSubflowInserts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'parallel-1',
+            workflowId: mockWorkflowId,
+            type: 'parallel',
+            config: expect.objectContaining({
+              count: 3,
+              parallelType: 'count',
+              batchSize: 1,
+            }),
+          }),
+        ])
+      )
     })
 
     it('should regenerate missing loop and parallel definitions from block data', async () => {
@@ -702,7 +767,7 @@ describe('Database Helpers', () => {
 
       mockDb.transaction = mockTransaction
 
-      const staleWorkflowState = JSON.parse(JSON.stringify(mockWorkflowState))
+      const staleWorkflowState = structuredClone(mockWorkflowState)
       staleWorkflowState.loops = {}
       staleWorkflowState.parallels = {}
 
@@ -712,7 +777,11 @@ describe('Database Helpers', () => {
       expect(capturedSubflowInserts).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ id: 'loop-1', type: 'loop' }),
-          expect.objectContaining({ id: 'parallel-1', type: 'parallel' }),
+          expect.objectContaining({
+            id: 'parallel-1',
+            type: 'parallel',
+            config: expect.objectContaining({ batchSize: 1 }),
+          }),
         ])
       )
     })
@@ -759,6 +828,58 @@ describe('Database Helpers', () => {
       const result = await dbHelpers.workflowExistsInNormalizedTables(mockWorkflowId)
 
       expect(result).toBe(false)
+    })
+  })
+
+  describe('workflow row locking', () => {
+    function createMissingWorkflowTx() {
+      const lockFor = vi.fn().mockResolvedValue([])
+      const limit = vi.fn(() => ({ for: lockFor }))
+      const where = vi.fn(() => ({ limit }))
+      const from = vi.fn(() => ({ where }))
+      const select = vi.fn(() => ({ from }))
+      const update = vi.fn()
+
+      return {
+        tx: {
+          execute: vi.fn().mockResolvedValue([{ id: mockWorkflowId }]),
+          select,
+          update,
+        },
+        lockFor,
+        update,
+      }
+    }
+
+    it('returns not_found when deploy cannot lock a workflow row', async () => {
+      const { tx, lockFor } = createMissingWorkflowTx()
+      mockDb.transaction = vi.fn().mockImplementation(async (callback) => callback(tx))
+
+      const result = await dbHelpers.deployWorkflow({
+        workflowId: mockWorkflowId,
+        deployedBy: 'user-123',
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Workflow not found',
+        errorCode: 'not_found',
+      })
+      expect(lockFor).toHaveBeenCalledWith('update')
+      expect(tx.execute).not.toHaveBeenCalled()
+    })
+
+    it('returns an error when undeploy cannot lock a workflow row', async () => {
+      const { tx, update } = createMissingWorkflowTx()
+      mockDb.transaction = vi.fn().mockImplementation(async (callback) => callback(tx))
+
+      const result = await dbHelpers.undeployWorkflow({ workflowId: mockWorkflowId })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Workflow not found',
+      })
+      expect(update).not.toHaveBeenCalled()
     })
   })
 

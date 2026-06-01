@@ -262,6 +262,8 @@ Get details of a specific email message in AgentMail
 | `subject` | string | Message subject |
 | `text` | string | Plain text content |
 | `html` | string | HTML content |
+| `labels` | array | Labels assigned to the message |
+| `timestamp` | string | Time the message was sent or drafted |
 | `createdAt` | string | Creation timestamp |
 
 ### `agentmail_get_thread`
@@ -298,6 +300,8 @@ Get details of a specific email thread including messages in AgentMail
 |   ↳ `subject` | string | Message subject |
 |   ↳ `text` | string | Plain text content |
 |   ↳ `html` | string | HTML content |
+|   ↳ `labels` | array | Labels assigned to the message |
+|   ↳ `timestamp` | string | Time the message was sent or drafted |
 |   ↳ `createdAt` | string | Creation timestamp |
 
 ### `agentmail_list_drafts`
@@ -380,6 +384,7 @@ List messages in an inbox in AgentMail
 |   ↳ `to` | array | Recipient email addresses |
 |   ↳ `subject` | string | Message subject |
 |   ↳ `preview` | string | Message preview text |
+|   ↳ `timestamp` | string | Time the message was sent or drafted |
 |   ↳ `createdAt` | string | Creation timestamp |
 | `count` | number | Total number of messages |
 | `nextPageToken` | string | Token for retrieving the next page |

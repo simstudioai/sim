@@ -60,7 +60,7 @@ Modal `size="sm"`, title "Delete/Remove {ItemType}", `variant="destructive"` act
 
 ## Icons
 
-Default: `h-[14px] w-[14px]` (400+ uses). Color: `text-[var(--text-icon)]`. Scale: 14px > 16px > 12px > 20px.
+Default: `size-[14px]`. Color: `text-[var(--text-icon)]`. Scale: 14px > 16px > 12px > 20px. Use the `size-*` shorthand — flag `h-[Npx] w-[Npx]` and `h-N w-N` pairs as refactor targets.
 
 ## Anti-patterns to flag
 

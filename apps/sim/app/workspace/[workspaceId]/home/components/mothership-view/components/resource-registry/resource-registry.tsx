@@ -27,6 +27,7 @@ import { taskKeys } from '@/hooks/queries/tasks'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { useWorkflows } from '@/hooks/queries/workflows'
+import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 interface DropdownItemRenderProps {
@@ -65,7 +66,7 @@ function WorkflowDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
       <div
-        className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+        className='size-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
           borderColor: workflowBorderColor(color),
@@ -85,7 +86,7 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
   const DocIcon = getDocumentIcon('', item.name)
   return (
     <>
-      <DocIcon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <DocIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
       <span className='truncate'>{item.name}</span>
     </>
   )
@@ -94,7 +95,7 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
 function IconDropdownItem({ item, icon: Icon }: DropdownItemRenderProps & { icon: ElementType }) {
   return (
     <>
-      <Icon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
       <span className='truncate'>{item.name}</span>
     </>
   )
@@ -107,7 +108,7 @@ function LogDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
       <div
-        className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+        className='size-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
           borderColor: workflowBorderColor(color),
@@ -180,6 +181,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={FolderIcon} />,
   },
+  filefolder: {
+    type: 'filefolder',
+    label: 'File Folders',
+    icon: FolderIcon,
+    renderTabIcon: (_resource, className) => (
+      <FolderIcon className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={FolderIcon} />,
+  },
   task: {
     type: 'task',
     label: 'Tasks',
@@ -231,6 +241,9 @@ const RESOURCE_INVALIDATORS: Record<
   },
   folder: (qc) => {
     qc.invalidateQueries({ queryKey: folderKeys.lists() })
+  },
+  filefolder: (qc, wId) => {
+    qc.invalidateQueries({ queryKey: workspaceFileFolderKeys.workspaceLists(wId) })
   },
   task: (qc, wId) => {
     qc.invalidateQueries({ queryKey: taskKeys.list(wId) })

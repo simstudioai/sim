@@ -119,6 +119,42 @@ describe('start-block utilities', () => {
     expect(output.files).toEqual(files)
   })
 
+  it.concurrent('buildStartBlockOutput normalizes Start files from internal serve URLs', () => {
+    const block = createBlock('start_trigger', 'start')
+    const resolution = {
+      blockId: 'start',
+      block,
+      path: StartBlockPath.UNIFIED,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workflowInput: {
+        files: [
+          {
+            id: 'file_1',
+            name: 'screenshot.png',
+            url: '/api/files/serve/s3/execution%2Fworkspace-id%2Fworkflow-id%2Fexecution-id%2Fscreenshot.png?context=execution',
+            size: 243289,
+            type: 'image/png',
+          },
+        ],
+      },
+    })
+
+    expect(output.files).toEqual([
+      {
+        id: 'file_1',
+        name: 'screenshot.png',
+        url: '/api/files/serve/s3/execution%2Fworkspace-id%2Fworkflow-id%2Fexecution-id%2Fscreenshot.png?context=execution',
+        size: 243289,
+        type: 'image/png',
+        key: 'execution/workspace-id/workflow-id/execution-id/screenshot.png',
+        context: 'execution',
+      },
+    ])
+  })
+
   it.concurrent('rejects inputFormat fields that collide with executor routing keys', () => {
     const block = createBlock('start_trigger', 'start', {
       subBlocks: {

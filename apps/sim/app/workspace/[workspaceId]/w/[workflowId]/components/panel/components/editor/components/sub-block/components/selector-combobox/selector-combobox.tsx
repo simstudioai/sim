@@ -2,7 +2,9 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button, Combobox as EditableCombobox } from '@/components/emcn/components'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
@@ -11,6 +13,7 @@ import {
   useSelectorOptionMap,
   useSelectorOptions,
 } from '@/hooks/selectors/use-selector-query'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface SelectorComboboxProps {
   blockId: string
@@ -25,6 +28,7 @@ interface SelectorComboboxProps {
   onOptionChange?: (value: string) => void
   allowSearch?: boolean
   missingOptionLabel?: string
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function SelectorCombobox({
@@ -40,6 +44,7 @@ export function SelectorCombobox({
   onOptionChange,
   allowSearch = true,
   missingOptionLabel,
+  activeSearchTarget,
 }: SelectorComboboxProps) {
   const [storeValueRaw, setStoreValue] = useSubBlockValue<string | null | undefined>(
     blockId,
@@ -70,9 +75,9 @@ export function SelectorCombobox({
     !isLoading &&
     !hasMore &&
     !optionMap.get(activeValue!)
-  const selectedLabel = activeValue
+  const selectedLabel: string = activeValue
     ? hasMissingOption
-      ? missingOptionLabel
+      ? (missingOptionLabel ?? activeValue)
       : (optionMap.get(activeValue)?.label ?? activeValue)
     : ''
   const [inputValue, setInputValue] = useState(selectedLabel)
@@ -124,6 +129,14 @@ export function SelectorCombobox({
   )
 
   const showClearButton = Boolean(activeValue) && !disabled && !readOnly
+  const displayValue = allowSearch ? inputValue : selectedLabel
+  const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+    activeSearchTarget,
+    blockId,
+    subBlockId: subBlock.id,
+    valuePath: [],
+    label: displayValue,
+  })
 
   return (
     <div className='w-full'>
@@ -139,7 +152,7 @@ export function SelectorCombobox({
           <div className='relative w-full'>
             <EditableCombobox
               options={comboboxOptions}
-              value={allowSearch ? inputValue : selectedLabel}
+              value={displayValue}
               selectedValue={activeValue ?? ''}
               onChange={(newValue) => {
                 const matched = optionMap.get(newValue)
@@ -167,15 +180,22 @@ export function SelectorCombobox({
               }}
               isLoading={isLoading}
               error={error instanceof Error ? error.message : null}
+              overlayContent={
+                workflowSearchHighlight ? (
+                  <span className='block truncate'>
+                    {formatDisplayText(displayValue, { workflowSearchHighlight })}
+                  </span>
+                ) : undefined
+              }
             />
             {showClearButton && (
               <Button
                 type='button'
                 variant='ghost'
-                className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10 h-6 w-6 p-0'
+                className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10 size-6 p-0'
                 onClick={handleClear}
               >
-                <X className='h-4 w-4 opacity-50 hover-hover:opacity-100' />
+                <X className='size-4 opacity-50 hover-hover:opacity-100' />
               </Button>
             )}
           </div>

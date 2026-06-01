@@ -141,6 +141,9 @@ export function Home({ chatId }: HomeProps = {}) {
     removeFromQueue,
     sendNow,
     editQueuedMessage,
+    cancelQueueEdit,
+    editingQueuedId,
+    dispatchingHeadId,
     previewSession,
     genericResourceData,
     getCurrentRequestId,
@@ -349,9 +352,12 @@ export function Home({ chatId }: HomeProps = {}) {
           onSubmit={handleSubmit}
           onStopGeneration={handleStopGeneration}
           messageQueue={messageQueue}
+          editingQueuedId={editingQueuedId}
+          dispatchingHeadId={dispatchingHeadId}
           onRemoveQueuedMessage={removeFromQueue}
           onSendQueuedMessage={sendNow}
           onEditQueuedMessage={editQueuedMessage}
+          onCancelQueueEdit={cancelQueueEdit}
           userId={session?.user?.id}
           chatId={resolvedChatId}
           onContextAdd={handleContextAdd}
@@ -400,10 +406,10 @@ export function Home({ chatId }: HomeProps = {}) {
             size={null}
             type='button'
             onClick={() => setIsResourceCollapsed(false)}
-            className='h-[30px] w-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
+            className='size-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
             aria-label='Expand resource view'
           >
-            <PanelLeft className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+            <PanelLeft className='size-[16px] text-[var(--text-icon)]' />
           </Button>
         </div>
       )}

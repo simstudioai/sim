@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { compile } from 'json-schema-to-typescript'
+import { formatGeneratedSource } from './format-generated-source'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
@@ -70,8 +71,16 @@ async function main() {
   })
 
   const constants = generateRuntimeConstants(schema, types)
-  const rendered = constants ? `${types}\n${constants}\n` : types
-  const renderedSchemaModule = renderRuntimeSchemaModule(schema)
+  const rendered = formatGeneratedSource(
+    constants ? `${types}\n${constants}\n` : types,
+    OUTPUT_PATH,
+    ROOT
+  )
+  const renderedSchemaModule = formatGeneratedSource(
+    renderRuntimeSchemaModule(schema),
+    RUNTIME_SCHEMA_OUTPUT_PATH,
+    ROOT
+  )
 
   if (checkOnly) {
     const existing = await readFile(OUTPUT_PATH, 'utf8').catch(() => null)

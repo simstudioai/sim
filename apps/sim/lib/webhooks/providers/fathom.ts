@@ -131,6 +131,7 @@ export const fathomHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Missing apiKey for Fathom webhook deletion ${webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Missing Fathom apiKey for webhook deletion')
         return
       }
 
@@ -138,6 +139,7 @@ export const fathomHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Missing externalId for Fathom webhook deletion ${webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Missing Fathom externalId for webhook deletion')
         return
       }
 
@@ -146,6 +148,7 @@ export const fathomHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Invalid externalId format for Fathom webhook deletion ${webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Invalid Fathom externalId for webhook deletion')
         return
       }
 
@@ -163,11 +166,13 @@ export const fathomHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Failed to delete Fathom webhook (non-fatal): ${fathomResponse.status}`
         )
+        if (ctx.strict) throw new Error(`Failed to delete Fathom webhook: ${fathomResponse.status}`)
       } else {
         logger.info(`[${requestId}] Successfully deleted Fathom webhook ${externalId}`)
       }
     } catch (error) {
       logger.warn(`[${requestId}] Error deleting Fathom webhook (non-fatal)`, error)
+      if (ctx.strict) throw error
     }
   },
 }

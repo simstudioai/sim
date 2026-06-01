@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { knowledgeSearchBodySchema } from '@/lib/api/contracts/knowledge'
@@ -16,7 +17,7 @@ import type { StructuredFilter } from '@/lib/knowledge/types'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import {
   generateSearchEmbedding,
-  getDocumentNamesByIds,
+  getDocumentMetadataByIds,
   getQueryStrategy,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
@@ -339,7 +340,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
       } catch (error) {
         logger.warn(`[${requestId}] Reranker failed; falling back to vector ordering`, {
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: getErrorMessage(error, 'Unknown error'),
           model: rerankerModel,
           candidateCount,
           workspaceId,
@@ -361,7 +362,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         cost = calculateCost(queryEmbeddingModel, tokenCount.count, 0, false)
       } catch (error) {
         logger.warn(`[${requestId}] Failed to calculate cost for search query`, {
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: getErrorMessage(error, 'Unknown error'),
         })
       }
     }
@@ -413,7 +414,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     const documentIds = results.map((result) => result.documentId)
-    const documentNameMap = await getDocumentNamesByIds(documentIds)
+    const documentMetadataMap = await getDocumentMetadataByIds(documentIds)
 
     try {
       PlatformEvents.knowledgeBaseSearched({
@@ -449,9 +450,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           })
 
           const rerankerScore = rerankedScores.get(result.id)
+          const docMeta = documentMetadataMap[result.documentId]
           return {
             documentId: result.documentId,
-            documentName: documentNameMap[result.documentId] || undefined,
+            documentName: docMeta?.filename || undefined,
+            sourceUrl: docMeta?.sourceUrl ?? null,
             content: result.content,
             chunkIndex: result.chunkIndex,
             metadata: tags,
@@ -489,7 +492,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         error: 'Failed to perform vector search',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: getErrorMessage(error, 'Unknown error'),
       },
       { status: 500 }
     )

@@ -7,10 +7,24 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('TeamsChannelsAPI')
+
+/**
+ * Upper bound on Microsoft Graph pages drained when listing a team's channels.
+ * The `teams/{id}/channels` endpoint does not support `$top`, so paging is
+ * driven entirely by the server via `@odata.nextLink`. The cap prevents an
+ * unbounded loop; hitting it is logged as a warning.
+ */
+const MAX_CHANNELS_PAGES = 20
+
+interface GraphChannel {
+  id: string
+  displayName?: string
+}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -52,40 +66,59 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
-      const response = await fetch(
-        `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels`,
-        {
+      const channels: GraphChannel[] = []
+      let nextPageUrl: string | undefined =
+        `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels`
+
+      for (let page = 0; page < MAX_CHANNELS_PAGES; page++) {
+        const response = await fetch(nextPageUrl, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
-        }
-      )
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        logger.error('Microsoft Graph API error getting channels', {
-          status: response.status,
-          error: errorData,
-          endpoint: `https://graph.microsoft.com/v1.0/teams/${teamId}/channels`,
         })
 
-        if (response.status === 401) {
-          return NextResponse.json(
-            {
-              error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
-              authRequired: true,
-            },
-            { status: 401 }
-          )
+        if (!response.ok) {
+          const errorData = await response.json()
+          logger.error('Microsoft Graph API error getting channels', {
+            status: response.status,
+            error: errorData,
+            endpoint: nextPageUrl,
+          })
+
+          if (response.status === 401) {
+            return NextResponse.json(
+              {
+                error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
+                authRequired: true,
+              },
+              { status: 401 }
+            )
+          }
+
+          throw new Error(`Microsoft Graph API error: ${JSON.stringify(errorData)}`)
         }
 
-        throw new Error(`Microsoft Graph API error: ${JSON.stringify(errorData)}`)
-      }
+        const data = await response.json()
+        if (Array.isArray(data.value)) {
+          channels.push(...(data.value as GraphChannel[]))
+        }
 
-      const data = await response.json()
-      const channels = data.value
+        const rawNextLink = getGraphNextPageUrl(data)
+        if (!rawNextLink) {
+          nextPageUrl = undefined
+          break
+        }
+        nextPageUrl = assertGraphNextPageUrl(rawNextLink)
+
+        if (page === MAX_CHANNELS_PAGES - 1) {
+          logger.warn(
+            'Hit Microsoft Graph channels pagination cap; channel list may be incomplete',
+            { maxPages: MAX_CHANNELS_PAGES, collected: channels.length }
+          )
+        }
+      }
 
       return NextResponse.json({
         channels: channels,

@@ -1,3 +1,4 @@
+import { filterUndefined } from '@sim/utils/object'
 import type {
   LangsmithCreateRunsBatchParams,
   LangsmithCreateRunsBatchResponse,
@@ -51,7 +52,7 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
           : undefined,
       }
 
-      return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
+      return filterUndefined(payload)
     },
   },
   transformResponse: async (response, params) => {

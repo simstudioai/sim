@@ -1,10 +1,12 @@
 import { db, member, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { getErrorMessage } from '@sim/utils/errors'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth'
+import { normalizeSSODomain } from '@/lib/auth/sso/domain'
 import { hasSSOAccess } from '@/lib/billing'
 import { env } from '@/lib/core/config/env'
 import {
@@ -50,7 +52,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const body = parsed.data.body
-    const { providerId, issuer, domain, providerType, mapping, orgId } = body
+    const { providerId, issuer, providerType, mapping, orgId } = body
 
     if (orgId) {
       const [membership] = await db
@@ -64,6 +66,48 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (membership.role !== 'owner' && membership.role !== 'admin') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
+    }
+
+    const domain = normalizeSSODomain(body.domain)
+    if (!domain) {
+      return NextResponse.json({ error: 'Enter a valid domain like company.com' }, { status: 400 })
+    }
+
+    const isOwnedByCaller = (provider: {
+      userId: string | null
+      organizationId: string | null
+    }): boolean => {
+      if (provider.userId === session.user.id && !provider.organizationId) return true
+      return orgId ? provider.organizationId === orgId : false
+    }
+
+    const findDomainConflict = async () =>
+      (
+        await db
+          .select({
+            userId: ssoProvider.userId,
+            organizationId: ssoProvider.organizationId,
+          })
+          .from(ssoProvider)
+          .where(sql`lower(${ssoProvider.domain}) = ${domain}`)
+      ).find((provider) => !isOwnedByCaller(provider))
+
+    const domainConflictResponse = () =>
+      NextResponse.json(
+        {
+          error: 'This domain is already registered for SSO by another organization.',
+          code: 'SSO_DOMAIN_ALREADY_REGISTERED',
+        },
+        { status: 409 }
+      )
+
+    if (await findDomainConflict()) {
+      logger.warn('Rejected SSO registration for domain owned by another tenant', {
+        domain,
+        orgId,
+        userId: session.user.id,
+      })
+      return domainConflictResponse()
     }
 
     const headers: Record<string, string> = {}
@@ -249,7 +293,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           })
         } catch (error) {
           logger.error('Error fetching OIDC discovery document', {
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: getErrorMessage(error, 'Unknown error'),
             discoveryUrl,
           })
           return NextResponse.json(
@@ -407,6 +451,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       ),
     })
 
+    if (await findDomainConflict()) {
+      logger.warn('Rejected SSO registration: domain was claimed during registration', {
+        domain,
+        orgId,
+        userId: session.user.id,
+      })
+      return domainConflictResponse()
+    }
+
     const registration = await auth.api.registerSSOProvider({
       body: providerConfig,
       headers,
@@ -427,7 +480,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error('Failed to register SSO provider', {
       error,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorMessage: getErrorMessage(error, 'Unknown error'),
       errorStack: error instanceof Error ? error.stack : undefined,
       errorDetails: JSON.stringify(error),
     })
@@ -435,7 +488,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         error: 'Failed to register SSO provider',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        details: getErrorMessage(error, 'Unknown error'),
       },
       { status: 500 }
     )

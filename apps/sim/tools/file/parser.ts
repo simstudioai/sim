@@ -10,6 +10,7 @@ import type {
   FileParserV3OutputData,
   FileUploadInput,
 } from '@/tools/file/types'
+import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('FileParserTool')
@@ -33,6 +34,20 @@ const isFileParseResult = (value: unknown): value is FileParseResult =>
   typeof value.size === 'number' &&
   typeof value.name === 'string' &&
   typeof value.binary === 'boolean'
+
+const normalizeHeaders = (headers: FileParserInput['headers']): Record<string, string> => {
+  const transformed = transformTable(headers ?? null)
+  return Object.entries(transformed).reduce(
+    (acc, [key, value]) => {
+      const headerName = key.trim()
+      if (headerName && value !== undefined && value !== null) {
+        acc[headerName] = String(value)
+      }
+      return acc
+    },
+    {} as Record<string, string>
+  )
+}
 
 const normalizeFileParseResult = (value: unknown): FileParseResult => {
   if (isRecord(value) && isFileParseResult(value.output)) {
@@ -78,15 +93,32 @@ const parseFileParserResponse = async (response: Response): Promise<FileParserOu
   if (isRecord(result) && Array.isArray(result.results)) {
     logger.info('Processing multiple files response')
 
-    // Extract individual file results
-    const fileResults: FileParseResult[] = result.results.map((fileResult) =>
-      normalizeFileParseResult(fileResult)
+    const failedResults = result.results.filter(
+      (fileResult) => isRecord(fileResult) && fileResult.success === false
     )
+    if (failedResults.length === result.results.length) {
+      const firstError = failedResults.find(
+        (fileResult) => isRecord(fileResult) && typeof fileResult.error === 'string'
+      )
+      return {
+        success: false,
+        output: {
+          files: [],
+          combinedContent: '',
+        },
+        error:
+          isRecord(firstError) && typeof firstError.error === 'string'
+            ? firstError.error
+            : 'Failed to parse files',
+      }
+    }
 
-    // Collect UserFile objects from results
-    const processedFiles: UserFile[] = fileResults
-      .filter((file): file is FileParseResult & { file: UserFile } => Boolean(file.file))
-      .map((file) => file.file)
+    // Extract individual file results
+    const fileResults: FileParseResult[] = result.results
+      .filter((fileResult) => !(isRecord(fileResult) && fileResult.success === false))
+      .map((fileResult) => normalizeFileParseResult(fileResult))
+
+    const processedFiles = fileResults.flatMap((file) => (file.file ? [file.file] : []))
 
     // Combine all file contents with clear dividers
     const combinedContent = fileResults
@@ -103,10 +135,23 @@ const parseFileParserResponse = async (response: Response): Promise<FileParserOu
       combinedContent,
       ...(processedFiles.length > 0 && { processedFiles }),
     }
+    const error = typeof result.error === 'string' ? result.error : undefined
 
     return {
       success: true,
       output,
+      ...(error ? { error } : {}),
+    }
+  }
+
+  if (isRecord(result) && result.success === false) {
+    return {
+      success: false,
+      output: {
+        files: [],
+        combinedContent: '',
+      },
+      error: typeof result.error === 'string' ? result.error : 'Failed to parse file',
     }
   }
 
@@ -245,9 +290,11 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       }
 
       logger.info('Tool body determined filePath:', determinedFilePath)
+      const headers = normalizeHeaders(params.headers)
       return {
         filePath: determinedFilePath,
         fileType: determinedFileType,
+        ...(Object.keys(headers).length > 0 && { headers }),
         workspaceId: params.workspaceId || params._context?.workspaceId,
         workflowId: params._context?.workflowId,
         executionId: params._context?.executionId,
@@ -286,6 +333,36 @@ export const fileParserV2Tool: ToolConfig<FileParserInput, FileParserOutput> = {
   },
 }
 
+const parseFileParserV3Response = async (response: Response): Promise<FileParserV3Output> => {
+  const parsed = await parseFileParserResponse(response)
+  if (!parsed.success) {
+    return {
+      success: false,
+      output: {
+        files: [],
+        combinedContent: '',
+      },
+      error: parsed.error,
+    }
+  }
+
+  const output = parsed.output as FileParserOutputData
+  const files =
+    Array.isArray(output.processedFiles) && output.processedFiles.length > 0
+      ? output.processedFiles
+      : []
+
+  const cleanedOutput: FileParserV3OutputData = {
+    files,
+    combinedContent: output.combinedContent,
+  }
+
+  return {
+    success: true,
+    output: cleanedOutput,
+  }
+}
+
 export const fileParserV3Tool: ToolConfig<FileParserInput, FileParserV3Output> = {
   id: 'file_parser_v3',
   name: 'File Parser',
@@ -293,26 +370,31 @@ export const fileParserV3Tool: ToolConfig<FileParserInput, FileParserV3Output> =
   version: '3.0.0',
   params: fileParserTool.params,
   request: fileParserTool.request,
-  transformResponse: async (response: Response): Promise<FileParserV3Output> => {
-    const parsed = await parseFileParserResponse(response)
-    const output = parsed.output as FileParserOutputData
-    const files =
-      Array.isArray(output.processedFiles) && output.processedFiles.length > 0
-        ? output.processedFiles
-        : []
-
-    const cleanedOutput: FileParserV3OutputData = {
-      files,
-      combinedContent: output.combinedContent,
-    }
-
-    return {
-      success: true,
-      output: cleanedOutput,
-    }
-  },
+  transformResponse: parseFileParserV3Response,
   outputs: {
     files: { type: 'file[]', description: 'Parsed files as UserFile objects' },
     combinedContent: { type: 'string', description: 'Combined content of all parsed files' },
+  },
+}
+
+export const fileFetchTool: ToolConfig<FileParserInput, FileParserV3Output> = {
+  id: 'file_fetch',
+  name: 'File Fetch',
+  description: 'Fetch and parse a file from a URL with optional custom headers.',
+  version: '1.0.0',
+  params: {
+    ...fileParserTool.params,
+    headers: {
+      type: 'object',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'HTTP headers to include when fetching URL-based files.',
+    },
+  },
+  request: fileParserTool.request,
+  transformResponse: parseFileParserV3Response,
+  outputs: {
+    files: { type: 'file[]', description: 'Fetched files as UserFile objects' },
+    combinedContent: { type: 'string', description: 'Combined content of all fetched files' },
   },
 }

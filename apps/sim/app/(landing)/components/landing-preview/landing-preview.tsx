@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion, type Variants } from 'framer-motion'
+import { AnimatePresence, domAnimation, LazyMotion, m, type Variants } from 'framer-motion'
 import { LandingPreviewFiles } from '@/app/(landing)/components/landing-preview/components/landing-preview-files/landing-preview-files'
 import { LandingPreviewHome } from '@/app/(landing)/components/landing-preview/components/landing-preview-home/landing-preview-home'
 import { LandingPreviewKnowledge } from '@/app/(landing)/components/landing-preview/components/landing-preview-knowledge/landing-preview-knowledge'
@@ -208,115 +208,113 @@ export function LandingPreview() {
   const isWorkflowView = activeView === 'workflow'
 
   return (
-    <motion.div
-      className='dark flex aspect-[1116/615] w-full overflow-hidden rounded bg-[var(--landing-bg-surface)] antialiased'
-      initial={isDesktop ? 'hidden' : false}
-      animate='visible'
-      variants={containerVariants}
-    >
-      <motion.div className='hidden lg:flex' variants={sidebarVariants}>
-        <LandingPreviewSidebar
-          workflows={PREVIEW_WORKFLOWS}
-          activeWorkflowId={activeWorkflowId}
-          activeView={activeView}
-          onSelectWorkflow={handleSelectWorkflow}
-          onSelectHome={handleSelectHome}
-          onSelectNav={handleSelectNav}
-        />
-      </motion.div>
-      <div className='flex min-w-0 flex-1 flex-col py-2 pr-2 pl-2 lg:pl-0'>
-        <div className='flex flex-1 overflow-hidden rounded-[5px] border border-[#2c2c2c] bg-[var(--landing-bg)]'>
-          <div
-            className={
-              isWorkflowView
-                ? 'relative min-w-0 flex-1 overflow-hidden'
-                : 'relative flex min-w-0 flex-1 flex-col overflow-hidden'
-            }
-          >
-            {isDesktop ? (
-              <AnimatePresence mode='wait'>
-                {activeView === 'workflow' && (
-                  <motion.div
-                    key={`wf-${activeWorkflow.id}-${animationKey}`}
-                    className='h-full w-full'
-                    {...viewTransition}
-                  >
-                    <LandingPreviewWorkflow
-                      workflow={activeWorkflow}
-                      animate
-                      highlightedBlockId={highlightedBlockId}
-                    />
-                  </motion.div>
-                )}
-                {activeView === 'home' && (
-                  <motion.div
-                    key={`home-${animationKey}`}
-                    className='flex h-full w-full flex-col'
-                    {...viewTransition}
-                  >
-                    <LandingPreviewHome autoType={autoTypeHome} />
-                  </motion.div>
-                )}
-                {activeView === 'tables' && (
-                  <motion.div
-                    key={`tables-${animationKey}`}
-                    className='flex h-full w-full flex-col'
-                    {...viewTransition}
-                  >
-                    <LandingPreviewTables autoOpenTableId={autoTableId} />
-                  </motion.div>
-                )}
-                {activeView === 'files' && (
-                  <motion.div
-                    key='files'
-                    className='flex h-full w-full flex-col'
-                    {...viewTransition}
-                  >
-                    <LandingPreviewFiles />
-                  </motion.div>
-                )}
-                {activeView === 'knowledge' && (
-                  <motion.div
-                    key='knowledge'
-                    className='flex h-full w-full flex-col'
-                    {...viewTransition}
-                  >
-                    <LandingPreviewKnowledge />
-                  </motion.div>
-                )}
-                {activeView === 'logs' && (
-                  <motion.div key='logs' className='flex h-full w-full flex-col' initial={false}>
-                    <LandingPreviewLogs />
-                  </motion.div>
-                )}
-                {activeView === 'scheduled-tasks' && (
-                  <motion.div
-                    key='scheduled-tasks'
-                    className='flex h-full w-full flex-col'
-                    {...viewTransition}
-                  >
-                    <LandingPreviewScheduledTasks />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            ) : (
-              <div className='h-full w-full'>
-                <LandingPreviewWorkflow workflow={activeWorkflow} />
-              </div>
-            )}
+    <LazyMotion features={domAnimation}>
+      <m.div
+        className='dark flex aspect-[1116/615] w-full overflow-hidden rounded bg-[var(--landing-bg-surface)] antialiased'
+        initial={isDesktop ? 'hidden' : false}
+        animate='visible'
+        variants={containerVariants}
+      >
+        <m.div className='hidden lg:flex' variants={sidebarVariants}>
+          <LandingPreviewSidebar
+            workflows={PREVIEW_WORKFLOWS}
+            activeWorkflowId={activeWorkflowId}
+            activeView={activeView}
+            onSelectWorkflow={handleSelectWorkflow}
+            onSelectHome={handleSelectHome}
+            onSelectNav={handleSelectNav}
+          />
+        </m.div>
+        <div className='flex min-w-0 flex-1 flex-col py-2 pr-2 pl-2 lg:pl-0'>
+          <div className='flex flex-1 overflow-hidden rounded-[5px] border border-[#2c2c2c] bg-[var(--landing-bg)]'>
+            <div
+              className={
+                isWorkflowView
+                  ? 'relative min-w-0 flex-1 overflow-hidden'
+                  : 'relative flex min-w-0 flex-1 flex-col overflow-hidden'
+              }
+            >
+              {isDesktop ? (
+                <AnimatePresence mode='wait'>
+                  {activeView === 'workflow' && (
+                    <m.div
+                      key={`wf-${activeWorkflow.id}-${animationKey}`}
+                      className='h-full w-full'
+                      {...viewTransition}
+                    >
+                      <LandingPreviewWorkflow
+                        workflow={activeWorkflow}
+                        animate
+                        highlightedBlockId={highlightedBlockId}
+                      />
+                    </m.div>
+                  )}
+                  {activeView === 'home' && (
+                    <m.div
+                      key={`home-${animationKey}`}
+                      className='flex h-full w-full flex-col'
+                      {...viewTransition}
+                    >
+                      <LandingPreviewHome autoType={autoTypeHome} />
+                    </m.div>
+                  )}
+                  {activeView === 'tables' && (
+                    <m.div
+                      key={`tables-${animationKey}`}
+                      className='flex h-full w-full flex-col'
+                      {...viewTransition}
+                    >
+                      <LandingPreviewTables autoOpenTableId={autoTableId} />
+                    </m.div>
+                  )}
+                  {activeView === 'files' && (
+                    <m.div key='files' className='flex h-full w-full flex-col' {...viewTransition}>
+                      <LandingPreviewFiles />
+                    </m.div>
+                  )}
+                  {activeView === 'knowledge' && (
+                    <m.div
+                      key='knowledge'
+                      className='flex h-full w-full flex-col'
+                      {...viewTransition}
+                    >
+                      <LandingPreviewKnowledge />
+                    </m.div>
+                  )}
+                  {activeView === 'logs' && (
+                    <m.div key='logs' className='flex h-full w-full flex-col' initial={false}>
+                      <LandingPreviewLogs />
+                    </m.div>
+                  )}
+                  {activeView === 'scheduled-tasks' && (
+                    <m.div
+                      key='scheduled-tasks'
+                      className='flex h-full w-full flex-col'
+                      {...viewTransition}
+                    >
+                      <LandingPreviewScheduledTasks />
+                    </m.div>
+                  )}
+                </AnimatePresence>
+              ) : (
+                <div className='h-full w-full'>
+                  <LandingPreviewWorkflow workflow={activeWorkflow} />
+                </div>
+              )}
+            </div>
+            <m.div
+              className={isWorkflowView ? 'hidden lg:flex' : 'hidden'}
+              variants={panelVariants}
+            >
+              <LandingPreviewPanel
+                activeWorkflow={activeWorkflow}
+                animationKey={animationKey}
+                onHighlightBlock={handleHighlightBlock}
+              />
+            </m.div>
           </div>
-          <motion.div
-            className={isWorkflowView ? 'hidden lg:flex' : 'hidden'}
-            variants={panelVariants}
-          >
-            <LandingPreviewPanel
-              activeWorkflow={activeWorkflow}
-              animationKey={animationKey}
-              onHighlightBlock={handleHighlightBlock}
-            />
-          </motion.div>
         </div>
-      </div>
-    </motion.div>
+      </m.div>
+    </LazyMotion>
   )
 }

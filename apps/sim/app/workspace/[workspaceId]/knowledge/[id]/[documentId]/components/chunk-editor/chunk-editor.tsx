@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Label, Switch } from '@/components/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
 import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
 import { useCreateChunk, useUpdateChunk } from '@/hooks/queries/kb/knowledge'
@@ -49,6 +50,8 @@ export function ChunkEditor({
   onCreated,
 }: ChunkEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const tokenizedScrollRef = useRef<HTMLDivElement>(null)
+  const preservedScrollTopRef = useRef(0)
   const { mutateAsync: updateChunk } = useUpdateChunk()
   const { mutateAsync: createChunk } = useCreateChunk()
 
@@ -169,6 +172,24 @@ export function ChunkEditor({
     [saveRef]
   )
 
+  const hasToggledTokenizerRef = useRef(false)
+
+  const handleTokenizerChange = useCallback(
+    (value: boolean) => {
+      const source = tokenizerOn ? tokenizedScrollRef.current : textareaRef.current
+      preservedScrollTopRef.current = source?.scrollTop ?? 0
+      hasToggledTokenizerRef.current = true
+      setTokenizerOn(value)
+    },
+    [tokenizerOn]
+  )
+
+  useLayoutEffect(() => {
+    if (!hasToggledTokenizerRef.current) return
+    const target = tokenizerOn ? tokenizedScrollRef.current : textareaRef.current
+    if (target) target.scrollTop = preservedScrollTopRef.current
+  }, [tokenizerOn])
+
   const tokenStrings = useMemo(() => {
     if (!tokenizerOn || !editedContent) return []
     return getTokenStrings(editedContent)
@@ -183,13 +204,22 @@ export function ChunkEditor({
   return (
     <div className='flex flex-1 flex-col overflow-hidden'>
       <div
+        role='group'
+        aria-label='Chunk content editor'
         className='flex min-h-0 flex-1 cursor-text overflow-hidden'
         onClick={(e) => {
           if (e.target === e.currentTarget) textareaRef.current?.focus()
         }}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return
+          handleKeyboardActivation(event, () => textareaRef.current?.focus())
+        }}
       >
         {tokenizerOn ? (
-          <div className='h-full w-full cursor-default overflow-y-auto whitespace-pre-wrap break-words p-6 font-sans text-[var(--text-body)] text-sm'>
+          <div
+            ref={tokenizedScrollRef}
+            className='h-full w-full cursor-default overflow-y-auto whitespace-pre-wrap break-words p-6 font-sans text-[var(--text-body)] text-sm'
+          >
             {tokenStrings.map((token, index) => (
               <span
                 key={index}
@@ -225,7 +255,7 @@ export function ChunkEditor({
       <div className='flex items-center justify-between border-[var(--border)] border-t px-6 py-2.5'>
         <TokenizerToggle
           checked={tokenizerOn}
-          onCheckedChange={setTokenizerOn}
+          onCheckedChange={handleTokenizerChange}
           hoveredTokenIndex={tokenizerOn ? hoveredTokenIndex : null}
         />
         <span className='text-[var(--text-secondary)] text-caption'>

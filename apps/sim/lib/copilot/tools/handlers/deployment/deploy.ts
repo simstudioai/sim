@@ -1,12 +1,14 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { chat, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { mcpPubSub } from '@/lib/mcp/pubsub'
+import {
+  performCreateWorkflowMcpTool,
+  performDeleteWorkflowMcpTool,
+  performUpdateWorkflowMcpTool,
+} from '@/lib/mcp/orchestration'
 import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import {
@@ -492,27 +494,31 @@ export async function executeDeployMcp(
 
     // Handle undeploy action — remove workflow from MCP server
     if (params.action === 'undeploy') {
-      const deleted = await db
-        .delete(workflowMcpTool)
+      const [existingTool] = await db
+        .select({ id: workflowMcpTool.id })
+        .from(workflowMcpTool)
         .where(
-          and(eq(workflowMcpTool.serverId, serverId), eq(workflowMcpTool.workflowId, workflowId))
+          and(
+            eq(workflowMcpTool.serverId, serverId),
+            eq(workflowMcpTool.workflowId, workflowId),
+            isNull(workflowMcpTool.archivedAt)
+          )
         )
-        .returning({ id: workflowMcpTool.id })
+        .limit(1)
 
-      if (deleted.length === 0) {
+      if (!existingTool) {
         return { success: false, error: 'Workflow is not deployed to this MCP server' }
       }
 
-      mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
-
-      recordAudit({
+      const deleteResult = await performDeleteWorkflowMcpTool({
+        serverId,
+        toolId: existingTool.id,
         workspaceId,
-        actorId: context.userId,
-        action: AuditAction.MCP_SERVER_REMOVED,
-        resourceType: AuditResourceType.MCP_SERVER,
-        resourceId: serverId,
-        description: `Undeployed workflow "${workflowId}" from MCP server`,
+        userId: context.userId,
       })
+      if (!deleteResult.success) {
+        return { success: false, error: deleteResult.error || 'Failed to undeploy MCP tool' }
+      }
 
       return {
         success: true,
@@ -564,7 +570,6 @@ export async function executeDeployMcp(
       params.parameterSchema && Object.keys(params.parameterSchema).length > 0
         ? params.parameterSchema
         : await generateParameterSchemaForWorkflow(workflowId)
-
     const baseUrl = getBaseUrl()
     const mcpServerUrl = `${baseUrl}/api/mcp/serve/${serverId}`
     const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
@@ -572,26 +577,18 @@ export async function executeDeployMcp(
 
     if (existingTool.length > 0) {
       const toolId = existingTool[0].id
-      await db
-        .update(workflowMcpTool)
-        .set({
-          toolName,
-          toolDescription,
-          parameterSchema,
-          updatedAt: new Date(),
-        })
-        .where(eq(workflowMcpTool.id, toolId))
-
-      mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
-
-      recordAudit({
+      const updateResult = await performUpdateWorkflowMcpTool({
+        serverId,
+        toolId,
         workspaceId,
-        actorId: context.userId,
-        action: AuditAction.MCP_SERVER_UPDATED,
-        resourceType: AuditResourceType.MCP_SERVER,
-        resourceId: serverId,
-        description: `Updated MCP tool "${toolName}" on server`,
+        userId: context.userId,
+        toolName,
+        toolDescription,
+        parameterSchema,
       })
+      if (!updateResult.success || !updateResult.tool) {
+        return { success: false, error: updateResult.error || 'Failed to update MCP tool' }
+      }
 
       return {
         success: true,
@@ -642,28 +639,19 @@ export async function executeDeployMcp(
       }
     }
 
-    const toolId = generateId()
-    await db.insert(workflowMcpTool).values({
-      id: toolId,
+    const createResult = await performCreateWorkflowMcpTool({
       serverId,
+      workspaceId,
+      userId: context.userId,
       workflowId,
       toolName,
       toolDescription,
       parameterSchema,
-      createdAt: new Date(),
-      updatedAt: new Date(),
     })
-
-    mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
-
-    recordAudit({
-      workspaceId,
-      actorId: context.userId,
-      action: AuditAction.MCP_SERVER_ADDED,
-      resourceType: AuditResourceType.MCP_SERVER,
-      resourceId: serverId,
-      description: `Deployed workflow as MCP tool "${toolName}"`,
-    })
+    if (!createResult.success || !createResult.tool) {
+      return { success: false, error: createResult.error || 'Failed to deploy MCP tool' }
+    }
+    const toolId = createResult.tool.id
 
     return {
       success: true,

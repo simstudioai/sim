@@ -1,3 +1,4 @@
+import { filterUndefined } from '@sim/utils/object'
 import type {
   EmailBisonBaseParams,
   EmailBisonCampaign,
@@ -81,10 +82,10 @@ function normalizeEmailBisonBaseUrl(baseUrl: string): string {
 }
 
 export function jsonBody(fields: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined))
+  return filterUndefined(fields)
 }
 
-export async function emailBisonData<T>(response: Response): Promise<T | null> {
+async function emailBisonData<T>(response: Response): Promise<T | null> {
   const payload = (await response.json()) as EmailBisonEnvelope<T>
   return payload.data ?? null
 }

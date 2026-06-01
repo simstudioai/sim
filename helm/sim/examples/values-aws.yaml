@@ -1,10 +1,51 @@
-# AWS-specific values for Sim
-# Example configuration for Amazon EKS deployment
+# values-aws.yaml
+#
+# When to use: Amazon EKS. Configures EBS GP3 storage, ALB ingress with
+# AWS Certificate Manager, IRSA-style ServiceAccount annotations, and
+# GPU-instance node selectors for Ollama.
+#
+# Prerequisites:
+#   - EKS cluster (Kubernetes 1.25+)
+#   - EBS CSI driver add-on (aws eks create-addon --addon-name aws-ebs-csi-driver)
+#   - AWS Load Balancer Controller (for ALB ingress)
+#   - (recommended) cert-manager OR an ACM certificate ARN for the ingress
+#
+# Install:
+#   helm install sim ./helm/sim \
+#     --namespace sim --create-namespace \
+#     --values ./helm/sim/examples/values-aws.yaml \
+#     --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+#     --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+#     --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+#     --set app.env.CRON_SECRET="$CRON_SECRET" \
+#     --set postgresql.auth.password="$POSTGRES_PASSWORD"
+#
+# Choosing a secret strategy
+# --------------------------
+# Pick one of three modes — see helm/sim/README.md for details.
+#
+#   1. Inline (default below): set values directly in app.env. The chart
+#      writes every key into a chart-managed Secret. Simplest, but stores
+#      plaintext in your values file.
+#
+#   2. existingSecret: pre-create a Kubernetes Secret out-of-band and
+#      reference it via app.secrets.existingSecret.name. You are
+#      responsible for ensuring the Secret contains every key your app
+#      needs (BETTER_AUTH_SECRET, ENCRYPTION_KEY, INTERNAL_API_SECRET,
+#      AWS_SECRET_ACCESS_KEY, OPENAI_API_KEY, ...). The chart-managed
+#      Secret is not rendered in this mode, so anything missing from your
+#      Secret will be empty at runtime.
+#
+#   3. External Secrets Operator (ESO): sync from AWS Secrets Manager /
+#      Parameter Store via the External Secrets Operator. Map every key
+#      via externalSecrets.remoteRefs.app.<KEY>. The chart fails template
+#      rendering if a key is set in app.env but not mapped — see the
+#      commented ESO block at the bottom of this file.
 
 # Global configuration
 global:
   imageRegistry: "ghcr.io"
-  storageClass: "gp2"  # Use gp2 (default on EKS) or create gp3 StorageClass for better performance
+  storageClass: "gp3"  # gp3 is the recommended EBS type (cheaper + faster than gp2). Requires a gp3 StorageClass — create one if your cluster only ships gp2.
 
 # Main application
 app:
@@ -256,3 +297,35 @@ serviceAccount:
   create: true
   annotations:
     eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/SimStudioServiceRole"
+# -----------------------------------------------------------------------------
+# External Secrets Operator (ESO) — recommended for production on AWS
+# -----------------------------------------------------------------------------
+# To switch from inline secrets to ESO:
+#   1. Install external-secrets in the cluster (https://external-secrets.io).
+#   2. Create a ClusterSecretStore backed by AWS Secrets Manager or
+#      SSM Parameter Store and grant IRSA access from this namespace.
+#   3. Remove entries from app.env above (or leave them and the chart will
+#      fail-fast naming each unmapped key).
+#   4. Uncomment the block below and replace the paths with the names of the
+#      secrets in your store.
+#
+# externalSecrets:
+#   enabled: true
+#   secretStoreRef:
+#     name: "aws-secret-store"        # name of your ClusterSecretStore
+#     kind: "ClusterSecretStore"
+#   remoteRefs:
+#     app:
+#       BETTER_AUTH_SECRET:    "sim/app/better-auth-secret"
+#       ENCRYPTION_KEY:        "sim/app/encryption-key"
+#       INTERNAL_API_SECRET:   "sim/app/internal-api-secret"
+#       CRON_SECRET:           "sim/app/cron-secret"
+#       API_ENCRYPTION_KEY:    "sim/app/api-encryption-key"
+#       # AWS provider keys — required when not using IRSA for S3/Bedrock.
+#       AWS_ACCESS_KEY_ID:     "sim/aws/access-key-id"
+#       AWS_SECRET_ACCESS_KEY: "sim/aws/secret-access-key"
+#       # Add any other keys your deployment needs:
+#       OPENAI_API_KEY:        "sim/providers/openai-api-key"
+#       # ANTHROPIC_API_KEY:   "sim/providers/anthropic-api-key"
+#     postgresql:
+#       password: "sim/postgresql/password"

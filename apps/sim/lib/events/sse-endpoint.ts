@@ -11,7 +11,7 @@ import { getSession } from '@/lib/auth'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
-export interface SSESubscription {
+interface SSESubscription {
   subscribe(
     workspaceId: string,
     send: (eventName: string, data: Record<string, unknown>) => void

@@ -26,7 +26,8 @@ export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboa
 | C | Focus Copilot tab |
 | T | Focus Toolbar tab |
 | E | Focus Editor tab |
-| Mod+F | Focus Toolbar search |
+| Mod+F | Open workflow search and replace |
+| Mod+Alt+F | Focus Toolbar search |
 
 ### Global Navigation
 | Shortcut | Action |

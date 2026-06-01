@@ -18,7 +18,6 @@ import {
   getLogByExecutionIdContract,
   getLogDetailContract,
   listLogsContract,
-  type SegmentStats,
   type WorkflowLogDetail,
   type WorkflowLogSummary,
   type WorkflowStats,
@@ -27,7 +26,7 @@ import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/f
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
-export type { DashboardStatsResponse, SegmentStats, WorkflowStats }
+export type { DashboardStatsResponse, WorkflowStats }
 
 export type LogSortBy = 'date' | 'duration' | 'cost' | 'status'
 export type LogSortOrder = 'asc' | 'desc'

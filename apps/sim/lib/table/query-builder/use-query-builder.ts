@@ -13,8 +13,6 @@ import {
   type SortRule,
 } from './constants'
 
-export type { ColumnOption }
-
 const comparisonOptions: ColumnOption[] = COMPARISON_OPERATORS.map((op) => ({
   value: op.value,
   label: op.label,
@@ -141,13 +139,13 @@ export interface UseFilterBuilderReturn {
   createDefaultRule: () => FilterRule
 }
 
-export interface UseSortBuilderProps {
+interface UseSortBuilderProps {
   columns: ColumnOption[]
   sortRule: SortRule | null
   setSortRule: (sort: SortRule | null) => void
 }
 
-export interface UseSortBuilderReturn {
+interface UseSortBuilderReturn {
   sortDirectionOptions: ColumnOption[]
   addSort: () => void
   removeSort: () => void

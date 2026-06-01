@@ -1,5 +1,3 @@
-export { AGENT_CARD_PATH } from '@a2a-js/sdk'
-
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 
 export const A2A_PROTOCOL_VERSION = '0.3.0'

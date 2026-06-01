@@ -1,0 +1,54 @@
+{{- if .Values.tests.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "sim.fullname" . }}-test-connection
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  {{- with .Values.tests.image.pullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    fsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: probe
+      image: "{{ .Values.tests.image.repository }}:{{ .Values.tests.image.tag }}"
+      imagePullPolicy: {{ .Values.tests.image.pullPolicy }}
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 65534
+        capabilities:
+          drop:
+            - ALL
+      command:
+        - sh
+        - -c
+        - |
+          set -eu
+          APP_URL="http://{{ include "sim.fullname" . }}-app:{{ .Values.app.service.port }}/"
+          echo "Probing $APP_URL"
+          wget -q -T {{ .Values.tests.timeoutSeconds }} --tries=1 --spider "$APP_URL"
+          {{- if .Values.realtime.enabled }}
+          RT_URL="http://{{ include "sim.fullname" . }}-realtime:{{ .Values.realtime.service.port }}/health"
+          echo "Probing $RT_URL"
+          wget -q -T {{ .Values.tests.timeoutSeconds }} --tries=1 --spider "$RT_URL"
+          {{- end }}
+          echo "OK"
+      resources:
+        {{- toYaml .Values.tests.resources | nindent 8 }}
+{{- end }}

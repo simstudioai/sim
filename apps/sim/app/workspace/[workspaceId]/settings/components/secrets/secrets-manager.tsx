@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, Clipboard, Key, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -16,6 +18,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Skeleton,
@@ -216,7 +219,7 @@ function WorkspaceVariableRow({
           onPendingKeyChange(e.target.value)
         }}
         onBlur={() => onRenameEnd(envKey, value)}
-        name={`workspace_env_key_${envKey}_${Math.random()}`}
+        name={`workspace_env_key_${envKey}_${generateShortId()}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -241,7 +244,7 @@ function WorkspaceVariableRow({
         onBlur={() => {
           if (canEdit) setValueFocused(false)
         }}
-        name={`workspace_env_value_${envKey}_${Math.random()}`}
+        name={`workspace_env_value_${envKey}_${generateShortId()}`}
         autoComplete='off'
         autoCorrect='off'
         autoCapitalize='off'
@@ -259,7 +262,7 @@ function WorkspaceVariableRow({
       {canEdit ? (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button variant='ghost' onClick={() => onDelete(envKey)} className='h-9 w-9'>
+            <Button variant='ghost' onClick={() => onDelete(envKey)} className='size-9'>
               <Trash />
             </Button>
           </Tooltip.Trigger>
@@ -297,7 +300,7 @@ function NewWorkspaceVariableRow({
         onChange={(e) => onUpdate(index, 'key', e.target.value)}
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='API_KEY'
-        name={`new_workspace_key_${envVar.id || index}_${Math.random()}`}
+        name={`new_workspace_key_${envVar.id || index}_${generateShortId()}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -313,7 +316,7 @@ function NewWorkspaceVariableRow({
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='Enter value'
         type={valueFocused ? 'text' : 'password'}
-        name={`new_workspace_value_${envVar.id || index}_${Math.random()}`}
+        name={`new_workspace_value_${envVar.id || index}_${generateShortId()}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -414,9 +417,7 @@ export function SecretsManager() {
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
   const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
-  const [prevSelectedCredentialId, setPrevSelectedCredentialId] = useState<
-    string | null | undefined
-  >(undefined)
+  const prevSelectedCredentialIdRef = useRef<string | null | undefined>(undefined)
   const [selectedDisplayNameDraft, setSelectedDisplayNameDraft] = useState('')
   const [selectedDescriptionDraft, setSelectedDescriptionDraft] = useState('')
   const [copyIdSuccess, setCopyIdSuccess] = useState(false)
@@ -448,8 +449,8 @@ export function SecretsManager() {
   )
 
   const currentCredentialId = selectedCredential?.id ?? null
-  if (currentCredentialId !== prevSelectedCredentialId) {
-    setPrevSelectedCredentialId(currentCredentialId)
+  if (currentCredentialId !== prevSelectedCredentialIdRef.current) {
+    prevSelectedCredentialIdRef.current = currentCredentialId
     if (!selectedCredential) {
       setSelectedDescriptionDraft('')
       setSelectedDisplayNameDraft('')
@@ -597,8 +598,8 @@ export function SecretsManager() {
       })),
       createEmptyEnvVar(),
     ]
-    initialVarsRef.current = JSON.parse(JSON.stringify(initialVars))
-    setEnvVars(JSON.parse(JSON.stringify(initialVars)))
+    initialVarsRef.current = structuredClone(initialVars)
+    setEnvVars(structuredClone(initialVars))
   }, [personalEnvData])
 
   useEffect(() => {
@@ -783,7 +784,7 @@ export function SecretsManager() {
         })
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to save changes'
+      const message = getErrorMessage(error, 'Failed to save changes')
       setDetailsError(message)
       logger.error('Failed to save secret details', error)
     }
@@ -955,7 +956,7 @@ export function SecretsManager() {
   }
 
   const resetToSaved = () => {
-    setEnvVars(JSON.parse(JSON.stringify(initialVarsRef.current)))
+    setEnvVars(structuredClone(initialVarsRef.current))
     setWorkspaceVars({ ...initialWorkspaceVarsRef.current })
     setNewWorkspaceRows([createEmptyEnvVar()])
     setShowUnsavedChanges(false)
@@ -1036,7 +1037,7 @@ export function SecretsManager() {
       if (firstFailure) throw firstFailure.reason
 
       initialWorkspaceVarsRef.current = { ...mergedWorkspaceVars }
-      initialVarsRef.current = JSON.parse(JSON.stringify(envVars.filter((v) => v.key && v.value)))
+      initialVarsRef.current = structuredClone(envVars.filter((v) => v.key && v.value))
 
       setWorkspaceVars(mergedWorkspaceVars)
       setNewWorkspaceRows([createEmptyEnvVar()])
@@ -1089,7 +1090,7 @@ export function SecretsManager() {
           onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
           onPaste={(e) => handlePaste(e, originalIndex)}
           placeholder='API_KEY'
-          name={`env_variable_name_${envVar.id || originalIndex}_${Math.random()}`}
+          name={`env_variable_name_${envVar.id || originalIndex}_${generateShortId()}`}
           autoComplete='off'
           autoCapitalize='off'
           spellCheck='false'
@@ -1117,7 +1118,7 @@ export function SecretsManager() {
           onBlur={() => setFocusedValueIndex(null)}
           onPaste={(e) => handlePaste(e, originalIndex)}
           placeholder={isConflict ? 'Workspace override active' : 'Enter value'}
-          name={`env_variable_value_${envVar.id || originalIndex}_${Math.random()}`}
+          name={`env_variable_value_${envVar.id || originalIndex}_${generateShortId()}`}
           autoComplete='off'
           autoCapitalize='off'
           spellCheck='false'
@@ -1187,8 +1188,8 @@ export function SecretsManager() {
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='flex flex-col gap-4.5'>
               <div className='flex items-center gap-2.5 border-[var(--border)] border-b pb-3'>
-                <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-5)]'>
-                  <Key className='h-[18px] w-[18px] text-[var(--text-tertiary)]' />
+                <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-5)]'>
+                  <Key className='size-[18px] text-[var(--text-tertiary)]' />
                 </div>
                 <div className='min-w-0 flex-1'>
                   <div className='flex items-center gap-2'>
@@ -1220,7 +1221,7 @@ export function SecretsManager() {
                       <Button
                         variant='ghost'
                         type='button'
-                        className='-my-1 h-5 w-5 p-0'
+                        className='-my-1 size-5 p-0'
                         onClick={() => {
                           navigator.clipboard.writeText(selectedCredential.id)
                           setCopyIdSuccess(true)
@@ -1229,9 +1230,9 @@ export function SecretsManager() {
                         aria-label='Copy value'
                       >
                         {copyIdSuccess ? (
-                          <Check className='h-3 w-3 text-[var(--text-success)]' />
+                          <Check className='size-3 text-[var(--text-success)]' />
                         ) : (
-                          <Clipboard className='h-3 w-3 text-[var(--text-icon)]' />
+                          <Clipboard className='size-3 text-[var(--text-icon)]' />
                         )}
                       </Button>
                     </Tooltip.Trigger>
@@ -1290,7 +1291,7 @@ export function SecretsManager() {
                         )}
                       >
                         <div className='flex min-w-0 items-center gap-2.5'>
-                          <Avatar className='h-8 w-8 flex-shrink-0'>
+                          <Avatar className='size-8 flex-shrink-0'>
                             <AvatarFallback
                               style={{
                                 background: getUserColor(member.userId || member.userEmail || ''),
@@ -1425,9 +1426,9 @@ export function SecretsManager() {
           <ModalContent size='sm'>
             <ModalHeader>Unsaved Changes</ModalHeader>
             <ModalBody>
-              <p className='text-[var(--text-secondary)]'>
+              <ModalDescription className='text-[var(--text-secondary)]'>
                 You have unsaved changes. Are you sure you want to discard them?
-              </p>
+              </ModalDescription>
             </ModalBody>
             <ModalFooter>
               <Button variant='default' onClick={() => setShowDetailUnsavedChanges(false)}>
@@ -1444,9 +1445,9 @@ export function SecretsManager() {
           <ModalContent size='sm'>
             <ModalHeader>Unsaved Changes</ModalHeader>
             <ModalBody>
-              <p className='text-[var(--text-secondary)]'>
+              <ModalDescription className='text-[var(--text-secondary)]'>
                 You have unsaved changes. Are you sure you want to discard them?
-              </p>
+              </ModalDescription>
             </ModalBody>
             <ModalFooter>
               <Button variant='default' onClick={() => setShowUnsavedChanges(false)}>
@@ -1491,7 +1492,7 @@ export function SecretsManager() {
         <div className='flex items-center gap-2'>
           <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
-              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
             />
             <Input
@@ -1545,7 +1546,7 @@ export function SecretsManager() {
                       <div />
                       <Skeleton className='h-9 rounded-md' />
                       <Skeleton className='ml-2 h-9 w-[60px] rounded-md' />
-                      <Skeleton className='h-9 w-9 rounded-md' />
+                      <Skeleton className='size-9 rounded-md' />
                     </div>
                   ))}
                 </div>
@@ -1644,9 +1645,9 @@ export function SecretsManager() {
         <ModalContent size='sm'>
           <ModalHeader>Unsaved Changes</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               You have unsaved changes. Are you sure you want to discard them?
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowUnsavedChanges(false)}>

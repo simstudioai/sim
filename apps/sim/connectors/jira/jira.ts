@@ -3,12 +3,26 @@ import { toError } from '@sim/utils/errors'
 import { JiraIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { joinTagArray, parseTagDate } from '@/connectors/utils'
+import { joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
 import { extractAdfText, getJiraCloudId } from '@/tools/jira/utils'
 
 const logger = createLogger('JiraConnector')
 
 const PAGE_SIZE = 50
+
+/**
+ * Builds a JQL clause restricting issues to the given project keys.
+ * Single key uses `project = "X"`; multiple keys use `project in ("X","Y")`.
+ * Each key is escaped for inclusion in a JQL double-quoted string.
+ */
+function buildProjectClause(projectKeys: string[]): string {
+  const escapeKey = (key: string) => key.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  if (projectKeys.length === 1) {
+    return `project = "${escapeKey(projectKeys[0])}"`
+  }
+  const list = projectKeys.map((k) => `"${escapeKey(k)}"`).join(',')
+  return `project in (${list})`
+}
 
 /**
  * Builds a plain-text representation of a Jira issue for knowledge base indexing.
@@ -92,7 +106,7 @@ function issueToFullDocument(issue: Record<string, unknown>, domain: string): Ex
 export const jiraConnector: ConnectorConfig = {
   id: 'jira',
   name: 'Jira',
-  description: 'Sync issues from a Jira project into your knowledge base',
+  description: 'Sync issues from a Jira project',
   version: '1.0.0',
   icon: JiraIcon,
 
@@ -108,22 +122,24 @@ export const jiraConnector: ConnectorConfig = {
     },
     {
       id: 'projectSelector',
-      title: 'Project',
+      title: 'Projects',
       type: 'selector',
       selectorKey: 'jira.projects',
       canonicalParamId: 'projectKey',
       mode: 'basic',
+      multi: true,
       dependsOn: ['domain'],
-      placeholder: 'Select a project',
+      placeholder: 'Select one or more projects',
       required: true,
     },
     {
       id: 'projectKey',
-      title: 'Project Key',
+      title: 'Project Keys',
       type: 'short-input',
       canonicalParamId: 'projectKey',
       mode: 'advanced',
-      placeholder: 'e.g. ENG, PROJ',
+      multi: true,
+      placeholder: 'e.g. ENG, PROJ (comma-separated for multiple)',
       required: true,
     },
     {
@@ -149,9 +165,13 @@ export const jiraConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const domain = sourceConfig.domain as string
-    const projectKey = sourceConfig.projectKey as string
+    const projectKeys = parseMultiValue(sourceConfig.projectKey)
     const jqlFilter = (sourceConfig.jql as string) || ''
     const maxIssues = sourceConfig.maxIssues ? Number(sourceConfig.maxIssues) : 0
+
+    if (projectKeys.length === 0) {
+      throw new Error('At least one project key is required')
+    }
 
     let cloudId = syncContext?.cloudId as string | undefined
     if (!cloudId) {
@@ -159,10 +179,10 @@ export const jiraConnector: ConnectorConfig = {
       if (syncContext) syncContext.cloudId = cloudId
     }
 
-    const safeKey = projectKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-    let jql = `project = "${safeKey}" ORDER BY updated DESC`
+    const projectClause = buildProjectClause(projectKeys)
+    let jql = `${projectClause} ORDER BY updated DESC`
     if (jqlFilter.trim()) {
-      jql = `project = "${safeKey}" AND (${jqlFilter.trim()}) ORDER BY updated DESC`
+      jql = `${projectClause} AND (${jqlFilter.trim()}) ORDER BY updated DESC`
     }
 
     /**
@@ -200,7 +220,10 @@ export const jiraConnector: ConnectorConfig = {
 
     const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`
 
-    logger.info(`Listing Jira issues for project ${projectKey}`, { hasCursor: Boolean(cursor) })
+    logger.info(`Listing Jira issues for ${projectKeys.length} project(s)`, {
+      projectKeys,
+      hasCursor: Boolean(cursor),
+    })
 
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -292,10 +315,10 @@ export const jiraConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const domain = sourceConfig.domain as string
-    const projectKey = sourceConfig.projectKey as string
+    const projectKeys = parseMultiValue(sourceConfig.projectKey)
 
-    if (!domain || !projectKey) {
-      return { valid: false, error: 'Domain and project key are required' }
+    if (!domain || projectKeys.length === 0) {
+      return { valid: false, error: 'Domain and at least one project key are required' }
     }
 
     const maxIssues = sourceConfig.maxIssues as string | undefined
@@ -308,9 +331,9 @@ export const jiraConnector: ConnectorConfig = {
     try {
       const cloudId = await getJiraCloudId(domain, accessToken, VALIDATE_RETRY_OPTIONS)
 
+      const projectClause = buildProjectClause(projectKeys)
       const params = new URLSearchParams()
-      const safeKey = projectKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-      params.append('jql', `project = "${safeKey}"`)
+      params.append('jql', projectClause)
       params.append('maxResults', '1')
 
       const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`
@@ -329,14 +352,17 @@ export const jiraConnector: ConnectorConfig = {
       if (!response.ok) {
         const errorText = await response.text()
         if (response.status === 400) {
-          return { valid: false, error: `Project "${projectKey}" not found or JQL is invalid` }
+          return {
+            valid: false,
+            error: `One or more projects not found (${projectKeys.join(', ')}) or JQL is invalid`,
+          }
         }
         return { valid: false, error: `Failed to validate: ${response.status} - ${errorText}` }
       }
 
       if (jqlFilter) {
         const filterParams = new URLSearchParams()
-        filterParams.append('jql', `project = "${safeKey}" AND (${jqlFilter})`)
+        filterParams.append('jql', `${projectClause} AND (${jqlFilter})`)
         filterParams.append('maxResults', '1')
 
         const filterUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${filterParams.toString()}`

@@ -1,5 +1,4 @@
 import Collaboration from '@/app/(landing)/components/collaboration/collaboration'
-import Enterprise from '@/app/(landing)/components/enterprise/enterprise'
 import ExternalRedirect from '@/app/(landing)/components/external-redirect'
 import Features from '@/app/(landing)/components/features/features'
 import Footer from '@/app/(landing)/components/footer/footer'
@@ -13,7 +12,6 @@ import Testimonials from '@/app/(landing)/components/testimonials/testimonials'
 
 export {
   Collaboration,
-  Enterprise,
   ExternalRedirect,
   Features,
   Footer,

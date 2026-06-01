@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Plus, Search } from 'lucide-react'
+import { ChevronDown, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Avatar,
@@ -15,6 +15,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
@@ -26,6 +27,7 @@ import {
 } from '@/components/emcn'
 import { Input as BaseInput } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { cn } from '@/lib/core/utils/cn'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { getAllBlocks } from '@/blocks'
@@ -41,9 +43,16 @@ import {
   useUserPermissionConfig,
 } from '@/ee/access-control/hooks/permission-groups'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
+import { useProviderModels } from '@/hooks/queries/providers'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
-import { PROVIDER_DEFINITIONS } from '@/providers/models'
-import { getAllProviderIds } from '@/providers/utils'
+import {
+  DYNAMIC_MODEL_PROVIDERS,
+  getProviderModels,
+  PROVIDER_DEFINITIONS,
+} from '@/providers/models'
+import type { ProviderId } from '@/providers/types'
+import { getAllProviderIds, getProviderFromModel } from '@/providers/utils'
+import type { ProviderName } from '@/stores/providers'
 
 const logger = createLogger('AccessControl')
 
@@ -134,6 +143,9 @@ function AddMembersModal({
       <ModalContent size='sm'>
         <ModalHeader>Add Members</ModalHeader>
         <ModalBody className='!pb-4'>
+          <ModalDescription className='sr-only'>
+            Search and select workspace members to add to this permission group
+          </ModalDescription>
           {availableMembers.length === 0 ? (
             <p className='text-[var(--text-muted)] text-sm'>
               All workspace members are already in this group.
@@ -142,7 +154,7 @@ function AddMembersModal({
             <div className='flex flex-col gap-3'>
               <div className='flex items-center gap-2'>
                 <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                  <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                  <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                   <BaseInput
                     placeholder='Search members...'
                     value={searchTerm}
@@ -235,7 +247,7 @@ function AccessControlSkeleton() {
         <Skeleton className='h-[14px] w-[100px]' />
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-3'>
-            <Skeleton className='h-9 w-9 rounded-md' />
+            <Skeleton className='size-9 rounded-md' />
             <div className='flex flex-col gap-1'>
               <Skeleton className='h-[14px] w-[120px]' />
               <Skeleton className='h-[12px] w-[80px]' />
@@ -244,6 +256,188 @@ function AccessControlSkeleton() {
           <Skeleton className='h-[32px] w-[60px] rounded-md' />
         </div>
       </div>
+    </div>
+  )
+}
+
+interface ModelDenylistControls {
+  isModelAllowed: (model: string) => boolean
+  onToggleModel: (model: string) => void
+  onSetModelsDenied: (models: string[], denied: boolean) => void
+}
+
+interface ModelCheckboxGridProps extends ModelDenylistControls {
+  models: string[]
+  isLoading: boolean
+}
+
+function ModelCheckboxGrid({
+  models,
+  isLoading,
+  isModelAllowed,
+  onToggleModel,
+  onSetModelsDenied,
+}: ModelCheckboxGridProps) {
+  const [search, setSearch] = useState('')
+
+  const sortedModels = useMemo(() => [...models].sort((a, b) => a.localeCompare(b)), [models])
+
+  const filteredModels = useMemo(() => {
+    if (!search.trim()) return sortedModels
+    const query = search.toLowerCase()
+    return sortedModels.filter((model) => model.toLowerCase().includes(query))
+  }, [sortedModels, search])
+
+  if (isLoading) {
+    return <div className='px-2 py-3 text-[var(--text-muted)] text-xs'>Loading models…</div>
+  }
+
+  if (models.length === 0) {
+    return (
+      <div className='px-2 py-3 text-[var(--text-muted)] text-xs'>
+        No models available for this provider.
+      </div>
+    )
+  }
+
+  const allFilteredAllowed = filteredModels.every((model) => isModelAllowed(model))
+
+  return (
+    <div className='flex flex-col gap-2'>
+      <div className='flex items-center gap-2'>
+        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
+          <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+          <BaseInput
+            placeholder='Search models...'
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+          />
+        </div>
+        <Button
+          variant='default'
+          className='h-8'
+          onClick={() => onSetModelsDenied(filteredModels, allFilteredAllowed)}
+        >
+          {allFilteredAllowed ? 'Block All' : 'Allow All'}
+        </Button>
+      </div>
+      <div className='grid grid-cols-2 gap-x-2 gap-y-0.5'>
+        {filteredModels.map((model) => {
+          const checkboxId = `model-${model}`
+          return (
+            <label
+              key={model}
+              htmlFor={checkboxId}
+              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
+            >
+              <Checkbox
+                id={checkboxId}
+                checked={isModelAllowed(model)}
+                onCheckedChange={() => onToggleModel(model)}
+              />
+              <span className='truncate text-sm'>{model}</span>
+            </label>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+interface DynamicProviderModelsProps extends ModelDenylistControls {
+  provider: ProviderName
+  workspaceId?: string
+}
+
+function DynamicProviderModels({ provider, workspaceId, ...controls }: DynamicProviderModelsProps) {
+  const { data, isPending } = useProviderModels(provider, workspaceId)
+  return <ModelCheckboxGrid models={data?.models ?? []} isLoading={isPending} {...controls} />
+}
+
+interface StaticProviderModelsProps extends ModelDenylistControls {
+  providerId: ProviderId
+}
+
+function StaticProviderModels({ providerId, ...controls }: StaticProviderModelsProps) {
+  const models = useMemo(() => getProviderModels(providerId), [providerId])
+  return <ModelCheckboxGrid models={models} isLoading={false} {...controls} />
+}
+
+interface ProviderRowProps extends ModelDenylistControls {
+  providerId: ProviderId
+  isProviderAllowed: boolean
+  onToggleProvider: () => void
+  deniedCount: number
+  workspaceId?: string
+}
+
+function ProviderRow({
+  providerId,
+  isProviderAllowed,
+  onToggleProvider,
+  deniedCount,
+  workspaceId,
+  ...controls
+}: ProviderRowProps) {
+  const [expanded, setExpanded] = useState(false)
+
+  const ProviderIcon = PROVIDER_DEFINITIONS[providerId]?.icon
+  const providerName =
+    PROVIDER_DEFINITIONS[providerId]?.name ||
+    providerId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  const isDynamic = (DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)
+  const checkboxId = `provider-${providerId}`
+
+  return (
+    <div>
+      <div className='flex items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'>
+        <Checkbox
+          id={checkboxId}
+          checked={isProviderAllowed}
+          onCheckedChange={() => onToggleProvider()}
+        />
+        <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
+          {ProviderIcon && <ProviderIcon className='!h-[16px] !w-[16px]' />}
+        </div>
+        <button
+          type='button'
+          onClick={() => isProviderAllowed && setExpanded((prev) => !prev)}
+          disabled={!isProviderAllowed}
+          className={cn(
+            'flex flex-1 items-center gap-2 text-left',
+            isProviderAllowed ? 'cursor-pointer' : 'cursor-default opacity-60'
+          )}
+        >
+          <span className='truncate font-medium text-sm'>{providerName}</span>
+          {isProviderAllowed && deniedCount > 0 && (
+            <span className='rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
+              {deniedCount} blocked
+            </span>
+          )}
+          {isProviderAllowed && (
+            <ChevronDown
+              className={cn(
+                'ml-auto size-[14px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform',
+                expanded && 'rotate-180'
+              )}
+            />
+          )}
+        </button>
+      </div>
+      {expanded && isProviderAllowed && (
+        <div className='border-[var(--border)] border-t px-2 pt-2 pb-3'>
+          {isDynamic ? (
+            <DynamicProviderModels
+              provider={providerId as ProviderName}
+              workspaceId={workspaceId}
+              {...controls}
+            />
+          ) : (
+            <StaticProviderModels providerId={providerId} {...controls} />
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -744,6 +938,65 @@ export function AccessControl() {
     [editingConfig]
   )
 
+  const isModelAllowed = useCallback(
+    (model: string) => {
+      if (!editingConfig) return true
+      const normalized = model.toLowerCase()
+      return !editingConfig.deniedModels.some((denied) => denied.toLowerCase() === normalized)
+    },
+    [editingConfig]
+  )
+
+  const toggleModel = useCallback(
+    (model: string) => {
+      if (!editingConfig) return
+      const normalized = model.toLowerCase()
+      const isDenied = editingConfig.deniedModels.some(
+        (denied) => denied.toLowerCase() === normalized
+      )
+      const deniedModels = isDenied
+        ? editingConfig.deniedModels.filter((denied) => denied.toLowerCase() !== normalized)
+        : [...editingConfig.deniedModels, model]
+      setEditingConfig({ ...editingConfig, deniedModels })
+    },
+    [editingConfig]
+  )
+
+  const setModelsDenied = useCallback(
+    (models: string[], denied: boolean) => {
+      if (!editingConfig) return
+      if (denied) {
+        const existing = new Set(editingConfig.deniedModels.map((m) => m.toLowerCase()))
+        const additions = models.filter((m) => !existing.has(m.toLowerCase()))
+        if (additions.length === 0) return
+        setEditingConfig({
+          ...editingConfig,
+          deniedModels: [...editingConfig.deniedModels, ...additions],
+        })
+      } else {
+        const toRemove = new Set(models.map((m) => m.toLowerCase()))
+        setEditingConfig({
+          ...editingConfig,
+          deniedModels: editingConfig.deniedModels.filter((m) => !toRemove.has(m.toLowerCase())),
+        })
+      }
+    },
+    [editingConfig]
+  )
+
+  const deniedCountByProvider = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const model of editingConfig?.deniedModels ?? []) {
+      try {
+        const providerId = getProviderFromModel(model)
+        counts[providerId] = (counts[providerId] ?? 0) + 1
+      } catch {
+        // Unknown/blacklisted provider — omit from counts.
+      }
+    }
+    return counts
+  }, [editingConfig?.deniedModels])
+
   const availableMembersToAdd = useMemo(() => {
     const existingMemberUserIds = new Set(members.map((m) => m.userId))
     return workspaceMembers.filter((m) => !existingMemberUserIds.has(m.userId))
@@ -800,7 +1053,7 @@ export function AccessControl() {
               <div className='flex items-center justify-between'>
                 <span className='font-medium text-[var(--text-secondary)] text-sm'>Members</span>
                 <Button variant='primary' onClick={handleOpenAddMembersModal}>
-                  <Plus className='mr-1.5 h-[13px] w-[13px]' />
+                  <Plus className='mr-1.5 size-[13px]' />
                   Add
                 </Button>
               </div>
@@ -810,7 +1063,7 @@ export function AccessControl() {
                   {[1, 2].map((i) => (
                     <div key={i} className='flex items-center justify-between'>
                       <div className='flex items-center gap-3'>
-                        <Skeleton className='h-8 w-8 rounded-full' />
+                        <Skeleton className='size-8 rounded-full' />
                         <div className='flex flex-col gap-1'>
                           <Skeleton className='h-[14px] w-[100px]' />
                           <Skeleton className='h-[12px] w-[150px]' />
@@ -904,10 +1157,14 @@ export function AccessControl() {
               </ModalTabsList>
 
               <ModalBody className='min-h-0 flex-1'>
+                <ModalDescription className='sr-only'>
+                  Configure model provider, block, and platform permissions for this permission
+                  group
+                </ModalDescription>
                 <ModalTabsContent value='providers'>
                   <div className='flex items-center gap-2 pb-3'>
                     <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                       <BaseInput
                         placeholder='Search providers...'
                         value={providerSearchTerm}
@@ -937,38 +1194,27 @@ export function AccessControl() {
                         : 'Select All'}
                     </Button>
                   </div>
-                  <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
-                    {filteredProviders.map((providerId) => {
-                      const ProviderIcon = PROVIDER_DEFINITIONS[providerId]?.icon
-                      const providerName =
-                        PROVIDER_DEFINITIONS[providerId]?.name ||
-                        providerId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-                      const checkboxId = `provider-${providerId}`
-                      return (
-                        <label
-                          key={providerId}
-                          htmlFor={checkboxId}
-                          className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
-                        >
-                          <Checkbox
-                            id={checkboxId}
-                            checked={isProviderAllowed(providerId)}
-                            onCheckedChange={() => toggleProvider(providerId)}
-                          />
-                          <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-                            {ProviderIcon && <ProviderIcon className='!h-[16px] !w-[16px]' />}
-                          </div>
-                          <span className='truncate font-medium text-sm'>{providerName}</span>
-                        </label>
-                      )
-                    })}
+                  <div className='flex flex-col gap-0.5'>
+                    {filteredProviders.map((providerId) => (
+                      <ProviderRow
+                        key={providerId}
+                        providerId={providerId}
+                        isProviderAllowed={isProviderAllowed(providerId)}
+                        onToggleProvider={() => toggleProvider(providerId)}
+                        deniedCount={deniedCountByProvider[providerId] ?? 0}
+                        workspaceId={workspaceId}
+                        isModelAllowed={isModelAllowed}
+                        onToggleModel={toggleModel}
+                        onSetModelsDenied={setModelsDenied}
+                      />
+                    ))}
                   </div>
                 </ModalTabsContent>
 
                 <ModalTabsContent value='blocks'>
                   <div className='flex items-center gap-2 pb-3'>
                     <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                       <BaseInput
                         placeholder='Search blocks...'
                         value={integrationSearchTerm}
@@ -1023,7 +1269,7 @@ export function AccessControl() {
                                   onCheckedChange={() => toggleIntegration(block.type)}
                                 />
                                 <div
-                                  className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                                  className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
                                   style={{ background: block.bgColor }}
                                 >
                                   {BlockIcon && (
@@ -1058,7 +1304,7 @@ export function AccessControl() {
                                   onCheckedChange={() => toggleIntegration(block.type)}
                                 />
                                 <div
-                                  className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                                  className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
                                   style={{ background: block.bgColor }}
                                 >
                                   {BlockIcon && (
@@ -1078,7 +1324,7 @@ export function AccessControl() {
                 <ModalTabsContent value='platform'>
                   <div className='flex items-center gap-2 pb-3'>
                     <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                       <BaseInput
                         placeholder='Search features...'
                         value={platformSearchTerm}
@@ -1179,9 +1425,9 @@ export function AccessControl() {
           <ModalContent size='sm'>
             <ModalHeader>Unsaved Changes</ModalHeader>
             <ModalBody>
-              <p className='text-[var(--text-secondary)]'>
+              <ModalDescription className='text-[var(--text-secondary)]'>
                 You have unsaved changes. Do you want to save them before closing?
-              </p>
+              </ModalDescription>
             </ModalBody>
             <ModalFooter>
               <Button
@@ -1234,7 +1480,7 @@ export function AccessControl() {
         <div className='flex items-center gap-2'>
           <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
             <Search
-              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
             />
             <BaseInput
@@ -1245,7 +1491,7 @@ export function AccessControl() {
             />
           </div>
           <Button variant='primary' onClick={() => setShowCreateModal(true)}>
-            <Plus className='mr-1.5 h-[13px] w-[13px]' />
+            <Plus className='mr-1.5 size-[13px]' />
             Create
           </Button>
         </div>
@@ -1299,6 +1545,9 @@ export function AccessControl() {
         <ModalContent size='sm'>
           <ModalHeader>Create Permission Group</ModalHeader>
           <ModalBody>
+            <ModalDescription className='sr-only'>
+              Enter a name and optional description to create a new permission group
+            </ModalDescription>
             <div className='flex flex-col gap-3'>
               <div className='flex flex-col gap-1'>
                 <Label>Name</Label>
@@ -1351,14 +1600,14 @@ export function AccessControl() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Permission Group</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{deletingGroup?.name}</span>?
               <span className='text-[var(--text-error)]'>
                 All members will be removed from this group.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setDeletingGroup(null)}>

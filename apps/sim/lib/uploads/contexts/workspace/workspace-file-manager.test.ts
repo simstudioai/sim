@@ -21,7 +21,10 @@ function makeFileRecord(): WorkspaceFileRecord {
     size: 128,
     type: 'text/markdown',
     uploadedBy: 'user_123',
+    folderId: null,
+    folderPath: null,
     uploadedAt: new Date('2026-04-13T00:00:00.000Z'),
+    updatedAt: new Date('2026-04-13T00:00:00.000Z'),
   }
 }
 
@@ -47,5 +50,29 @@ describe('workspace file reference normalization', () => {
       id: FILE_ID,
       name: 'the_last_cartographer_of_vael.md',
     })
+  })
+
+  it('resolves duplicate names by folder-aware VFS path', () => {
+    const reportsFile: WorkspaceFileRecord = {
+      ...makeFileRecord(),
+      id: 'file-reports',
+      name: 'q1.csv',
+      folderId: 'folder-reports',
+      folderPath: 'Reports',
+    }
+    const archiveFile: WorkspaceFileRecord = {
+      ...makeFileRecord(),
+      id: 'file-archive',
+      name: 'q1.csv',
+      folderId: 'folder-archive',
+      folderPath: 'Archive',
+    }
+
+    expect(
+      findWorkspaceFileRecord([reportsFile, archiveFile], 'files/Reports/q1.csv/content')
+    ).toBe(reportsFile)
+    expect(findWorkspaceFileRecord([reportsFile, archiveFile], 'files/Archive/q1.csv')).toBe(
+      archiveFile
+    )
   })
 })

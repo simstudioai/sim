@@ -48,7 +48,7 @@ interface BaseFilterCondition {
 /**
  * Text filter condition
  */
-export interface TextFilterCondition extends BaseFilterCondition {
+interface TextFilterCondition extends BaseFilterCondition {
   fieldType: 'text'
   operator: TextOperator
   value: string
@@ -57,7 +57,7 @@ export interface TextFilterCondition extends BaseFilterCondition {
 /**
  * Number filter condition
  */
-export interface NumberFilterCondition extends BaseFilterCondition {
+interface NumberFilterCondition extends BaseFilterCondition {
   fieldType: 'number'
   operator: NumberOperator
   value: number
@@ -67,7 +67,7 @@ export interface NumberFilterCondition extends BaseFilterCondition {
 /**
  * Date filter condition
  */
-export interface DateFilterCondition extends BaseFilterCondition {
+interface DateFilterCondition extends BaseFilterCondition {
   fieldType: 'date'
   operator: DateOperator
   value: string // ISO date string
@@ -77,7 +77,7 @@ export interface DateFilterCondition extends BaseFilterCondition {
 /**
  * Boolean filter condition
  */
-export interface BooleanFilterCondition extends BaseFilterCondition {
+interface BooleanFilterCondition extends BaseFilterCondition {
   fieldType: 'boolean'
   operator: BooleanOperator
   value: boolean
@@ -95,7 +95,7 @@ export type FilterCondition =
 /**
  * Filter group with logical operator
  */
-export interface FilterGroup {
+interface FilterGroup {
   operator: LogicalOperator
   conditions: FilterCondition[]
 }
@@ -104,7 +104,7 @@ export interface FilterGroup {
  * Complete filter query structure
  * Supports nested groups with AND/OR logic
  */
-export interface TagFilter {
+interface TagFilter {
   rootOperator: LogicalOperator
   groups: FilterGroup[]
 }
@@ -112,7 +112,7 @@ export interface TagFilter {
 /**
  * Simplified flat filter structure for simple use cases
  */
-export interface SimpleTagFilter {
+interface SimpleTagFilter {
   operator: LogicalOperator
   conditions: FilterCondition[]
 }

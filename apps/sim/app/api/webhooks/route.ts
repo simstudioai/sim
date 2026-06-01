@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { permissions, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
 import {
   assertWorkflowMutable,
@@ -26,7 +27,10 @@ import {
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import { mergeNonUserFields } from '@/lib/webhooks/utils'
-import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
+import {
+  findConflictingWebhookPathOwner,
+  syncWebhooksForCredentialSet,
+} from '@/lib/webhooks/utils.server'
 import { extractCredentialSetId, isCredentialSetValue } from '@/executor/constants'
 
 const logger = createLogger('WebhooksAPI')
@@ -329,21 +333,31 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
     if (!targetWebhookId) {
-      const existingByPath = await db
-        .select({ id: webhook.id, workflowId: webhook.workflowId })
+      const conflictingOwner = await findConflictingWebhookPathOwner({
+        path: finalPath,
+        workflowId,
+      })
+      if (conflictingOwner) {
+        logger.warn(`[${requestId}] Webhook path conflict: ${finalPath}`)
+        return NextResponse.json(
+          { error: 'Webhook path already exists.', code: 'PATH_EXISTS' },
+          { status: 409 }
+        )
+      }
+
+      const ownExisting = await db
+        .select({ id: webhook.id })
         .from(webhook)
-        .where(and(eq(webhook.path, finalPath), isNull(webhook.archivedAt)))
-        .limit(1)
-      if (existingByPath.length > 0) {
-        // If a webhook with the same path exists but belongs to a different workflow, return an error
-        if (existingByPath[0].workflowId !== workflowId) {
-          logger.warn(`[${requestId}] Webhook path conflict: ${finalPath}`)
-          return NextResponse.json(
-            { error: 'Webhook path already exists.', code: 'PATH_EXISTS' },
-            { status: 409 }
+        .where(
+          and(
+            eq(webhook.path, finalPath),
+            eq(webhook.workflowId, workflowId),
+            isNull(webhook.archivedAt)
           )
-        }
-        targetWebhookId = existingByPath[0].id
+        )
+        .limit(1)
+      if (ownExisting.length > 0) {
+        targetWebhookId = ownExisting[0].id
       }
     }
 
@@ -487,7 +501,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           return NextResponse.json(
             {
               error: `Failed to configure ${provider} webhook`,
-              details: err instanceof Error ? err.message : 'Unknown error',
+              details: getErrorMessage(err, 'Unknown error'),
             },
             { status: 500 }
           )
@@ -542,7 +556,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json(
           {
             error: 'Failed to create external webhook subscription',
-            details: err instanceof Error ? err.message : 'Unknown error',
+            details: getErrorMessage(err, 'Unknown error'),
           },
           { status: 500 }
         )
@@ -669,7 +683,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           return NextResponse.json(
             {
               error: `Failed to configure ${provider} webhook`,
-              details: err instanceof Error ? err.message : 'Unknown error',
+              details: getErrorMessage(err, 'Unknown error'),
             },
             { status: 500 }
           )

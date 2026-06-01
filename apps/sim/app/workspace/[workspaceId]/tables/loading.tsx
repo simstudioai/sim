@@ -9,7 +9,7 @@ export default function TablesLoading() {
       <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-[12px]'>
-            <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+            <Skeleton className='size-[14px] rounded-[2px]' />
             <Skeleton className='h-[14px] w-[44px] rounded-[4px]' />
           </div>
           <div className='flex items-center gap-[6px]'>
@@ -19,7 +19,7 @@ export default function TablesLoading() {
       </div>
       <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
         <div className='flex items-center'>
-          <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+          <Skeleton className='size-[14px] rounded-[2px]' />
           <Skeleton className='ml-[10px] h-[14px] w-[120px] rounded-[4px]' />
         </div>
       </div>

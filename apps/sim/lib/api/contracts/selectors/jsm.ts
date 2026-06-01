@@ -111,9 +111,6 @@ export const jsmIssuePaginationBodySchema = jsmBaseBodySchema.extend({
   limit: z.string().optional(),
 })
 
-export const jsmSlaBodySchema = jsmIssuePaginationBodySchema
-export const jsmTransitionsBodySchema = jsmIssuePaginationBodySchema
-
 export const jsmApprovalsBodySchema = jsmBaseBodySchema.extend({
   action: z.string({ error: 'Action is required' }).min(1, 'Action is required'),
   issueIdOrKey: jsmIssueIdOrKeyField,
@@ -188,7 +185,7 @@ export const jsmCopyFormsBodySchema = jsmBaseBodySchema.extend({
   formIds: z.array(z.string(), { error: 'formIds must be an array of form UUIDs' }).optional(),
 })
 
-const defineJsmToolContract = <TBody extends z.ZodType>(path: string, body: TBody) =>
+export const defineJsmToolContract = <TBody extends z.ZodType>(path: string, body: TBody) =>
   definePostSelector(path, body, z.unknown())
 
 export const jsmServiceDesksSelectorContract = definePostSelector(
@@ -236,10 +233,13 @@ export const jsmTransitionContract = defineJsmToolContract(
   '/api/tools/jsm/transition',
   jsmTransitionBodySchema
 )
-export const jsmSlaContract = defineJsmToolContract('/api/tools/jsm/sla', jsmSlaBodySchema)
+export const jsmSlaContract = defineJsmToolContract(
+  '/api/tools/jsm/sla',
+  jsmIssuePaginationBodySchema
+)
 export const jsmTransitionsContract = defineJsmToolContract(
   '/api/tools/jsm/transitions',
-  jsmTransitionsBodySchema
+  jsmIssuePaginationBodySchema
 )
 export const jsmApprovalsContract = defineJsmToolContract(
   '/api/tools/jsm/approvals',

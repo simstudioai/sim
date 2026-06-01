@@ -102,7 +102,7 @@ export async function fetchKnowledgeBase(
   return result.data
 }
 
-export async function fetchDocument(
+async function fetchDocument(
   knowledgeBaseId: string,
   documentId: string,
   signal?: AbortSignal
@@ -132,7 +132,7 @@ export interface KnowledgeDocumentsParams {
   tagFilters?: DocumentTagFilter[]
 }
 
-export async function fetchKnowledgeDocuments(
+async function fetchKnowledgeDocuments(
   {
     knowledgeBaseId,
     search,
@@ -173,7 +173,7 @@ export interface KnowledgeChunksParams {
   sortOrder?: 'asc' | 'desc'
 }
 
-export async function fetchKnowledgeChunks(
+async function fetchKnowledgeChunks(
   {
     knowledgeBaseId,
     documentId,
@@ -316,7 +316,7 @@ export interface DocumentChunkSearchParams {
 }
 
 /** Paginates through all matching chunks rather than returning a single page. */
-export async function fetchAllDocumentChunks(
+async function fetchAllDocumentChunks(
   { knowledgeBaseId, documentId, search }: DocumentChunkSearchParams,
   signal?: AbortSignal
 ): Promise<ChunkData[]> {
@@ -372,7 +372,7 @@ export function useDocumentChunkSearchQuery(
   })
 }
 
-export interface UpdateChunkParams {
+interface UpdateChunkParams {
   knowledgeBaseId: string
   documentId: string
   chunkId: string
@@ -380,7 +380,7 @@ export interface UpdateChunkParams {
   enabled?: boolean
 }
 
-export async function updateChunk({
+async function updateChunk({
   knowledgeBaseId,
   documentId,
   chunkId,
@@ -415,13 +415,13 @@ export function useUpdateChunk() {
   })
 }
 
-export interface DeleteChunkParams {
+interface DeleteChunkParams {
   knowledgeBaseId: string
   documentId: string
   chunkId: string
 }
 
-export async function deleteChunk({
+async function deleteChunk({
   knowledgeBaseId,
   documentId,
   chunkId,
@@ -447,14 +447,14 @@ export function useDeleteChunk() {
   })
 }
 
-export interface CreateChunkParams {
+interface CreateChunkParams {
   knowledgeBaseId: string
   documentId: string
   content: string
   enabled?: boolean
 }
 
-export async function createChunk({
+async function createChunk({
   knowledgeBaseId,
   documentId,
   content,
@@ -484,7 +484,7 @@ export function useCreateChunk() {
   })
 }
 
-export interface UpdateDocumentParams {
+interface UpdateDocumentParams {
   knowledgeBaseId: string
   documentId: string
   updates: {
@@ -495,7 +495,7 @@ export interface UpdateDocumentParams {
   }
 }
 
-export async function updateDocument({
+async function updateDocument({
   knowledgeBaseId,
   documentId,
   updates,
@@ -524,12 +524,12 @@ export function useUpdateDocument() {
   })
 }
 
-export interface DeleteDocumentParams {
+interface DeleteDocumentParams {
   knowledgeBaseId: string
   documentId: string
 }
 
-export async function deleteDocument({
+async function deleteDocument({
   knowledgeBaseId,
   documentId,
 }: DeleteDocumentParams): Promise<void> {
@@ -551,7 +551,7 @@ export function useDeleteDocument() {
   })
 }
 
-export interface BulkDocumentOperationParams {
+interface BulkDocumentOperationParams {
   knowledgeBaseId: string
   operation: 'enable' | 'disable' | 'delete'
   documentIds?: string[]
@@ -559,7 +559,7 @@ export interface BulkDocumentOperationParams {
   enabledFilter?: 'all' | 'enabled' | 'disabled'
 }
 
-export async function bulkDocumentOperation({
+async function bulkDocumentOperation({
   knowledgeBaseId,
   operation,
   documentIds,
@@ -589,7 +589,7 @@ export function useBulkDocumentOperation() {
   })
 }
 
-export interface CreateKnowledgeBaseParams {
+interface CreateKnowledgeBaseParams {
   name: string
   description?: string
   workspaceId: string
@@ -602,9 +602,7 @@ export interface CreateKnowledgeBaseParams {
   }
 }
 
-export async function createKnowledgeBase(
-  params: CreateKnowledgeBaseParams
-): Promise<KnowledgeBaseData> {
+async function createKnowledgeBase(params: CreateKnowledgeBaseParams): Promise<KnowledgeBaseData> {
   const result = await requestJson(createKnowledgeBaseContract, {
     body: params,
   })
@@ -625,7 +623,7 @@ export function useCreateKnowledgeBase(workspaceId?: string) {
   })
 }
 
-export interface UpdateKnowledgeBaseParams {
+interface UpdateKnowledgeBaseParams {
   knowledgeBaseId: string
   updates: {
     name?: string
@@ -634,7 +632,7 @@ export interface UpdateKnowledgeBaseParams {
   }
 }
 
-export async function updateKnowledgeBase({
+async function updateKnowledgeBase({
   knowledgeBaseId,
   updates,
 }: UpdateKnowledgeBaseParams): Promise<KnowledgeBaseData> {
@@ -665,13 +663,11 @@ export function useUpdateKnowledgeBase(workspaceId?: string) {
   })
 }
 
-export interface DeleteKnowledgeBaseParams {
+interface DeleteKnowledgeBaseParams {
   knowledgeBaseId: string
 }
 
-export async function deleteKnowledgeBase({
-  knowledgeBaseId,
-}: DeleteKnowledgeBaseParams): Promise<void> {
+async function deleteKnowledgeBase({ knowledgeBaseId }: DeleteKnowledgeBaseParams): Promise<void> {
   await requestJson(deleteKnowledgeBaseContract, {
     params: { id: knowledgeBaseId },
   })
@@ -693,14 +689,14 @@ export function useDeleteKnowledgeBase(workspaceId?: string) {
   })
 }
 
-export interface BulkChunkOperationParams {
+interface BulkChunkOperationParams {
   knowledgeBaseId: string
   documentId: string
   operation: 'enable' | 'disable' | 'delete'
   chunkIds: string[]
 }
 
-export async function bulkChunkOperation({
+async function bulkChunkOperation({
   knowledgeBaseId,
   documentId,
   operation,
@@ -730,13 +726,13 @@ export function useBulkChunkOperation() {
   })
 }
 
-export interface UpdateDocumentTagsParams {
+interface UpdateDocumentTagsParams {
   knowledgeBaseId: string
   documentId: string
   tags: Record<string, string>
 }
 
-export async function updateDocumentTags({
+async function updateDocumentTags({
   knowledgeBaseId,
   documentId,
   tags,
@@ -765,7 +761,7 @@ export function useUpdateDocumentTags() {
   })
 }
 
-export async function fetchTagDefinitions(
+async function fetchTagDefinitions(
   knowledgeBaseId: string,
   signal?: AbortSignal
 ): Promise<TagDefinitionData[]> {
@@ -787,7 +783,7 @@ export function useTagDefinitionsQuery(knowledgeBaseId?: string | null) {
   })
 }
 
-export interface CreateTagDefinitionParams {
+interface CreateTagDefinitionParams {
   knowledgeBaseId: string
   displayName: string
   fieldType: string
@@ -824,7 +820,7 @@ export function useNextAvailableSlotMutation() {
   })
 }
 
-export async function createTagDefinition({
+async function createTagDefinition({
   knowledgeBaseId,
   displayName,
   fieldType,
@@ -851,12 +847,12 @@ export function useCreateTagDefinition() {
   })
 }
 
-export interface DeleteTagDefinitionParams {
+interface DeleteTagDefinitionParams {
   knowledgeBaseId: string
   tagDefinitionId: string
 }
 
-export async function deleteTagDefinition({
+async function deleteTagDefinition({
   knowledgeBaseId,
   tagDefinitionId,
 }: DeleteTagDefinitionParams): Promise<void> {
@@ -878,7 +874,7 @@ export function useDeleteTagDefinition() {
   })
 }
 
-export async function fetchDocumentTagDefinitions(
+async function fetchDocumentTagDefinitions(
   knowledgeBaseId: string,
   documentId: string,
   signal?: AbortSignal
@@ -911,13 +907,13 @@ export interface DocumentTagDefinitionInput {
   fieldType: string
 }
 
-export interface SaveDocumentTagDefinitionsParams {
+interface SaveDocumentTagDefinitionsParams {
   knowledgeBaseId: string
   documentId: string
   definitions: DocumentTagDefinitionInput[]
 }
 
-export async function saveDocumentTagDefinitions({
+async function saveDocumentTagDefinitions({
   knowledgeBaseId,
   documentId,
   definitions,
@@ -949,12 +945,12 @@ export function useSaveDocumentTagDefinitions() {
   })
 }
 
-export interface DeleteDocumentTagDefinitionsParams {
+interface DeleteDocumentTagDefinitionsParams {
   knowledgeBaseId: string
   documentId: string
 }
 
-export async function deleteDocumentTagDefinitions({
+async function deleteDocumentTagDefinitions({
   knowledgeBaseId,
   documentId,
 }: DeleteDocumentTagDefinitionsParams): Promise<void> {

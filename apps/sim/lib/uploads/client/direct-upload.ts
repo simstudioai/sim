@@ -15,7 +15,7 @@ export const MULTIPART_RETRY_DELAY_MS = 2000
 export const MULTIPART_RETRY_BACKOFF = 2
 export const WHOLE_FILE_PARALLEL_UPLOADS = 3
 
-export interface PresignedFileInfo {
+interface PresignedFileInfo {
   path: string
   key: string
   name: string
@@ -163,9 +163,10 @@ export const normalizePresignedData = (data: unknown, context: string): Presigne
   }
 }
 
-export interface GetPresignedOptions {
+interface GetPresignedOptions {
   endpoint: string
   file: File
+  body?: Record<string, unknown>
   signal?: AbortSignal
 }
 
@@ -176,7 +177,7 @@ export interface GetPresignedOptions {
 export const getPresignedUploadInfo = async (
   opts: GetPresignedOptions
 ): Promise<PresignedUploadInfo> => {
-  const { endpoint, file, signal } = opts
+  const { endpoint, file, body, signal } = opts
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -184,6 +185,7 @@ export const getPresignedUploadInfo = async (
       fileName: file.name,
       contentType: getFileContentType(file),
       fileSize: file.size,
+      ...body,
     }),
     signal,
   })
@@ -303,7 +305,15 @@ const uploadViaPresignedPut = (opts: UploadViaPutOptions): Promise<void> => {
 interface MultipartUploadOptions {
   file: File
   workspaceId: string
-  context: 'workspace' | 'knowledge-base'
+  context:
+    | 'workspace'
+    | 'knowledge-base'
+    | 'mothership'
+    | 'profile-pictures'
+    | 'workspace-logos'
+    | 'execution'
+  workflowId?: string
+  executionId?: string
   signal?: AbortSignal
   onProgress?: (event: UploadProgressEvent) => void
 }
@@ -321,7 +331,7 @@ interface PartUrl {
 const uploadViaMultipart = async (
   opts: MultipartUploadOptions
 ): Promise<{ key: string; path: string }> => {
-  const { file, workspaceId, context, signal, onProgress } = opts
+  const { file, workspaceId, context, workflowId, executionId, signal, onProgress } = opts
 
   // boundary-raw-fetch: multipart upload control plane uses action query strings; client lifecycle (initiate/get-part-urls/complete/abort) is sequenced manually and not modeled by a single contract
   const initiateResponse = await fetch('/api/files/multipart?action=initiate', {
@@ -333,6 +343,8 @@ const uploadViaMultipart = async (
       fileSize: file.size,
       workspaceId,
       context,
+      ...(workflowId ? { workflowId } : {}),
+      ...(executionId ? { executionId } : {}),
     }),
     signal,
   })
@@ -517,11 +529,23 @@ const uploadViaMultipart = async (
 export interface RunUploadStrategyOptions {
   file: File
   workspaceId: string
-  context: 'workspace' | 'knowledge-base'
+  context:
+    | 'workspace'
+    | 'knowledge-base'
+    | 'mothership'
+    | 'profile-pictures'
+    | 'workspace-logos'
+    | 'execution'
   /** Endpoint to mint a presigned PUT URL. Required unless `presignedOverride` is provided. */
   presignedEndpoint?: string
   /** Pre-fetched presigned data (e.g. from a batch endpoint). Skips per-file fetch. */
   presignedOverride?: PresignedUploadInfo
+  /** Extra JSON body fields for the presigned endpoint. */
+  presignedBody?: Record<string, unknown>
+  /** Required when context is `execution`; forwarded to the multipart route to scope the storage key. */
+  workflowId?: string
+  /** Required when context is `execution`; forwarded to the multipart route to scope the storage key. */
+  executionId?: string
   signal?: AbortSignal
   onProgress?: (event: UploadProgressEvent) => void
 }
@@ -537,8 +561,18 @@ export interface RunUploadStrategyOptions {
 export const runUploadStrategy = async (
   opts: RunUploadStrategyOptions
 ): Promise<UploadStrategyResult> => {
-  const { file, presignedEndpoint, presignedOverride, workspaceId, context, signal, onProgress } =
-    opts
+  const {
+    file,
+    presignedEndpoint,
+    presignedOverride,
+    presignedBody,
+    workspaceId,
+    context,
+    workflowId,
+    executionId,
+    signal,
+    onProgress,
+  } = opts
   const contentType = getFileContentType(file)
 
   if (presignedOverride && !presignedOverride.directUploadSupported) {
@@ -550,6 +584,8 @@ export const runUploadStrategy = async (
       file,
       workspaceId,
       context,
+      workflowId,
+      executionId,
       signal,
       onProgress,
     })
@@ -566,7 +602,12 @@ export const runUploadStrategy = async (
         'PRESIGNED_URL_ERROR'
       )
     }
-    presigned = await getPresignedUploadInfo({ endpoint: presignedEndpoint, file, signal })
+    presigned = await getPresignedUploadInfo({
+      endpoint: presignedEndpoint,
+      file,
+      body: presignedBody,
+      signal,
+    })
   }
 
   if (!presigned.directUploadSupported) {

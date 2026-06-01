@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { Neo4jIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
@@ -628,8 +629,7 @@ Return ONLY valid JSON.`,
             try {
               parsedParameters = JSON.parse(trimmed)
             } catch (parseError) {
-              const errorMsg =
-                parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+              const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
               throw new Error(
                 `Invalid JSON parameters format: ${errorMsg}. Please check your JSON syntax.`
               )

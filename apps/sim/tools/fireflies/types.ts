@@ -1,5 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
-export interface FirefliesTranscript {
+
+interface FirefliesTranscript {
   id: string
   title: string
   date: number
@@ -21,12 +22,12 @@ export interface FirefliesTranscript {
   analytics?: FirefliesAnalytics
 }
 
-export interface FirefliesSpeaker {
+interface FirefliesSpeaker {
   id: number
   name: string
 }
 
-export interface FirefliesAttendee {
+interface FirefliesAttendee {
   displayName?: string
   email?: string
   phoneNumber?: string
@@ -34,7 +35,7 @@ export interface FirefliesAttendee {
   location?: string
 }
 
-export interface FirefliesSentence {
+interface FirefliesSentence {
   index: number
   speaker_name?: string
   speaker_id?: number
@@ -53,7 +54,7 @@ export interface FirefliesSentence {
   }
 }
 
-export interface FirefliesSummary {
+interface FirefliesSummary {
   keywords?: string[]
   action_items?: string
   outline?: string
@@ -72,7 +73,7 @@ export interface FirefliesSummary {
   }>
 }
 
-export interface FirefliesAnalytics {
+interface FirefliesAnalytics {
   sentiments?: {
     negative_pct?: number
     neutral_pct?: number
@@ -87,7 +88,7 @@ export interface FirefliesAnalytics {
   speakers?: FirefliesSpeakerAnalytics[]
 }
 
-export interface FirefliesSpeakerAnalytics {
+interface FirefliesSpeakerAnalytics {
   speaker_id?: number
   name?: string
   duration?: number
@@ -100,7 +101,7 @@ export interface FirefliesSpeakerAnalytics {
   words_per_minute?: number
 }
 
-export interface FirefliesUser {
+interface FirefliesUser {
   user_id: string
   name: string
   email: string
@@ -243,7 +244,7 @@ export interface FirefliesListUsersResponse extends ToolResponse {
   }
 }
 
-export interface FirefliesBite {
+interface FirefliesBite {
   id: string
   name?: string
   transcript_id?: string
@@ -274,7 +275,7 @@ export interface FirefliesListBitesResponse extends ToolResponse {
   }
 }
 
-export interface FirefliesContact {
+interface FirefliesContact {
   email?: string
   name?: string
   picture?: string

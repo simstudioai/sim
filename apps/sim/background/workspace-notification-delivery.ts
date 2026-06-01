@@ -9,6 +9,8 @@ import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { formatDuration } from '@sim/utils/formatting'
 import { generateId } from '@sim/utils/id'
+import { randomFloat } from '@sim/utils/random'
+import { truncate } from '@sim/utils/string'
 import { getActiveWorkflowContext } from '@sim/workflow-authz'
 import { task } from '@trigger.dev/sdk'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
@@ -24,6 +26,7 @@ import { RateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import type { AlertConfig } from '@/lib/notifications/alert-rules'
@@ -34,7 +37,7 @@ const logger = createLogger('WorkspaceNotificationDelivery')
 const MAX_ATTEMPTS = 5
 const RETRY_DELAYS = [5 * 1000, 15 * 1000, 60 * 1000, 3 * 60 * 1000, 10 * 60 * 1000]
 function getRetryDelayWithJitter(baseDelay: number): number {
-  const jitter = Math.random() * 0.1 * baseDelay
+  const jitter = randomFloat() * 0.1 * baseDelay
   return Math.floor(baseDelay + jitter)
 }
 
@@ -396,7 +399,7 @@ async function deliverSlack(
 
   if (payload.data.finalOutput) {
     const outputStr = JSON.stringify(payload.data.finalOutput, null, 2)
-    const truncated = outputStr.length > 2900 ? `${outputStr.slice(0, 2900)}...` : outputStr
+    const truncated = truncate(outputStr, 2900)
     blocks.push({
       type: 'section',
       text: {
@@ -505,27 +508,6 @@ function formatLogDate(value: Date | string | null | undefined, fallback = ''): 
   return typeof value === 'string' ? value : fallback
 }
 
-function normalizeLogCost(value: unknown): WorkflowExecutionLog['cost'] {
-  if (!isRecord(value)) {
-    return undefined
-  }
-
-  const tokens = isRecord(value.tokens)
-    ? {
-        input: typeof value.tokens.input === 'number' ? value.tokens.input : undefined,
-        output: typeof value.tokens.output === 'number' ? value.tokens.output : undefined,
-        total: typeof value.tokens.total === 'number' ? value.tokens.total : undefined,
-      }
-    : undefined
-
-  return {
-    input: typeof value.input === 'number' ? value.input : undefined,
-    output: typeof value.output === 'number' ? value.output : undefined,
-    total: typeof value.total === 'number' ? value.total : undefined,
-    tokens,
-  }
-}
-
 function normalizeLogFiles(value: unknown): WorkflowExecutionLog['files'] {
   if (!Array.isArray(value)) {
     return undefined
@@ -543,10 +525,17 @@ function normalizeLogFiles(value: unknown): WorkflowExecutionLog['files'] {
   )
 }
 
-function normalizeWorkflowExecutionLog(
+async function normalizeWorkflowExecutionLog(
   row: typeof workflowExecutionLogs.$inferSelect
-): WorkflowExecutionLog {
+): Promise<WorkflowExecutionLog> {
   const startedAt = formatLogDate(row.startedAt)
+
+  // Heavy execution data may live in object storage; resolve the pointer so
+  // retry deliveries get finalOutput/traceSpans (no-op for inline rows).
+  const executionData = await materializeExecutionData(
+    isRecord(row.executionData) ? row.executionData : {},
+    { workspaceId: row.workspaceId, workflowId: row.workflowId, executionId: row.executionId }
+  )
 
   return {
     id: row.id,
@@ -559,8 +548,9 @@ function normalizeWorkflowExecutionLog(
     endedAt: formatLogDate(row.endedAt, startedAt),
     totalDurationMs: row.totalDurationMs ?? 0,
     files: normalizeLogFiles(row.files),
-    executionData: isRecord(row.executionData) ? row.executionData : {},
-    cost: normalizeLogCost(row.cost),
+    executionData: executionData as WorkflowExecutionLog['executionData'],
+    // cost_total projection of the usage_log ledger (not the deprecated jsonb).
+    cost: row.costTotal != null ? { total: Number(row.costTotal) } : undefined,
     createdAt: formatLogDate(row.createdAt, startedAt),
   }
 }
@@ -578,7 +568,7 @@ async function buildRetryLog(params: NotificationDeliveryParams): Promise<Workfl
     .limit(1)
 
   if (storedLog) {
-    return normalizeWorkflowExecutionLog(storedLog)
+    return await normalizeWorkflowExecutionLog(storedLog)
   }
 
   const now = new Date().toISOString()

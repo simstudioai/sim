@@ -4,7 +4,7 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export type OperationType = UndoRedoOperation
 
-export interface BaseOperation {
+interface BaseOperation {
   id: string
   type: OperationType
   timestamp: number
@@ -105,7 +105,26 @@ export interface BatchToggleLockedOperation extends BaseOperation {
   }
 }
 
-export interface ApplyDiffOperation extends BaseOperation {
+export interface BatchUpdateSubblocksOperation extends BaseOperation {
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_UPDATE_SUBBLOCKS
+  data: {
+    updates: Array<{
+      blockId: string
+      subBlockId: string
+      before: unknown
+      after: unknown
+    }>
+    subflowUpdates?: Array<{
+      blockId: string
+      blockType: 'loop' | 'parallel'
+      fieldId: string
+      before: unknown
+      after: unknown
+    }>
+  }
+}
+
+interface ApplyDiffOperation extends BaseOperation {
   type: typeof UNDO_REDO_OPERATIONS.APPLY_DIFF
   data: {
     baselineSnapshot: any // WorkflowState snapshot before diff
@@ -114,7 +133,7 @@ export interface ApplyDiffOperation extends BaseOperation {
   }
 }
 
-export interface AcceptDiffOperation extends BaseOperation {
+interface AcceptDiffOperation extends BaseOperation {
   type: typeof UNDO_REDO_OPERATIONS.ACCEPT_DIFF
   data: {
     beforeAccept: any // WorkflowState with diff markers
@@ -124,7 +143,7 @@ export interface AcceptDiffOperation extends BaseOperation {
   }
 }
 
-export interface RejectDiffOperation extends BaseOperation {
+interface RejectDiffOperation extends BaseOperation {
   type: typeof UNDO_REDO_OPERATIONS.REJECT_DIFF
   data: {
     beforeReject: any // WorkflowState with diff markers
@@ -145,6 +164,7 @@ export type Operation =
   | BatchToggleEnabledOperation
   | BatchToggleHandlesOperation
   | BatchToggleLockedOperation
+  | BatchUpdateSubblocksOperation
   | ApplyDiffOperation
   | AcceptDiffOperation
   | RejectDiffOperation

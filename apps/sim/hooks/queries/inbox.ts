@@ -5,8 +5,6 @@ import {
   addInboxSenderContract,
   getInboxConfigContract,
   type InboxConfig,
-  type InboxMember,
-  type InboxSender,
   type InboxSendersResponseBody,
   type InboxTask,
   type InboxTaskStatus,
@@ -17,7 +15,7 @@ import {
   updateInboxConfigContract,
 } from '@/lib/api/contracts'
 
-export type { InboxConfig, InboxMember, InboxSender, InboxSendersResponseBody }
+export type { InboxConfig, InboxSendersResponseBody }
 export type InboxTaskItem = InboxTask
 export type InboxTasksResponse = InboxTasksResponseBody
 

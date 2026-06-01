@@ -1,6 +1,6 @@
 'use client'
 
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 import { Button, Tooltip } from '@/components/emcn'
 import { Eye, PlayOutline, RefreshCw, Square } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -75,98 +75,100 @@ export function TableActionBar({
   const refreshLabel = selectedCellCount === 1 ? 'Re-run cell' : `Re-run ${selectedCellCount} cells`
 
   return (
-    <AnimatePresence>
-      {visible && (
-        <motion.div
-          key='table-action-bar'
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 10 }}
-          transition={{ duration: 0.2 }}
-          className={cn(
-            '-translate-x-1/2 pointer-events-none absolute bottom-6 left-1/2 z-50 transform',
-            className
-          )}
-        >
-          <div className='pointer-events-auto flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
-            <span className='px-1 text-[var(--text-secondary)] text-small'>
-              {selectedCellCount === 1
-                ? 'Selected 1 workflow cell'
-                : `Selected ${selectedCellCount} workflow cells`}
-            </span>
+    <LazyMotion features={domAnimation}>
+      <AnimatePresence>
+        {visible && (
+          <m.div
+            key='table-action-bar'
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.2 }}
+            className={cn(
+              '-translate-x-1/2 pointer-events-none absolute bottom-6 left-1/2 z-50 transform',
+              className
+            )}
+          >
+            <div className='pointer-events-auto flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
+              <span className='px-1 text-[var(--text-secondary)] text-small'>
+                {selectedCellCount === 1
+                  ? 'Selected 1 workflow cell'
+                  : `Selected ${selectedCellCount} workflow cells`}
+              </span>
 
-            <div className='flex items-center gap-[5px]'>
-              {showPlay && (
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      variant='ghost'
-                      onClick={onPlay}
-                      disabled={isLoading}
-                      className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                      aria-label={playLabel}
-                    >
-                      <PlayOutline className='h-[12px] w-[12px]' />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>{playLabel}</Tooltip.Content>
-                </Tooltip.Root>
-              )}
+              <div className='flex items-center gap-[5px]'>
+                {showPlay && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Button
+                        variant='ghost'
+                        onClick={onPlay}
+                        disabled={isLoading}
+                        className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                        aria-label={playLabel}
+                      >
+                        <PlayOutline className='size-[12px]' />
+                      </Button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>{playLabel}</Tooltip.Content>
+                  </Tooltip.Root>
+                )}
 
-              {showRefresh && (
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      variant='ghost'
-                      onClick={onRefresh}
-                      disabled={isLoading}
-                      className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                      aria-label={refreshLabel}
-                    >
-                      <RefreshCw className='h-[12px] w-[12px]' />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>{refreshLabel}</Tooltip.Content>
-                </Tooltip.Root>
-              )}
+                {showRefresh && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Button
+                        variant='ghost'
+                        onClick={onRefresh}
+                        disabled={isLoading}
+                        className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                        aria-label={refreshLabel}
+                      >
+                        <RefreshCw className='size-[12px]' />
+                      </Button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>{refreshLabel}</Tooltip.Content>
+                  </Tooltip.Root>
+                )}
 
-              {runningCount > 0 && (
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      variant='ghost'
-                      onClick={onStopWorkflows}
-                      disabled={isLoading}
-                      className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                      aria-label={stopLabel}
-                    >
-                      <Square className='h-[12px] w-[12px]' />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>{stopLabel}</Tooltip.Content>
-                </Tooltip.Root>
-              )}
+                {runningCount > 0 && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Button
+                        variant='ghost'
+                        onClick={onStopWorkflows}
+                        disabled={isLoading}
+                        className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                        aria-label={stopLabel}
+                      >
+                        <Square className='size-[12px]' />
+                      </Button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>{stopLabel}</Tooltip.Content>
+                  </Tooltip.Root>
+                )}
 
-              {onViewExecution && (
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      variant='ghost'
-                      onClick={onViewExecution}
-                      disabled={isLoading}
-                      className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                      aria-label='View execution'
-                    >
-                      <Eye className='h-[12px] w-[12px]' />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>View execution</Tooltip.Content>
-                </Tooltip.Root>
-              )}
+                {onViewExecution && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Button
+                        variant='ghost'
+                        onClick={onViewExecution}
+                        disabled={isLoading}
+                        className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                        aria-label='View execution'
+                      >
+                        <Eye className='size-[12px]' />
+                      </Button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>View execution</Tooltip.Content>
+                  </Tooltip.Root>
+                )}
+              </div>
             </div>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+          </m.div>
+        )}
+      </AnimatePresence>
+    </LazyMotion>
   )
 }

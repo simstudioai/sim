@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 734,
-  zodRoutes: 734,
+  totalRoutes: 762,
+  zodRoutes: 762,
   nonZodRoutes: 0,
 } as const
 
@@ -79,6 +79,18 @@ const INDIRECT_ZOD_ROUTES = new Set([
   // MCP routes that take only auth context (no client-supplied params/query/body).
   'apps/sim/app/api/mcp/discover/route.ts',
   'apps/sim/app/api/mcp/tools/stored/route.ts',
+  // MCP OAuth callback is the provider redirect target — the response is HTML
+  // that closes the popup, so the JSON-mode contract framework doesn't fit.
+  // Validation is enforced via state lookup + session-vs-row userId match.
+  'apps/sim/app/api/mcp/oauth/callback/route.ts',
+  // Deprecated Copilot MCP surface: these routes are gated to always return
+  // 410 Gone and consume no client-supplied input.
+  'apps/sim/app/api/mcp/copilot/route.ts',
+  'apps/sim/app/api/mcp/copilot/.well-known/oauth-authorization-server/route.ts',
+  'apps/sim/app/api/mcp/copilot/.well-known/oauth-protected-resource/route.ts',
+  // Deprecated v1 headless copilot chat API: gated to always return 410 Gone
+  // and consumes no client-supplied input.
+  'apps/sim/app/api/v1/copilot/chat/route.ts',
 ])
 
 /**
@@ -106,7 +118,6 @@ const RAW_JSON_BASELINE_ROUTES = new Set([
   'apps/sim/app/api/invitations/[id]/route.ts',
   'apps/sim/app/api/knowledge/[id]/documents/route.ts',
   'apps/sim/app/api/knowledge/[id]/documents/[documentId]/chunks/route.ts',
-  'apps/sim/app/api/mcp/copilot/route.ts',
   'apps/sim/app/api/mcp/serve/[serverId]/route.ts',
   'apps/sim/app/api/mcp/servers/route.ts',
   'apps/sim/app/api/mcp/servers/[id]/route.ts',

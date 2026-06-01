@@ -3,6 +3,11 @@ import { workflowExecutionLogs } from '@sim/db/schema'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
+export interface ExecutionStateRecord {
+  executionId: string
+  state: SerializableExecutionState
+}
+
 function isSerializableExecutionState(value: unknown): value is SerializableExecutionState {
   if (!value || typeof value !== 'object') return false
   const state = value as Record<string, unknown>
@@ -55,8 +60,18 @@ export async function getExecutionStateForWorkflow(
 export async function getLatestExecutionState(
   workflowId: string
 ): Promise<SerializableExecutionState | null> {
+  const record = await getLatestExecutionStateWithExecutionId(workflowId)
+  return record?.state ?? null
+}
+
+export async function getLatestExecutionStateWithExecutionId(
+  workflowId: string
+): Promise<ExecutionStateRecord | null> {
   const [row] = await db
-    .select({ executionData: workflowExecutionLogs.executionData })
+    .select({
+      executionId: workflowExecutionLogs.executionId,
+      executionData: workflowExecutionLogs.executionData,
+    })
     .from(workflowExecutionLogs)
     .where(
       and(
@@ -67,5 +82,6 @@ export async function getLatestExecutionState(
     .orderBy(desc(workflowExecutionLogs.startedAt))
     .limit(1)
 
-  return extractExecutionState(row?.executionData)
+  const state = extractExecutionState(row?.executionData)
+  return row && state ? { executionId: row.executionId, state } : null
 }

@@ -5,10 +5,14 @@ import {
 } from '@/lib/core/utils/records'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
+import { mergeFileKeys, mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
-import { FUNCTION_BLOCK_CONTEXT_VARS_KEY } from '@/executor/variables/resolver'
+import {
+  FUNCTION_BLOCK_CONTEXT_VARS_KEY,
+  FUNCTION_BLOCK_DISPLAY_CODE_KEY,
+} from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
@@ -42,11 +46,11 @@ export class FunctionBlockHandler implements BlockHandler {
     inputs: Record<string, any>
   ): Promise<any> {
     const codeContent = readCodeContent(inputs.code) ?? inputs.code
-    const sourceCode = readCodeContent(
-      (block.config?.params as Record<string, unknown> | undefined)?.code
-    )
+    const sourceCode =
+      readCodeContent(inputs[FUNCTION_BLOCK_DISPLAY_CODE_KEY]) ??
+      readCodeContent((block.config?.params as Record<string, unknown> | undefined)?.code)
 
-    const { blockData, blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
+    const { blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
 
     const contextVariables = normalizeRecord(inputs[FUNCTION_BLOCK_CONTEXT_VARS_KEY])
 
@@ -57,24 +61,32 @@ export class FunctionBlockHandler implements BlockHandler {
       timeout: inputs.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
       envVars: normalizeStringRecord(ctx.environmentVariables),
       workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
-      blockData,
+      blockData: {},
       blockNameMapping,
       blockOutputSchemas,
       contextVariables,
       _context: {
         workflowId: ctx.workflowId,
         workspaceId: ctx.workspaceId,
+        executionId: ctx.executionId,
+        largeValueExecutionIds: ctx.largeValueExecutionIds,
+        largeValueKeys: ctx.largeValueKeys,
+        fileKeys: ctx.fileKeys,
+        allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
         userId: ctx.userId,
         isDeployedContext: ctx.isDeployedContext,
         enforceCredentialAccess: ctx.enforceCredentialAccess,
       },
     }
 
-    const result = await executeTool('function_execute', toolParams, false, ctx)
+    const result = await executeTool('function_execute', toolParams, { executionContext: ctx })
 
     if (!result.success) {
       throw new Error(result.error || 'Function execution failed')
     }
+
+    mergeLargeValueKeys(ctx, result.largeValueKeys ?? [])
+    mergeFileKeys(ctx, result.fileKeys ?? [])
 
     return result.output
   }

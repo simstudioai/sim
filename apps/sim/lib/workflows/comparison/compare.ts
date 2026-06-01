@@ -35,7 +35,7 @@ export function hasWorkflowChanged(
 /**
  * Represents a single field change with old and new values
  */
-export interface FieldChange {
+interface FieldChange {
   field: string
   oldValue: unknown
   newValue: unknown
@@ -195,7 +195,7 @@ export function generateWorkflowDiffSummary(
           newValue: currentBlock.enabled,
         })
       }
-      const blockFields = ['horizontalHandles', 'advancedMode', 'triggerMode', 'locked'] as const
+      const blockFields = ['horizontalHandles', 'advancedMode', 'triggerMode'] as const
       for (const field of blockFields) {
         if (!!currentBlock[field] !== !!previousBlock[field]) {
           changes.push({

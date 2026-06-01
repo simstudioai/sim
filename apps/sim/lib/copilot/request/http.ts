@@ -35,6 +35,10 @@ export function createBadRequestResponse(message: string): NextResponse {
   return NextResponse.json({ error: message }, { status: 400 })
 }
 
+export function createForbiddenResponse(message: string): NextResponse {
+  return NextResponse.json({ error: message }, { status: 403 })
+}
+
 export function createNotFoundResponse(message: string): NextResponse {
   return NextResponse.json({ error: message }, { status: 404 })
 }

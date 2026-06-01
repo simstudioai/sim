@@ -275,7 +275,11 @@ Filters use MongoDB-style operators for flexible querying:
 | `$lte` | Less than or equal | `{"quantity": {"$lte": 10}}` |
 | `$in` | In array | `{"status": {"$in": ["active", "pending"]}}` |
 | `$nin` | Not in array | `{"type": {"$nin": ["spam", "blocked"]}}` |
-| `$contains` | String contains | `{"email": {"$contains": "@gmail.com"}}` |
+| `$contains` | String contains (case-insensitive) | `{"email": {"$contains": "@gmail.com"}}` |
+| `$ncontains` | Does not contain (case-insensitive; matches empty cells) | `{"email": {"$ncontains": "@spam.com"}}` |
+| `$startsWith` | Starts with (case-insensitive) | `{"name": {"$startsWith": "Dr."}}` |
+| `$endsWith` | Ends with (case-insensitive) | `{"file": {"$endsWith": ".pdf"}}` |
+| `$empty` | Cell is empty (`true`) or non-empty (`false`) | `{"phone": {"$empty": true}}` |
 
 ### Combining Filters
 

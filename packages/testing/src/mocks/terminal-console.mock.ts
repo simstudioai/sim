@@ -1,3 +1,4 @@
+import { generateRandomString } from '@sim/utils/random'
 import { vi } from 'vitest'
 
 interface ConsoleEntryLike {
@@ -16,7 +17,7 @@ const entriesByWorkflow: Record<string, ConsoleEntryLike[]> = {}
 const mockGetWorkflowEntries = vi.fn((workflowId: string) => entriesByWorkflow[workflowId] ?? [])
 
 const mockAddConsole = vi.fn((entry: ConsoleEntryLike) => {
-  const stored = { ...entry, id: entry.id ?? `mock-${Math.random().toString(36).slice(2)}` }
+  const stored = { ...entry, id: entry.id ?? `mock-${generateRandomString(16)}` }
   if (!entriesByWorkflow[entry.workflowId]) entriesByWorkflow[entry.workflowId] = []
   entriesByWorkflow[entry.workflowId].push(stored)
   return stored

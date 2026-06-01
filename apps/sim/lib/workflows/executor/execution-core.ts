@@ -4,12 +4,16 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { filterUndefined } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
 import { isPlainRecord } from '@/lib/core/utils/records'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
+import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
+import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
@@ -36,6 +40,49 @@ const logger = createLogger('ExecutionCore')
 
 const EnvVarsSchema = z.record(z.string(), z.string())
 
+/**
+ * Surfaces the underlying driver error from a wrapped error chain.
+ *
+ * Drizzle wraps the original `postgres`/Node driver error as `error.cause`,
+ * which the logger's Error serializer drops (it only emits own-enumerable
+ * keys). Walking the chain from `error` itself and preferring the first error
+ * carrying a `code` exposes the diagnostic fields — notably the Postgres
+ * `code` — that distinguish a connection drop (`08006`), a rejected connection
+ * (`53300`), and a statement timeout (`57014`) behind an opaque "Failed query"
+ * message. Starting at `error` also captures a bare driver error that reaches
+ * this path unwrapped; when no error in the chain carries a `code`, it falls
+ * back to the first wrapped cause (the top-level error is already logged on its
+ * own, so it is not echoed here).
+ */
+function describeErrorCause(error: unknown): Record<string, unknown> | undefined {
+  try {
+    let driver: (Error & Record<string, unknown>) | undefined
+    let current: unknown = error
+    for (let depth = 0; depth < 10 && current instanceof Error; depth++) {
+      const candidate = current as Error & Record<string, unknown>
+      if (candidate.code !== undefined) {
+        driver = candidate
+        break
+      }
+      if (depth === 1) driver = candidate
+      current = candidate.cause
+    }
+    if (!driver) return undefined
+    return filterUndefined({
+      name: driver.name,
+      message: driver.message,
+      code: driver.code,
+      severity: driver.severity,
+      detail: driver.detail,
+      routine: driver.routine,
+      errno: driver.errno,
+      syscall: driver.syscall,
+    })
+  } catch {
+    return undefined
+  }
+}
+
 export interface ExecuteWorkflowCoreOptions {
   snapshot: ExecutionSnapshot
   callbacks: ExecutionCallbacks
@@ -49,10 +96,16 @@ export interface ExecuteWorkflowCoreOptions {
   runFromBlock?: {
     startBlockId: string
     sourceSnapshot: SerializableExecutionState
+    sourceExecutionId?: string
   }
 }
 
 function parseVariableValueByType(value: unknown, type: string): unknown {
+  const refValue = parseLargeExecutionValue(value)
+  if (refValue !== undefined) {
+    return refValue
+  }
+
   if (value === null || value === undefined) {
     switch (type) {
       case 'number':
@@ -235,7 +288,7 @@ async function finalizeExecutionError(params: {
       endedAt: new Date().toISOString(),
       totalDurationMs: executionResult?.metadata?.duration || 0,
       error: {
-        message: error instanceof Error ? error.message : 'Execution failed',
+        message: getErrorMessage(error, 'Execution failed'),
         stackTrace: error instanceof Error ? error.stack : undefined,
       },
       traceSpans,
@@ -367,6 +420,7 @@ export async function executeWorkflowCore(
       triggerData: metadata.correlation ? { correlation: metadata.correlation } : undefined,
       skipLogCreation,
       deploymentVersionId,
+      workflowState: { blocks, edges, loops, parallels },
     })
 
     // Use edges directly - trigger-to-trigger edges are prevented at creation time
@@ -552,10 +606,28 @@ export async function executeWorkflowCore(
       return persistencePromise
     }
 
+    const largeValueExecutionIds = Array.from(
+      new Set(
+        [executionId, ...(metadata.largeValueExecutionIds ?? [])].filter((id): id is string =>
+          Boolean(id)
+        )
+      )
+    )
+    const largeValueKeys = metadata.largeValueKeys
+    const fileKeys = metadata.fileKeys
+    const allowLargeValueWorkflowScope =
+      metadata.allowLargeValueWorkflowScope === true ||
+      metadata.resumeFromSnapshot === true ||
+      Boolean(runFromBlock?.sourceSnapshot && !runFromBlock.sourceExecutionId)
+
     const contextExtensions: ContextExtensions = {
       stream: !!onStream,
       selectedOutputs,
       executionId,
+      largeValueExecutionIds,
+      largeValueKeys,
+      fileKeys,
+      allowLargeValueWorkflowScope,
       workspaceId: providedWorkspaceId,
       userId,
       isDeployedContext: !metadata.isClientSession,
@@ -582,6 +654,18 @@ export async function executeWorkflowCore(
       callChain: metadata.callChain,
     }
 
+    if (snapshot.state) {
+      await warmLargeValueRefs(snapshot.state, {
+        workspaceId: providedWorkspaceId,
+        workflowId,
+        executionId,
+        largeValueExecutionIds,
+        largeValueKeys,
+        fileKeys,
+        allowLargeValueWorkflowScope,
+        userId,
+      })
+    }
     for (const variable of Object.values(workflowVariables)) {
       if (
         isPlainRecord(variable) &&
@@ -642,7 +726,12 @@ export async function executeWorkflowCore(
 
     return result
   } catch (error: unknown) {
-    logger.error(`[${requestId}] Execution failed:`, error)
+    const errorCause = describeErrorCause(error)
+    logger.error(
+      `[${requestId}] Execution failed:`,
+      error,
+      ...(errorCause ? [{ cause: errorCause }] : [])
+    )
 
     await waitForLifecycleCallbacks()
 

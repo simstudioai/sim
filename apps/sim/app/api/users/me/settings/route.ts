@@ -20,6 +20,7 @@ const defaultSettings = {
   billingUsageNotificationsEnabled: true,
   showTrainingControls: false,
   superUserModeEnabled: false,
+  mothershipEnvironment: 'default',
   errorNotificationsEnabled: true,
   snapToGridSize: 0,
   showActionBar: true,
@@ -38,7 +39,24 @@ export const GET = withRouteHandler(async () => {
     }
 
     const userId = session.user.id
-    const result = await db.select().from(settings).where(eq(settings.userId, userId)).limit(1)
+    const result = await db
+      .select({
+        theme: settings.theme,
+        autoConnect: settings.autoConnect,
+        telemetryEnabled: settings.telemetryEnabled,
+        emailPreferences: settings.emailPreferences,
+        billingUsageNotificationsEnabled: settings.billingUsageNotificationsEnabled,
+        showTrainingControls: settings.showTrainingControls,
+        superUserModeEnabled: settings.superUserModeEnabled,
+        mothershipEnvironment: settings.mothershipEnvironment,
+        errorNotificationsEnabled: settings.errorNotificationsEnabled,
+        snapToGridSize: settings.snapToGridSize,
+        showActionBar: settings.showActionBar,
+        lastActiveWorkspaceId: settings.lastActiveWorkspaceId,
+      })
+      .from(settings)
+      .where(eq(settings.userId, userId))
+      .limit(1)
 
     if (!result.length) {
       return NextResponse.json({ data: defaultSettings }, { status: 200 })
@@ -56,6 +74,7 @@ export const GET = withRouteHandler(async () => {
           billingUsageNotificationsEnabled: userSettings.billingUsageNotificationsEnabled ?? true,
           showTrainingControls: userSettings.showTrainingControls ?? false,
           superUserModeEnabled: userSettings.superUserModeEnabled ?? false,
+          mothershipEnvironment: userSettings.mothershipEnvironment ?? 'default',
           errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,
           snapToGridSize: userSettings.snapToGridSize ?? 0,
           showActionBar: userSettings.showActionBar ?? true,

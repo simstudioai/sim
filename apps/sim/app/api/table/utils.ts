@@ -11,12 +11,12 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableUtils')
 
-export interface TableAccessResult {
+interface TableAccessResult {
   hasAccess: true
   table: TableDefinition
 }
 
-export interface TableAccessDenied {
+interface TableAccessDenied {
   hasAccess: false
   notFound?: boolean
   reason?: string
@@ -26,7 +26,7 @@ export type TableAccessCheck = TableAccessResult | TableAccessDenied
 
 export type AccessResult = { ok: true; table: TableDefinition } | { ok: false; status: 404 | 403 }
 
-export interface ApiErrorResponse {
+interface ApiErrorResponse {
   error: string
   details?: unknown
 }
@@ -35,7 +35,7 @@ export interface ApiErrorResponse {
  * Check if a user has read access to a table.
  * Read access requires any workspace permission (read, write, or admin).
  */
-export async function checkTableAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
+async function checkTableAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
   const table = await getTableById(tableId)
 
   if (!table) {
@@ -54,10 +54,7 @@ export async function checkTableAccess(tableId: string, userId: string): Promise
  * Check if a user has write access to a table.
  * Write access requires write or admin workspace permission.
  */
-export async function checkTableWriteAccess(
-  tableId: string,
-  userId: string
-): Promise<TableAccessCheck> {
+async function checkTableWriteAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
   const table = await getTableById(tableId)
 
   if (!table) {
@@ -122,7 +119,7 @@ export function tableAccessError(
   return NextResponse.json({ error: message }, { status })
 }
 
-export async function verifyTableWorkspace(tableId: string, workspaceId: string): Promise<boolean> {
+async function verifyTableWorkspace(tableId: string, workspaceId: string): Promise<boolean> {
   const table = await getTableById(tableId)
   return table?.workspaceId === workspaceId
 }

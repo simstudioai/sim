@@ -7,6 +7,7 @@ import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const logger = createLogger('InputValidation')
 
@@ -251,6 +252,7 @@ export interface SecureFetchResponse {
   status: number
   statusText: string
   headers: SecureFetchHeaders
+  body: ReadableStream<Uint8Array> | null
   text: () => Promise<string>
   json: () => Promise<unknown>
   arrayBuffer: () => Promise<ArrayBuffer>
@@ -260,6 +262,10 @@ const DEFAULT_MAX_REDIRECTS = 5
 
 function isRedirectStatus(status: number): boolean {
   return status >= 300 && status < 400 && status !== 304
+}
+
+function isRetryableHttpStatus(status: number): boolean {
+  return status === 429 || (status >= 500 && status <= 599)
 }
 
 function resolveRedirectUrl(baseUrl: string, location: string): string {
@@ -361,67 +367,124 @@ export async function secureFetchWithPinnedIP(
         return
       }
 
-      const chunks: Buffer[] = []
-      let totalBytes = 0
-      let responseTerminated = false
+      const headersRecord: Record<string, string> = {}
+      let setCookieArray: string[] = []
+      for (const [key, value] of Object.entries(res.headers)) {
+        const lowerKey = key.toLowerCase()
+        if (lowerKey === 'set-cookie') {
+          if (Array.isArray(value)) {
+            setCookieArray = value
+            headersRecord[lowerKey] = value.join(', ')
+          } else if (typeof value === 'string') {
+            setCookieArray = [value]
+            headersRecord[lowerKey] = value
+          }
+        } else if (typeof value === 'string') {
+          headersRecord[lowerKey] = value
+        } else if (Array.isArray(value)) {
+          headersRecord[lowerKey] = value.join(', ')
+        }
+      }
 
-      res.on('data', (chunk: Buffer) => {
-        if (responseTerminated) return
-
-        totalBytes += chunk.length
-        if (
-          typeof maxResponseBytes === 'number' &&
-          maxResponseBytes > 0 &&
-          totalBytes > maxResponseBytes
-        ) {
-          responseTerminated = true
-          res.destroy(new Error(`Response exceeded maximum size of ${maxResponseBytes} bytes`))
+      const contentLength = headersRecord['content-length']
+      if (typeof maxResponseBytes === 'number' && maxResponseBytes > 0 && contentLength) {
+        const parsedLength = Number.parseInt(contentLength, 10)
+        if (Number.isFinite(parsedLength) && parsedLength > maxResponseBytes) {
+          cleanupAbort()
+          res.destroy()
+          req.destroy()
+          if (isRetryableHttpStatus(statusCode)) {
+            settledResolve({
+              ok: false,
+              status: statusCode,
+              statusText: res.statusMessage || '',
+              headers: new SecureFetchHeaders(headersRecord, setCookieArray),
+              body: null,
+              text: async () => '',
+              json: async () => ({}),
+              arrayBuffer: async () => new ArrayBuffer(0),
+            })
+            return
+          }
+          settledReject(
+            new PayloadSizeLimitError({
+              label: 'response body',
+              maxBytes: maxResponseBytes,
+              observedBytes: parsedLength,
+            })
+          )
           return
         }
+      }
 
-        chunks.push(chunk)
-      })
-
-      res.on('error', (error) => {
-        settledReject(error)
-      })
-
-      res.on('end', () => {
-        if (responseTerminated) return
-        const bodyBuffer = Buffer.concat(chunks)
-        const body = bodyBuffer.toString('utf-8')
-        const headersRecord: Record<string, string> = {}
-        let setCookieArray: string[] = []
-        for (const [key, value] of Object.entries(res.headers)) {
-          const lowerKey = key.toLowerCase()
-          if (lowerKey === 'set-cookie') {
-            if (Array.isArray(value)) {
-              setCookieArray = value
-              headersRecord[lowerKey] = value.join(', ')
-            } else if (typeof value === 'string') {
-              setCookieArray = [value]
-              headersRecord[lowerKey] = value
+      let totalBytes = 0
+      const nodeRes = res
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          nodeRes.on('data', (chunk: Buffer) => {
+            totalBytes += chunk.length
+            if (
+              typeof maxResponseBytes === 'number' &&
+              maxResponseBytes > 0 &&
+              totalBytes > maxResponseBytes
+            ) {
+              cleanupAbort()
+              controller.error(
+                new PayloadSizeLimitError({
+                  label: 'response body',
+                  maxBytes: maxResponseBytes,
+                  observedBytes: totalBytes,
+                })
+              )
+              nodeRes.destroy()
+              return
             }
-          } else if (typeof value === 'string') {
-            headersRecord[lowerKey] = value
-          } else if (Array.isArray(value)) {
-            headersRecord[lowerKey] = value.join(', ')
-          }
-        }
+            controller.enqueue(new Uint8Array(chunk))
+          })
+          nodeRes.on('end', () => {
+            cleanupAbort()
+            controller.close()
+          })
+          nodeRes.on('error', (err) => {
+            cleanupAbort()
+            controller.error(err)
+          })
+        },
+        cancel() {
+          cleanupAbort()
+          nodeRes.destroy()
+        },
+      })
 
-        settledResolve({
-          ok: statusCode >= 200 && statusCode < 300,
-          status: statusCode,
-          statusText: res.statusMessage || '',
-          headers: new SecureFetchHeaders(headersRecord, setCookieArray),
-          text: async () => body,
-          json: async () => JSON.parse(body),
-          arrayBuffer: async () =>
-            bodyBuffer.buffer.slice(
-              bodyBuffer.byteOffset,
-              bodyBuffer.byteOffset + bodyBuffer.byteLength
-            ),
-        })
+      let bodyBufferPromise: Promise<Buffer> | null = null
+      function readBodyAsBuffer(): Promise<Buffer> {
+        if (!bodyBufferPromise) {
+          bodyBufferPromise = (async () => {
+            const reader = body.getReader()
+            const buffers: Uint8Array[] = []
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              if (value) buffers.push(value)
+            }
+            return Buffer.concat(buffers.map((b) => Buffer.from(b)))
+          })()
+        }
+        return bodyBufferPromise
+      }
+
+      settledResolve({
+        ok: statusCode >= 200 && statusCode < 300,
+        status: statusCode,
+        statusText: res.statusMessage || '',
+        headers: new SecureFetchHeaders(headersRecord, setCookieArray),
+        body,
+        text: async () => (await readBodyAsBuffer()).toString('utf-8'),
+        json: async () => JSON.parse((await readBodyAsBuffer()).toString('utf-8')),
+        arrayBuffer: async () => {
+          const buf = await readBodyAsBuffer()
+          return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
+        },
       })
     })
 
@@ -433,7 +496,6 @@ export async function secureFetchWithPinnedIP(
       }
     }
     const settledResolve: typeof resolve = (value) => {
-      cleanupAbort()
       resolve(value)
     }
     const settledReject: typeof reject = (reason) => {

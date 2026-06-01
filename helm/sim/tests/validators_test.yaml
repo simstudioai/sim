@@ -1,0 +1,85 @@
+suite: validators — required secrets fail clearly
+templates:
+  - deployment-app.yaml
+release:
+  name: t
+  namespace: sim
+
+tests:
+  - it: fails when BETTER_AUTH_SECRET is missing
+    set:
+      app.env.BETTER_AUTH_SECRET: ""
+      app.env.ENCRYPTION_KEY: x
+      app.env.INTERNAL_API_SECRET: x
+      app.env.CRON_SECRET: x
+      postgresql.auth.password: x
+    asserts:
+      - failedTemplate:
+          errorMessage: "app.env.BETTER_AUTH_SECRET is required for production deployment"
+
+  - it: fails when ENCRYPTION_KEY is missing
+    set:
+      app.env.BETTER_AUTH_SECRET: x
+      app.env.ENCRYPTION_KEY: ""
+      app.env.INTERNAL_API_SECRET: x
+      app.env.CRON_SECRET: x
+      postgresql.auth.password: x
+    asserts:
+      - failedTemplate:
+          errorMessage: "app.env.ENCRYPTION_KEY is required for production deployment"
+
+  - it: fails when INTERNAL_API_SECRET is missing (1.0.0 requirement)
+    set:
+      app.env.BETTER_AUTH_SECRET: x
+      app.env.ENCRYPTION_KEY: x
+      app.env.INTERNAL_API_SECRET: ""
+      app.env.CRON_SECRET: x
+      postgresql.auth.password: x
+    asserts:
+      - failedTemplate:
+          errorMessage: "app.env.INTERNAL_API_SECRET is required for production deployment (shared auth between sim-app and sim-realtime pods). Generate one with: openssl rand -hex 32"
+
+  - it: fails when cronjobs are enabled but CRON_SECRET is empty
+    set:
+      app.env.BETTER_AUTH_SECRET: x
+      app.env.ENCRYPTION_KEY: x
+      app.env.INTERNAL_API_SECRET: x
+      app.env.CRON_SECRET: ""
+      cronjobs.enabled: true
+      postgresql.auth.password: x
+    asserts:
+      - failedTemplate:
+          errorMessage: "app.env.CRON_SECRET is required when cronjobs.enabled=true (every cron pod authenticates with this token). Generate one with: openssl rand -hex 32, or set cronjobs.enabled=false."
+
+  - it: fails when postgresql.auth.password is missing
+    set:
+      app.env.BETTER_AUTH_SECRET: x
+      app.env.ENCRYPTION_KEY: x
+      app.env.INTERNAL_API_SECRET: x
+      app.env.CRON_SECRET: x
+      postgresql.auth.password: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "postgresql.auth.password is required when using internal PostgreSQL"
+
+  - it: rejects postgres passwords with URL-unsafe characters
+    set:
+      app.env.BETTER_AUTH_SECRET: x
+      app.env.ENCRYPTION_KEY: x
+      app.env.INTERNAL_API_SECRET: x
+      app.env.CRON_SECRET: x
+      postgresql.auth.password: "pa$$word"
+    asserts:
+      - failedTemplate:
+          errorPattern: "postgresql.auth.password must only contain alphanumeric"
+
+  - it: rejects placeholder BETTER_AUTH_SECRET
+    set:
+      app.env.BETTER_AUTH_SECRET: "CHANGE-ME-32-CHAR-SECRET-FOR-PRODUCTION-USE"
+      app.env.ENCRYPTION_KEY: x
+      app.env.INTERNAL_API_SECRET: x
+      app.env.CRON_SECRET: x
+      postgresql.auth.password: x
+    asserts:
+      - failedTemplate:
+          errorPattern: "must not use the default placeholder value"

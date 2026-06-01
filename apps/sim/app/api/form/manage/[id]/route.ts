@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { formIdParamsSchema, updateFormContract } from '@/lib/api/contracts/forms'
@@ -13,10 +14,6 @@ import { checkFormAccess, DEFAULT_FORM_CUSTOMIZATIONS } from '@/app/api/form/uti
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('FormManageAPI')
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback
-}
 
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -197,9 +194,12 @@ export const DELETE = withRouteHandler(
         return createErrorResponse('Form not found or access denied', 404)
       }
 
-      await db.delete(form).where(eq(form.id, id))
+      await db
+        .update(form)
+        .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
+        .where(eq(form.id, id))
 
-      logger.info(`Form ${id} deleted (soft delete)`)
+      logger.info(`Form ${id} soft deleted`)
 
       recordAudit({
         workspaceId: formWorkspaceId ?? null,

@@ -63,7 +63,20 @@ export const GET = withRouteHandler(
           .from(workflow)
           .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt))),
         db
-          .select()
+          .select({
+            id: workflow.id,
+            name: workflow.name,
+            description: workflow.description,
+            color: workflow.color,
+            workspaceId: workflow.workspaceId,
+            folderId: workflow.folderId,
+            isDeployed: workflow.isDeployed,
+            deployedAt: workflow.deployedAt,
+            runCount: workflow.runCount,
+            lastRunAt: workflow.lastRunAt,
+            createdAt: workflow.createdAt,
+            updatedAt: workflow.updatedAt,
+          })
           .from(workflow)
           .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
           .orderBy(workflow.name)

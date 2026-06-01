@@ -7,22 +7,40 @@ import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockFrom, mockWhere, mockLimit, mockUpdate, mockSet, mockUpdateWhere } =
-  vi.hoisted(() => ({
-    mockSelect: vi.fn(),
-    mockFrom: vi.fn(),
-    mockWhere: vi.fn(),
-    mockLimit: vi.fn(),
-    mockUpdate: vi.fn(),
-    mockSet: vi.fn(),
-    mockUpdateWhere: vi.fn(),
-  }))
+const {
+  mockSelect,
+  mockFrom,
+  mockWhere,
+  mockLimit,
+  mockUpdate,
+  mockSet,
+  mockUpdateWhere,
+  mockReturning,
+  mockReplaceCopilotChatMessages,
+} = vi.hoisted(() => ({
+  mockSelect: vi.fn(),
+  mockFrom: vi.fn(),
+  mockWhere: vi.fn(),
+  mockLimit: vi.fn(),
+  mockUpdate: vi.fn(),
+  mockSet: vi.fn(),
+  mockUpdateWhere: vi.fn(),
+  mockReturning: vi.fn(),
+  mockReplaceCopilotChatMessages: vi.fn(),
+}))
 
 vi.mock('@sim/db', () => ({
   db: {
     select: mockSelect,
     update: mockUpdate,
+    transaction: async (
+      cb: (tx: { update: typeof mockUpdate; select: typeof mockSelect }) => unknown
+    ) => cb({ update: mockUpdate, select: mockSelect }),
   },
+}))
+
+vi.mock('@/lib/copilot/chat/messages-store', () => ({
+  replaceCopilotChatMessages: mockReplaceCopilotChatMessages,
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -51,8 +69,9 @@ describe('Copilot Chat Update Messages API Route', () => {
     mockWhere.mockReturnValue({ limit: mockLimit })
     mockLimit.mockResolvedValue([])
     mockUpdate.mockReturnValue({ set: mockSet })
-    mockUpdateWhere.mockResolvedValue(undefined)
     mockSet.mockReturnValue({ where: mockUpdateWhere })
+    mockUpdateWhere.mockReturnValue({ returning: mockReturning })
+    mockReturning.mockResolvedValue([{ model: 'gpt-4' }])
   })
 
   afterEach(() => {
@@ -247,10 +266,13 @@ describe('Copilot Chat Update Messages API Route', () => {
 
       expect(mockSelect).toHaveBeenCalled()
       expect(mockUpdate).toHaveBeenCalled()
-      expect(mockSet).toHaveBeenCalledWith({
+      expect(mockSet).toHaveBeenCalledWith({ updatedAt: expect.any(Date) })
+      expect(mockReplaceCopilotChatMessages).toHaveBeenCalledWith(
+        'chat-123',
         messages,
-        updatedAt: expect.any(Date),
-      })
+        { chatModel: 'gpt-4' },
+        expect.anything()
+      )
     })
 
     it('should successfully update chat messages with optional fields', async () => {
@@ -305,8 +327,10 @@ describe('Copilot Chat Update Messages API Route', () => {
         messageCount: 2,
       })
 
-      expect(mockSet).toHaveBeenCalledWith({
-        messages: [
+      expect(mockSet).toHaveBeenCalledWith({ updatedAt: expect.any(Date) })
+      expect(mockReplaceCopilotChatMessages).toHaveBeenCalledWith(
+        'chat-456',
+        [
           {
             id: 'msg-1',
             role: 'user',
@@ -335,8 +359,9 @@ describe('Copilot Chat Update Messages API Route', () => {
             ],
           },
         ],
-        updatedAt: expect.any(Date),
-      })
+        { chatModel: 'gpt-4' },
+        expect.anything()
+      )
     })
 
     it('should handle empty messages array', async () => {
@@ -363,10 +388,13 @@ describe('Copilot Chat Update Messages API Route', () => {
         messageCount: 0,
       })
 
-      expect(mockSet).toHaveBeenCalledWith({
-        messages: [],
-        updatedAt: expect.any(Date),
-      })
+      expect(mockSet).toHaveBeenCalledWith({ updatedAt: expect.any(Date) })
+      expect(mockReplaceCopilotChatMessages).toHaveBeenCalledWith(
+        'chat-789',
+        [],
+        { chatModel: 'gpt-4' },
+        expect.anything()
+      )
     })
 
     it('should handle database errors during chat lookup', async () => {
@@ -475,10 +503,13 @@ describe('Copilot Chat Update Messages API Route', () => {
         messageCount: 100,
       })
 
-      expect(mockSet).toHaveBeenCalledWith({
+      expect(mockSet).toHaveBeenCalledWith({ updatedAt: expect.any(Date) })
+      expect(mockReplaceCopilotChatMessages).toHaveBeenCalledWith(
+        'chat-large',
         messages,
-        updatedAt: expect.any(Date),
-      })
+        { chatModel: 'gpt-4' },
+        expect.anything()
+      )
     })
 
     it('should handle messages with both user and assistant roles', async () => {

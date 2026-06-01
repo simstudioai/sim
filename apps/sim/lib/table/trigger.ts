@@ -9,8 +9,6 @@
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import type { RowData, TableRow, TableSchema } from '@/lib/table/types'
-import { fetchActiveWebhooks } from '@/lib/webhooks/polling/utils'
-import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
 
 const logger = createLogger('TableTrigger')
 
@@ -57,6 +55,10 @@ export async function fireTableTrigger(
   requestId: string
 ): Promise<void> {
   try {
+    // Lazy: the webhook utils/processor pull in the executor + blocks stack.
+    // Eager imports would force every `lib/table/service` consumer (e.g. the
+    // dispatcher) to pay that cold-start even when no trigger fires.
+    const { fetchActiveWebhooks } = await import('@/lib/webhooks/polling/utils')
     const webhooks = await fetchActiveWebhooks('table')
     if (webhooks.length === 0) return
 
@@ -73,6 +75,8 @@ export async function fireTableTrigger(
     })
 
     if (matching.length === 0) return
+
+    const { processPolledWebhookEvent } = await import('@/lib/webhooks/processor')
 
     logger.info(
       `[${requestId}] Firing ${matching.length} trigger(s) for ${rows.length} ${eventType} event(s) in table ${tableId}`

@@ -120,10 +120,43 @@ describe('WaitBlockHandler', () => {
     ).rejects.toThrow('Unknown wait unit: fortnights')
   })
 
-  it('should reject waits longer than the 30-day ceiling', async () => {
+  it('should reject async waits longer than the 30-day ceiling', async () => {
     await expect(
-      handler.execute(mockContext, mockBlock, { timeValue: '31', timeUnit: 'days' })
+      handler.execute(mockContext, mockBlock, {
+        async: true,
+        timeValue: '31',
+        timeUnitLong: 'days',
+      })
     ).rejects.toThrow('Wait time exceeds maximum of 30 days')
+  })
+
+  it('should reject synchronous waits longer than 5 minutes', async () => {
+    await expect(
+      handler.execute(mockContext, mockBlock, { timeValue: '10', timeUnit: 'minutes' })
+    ).rejects.toThrow('Wait time exceeds maximum of 5 minutes')
+  })
+
+  it('should default the async unit to minutes when timeUnitLong is missing', async () => {
+    vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
+
+    const result = (await handler.execute(mockContext, mockBlock, {
+      async: true,
+      timeValue: '3',
+    })) as Record<string, any>
+
+    const waitMs = 3 * 60 * 1000
+    expect(result.waitDuration).toBe(waitMs)
+    expect(result.status).toBe('waiting')
+  })
+
+  it('should reject seconds as a unit in async mode', async () => {
+    await expect(
+      handler.execute(mockContext, mockBlock, {
+        async: true,
+        timeValue: '30',
+        timeUnitLong: 'seconds',
+      })
+    ).rejects.toThrow('Seconds are not allowed in async mode')
   })
 
   it('should still execute in-process at the 5-minute boundary', async () => {
@@ -144,7 +177,7 @@ describe('WaitBlockHandler', () => {
   it('should suspend the workflow when wait exceeds the in-process threshold', async () => {
     vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
 
-    const inputs = { timeValue: '10', timeUnit: 'minutes' }
+    const inputs = { async: true, timeValue: '10', timeUnitLong: 'minutes' }
 
     const result = (await handler.execute(mockContext, mockBlock, inputs)) as Record<string, any>
 
@@ -167,7 +200,7 @@ describe('WaitBlockHandler', () => {
   it('should suspend the workflow for multi-day waits', async () => {
     vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
 
-    const inputs = { timeValue: '2', timeUnit: 'days' }
+    const inputs = { async: true, timeValue: '2', timeUnitLong: 'days' }
 
     const result = (await handler.execute(mockContext, mockBlock, inputs)) as Record<string, any>
 
@@ -185,8 +218,9 @@ describe('WaitBlockHandler', () => {
     vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
 
     const result = (await handler.execute(mockContext, mockBlock, {
+      async: true,
       timeValue: '3',
-      timeUnit: 'hours',
+      timeUnitLong: 'hours',
     })) as Record<string, any>
 
     const waitMs = 3 * 60 * 60 * 1000
@@ -237,8 +271,9 @@ describe('WaitBlockHandler', () => {
     mockContext.abortSignal = abortController.signal
 
     const result = (await handler.execute(mockContext, mockBlock, {
+      async: true,
       timeValue: '1',
-      timeUnit: 'hours',
+      timeUnitLong: 'hours',
     })) as Record<string, any>
 
     expect(result.status).toBe('waiting')
@@ -264,13 +299,33 @@ describe('WaitBlockHandler', () => {
     vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
 
     const result = (await handler.execute(mockContext, mockBlock, {
+      async: true,
       timeValue: '1.5',
-      timeUnit: 'days',
+      timeUnitLong: 'days',
     })) as Record<string, any>
 
     const waitMs = 1.5 * 24 * 60 * 60 * 1000
     expect(result.waitDuration).toBe(waitMs)
     expect(result.status).toBe('waiting')
     expect(result._pauseMetadata.pauseKind).toBe('time')
+  })
+
+  it('should always suspend when async is enabled, even for short waits', async () => {
+    vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
+
+    const result = (await handler.execute(mockContext, mockBlock, {
+      async: true,
+      timeValue: '2',
+      timeUnitLong: 'minutes',
+    })) as Record<string, any>
+
+    const waitMs = 2 * 60 * 1000
+    const expectedResumeAt = new Date(Date.now() + waitMs).toISOString()
+
+    expect(result.status).toBe('waiting')
+    expect(result.waitDuration).toBe(waitMs)
+    expect(result.resumeAt).toBe(expectedResumeAt)
+    expect(result._pauseMetadata.pauseKind).toBe('time')
+    expect(result._pauseMetadata.resumeAt).toBe(expectedResumeAt)
   })
 })

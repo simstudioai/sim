@@ -47,7 +47,7 @@ export function ApiKeysSkeleton() {
       <div className='mt-6 flex items-center justify-between'>
         <div className='flex items-center gap-2'>
           <Skeleton className='h-5 w-[170px]' />
-          <Skeleton className='h-3 w-3 rounded-full' />
+          <Skeleton className='size-3 rounded-full' />
         </div>
         <Skeleton className='h-5 w-9 rounded-full' />
       </div>

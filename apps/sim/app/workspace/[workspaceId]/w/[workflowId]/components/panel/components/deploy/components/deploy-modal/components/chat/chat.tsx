@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { AlertTriangle, Check, Clipboard, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import {
   Button,
@@ -13,6 +14,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Skeleton,
@@ -122,7 +124,7 @@ export function ChatDeploy({
   const updateChatMutation = useUpdateChat()
   const deleteChatMutation = useDeleteChat()
   const [isIdentifierValid, setIsIdentifierValid] = useState(false)
-  const [hasInitializedForm, setHasInitializedForm] = useState(false)
+  const hasInitializedFormRef = useRef(false)
   const existingPassword = hasExistingPassword(existingChat)
 
   const updateField = <K extends keyof ChatFormData>(field: K, value: ChatFormData[K]) => {
@@ -180,7 +182,7 @@ export function ChatDeploy({
   }, [isFormValid, onValidationChange])
 
   useEffect(() => {
-    if (existingChat && !hasInitializedForm) {
+    if (existingChat && !hasInitializedFormRef.current) {
       setFormData({
         identifier: existingChat.identifier || '',
         title: existingChat.title || '',
@@ -201,13 +203,13 @@ export function ChatDeploy({
         setImageUrl(existingChat.customizations.imageUrl)
       }
 
-      setHasInitializedForm(true)
+      hasInitializedFormRef.current = true
     } else if (!existingChat && !isLoadingChat) {
       setFormData(initialFormData)
       setImageUrl(null)
-      setHasInitializedForm(false)
+      hasInitializedFormRef.current = false
     }
-  }, [existingChat, isLoadingChat, hasInitializedForm])
+  }, [existingChat, isLoadingChat])
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
@@ -218,7 +220,6 @@ export function ChatDeploy({
 
     const isNewChat = !existingChat?.id
 
-    // Open window before async operation to avoid popup blockers
     const newTab = isNewChat ? window.open('', '_blank') : null
 
     try {
@@ -264,15 +265,16 @@ export function ChatDeploy({
         newTab.close()
       }
 
+      hasInitializedFormRef.current = false
       await onRefetchChat()
-      setHasInitializedForm(false)
       setFormInitCounter((c) => c + 1)
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = getErrorMessage(error)
       newTab?.close()
-      if (error.message?.includes('identifier')) {
-        setError('identifier', error.message)
+      if (message.includes('identifier')) {
+        setError('identifier', message)
       } else {
-        setError('general', error.message)
+        setError('general', message)
       }
     } finally {
       setChatSubmitting(false)
@@ -289,14 +291,14 @@ export function ChatDeploy({
       })
 
       setImageUrl(null)
-      setHasInitializedForm(false)
+      hasInitializedFormRef.current = false
       setFormInitCounter((c) => c + 1)
       await onRefetchChat()
 
       onDeploymentComplete?.()
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to delete chat:', error)
-      setError('general', error.message || 'An unexpected error occurred while deleting')
+      setError('general', getErrorMessage(error) || 'An unexpected error occurred while deleting')
     } finally {
       setShowDeleteConfirmation(false)
     }
@@ -315,8 +317,8 @@ export function ChatDeploy({
         className='-mx-1 space-y-4 overflow-y-auto px-1'
       >
         {errors.general && (
-          <div className='flex items-center gap-2 rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-red-400 text-small'>
-            <AlertTriangle className='h-4 w-4 flex-shrink-0' />
+          <div className='flex items-center gap-2 rounded-md border border-[color-mix(in_srgb,var(--text-error)_20%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] px-3 py-2 text-[var(--text-error)] text-small'>
+            <AlertTriangle className='size-4 flex-shrink-0' />
             <span>{errors.general}</span>
           </div>
         )}
@@ -346,7 +348,9 @@ export function ChatDeploy({
               required
               disabled={chatSubmitting}
             />
-            {errors.title && <p className='mt-1 text-destructive text-sm'>{errors.title}</p>}
+            {errors.title && (
+              <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{errors.title}</p>
+            )}
           </div>
 
           <div>
@@ -361,7 +365,9 @@ export function ChatDeploy({
               disabled={chatSubmitting}
             />
             {errors.outputBlocks && (
-              <p className='mt-1 text-destructive text-sm'>{errors.outputBlocks}</p>
+              <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>
+                {errors.outputBlocks}
+              </p>
             )}
           </div>
 
@@ -402,7 +408,7 @@ export function ChatDeploy({
             type='button'
             data-delete-trigger
             onClick={() => setShowDeleteConfirmation(true)}
-            style={{ display: 'none' }}
+            className='hidden'
           />
         </div>
       </form>
@@ -411,7 +417,7 @@ export function ChatDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Delete Chat</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {existingChat?.title || 'this chat'}
@@ -422,7 +428,7 @@ export function ChatDeploy({
                 and make it unavailable to all users.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button
@@ -527,11 +533,11 @@ function IdentifierInput({
       </Label>
       <div
         className={cn(
-          'relative flex items-stretch overflow-hidden rounded-sm border border-[var(--border-1)]',
+          'relative flex items-stretch overflow-hidden rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)]',
           error && 'border-[var(--text-error)]'
         )}
       >
-        <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-1.5 pl-2 font-medium text-[var(--text-secondary)] text-sm dark:bg-[var(--surface-5)]'>
+        <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-1.5 pl-2 font-medium text-[var(--text-secondary)] text-sm'>
           {getDomainPrefix()}
         </div>
         <div className='relative flex-1'>
@@ -543,13 +549,13 @@ function IdentifierInput({
             required
             disabled={disabled}
             className={cn(
-              'rounded-none border-0 pl-0 shadow-none disabled:bg-transparent disabled:opacity-100',
+              'rounded-none border-0 bg-transparent pl-0 shadow-none disabled:bg-transparent disabled:opacity-100',
               (isChecking || (isValid && value)) && 'pr-8'
             )}
           />
           {isChecking ? (
             <div className='-translate-y-1/2 absolute top-1/2 right-2'>
-              <Loader className='h-4 w-4 text-[var(--text-tertiary)]' animate />
+              <Loader className='size-4 text-[var(--text-tertiary)]' animate />
             </div>
           ) : (
             isValid &&
@@ -558,7 +564,7 @@ function IdentifierInput({
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <div className='-translate-y-1/2 absolute top-1/2 right-2'>
-                    <Check className='h-4 w-4 text-[var(--brand-accent)]' />
+                    <Check className='size-4 text-[var(--brand-accent)]' />
                   </div>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -624,9 +630,7 @@ function AuthSelector({
   const [showPassword, setShowPassword] = useState(false)
   const [emailError, setEmailError] = useState('')
   const [copySuccess, setCopySuccess] = useState(false)
-  const [emailItems, setEmailItems] = useState<TagItem[]>(() =>
-    emails.map((email) => ({ value: email, isValid: true }))
-  )
+  const [invalidEmailItems, setInvalidEmailItems] = useState<TagItem[]>([])
 
   useEffect(() => {
     if (!copySuccess) return
@@ -652,25 +656,36 @@ function AuthSelector({
     const validation = quickValidateEmail(normalized)
     const isValid = validation.isValid || isDomainPattern
 
-    if (emailItems.some((item) => item.value === normalized)) {
+    if (
+      emails.includes(normalized) ||
+      invalidEmailItems.some((item) => item.value === normalized)
+    ) {
       return false
     }
-
-    setEmailItems((prev) => [...prev, { value: normalized, isValid }])
 
     if (isValid) {
       setEmailError('')
       onEmailsChange([...emails, normalized])
+    } else {
+      setInvalidEmailItems((prev) => [...prev, { value: normalized, isValid }])
     }
 
     return isValid
   }
 
-  const handleRemoveEmailItem = (_value: string, index: number, isValid: boolean) => {
+  const emailItems = [
+    ...emails.map((email) => ({ value: email, isValid: true })),
+    ...invalidEmailItems,
+  ]
+
+  const handleRemoveEmailItem = (_value: string, index: number) => {
     const itemToRemove = emailItems[index]
-    setEmailItems((prev) => prev.filter((_, i) => i !== index))
-    if (isValid && itemToRemove) {
+    if (!itemToRemove) return
+
+    if (itemToRemove.isValid) {
       onEmailsChange(emails.filter((e) => e !== itemToRemove.value))
+    } else {
+      setInvalidEmailItems((prev) => prev.filter((item) => item.value !== itemToRemove.value))
     }
   }
 
@@ -725,7 +740,7 @@ function AuthSelector({
                     aria-label='Generate password'
                     className='!p-1.5'
                   >
-                    <RefreshCw className='h-3 w-3' />
+                    <RefreshCw className='size-3' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -742,11 +757,7 @@ function AuthSelector({
                     aria-label='Copy password'
                     className='!p-1.5'
                   >
-                    {copySuccess ? (
-                      <Check className='h-3 w-3' />
-                    ) : (
-                      <Clipboard className='h-3 w-3' />
-                    )}
+                    {copySuccess ? <Check className='size-3' /> : <Clipboard className='size-3' />}
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -763,7 +774,7 @@ function AuthSelector({
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                     className='!p-1.5'
                   >
-                    {showPassword ? <EyeOff className='h-3 w-3' /> : <Eye className='h-3 w-3' />}
+                    {showPassword ? <EyeOff className='size-3' /> : <Eye className='size-3' />}
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>

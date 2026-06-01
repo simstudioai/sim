@@ -27,6 +27,9 @@ const {
   getPendingChatStreamId,
   releasePendingChatStream,
   resolveOrCreateChat,
+  finalizeAssistantTurn,
+  appendCopilotChatMessages,
+  mockPublishStatusChanged,
 } = vi.hoisted(() => ({
   getEffectiveDecryptedEnv: vi.fn(),
   generateWorkspaceContext: vi.fn(),
@@ -38,6 +41,9 @@ const {
   getPendingChatStreamId: vi.fn(),
   releasePendingChatStream: vi.fn(),
   resolveOrCreateChat: vi.fn(),
+  finalizeAssistantTurn: vi.fn(),
+  appendCopilotChatMessages: vi.fn(),
+  mockPublishStatusChanged: vi.fn(),
 }))
 
 const getSession = authMockFns.mockGetSession
@@ -78,30 +84,44 @@ vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   resolveOrCreateChat,
 }))
 
+vi.mock('@/lib/copilot/chat/terminal-state', () => ({
+  finalizeAssistantTurn,
+}))
+
+vi.mock('@/lib/copilot/chat/messages-store', () => ({
+  appendCopilotChatMessages,
+}))
+
 vi.mock('@/lib/copilot/tasks', () => ({
   taskPubSub: {
-    publishStatusChanged: vi.fn(),
+    publishStatusChanged: mockPublishStatusChanged,
   },
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    update: vi.fn(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn(() => ({
-          returning: vi.fn().mockResolvedValue([]),
-        })),
+vi.mock('@sim/db', () => {
+  const update = vi.fn(() => ({
+    set: vi.fn(() => ({
+      where: vi.fn(() => ({
+        returning: vi.fn().mockResolvedValue([]),
       })),
     })),
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn().mockResolvedValue([{ permissionType: 'write' }]),
-        })),
+  }))
+  const select = vi.fn(() => ({
+    from: vi.fn(() => ({
+      where: vi.fn(() => ({
+        limit: vi.fn().mockResolvedValue([{ permissionType: 'write' }]),
       })),
     })),
-  },
-}))
+  }))
+  return {
+    db: {
+      update,
+      select,
+      transaction: async (cb: (tx: { update: typeof update; select: typeof select }) => unknown) =>
+        cb({ update, select }),
+    },
+  }
+})
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(() => ({})),
@@ -136,6 +156,13 @@ describe('handleUnifiedChatPost', () => {
       chat: { id: 'chat-1' },
       conversationHistory: [],
       isNew: true,
+    })
+    finalizeAssistantTurn.mockResolvedValue({
+      found: true,
+      updated: true,
+      appendedAssistant: true,
+      workspaceId: 'ws-1',
+      outcome: 'appended_assistant',
     })
   })
 
@@ -176,6 +203,7 @@ describe('handleUnifiedChatPost', () => {
         body: JSON.stringify({
           message: 'Hello',
           workspaceId: 'ws-1',
+          createNewChat: true,
         }),
       })
     )
@@ -203,6 +231,90 @@ describe('handleUnifiedChatPost', () => {
         }),
       })
     )
+  })
+
+  it('persists cancelled partial responses from the server lifecycle', async () => {
+    await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Hello',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+        }),
+      })
+    )
+
+    const streamArgs = createSSEStream.mock.calls[0]?.[0]
+    const onComplete = streamArgs?.orchestrateOptions?.onComplete
+    expect(onComplete).toBeTypeOf('function')
+
+    await onComplete({
+      success: false,
+      cancelled: true,
+      content: 'partial answer',
+      contentBlocks: [],
+      toolCalls: [],
+      chatId: 'chat-1',
+      requestId: 'request-1',
+    })
+
+    expect(finalizeAssistantTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'chat-1',
+        userMessageId: expect.any(String),
+        streamMarkerPolicy: 'active-or-cleared',
+        assistantMessage: expect.objectContaining({
+          role: 'assistant',
+          content: 'partial answer',
+          contentBlocks: expect.arrayContaining([
+            expect.objectContaining({ type: 'complete', status: 'cancelled' }),
+          ]),
+        }),
+      })
+    )
+  })
+
+  it('republishes completed status when cancelled lifecycle persistence already ran', async () => {
+    await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Hello',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+        }),
+      })
+    )
+
+    const streamArgs = createSSEStream.mock.calls[0]?.[0]
+    const onComplete = streamArgs?.orchestrateOptions?.onComplete
+    expect(onComplete).toBeTypeOf('function')
+
+    finalizeAssistantTurn.mockResolvedValueOnce({
+      found: true,
+      updated: false,
+      appendedAssistant: false,
+      workspaceId: 'ws-1',
+      outcome: 'assistant_already_persisted',
+    })
+
+    await onComplete({
+      success: false,
+      cancelled: true,
+      content: 'partial answer',
+      contentBlocks: [],
+      toolCalls: [],
+      chatId: 'chat-1',
+      requestId: 'request-1',
+    })
+
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith({
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      type: 'completed',
+      streamId: streamArgs?.streamId,
+    })
   })
 
   it('rejects requests that have neither workflow nor workspace attachment', async () => {

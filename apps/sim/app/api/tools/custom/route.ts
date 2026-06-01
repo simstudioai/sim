@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { customTools } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -182,7 +183,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     return NextResponse.json({ success: true, data: resultTools })
   } catch (error) {
     logger.error(`[${requestId}] Error updating custom tools`, error)
-    const errorMessage = error instanceof Error ? error.message : 'Failed to update custom tools'
+    const errorMessage = getErrorMessage(error, 'Failed to update custom tools')
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 })

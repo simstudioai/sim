@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { member, subscription as subscriptionTable, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -24,7 +25,7 @@ export const OUTBOX_EVENT_TYPES = {
   STRIPE_SYNC_CUSTOMER_CONTACT: 'stripe.sync-customer-contact',
 } as const
 
-export interface StripeSyncCancelAtPeriodEndPayload {
+interface StripeSyncCancelAtPeriodEndPayload {
   stripeSubscriptionId: string
   /** The DB subscription row id — also our source-of-truth pointer. */
   subscriptionId: string
@@ -32,19 +33,19 @@ export interface StripeSyncCancelAtPeriodEndPayload {
   reason?: string
 }
 
-export interface StripeSyncSubscriptionSeatsPayload {
+interface StripeSyncSubscriptionSeatsPayload {
   /** The DB subscription row id — the handler reads current seats from this row. */
   subscriptionId: string
   reason?: string
 }
 
-export interface StripeSyncCustomerContactPayload {
+interface StripeSyncCustomerContactPayload {
   /** The DB subscription row id — handler resolves current owner/contact at processing time. */
   subscriptionId: string
   reason?: string
 }
 
-export interface StripeThresholdOverageInvoicePayload {
+interface StripeThresholdOverageInvoicePayload {
   customerId: string
   stripeSubscriptionId: string
   amountCents: number
@@ -289,7 +290,7 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
     } catch (payError) {
       logger.warn('Auto-pay failed for threshold overage invoice — Stripe dunning will retry', {
         invoiceId: finalized.id,
-        error: payError instanceof Error ? payError.message : payError,
+        error: getErrorMessage(payError),
       })
     }
   }

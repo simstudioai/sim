@@ -10,18 +10,18 @@ import type { RowData, RowExecutionMetadata, RowExecutions, TableRow, WorkflowGr
 const logger = createLogger('OptimisticCascade')
 
 /**
- * True when the cell has a worker actively reserved — `queued` / `running`,
- * or `pending` after the scheduler stamped a jobId. Single source of truth
- * for the "is this exec in flight" classification across the eligibility
- * predicate, optimistic patches, status counters, and renderer. `pending`
- * without a jobId is the optimistic-flag-only state, not in-flight.
+ * True when the cell is `pending` / `queued` / `running`. Single source of
+ * truth for the "is this exec in flight" classification across the
+ * eligibility predicate, optimistic patches, status counters, and renderer.
+ * `pending` counts even without a jobId so the row-gutter Stop button is
+ * available the moment the user clicks Play — the cancel path writes
+ * `cancelled` authoritatively whether or not a real trigger.dev run exists
+ * yet, which is correct: cancel means "don't run this."
  */
 export function isExecInFlight(exec: RowExecutionMetadata | undefined): boolean {
   if (!exec) return false
   const s = exec.status
-  if (s === 'queued' || s === 'running') return true
-  if (s === 'pending' && exec.jobId) return true
-  return false
+  return s === 'queued' || s === 'running' || s === 'pending'
 }
 
 /**
@@ -75,10 +75,10 @@ export function getUnmetGroupDeps(group: WorkflowGroup, row: TableRow): UnmetDep
 /**
  * Optimistic mirror of the server's row-update→scheduler cascade: for every
  * workflow group whose deps were unmet *before* the patch and are satisfied
- * *after*, return a new `executions` map with that group flipped to
- * `pending`. The cell renderer treats `pending` as "Queued", which is what
- * the user expects to see immediately after they fill in the missing input —
- * not a flash of dash before the server's pending write arrives.
+ * *after*, OR whose dep column was touched by the patch (the server will
+ * cancel+re-run via `deriveExecClearsForDataPatch` + the in-flight cancel
+ * orchestration), return a new `executions` map with that group flipped to
+ * `pending`. The cell renderer treats `pending` as "Queued".
  *
  * Returns `null` when nothing changed, so callers can short-circuit.
  */
@@ -93,6 +93,7 @@ export function optimisticallyScheduleNewlyEligibleGroups(
     ...beforeRow,
     data: { ...beforeRow.data, ...patch } as RowData,
   }
+  const patchedColumns = new Set(Object.keys(patch))
 
   let next: RowExecutions | null = null
   let flipped = 0
@@ -108,10 +109,6 @@ export function optimisticallyScheduleNewlyEligibleGroups(
     }
 
     const exec = beforeRow.executions?.[group.id]
-    if (exec?.status === 'queued' || exec?.status === 'running') {
-      skipped++
-      continue
-    }
     if (exec?.status === 'pending' && exec.jobId) {
       skipped++
       continue
@@ -121,7 +118,17 @@ export function optimisticallyScheduleNewlyEligibleGroups(
     const wasSatisfied = areGroupDepsSatisfied(group, beforeRow)
     const becameSatisfied = !wasSatisfied
     const isRetryable = exec?.status === 'cancelled' || exec?.status === 'error'
-    if (!becameSatisfied && !isStaleCompleted && !isRetryable && exec) {
+    // Dep-column touched: the server clears terminal entries + cancels in-
+    // flight downstream groups, so optimistically flip to `pending`
+    // regardless of current exec status (queued/running included — they're
+    // about to be cancelled and re-run).
+    const depTouched = (group.dependencies?.columns ?? []).some((d) => patchedColumns.has(d))
+
+    if (!depTouched && (exec?.status === 'queued' || exec?.status === 'running')) {
+      skipped++
+      continue
+    }
+    if (!becameSatisfied && !isStaleCompleted && !isRetryable && !depTouched && exec) {
       skipped++
       continue
     }

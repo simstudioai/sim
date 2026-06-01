@@ -25,7 +25,8 @@ console.error = () => {}
 
 import { writeFileSync } from 'fs'
 import { eq } from 'drizzle-orm'
-import { db, workflow } from '../../../packages/db/index.js'
+import { db } from '../../../packages/db/db.js'
+import { workflow } from '../../../packages/db/schema.js'
 import { loadWorkflowFromNormalizedTables } from '../lib/workflows/persistence/utils.js'
 import { sanitizeForExport } from '../lib/workflows/sanitization/json-sanitizer.js'
 

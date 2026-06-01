@@ -1,0 +1,102 @@
+suite: envDefaults — secret-mode-aware inlining (round-9 regression net)
+release:
+  name: t
+  namespace: sim
+defaults: &defaults
+  app.env.BETTER_AUTH_SECRET: x
+  app.env.ENCRYPTION_KEY: x
+  app.env.INTERNAL_API_SECRET: x
+  app.env.CRON_SECRET: x
+  postgresql.auth.password: x
+
+tests:
+  - it: inline mode renders localhost envDefaults on the app pod
+    template: deployment-app.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BETTER_AUTH_URL
+            value: http://localhost:3000
+
+  - it: inline mode renders localhost envDefaults on the realtime pod
+    template: deployment-realtime.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BETTER_AUTH_URL
+            value: http://localhost:3000
+
+  - it: existingSecret mode skips envDefaults on the app pod
+    template: deployment-app.yaml
+    set:
+      app.secrets.existingSecret.enabled: true
+      app.secrets.existingSecret.name: my-secret
+      postgresql.auth.password: x
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BETTER_AUTH_URL
+            value: http://localhost:3000
+
+  - it: existingSecret mode skips envDefaults on the realtime pod
+    template: deployment-realtime.yaml
+    set:
+      app.secrets.existingSecret.enabled: true
+      app.secrets.existingSecret.name: my-secret
+      postgresql.auth.password: x
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BETTER_AUTH_URL
+            value: http://localhost:3000
+
+  - it: existingSecret mode inlines user-set app.env values on the app pod
+    template: deployment-app.yaml
+    set:
+      app.secrets.existingSecret.enabled: true
+      app.secrets.existingSecret.name: my-secret
+      app.env.NEXT_PUBLIC_APP_URL: "https://prod.example.com"
+      postgresql.auth.password: x
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NEXT_PUBLIC_APP_URL
+            value: "https://prod.example.com"
+
+  - it: existingSecret mode propagates app.env to the realtime pod (round-7 regression)
+    template: deployment-realtime.yaml
+    set:
+      app.secrets.existingSecret.enabled: true
+      app.secrets.existingSecret.name: my-secret
+      app.env.NEXT_PUBLIC_APP_URL: "https://prod.example.com"
+      postgresql.auth.password: x
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NEXT_PUBLIC_APP_URL
+            value: "https://prod.example.com"
+
+  - it: realtime.env wins over app.env on the realtime pod in existingSecret mode
+    template: deployment-realtime.yaml
+    set:
+      app.secrets.existingSecret.enabled: true
+      app.secrets.existingSecret.name: my-secret
+      app.env.NEXT_PUBLIC_APP_URL: "https://prod.example.com"
+      realtime.env.NEXT_PUBLIC_APP_URL: "https://realtime.example.com"
+      postgresql.auth.password: x
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NEXT_PUBLIC_APP_URL
+            value: "https://realtime.example.com"

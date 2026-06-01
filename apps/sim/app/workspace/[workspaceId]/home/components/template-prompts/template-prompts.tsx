@@ -159,7 +159,7 @@ function PreviewFile() {
         </p>
         <p className='mt-1 font-medium text-[7px] text-[var(--text-body)]'>Discussion Points</p>
         <p className='mt-[1px] text-[6.5px] text-[var(--text-tertiary)]'>
-          The team agreed to prioritize the new onboarding flow...
+          The team agreed to prioritize the new onboarding flow…
         </p>
         <p className='mt-1 font-medium text-[7px] text-[var(--text-body)]'>Next Steps</p>
         <p className='mt-[1px] text-[6.5px] text-[var(--text-tertiary)]'>
@@ -183,10 +183,10 @@ const WorkflowMiniBlock = memo(function WorkflowMiniBlock({
         className={`flex items-center gap-1 px-[5px] py-[3px] ${hasRows ? 'border-[var(--border-1)] border-b' : ''}`}
       >
         <div
-          className='flex h-[11px] w-[11px] shrink-0 items-center justify-center rounded-[3px]'
+          className='flex size-[11px] shrink-0 items-center justify-center rounded-[3px]'
           style={{ backgroundColor: color }}
         >
-          <Icon className='h-[7px] w-[7px] text-white' />
+          <Icon className='size-[7px] text-white' />
         </div>
         <span className='truncate font-medium text-[6.5px] text-[var(--text-body)]'>{name}</span>
       </div>
@@ -375,6 +375,7 @@ const TemplateCard = memo(function TemplateCard({ template, onSelect }: Template
               alt={template.title}
               fill
               unoptimized
+              sizes='(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
               className='object-cover transition-transform duration-200 group-hover:scale-[1.02]'
             />
           ) : (
@@ -382,7 +383,7 @@ const TemplateCard = memo(function TemplateCard({ template, onSelect }: Template
           )}
         </div>
         <div className='flex items-center gap-1.5 border-[var(--border-1)] border-t bg-[var(--white)] px-3 py-2 transition-colors group-hover:bg-[var(--surface-2)] dark:bg-[var(--surface-4)]'>
-          <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+          <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
           <span className='text-[var(--text-body)] text-small'>{template.title}</span>
         </div>
       </div>

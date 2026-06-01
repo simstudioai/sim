@@ -191,9 +191,10 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       setUserHasScrolled(false)
 
       isUserScrollingRef.current = true
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         isUserScrollingRef.current = false
       }, 1000)
+      return () => clearTimeout(timeoutId)
     }
   }, [isStreamingResponse])
 

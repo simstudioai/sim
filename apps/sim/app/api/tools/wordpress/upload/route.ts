@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { wordpressUploadContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
@@ -11,6 +12,7 @@ import {
   processSingleFileToUserFile,
 } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +26,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized WordPress upload attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -62,7 +64,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    // Process file - convert to UserFile format if needed
     const fileData = validatedData.file
 
     let userFile
@@ -72,11 +73,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to process file',
+          error: getErrorMessage(error, 'Failed to process file'),
         },
         { status: 400 }
       )
     }
+
+    const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+    if (denied) return denied
 
     logger.info(`[${requestId}] Downloading file from storage`, {
       fileName: userFile.name,
@@ -93,13 +97,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json(
         {
           success: false,
-          error: `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          error: `Failed to download file: ${getErrorMessage(error, 'Unknown error')}`,
         },
         { status: 500 }
       )
     }
 
-    // Use provided filename or fall back to the original file name
     const filename = validatedData.filename || userFile.name
     const mimeType = userFile.type || getMimeTypeFromExtension(getFileExtension(filename))
 
@@ -110,14 +113,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       size: fileBuffer.length,
     })
 
-    // Upload to WordPress using multipart form data
     const formData = new FormData()
-    // Convert Buffer to Uint8Array for Blob compatibility
     const uint8Array = new Uint8Array(fileBuffer)
     const blob = new Blob([uint8Array], { type: mimeType })
     formData.append('file', blob, filename)
 
-    // Add optional metadata
     if (validatedData.title) {
       formData.append('title', validatedData.title)
     }
@@ -196,7 +196,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
       },
       { status: 500 }
     )

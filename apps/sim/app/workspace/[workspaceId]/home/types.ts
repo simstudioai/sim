@@ -66,13 +66,13 @@ export const ToolCallStatus = {
 } as const
 export type ToolCallStatus = (typeof ToolCallStatus)[keyof typeof ToolCallStatus]
 
-export interface ToolCallResult {
+interface ToolCallResult {
   success: boolean
   output?: unknown
   error?: string
 }
 
-export interface GenericResourceEntry {
+interface GenericResourceEntry {
   toolCallId: string
   toolName: string
   displayTitle: string

@@ -177,6 +177,12 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         properties: {
           documentId: { type: 'string', description: 'Document ID' },
           documentName: { type: 'string', description: 'Document name' },
+          sourceUrl: {
+            type: 'string',
+            nullable: true,
+            description:
+              'URL to the original source document (e.g., Confluence page, Google Doc, Notion page). Null for documents without an external source.',
+          },
           content: { type: 'string', description: 'Content of the result' },
           chunkIndex: { type: 'number', description: 'Index of the chunk within the document' },
           similarity: { type: 'number', description: 'Similarity score of the result' },

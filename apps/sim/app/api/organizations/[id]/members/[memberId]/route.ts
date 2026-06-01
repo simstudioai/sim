@@ -11,6 +11,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
+import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import {
   removeExternalUserFromOrganizationWorkspaces,
@@ -101,10 +102,25 @@ export const GET = withRouteHandler(
         const computed = await getUserUsageData(memberId)
 
         if (usageData.length > 0) {
+          // currentPeriodCost is only a baseline; add this member's attributed
+          // usage_log for the period. (getUserUsageData returns the org POOL for
+          // org-scoped members, so it can't supply the per-member figure.)
+          const memberLedger =
+            (
+              await getOrgMemberLedgerByUser(
+                organizationId,
+                computed.billingPeriodStart && computed.billingPeriodEnd
+                  ? { start: computed.billingPeriodStart, end: computed.billingPeriodEnd }
+                  : null
+              )
+            ).get(memberId) ?? 0
           memberData = {
             ...memberData,
             usage: {
               ...usageData[0],
+              currentPeriodCost: (
+                Number(usageData[0].currentPeriodCost ?? 0) + memberLedger
+              ).toString(),
               billingPeriodStart: computed.billingPeriodStart,
               billingPeriodEnd: computed.billingPeriodEnd,
             },

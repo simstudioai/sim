@@ -1,4 +1,5 @@
 import type { Logger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import {
   getProviderConfig,
@@ -55,7 +56,7 @@ interface DriveFileMetadata {
   trashed?: boolean
 }
 
-export interface GoogleDriveWebhookPayload {
+interface GoogleDriveWebhookPayload {
   file: DriveFileMetadata | { id: string }
   eventType: 'created' | 'modified' | 'deleted'
   timestamp: string
@@ -424,7 +425,7 @@ async function processChanges(
       )
       processedCount++
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(
         `[${requestId}] Error processing change for file ${change.fileId}:`,
         errorMessage

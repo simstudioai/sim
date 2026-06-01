@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { runColumnContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
@@ -26,25 +25,21 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     const parsed = await parseRequest(runColumnContract, request, { params })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
-    const { workspaceId, groupIds, runMode, rowIds } = parsed.data.body
+    const { workspaceId, groupIds, runMode, rowIds, limit } = parsed.data.body
     const access = await checkAccess(tableId, auth.userId, 'write')
     if (!access.ok) return accessError(access, requestId, tableId)
 
-    // Dispatch in the background — large fan-outs (thousands of rows) issue
-    // sequential trigger.dev calls and would otherwise hold the HTTP response
-    // open for minutes, blocking the AI/copilot tool span and the UI mutation.
-    void runWorkflowColumn({
+    const { dispatchId } = await runWorkflowColumn({
       tableId,
       workspaceId,
       groupIds,
       mode: runMode,
       rowIds,
+      limit,
       requestId,
-    }).catch((err) => {
-      logger.error(`[${requestId}] run-column dispatch failed:`, toError(err).message)
     })
 
-    return NextResponse.json({ success: true, data: { triggered: null } })
+    return NextResponse.json({ success: true, data: { dispatchId } })
   } catch (error) {
     if (error instanceof Error && error.message === 'Invalid workspace ID') {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })

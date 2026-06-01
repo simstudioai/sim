@@ -73,10 +73,7 @@ export const FilterPopover = memo(function FilterPopover({
           showCheck={filters.statuses.has('error')}
           onClick={() => toggleStatus('error')}
         >
-          <div
-            className='h-[6px] w-[6px] rounded-xs'
-            style={{ backgroundColor: 'var(--text-error)' }}
-          />
+          <div className='size-[6px] rounded-xs' style={{ backgroundColor: 'var(--text-error)' }} />
           <span className='flex-1'>Error</span>
         </PopoverItem>
         <PopoverItem
@@ -85,7 +82,7 @@ export const FilterPopover = memo(function FilterPopover({
           onClick={() => toggleStatus('info')}
         >
           <div
-            className='h-[6px] w-[6px] rounded-xs'
+            className='size-[6px] rounded-xs'
             style={{ backgroundColor: 'var(--terminal-status-info-color)' }}
           />
           <span className='flex-1'>Info</span>
@@ -107,7 +104,7 @@ export const FilterPopover = memo(function FilterPopover({
                     showCheck={isSelected}
                     onClick={() => toggleBlock(block.blockId)}
                   >
-                    {BlockIcon && <BlockIcon className='h-3 w-3' />}
+                    {BlockIcon && <BlockIcon className='size-3' />}
                     <span className='flex-1'>{block.blockName}</span>
                   </PopoverItem>
                 )

@@ -1,10 +1,12 @@
 'use client'
 
+import { Sparkles } from 'lucide-react'
 import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { Plus } from '@/components/emcn/icons'
@@ -19,7 +21,7 @@ const VISIBLE_COLUMN_TYPE_OPTIONS = isWorkflowColumnsEnabledClient
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
 
-const HEADER_ADD_COLUMN_ICON = <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+const HEADER_ADD_COLUMN_ICON = <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
 
 interface NewColumnDropdownProps {
   /** `'header'` renders the page-header trigger (subtle Button); `'inline-header'` renders
@@ -28,18 +30,20 @@ interface NewColumnDropdownProps {
   disabled: boolean
   onPickType: (type: ColumnDefinition['type']) => void
   onPickWorkflow: () => void
+  onPickEnrichment: () => void
 }
 
 /**
  * "+ New column" dropdown — the single entry point for creating a column.
- * Lists every column type plus "Workflow"; picking a type opens the right
- * sidebar pre-seeded.
+ * Lists every column type plus "Workflow" and "Enrichments"; picking a type
+ * opens the right sidebar pre-seeded.
  */
 export function NewColumnDropdown({
   trigger,
   disabled,
   onPickType,
   onPickWorkflow,
+  onPickEnrichment,
 }: NewColumnDropdownProps) {
   const menu = (
     <DropdownMenu>
@@ -55,12 +59,21 @@ export function NewColumnDropdown({
             className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
             disabled={disabled}
           >
-            <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+            <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
             <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
           </button>
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
+        {isWorkflowColumnsEnabledClient && (
+          <>
+            <DropdownMenuItem onSelect={onPickEnrichment}>
+              <Sparkles className='size-[14px] text-[var(--text-icon)]' />
+              Enrichments
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {VISIBLE_COLUMN_TYPE_OPTIONS.map((option) => {
           const Icon = option.icon
           const onSelect =
@@ -69,7 +82,7 @@ export function NewColumnDropdown({
               : () => onPickType(option.type as ColumnDefinition['type'])
           return (
             <DropdownMenuItem key={option.type} onSelect={onSelect}>
-              <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+              <Icon className='size-[14px] text-[var(--text-icon)]' />
               {option.label}
             </DropdownMenuItem>
           )

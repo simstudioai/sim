@@ -11,26 +11,21 @@ export const apolloTaskSearchTool: ToolConfig<ApolloTaskSearchParams, ApolloTask
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key (master key required)',
     },
-    contact_id: {
+    sort_by_field: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by contact ID (e.g., "con_abc123")',
+      description: 'Sort field: "task_due_at" or "task_priority"',
     },
-    account_id: {
-      type: 'string',
+    open_factor_names: {
+      type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by account ID (e.g., "acc_abc123")',
-    },
-    completed: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by completion status',
+      description:
+        'Filter by status. Common values: ["task_types"] for open tasks, ["task_completed_at"] for completed tasks.',
     },
     page: {
       type: 'number',
@@ -47,23 +42,23 @@ export const apolloTaskSearchTool: ToolConfig<ApolloTaskSearchParams, ApolloTask
   },
 
   request: {
-    url: 'https://api.apollo.io/api/v1/tasks/search',
+    url: (params: ApolloTaskSearchParams) => {
+      const qs = new URLSearchParams()
+      qs.set('page', String(params.page || 1))
+      qs.set('per_page', String(Math.min(params.per_page || 25, 100)))
+      if (params.sort_by_field) qs.set('sort_by_field', params.sort_by_field)
+      if (params.open_factor_names?.length) {
+        for (const name of params.open_factor_names) {
+          if (typeof name === 'string' && name) qs.append('open_factor_names[]', name)
+        }
+      }
+      return `https://api.apollo.io/api/v1/tasks/search?${qs.toString()}`
+    },
     method: 'POST',
     headers: (params: ApolloTaskSearchParams) => ({
-      'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
     }),
-    body: (params: ApolloTaskSearchParams) => {
-      const body: any = {
-        page: params.page || 1,
-        per_page: Math.min(params.per_page || 25, 100),
-      }
-      if (params.contact_id) body.contact_id = params.contact_id
-      if (params.account_id) body.account_id = params.account_id
-      if (params.completed !== undefined) body.completed = params.completed
-      return body
-    },
   },
 
   transformResponse: async (response: Response) => {
@@ -77,7 +72,7 @@ export const apolloTaskSearchTool: ToolConfig<ApolloTaskSearchParams, ApolloTask
     return {
       success: true,
       output: {
-        tasks: data.tasks ?? null,
+        tasks: data.tasks ?? [],
         pagination: data.pagination ?? null,
       },
     }
@@ -87,7 +82,6 @@ export const apolloTaskSearchTool: ToolConfig<ApolloTaskSearchParams, ApolloTask
     tasks: {
       type: 'json',
       description: 'Array of tasks matching the search criteria',
-      optional: true,
     },
     pagination: { type: 'json', description: 'Pagination information', optional: true },
   },

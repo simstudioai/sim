@@ -25,9 +25,9 @@ function buildColors() {
     textTertiary: '#5c5c5c',
     /** Muted text (footer) */
     textMuted: '#737373',
-    /** Brand primary - purple */
+    /** Brand primary color */
     brandPrimary:
-      isWhitelabeled && brand.theme?.primaryColor ? brand.theme.primaryColor : '#6f3dfa',
+      isWhitelabeled && brand.theme?.primaryColor ? brand.theme.primaryColor : '#33C482',
     /** Brand accent - used for buttons and links */
     brandTertiary: accentColor,
     /** Border/divider color */

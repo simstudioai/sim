@@ -3,14 +3,14 @@ import type { ToolResponse } from '@/tools/types'
 // Type for Excel cell values - covers all valid data types that Excel supports
 export type ExcelCellValue = string | number | boolean | null
 
-export interface MicrosoftExcelRange {
+interface MicrosoftExcelRange {
   sheetId?: number
   sheetName?: string
   range: string
   values: ExcelCellValue[][]
 }
 
-export interface MicrosoftExcelMetadata {
+interface MicrosoftExcelMetadata {
   spreadsheetId: string
   spreadsheetUrl?: string
   title?: string

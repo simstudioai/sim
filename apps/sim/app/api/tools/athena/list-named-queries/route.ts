@@ -1,5 +1,6 @@
 import { ListNamedQueriesCommand } from '@aws-sdk/client-athena'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsAthenaListNamedQueriesContract } from '@/lib/api/contracts/tools/aws/athena-list-named-queries'
 import { parseToolRequest } from '@/lib/api/server'
@@ -45,8 +46,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to list Athena named queries'
+    const errorMessage = getErrorMessage(error, 'Failed to list Athena named queries')
     logger.error('ListNamedQueries failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }

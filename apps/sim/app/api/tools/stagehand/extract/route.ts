@@ -1,5 +1,6 @@
 import type { Stagehand as StagehandType } from '@browserbasehq/stagehand'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { stagehandExtractContract } from '@/lib/api/contracts/tools/stagehand'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -149,7 +150,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         } catch (schemaError) {
           logger.error('Failed to convert JSON schema to Zod schema', {
             error: schemaError,
-            message: schemaError instanceof Error ? schemaError.message : 'Unknown schema error',
+            message: getErrorMessage(schemaError, 'Unknown schema error'),
           })
 
           logger.info('Falling back to simple extraction without schema')
@@ -181,15 +182,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       } catch (extractError) {
         logger.error('Error during extraction operation', {
           error: extractError,
-          message:
-            extractError instanceof Error ? extractError.message : 'Unknown extraction error',
+          message: getErrorMessage(extractError, 'Unknown extraction error'),
         })
         throw extractError
       }
     } catch (error) {
       logger.error('Stagehand extraction error', {
         error,
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: getErrorMessage(error, 'Unknown error'),
         stack: error instanceof Error ? error.stack : undefined,
       })
 
@@ -226,13 +226,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error('Unexpected error in extraction API route', {
       error,
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: getErrorMessage(error, 'Unknown error'),
       stack: error instanceof Error ? error.stack : undefined,
     })
     return NextResponse.json(
       {
         error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        details: getErrorMessage(error, 'Unknown error'),
       },
       { status: 500 }
     )

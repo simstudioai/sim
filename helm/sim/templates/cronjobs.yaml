@@ -6,6 +6,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: {{ include "sim.fullname" $ }}-{{ $jobConfig.name }}
+  namespace: {{ $.Release.Namespace }}
   labels:
     {{- include "sim.labels" $ | nindent 4 }}
     app.kubernetes.io/component: cronjob-{{ $jobConfig.name }}
@@ -19,6 +20,7 @@ spec:
   {{- end }}
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: {{ $.Values.cronjobs.ttlSecondsAfterFinished | default 600 }}
       {{- with $.Values.cronjobs.activeDeadlineSeconds }}
       activeDeadlineSeconds: {{ . }}
       {{- end }}
@@ -27,23 +29,25 @@ spec:
           labels:
             {{- include "sim.selectorLabels" $ | nindent 12 }}
             app.kubernetes.io/component: cronjob-{{ $jobConfig.name }}
+            # Stable group label so NetworkPolicy can allow all cron pods → app
+            # without enumerating each job's component value.
+            simstudio.ai/component-group: cronjob
         spec:
+          serviceAccountName: {{ include "sim.serviceAccountName" $ }}
+          automountServiceAccountToken: false
           restartPolicy: {{ $.Values.cronjobs.restartPolicy | default "OnFailure" }}
-          {{- with $.Values.cronjobs.podSecurityContext }}
-          securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+          {{- include "sim.podSecurityContext" $.Values.cronjobs | nindent 10 }}
           containers:
           - name: {{ $jobConfig.name }}
-            image: "{{ $.Values.cronjobs.image.repository }}:{{ $.Values.cronjobs.image.tag }}"
+            image: {{ include "sim.image" (dict "imageRoot" $.Values.cronjobs.image "global" $.Values.global "chartAppVersion" $.Chart.AppVersion) }}
             imagePullPolicy: {{ $.Values.cronjobs.image.pullPolicy }}
-            {{- with $.Values.cronjobs.securityContext }}
-            securityContext:
-              {{- toYaml . | nindent 14 }}
-            {{- end }}
+            {{- include "sim.containerSecurityContext" $.Values.cronjobs | nindent 12 }}
             env:
             - name: CRON_SECRET
-              value: {{ $.Values.app.env.CRON_SECRET | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sim.appSecretName" $ }}
+                  key: CRON_SECRET
             command:
             - /bin/sh
             - -c

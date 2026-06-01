@@ -6,7 +6,9 @@
  *
  * @vitest-environment node
  */
+
 import { createMockRequest, knowledgeApiUtilsMock, knowledgeApiUtilsMockFns } from '@sim/testing'
+import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -15,7 +17,7 @@ const {
   mockHandleTagAndVectorSearch,
   mockGetQueryStrategy,
   mockGenerateSearchEmbedding,
-  mockGetDocumentNamesByIds,
+  mockGetDocumentMetadataByIds,
   mockAuthenticateRequest,
   mockValidateWorkspaceAccess,
 } = vi.hoisted(() => ({
@@ -24,7 +26,7 @@ const {
   mockHandleTagAndVectorSearch: vi.fn(),
   mockGetQueryStrategy: vi.fn(),
   mockGenerateSearchEmbedding: vi.fn(),
-  mockGetDocumentNamesByIds: vi.fn(),
+  mockGetDocumentMetadataByIds: vi.fn(),
   mockAuthenticateRequest: vi.fn(),
   mockValidateWorkspaceAccess: vi.fn(),
 }))
@@ -35,7 +37,7 @@ vi.mock('@/app/api/knowledge/search/utils', () => ({
   handleTagAndVectorSearch: mockHandleTagAndVectorSearch,
   getQueryStrategy: mockGetQueryStrategy,
   generateSearchEmbedding: mockGenerateSearchEmbedding,
-  getDocumentNamesByIds: mockGetDocumentNamesByIds,
+  getDocumentMetadataByIds: mockGetDocumentMetadataByIds,
 }))
 
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
@@ -47,7 +49,7 @@ vi.mock('@/app/api/v1/middleware', () => ({
 
 vi.mock('@/app/api/v1/knowledge/utils', () => ({
   handleError: (e: unknown) =>
-    new Response(JSON.stringify({ error: e instanceof Error ? e.message : 'error' }), {
+    new Response(JSON.stringify({ error: getErrorMessage(e, 'error') }), {
       status: 500,
     }),
 }))
@@ -81,7 +83,7 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
     mockGetQueryStrategy.mockReturnValue({ distanceThreshold: 0.5 })
     mockGenerateSearchEmbedding.mockResolvedValue([0.1, 0.2, 0.3])
     mockHandleVectorOnlySearch.mockResolvedValue([])
-    mockGetDocumentNamesByIds.mockResolvedValue({})
+    mockGetDocumentMetadataByIds.mockResolvedValue({})
   })
 
   it('passes the KB embedding model into generateSearchEmbedding', async () => {
@@ -125,6 +127,42 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
 
     expect(res.status).toBe(400)
     expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled()
+  })
+
+  it('surfaces sourceUrl from document metadata in search results', async () => {
+    mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
+      hasAccess: true,
+      knowledgeBase: baseKb('kb-confluence', 'text-embedding-3-small'),
+    })
+    mockHandleVectorOnlySearch.mockResolvedValue([
+      {
+        documentId: 'doc-confluence',
+        knowledgeBaseId: 'kb-confluence',
+        content: 'page content',
+        chunkIndex: 0,
+        distance: 0.1,
+      },
+    ])
+    mockGetDocumentMetadataByIds.mockResolvedValue({
+      'doc-confluence': {
+        filename: 'Runbook.md',
+        sourceUrl: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345',
+      },
+    })
+
+    const req = createMockRequest('POST', {
+      workspaceId: 'ws-1',
+      knowledgeBaseIds: 'kb-confluence',
+      query: 'runbook',
+    })
+    const res = await POST(req)
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.data.results[0].sourceUrl).toBe(
+      'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345'
+    )
+    expect(body.data.results[0].documentName).toBe('Runbook.md')
   })
 
   it('allows tag-only search across mixed embedding models', async () => {

@@ -202,7 +202,16 @@ export async function performChatUndeploy(
 ): Promise<PerformChatUndeployResult> {
   const { chatId, userId, workspaceId } = params
 
-  const [chatRecord] = await db.select().from(chat).where(eq(chat.id, chatId)).limit(1)
+  const [chatRecord] = await db
+    .select({
+      title: chat.title,
+      workflowId: chat.workflowId,
+      identifier: chat.identifier,
+      authType: chat.authType,
+    })
+    .from(chat)
+    .where(eq(chat.id, chatId))
+    .limit(1)
 
   if (!chatRecord) {
     return { success: false, error: 'Chat not found' }

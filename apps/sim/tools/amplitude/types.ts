@@ -3,14 +3,14 @@ import type { ToolResponse } from '@/tools/types'
 /**
  * Base params shared by endpoints using API key in body.
  */
-export interface AmplitudeApiKeyParams {
+interface AmplitudeApiKeyParams {
   apiKey: string
 }
 
 /**
  * Base params shared by endpoints using Basic Auth (api_key:secret_key).
  */
-export interface AmplitudeBasicAuthParams {
+interface AmplitudeBasicAuthParams {
   apiKey: string
   secretKey: string
 }

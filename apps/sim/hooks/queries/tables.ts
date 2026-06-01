@@ -4,10 +4,10 @@
  * React Query hooks for managing user-defined tables.
  */
 
-import { useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   type InfiniteData,
+  infiniteQueryOptions,
   keepPreviousData,
   useInfiniteQuery,
   useMutation,
@@ -19,6 +19,7 @@ import { isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
+  type ActiveDispatch,
   type AddWorkflowGroupBodyInput,
   addTableColumnContract,
   addWorkflowGroupContract,
@@ -38,8 +39,10 @@ import {
   deleteWorkflowGroupContract,
   getTableContract,
   type InsertTableRowBodyInput,
+  listActiveDispatchesContract,
   listTableRowsContract,
   listTablesContract,
+  type RunLimit,
   type RunMode,
   renameTableContract,
   restoreTableContract,
@@ -69,92 +72,12 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table'
-import { areOutputsFilled, optimisticallyScheduleNewlyEligibleGroups } from '@/lib/table/deps'
-
-/** Short poll to surface running → completed transitions from the server without a dedicated realtime channel. */
-const ROWS_POLL_INTERVAL_WHILE_RUNNING_MS = 1500
-
-function hasRunningGroupExecution(rows: TableRow[] | undefined): boolean {
-  if (!rows) return false
-  for (const row of rows) {
-    const executions = row.executions ?? {}
-    for (const key in executions) {
-      if (isOptimisticInFlight(executions[key])) return true
-    }
-  }
-  return false
-}
-
-/**
- * Shallow-equality on the fields the renderer reads from a row. Row data is
- * also shallow-compared — workflow output cells are scalars, so `===` per key
- * suffices. `executions` is a per-group exec metadata object; we compare each
- * group's `(status, jobId, executionId, error)` tuple. Any deeper drift forces
- * a fresh row reference, which is the safe default.
- */
-function rowEqual(a: TableRow, b: TableRow): boolean {
-  if (a === b) return true
-  if (a.position !== b.position) return false
-  const aData = a.data ?? {}
-  const bData = b.data ?? {}
-  const aDataKeys = Object.keys(aData)
-  if (aDataKeys.length !== Object.keys(bData).length) return false
-  for (const k of aDataKeys) {
-    if (aData[k] !== bData[k]) return false
-  }
-  const aExec = a.executions ?? {}
-  const bExec = b.executions ?? {}
-  const aExecKeys = Object.keys(aExec)
-  if (aExecKeys.length !== Object.keys(bExec).length) return false
-  for (const k of aExecKeys) {
-    const ax = aExec[k]
-    const bx = bExec[k]
-    if (ax === bx) continue
-    if (!ax || !bx) return false
-    if (
-      ax.status !== bx.status ||
-      ax.jobId !== bx.jobId ||
-      ax.executionId !== bx.executionId ||
-      ax.error !== bx.error
-    ) {
-      return false
-    }
-  }
-  return true
-}
-
-/**
- * Replaces `prev.rows` element-by-element with `fresh.rows`, but reuses the
- * `prev` reference for any row that hasn't changed. Memoized `<DataRow>`
- * children short-circuit on row-identity, so a poll tick that arrives with
- * 1000 rows but only flips the status of 5 only re-renders those 5 instead
- * of every row in the page.
- */
-function mergePagePreservingIdentity(
-  prev: TableRowsResponse,
-  fresh: TableRowsResponse
-): TableRowsResponse {
-  if (prev.rows === fresh.rows) return prev
-  const oldById = new Map(prev.rows.map((r) => [r.id, r]))
-  let changed = false
-  const merged = fresh.rows.map((freshRow) => {
-    const old = oldById.get(freshRow.id)
-    if (old && rowEqual(old, freshRow)) return old
-    changed = true
-    return freshRow
-  })
-  if (!changed && merged.length === prev.rows.length) {
-    let identical = true
-    for (let i = 0; i < merged.length; i++) {
-      if (merged[i] !== prev.rows[i]) {
-        identical = false
-        break
-      }
-    }
-    if (identical && prev.totalCount === fresh.totalCount) return prev
-  }
-  return { ...fresh, rows: merged }
-}
+import { TABLE_LIMITS } from '@/lib/table/constants'
+import {
+  areGroupDepsSatisfied,
+  isExecInFlight,
+  optimisticallyScheduleNewlyEligibleGroups,
+} from '@/lib/table/deps'
 
 const logger = createLogger('TableQueries')
 
@@ -170,6 +93,9 @@ export const tableKeys = {
   rowsRoot: (tableId: string) => [...tableKeys.detail(tableId), 'rows'] as const,
   infiniteRows: (tableId: string, paramsKey: string) =>
     [...tableKeys.rowsRoot(tableId), 'infinite', paramsKey] as const,
+  rowWrites: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'write'] as const,
+  activeDispatches: (tableId: string) =>
+    [...tableKeys.detail(tableId), 'active-dispatches'] as const,
 }
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
@@ -237,10 +163,6 @@ async function fetchTableRows({
   return { rows, totalCount }
 }
 
-function invalidateRowData(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
-  queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-}
-
 function invalidateRowCount(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
@@ -286,6 +208,94 @@ export function useTable(workspaceId: string | undefined, tableId: string | unde
   })
 }
 
+export interface TableRunState {
+  dispatches: ActiveDispatch[]
+  runningCellCount: number
+  runningByRowId: Record<string, number>
+}
+
+async function fetchTableRunState(tableId: string, signal?: AbortSignal): Promise<TableRunState> {
+  const response = await requestJson(listActiveDispatchesContract, {
+    params: { tableId },
+    signal,
+  })
+  return {
+    dispatches: response.data.dispatches,
+    runningCellCount: response.data.runningCellCount,
+    runningByRowId: response.data.runningByRowId,
+  }
+}
+
+/** Count groups flipped to in-flight (`pending`) by an optimistic schedule that
+ *  weren't in-flight before — the delta to add to the run-state counter. */
+function countNewlyInFlight(before: RowExecutions, after: RowExecutions): number {
+  let n = 0
+  for (const gid of Object.keys(after)) {
+    if (after[gid]?.status === 'pending' && !isExecInFlight(before[gid])) n++
+  }
+  return n
+}
+
+/** The table's maintained, unfiltered `rowCount` from the detail cache (or
+ *  `null` when the detail hasn't loaded). This is the right scope for a Run-all
+ *  estimate: the dispatcher runs every row regardless of the active view
+ *  filter, whereas the rows query's `totalCount` is filter-scoped. */
+function readTableRowCount(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string
+): number | null {
+  const def = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+  return typeof def?.rowCount === 'number' ? def.rowCount : null
+}
+
+/** Optimistically reflect a run on the "X running" badge + per-row gutter Stop
+ *  instantly (the optimistic stamp eats the dispatcher's `pending` SSE, so
+ *  `applyCell` never bumps the count, and the server's dispatch-scope count
+ *  isn't live until the first window). `stampedByRow` drives the per-row gutter
+ *  (loaded rows only); `cellCountDelta` is the badge delta — pass the full run
+ *  scope (rows × groups) for Run-all so it matches the server, or omit to use
+ *  the stamped total. Returns the prior snapshot for rollback. */
+function bumpRunState(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string,
+  stampedByRow: Record<string, number>,
+  cellCountDelta?: number
+): { snapshot: TableRunState | undefined } | null {
+  const stampedTotal = Object.values(stampedByRow).reduce((s, n) => s + n, 0)
+  const countDelta = cellCountDelta ?? stampedTotal
+  if (countDelta === 0 && stampedTotal === 0) return null
+  const snapshot = queryClient.getQueryData<TableRunState>(tableKeys.activeDispatches(tableId))
+  queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
+    const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
+    const nextByRow = { ...base.runningByRowId }
+    for (const [rid, n] of Object.entries(stampedByRow)) {
+      nextByRow[rid] = (nextByRow[rid] ?? 0) + n
+    }
+    return {
+      ...base,
+      runningCellCount: base.runningCellCount + countDelta,
+      runningByRowId: nextByRow,
+    }
+  })
+  return { snapshot }
+}
+
+/**
+ * Aggregate live state for a table: active dispatches (drives the "about to
+ * run" overlay), the running-cell count (top-right counter), and per-row
+ * running counts (per-row badge). Bootstrap snapshot fetched once on mount;
+ * SSE `kind: 'cell'` and `kind: 'dispatch'` events incrementally update the
+ * same cache.
+ */
+export function useTableRunState(tableId: string | undefined) {
+  return useQuery({
+    queryKey: tableKeys.activeDispatches(tableId ?? ''),
+    queryFn: ({ signal }) => fetchTableRunState(tableId as string, signal),
+    enabled: Boolean(tableId),
+    staleTime: 30 * 1000,
+  })
+}
+
 interface InfiniteTableRowsParams {
   workspaceId: string
   tableId: string
@@ -295,11 +305,6 @@ interface InfiniteTableRowsParams {
   enabled?: boolean
 }
 
-/**
- * Fetch a single page of rows for a table with pagination/filter/sort. Polls
- * while any cell is in flight so cells reach their terminal state without a
- * manual refresh.
- */
 export function useTableRows({
   workspaceId,
   tableId,
@@ -310,7 +315,6 @@ export function useTableRows({
   includeTotal,
   enabled = true,
 }: TableRowsParams & { enabled?: boolean }) {
-  const queryClient = useQueryClient()
   const paramsKey = JSON.stringify({
     limit,
     offset,
@@ -326,47 +330,33 @@ export function useTableRows({
     enabled: Boolean(workspaceId && tableId) && enabled,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
-    refetchInterval: (query) => {
-      if (queryClient.isMutating() > 0) return false
-      return hasRunningGroupExecution(query.state.data?.rows)
-        ? ROWS_POLL_INTERVAL_WHILE_RUNNING_MS
-        : false
-    },
-    refetchIntervalInBackground: false,
   })
 }
 
-/**
- * Paginated row fetching with `useInfiniteQuery`. Each page requests `pageSize`
- * rows at the next offset; `getNextPageParam` returns `undefined` once the last
- * page comes back short, signalling end-of-list.
- *
- * Page 0 includes a server `COUNT(*)`; subsequent pages skip it.
- */
-export function useInfiniteTableRows({
+export function tableRowsParamsKey({
+  pageSize,
+  filter,
+  sort,
+}: Pick<InfiniteTableRowsParams, 'pageSize' | 'filter' | 'sort'>): string {
+  return JSON.stringify({ pageSize, filter: filter ?? null, sort: sort ?? null })
+}
+
+export function tableRowsInfiniteOptions({
   workspaceId,
   tableId,
   pageSize,
   filter,
   sort,
-  enabled = true,
-}: InfiniteTableRowsParams) {
-  const queryClient = useQueryClient()
-  const paramsKey = JSON.stringify({
-    pageSize,
-    filter: filter ?? null,
-    sort: sort ?? null,
-  })
-  const queryKey = useMemo(() => tableKeys.infiniteRows(tableId, paramsKey), [tableId, paramsKey])
-
-  const query = useInfiniteQuery({
-    queryKey,
+}: Omit<InfiniteTableRowsParams, 'enabled'>) {
+  const paramsKey = tableRowsParamsKey({ pageSize, filter, sort })
+  return infiniteQueryOptions({
+    queryKey: tableKeys.infiniteRows(tableId, paramsKey),
     queryFn: ({ pageParam, signal }) =>
       fetchTableRows({
         workspaceId,
         tableId,
         limit: pageSize,
-        offset: pageParam,
+        offset: pageParam as number,
         filter,
         sort,
         includeTotal: pageParam === 0,
@@ -375,83 +365,25 @@ export function useInfiniteTableRows({
     initialPageParam: 0,
     getNextPageParam: (lastPage, _allPages, lastPageParam) => {
       if (lastPage.rows.length < pageSize) return undefined
-      return lastPageParam + pageSize
+      return (lastPageParam as number) + pageSize
     },
-    enabled: Boolean(workspaceId && tableId) && enabled,
     staleTime: 30 * 1000,
   })
+}
 
-  /**
-   * Per-page polling. Built-in `refetchInterval` would refetch every loaded
-   * page on each tick — wasteful when only one page has running cells.
-   * Instead, walk pages each tick and refetch ONLY the dirty ones, splicing
-   * results back into the cache. Polling stops when no page has in-flight
-   * cells, or while a mutation is running (optimistic-update guard).
-   */
-  useEffect(() => {
-    if (!enabled || !workspaceId || !tableId) return
-    let cancelled = false
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
-    const tick = async () => {
-      if (cancelled) return
-      if (queryClient.isMutating() === 0) {
-        const data = queryClient.getQueryData<InfiniteData<TableRowsResponse, number>>(queryKey)
-        const dirty: number[] = []
-        if (data) {
-          for (let i = 0; i < data.pages.length; i++) {
-            if (hasRunningGroupExecution(data.pages[i].rows)) {
-              dirty.push(data.pageParams[i] ?? i * pageSize)
-            }
-          }
-        }
-        if (dirty.length > 0) {
-          await Promise.all(
-            dirty.map(async (offset) => {
-              try {
-                const fresh = await fetchTableRows({
-                  workspaceId,
-                  tableId,
-                  limit: pageSize,
-                  offset,
-                  filter,
-                  sort,
-                  includeTotal: offset === 0,
-                })
-                if (cancelled) return
-                queryClient.setQueryData<InfiniteData<TableRowsResponse, number>>(
-                  queryKey,
-                  (prev) => {
-                    if (!prev) return prev
-                    const idx = prev.pageParams.indexOf(offset)
-                    if (idx === -1) return prev
-                    const merged = mergePagePreservingIdentity(prev.pages[idx], fresh)
-                    if (merged === prev.pages[idx]) return prev
-                    const nextPages = prev.pages.slice()
-                    nextPages[idx] = merged
-                    return { ...prev, pages: nextPages }
-                  }
-                )
-              } catch {
-                // Transient fetch failure — next tick retries. Don't kill the loop.
-              }
-            })
-          )
-        }
-      }
-      if (cancelled) return
-      // Recursive setTimeout instead of setInterval so a slow tick can't
-      // overlap the next one — out-of-order responses would otherwise let
-      // stale data overwrite fresh.
-      timeoutId = setTimeout(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
-    }
-    timeoutId = setTimeout(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
-    return () => {
-      cancelled = true
-      if (timeoutId !== null) clearTimeout(timeoutId)
-    }
-  }, [enabled, workspaceId, tableId, pageSize, filter, sort, queryClient, queryKey])
-
-  return query
+/** Page 0 fetches a server-side `COUNT(*)`; subsequent pages skip it. */
+export function useInfiniteTableRows({
+  workspaceId,
+  tableId,
+  pageSize,
+  filter,
+  sort,
+  enabled = true,
+}: InfiniteTableRowsParams) {
+  return useInfiniteQuery({
+    ...tableRowsInfiniteOptions({ workspaceId, tableId, pageSize, filter, sort }),
+    enabled: Boolean(workspaceId && tableId) && enabled,
+  })
 }
 
 /**
@@ -465,6 +397,10 @@ export function useCreateTable(workspaceId: string) {
       return requestJson(createTableContract, {
         body: { ...params, workspaceId },
       })
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -484,6 +420,10 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
         params: { tableId },
         body: { workspaceId, column },
       })
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
@@ -528,6 +468,10 @@ export function useDeleteTable(workspaceId: string) {
         query: { workspaceId },
       })
     },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
     onSettled: (_data, _error, tableId) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
       queryClient.removeQueries({ queryKey: tableKeys.detail(tableId) })
@@ -559,10 +503,18 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       const row = response.data.row
       if (!row) return
 
-      reconcileCreatedRow(queryClient, tableId, row)
+      const groups =
+        queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
+          .workflowGroups ?? []
+      const stamped = withOptimisticAutoFireExec(groups, row)
+      reconcileCreatedRow(queryClient, tableId, stamped)
+      // Bump the run-state counter for any auto-fire groups stamped pending so
+      // the "X running" badge + gutter Stop show immediately (the row had no
+      // prior executions, so the stamped set is the full delta).
+      const stampedCount = countNewlyInFlight({}, stamped.executions ?? {})
+      if (stampedCount > 0) bumpRunState(queryClient, tableId, { [row.id]: stampedCount })
     },
     onError: (error) => {
-      // Validation errors are surfaced inline by the caller (see useUpdateColumn).
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -570,6 +522,19 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       invalidateRowCount(queryClient, tableId)
     },
   })
+}
+
+/**
+ * Pre-stamp `pending` for any auto-fire-eligible workflow groups on a row that
+ * was just inserted server-side. Mirrors the server's `mode: 'new'` dispatch:
+ * the server will fire these groups in the background; the optimistic stamp
+ * shows the user a `queued` badge immediately rather than waiting ~1s for the
+ * first SSE event.
+ */
+function withOptimisticAutoFireExec(groups: WorkflowGroup[], row: TableRow): TableRow {
+  const nextExecutions = optimisticallyScheduleNewlyEligibleGroups(groups, row, {})
+  if (!nextExecutions) return row
+  return { ...row, executions: nextExecutions }
 }
 
 /**
@@ -695,14 +660,15 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
   const queryClient = useQueryClient()
 
   return useMutation({
+    mutationKey: tableKeys.rowWrites(tableId),
     mutationFn: async ({ rowId, data }: UpdateTableRowParams) => {
       return requestJson(updateTableRowContract, {
         params: { tableId, rowId },
         body: { workspaceId, data: data as RowData },
       })
     },
-    onMutate: ({ rowId, data }) => {
-      void queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    onMutate: async ({ rowId, data }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 
       const previousQueries = queryClient.getQueriesData<InfiniteData<TableRowsResponse, number>>({
         queryKey: tableKeys.rowsRoot(tableId),
@@ -712,10 +678,14 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
         queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
           .workflowGroups ?? []
 
+      const stampedByRow: Record<string, number> = {}
       patchCachedRows(queryClient, tableId, (row) => {
         if (row.id !== rowId) return row
         const patch = data as Partial<RowData>
         const nextExecutions = optimisticallyScheduleNewlyEligibleGroups(groups, row, patch)
+        if (nextExecutions) {
+          stampedByRow[row.id] = countNewlyInFlight(row.executions ?? {}, nextExecutions)
+        }
         return {
           ...row,
           data: { ...row.data, ...patch } as RowData,
@@ -723,7 +693,30 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
         }
       })
 
-      return { previousQueries }
+      const bumped = bumpRunState(queryClient, tableId, stampedByRow)
+      return {
+        previousQueries,
+        runStateSnapshot: bumped?.snapshot,
+        didBumpRunState: bumped !== null,
+      }
+    },
+    onSuccess: (response, { rowId, data: mutatedData }) => {
+      const serverRow = response.data.row
+      const mutatedKeys = Object.keys(mutatedData)
+      patchCachedRows(queryClient, tableId, (row) => {
+        if (row.id !== rowId) return row
+        const merged: RowData = { ...row.data }
+        for (const key of mutatedKeys) {
+          merged[key] = (serverRow.data as RowData)[key]
+        }
+        return {
+          ...row,
+          data: merged,
+          position: serverRow.position,
+          createdAt: serverRow.createdAt,
+          updatedAt: serverRow.updatedAt,
+        }
+      })
     },
     onError: (error, _vars, context) => {
       if (context?.previousQueries) {
@@ -731,11 +724,11 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
           queryClient.setQueryData(queryKey, data)
         }
       }
+      if (context?.didBumpRunState) {
+        queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
+      }
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
-    },
-    onSettled: () => {
-      invalidateRowData(queryClient, tableId)
     },
   })
 }
@@ -751,6 +744,7 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
   const queryClient = useQueryClient()
 
   return useMutation({
+    mutationKey: tableKeys.rowWrites(tableId),
     mutationFn: async ({ updates }: BatchUpdateTableRowsParams) => {
       return requestJson(batchUpdateTableRowsContract, {
         params: { tableId },
@@ -760,8 +754,8 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
         },
       })
     },
-    onMutate: ({ updates }) => {
-      void queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    onMutate: async ({ updates }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 
       const previousQueries = queryClient.getQueriesData<InfiniteData<TableRowsResponse, number>>({
         queryKey: tableKeys.rowsRoot(tableId),
@@ -772,11 +766,15 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
         queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
           .workflowGroups ?? []
 
+      const stampedByRow: Record<string, number> = {}
       patchCachedRows(queryClient, tableId, (row) => {
         const raw = updateMap.get(row.id)
         if (!raw) return row
         const patch = raw as Partial<RowData>
         const nextExecutions = optimisticallyScheduleNewlyEligibleGroups(groups, row, patch)
+        if (nextExecutions) {
+          stampedByRow[row.id] = countNewlyInFlight(row.executions ?? {}, nextExecutions)
+        }
         return {
           ...row,
           data: { ...row.data, ...patch } as RowData,
@@ -784,7 +782,12 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
         }
       })
 
-      return { previousQueries }
+      const bumped = bumpRunState(queryClient, tableId, stampedByRow)
+      return {
+        previousQueries,
+        runStateSnapshot: bumped?.snapshot,
+        didBumpRunState: bumped !== null,
+      }
     },
     onError: (error, _vars, context) => {
       if (context?.previousQueries) {
@@ -792,11 +795,11 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
           queryClient.setQueryData(queryKey, data)
         }
       }
+      if (context?.didBumpRunState) {
+        queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
+      }
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
-    },
-    onSettled: () => {
-      invalidateRowData(queryClient, tableId)
     },
   })
 }
@@ -813,6 +816,10 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
         params: { tableId, rowId },
         body: { workspaceId },
       })
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
@@ -831,17 +838,24 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
     mutationFn: async (rowIds: string[]): Promise<TableRowsDeleteResult> => {
       const uniqueRowIds = Array.from(new Set(rowIds))
 
-      const response = await requestJson(deleteTableRowsContract, {
-        params: { tableId },
-        body: { workspaceId, rowIds: uniqueRowIds },
-      })
-
-      const deletedRowIds = response.data.deletedRowIds || []
-      const missingRowIds = response.data.missingRowIds || []
+      // The delete contract caps `rowIds` at MAX_BULK_OPERATION_SIZE, so large
+      // selections (e.g. "select all") are sent as sequential chunks.
+      const chunkSize = TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
+      const deletedRowIds: string[] = []
+      const missingRowIds: string[] = []
+      for (let i = 0; i < uniqueRowIds.length; i += chunkSize) {
+        const chunk = uniqueRowIds.slice(i, i + chunkSize)
+        const response = await requestJson(deleteTableRowsContract, {
+          params: { tableId },
+          body: { workspaceId, rowIds: chunk },
+        })
+        deletedRowIds.push(...(response.data.deletedRowIds || []))
+        missingRowIds.push(...(response.data.missingRowIds || []))
+      }
 
       if (missingRowIds.length > 0) {
         const failureCount = missingRowIds.length
-        const totalCount = response.data.requestedCount ?? uniqueRowIds.length
+        const totalCount = uniqueRowIds.length
         const successCount = deletedRowIds.length
         const firstMissing = missingRowIds[0]
         throw new Error(
@@ -850,6 +864,10 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
       }
 
       return { deletedRowIds }
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
@@ -872,8 +890,43 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
         body: { workspaceId, columnName, updates },
       })
     },
-    onError: (error) => {
-      // Validation errors are surfaced as inline FieldErrors by the caller.
+    onMutate: async ({ columnName, updates }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        const lower = columnName.toLowerCase()
+        const nextColumns = previousDetail.schema.columns.map((c) =>
+          c.name.toLowerCase() === lower ? { ...c, ...updates } : c
+        )
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previousDetail,
+          schema: { ...previousDetail.schema, columns: nextColumns },
+        })
+      }
+
+      const newName = (updates as { name?: string }).name
+      const rowSnapshots =
+        typeof newName === 'string' && newName.length > 0 && newName !== columnName
+          ? await snapshotAndMutateRows(queryClient, tableId, (row) => {
+              const lower = columnName.toLowerCase()
+              const matchKey = Object.keys(row.data).find((k) => k.toLowerCase() === lower)
+              if (!matchKey) return null
+              const { [matchKey]: value, ...rest } = row.data
+              return { ...row, data: { ...rest, [newName]: value } }
+            })
+          : []
+
+      return { previousDetail, rowSnapshots }
+    },
+    onError: (error, _vars, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
+      if (context?.rowSnapshots) {
+        for (const [key, data] of context.rowSnapshots) {
+          queryClient.setQueryData(key, data)
+        }
+      }
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -953,13 +1006,19 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
         const nextExecutions: RowExecutions = { ...executions }
         for (const gid in executions) {
           const exec = executions[gid]
-          if (!isOptimisticInFlight(exec)) continue
-          // Preserve blockErrors so cells that already errored keep their
-          // Error rendering after the stop — only cells without a value or
-          // error should flip to "Cancelled".
+          if (!isExecInFlight(exec)) continue
+          if (exec.executionId == null) {
+            // Optimistic-only or dispatcher-pre-stamp pending — server has not
+            // claimed the cell yet, so no SSE will arrive to reconcile a
+            // `cancelled` stamp. Strip the entry instead and let the renderer
+            // fall through to the cell's prior state (value / empty / etc.).
+            delete nextExecutions[gid]
+            rowTouched = true
+            continue
+          }
           nextExecutions[gid] = {
             status: 'cancelled',
-            executionId: exec.executionId ?? null,
+            executionId: exec.executionId,
             jobId: null,
             workflowId: exec.workflowId,
             error: 'Cancelled',
@@ -976,6 +1035,11 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      // Refetch the run-state snapshot — server re-derives runningCellCount +
+      // runningByRowId from the freshly-updated sidecar via countRunningCells.
+      // Without this, the counter and row gutter button stay stale until the
+      // user refetches manually.
+      queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
     },
   })
 }
@@ -992,8 +1056,20 @@ export function useRestoreTable() {
         params: { tableId },
       })
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSuccess: (response, tableId) => {
+      queryClient.setQueryData(tableKeys.detail(tableId), response.data.table)
+      queryClient.removeQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    },
+    onSettled: (_data, _error, tableId) => {
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: tableKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) }),
+        queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) }),
+      ])
     },
   })
 }
@@ -1028,11 +1104,12 @@ export function useUploadCsvToTable() {
 
       return response.json()
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
-    },
     onError: (error) => {
       logger.error('Failed to upload CSV:', error)
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
     },
   })
 }
@@ -1104,12 +1181,12 @@ export function useImportCsvIntoTable() {
 
       return response.json()
     },
-    onSettled: (_data, _error, variables) => {
-      if (!variables) return
-      invalidateRowCount(queryClient, variables.tableId)
-    },
     onError: (error) => {
       logger.error('Failed to import CSV into table:', error)
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, variables) => {
+      invalidateRowCount(queryClient, variables.tableId)
     },
   })
 }
@@ -1152,6 +1229,52 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
         body: { workspaceId, columnName },
       })
     },
+    onMutate: async (columnName) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+
+      const lower = columnName.toLowerCase()
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        const nextColumns = previousDetail.schema.columns.filter(
+          (c) => c.name.toLowerCase() !== lower
+        )
+        const prevWidths = previousDetail.metadata?.columnWidths
+        const nextMetadata = prevWidths
+          ? {
+              ...previousDetail.metadata,
+              columnWidths: Object.fromEntries(
+                Object.entries(prevWidths).filter(([k]) => k.toLowerCase() !== lower)
+              ),
+            }
+          : previousDetail.metadata
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previousDetail,
+          schema: { ...previousDetail.schema, columns: nextColumns },
+          metadata: nextMetadata,
+        })
+      }
+
+      const rowSnapshots = await snapshotAndMutateRows(queryClient, tableId, (row) => {
+        const matchKey = Object.keys(row.data).find((k) => k.toLowerCase() === lower)
+        if (!matchKey) return null
+        const { [matchKey]: _removed, ...rest } = row.data
+        return { ...row, data: rest }
+      })
+
+      return { previousDetail, rowSnapshots }
+    },
+    onError: (error, _columnName, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
+      if (context?.rowSnapshots) {
+        for (const [key, data] of context.rowSnapshots) {
+          queryClient.setQueryData(key, data)
+        }
+      }
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
     },
@@ -1165,6 +1288,10 @@ interface RunColumnVariables {
   runMode?: RunMode
   /** Restrict to these rows. Server applies the same eligibility predicate. */
   rowIds?: string[]
+  /** Cap the run to the first `max` eligible rows. Omit for an unbounded run.
+   *  Optimistic stamping is skipped when set — the dispatcher's real pending
+   *  stamps drive the UI for the actual capped rows. */
+  limit?: RunLimit
 }
 
 type InfiniteRowsCache = { pages: TableRowsResponse[]; pageParams: number[] }
@@ -1186,20 +1313,31 @@ function isInfiniteRowsCache(value: unknown): value is InfiniteRowsCache {
 }
 
 /**
- * Walks every cached row-list under `tableId`, applies `transform` to each row,
- * and snapshots the originals for rollback.
+ * Walks every cached query under `rowsRoot(tableId)` and applies `transform`
+ * to each row. Handles both cache shapes — the single-page `TableRowsResponse`
+ * and the infinite-query `{ pages, pageParams }`. `transform(row)` returns
+ * the next row to write, or `null` to leave it.
  *
- * Handles both cache shapes: the single-page `TableRowsResponse` and the
- * infinite-query `{ pages, pageParams }`. `transform(row)` returns the next
- * row to write, or `null` to leave it. The common pattern is "matching cells
- * flip state, others are skipped".
+ * Returns the list of `[queryKey, prior data]` entries so optimistic-update
+ * callers can roll back. SSE patchers can ignore the return value.
+ *
+ * `cancelInFlight` defaults to true (the optimistic-update contract) but SSE
+ * patchers pass `false` so live cell updates don't kick the row query off the
+ * network.
  */
+/** Walks every cached query under `rowsRoot(tableId)` and applies `transform`
+ *  to each row. Transform returns the new row or `null` to skip. Returns the
+ *  list of [queryKey, prior data] entries so optimistic-update callers can
+ *  roll back. SSE patchers can ignore the return value. */
 export async function snapshotAndMutateRows(
   queryClient: ReturnType<typeof useQueryClient>,
   tableId: string,
-  transform: (row: TableRow) => TableRow | null
+  transform: (row: TableRow) => TableRow | null,
+  options?: { cancelInFlight?: boolean }
 ): Promise<RowsCacheSnapshots> {
-  await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+  if (options?.cancelInFlight !== false) {
+    await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+  }
   const matching = queryClient.getQueriesData<RowsCacheEntry>({
     queryKey: tableKeys.rowsRoot(tableId),
   })
@@ -1265,14 +1403,6 @@ function buildPendingExec(
   }
 }
 
-/** Broader sibling of `isExecInFlight` from `lib/table/deps`: treats any
- *  `pending` (with or without a jobId) as in-flight. The optimistic-patch
- *  context uses this to avoid re-marking a cell we just flipped optimistically.
- *  The eligibility predicate uses the stricter version. */
-function isOptimisticInFlight(exec: RowExecutionMetadata | undefined): boolean {
-  return exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending'
-}
-
 /**
  * The single canonical run mutation. Every UI gesture (single cell, per-row
  * Play, action-bar Play/Refresh, column-header menu) maps to a `groupIds` +
@@ -1283,7 +1413,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ groupIds, runMode = 'all', rowIds }: RunColumnVariables) => {
+    mutationFn: async ({ groupIds, runMode = 'all', rowIds, limit }: RunColumnVariables) => {
       return requestJson(runColumnContract, {
         params: { tableId },
         body: {
@@ -1291,56 +1421,110 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
           groupIds,
           runMode,
           ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
+          ...(limit ? { limit } : {}),
         },
       })
     },
-    onMutate: async ({ groupIds, runMode = 'all', rowIds }) => {
+    onMutate: async ({ groupIds, runMode = 'all', rowIds, limit }) => {
+      // Capped runs touch only the first N eligible rows, chosen server-side by
+      // position. We can't predict that set client-side, so optimistic stamping
+      // is skipped — the dispatcher's real pending stamps (cell SSE) drive the
+      // UI within the first window.
+      if (limit)
+        return { snapshots: undefined, runStateSnapshot: undefined, didBumpRunState: false }
       const targetRowIds = rowIds && rowIds.length > 0 ? new Set(rowIds) : null
       const targetGroupIds = new Set(groupIds)
       const groups =
         queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
           .workflowGroups ?? []
       const groupsById = new Map(groups.map((g) => [g.id, g]))
+      // Tally cells stamped per row to bump the run-state counter in lockstep.
+      const stampedByRow: Record<string, number> = {}
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
         if (targetRowIds && !targetRowIds.has(r.id)) return null
         const executions = r.executions ?? {}
-        let changed = false
+        let stamped = 0
         const next: RowExecutions = { ...executions }
+        const nextData = { ...r.data }
         for (const groupId of targetGroupIds) {
           const exec = executions[groupId] as RowExecutionMetadata | undefined
-          if (isOptimisticInFlight(exec)) continue
-          // Mirror server eligibility for `mode: 'incomplete'`: skip cells whose
-          // outputs are filled, regardless of exec status. A cancelled/error
-          // cell with a leftover value from a prior run was rendering as filled
-          // but flipping to "queued" optimistically here even though the server
-          // would skip it.
-          if (runMode === 'incomplete') {
-            const group = groupsById.get(groupId)
-            if (group && areOutputsFilled(group, r)) continue
-          }
+          if (isExecInFlight(exec)) continue
+          const group = groupsById.get(groupId)
+          // Mirror server eligibility: rows with unmet deps are skipped by the
+          // dispatcher regardless of mode. Stamping pending here would leave
+          // the cell flashing Queued indefinitely (no SSE event will arrive).
+          if (group && !areGroupDepsSatisfied(group, r)) continue
+          // Mirror server eligibility for manual `mode: 'incomplete'`: a
+          // `completed` group is done (even with a blank output) — only "Run
+          // all" re-runs it. error/cancelled/never-run cells still re-run.
+          if (runMode === 'incomplete' && exec?.status === 'completed') continue
           next[groupId] = buildPendingExec(exec)
-          changed = true
+          // Mirror the server-side bulk clear: wipe output values so the cell
+          // doesn't render the stale completed value behind a pending badge.
+          // Without this the cell-render path's "value wins" branch keeps
+          // showing the previous run's output and the Queued/Running pill
+          // never appears.
+          if (group) {
+            for (const o of group.outputs) {
+              if (o.columnName in nextData) nextData[o.columnName] = null
+            }
+          }
+          stamped++
         }
-        if (!changed) return null
-        return { ...r, executions: next }
+        if (stamped === 0) return null
+        stampedByRow[r.id] = stamped
+        return { ...r, data: nextData, executions: next }
       })
-      return { snapshots }
+
+      // Badge counts the whole run scope (rows × groups), matching the server's
+      // dispatch-scope count — not just the loaded rows we could stamp. For
+      // Run-all that's the table's totalCount; for a scoped run, the rowIds.
+      const scopeRowCount = targetRowIds
+        ? targetRowIds.size
+        : (readTableRowCount(queryClient, tableId) ?? Object.keys(stampedByRow).length)
+      const cellCountDelta = scopeRowCount * targetGroupIds.size
+      const bumped = bumpRunState(queryClient, tableId, stampedByRow, cellCountDelta)
+      return { snapshots, runStateSnapshot: bumped?.snapshot, didBumpRunState: bumped !== null }
     },
     onError: (_err, _variables, context) => {
       if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
+      // Roll back the optimistic counter bump (snapshot may be undefined).
+      if (context?.didBumpRunState) {
+        queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
+      }
     },
-    onSettled: async () => {
-      // Cancel any in-flight poll first — without this, a poll started during
-      // the mutation but lands AFTER it resolves can clobber the optimistic
-      // patch with stale data, producing a queued → cancelled → queued flicker
-      // before the authoritative refetch arrives.
-      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-      await queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    onSuccess: (data, { groupIds, runMode = 'all', rowIds, limit }, context) => {
+      // Seed the dispatch into the overlay (drives resolveCellExec for
+      // ahead-of-cursor rows) from the response — refetching would reset the
+      // optimistic counter to the server's still-zero count.
+      const dispatchId = data?.data?.dispatchId
+      if (!dispatchId) {
+        // No dispatch created → no SSE to reconcile the bump; roll it back.
+        if (context?.didBumpRunState) {
+          queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
+        }
+        return
+      }
+      queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
+        const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
+        if (base.dispatches.some((d) => d.id === dispatchId)) return base
+        const dispatch: ActiveDispatch = {
+          id: dispatchId,
+          status: 'pending',
+          mode: runMode,
+          isManualRun: true,
+          cursor: -1,
+          scope: {
+            groupIds,
+            ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
+          },
+          ...(limit ? { limit } : {}),
+        }
+        return { ...base, dispatches: [...base.dispatches, dispatch] }
+      })
     },
   })
 }
-
-// ───────────────────────── Workflow group mutations ─────────────────────────
 
 interface AddWorkflowGroupVariables {
   group: WorkflowGroup
@@ -1351,10 +1535,18 @@ export function useAddWorkflowGroup({ workspaceId, tableId }: RowMutationContext
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ group, outputColumns }: AddWorkflowGroupVariables) => {
+      // Mirror the one-shot "schedule existing rows on creation" flag to the
+      // group's persisted autoRun. Without this it defaults to `true`, so an
+      // autoRun=false group opens a dispatch the scheduler then skips per-cell
+      // ('autoRun-off') — a no-op run that flashes the "X running" badge.
       return requestJson(addWorkflowGroupContract, {
         params: { tableId },
-        body: { workspaceId, group, outputColumns },
+        body: { workspaceId, group, outputColumns, autoRun: group.autoRun },
       })
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
@@ -1370,6 +1562,8 @@ interface UpdateWorkflowGroupVariables {
   outputs?: WorkflowGroupOutput[]
   newOutputColumns?: UpdateWorkflowGroupBodyInput['newOutputColumns']
   mappingUpdates?: UpdateWorkflowGroupBodyInput['mappingUpdates']
+  inputMappings?: UpdateWorkflowGroupBodyInput['inputMappings']
+  type?: UpdateWorkflowGroupBodyInput['type']
   autoRun?: boolean
 }
 
@@ -1381,6 +1575,10 @@ export function useUpdateWorkflowGroup({ workspaceId, tableId }: RowMutationCont
         params: { tableId },
         body: { workspaceId, ...vars },
       })
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
@@ -1401,6 +1599,10 @@ export function useDeleteWorkflowGroup({ workspaceId, tableId }: RowMutationCont
         params: { tableId },
         body: { workspaceId, groupId },
       })
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -191,22 +191,7 @@ function renderStructuredValuePreview(value: unknown) {
 
   const stringValue = String(value)
   return (
-    <div
-      style={{
-        display: 'inline-flex',
-        maxWidth: '100%',
-        borderRadius: '6px',
-        border: '1px solid var(--border)',
-        background: 'var(--surface-5)',
-        padding: '4px 8px',
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        fontFamily: 'var(--font-mono, monospace)',
-        fontSize: '12px',
-        lineHeight: '16px',
-        color: 'var(--text-primary)',
-      }}
-    >
+    <div className='inline-flex max-w-full rounded-[6px] border border-[var(--border)] bg-[var(--surface-5)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] leading-4 [white-space:pre-wrap] [word-break:break-word]'>
       {stringValue}
     </div>
   )
@@ -241,7 +226,7 @@ export default function ResumeExecutionPage({
   const [selectedStatus, setSelectedStatus] =
     useState<PausePointWithQueue['resumeStatus']>('paused')
   const [queuePosition, setQueuePosition] = useState<number | null | undefined>(undefined)
-  const [resumeInputs, setResumeInputs] = useState<Record<string, string>>({})
+  const resumeInputsRef = useRef<Record<string, string>>({})
   const [resumeInput, setResumeInput] = useState('')
   const [formValuesByContext, setFormValuesByContext] = useState<
     Record<string, Record<string, string>>
@@ -574,28 +559,24 @@ export default function ResumeExecutionPage({
           })
           setFormValues(mergedValues)
           setFormErrors({})
-          setResumeInputs((prev) => {
-            if (prev[data.pausePoint.contextId] !== undefined) {
-              const next = { ...prev }
-              delete next[data.pausePoint.contextId]
-              return next
-            }
-            return prev
-          })
+          if (resumeInputsRef.current[data.pausePoint.contextId] !== undefined) {
+            delete resumeInputsRef.current[data.pausePoint.contextId]
+          }
           setResumeInput('')
         } else {
           const initialValue =
             typeof responseData === 'string'
               ? responseData
               : JSON.stringify(responseData ?? {}, null, 2)
-          setResumeInputs((prev) => {
-            if (prev[data.pausePoint.contextId] !== undefined) {
-              setResumeInput(prev[data.pausePoint.contextId])
-              return prev
-            }
+          if (resumeInputsRef.current[data.pausePoint.contextId] !== undefined) {
+            setResumeInput(resumeInputsRef.current[data.pausePoint.contextId])
+          } else {
             setResumeInput(initialValue)
-            return { ...prev, [data.pausePoint.contextId]: initialValue }
-          })
+            resumeInputsRef.current = {
+              ...resumeInputsRef.current,
+              [data.pausePoint.contextId]: initialValue,
+            }
+          }
           setFormValues({})
           setFormErrors({})
         }
@@ -673,28 +654,24 @@ export default function ResumeExecutionPage({
           })
           setFormValues(mergedValues)
           setFormErrors({})
-          setResumeInputs((prev) => {
-            if (prev[data.pausePoint.contextId] !== undefined) {
-              const next = { ...prev }
-              delete next[data.pausePoint.contextId]
-              return next
-            }
-            return prev
-          })
+          if (resumeInputsRef.current[data.pausePoint.contextId] !== undefined) {
+            delete resumeInputsRef.current[data.pausePoint.contextId]
+          }
           setResumeInput('')
         } else {
           const initialValue =
             typeof responseData === 'string'
               ? responseData
               : JSON.stringify(responseData ?? {}, null, 2)
-          setResumeInputs((prev) => {
-            if (prev[data.pausePoint.contextId] !== undefined) {
-              setResumeInput(prev[data.pausePoint.contextId])
-              return prev
-            }
+          if (resumeInputsRef.current[data.pausePoint.contextId] !== undefined) {
+            setResumeInput(resumeInputsRef.current[data.pausePoint.contextId])
+          } else {
             setResumeInput(initialValue)
-            return { ...prev, [data.pausePoint.contextId]: initialValue }
-          })
+            resumeInputsRef.current = {
+              ...resumeInputsRef.current,
+              [data.pausePoint.contextId]: initialValue,
+            }
+          }
           setFormValues({})
           setFormErrors({})
         }
@@ -1009,9 +986,7 @@ export default function ResumeExecutionPage({
                     borderRadius: '8px',
                   }}
                 >
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
-                    Loading...
-                  </span>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Loading…</span>
                 </div>
               ) : !selectedContextId ? (
                 <div
@@ -1285,11 +1260,12 @@ export default function ResumeExecutionPage({
                               value={resumeInput}
                               onChange={(e) => {
                                 setResumeInput(e.target.value)
-                                if (selectedContextId)
-                                  setResumeInputs((prev) => ({
-                                    ...prev,
+                                if (selectedContextId) {
+                                  resumeInputsRef.current = {
+                                    ...resumeInputsRef.current,
                                     [selectedContextId]: e.target.value,
-                                  }))
+                                  }
+                                }
                               }}
                               placeholder='{"example": "value"}'
                               rows={6}

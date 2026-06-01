@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto'
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { speechTokenBodySchema } from '@/lib/api/contracts/media/speech'
@@ -29,6 +31,10 @@ const STT_TOKEN_RATE_LIMIT = {
   refillRate: 3,
   refillIntervalMs: 72 * 1000,
 } as const
+
+function hashVoiceToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex')
+}
 
 const rateLimiter = new RateLimiter()
 
@@ -162,6 +168,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             source: 'voice-input',
             description: `Voice input session (${maxMinutes} min)`,
             cost: sessionCost * getCostMultiplier(),
+            sourceReference: `voice-input:${hashVoiceToken(data.token)}`,
           },
         ],
       }).catch((err) => {
@@ -171,7 +178,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ token: data.token })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to generate speech token'
+    const message = getErrorMessage(error, 'Failed to generate speech token')
     logger.error('Speech token error:', error)
     return NextResponse.json({ error: message }, { status: 500 })
   }

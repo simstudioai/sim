@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { GithubIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -179,7 +179,7 @@ function treeItemToStub(
 export const githubConnector: ConnectorConfig = {
   id: 'github',
   name: 'GitHub',
-  description: 'Sync files from a GitHub repository into your knowledge base',
+  description: 'Sync files from a GitHub repository',
   version: '1.0.0',
   icon: GithubIcon,
 
@@ -396,7 +396,7 @@ export const githubConnector: ConnectorConfig = {
     } catch (error) {
       return {
         valid: false,
-        error: error instanceof Error ? error.message : 'Invalid repository format',
+        error: getErrorMessage(error, 'Invalid repository format'),
       }
     }
 
@@ -436,7 +436,7 @@ export const githubConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       return { valid: false, error: message }
     }
   },

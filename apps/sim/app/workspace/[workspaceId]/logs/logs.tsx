@@ -1,6 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react'
 import { formatDuration } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
@@ -83,6 +91,7 @@ import {
   DELETED_WORKFLOW_LABEL,
   extractRetryInput,
   formatDate,
+  formatDateShort,
   getDisplayStatus,
   type LogStatus,
   parseDuration,
@@ -94,6 +103,8 @@ import {
 const LOGS_PER_PAGE = 50 as const
 const SORTABLE_COLUMNS: readonly LogSortBy[] = ['date', 'duration', 'cost', 'status'] as const
 const REFRESH_SPINNER_DURATION_MS = 1000 as const
+const LIVE_REFRESH_INTERVAL_MS = 10_000 as const
+const ACTIVE_RUN_DETAIL_REFRESH_MS = 3_000 as const
 
 const LOG_COLUMNS: ResourceColumn[] = [
   { id: 'workflow', header: 'Workflow' },
@@ -193,23 +204,8 @@ function getTriggerIcon(
   return TriggerIcon
 }
 
-function formatDateShort(dateStr: string): string {
-  const date = new Date(dateStr)
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ]
-  return `${months[date.getMonth()]} ${date.getDate()}`
+function SpinningRefreshCw(props: React.SVGProps<SVGSVGElement>) {
+  return <RefreshCw {...props} animate />
 }
 
 /**
@@ -323,7 +319,7 @@ export default function Logs() {
     (query: { state: { data?: WorkflowLogDetail } }) => {
       if (!isLive) return false
       const status = query.state.data?.status
-      return status === 'running' || status === 'pending' ? 3000 : false
+      return status === 'running' || status === 'pending' ? ACTIVE_RUN_DETAIL_REFRESH_MS : false
     },
     [isLive]
   )
@@ -371,7 +367,7 @@ export default function Logs() {
   )
 
   const logsQuery = useLogsList(workspaceId, logFilters, {
-    refetchInterval: isLive ? 3000 : false,
+    refetchInterval: isLive ? LIVE_REFRESH_INTERVAL_MS : false,
   })
 
   const dashboardFilters = useMemo(
@@ -389,7 +385,7 @@ export default function Logs() {
   )
 
   const dashboardStatsQuery = useDashboardStats(workspaceId, dashboardFilters, {
-    refetchInterval: isLive ? 3000 : false,
+    refetchInterval: isLive ? LIVE_REFRESH_INTERVAL_MS : false,
   })
 
   const logs = useMemo(() => {
@@ -689,6 +685,9 @@ export default function Logs() {
     }
   }, [])
 
+  const handleNavigateNextEvent = useEffectEvent(handleNavigateNext)
+  const handleNavigatePrevEvent = useEffectEvent(handleNavigatePrev)
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
@@ -707,7 +706,7 @@ export default function Logs() {
 
       if (e.key === 'ArrowUp' && !e.metaKey && !e.ctrlKey && currentIndex > 0) {
         e.preventDefault()
-        handleNavigatePrev()
+        handleNavigatePrevEvent()
       }
 
       if (
@@ -717,7 +716,7 @@ export default function Logs() {
         currentIndex < currentLogs.length - 1
       ) {
         e.preventDefault()
-        handleNavigateNext()
+        handleNavigateNextEvent()
       }
 
       if (e.key === 'Enter' && selectedLogIdRef.current) {
@@ -728,7 +727,7 @@ export default function Logs() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleNavigateNext, handleNavigatePrev])
+  }, [])
 
   const handleCloseContextMenu = useCallback(() => setContextMenuOpen(false), [])
   const handleOpenNotificationSettings = useCallback(() => setIsNotificationSettingsOpen(true), [])
@@ -773,7 +772,7 @@ export default function Logs() {
             workflow: {
               icon: workflowColor ? (
                 <div
-                  className='h-[10px] w-[10px] rounded-[3px] border-[1.5px]'
+                  className='size-[10px] rounded-[3px] border-[1.5px]'
                   style={{
                     backgroundColor: workflowColor,
                     borderColor: workflowBorderColor(workflowColor),
@@ -851,7 +850,7 @@ export default function Logs() {
       tags.push({
         label:
           timeRange === 'Custom range' && startDate && endDate
-            ? `${startDate} – ${endDate}`
+            ? `${formatDateShort(startDate)} – ${formatDateShort(endDate)}`
             : timeRange,
         onRemove: () => {
           clearDateRange()
@@ -1095,12 +1094,7 @@ export default function Logs() {
     ]
   )
 
-  const refreshIcon = useMemo(() => {
-    if (!isVisuallyRefreshing) return RefreshCw
-    const Spinning = (props: React.SVGProps<SVGSVGElement>) => <RefreshCw {...props} animate />
-    Spinning.displayName = 'SpinningRefresh'
-    return Spinning
-  }, [isVisuallyRefreshing])
+  const refreshIcon = isVisuallyRefreshing ? SpinningRefreshCw : RefreshCw
 
   const headerActions = useMemo<HeaderAction[]>(
     () => [
@@ -1436,7 +1430,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
               {selectedWorkflow && (
                 <div
-                  className='h-[8px] w-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
+                  className='size-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
                   style={{
                     backgroundColor: selectedWorkflow.color,
                     borderColor: workflowBorderColor(selectedWorkflow.color),
@@ -1509,10 +1503,12 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             }
             size='sm'
             className='h-[32px] w-full rounded-md'
+            maxHeight={320}
           />
           <DatePicker
             mode='range'
             showTrigger={false}
+            showTime
             open={datePickerOpen}
             onOpenChange={(isOpen) => {
               if (!isOpen) {

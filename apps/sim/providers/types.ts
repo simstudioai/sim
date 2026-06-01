@@ -1,4 +1,4 @@
-import type { ProviderTimingSegment, StreamingExecution } from '@/executor/types'
+import type { ProviderTimingSegment, StreamingExecution, UserFile } from '@/executor/types'
 
 export type ProviderId =
   | 'openai'
@@ -13,9 +13,13 @@ export type ProviderId =
   | 'groq'
   | 'mistral'
   | 'ollama'
+  | 'ollama-cloud'
   | 'openrouter'
   | 'fireworks'
+  | 'together'
+  | 'baseten'
   | 'vllm'
+  | 'litellm'
   | 'bedrock'
 
 export interface ModelPricing {
@@ -27,13 +31,13 @@ export interface ModelPricing {
 
 export type ModelPricingMap = Record<string, ModelPricing>
 
-export interface TokenInfo {
+interface TokenInfo {
   input?: number
   output?: number
   total?: number
 }
 
-export interface TransformedResponse {
+interface TransformedResponse {
   content: string
   tokens?: TokenInfo
 }
@@ -121,6 +125,7 @@ export interface ProviderToolConfig {
 export interface Message {
   role: 'system' | 'user' | 'assistant' | 'function' | 'tool'
   content: string | null
+  files?: UserFile[]
   name?: string
   function_call?: {
     name: string

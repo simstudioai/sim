@@ -8,7 +8,7 @@ export default function TemplatesLoading() {
       <div className='flex flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col overflow-auto bg-[var(--bg)] px-[24px] pt-[28px] pb-[24px]'>
           <div className='flex items-center gap-[12px]'>
-            <Skeleton className='h-[26px] w-[26px] rounded-[6px]' />
+            <Skeleton className='size-[26px] rounded-[6px]' />
             <Skeleton className='h-[22px] w-[80px] rounded-[4px]' />
           </div>
           <Skeleton className='mt-[6px] h-[14px] w-[280px] rounded-[4px]' />

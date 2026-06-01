@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -10,10 +9,17 @@ import {
   workflowMcpToolParamsSchema,
 } from '@/lib/api/contracts/workflow-mcp-servers'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
-import { mcpPubSub } from '@/lib/mcp/pubsub'
-import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
-import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import {
+  mcpBodyReadErrorResponse,
+  readMcpJsonBodyWithLimit,
+  withMcpAuth,
+} from '@/lib/mcp/middleware'
+import { performDeleteWorkflowMcpTool, performUpdateWorkflowMcpTool } from '@/lib/mcp/orchestration'
+import {
+  createMcpErrorResponse,
+  createMcpSuccessResponse,
+  mcpOrchestrationStatus,
+} from '@/lib/mcp/utils'
 
 const logger = createLogger('WorkflowMcpToolAPI')
 
@@ -88,7 +94,7 @@ export const PATCH = withRouteHandler(
     ) => {
       try {
         const { id: serverId, toolId } = workflowMcpToolParamsSchema.parse(await params)
-        const rawBody = getParsedBody(request) ?? (await request.json())
+        const rawBody = await readMcpJsonBodyWithLimit(request)
         const parsedBody = updateWorkflowMcpToolBodySchema.safeParse(rawBody)
 
         if (!parsedBody.success) {
@@ -99,82 +105,33 @@ export const PATCH = withRouteHandler(
 
         logger.info(`[${requestId}] Updating tool ${toolId} in server ${serverId}`)
 
-        const [server] = await db
-          .select({ id: workflowMcpServer.id })
-          .from(workflowMcpServer)
-          .where(
-            and(
-              eq(workflowMcpServer.id, serverId),
-              eq(workflowMcpServer.workspaceId, workspaceId),
-              isNull(workflowMcpServer.deletedAt)
-            )
+        const result = await performUpdateWorkflowMcpTool({
+          serverId,
+          toolId,
+          workspaceId,
+          userId,
+          actorName: userName,
+          actorEmail: userEmail,
+          toolName: body.toolName,
+          toolDescription: body.toolDescription,
+          parameterSchema: body.parameterSchema,
+        })
+        if (!result.success || !result.tool) {
+          return createMcpErrorResponse(
+            new Error(result.error || 'Failed to update tool'),
+            result.error || 'Failed to update tool',
+            mcpOrchestrationStatus(result.errorCode)
           )
-          .limit(1)
-
-        if (!server) {
-          return createMcpErrorResponse(new Error('Server not found'), 'Server not found', 404)
         }
 
-        const [existingTool] = await db
-          .select({ id: workflowMcpTool.id })
-          .from(workflowMcpTool)
-          .where(
-            and(
-              eq(workflowMcpTool.id, toolId),
-              eq(workflowMcpTool.serverId, serverId),
-              isNull(workflowMcpTool.archivedAt)
-            )
-          )
-          .limit(1)
-
-        if (!existingTool) {
-          return createMcpErrorResponse(new Error('Tool not found'), 'Tool not found', 404)
-        }
-
-        const updateData: Record<string, unknown> = {
-          updatedAt: new Date(),
-        }
-
-        if (body.toolName !== undefined) {
-          updateData.toolName = sanitizeToolName(body.toolName)
-        }
-        if (body.toolDescription !== undefined) {
-          updateData.toolDescription = body.toolDescription?.trim() || null
-        }
-        if (body.parameterSchema !== undefined) {
-          updateData.parameterSchema = body.parameterSchema
-        }
-
-        const [updatedTool] = await db
-          .update(workflowMcpTool)
-          .set(updateData)
-          .where(eq(workflowMcpTool.id, toolId))
-          .returning()
+        const updatedTool = result.tool
 
         logger.info(`[${requestId}] Successfully updated tool ${toolId}`)
 
-        mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
-
-        recordAudit({
-          workspaceId,
-          actorId: userId,
-          actorName: userName,
-          actorEmail: userEmail,
-          action: AuditAction.MCP_SERVER_UPDATED,
-          resourceType: AuditResourceType.MCP_SERVER,
-          resourceId: serverId,
-          description: `Updated tool "${updatedTool.toolName}" in MCP server`,
-          metadata: {
-            toolId,
-            toolName: updatedTool.toolName,
-            workflowId: updatedTool.workflowId,
-            updatedFields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
-          },
-          request,
-        })
-
         return createMcpSuccessResponse({ tool: updatedTool })
       } catch (error) {
+        const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+        if (bodyErrorResponse) return bodyErrorResponse
         logger.error(`[${requestId}] Error updating tool:`, error)
         return createMcpErrorResponse(toError(error), 'Failed to update tool', 500)
       }
@@ -197,47 +154,24 @@ export const DELETE = withRouteHandler(
 
         logger.info(`[${requestId}] Deleting tool ${toolId} from server ${serverId}`)
 
-        const [server] = await db
-          .select({ id: workflowMcpServer.id })
-          .from(workflowMcpServer)
-          .where(
-            and(
-              eq(workflowMcpServer.id, serverId),
-              eq(workflowMcpServer.workspaceId, workspaceId),
-              isNull(workflowMcpServer.deletedAt)
-            )
-          )
-          .limit(1)
-
-        if (!server) {
-          return createMcpErrorResponse(new Error('Server not found'), 'Server not found', 404)
-        }
-
-        const [deletedTool] = await db
-          .delete(workflowMcpTool)
-          .where(and(eq(workflowMcpTool.id, toolId), eq(workflowMcpTool.serverId, serverId)))
-          .returning()
-
-        if (!deletedTool) {
-          return createMcpErrorResponse(new Error('Tool not found'), 'Tool not found', 404)
-        }
-
-        logger.info(`[${requestId}] Successfully deleted tool ${toolId}`)
-
-        mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
-
-        recordAudit({
+        const result = await performDeleteWorkflowMcpTool({
+          serverId,
+          toolId,
           workspaceId,
-          actorId: userId,
+          userId,
           actorName: userName,
           actorEmail: userEmail,
-          action: AuditAction.MCP_SERVER_UPDATED,
-          resourceType: AuditResourceType.MCP_SERVER,
-          resourceId: serverId,
-          description: `Removed tool "${deletedTool.toolName}" from MCP server`,
-          metadata: { toolId, toolName: deletedTool.toolName, workflowId: deletedTool.workflowId },
-          request,
         })
+        if (!result.success || !result.tool) {
+          return createMcpErrorResponse(
+            new Error(result.error || 'Tool not found'),
+            result.error || 'Tool not found',
+            mcpOrchestrationStatus(result.errorCode)
+          )
+        }
+        const deletedTool = result.tool
+
+        logger.info(`[${requestId}] Successfully deleted tool ${toolId}`)
 
         return createMcpSuccessResponse({ message: `Tool ${toolId} deleted successfully` })
       } catch (error) {

@@ -107,9 +107,9 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
           disabled={isDownloading}
         >
           {isDownloading ? (
-            <Loader className='mr-1 h-[10px] w-[10px]' animate />
+            <Loader className='mr-1 size-[10px]' animate />
           ) : (
-            <ArrowDown className='mr-1 h-[10px] w-[10px]' />
+            <ArrowDown className='mr-1 size-[10px]' />
           )}
           {isDownloading ? 'Opening...' : 'Download'}
         </Button>
@@ -214,13 +214,11 @@ export function FileDownload({
       disabled={isDownloading}
     >
       {isDownloading ? (
-        <Loader className='h-3 w-3' animate />
+        <Loader className='size-3' animate />
       ) : (
-        <ArrowDown className='h-[14px] w-[14px]' />
+        <ArrowDown className='size-[14px]' />
       )}
       {isDownloading ? 'Downloading...' : 'Download'}
     </Button>
   )
 }
-
-export default FileCards

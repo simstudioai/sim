@@ -117,20 +117,20 @@ if is_ready:
 获取异步任务执行的状态。
 
 ```python
-status = client.get_job_status("task-id-from-async-execution")
+status = client.get_job_status("job-id-from-async-execution")
 print("Status:", status["status"])  # 'queued', 'processing', 'completed', 'failed'
 if status["status"] == "completed":
     print("Output:", status["output"])
 ```
 
 **参数：**
-- `task_id` (str): 异步执行返回的任务 ID
+- `job_id` (str): 异步执行返回的作业 ID
 
 **返回值：** `Dict[str, Any]`
 
 **响应字段：**
 - `success` (bool): 请求是否成功
-- `taskId` (str): 任务 ID
+- `taskId` (str): 作业 ID
 - `status` (str): 可能的值包括 `'queued'`, `'processing'`, `'completed'`, `'failed'`, `'cancelled'`
 - `metadata` (dict): 包含 `startedAt`, `completedAt` 和 `duration`
 - `output` (any, optional): 工作流输出（完成时）
@@ -271,10 +271,11 @@ class WorkflowExecutionResult:
 @dataclass
 class AsyncExecutionResult:
     success: bool
-    task_id: str
-    status: str  # 'queued'
-    created_at: str
-    links: Dict[str, str]  # e.g., {"status": "/api/jobs/{taskId}"}
+    job_id: str
+    status_url: str
+    execution_id: Optional[str] = None
+    message: str = ""
+    async_execution: bool = True
 ```
 
 ### WorkflowStatus
@@ -494,17 +495,17 @@ def execute_async():
         )
 
         # Check if result is an async execution
-        if hasattr(result, 'task_id'):
-            print(f"Task ID: {result.task_id}")
-            print(f"Status endpoint: {result.links['status']}")
+        if hasattr(result, 'job_id'):
+            print(f"Job ID: {result.job_id}")
+            print(f"Status endpoint: {result.status_url}")
 
             # Poll for completion
-            status = client.get_job_status(result.task_id)
+            status = client.get_job_status(result.job_id)
 
             while status["status"] in ["queued", "processing"]:
                 print(f"Current status: {status['status']}")
                 time.sleep(2)  # Wait 2 seconds
-                status = client.get_job_status(result.task_id)
+                status = client.get_job_status(result.job_id)
 
             if status["status"] == "completed":
                 print("Workflow completed!")

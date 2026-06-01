@@ -100,7 +100,7 @@ export function DetailItem({ label, value }: { label: string; value: string }) {
 export function ChevronArrow() {
   return (
     <svg
-      className='h-3 w-3 shrink-0 text-[var(--landing-text-subtle)]'
+      className='size-3 shrink-0 text-[var(--landing-text-subtle)]'
       viewBox='0 0 10 10'
       fill='none'
       xmlns='http://www.w3.org/2000/svg'
@@ -154,11 +154,7 @@ export function FeaturedProviderCard({ provider }: { provider: CatalogProvider }
       href={provider.href}
       className='group flex flex-1 flex-col gap-4 border-[var(--landing-bg-elevated)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--landing-bg-elevated)] sm:border-t-0 sm:border-l sm:first:border-l-0'
     >
-      <ProviderIcon
-        provider={provider}
-        className='h-10 w-10 rounded-[5px]'
-        iconClassName='h-5 w-5'
-      />
+      <ProviderIcon provider={provider} className='size-10 rounded-[5px]' iconClassName='h-5 w-5' />
       <div className='flex flex-col gap-2'>
         <h3 className='text-lg text-white leading-tight tracking-[-0.01em]'>{provider.name}</h3>
         <p className='line-clamp-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
@@ -181,11 +177,7 @@ export function FeaturedModelCard({
       href={model.href}
       className='group flex flex-1 flex-col gap-4 border-[var(--landing-bg-elevated)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--landing-bg-elevated)] sm:border-t-0 sm:border-l sm:first:border-l-0'
     >
-      <ProviderIcon
-        provider={provider}
-        className='h-10 w-10 rounded-[5px]'
-        iconClassName='h-5 w-5'
-      />
+      <ProviderIcon provider={provider} className='size-10 rounded-[5px]' iconClassName='h-5 w-5' />
       <div className='flex flex-col gap-2'>
         <span className='font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em]'>
           {provider.name}
@@ -255,7 +247,7 @@ export function ModelCard({
       <div className='mb-4 flex items-start gap-3'>
         <ProviderIcon
           provider={provider}
-          className='h-10 w-10 rounded-[5px]'
+          className='size-10 rounded-[5px]'
           iconClassName='h-5 w-5'
         />
         <div className='min-w-0 flex-1'>

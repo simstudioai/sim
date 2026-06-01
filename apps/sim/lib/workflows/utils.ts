@@ -1,15 +1,16 @@
 import { db } from '@sim/db'
-import { permissions, userStats, workflowFolder, workflow as workflowTable } from '@sim/db/schema'
+import { permissions, workflowFolder, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, asc, eq, inArray, isNull, max, min, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { materializeInlineExecutionValue } from '@/lib/execution/payloads/inline-materialization.server'
+import type { ExecutionMaterializationContext } from '@/lib/execution/payloads/materialization.server'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('WorkflowUtils')
@@ -243,53 +244,6 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
       })
       .where(eq(workflowTable.id, workflowId))
 
-    let activityUserId: string | null = null
-    if (workflow.workspaceId) {
-      try {
-        activityUserId = await getWorkspaceBilledAccountUserId(workflow.workspaceId)
-      } catch (error) {
-        logger.warn(`Error resolving billed account for workspace ${workflow.workspaceId}`, {
-          workflowId,
-          error,
-        })
-      }
-    }
-
-    if (activityUserId) {
-      try {
-        const existing = await db
-          .select()
-          .from(userStats)
-          .where(eq(userStats.userId, activityUserId))
-          .limit(1)
-
-        if (existing.length === 0) {
-          logger.warn('User stats record not found - should be created during onboarding', {
-            userId: activityUserId,
-            workflowId,
-          })
-        } else {
-          await db
-            .update(userStats)
-            .set({
-              lastActive: new Date(),
-            })
-            .where(eq(userStats.userId, activityUserId))
-        }
-      } catch (error) {
-        logger.error(`Error updating userStats lastActive for userId ${activityUserId}:`, error)
-        // Don't rethrow - we want to continue even if this fails
-      }
-    } else {
-      logger.warn(
-        'Skipping userStats lastActive update: unable to resolve workspace billed account',
-        {
-          workflowId,
-          workspaceId: workflow.workspaceId,
-        }
-      )
-    }
-
     return {
       success: true,
       runsAdded: runs,
@@ -315,17 +269,19 @@ export const workflowHasResponseBlock = (
   return responseBlock !== undefined
 }
 
-export const createHttpResponseFromBlock = (
-  executionResult: Pick<ExecutionResult, 'output'>
-): NextResponse => {
+export const createHttpResponseFromBlock = async (
+  executionResult: Pick<ExecutionResult, 'output'>,
+  context?: ExecutionMaterializationContext
+): Promise<NextResponse> => {
   const { data = {}, status = 200, headers = {} } = executionResult.output
+  const responseData = await materializeInlineExecutionValue(data, context)
 
   const responseHeaders = new Headers({
     'Content-Type': 'application/json',
     ...headers,
   })
 
-  return NextResponse.json(data, {
+  return NextResponse.json(responseData, {
     status: status,
     headers: responseHeaders,
   })

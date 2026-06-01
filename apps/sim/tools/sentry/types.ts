@@ -3,7 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 /**
  * Base parameter interface shared across all Sentry tools
  */
-export interface SentryBaseParams {
+interface SentryBaseParams {
   apiKey: string
   organizationSlug: string
 }
@@ -11,7 +11,7 @@ export interface SentryBaseParams {
 /**
  * Sentry issue representation
  */
-export interface SentryIssue {
+interface SentryIssue {
   id: string
   shortId: string
   title: string
@@ -102,7 +102,7 @@ export interface SentryUpdateIssueResponse extends ToolResponse {
 /**
  * Sentry project representation
  */
-export interface SentryProject {
+interface SentryProject {
   id: string
   slug: string
   name: string
@@ -199,7 +199,7 @@ export interface SentryUpdateProjectResponse extends ToolResponse {
 /**
  * Sentry event representation
  */
-export interface SentryEvent {
+interface SentryEvent {
   id: string
   eventID: string
   projectID: string
@@ -279,7 +279,7 @@ export interface SentryGetEventResponse extends ToolResponse {
 /**
  * Sentry release representation
  */
-export interface SentryRelease {
+interface SentryRelease {
   id: string
   version: string
   shortVersion: string

@@ -1,8 +1,9 @@
 import { Cerebras } from '@cerebras/cerebras_cloud_sdk'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { formatMessagesForProvider } from '@/providers/attachments'
 import type { CerebrasResponse } from '@/providers/cerebras/types'
 import { createReadableStreamFromCerebrasStream } from '@/providers/cerebras/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
@@ -64,6 +65,7 @@ export const cerebrasProvider: ProviderConfig = {
       if (request.messages) {
         allMessages.push(...request.messages)
       }
+      const formattedMessages = formatMessagesForProvider(allMessages, 'cerebras')
 
       const tools = request.tools?.length
         ? request.tools.map((tool) => ({
@@ -78,7 +80,7 @@ export const cerebrasProvider: ProviderConfig = {
 
       const payload: any = {
         model: request.model.replace('cerebras/', ''),
-        messages: allMessages,
+        messages: formattedMessages,
       }
       if (request.temperature !== undefined) payload.temperature = request.temperature
       if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
@@ -199,7 +201,7 @@ export const cerebrasProvider: ProviderConfig = {
       }
       const toolCalls = []
       const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...allMessages]
+      const currentMessages = [...formattedMessages]
       let iterationCount = 0
 
       let modelTime = firstResponseTime
@@ -261,7 +263,9 @@ export const cerebrasProvider: ProviderConfig = {
               if (!tool) return null
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-              const result = await executeTool(toolName, executionParams)
+              const result = await executeTool(toolName, executionParams, {
+                signal: request.abortSignal,
+              })
               const toolCallEndTime = Date.now()
 
               return {
@@ -287,7 +291,7 @@ export const cerebrasProvider: ProviderConfig = {
                 result: {
                   success: false,
                   output: undefined,
-                  error: error instanceof Error ? error.message : 'Tool execution failed',
+                  error: getErrorMessage(error, 'Tool execution failed'),
                 },
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,

@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface AgentPhoneNumber {
+interface AgentPhoneNumber {
   id: string
   phoneNumber: string
   country: string
@@ -10,7 +10,7 @@ export interface AgentPhoneNumber {
   createdAt: string
 }
 
-export interface AgentPhoneNumberMessage {
+interface AgentPhoneNumberMessage {
   id: string
   from_: string
   to: string
@@ -41,10 +41,11 @@ export interface AgentPhoneConversationMessage {
   direction: string
   channel: string | null
   mediaUrl: string | null
+  mediaUrls: string[]
   receivedAt: string
 }
 
-export interface AgentPhoneConversationDetail {
+interface AgentPhoneConversationDetail {
   id: string
   agentId: string | null
   phoneNumberId: string
@@ -88,7 +89,7 @@ export interface AgentPhoneTranscriptEntry {
   createdAt: string | null
 }
 
-export interface AgentPhoneCallDetail extends AgentPhoneCallSummary {
+interface AgentPhoneCallDetail extends AgentPhoneCallSummary {
   transcripts: AgentPhoneTranscriptTurn[]
 }
 
@@ -368,7 +369,7 @@ export interface AgentPhoneDeleteContactResult extends ToolResponse {
   }
 }
 
-export interface AgentPhoneUsagePlan {
+interface AgentPhoneUsagePlan {
   name: string
   limits: {
     numbers: number | null
@@ -379,7 +380,7 @@ export interface AgentPhoneUsagePlan {
   }
 }
 
-export interface AgentPhoneUsageStats {
+interface AgentPhoneUsageStats {
   totalMessages: number | null
   messagesLast24h: number | null
   messagesLast7d: number | null

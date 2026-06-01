@@ -75,6 +75,7 @@ export interface DeleteSubscriptionContext {
   webhook: Record<string, unknown>
   workflow: Record<string, unknown>
   requestId: string
+  strict?: boolean
 }
 
 /** Context for configuring polling after webhook creation. */
@@ -127,7 +128,7 @@ export interface WebhookProviderHandler {
   /** Create an external webhook subscription (e.g., register with Telegram, Airtable, etc.). */
   createSubscription?(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined>
 
-  /** Delete an external webhook subscription during cleanup. Errors should not throw. */
+  /** Delete an external webhook subscription during cleanup. Strict outbox cleanup should throw. */
   deleteSubscription?(ctx: DeleteSubscriptionContext): Promise<void>
 
   /** Configure polling after webhook creation (gmail, outlook, rss, imap). */

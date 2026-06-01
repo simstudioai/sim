@@ -1,9 +1,7 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissions, workflow, workflowFolder } from '@sim/db/schema'
+import { permissions, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createWorkflowContract, workflowListQuerySchema } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
@@ -11,9 +9,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { deduplicateWorkflowName } from '@/lib/workflows/utils'
+import { performCreateWorkflow } from '@/lib/workflows/orchestration'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -183,86 +179,31 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
-    const workflowId = clientId || generateId()
-    const now = new Date()
+    const result = await performCreateWorkflow({
+      id: clientId,
+      name: requestedName,
+      description,
+      color,
+      workspaceId,
+      folderId,
+      sortOrder: providedSortOrder,
+      deduplicate,
+      userId,
+      requestId,
+    })
 
-    logger.info(`[${requestId}] Creating workflow ${workflowId} for user ${userId}`)
-
-    let sortOrder: number
-    if (providedSortOrder !== undefined) {
-      sortOrder = providedSortOrder
-    } else {
-      const workflowParentCondition = folderId
-        ? eq(workflow.folderId, folderId)
-        : isNull(workflow.folderId)
-      const folderParentCondition = folderId
-        ? eq(workflowFolder.parentId, folderId)
-        : isNull(workflowFolder.parentId)
-
-      const [[workflowMinResult], [folderMinResult]] = await Promise.all([
-        db
-          .select({ minOrder: min(workflow.sortOrder) })
-          .from(workflow)
-          .where(
-            and(
-              eq(workflow.workspaceId, workspaceId),
-              workflowParentCondition,
-              isNull(workflow.archivedAt)
-            )
-          ),
-        db
-          .select({ minOrder: min(workflowFolder.sortOrder) })
-          .from(workflowFolder)
-          .where(and(eq(workflowFolder.workspaceId, workspaceId), folderParentCondition)),
-      ])
-
-      const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
-        number | null
-      >((currentMin, candidate) => {
-        if (candidate == null) return currentMin
-        if (currentMin == null) return candidate
-        return Math.min(currentMin, candidate)
-      }, null)
-
-      sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
+    if (!result.success || !result.workflow) {
+      const status = result.errorCode === 'conflict' ? 409 : 500
+      return NextResponse.json({ error: result.error }, { status })
     }
 
-    let name = requestedName
-
-    if (deduplicate) {
-      name = await deduplicateWorkflowName(requestedName, workspaceId, folderId)
-    } else {
-      const duplicateConditions = [
-        eq(workflow.workspaceId, workspaceId),
-        isNull(workflow.archivedAt),
-        eq(workflow.name, requestedName),
-      ]
-
-      if (folderId) {
-        duplicateConditions.push(eq(workflow.folderId, folderId))
-      } else {
-        duplicateConditions.push(isNull(workflow.folderId))
-      }
-
-      const [duplicateWorkflow] = await db
-        .select({ id: workflow.id })
-        .from(workflow)
-        .where(and(...duplicateConditions))
-        .limit(1)
-
-      if (duplicateWorkflow) {
-        return NextResponse.json(
-          { error: `A workflow named "${requestedName}" already exists in this folder` },
-          { status: 409 }
-        )
-      }
-    }
+    const createdWorkflow = result.workflow
 
     import('@/lib/core/telemetry')
       .then(({ PlatformEvents }) => {
         PlatformEvents.workflowCreated({
-          workflowId,
-          name,
+          workflowId: createdWorkflow.id,
+          name: createdWorkflow.name,
           workspaceId: workspaceId || undefined,
           folderId: folderId || undefined,
         })
@@ -271,74 +212,36 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         // Silently fail
       })
 
-    const { workflowState, subBlockValues, startBlockId } = buildDefaultWorkflowArtifacts()
-
-    await db.transaction(async (tx) => {
-      await tx.insert(workflow).values({
-        id: workflowId,
-        userId,
-        workspaceId,
-        folderId: folderId || null,
-        sortOrder,
-        name,
-        description,
-        color,
-        lastSynced: now,
-        createdAt: now,
-        updatedAt: now,
-        isDeployed: false,
-        runCount: 0,
-        variables: {},
-      })
-
-      await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
-    })
-
-    logger.info(`[${requestId}] Successfully created workflow ${workflowId} with default blocks`)
+    logger.info(
+      `[${requestId}] Successfully created workflow ${createdWorkflow.id} with default blocks`
+    )
 
     captureServerEvent(
       userId,
       'workflow_created',
-      { workflow_id: workflowId, workspace_id: workspaceId ?? '', name },
+      {
+        workflow_id: createdWorkflow.id,
+        workspace_id: workspaceId ?? '',
+        name: createdWorkflow.name,
+      },
       {
         groups: workspaceId ? { workspace: workspaceId } : undefined,
         setOnce: { first_workflow_created_at: new Date().toISOString() },
       }
     )
 
-    recordAudit({
-      workspaceId,
-      actorId: userId,
-      actorName: auth.userName,
-      actorEmail: auth.userEmail,
-      action: AuditAction.WORKFLOW_CREATED,
-      resourceType: AuditResourceType.WORKFLOW,
-      resourceId: workflowId,
-      resourceName: name,
-      description: `Created workflow "${name}"`,
-      metadata: {
-        name,
-        description: description || undefined,
-        color,
-        workspaceId,
-        folderId: folderId || undefined,
-        sortOrder,
-      },
-      request: req,
-    })
-
     return NextResponse.json({
-      id: workflowId,
-      name,
-      description,
-      color,
-      workspaceId,
-      folderId,
-      sortOrder,
-      createdAt: now,
-      updatedAt: now,
-      startBlockId,
-      subBlockValues,
+      id: createdWorkflow.id,
+      name: createdWorkflow.name,
+      description: createdWorkflow.description,
+      color: createdWorkflow.color,
+      workspaceId: createdWorkflow.workspaceId,
+      folderId: createdWorkflow.folderId,
+      sortOrder: createdWorkflow.sortOrder,
+      createdAt: createdWorkflow.createdAt,
+      updatedAt: createdWorkflow.updatedAt,
+      startBlockId: createdWorkflow.startBlockId,
+      subBlockValues: createdWorkflow.subBlockValues,
     })
   } catch (error) {
     logger.error(`[${requestId}] Error creating workflow`, error)

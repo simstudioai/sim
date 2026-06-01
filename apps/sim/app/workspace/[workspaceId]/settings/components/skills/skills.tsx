@@ -2,9 +2,18 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
+import {
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { SkillModal } from '@/app/workspace/[workspaceId]/settings/components/skills/components/skill-modal'
 import { SkillSkeleton } from '@/app/workspace/[workspaceId]/settings/components/skills/skill-skeleton'
@@ -84,7 +93,7 @@ export function Skills() {
         <div className='flex items-center gap-2'>
           <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
-              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
             />
             <Input
@@ -96,7 +105,7 @@ export function Skills() {
             />
           </div>
           <Button onClick={() => setShowAddForm(true)} disabled={isLoading} variant='primary'>
-            <Plus className='mr-1.5 h-[13px] w-[13px]' />
+            <Plus className='mr-1.5 size-[13px]' />
             Add
           </Button>
         </div>
@@ -105,7 +114,7 @@ export function Skills() {
           {error ? (
             <div className='flex h-full flex-col items-center justify-center gap-2'>
               <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
-                {error instanceof Error ? error.message : 'Failed to load skills'}
+                {getErrorMessage(error, 'Failed to load skills')}
               </p>
             </div>
           ) : isLoading ? (
@@ -170,11 +179,11 @@ export function Skills() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Skill</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{skillToDelete?.name}</span>?{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowDeleteDialog(false)}>

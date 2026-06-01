@@ -2,17 +2,20 @@ import { type Context as OtelContext, context as otelContextApi } from '@opentel
 import { db } from '@sim/db'
 import { copilotChats, permissions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
+import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
+  withStoppedContentBlock,
 } from '@/lib/copilot/chat/persisted-message'
 import {
   processContextsServer,
@@ -22,6 +25,7 @@ import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import {
+  CopilotChatFinalizeOutcome,
   CopilotChatPersistOutcome,
   CopilotTransport,
 } from '@/lib/copilot/generated/trace-attribute-values-v1'
@@ -41,7 +45,10 @@ import { taskPubSub } from '@/lib/copilot/tasks'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  getUserEntityPermissions,
+  isWorkspaceAccessDeniedError,
+} from '@/lib/workspaces/permissions/utils'
 import type { ChatContext } from '@/stores/panel'
 
 export const maxDuration = 3600
@@ -59,7 +66,17 @@ const FileAttachmentSchema = z.object({
 })
 
 const ResourceAttachmentSchema = z.object({
-  type: z.enum(['workflow', 'table', 'file', 'knowledgebase', 'folder', 'task', 'log', 'generic']),
+  type: z.enum([
+    'workflow',
+    'table',
+    'file',
+    'knowledgebase',
+    'folder',
+    'filefolder',
+    'task',
+    'log',
+    'generic',
+  ]),
   id: z.string().min(1),
   title: z.string().optional(),
   active: z.boolean().optional(),
@@ -71,6 +88,7 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   file: 'File',
   knowledgebase: 'Knowledge Base',
   folder: 'Folder',
+  filefolder: 'File Folder',
   task: 'Task',
   log: 'Log',
   generic: 'Resource',
@@ -90,6 +108,7 @@ const ChatContextSchema = z.object({
     'table',
     'file',
     'folder',
+    'filefolder',
   ]),
   label: z.string(),
   chatId: z.string().optional(),
@@ -102,6 +121,7 @@ const ChatContextSchema = z.object({
   tableId: z.string().optional(),
   fileId: z.string().optional(),
   folderId: z.string().optional(),
+  fileFolderId: z.string().optional(),
 })
 
 const ChatMessageSchema = z.object({
@@ -273,7 +293,7 @@ async function persistUserMessage(params: {
    * span parented to the about-to-be-dropped Next.js HTTP span.
    */
   parentOtelContext?: OtelContext
-}): Promise<unknown[] | undefined> {
+}): Promise<void> {
   const {
     chatId,
     userMessageId,
@@ -284,7 +304,7 @@ async function persistUserMessage(params: {
     notifyWorkspaceStatus,
     parentOtelContext,
   } = params
-  if (!chatId) return undefined
+  if (!chatId) return
 
   return withCopilotSpan(
     TraceSpan.CopilotChatPersistUserMessage,
@@ -306,23 +326,31 @@ async function persistUserMessage(params: {
         contexts,
       })
 
-      const [updated] = await db
-        .update(copilotChats)
-        .set({
-          messages: sql`${copilotChats.messages} || ${JSON.stringify([userMsg])}::jsonb`,
-          conversationId: userMessageId,
-          updatedAt: new Date(),
-        })
-        .where(eq(copilotChats.id, chatId))
-        .returning({ messages: copilotChats.messages })
+      const updated = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(copilotChats)
+          .set({
+            conversationId: userMessageId,
+            updatedAt: new Date(),
+          })
+          .where(eq(copilotChats.id, chatId))
+          .returning({ model: copilotChats.model })
 
-      const messagesAfter = Array.isArray(updated?.messages) ? updated.messages : undefined
-      span.setAttributes({
-        [TraceAttr.ChatPersistOutcome]: updated
-          ? CopilotChatPersistOutcome.Appended
-          : CopilotChatPersistOutcome.ChatNotFound,
-        [TraceAttr.ChatMessagesAfter]: messagesAfter?.length ?? 0,
+        if (!row) return null
+
+        await appendCopilotChatMessages(
+          chatId,
+          [userMsg],
+          { streamId: userMessageId, chatModel: row.model ?? null },
+          tx
+        )
+        return row
       })
+
+      span.setAttribute(
+        TraceAttr.ChatPersistOutcome,
+        updated ? CopilotChatPersistOutcome.Appended : CopilotChatPersistOutcome.ChatNotFound
+      )
 
       if (notifyWorkspaceStatus && updated && workspaceId) {
         taskPubSub?.publishStatusChanged({
@@ -332,8 +360,6 @@ async function persistUserMessage(params: {
           streamId: userMessageId,
         })
       }
-
-      return messagesAfter
     },
     parentOtelContext
   )
@@ -411,13 +437,31 @@ function buildOnComplete(params: {
 
     if (!chatId) return
 
-    // On cancel, /chat/stop is the sole DB writer — it persists
-    // partial content AND clears conversationId in one UPDATE. If we
-    // finalize here first the filter misses and content vanishes.
-    // Real errors still finalize so the stream marker clears.
-    if (result.cancelled) return
-
     try {
+      if (result.cancelled) {
+        const finalization = await finalizeAssistantTurn({
+          chatId,
+          userMessageId,
+          assistantMessage: withStoppedContentBlock(
+            buildPersistedAssistantMessage(result, requestId)
+          ),
+          streamMarkerPolicy: 'active-or-cleared',
+        })
+        const shouldPublishCompletion =
+          finalization.updated ||
+          finalization.outcome === CopilotChatFinalizeOutcome.AssistantAlreadyPersisted
+
+        if (notifyWorkspaceStatus && workspaceId && shouldPublishCompletion) {
+          taskPubSub?.publishStatusChanged({
+            workspaceId,
+            chatId,
+            type: 'completed',
+            streamId: userMessageId,
+          })
+        }
+        return
+      }
+
       await finalizeAssistantTurn({
         chatId,
         userMessageId,
@@ -437,7 +481,7 @@ function buildOnComplete(params: {
     } catch (error) {
       logger.error(`[${requestId}] Failed to persist chat messages`, {
         chatId,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
       })
     }
   }
@@ -469,7 +513,7 @@ function buildOnError(params: {
     } catch (error) {
       logger.error(`[${requestId}] Failed to finalize errored chat stream`, {
         chatId,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
       })
     }
   }
@@ -604,6 +648,7 @@ async function resolveBranch(params: {
           workspaceContext: payloadParams.workspaceContext,
           userPermission: payloadParams.userPermission,
           userTimezone: payloadParams.userTimezone,
+          includeMothershipTools: true,
         },
         { selectedModel: '' }
       ),
@@ -801,7 +846,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       const userPermissionPromise = workspaceId
         ? getUserEntityPermissions(authenticatedUserId, 'workspace', workspaceId).catch((error) => {
             logger.warn('Failed to load user permissions', {
-              error: error instanceof Error ? error.message : String(error),
+              error: getErrorMessage(error),
               workspaceId,
             })
             return null
@@ -839,7 +884,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           }),
         activeOtelRoot.context
       )
-      const persistedMessagesPromise = persistUserMessage({
+      const persistUserMessagePromise = persistUserMessage({
         chatId: actualChatId,
         userMessageId,
         message: body.message,
@@ -862,21 +907,16 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.context
       )
 
-      const [agentContexts, userPermission, workspaceContext, persistedMessages, executionContext] =
+      const [agentContexts, userPermission, workspaceContext, , executionContext] =
         await Promise.all([
           agentContextsPromise,
           userPermissionPromise,
           workspaceContextPromise,
-          persistedMessagesPromise,
+          persistUserMessagePromise,
           executionContextPromise,
         ])
 
-      if (persistedMessages) {
-        conversationHistory = persistedMessages.filter((message) => {
-          const record = message as Record<string, unknown>
-          return record.id !== userMessageId
-        })
-      }
+      executionContext.userPermission = userPermission ?? undefined
 
       // buildPayload is the last synchronous step before the outbound
       // Sim → Go HTTP call. It runs per-tool schema generation (subscription
@@ -1002,14 +1042,18 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       return validationErrorResponse(error, 'Invalid request data')
     }
 
+    if (isWorkspaceAccessDeniedError(error)) {
+      return NextResponse.json({ error: 'Workspace access denied' }, { status: 403 })
+    }
+
     logger.error(`[${requestId}] Error handling unified chat request`, {
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
       stack: error instanceof Error ? error.stack : undefined,
     })
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
       },
       { status: 500 }
     )

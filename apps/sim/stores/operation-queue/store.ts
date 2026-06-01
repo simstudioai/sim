@@ -29,6 +29,7 @@ const RETRY_DELAY_BASE_MS = 1000
 
 const retryTimeouts = new Map<string, NodeJS.Timeout>()
 const operationTimeouts = new Map<string, NodeJS.Timeout>()
+const DEFAULT_WORKFLOW_DRAIN_TIMEOUT_MS = 20000
 
 let emitWorkflowOperation:
   | ((
@@ -95,29 +96,32 @@ let currentRegisteredWorkflowId: string | null = null
 
 export const useOperationQueueStore = create<OperationQueueState>((set, get) => ({
   operations: [],
+  workflowOperationVersions: {},
   isProcessing: false,
   hasOperationError: false,
 
   addToQueue: (operation) => {
+    set((state) => ({
+      workflowOperationVersions: {
+        ...state.workflowOperationVersions,
+        [operation.workflowId]: (state.workflowOperationVersions[operation.workflowId] ?? 0) + 1,
+      },
+    }))
+
+    let shouldDropPendingOperation = (_op: QueuedOperation) => false
+
     if (
       operation.operation.operation === 'subblock-update' &&
       operation.operation.target === 'subblock'
     ) {
       const { blockId, subblockId } = operation.operation.payload
-      set((state) => ({
-        operations: [
-          ...state.operations.filter(
-            (op) =>
-              !(
-                op.status === 'pending' &&
-                op.operation.operation === 'subblock-update' &&
-                op.operation.target === 'subblock' &&
-                op.operation.payload?.blockId === blockId &&
-                op.operation.payload?.subblockId === subblockId
-              )
-          ),
-        ],
-      }))
+      shouldDropPendingOperation = (op) =>
+        op.status === 'pending' &&
+        op.workflowId === operation.workflowId &&
+        op.operation.operation === 'subblock-update' &&
+        op.operation.target === 'subblock' &&
+        op.operation.payload?.blockId === blockId &&
+        op.operation.payload?.subblockId === subblockId
     }
 
     if (
@@ -125,20 +129,13 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       operation.operation.target === 'variable'
     ) {
       const { variableId, field } = operation.operation.payload
-      set((state) => ({
-        operations: [
-          ...state.operations.filter(
-            (op) =>
-              !(
-                op.status === 'pending' &&
-                op.operation.operation === 'variable-update' &&
-                op.operation.target === 'variable' &&
-                op.operation.payload?.variableId === variableId &&
-                op.operation.payload?.field === field
-              )
-          ),
-        ],
-      }))
+      shouldDropPendingOperation = (op) =>
+        op.status === 'pending' &&
+        op.workflowId === operation.workflowId &&
+        op.operation.operation === 'variable-update' &&
+        op.operation.target === 'variable' &&
+        op.operation.payload?.variableId === variableId &&
+        op.operation.payload?.field === field
     }
 
     const state = get()
@@ -154,6 +151,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
     const duplicateContent = state.operations.find(
       (op) =>
+        !shouldDropPendingOperation(op) &&
         op.operation.operation === operation.operation.operation &&
         op.operation.target === operation.operation.target &&
         op.workflowId === operation.workflowId &&
@@ -194,7 +192,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     })
 
     set((state) => ({
-      operations: [...state.operations, queuedOp],
+      operations: [...state.operations.filter((op) => !shouldDropPendingOperation(op)), queuedOp],
     }))
 
     get().processNextOperation()
@@ -412,6 +410,42 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     operationTimeouts.set(nextOperation.id, timeoutId)
   },
 
+  hasPendingOperations: (workflowId: string) => {
+    return get().operations.some((op) => op.workflowId === workflowId)
+  },
+
+  waitForWorkflowOperations: (
+    workflowId: string,
+    timeoutMs = DEFAULT_WORKFLOW_DRAIN_TIMEOUT_MS
+  ) => {
+    if (!get().hasPendingOperations(workflowId)) {
+      return Promise.resolve(true)
+    }
+
+    return new Promise((resolve) => {
+      let unsubscribe = () => {}
+      const timeout = setTimeout(() => {
+        unsubscribe()
+        resolve(false)
+      }, timeoutMs)
+
+      unsubscribe = useOperationQueueStore.subscribe((state) => {
+        if (state.hasOperationError) {
+          clearTimeout(timeout)
+          unsubscribe()
+          resolve(false)
+          return
+        }
+
+        if (!state.operations.some((op) => op.workflowId === workflowId)) {
+          clearTimeout(timeout)
+          unsubscribe()
+          resolve(true)
+        }
+      })
+    })
+  },
+
   cancelOperationsForBlock: (blockId: string) => {
     logger.debug('Canceling all operations for block', { blockId })
 
@@ -598,6 +632,8 @@ export function useOperationQueue() {
     confirmOperation: actions.confirmOperation,
     failOperation: actions.failOperation,
     processNextOperation: actions.processNextOperation,
+    hasPendingOperations: actions.hasPendingOperations,
+    waitForWorkflowOperations: actions.waitForWorkflowOperations,
     cancelOperationsForBlock: actions.cancelOperationsForBlock,
     cancelOperationsForVariable: actions.cancelOperationsForVariable,
     triggerOfflineMode: actions.triggerOfflineMode,

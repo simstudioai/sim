@@ -1,7 +1,9 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Plus, X } from 'lucide-react'
 import {
   Badge,
@@ -12,6 +14,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
@@ -48,6 +51,47 @@ import { SlackChannelSelector } from './components/slack-channel-selector'
 import { WorkflowSelector } from './components/workflow-selector'
 
 const logger = createLogger('NotificationSettings')
+
+interface TabContentProps {
+  displayForm: boolean
+  renderForm: () => ReactNode
+  isLoading: boolean
+  filteredSubscriptions: NotificationSubscription[]
+  renderSubscriptionItem: (subscription: NotificationSubscription) => ReactNode
+}
+
+function TabContent({
+  displayForm,
+  renderForm,
+  isLoading,
+  filteredSubscriptions,
+  renderSubscriptionItem,
+}: TabContentProps) {
+  if (displayForm) {
+    return renderForm()
+  }
+
+  return (
+    <div className='flex h-full flex-col gap-4'>
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        {isLoading ? (
+          <div className='flex flex-col gap-4'>
+            {[120, 80, 100, 90].map((labelWidth, i) => (
+              <div key={i} className='flex flex-col gap-2'>
+                <Skeleton className='h-[14px] rounded-sm' style={{ width: labelWidth }} />
+                <Skeleton className='h-[34px] w-full rounded-md' />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className='flex flex-col gap-2'>
+            {filteredSubscriptions.map(renderSubscriptionItem)}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 const TRIGGER_OPTIONS = getTriggerOptions()
 const ALL_TRIGGER_VALUES = TRIGGER_OPTIONS.map((t) => t.value)
@@ -463,7 +507,7 @@ export const NotificationSettings = memo(function NotificationSettings({
       resetForm()
       setShowForm(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save notification'
+      const message = getErrorMessage(error, 'Failed to save notification')
       setFormErrors({ general: message })
     }
   }
@@ -689,7 +733,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                       disabled={connectSlack.isPending}
                       className='flex items-center gap-2'
                     >
-                      <SlackIcon className='h-[11px] w-[11px]' />
+                      <SlackIcon className='size-[11px]' />
                       {connectSlack.isPending ? 'Connecting...' : 'Connect Slack'}
                     </Button>
                   </div>
@@ -771,7 +815,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                         }}
                       >
                         {level}
-                        <X className='h-3 w-3' />
+                        <X className='size-3' />
                       </Badge>
                     ))}
                   </div>
@@ -817,7 +861,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                         }}
                       >
                         {trigger}
-                        <X className='h-3 w-3' />
+                        <X className='size-3' />
                       </Badge>
                     ))}
                     {formData.triggerFilter.length > 6 && (
@@ -897,7 +941,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                         }}
                       >
                         {labels[key]}
-                        <X className='h-3 w-3' />
+                        <X className='size-3' />
                       </Badge>
                     ))}
                     {selected.length > 2 && (
@@ -1155,39 +1199,15 @@ export const NotificationSettings = memo(function NotificationSettings({
     </div>
   )
 
-  const renderTabContent = () => {
-    if (displayForm) {
-      return renderForm()
-    }
-
-    return (
-      <div className='flex h-full flex-col gap-4'>
-        <div className='min-h-0 flex-1 overflow-y-auto'>
-          {isLoading ? (
-            <div className='flex flex-col gap-4'>
-              {[120, 80, 100, 90].map((labelWidth, i) => (
-                <div key={i} className='flex flex-col gap-2'>
-                  <Skeleton className='h-[14px] rounded-sm' style={{ width: labelWidth }} />
-                  <Skeleton className='h-[34px] w-full rounded-md' />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className='flex flex-col gap-2'>
-              {filteredSubscriptions.map(renderSubscriptionItem)}
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <>
       <Modal open={open} onOpenChange={handleClose}>
         <ModalContent size='lg'>
           <ModalHeader>Notifications</ModalHeader>
 
+          <ModalDescription className='sr-only'>
+            Manage webhook, email, and Slack notification subscriptions for this workflow
+          </ModalDescription>
           <ModalTabs
             value={activeTab}
             onValueChange={(value: string) => {
@@ -1206,9 +1226,33 @@ export const NotificationSettings = memo(function NotificationSettings({
             </ModalTabsList>
 
             <ModalBody className='min-h-0 pt-4'>
-              <ModalTabsContent value='webhook'>{renderTabContent()}</ModalTabsContent>
-              <ModalTabsContent value='email'>{renderTabContent()}</ModalTabsContent>
-              <ModalTabsContent value='slack'>{renderTabContent()}</ModalTabsContent>
+              <ModalTabsContent value='webhook'>
+                <TabContent
+                  displayForm={displayForm}
+                  renderForm={renderForm}
+                  isLoading={isLoading}
+                  filteredSubscriptions={filteredSubscriptions}
+                  renderSubscriptionItem={renderSubscriptionItem}
+                />
+              </ModalTabsContent>
+              <ModalTabsContent value='email'>
+                <TabContent
+                  displayForm={displayForm}
+                  renderForm={renderForm}
+                  isLoading={isLoading}
+                  filteredSubscriptions={filteredSubscriptions}
+                  renderSubscriptionItem={renderSubscriptionItem}
+                />
+              </ModalTabsContent>
+              <ModalTabsContent value='slack'>
+                <TabContent
+                  displayForm={displayForm}
+                  renderForm={renderForm}
+                  isLoading={isLoading}
+                  filteredSubscriptions={filteredSubscriptions}
+                  renderSubscriptionItem={renderSubscriptionItem}
+                />
+              </ModalTabsContent>
             </ModalBody>
           </ModalTabs>
 
@@ -1249,7 +1293,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                 variant='primary'
                 disabled={isLoading}
               >
-                <Plus className='mr-1.5 h-[13px] w-[13px]' />
+                <Plus className='mr-1.5 size-[13px]' />
                 Add
               </Button>
             )}
@@ -1261,12 +1305,12 @@ export const NotificationSettings = memo(function NotificationSettings({
         <ModalContent size='sm'>
           <ModalHeader>Delete Notification</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               <span className='text-[var(--text-error)]'>
                 This will permanently remove the notification and stop all deliveries.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

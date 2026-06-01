@@ -1,4 +1,5 @@
 import type { GongLookupPhoneParams, GongLookupPhoneResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const lookupPhoneTool: ToolConfig<GongLookupPhoneParams, GongLookupPhoneResponse> = {
@@ -32,7 +33,7 @@ export const lookupPhoneTool: ToolConfig<GongLookupPhoneParams, GongLookupPhoneR
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/data-privacy/data-for-phone-number')
-      url.searchParams.set('phoneNumber', params.phoneNumber)
+      url.searchParams.set('phoneNumber', params.phoneNumber.trim())
       return url.toString()
     },
     method: 'GET',
@@ -45,7 +46,7 @@ export const lookupPhoneTool: ToolConfig<GongLookupPhoneParams, GongLookupPhoneR
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to lookup phone number')
+      throw new Error(getGongErrorMessage(data, 'Failed to lookup phone number'))
     }
     return {
       success: true,

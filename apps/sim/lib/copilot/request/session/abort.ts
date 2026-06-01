@@ -35,6 +35,11 @@ const CHAT_STREAM_LOCK_TTL_SECONDS = 60
  */
 const CHAT_STREAM_LOCK_HEARTBEAT_INTERVAL_MS = 20_000
 
+export interface ChatStreamLockOwnersResult {
+  status: 'verified' | 'unknown'
+  ownersByChatId: Map<string, string>
+}
+
 function registerPendingChatStream(chatId: string, streamId: string): void {
   let resolve!: () => void
   const promise = new Promise<void>((r) => {
@@ -120,6 +125,50 @@ export async function getPendingChatStreamId(chatId: string): Promise<string | n
       error: toError(error).message,
     })
     return null
+  }
+}
+
+/**
+ * Loads canonical stream lock owners for chat IDs.
+ *
+ * `status: 'verified'` means Redis was queried successfully, so a missing
+ * owner is authoritative. `status: 'unknown'` means only the process-local
+ * pending map is known, which is not enough to declare remote streams inactive
+ * in a multi-pod deployment.
+ */
+export async function getChatStreamLockOwners(
+  chatIds: string[]
+): Promise<ChatStreamLockOwnersResult> {
+  const localOwnersByChatId = new Map<string, string>()
+  if (chatIds.length === 0) {
+    return { status: 'verified', ownersByChatId: localOwnersByChatId }
+  }
+
+  for (const chatId of chatIds) {
+    const entry = pendingChatStreams.get(chatId)
+    if (entry?.streamId) localOwnersByChatId.set(chatId, entry.streamId)
+  }
+
+  const redis = getRedisClient()
+  if (!redis) {
+    return { status: 'unknown', ownersByChatId: localOwnersByChatId }
+  }
+
+  try {
+    const keys = chatIds.map(getChatStreamLockKey)
+    const values = await redis.mget(keys)
+    const redisOwnersByChatId = new Map<string, string>()
+    for (let i = 0; i < chatIds.length; i++) {
+      const owner = values[i]
+      if (owner) redisOwnersByChatId.set(chatIds[i], owner)
+    }
+    return { status: 'verified', ownersByChatId: redisOwnersByChatId }
+  } catch (error) {
+    logger.warn('Failed to load chat stream lock owners (batch)', {
+      count: chatIds.length,
+      error: toError(error).message,
+    })
+    return { status: 'unknown', ownersByChatId: localOwnersByChatId }
   }
 }
 

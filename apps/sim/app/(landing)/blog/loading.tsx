@@ -38,7 +38,7 @@ export default function BlogLoading() {
         {/* List skeleton */}
         {Array.from({ length: 5 }).map((_, i) => (
           <div key={i}>
-            <div className='flex items-center gap-6 px-6 py-6'>
+            <div className='flex items-center gap-6 p-6'>
               <Skeleton className='hidden h-[14px] w-[120px] rounded-[4px] bg-[var(--landing-bg-elevated)] md:block' />
               <div className='flex min-w-0 flex-1 flex-col gap-1'>
                 <Skeleton className='h-[18px] w-[70%] rounded-[4px] bg-[var(--landing-bg-elevated)]' />

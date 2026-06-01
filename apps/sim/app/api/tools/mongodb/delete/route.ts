@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { mongodbDeleteContract } from '@/lib/api/contracts/tools/databases/mongodb'
@@ -78,7 +79,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       deletedCount: result.deletedCount,
     })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] MongoDB delete failed:`, error)
 
     return NextResponse.json({ error: `MongoDB delete failed: ${errorMessage}` }, { status: 500 })

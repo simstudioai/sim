@@ -46,15 +46,34 @@ export const listAnnotationsTool: ToolConfig<
     },
     dashboardUid: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Dashboard UID to query annotations from (e.g., abc123def)',
+      description:
+        'Dashboard UID to query annotations from (e.g., abc123def). Omit to query annotations across the organization.',
+    },
+    dashboardId: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Legacy numeric dashboard ID filter (prefer dashboardUid)',
     },
     panelId: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
       description: 'Filter by panel ID (e.g., 1, 2)',
+    },
+    alertId: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by alert ID',
+    },
+    userId: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by ID of the user who created the annotation',
     },
     tags: {
       type: 'string',
@@ -84,7 +103,10 @@ export const listAnnotationsTool: ToolConfig<
       if (params.from) searchParams.set('from', String(params.from))
       if (params.to) searchParams.set('to', String(params.to))
       if (params.dashboardUid) searchParams.set('dashboardUID', params.dashboardUid)
+      if (params.dashboardId) searchParams.set('dashboardId', String(params.dashboardId))
       if (params.panelId) searchParams.set('panelId', String(params.panelId))
+      if (params.alertId) searchParams.set('alertId', String(params.alertId))
+      if (params.userId) searchParams.set('userId', String(params.userId))
       if (params.tags) {
         params.tags.split(',').forEach((t) => searchParams.append('tags', t.trim()))
       }
@@ -109,27 +131,27 @@ export const listAnnotationsTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    // Handle potential nested array structure
     const rawAnnotations = Array.isArray(data) ? data.flat() : []
 
     return {
       success: true,
       output: {
-        annotations: rawAnnotations.map((a: any) => ({
-          id: a.id,
-          dashboardId: a.dashboardId,
-          dashboardUID: a.dashboardUID,
-          created: a.created,
-          updated: a.updated,
-          time: a.time,
-          timeEnd: a.timeEnd,
-          text: a.text,
-          tags: a.tags || [],
-          login: a.login,
-          email: a.email,
-          avatarUrl: a.avatarUrl,
-          data: a.data || {},
+        annotations: rawAnnotations.map((a: Record<string, unknown>) => ({
+          id: (a.id as number) ?? null,
+          alertId: (a.alertId as number) ?? null,
+          dashboardId: (a.dashboardId as number) ?? null,
+          dashboardUID: (a.dashboardUID as string) ?? null,
+          panelId: (a.panelId as number) ?? null,
+          userId: (a.userId as number) ?? null,
+          userName: (a.userName as string) ?? null,
+          newState: (a.newState as string) ?? null,
+          prevState: (a.prevState as string) ?? null,
+          time: (a.time as number) ?? null,
+          timeEnd: (a.timeEnd as number) ?? null,
+          text: (a.text as string) ?? null,
+          metric: (a.metric as string) ?? null,
+          tags: (a.tags as string[]) ?? [],
+          data: (a.data as Record<string, unknown>) ?? {},
         })),
       },
     }
@@ -143,21 +165,36 @@ export const listAnnotationsTool: ToolConfig<
         type: 'object',
         properties: {
           id: { type: 'number', description: 'Annotation ID' },
-          dashboardId: { type: 'number', description: 'Dashboard ID' },
-          dashboardUID: { type: 'string', description: 'Dashboard UID' },
-          created: { type: 'number', description: 'Creation timestamp in epoch ms' },
-          updated: { type: 'number', description: 'Last update timestamp in epoch ms' },
-          time: { type: 'number', description: 'Start time in epoch ms' },
-          timeEnd: { type: 'number', description: 'End time in epoch ms' },
-          text: { type: 'string', description: 'Annotation text' },
-          tags: { type: 'array', items: { type: 'string' }, description: 'Annotation tags' },
-          login: { type: 'string', description: 'Login of the user who created the annotation' },
-          email: { type: 'string', description: 'Email of the user who created the annotation' },
-          avatarUrl: { type: 'string', description: 'Avatar URL of the user' },
-          data: {
-            type: 'json',
-            description: 'Additional annotation data object from Grafana',
+          alertId: { type: 'number', description: 'Associated alert ID (0 if not alert-driven)' },
+          dashboardId: { type: 'number', description: 'Dashboard ID', optional: true },
+          dashboardUID: { type: 'string', description: 'Dashboard UID', optional: true },
+          panelId: { type: 'number', description: 'Panel ID within the dashboard', optional: true },
+          userId: { type: 'number', description: 'ID of the user who created the annotation' },
+          userName: {
+            type: 'string',
+            description: 'Username of the user who created the annotation',
+            optional: true,
           },
+          newState: {
+            type: 'string',
+            description: 'New alert state (alert annotations only)',
+            optional: true,
+          },
+          prevState: {
+            type: 'string',
+            description: 'Previous alert state (alert annotations only)',
+            optional: true,
+          },
+          time: { type: 'number', description: 'Start time in epoch ms' },
+          timeEnd: { type: 'number', description: 'End time in epoch ms', optional: true },
+          text: { type: 'string', description: 'Annotation text' },
+          metric: {
+            type: 'string',
+            description: 'Metric associated with the annotation',
+            optional: true,
+          },
+          tags: { type: 'array', items: { type: 'string' }, description: 'Annotation tags' },
+          data: { type: 'json', description: 'Additional annotation data object from Grafana' },
         },
       },
     },

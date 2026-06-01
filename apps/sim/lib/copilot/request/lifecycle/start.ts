@@ -2,9 +2,9 @@ import { type Context, context as otelContextApi } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1SessionKind,
@@ -39,6 +39,7 @@ import {
 } from '@/lib/copilot/request/session'
 import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
 import { reportTrace, TraceCollector } from '@/lib/copilot/request/trace'
+import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
 
@@ -203,7 +204,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               requestContext: { requestId },
             }).catch((error) => {
               logger.warn(`[${requestId}] Failed to create copilot run segment`, {
-                error: error instanceof Error ? error.message : String(error),
+                error: getErrorMessage(error),
               })
             })
           }
@@ -228,6 +229,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             chatId,
             currentChat,
             isNewChat,
+            userId,
             message,
             titleModel,
             titleProvider,
@@ -290,11 +292,11 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             const wasCancelled = abortController.signal.aborted || publisher.clientDisconnected
             outcome = wasCancelled ? RequestTraceV1Outcome.cancelled : RequestTraceV1Outcome.error
             if (outcome === RequestTraceV1Outcome.cancelled) {
-              cancelReason = recordCancelled(error instanceof Error ? error.message : String(error))
+              cancelReason = recordCancelled(getErrorMessage(error))
             }
             if (publisher.clientDisconnected) {
               logger.info(`[${requestId}] Stream errored after client disconnect`, {
-                error: error instanceof Error ? error.message : 'Stream error',
+                error: getErrorMessage(error, 'Stream error'),
               })
             }
             // Demote to warn when the throw came from a user-initiated
@@ -326,7 +328,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               await publisher.close()
             } catch (error) {
               logger.warn(`[${requestId}] Failed to flush stream persistence during close`, {
-                error: error instanceof Error ? error.message : String(error),
+                error: getErrorMessage(error),
               })
             }
             unregisterActiveStream(streamId)
@@ -355,7 +357,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             })
             reportTrace(trace, otelContext).catch((err) => {
               logger.warn(`[${requestId}] Failed to report trace`, {
-                error: err instanceof Error ? err.message : String(err),
+                error: getErrorMessage(err),
               })
             })
             rootOutcome = outcome
@@ -398,7 +400,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             activeOtelRoot.finish(rootOutcome, rootError, cancelReason)
           } catch (finishError) {
             logger.error(`[${requestId}] activeOtelRoot.finish threw; force-ending root span`, {
-              error: finishError instanceof Error ? finishError.message : String(finishError),
+              error: getErrorMessage(finishError),
             })
             try {
               activeOtelRoot.span.end()
@@ -435,6 +437,7 @@ function fireTitleGeneration(params: {
   chatId?: string
   currentChat: CurrentChatSummary
   isNewChat: boolean
+  userId?: string
   message: string
   titleModel: string
   titleProvider?: string
@@ -447,6 +450,7 @@ function fireTitleGeneration(params: {
     chatId,
     currentChat,
     isNewChat,
+    userId,
     message,
     titleModel,
     titleProvider,
@@ -461,6 +465,7 @@ function fireTitleGeneration(params: {
     message,
     model: titleModel,
     provider: titleProvider,
+    userId,
     otelContext,
   })
     .then(async (title) => {
@@ -491,9 +496,10 @@ export async function requestChatTitle(params: {
   message: string
   model: string
   provider?: string
+  userId?: string
   otelContext?: Context
 }): Promise<string | null> {
-  const { message, model, provider, otelContext } = params
+  const { message, model, provider, userId, otelContext } = params
   if (!message || !model) return null
 
   const headers: Record<string, string> = {
@@ -502,10 +508,12 @@ export async function requestChatTitle(params: {
   if (env.COPILOT_API_KEY) {
     headers['x-api-key'] = env.COPILOT_API_KEY
   }
+  Object.assign(headers, getMothershipSourceEnvHeaders())
 
   try {
     const { fetchGo } = await import('@/lib/copilot/request/go/fetch')
-    const response = await fetchGo(`${SIM_AGENT_API_URL}/api/generate-chat-title`, {
+    const mothershipBaseURL = await getMothershipBaseURL({ userId })
+    const response = await fetchGo(`${mothershipBaseURL}/api/generate-chat-title`, {
       method: 'POST',
       headers,
       body: JSON.stringify({

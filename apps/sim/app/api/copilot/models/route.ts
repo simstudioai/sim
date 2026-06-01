@@ -3,9 +3,9 @@ import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotModelsContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
+import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -50,7 +50,8 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
   }
 
   try {
-    const response = await fetchGo(`${SIM_AGENT_API_URL}/api/get-available-models`, {
+    const mothershipBaseURL = await getMothershipBaseURL({ userId })
+    const response = await fetchGo(`${mothershipBaseURL}/api/get-available-models`, {
       method: 'GET',
       headers,
       cache: 'no-store',

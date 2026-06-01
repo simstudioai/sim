@@ -3,7 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { randomFloat } from '@sim/utils/random'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
@@ -45,7 +46,7 @@ export interface IsolatedVMExecutionRequest {
   task?: IsolatedVMTaskRequest
 }
 
-export interface IsolatedVMTaskRequest {
+interface IsolatedVMTaskRequest {
   id: string
   bundles: string[]
   bootstrap: string
@@ -80,7 +81,7 @@ export interface IsolatedVMExecutionResult {
   timings?: IsolatedVMTaskTimings
 }
 
-export interface IsolatedVMTaskTimings {
+interface IsolatedVMTaskTimings {
   setup: number
   runtimeBootstrap: number
   bundles: number
@@ -92,7 +93,7 @@ export interface IsolatedVMTaskTimings {
   total: number
 }
 
-export interface IsolatedVMError {
+interface IsolatedVMError {
   message: string
   name: string
   stack?: string
@@ -128,7 +129,7 @@ const DISTRIBUTED_MAX_INFLIGHT_PER_OWNER =
   Number.parseInt(env.IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER) ||
   MAX_ACTIVE_PER_OWNER + MAX_QUEUED_PER_OWNER
 const DISTRIBUTED_LEASE_MIN_TTL_MS = Number.parseInt(env.IVM_DISTRIBUTED_LEASE_MIN_TTL_MS) || 120000
-const MAX_EXECUTIONS_PER_WORKER = Number.parseInt(env.IVM_MAX_EXECUTIONS_PER_WORKER) || 500
+const MAX_EXECUTIONS_PER_WORKER = Number.parseInt(env.IVM_MAX_EXECUTIONS_PER_WORKER) || 200
 const MAX_BROKER_ARGS_JSON_CHARS = Number.parseInt(env.IVM_MAX_BROKER_ARGS_JSON_CHARS) || 262_144
 const MAX_BROKER_RESULT_JSON_CHARS =
   Number.parseInt(env.IVM_MAX_BROKER_RESULT_JSON_CHARS) || 16_777_216
@@ -322,7 +323,7 @@ async function secureFetch(
       url: sanitizeUrlForLog(url),
       error: toError(error).message,
     })
-    return JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown fetch error' })
+    return JSON.stringify({ error: getErrorMessage(error, 'Unknown fetch error') })
   }
 }
 
@@ -425,10 +426,20 @@ async function releaseDistributedLease(ownerKey: string, leaseId: string): Promi
     return 1
   `
 
+  let deadlineTimer: NodeJS.Timeout | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    deadlineTimer = setTimeout(
+      () => reject(new Error(`Redis lease release timed out after ${LEASE_REDIS_DEADLINE_MS}ms`)),
+      LEASE_REDIS_DEADLINE_MS
+    )
+  })
+
   try {
-    await redis.eval(script, 1, key, leaseId)
+    await Promise.race([redis.eval(script, 1, key, leaseId), deadline])
   } catch (error) {
     logger.error('Failed to release distributed owner lease', { ownerKey, error })
+  } finally {
+    clearTimeout(deadlineTimer)
   }
 }
 
@@ -710,9 +721,9 @@ function handleBrokerMessage(
     })
     .catch((err) => {
       logReject('handler_threw', {
-        error: err instanceof Error ? err.message : String(err),
+        error: getErrorMessage(err),
       })
-      sendResponse({ error: err instanceof Error ? err.message : String(err) })
+      sendResponse({ error: getErrorMessage(err) })
     })
 }
 
@@ -816,7 +827,7 @@ function handleWorkerMessage(workerId: number, message: unknown) {
             type: 'fetchResponse',
             fetchId,
             response: JSON.stringify({
-              error: err instanceof Error ? err.message : 'Fetch failed',
+              error: getErrorMessage(err, 'Fetch failed'),
             }),
           })
         } catch (sendErr) {
@@ -1326,7 +1337,7 @@ export async function executeInIsolatedVM(
     }
   }
 
-  const distributedLeaseId = `${req.requestId}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`
+  const distributedLeaseId = `${req.requestId}:${Date.now()}:${randomFloat().toString(36).slice(2, 10)}`
   const leaseAcquireResult = await tryAcquireDistributedLease(
     ownerKey,
     distributedLeaseId,

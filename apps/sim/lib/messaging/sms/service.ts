@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Twilio } from 'twilio'
 import { env } from '@/lib/core/config/env'
 
@@ -10,11 +11,11 @@ export interface SMSOptions {
   from?: string
 }
 
-export interface BatchSMSOptions {
+interface BatchSMSOptions {
   messages: SMSOptions[]
 }
 
-export interface SMSResponseData {
+interface SMSResponseData {
   sid?: string
   status?: string
   to?: string
@@ -30,7 +31,7 @@ export interface SendSMSResult {
   data?: SMSResponseData
 }
 
-export interface BatchSendSMSResult {
+interface BatchSendSMSResult {
   success: boolean
   message: string
   results: SendSMSResult[]
@@ -87,7 +88,7 @@ export async function sendSMS(options: SMSOptions): Promise<SendSMSResult> {
       } catch (error) {
         results.push({
           success: false,
-          message: error instanceof Error ? error.message : 'Failed to send SMS',
+          message: getErrorMessage(error, 'Failed to send SMS'),
         })
       }
     }
@@ -145,7 +146,7 @@ async function sendSingleSMS(to: string, body: string, from: string): Promise<Se
   }
 }
 
-export async function sendBatchSMS(options: BatchSMSOptions): Promise<BatchSendSMSResult> {
+async function sendBatchSMS(options: BatchSMSOptions): Promise<BatchSendSMSResult> {
   try {
     const results: SendSMSResult[] = []
 
@@ -157,7 +158,7 @@ export async function sendBatchSMS(options: BatchSMSOptions): Promise<BatchSendS
       } catch (error) {
         results.push({
           success: false,
-          message: error instanceof Error ? error.message : 'Failed to send SMS',
+          message: getErrorMessage(error, 'Failed to send SMS'),
         })
       }
     }

@@ -3,7 +3,10 @@ import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { BlockType } from '@/executor/constants'
 import { FunctionBlockHandler } from '@/executor/handlers/function/function-handler'
 import type { ExecutionContext } from '@/executor/types'
-import { FUNCTION_BLOCK_CONTEXT_VARS_KEY } from '@/executor/variables/resolver'
+import {
+  FUNCTION_BLOCK_CONTEXT_VARS_KEY,
+  FUNCTION_BLOCK_DISPLAY_CODE_KEY,
+} from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
@@ -78,6 +81,7 @@ describe('FunctionBlockHandler', () => {
       _context: {
         workflowId: mockContext.workflowId,
         workspaceId: mockContext.workspaceId,
+        executionId: mockContext.executionId,
         userId: mockContext.userId,
         isDeployedContext: mockContext.isDeployedContext,
         enforceCredentialAccess: mockContext.enforceCredentialAccess,
@@ -87,12 +91,9 @@ describe('FunctionBlockHandler', () => {
 
     const result = await handler.execute(mockContext, mockBlock, inputs)
 
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'function_execute',
-      expectedToolParams,
-      false,
-      mockContext
-    )
+    expect(mockExecuteTool).toHaveBeenCalledWith('function_execute', expectedToolParams, {
+      executionContext: mockContext,
+    })
     expect(result).toEqual(expectedOutput)
   })
 
@@ -118,6 +119,7 @@ describe('FunctionBlockHandler', () => {
       _context: {
         workflowId: mockContext.workflowId,
         workspaceId: mockContext.workspaceId,
+        executionId: mockContext.executionId,
         userId: mockContext.userId,
         isDeployedContext: mockContext.isDeployedContext,
         enforceCredentialAccess: mockContext.enforceCredentialAccess,
@@ -127,12 +129,9 @@ describe('FunctionBlockHandler', () => {
 
     const result = await handler.execute(mockContext, mockBlock, inputs)
 
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'function_execute',
-      expectedToolParams,
-      false,
-      mockContext
-    )
+    expect(mockExecuteTool).toHaveBeenCalledWith('function_execute', expectedToolParams, {
+      executionContext: mockContext,
+    })
     expect(result).toEqual(expectedOutput)
   })
 
@@ -151,6 +150,7 @@ describe('FunctionBlockHandler', () => {
       _context: {
         workflowId: mockContext.workflowId,
         workspaceId: mockContext.workspaceId,
+        executionId: mockContext.executionId,
         userId: mockContext.userId,
         isDeployedContext: mockContext.isDeployedContext,
         enforceCredentialAccess: mockContext.enforceCredentialAccess,
@@ -159,12 +159,9 @@ describe('FunctionBlockHandler', () => {
 
     await handler.execute(mockContext, mockBlock, inputs)
 
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'function_execute',
-      expectedToolParams,
-      false, // skipPostProcess
-      mockContext // execution context
-    )
+    expect(mockExecuteTool).toHaveBeenCalledWith('function_execute', expectedToolParams, {
+      executionContext: mockContext,
+    })
   })
 
   it('should handle execution errors from the tool', async () => {
@@ -191,16 +188,16 @@ describe('FunctionBlockHandler', () => {
       expect.objectContaining({
         contextVariables,
       }),
-      false,
-      mockContext
+      { executionContext: mockContext }
     )
   })
 
-  it('should pass original function code for error display after reference resolution', async () => {
+  it('should pass display-resolved function code for error display', async () => {
     mockBlock.config.params = { code: 'retur <start.reqerror>' }
 
     await handler.execute(mockContext, mockBlock, {
       code: 'retur globalThis["__blockRef_0"]',
+      [FUNCTION_BLOCK_DISPLAY_CODE_KEY]: 'retur "value"',
       [FUNCTION_BLOCK_CONTEXT_VARS_KEY]: { __blockRef_0: 'value' },
     })
 
@@ -208,10 +205,9 @@ describe('FunctionBlockHandler', () => {
       'function_execute',
       expect.objectContaining({
         code: 'retur globalThis["__blockRef_0"]',
-        sourceCode: 'retur <start.reqerror>',
+        sourceCode: 'retur "value"',
       }),
-      false,
-      mockContext
+      { executionContext: mockContext }
     )
   })
 
@@ -232,8 +228,7 @@ describe('FunctionBlockHandler', () => {
         workflowVariables: { 'var-1': legacyVariable },
         contextVariables: {},
       }),
-      false,
-      mockContext
+      { executionContext: mockContext }
     )
   })
 

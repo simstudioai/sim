@@ -149,7 +149,7 @@ describe('mothership-stream-outbox', () => {
     expect(replayed.map((entry) => entry.payload.text)).toEqual(['world'])
   })
 
-  it('does not trim active stream history while appending events', async () => {
+  it('trims active stream history to eventLimit on every append', async () => {
     const cursor = await allocateCursor('stream-1')
 
     await appendEvent(
@@ -163,7 +163,11 @@ describe('mothership-stream-outbox', () => {
       })
     )
 
-    expect(mockRedis.zremrangebyrank).not.toHaveBeenCalled()
+    expect(mockRedis.zremrangebyrank).toHaveBeenCalledWith(
+      'mothership_stream:stream-1:events',
+      0,
+      -5_001
+    )
   })
 
   it('clears persisted stream state during teardown cleanup', async () => {

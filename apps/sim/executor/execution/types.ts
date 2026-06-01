@@ -35,6 +35,10 @@ export interface ExecutionMetadata {
     parallels?: Record<string, any>
     deploymentVersionId?: string
   }
+  largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
+  allowLargeValueWorkflowScope?: boolean
   callChain?: string[]
   correlation?: AsyncExecutionCorrelation
   executionMode?: 'sync' | 'stream' | 'async'
@@ -57,6 +61,8 @@ export interface SerializableExecutionState {
   remainingEdges?: Edge[]
   resumeTerminalNoop?: boolean
   dagIncomingEdges?: Record<string, string[]>
+  deactivatedEdges?: string[]
+  nodesWithActivatedEdge?: string[]
   completedPauseContexts?: string[]
 }
 
@@ -95,9 +101,11 @@ export interface IterationContext {
 export interface WorkflowNodeMetadata
   extends Pick<
     NodeMetadata,
-    'loopId' | 'parallelId' | 'branchIndex' | 'branchTotal' | 'originalBlockId' | 'isLoopNode'
+    'subflowType' | 'subflowId' | 'branchIndex' | 'branchTotal' | 'originalBlockId' | 'isLoopNode'
   > {
   nodeId: string
+  loopId?: string
+  parallelId?: string
   executionOrder?: number
 }
 
@@ -143,6 +151,10 @@ export interface ExecutionCallbacks {
 export interface ContextExtensions {
   workspaceId?: string
   executionId?: string
+  largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
+  allowLargeValueWorkflowScope?: boolean
   userId?: string
   stream?: boolean
   selectedOutputs?: string[]
@@ -229,7 +241,7 @@ export interface WorkflowInput {
   [key: string]: unknown
 }
 
-export interface BlockStateReader {
+interface BlockStateReader {
   getBlockOutput(blockId: string, currentNodeId?: string): NormalizedBlockOutput | undefined
   hasExecuted(blockId: string): boolean
 }

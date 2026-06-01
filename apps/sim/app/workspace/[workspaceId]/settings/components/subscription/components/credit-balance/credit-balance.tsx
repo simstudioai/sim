@@ -10,6 +10,7 @@ import {
   ModalBody,
   ModalClose,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTrigger,
@@ -143,6 +144,9 @@ export function CreditBalance({
           <ModalContent size='sm'>
             <ModalHeader>Add Credits</ModalHeader>
             <ModalBody>
+              <ModalDescription className='sr-only'>
+                Purchase additional credits by entering a dollar amount.
+              </ModalDescription>
               {purchaseCredits.isSuccess ? (
                 <p className='text-center text-[var(--text-primary)] text-small'>
                   Credits added successfully!

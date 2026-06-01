@@ -48,8 +48,17 @@ export async function computeDailyRefreshConsumed(params: {
   planDollars: number
   seats?: number
   userBounds?: Record<string, PerUserBounds>
+  billingEntity?: { type: 'user' | 'organization'; id: string }
 }): Promise<number> {
-  const { userIds, periodStart, periodEnd, planDollars, seats = 1, userBounds } = params
+  const {
+    userIds,
+    periodStart,
+    periodEnd,
+    planDollars,
+    seats = 1,
+    userBounds,
+    billingEntity,
+  } = params
 
   if (planDollars <= 0 || userIds.length === 0) return 0
 
@@ -64,6 +73,13 @@ export async function computeDailyRefreshConsumed(params: {
   if (dayCount <= 0) return 0
 
   const unboundedUsers = userBounds ? userIds.filter((id) => !(id in userBounds)) : userIds
+  const billingEntityFilter = billingEntity
+    ? and(
+        eq(usageLog.billingEntityType, billingEntity.type),
+        eq(usageLog.billingEntityId, billingEntity.id),
+        eq(usageLog.billingPeriodStart, periodStart)
+      )
+    : undefined
 
   const boundedClauses = userBounds
     ? Object.entries(userBounds).flatMap(([userId, bounds]) => {
@@ -75,6 +91,7 @@ export async function computeDailyRefreshConsumed(params: {
         return [
           and(
             eq(usageLog.userId, userId),
+            billingEntityFilter,
             gte(usageLog.createdAt, effectiveStart),
             lt(usageLog.createdAt, effectiveEnd)
           ),
@@ -87,6 +104,7 @@ export async function computeDailyRefreshConsumed(params: {
       ? [
           and(
             inArray(usageLog.userId, unboundedUsers),
+            billingEntityFilter,
             gte(usageLog.createdAt, periodStart),
             lt(usageLog.createdAt, cap)
           ),

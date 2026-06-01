@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { outlookDraftContract } from '@/lib/api/contracts/tools/microsoft'
 import { parseRequest } from '@/lib/api/server'
@@ -7,6 +8,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +20,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized Outlook draft attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -29,8 +31,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    const userId = authResult.userId
     logger.info(`[${requestId}] Authenticated Outlook draft request via ${authResult.authType}`, {
-      userId: authResult.userId,
+      userId,
     })
 
     const parsed = await parseRequest(outlookDraftContract, request, {})
@@ -98,31 +101,34 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
-        const attachmentObjects = await Promise.all(
+        const accessResults = await Promise.all(
+          attachments.map((file) => assertToolFileAccess(file.key, userId, requestId, logger))
+        )
+        const denied = accessResults.find((r) => r !== null)
+        if (denied) return denied
+
+        const buffers = await Promise.all(
           attachments.map(async (file) => {
             try {
               logger.info(
                 `[${requestId}] Downloading attachment: ${file.name} (${file.size} bytes)`
               )
-
-              const buffer = await downloadFileFromStorage(file, requestId, logger)
-
-              const base64Content = buffer.toString('base64')
-
-              return {
-                '@odata.type': '#microsoft.graph.fileAttachment',
-                name: file.name,
-                contentType: file.type || 'application/octet-stream',
-                contentBytes: base64Content,
-              }
+              return await downloadFileFromStorage(file, requestId, logger)
             } catch (error) {
               logger.error(`[${requestId}] Failed to download attachment ${file.name}:`, error)
               throw new Error(
-                `Failed to download attachment "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`
+                `Failed to download attachment "${file.name}": ${getErrorMessage(error, 'Unknown error')}`
               )
             }
           })
         )
+
+        const attachmentObjects = attachments.map((file, i) => ({
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          name: file.name,
+          contentType: file.type || 'application/octet-stream',
+          contentBytes: buffers[i].toString('base64'),
+        }))
 
         logger.info(`[${requestId}] Converted ${attachmentObjects.length} attachments to base64`)
         message.attachments = attachmentObjects
@@ -171,7 +177,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
       },
       { status: 500 }
     )

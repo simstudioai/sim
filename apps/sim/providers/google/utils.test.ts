@@ -111,6 +111,44 @@ describe('ensureStructResponse', () => {
 })
 
 describe('convertToGeminiFormat', () => {
+  it('should convert user message files to inline data parts', () => {
+    const request: ProviderRequest = {
+      model: 'gemini-2.5-flash',
+      messages: [
+        {
+          role: 'user',
+          content: 'Analyze this image',
+          files: [
+            {
+              id: 'file-1',
+              key: 'workspace/ws-1/example.png',
+              name: 'example.png',
+              url: '/api/files/serve/workspace%2Fws-1%2Fexample.png?context=workspace',
+              size: 128,
+              type: 'image/png',
+              base64: 'iVBORw0KGgo=',
+            },
+          ],
+        },
+      ],
+    }
+
+    const result = convertToGeminiFormat(request)
+
+    expect(result.contents[0]).toEqual({
+      role: 'user',
+      parts: [
+        { text: 'Analyze this image' },
+        {
+          inlineData: {
+            mimeType: 'image/png',
+            data: 'iVBORw0KGgo=',
+          },
+        },
+      ],
+    })
+  })
+
   describe('tool message handling', () => {
     it('should convert tool message with object response correctly', () => {
       const request: ProviderRequest = {

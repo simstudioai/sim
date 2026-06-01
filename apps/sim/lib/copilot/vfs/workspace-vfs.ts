@@ -17,7 +17,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, isNotNull, isNull, ne } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import { buildWorkspaceMd, type WorkspaceMdData } from '@/lib/copilot/chat/workspace-context'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
@@ -63,6 +63,7 @@ import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/ru
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { listTables } from '@/lib/table/service'
+import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
   findWorkspaceFileRecord,
@@ -316,7 +317,7 @@ function getStaticComponentFiles(): Map<string, string> {
  *   tables/{name}/meta.json
  *   files/{name}/meta.json
  *   files/by-id/{id}/meta.json
- *   files/by-id/{id}/style            (dynamic — OOXML theme/font extraction for .docx/.pptx)
+ *   files/by-id/{id}/style            (dynamic — style extraction for .docx/.pptx/.pdf)
  *   files/by-id/{id}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
  *   jobs/{title}/meta.json
  *   jobs/{title}/history.json
@@ -457,7 +458,7 @@ export class WorkspaceVFS {
    * Attempt to read dynamic workspace file content from storage.
    * Handles images (base64), parseable documents (PDF, etc.), and text files.
    * Also handles:
-   *   `files/by-id/{id}/style`           — OOXML theme/style extraction (.docx / .pptx only)
+   *   `files/by-id/{id}/style`           — style extraction (.docx / .pptx / .pdf)
    *   `files/by-id/{id}/compiled-check`  — compile JS-source binary files or validate Mermaid diagrams
    * Returns null if the path doesn't match `files/{name}` / `files/by-id/{id}` or the file isn't found.
    */
@@ -518,8 +519,8 @@ export class WorkspaceVFS {
         const record = await getWorkspaceFile(this._workspaceId, fileId)
         if (!record) return null
         const rawExt = record.name.split('.').pop()?.toLowerCase()
-        if (rawExt !== 'docx' && rawExt !== 'pptx') return null
-        const ext: 'docx' | 'pptx' = rawExt
+        if (rawExt !== 'docx' && rawExt !== 'pptx' && rawExt !== 'pdf') return null
+        const ext: 'docx' | 'pptx' | 'pdf' = rawExt
         const buffer = await fetchWorkspaceFileBuffer(record)
         const summary = await extractDocumentStyle(buffer, ext)
         if (!summary) return null
@@ -866,11 +867,19 @@ export class WorkspaceVFS {
 
       for (const file of files) {
         const safeName = sanitizeName(file.name)
+        const safeFolderPath = file.folderPath
+          ?.split('/')
+          .map((segment) => sanitizeName(segment))
+          .join('/')
+        const fileVfsPath = safeFolderPath ? `${safeFolderPath}/${safeName}` : safeName
         this.files.set(
-          `files/${safeName}/meta.json`,
+          `files/${fileVfsPath}/meta.json`,
           serializeFileMeta({
             id: file.id,
             name: file.name,
+            folderId: file.folderId,
+            folderPath: file.folderPath,
+            vfsPath: `files/${fileVfsPath}`,
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
@@ -881,6 +890,9 @@ export class WorkspaceVFS {
           serializeFileMeta({
             id: file.id,
             name: file.name,
+            folderId: file.folderId,
+            folderPath: file.folderPath,
+            vfsPath: `files/${fileVfsPath}`,
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
@@ -888,7 +900,13 @@ export class WorkspaceVFS {
         )
       }
 
-      return files.map((f) => ({ id: f.id, name: f.name, type: f.type, size: f.size }))
+      return files.map((f) => ({
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        size: f.size,
+        folderPath: f.folderPath ?? null,
+      }))
     } catch (err) {
       logger.warn('Failed to materialize files', {
         workspaceId,
@@ -1157,7 +1175,33 @@ export class WorkspaceVFS {
         .select({
           id: copilotChats.id,
           title: copilotChats.title,
-          messages: copilotChats.messages,
+          messageCount: sql<number>`COALESCE((
+            SELECT COUNT(*) FROM copilot_messages cm
+            WHERE cm.chat_id = ${copilotChats.id} AND cm.deleted_at IS NULL
+          ), 0)`,
+          messages: sql<unknown[]>`COALESCE((
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'role', cm.content->>'role',
+                'content', cm.content->'content',
+                'contentBlocks', COALESCE((
+                  SELECT jsonb_agg(jsonb_build_object('type', 'text', 'content', b.value->'content') ORDER BY b.ord)
+                  FROM jsonb_array_elements(
+                    CASE WHEN jsonb_typeof(cm.content->'contentBlocks') = 'array'
+                         THEN cm.content->'contentBlocks'
+                         ELSE '[]'::jsonb
+                    END
+                  ) WITH ORDINALITY AS b(value, ord)
+                  WHERE b.value->>'type' = 'text'
+                ), '[]'::jsonb)
+              )
+              ORDER BY cm.seq ASC NULLS LAST, cm.created_at ASC, cm.id ASC
+            )
+            FROM copilot_messages cm
+            WHERE cm.chat_id = ${copilotChats.id}
+              AND cm.deleted_at IS NULL
+              AND cm.content->>'role' IN ('user', 'assistant')
+          ), '[]'::jsonb)`,
           createdAt: copilotChats.createdAt,
           updatedAt: copilotChats.updatedAt,
         })
@@ -1177,13 +1221,14 @@ export class WorkspaceVFS {
         const safeName = sanitizeName(title)
         const prefix = `tasks/${safeName}/`
         const messages = Array.isArray(task.messages) ? task.messages : []
+        const messageCount = Number(task.messageCount) || 0
 
         this.files.set(
           `${prefix}session.md`,
           serializeTaskSession({
             id: task.id,
             title,
-            messageCount: messages.length,
+            messageCount,
             createdAt: task.createdAt,
             updatedAt: task.updatedAt,
           })
@@ -1322,23 +1367,30 @@ export class WorkspaceVFS {
 
   private async materializeRecentlyDeleted(workspaceId: string, userId: string): Promise<void> {
     try {
-      const [archivedWorkflows, archivedFolders, archivedTables, archivedFiles, archivedKBs] =
-        await Promise.all([
-          listWorkflows(workspaceId, { scope: 'archived' }),
-          db
-            .select({
-              id: workflowFolder.id,
-              name: workflowFolder.name,
-              archivedAt: workflowFolder.archivedAt,
-            })
-            .from(workflowFolder)
-            .where(
-              and(eq(workflowFolder.workspaceId, workspaceId), isNotNull(workflowFolder.archivedAt))
-            ),
-          listTables(workspaceId, { scope: 'archived' }),
-          listWorkspaceFiles(workspaceId, { scope: 'archived' }),
-          getKnowledgeBases(userId, workspaceId, 'archived'),
-        ])
+      const [
+        archivedWorkflows,
+        archivedFolders,
+        archivedTables,
+        archivedFiles,
+        archivedFileFolders,
+        archivedKBs,
+      ] = await Promise.all([
+        listWorkflows(workspaceId, { scope: 'archived' }),
+        db
+          .select({
+            id: workflowFolder.id,
+            name: workflowFolder.name,
+            archivedAt: workflowFolder.archivedAt,
+          })
+          .from(workflowFolder)
+          .where(
+            and(eq(workflowFolder.workspaceId, workspaceId), isNotNull(workflowFolder.archivedAt))
+          ),
+        listTables(workspaceId, { scope: 'archived' }),
+        listWorkspaceFiles(workspaceId, { scope: 'archived' }),
+        listWorkspaceFileFolders(workspaceId, { scope: 'archived' }),
+        getKnowledgeBases(userId, workspaceId, 'archived'),
+      ])
 
       for (const wf of archivedWorkflows) {
         const safeName = sanitizeName(wf.name)
@@ -1377,13 +1429,43 @@ export class WorkspaceVFS {
         )
       }
 
+      for (const folder of archivedFileFolders) {
+        const safePath = folder.path
+          .split('/')
+          .map((segment) => sanitizeName(segment))
+          .join('/')
+        this.files.set(
+          `recently-deleted/file-folders/${safePath}/meta.json`,
+          JSON.stringify(
+            {
+              id: folder.id,
+              name: folder.name,
+              parentId: folder.parentId,
+              path: folder.path,
+              deletedAt: folder.deletedAt,
+              type: 'file_folder',
+            },
+            null,
+            2
+          )
+        )
+      }
+
       for (const file of archivedFiles) {
         const safeName = sanitizeName(file.name)
+        const safeFolderPath = file.folderPath
+          ?.split('/')
+          .map((segment) => sanitizeName(segment))
+          .join('/')
+        const fileVfsPath = safeFolderPath ? `${safeFolderPath}/${safeName}` : safeName
         this.files.set(
-          `recently-deleted/files/${safeName}/meta.json`,
+          `recently-deleted/files/${fileVfsPath}/meta.json`,
           serializeFileMeta({
             id: file.id,
             name: file.name,
+            folderId: file.folderId,
+            folderPath: file.folderPath,
+            vfsPath: `recently-deleted/files/${fileVfsPath}`,
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,

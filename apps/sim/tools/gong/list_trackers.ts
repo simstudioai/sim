@@ -1,4 +1,5 @@
 import type { GongListTrackersParams, GongListTrackersResponse } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTrackersTool: ToolConfig<GongListTrackersParams, GongListTrackersResponse> = {
@@ -32,7 +33,7 @@ export const listTrackersTool: ToolConfig<GongListTrackersParams, GongListTracke
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/settings/trackers')
-      if (params.workspaceId) url.searchParams.set('workspaceId', params.workspaceId)
+      if (params.workspaceId?.trim()) url.searchParams.set('workspaceId', params.workspaceId.trim())
       return url.toString()
     },
     method: 'GET',
@@ -45,7 +46,7 @@ export const listTrackersTool: ToolConfig<GongListTrackersParams, GongListTracke
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to list trackers')
+      throw new Error(getGongErrorMessage(data, 'Failed to list trackers'))
     }
     const trackers = (data.keywordTrackers ?? []).map((t: Record<string, unknown>) => ({
       trackerId: t.trackerId ?? '',

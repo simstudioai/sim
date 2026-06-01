@@ -5,6 +5,18 @@ export interface SimStudioConfig {
   baseUrl?: string
 }
 
+export interface LargeValueRef {
+  __simLargeValueRef: true
+  version: 1
+  id: string
+  kind: 'array' | 'object' | 'string' | 'json'
+  size: number
+  /** Opaque execution-scoped server storage key. This is not a download URL. */
+  key?: string
+  executionId?: string
+  preview?: unknown
+}
+
 export interface WorkflowExecutionResult {
   success: boolean
   output?: any
@@ -422,6 +434,7 @@ export class SimStudioClient {
             ? this.rateLimitInfo.retryAfter
             : Math.min(delay, maxDelay)
 
+        // standalone package — cannot depend on @sim/utils
         const jitter = waitTime * (0.75 + Math.random() * 0.5)
 
         await new Promise((resolve) => setTimeout(resolve, jitter))

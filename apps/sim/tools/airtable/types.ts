@@ -1,19 +1,19 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Common types
-export interface AirtableRecord {
+interface AirtableRecord {
   id: string
   createdTime: string
   fields: Record<string, any>
 }
 
-export interface AirtableBase {
+interface AirtableBase {
   id: string
   name: string
   permissionLevel: 'none' | 'read' | 'comment' | 'edit' | 'create'
 }
 
-export interface AirtableFieldOption {
+interface AirtableFieldOption {
   id: string
   name: string
   color?: string
@@ -42,7 +42,7 @@ export interface AirtableTable {
   fields: AirtableField[]
 }
 
-export interface AirtableView {
+interface AirtableView {
   id: string
   name: string
   type: string
@@ -172,7 +172,7 @@ export type AirtableResponse =
   | AirtableListBasesResponse
   | AirtableGetBaseSchemaResponse
 
-export interface AirtableGetBaseSchemaResponse extends ToolResponse {
+interface AirtableGetBaseSchemaResponse extends ToolResponse {
   output: {
     tables: Array<{
       id: string

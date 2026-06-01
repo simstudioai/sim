@@ -268,7 +268,7 @@ function recordToDocument(
 export const salesforceConnector: ConnectorConfig = {
   id: 'salesforce',
   name: 'Salesforce',
-  description: 'Sync records from Salesforce into your knowledge base',
+  description: 'Sync records from Salesforce',
   version: '1.0.0',
   icon: SalesforceIcon,
 

@@ -19,17 +19,17 @@ export interface CrowdStrikeGetSensorDetailsParams extends CrowdStrikeBaseParams
   ids: string[]
 }
 
-export interface CrowdStrikeAggregateDateRangeSpec {
+interface CrowdStrikeAggregateDateRangeSpec {
   from: string
   to: string
 }
 
-export interface CrowdStrikeAggregateExtendedBoundsSpec {
+interface CrowdStrikeAggregateExtendedBoundsSpec {
   max: string
   min: string
 }
 
-export interface CrowdStrikeAggregateRangeSpec {
+interface CrowdStrikeAggregateRangeSpec {
   from: number
   to: number
 }
@@ -60,13 +60,13 @@ export interface CrowdStrikeGetSensorAggregatesParams extends CrowdStrikeBasePar
   aggregateQuery: CrowdStrikeAggregateQuery
 }
 
-export interface CrowdStrikePagination {
+interface CrowdStrikePagination {
   limit: number | null
   offset: number | null
   total: number | null
 }
 
-export interface CrowdStrikeSensor {
+interface CrowdStrikeSensor {
   agentVersion: string | null
   cid: string | null
   deviceId: string | null

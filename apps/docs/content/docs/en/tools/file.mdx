@@ -1,12 +1,12 @@
 ---
 title: File
-description: Read and write workspace files
+description: Read, fetch, write, and append files
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="file_v3"
+  type="file_v4"
   color="#40916C"
 />
 
@@ -27,30 +27,49 @@ The File Parser tool is particularly useful for scenarios where your agents need
 
 ## Usage Instructions
 
-Read and parse files from uploads or URLs, write new workspace files, or append content to existing files.
+Read workspace files by picker or canonical ID, fetch and parse files from URLs with optional headers, write new workspace files, or append content to existing files.
 
 
 
 ## Tools
 
-### `file_parser`
-
-Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)
+### `file_fetch`
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `filePath` | string | No | Path to the file\(s\). Can be a single path, URL, or an array of paths. |
-| `file` | file | No | Uploaded file\(s\) to parse |
-| `fileType` | string | No | Type of file to parse \(auto-detected if not specified\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `files` | file[] | Parsed files as UserFile objects |
-| `combinedContent` | string | Combined content of all parsed files |
+| `file` | file | First workspace file object \(read\) |
+| `files` | file[] | Workspace file objects \(read\) or fetched file objects \(fetch\) |
+| `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
+| `id` | string | File ID \(write\) |
+| `name` | string | File name \(write\) |
+| `size` | number | File size in bytes \(write\) |
+| `url` | string | URL to access the file \(write\) |
+
+### `file_read`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | First workspace file object \(read\) |
+| `files` | file[] | Workspace file objects \(read\) or fetched file objects \(fetch\) |
+| `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
+| `id` | string | File ID \(write\) |
+| `name` | string | File name \(write\) |
+| `size` | number | File size in bytes \(write\) |
+| `url` | string | URL to access the file \(write\) |
 
 ### `file_write`
 

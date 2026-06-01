@@ -35,7 +35,7 @@ export function isKnownTool(toolId: string): boolean {
   return isToolInCatalog(toolId)
 }
 
-export interface PartitionedBatch {
+interface PartitionedBatch {
   sim: ToolCallDescriptor[]
   go: ToolCallDescriptor[]
   subagent: ToolCallDescriptor[]

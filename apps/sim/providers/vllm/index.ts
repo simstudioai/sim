@@ -1,10 +1,11 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import { env } from '@/lib/core/config/env'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { formatMessagesForProvider } from '@/providers/attachments'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
@@ -20,9 +21,8 @@ import {
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
-  trackForcedToolUsage,
 } from '@/providers/utils'
-import { createReadableStreamFromVLLMStream } from '@/providers/vllm/utils'
+import { checkForForcedToolUsage, createReadableStreamFromVLLMStream } from '@/providers/vllm/utils'
 import { useProvidersStore } from '@/stores/providers'
 import { executeTool } from '@/tools'
 
@@ -75,7 +75,7 @@ export const vllmProvider: ProviderConfig = {
       logger.info(`Discovered ${models.length} vLLM model(s):`, { models })
     } catch (error) {
       logger.warn('vLLM model instantiation failed. The provider will be disabled.', {
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
       })
     }
   },
@@ -123,6 +123,7 @@ export const vllmProvider: ProviderConfig = {
     if (request.messages) {
       allMessages.push(...request.messages)
     }
+    const formattedMessages = formatMessagesForProvider(allMessages, 'vllm') as Message[]
 
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
@@ -137,7 +138,7 @@ export const vllmProvider: ProviderConfig = {
 
     const payload: any = {
       model: request.model.replace(/^vllm\//, ''),
-      messages: allMessages,
+      messages: formattedMessages,
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
@@ -280,25 +281,7 @@ export const vllmProvider: ProviderConfig = {
 
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
-
-      const checkForForcedToolUsage = (
-        response: any,
-        toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
-      ) => {
-        if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
-          const toolCallsResponse = response.choices[0].message.tool_calls
-          const result = trackForcedToolUsage(
-            toolCallsResponse,
-            toolChoice,
-            logger,
-            'vllm',
-            forcedTools,
-            usedForcedTools
-          )
-          hasUsedForcedTool = result.hasUsedForcedTool
-          usedForcedTools = result.usedForcedTools
-        }
-      }
+      let hasUsedForcedTool = false
 
       let currentResponse = await vllm.chat.completions.create(
         payload,
@@ -319,13 +302,11 @@ export const vllmProvider: ProviderConfig = {
       }
       const toolCalls = []
       const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...allMessages]
+      const currentMessages = [...formattedMessages]
       let iterationCount = 0
 
       let modelTime = firstResponseTime
       let toolsTime = 0
-
-      let hasUsedForcedTool = false
 
       const timeSegments: TimeSegment[] = [
         {
@@ -337,7 +318,16 @@ export const vllmProvider: ProviderConfig = {
         },
       ]
 
-      checkForForcedToolUsage(currentResponse, originalToolChoice)
+      if (originalToolChoice) {
+        const forcedResult = checkForForcedToolUsage(
+          currentResponse,
+          originalToolChoice,
+          forcedTools,
+          usedForcedTools
+        )
+        hasUsedForcedTool = forcedResult.hasUsedForcedTool
+        usedForcedTools = forcedResult.usedForcedTools
+      }
 
       while (iterationCount < MAX_TOOL_ITERATIONS) {
         if (currentResponse.choices[0]?.message?.content) {
@@ -377,7 +367,9 @@ export const vllmProvider: ProviderConfig = {
             if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams)
+            const result = await executeTool(toolName, executionParams, {
+              signal: request.abortSignal,
+            })
             const toolCallEndTime = Date.now()
 
             return {
@@ -400,7 +392,7 @@ export const vllmProvider: ProviderConfig = {
               result: {
                 success: false,
                 output: undefined,
-                error: error instanceof Error ? error.message : 'Tool execution failed',
+                error: getErrorMessage(error, 'Tool execution failed'),
               },
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
@@ -498,7 +490,16 @@ export const vllmProvider: ProviderConfig = {
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
-        checkForForcedToolUsage(currentResponse, nextPayload.tool_choice)
+        if (nextPayload.tool_choice && typeof nextPayload.tool_choice === 'object') {
+          const forcedResult = checkForForcedToolUsage(
+            currentResponse,
+            nextPayload.tool_choice,
+            forcedTools,
+            usedForcedTools
+          )
+          hasUsedForcedTool = forcedResult.hasUsedForcedTool
+          usedForcedTools = forcedResult.usedForcedTools
+        }
 
         const nextModelEndTime = Date.now()
         const thisModelTime = nextModelEndTime - nextModelStartTime
@@ -546,7 +547,7 @@ export const vllmProvider: ProviderConfig = {
         const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto',
+          tool_choice: 'none',
           stream: true,
           stream_options: { include_usage: true },
         }
@@ -681,8 +682,3 @@ export const vllmProvider: ProviderConfig = {
     }
   },
 }
-
-/**
- * Enriches the last model segment with per-iteration content from a Chat
- * Completions response: assistant text, tool calls, finish reason, token usage.
- */

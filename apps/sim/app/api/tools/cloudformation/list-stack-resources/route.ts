@@ -4,6 +4,7 @@ import {
   type StackResourceSummary,
 } from '@aws-sdk/client-cloudformation'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsCloudformationListStackResourcesContract } from '@/lib/api/contracts/tools/aws/cloudformation-list-stack-resources'
 import { parseToolRequest } from '@/lib/api/server'
@@ -66,8 +67,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output: { resources },
     })
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to list CloudFormation stack resources'
+    const errorMessage = getErrorMessage(error, 'Failed to list CloudFormation stack resources')
     logger.error('ListStackResources failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }

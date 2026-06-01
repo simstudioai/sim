@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { workspacePresignedUploadContract } from '@/lib/api/contracts/workspace-files'
 import { parseRequest } from '@/lib/api/server'
@@ -6,6 +7,7 @@ import { getSession } from '@/lib/auth'
 import { checkStorageQuota } from '@/lib/billing/storage'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
+import { assertWorkspaceFileFolderTarget } from '@/lib/uploads/contexts/workspace'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { generatePresignedUploadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
@@ -31,7 +33,7 @@ export const POST = withRouteHandler(
     if (!parsed.success) return parsed.response
     const { params, body } = parsed.data
     const workspaceId = params.id
-    const { fileName, contentType, fileSize } = body
+    const { fileName, contentType, fileSize, folderId } = body
 
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (permission !== 'admin' && permission !== 'write') {
@@ -43,6 +45,16 @@ export const POST = withRouteHandler(
       return NextResponse.json(
         { error: `File size exceeds maximum of ${MAX_WORKSPACE_FILE_SIZE} bytes` },
         { status: 413 }
+      )
+    }
+
+    let targetFolderId: string | null
+    try {
+      targetFolderId = await assertWorkspaceFileFolderTarget(workspaceId, folderId)
+    } catch (error) {
+      return NextResponse.json(
+        { error: getErrorMessage(error, 'Invalid target folder') },
+        { status: 400 }
       )
     }
 
@@ -73,7 +85,7 @@ export const POST = withRouteHandler(
       userId,
       customKey: key,
       expirationSeconds: 3600,
-      metadata: { workspaceId },
+      metadata: { workspaceId, ...(targetFolderId ? { folderId: targetFolderId } : {}) },
     })
 
     const finalPath = `/api/files/serve/${USE_BLOB_STORAGE ? 'blob' : 's3'}/${encodeURIComponent(key)}?context=workspace`

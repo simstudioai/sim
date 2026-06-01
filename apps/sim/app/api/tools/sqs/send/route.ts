@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsSqsSendContract } from '@/lib/api/contracts/tools/aws/sqs-send'
@@ -52,7 +53,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.destroy()
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] SQS send message failed:`, error)
 
     return NextResponse.json({ error: `SQS send message failed: ${errorMessage}` }, { status: 500 })

@@ -143,7 +143,7 @@ export const oauthAuthorizeParamsResponseSchema = z.object({
   response_type: z.literal('code'),
 })
 
-const SHOPIFY_SHOP_DOMAIN_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/
+const SHOPIFY_SHOP_DOMAIN_REGEX = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]\.myshopify\.com$/
 export const shopifyShopDomainSchema = z.string().regex(SHOPIFY_SHOP_DOMAIN_REGEX)
 
 export const listOAuthConnectionsContract = defineRouteContract({

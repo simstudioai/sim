@@ -11,6 +11,8 @@
  * - Pink: (#ec4899)
  */
 
+import { randomItem } from '@sim/utils/random'
+
 /**
  * Full list of available workflow colors with names.
  * Used for color picker and random color assignment.
@@ -69,5 +71,5 @@ export const WORKFLOW_COLORS = [
  * @returns A hex color string from the available workflow colors
  */
 export function getNextWorkflowColor(): string {
-  return WORKFLOW_COLORS[Math.floor(Math.random() * WORKFLOW_COLORS.length)].color
+  return randomItem(WORKFLOW_COLORS).color
 }

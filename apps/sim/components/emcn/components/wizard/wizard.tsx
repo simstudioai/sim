@@ -7,6 +7,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   type ModalSize,
@@ -47,7 +48,7 @@ import {
  * ```
  */
 
-export interface WizardStepProps {
+interface WizardStepProps {
   /** Title shown in the modal header when this step is active. */
   title: string
   /** Step body. Rendered inside the modal body when this step is active. */
@@ -75,7 +76,7 @@ function isStepElement(node: React.ReactNode): node is React.ReactElement<Wizard
   return typeof type !== 'string' && type?.displayName === STEP_DISPLAY_NAME
 }
 
-export interface WizardProps {
+interface WizardProps {
   /** Whether the wizard modal is open. */
   open: boolean
   /** Called when the modal's open state changes. */
@@ -107,6 +108,11 @@ export interface WizardProps {
   nextLabel?: string
   /** Label for the Done button on the final step. @default 'Done' */
   doneLabel?: string
+  /**
+   * Accessible description for the wizard dialog, surfaced to screen readers.
+   * If omitted, a generic sr-only description is rendered automatically.
+   */
+  description?: string
 }
 
 const WizardRoot: React.FC<WizardProps> = ({
@@ -121,6 +127,7 @@ const WizardRoot: React.FC<WizardProps> = ({
   backLabel = 'Back',
   nextLabel = 'Next',
   doneLabel = 'Done',
+  description,
 }) => {
   const steps = React.Children.toArray(children).filter(isStepElement)
   const total = steps.length
@@ -166,7 +173,12 @@ const WizardRoot: React.FC<WizardProps> = ({
           </span>
         </div>
 
-        <ModalBody>{activeStep}</ModalBody>
+        <ModalBody>
+          <ModalDescription className='sr-only'>
+            {description ?? 'Multi-step wizard'}
+          </ModalDescription>
+          {activeStep}
+        </ModalBody>
 
         <ModalFooter>
           <Button variant='default' onClick={handleBack} disabled={clamped === 0}>

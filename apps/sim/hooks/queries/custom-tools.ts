@@ -10,7 +10,7 @@ import { customToolsKeys } from '@/hooks/queries/utils/custom-tool-keys'
 
 const logger = createLogger('CustomToolsQueries')
 
-export interface CustomToolSchema {
+interface CustomToolSchema {
   [key: string]: unknown
   type: 'function'
   function: {

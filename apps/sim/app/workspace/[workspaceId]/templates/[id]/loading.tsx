@@ -22,7 +22,7 @@ export default function TemplateDetailLoading() {
             <Skeleton className='h-[16px] w-[48px] rounded-[4px]' />
             <Skeleton className='h-[16px] w-[48px] rounded-[4px]' />
             <Skeleton className='h-[16px] w-[1px] rounded-[1px]' />
-            <Skeleton className='h-[20px] w-[20px] rounded-full' />
+            <Skeleton className='size-[20px] rounded-full' />
             <Skeleton className='h-[16px] w-[80px] rounded-[4px]' />
           </div>
           <Skeleton className='mt-[24px] h-[450px] w-full rounded-[8px]' />
@@ -34,7 +34,7 @@ export default function TemplateDetailLoading() {
           </div>
           <Skeleton className='mt-[32px] h-[20px] w-[160px] rounded-[4px]' />
           <div className='mt-[12px] flex items-center gap-[12px]'>
-            <Skeleton className='h-[48px] w-[48px] rounded-full' />
+            <Skeleton className='size-[48px] rounded-full' />
             <div className='space-y-[6px]'>
               <Skeleton className='h-[16px] w-[120px] rounded-[4px]' />
               <Skeleton className='h-[14px] w-[200px] rounded-[4px]' />

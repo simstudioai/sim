@@ -156,7 +156,7 @@ export type ToolOutputToValueType<T> = T extends Record<string, any>
 
 export type BlockOutput = PrimitiveValueType | { [key: string]: any }
 
-export interface ParamConfig {
+interface ParamConfig {
   type: ParamType
   description?: string
   schema?: {
@@ -305,6 +305,8 @@ export interface SubBlockConfig {
   multiSelect?: boolean
   // Combobox specific: Enable search input in dropdown
   searchable?: boolean
+  /** Dropdown-specific: include static options as Cmd K search entries that preset this subblock. */
+  commandSearchable?: boolean
   // Wand configuration for AI assistance
   wandConfig?: {
     enabled: boolean
@@ -372,6 +374,6 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
   }
 }
 
-export interface OutputConfig {
+interface OutputConfig {
   type: BlockOutput
 }

@@ -8,13 +8,14 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   toast,
 } from '@/components/emcn'
 import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
-import type { RunMode } from '@/lib/api/contracts/tables'
-import type { ColumnDefinition, Filter, TableRow as TableRowType } from '@/lib/table'
+import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
+import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import {
   type ColumnOption,
   ResourceHeader,
@@ -38,6 +39,7 @@ import type { DeletedRowSnapshot } from '@/stores/table/types'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
+  EnrichmentsSidebar,
   NewColumnDropdown,
   RowModal,
   RunStatusControl,
@@ -50,7 +52,7 @@ import {
 } from './components'
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
-import { useTable } from './hooks'
+import { useTable, useTableEventStream } from './hooks'
 import type { QueryOptions } from './types'
 import { generateColumnName } from './utils'
 
@@ -74,11 +76,13 @@ interface TableProps {
 type SlideoutState =
   | { kind: 'none' }
   | { kind: 'column'; config: ColumnConfig }
+  | { kind: 'enrichments'; editGroup?: WorkflowGroup }
   | { kind: 'workflow'; config: WorkflowConfig }
   | { kind: 'execution'; executionId: string }
 
 type SlideoutAction =
   | { type: 'OPEN_COLUMN'; config: ColumnConfig }
+  | { type: 'OPEN_ENRICHMENTS'; editGroup?: WorkflowGroup }
   | { type: 'OPEN_WORKFLOW'; config: WorkflowConfig }
   | { type: 'OPEN_EXECUTION'; executionId: string }
   | { type: 'CLOSE' }
@@ -87,6 +91,8 @@ function slideoutReducer(_state: SlideoutState, action: SlideoutAction): Slideou
   switch (action.type) {
     case 'OPEN_COLUMN':
       return { kind: 'column', config: action.config }
+    case 'OPEN_ENRICHMENTS':
+      return { kind: 'enrichments', editGroup: action.editGroup }
     case 'OPEN_WORKFLOW':
       return { kind: 'workflow', config: action.config }
     case 'OPEN_EXECUTION':
@@ -117,6 +123,8 @@ export function Table({
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
 
+  useTableEventStream({ tableId, workspaceId })
+
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
@@ -142,6 +150,12 @@ export function Table({
   }, [])
   const onOpenWorkflowConfig = useCallback((config: WorkflowConfig) => {
     dispatch({ type: 'OPEN_WORKFLOW', config })
+  }, [])
+  const onOpenEnrichments = useCallback(() => {
+    dispatch({ type: 'OPEN_ENRICHMENTS' })
+  }, [])
+  const onOpenEnrichmentConfig = useCallback((editGroup: WorkflowGroup) => {
+    dispatch({ type: 'OPEN_ENRICHMENTS', editGroup })
   }, [])
   const onOpenExecutionDetails = useCallback((executionId: string) => {
     dispatch({ type: 'OPEN_EXECUTION', executionId })
@@ -211,7 +225,7 @@ export function Table({
   // gutter, action-bar Play/Refresh, right-click context menu) reduces to a
   // (groupIds, rowIds?, runMode) triple. Empty groupIds = no-op.
   const runScope = useCallback(
-    (args: { groupIds: string[]; rowIds?: string[]; runMode: RunMode }) => {
+    (args: { groupIds: string[]; rowIds?: string[]; runMode: RunMode; limit?: RunLimit }) => {
       if (args.groupIds.length === 0) return
       if (args.rowIds && args.rowIds.length === 0) return
       runColumnMutate(args)
@@ -220,8 +234,8 @@ export function Table({
   )
 
   const onRunColumn = useCallback(
-    (groupId: string, runMode: RunMode, rowIds?: string[]) => {
-      runScope({ groupIds: [groupId], rowIds, runMode })
+    (groupId: string, runMode: RunMode, rowIds?: string[], limit?: RunLimit) => {
+      runScope({ groupIds: [groupId], rowIds, runMode, limit })
     },
     [runScope]
   )
@@ -294,7 +308,11 @@ export function Table({
   }
 
   const handleAddWorkflowColumn = () => {
-    onOpenWorkflowConfig({ mode: 'create', proposedName: generateColumnName(columns) })
+    onOpenWorkflowConfig({
+      mode: 'create',
+      kind: 'manual',
+      proposedName: generateColumnName(columns),
+    })
   }
 
   const handleExportCsv = useCallback(async () => {
@@ -410,12 +428,13 @@ export function Table({
       disabled={false}
       onPickType={handleAddColumnOfType}
       onPickWorkflow={handleAddWorkflowColumn}
+      onPickEnrichment={onOpenEnrichments}
     />
   ) : null
 
   const logPanelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const sidebarReservedPx =
-    slideout.kind === 'column' || slideout.kind === 'workflow'
+    slideout.kind === 'column' || slideout.kind === 'workflow' || slideout.kind === 'enrichments'
       ? COLUMN_SIDEBAR_WIDTH
       : slideout.kind === 'execution'
         ? logPanelWidth
@@ -443,36 +462,46 @@ export function Table({
   return (
     <div className='relative flex h-full flex-col overflow-hidden'>
       {!embedded && (
-        <>
-          <ResourceHeader
-            icon={TableIcon}
-            breadcrumbs={breadcrumbs}
-            createTrigger={createTrigger}
-            actions={headerActions}
-            leadingActions={
-              selection.totalRunning > 0 ? (
-                <RunStatusControl
-                  running={selection.totalRunning}
-                  onStopAll={onStopAll}
-                  isStopping={cancelRunsMutation.isPending}
-                />
-              ) : null
-            }
-          />
-          <ResourceOptionsBar
-            sort={sortConfig}
-            onFilterToggle={() => setFilterOpen((prev) => !prev)}
-            filterActive={filterOpen || !!queryOptions.filter}
-          />
-          {filterOpen && (
-            <TableFilter
-              columns={columns}
-              filter={queryOptions.filter}
-              onApply={handleFilterApply}
-              onClose={() => setFilterOpen(false)}
+        <ResourceHeader
+          icon={TableIcon}
+          breadcrumbs={breadcrumbs}
+          createTrigger={createTrigger}
+          actions={headerActions}
+          leadingActions={
+            selection.totalRunning > 0 ? (
+              <RunStatusControl
+                running={selection.totalRunning}
+                onStopAll={onStopAll}
+                isStopping={cancelRunsMutation.isPending}
+              />
+            ) : null
+          }
+        />
+      )}
+      {/* Sort + filter render in both modes (left-aligned). In embedded (mothership)
+          mode there's no ResourceHeader, so the run/stop control rides in the options
+          bar's right-aligned `trailing` slot — opposite the left-aligned filter/sort. */}
+      <ResourceOptionsBar
+        sort={sortConfig}
+        onFilterToggle={() => setFilterOpen((prev) => !prev)}
+        filterActive={filterOpen || !!queryOptions.filter}
+        trailing={
+          embedded && selection.totalRunning > 0 ? (
+            <RunStatusControl
+              running={selection.totalRunning}
+              onStopAll={onStopAll}
+              isStopping={cancelRunsMutation.isPending}
             />
-          )}
-        </>
+          ) : undefined
+        }
+      />
+      {filterOpen && (
+        <TableFilter
+          columns={columns}
+          filter={queryOptions.filter}
+          onApply={handleFilterApply}
+          onClose={() => setFilterOpen(false)}
+        />
       )}
       <TableGrid
         workspaceId={workspaceId}
@@ -481,6 +510,8 @@ export function Table({
         sidebarReservedPx={sidebarReservedPx}
         onOpenColumnConfig={onOpenColumnConfig}
         onOpenWorkflowConfig={onOpenWorkflowConfig}
+        onOpenEnrichments={onOpenEnrichments}
+        onOpenEnrichmentConfig={onOpenEnrichmentConfig}
         onOpenExecutionDetails={onOpenExecutionDetails}
         onOpenRowModal={onOpenRowModal}
         onRequestDeleteRows={onRequestDeleteRows}
@@ -490,8 +521,6 @@ export function Table({
         onRunRows={onRunRows}
         onStopRows={onStopRows}
         onStopRow={onStopRow}
-        onStopAll={onStopAll}
-        cancelRunsPending={cancelRunsMutation.isPending}
         onSelectionChange={onSelectionChange}
         queryOptions={queryOptions}
         columnRenameSinkRef={columnRenameSinkRef}
@@ -511,17 +540,29 @@ export function Table({
           hasWorkflowColumns={selection.hasWorkflowColumns}
           showPlay={selection.selectionStats.hasIncompleteOrFailed}
           showRefresh={selection.selectionStats.hasCompleted}
-          onPlay={() =>
-            selection.selectedRunScope &&
-            runScope({ ...selection.selectedRunScope, runMode: 'incomplete' })
-          }
-          onRefresh={() =>
-            selection.selectedRunScope &&
-            runScope({ ...selection.selectedRunScope, runMode: 'all' })
-          }
-          onStopWorkflows={() =>
-            selection.selectedRunScope && onStopRows(selection.selectedRunScope.rowIds)
-          }
+          onPlay={() => {
+            const scope = selection.selectedRunScope
+            if (!scope) return
+            runScope({
+              groupIds: scope.groupIds,
+              rowIds: scope.allRows ? undefined : scope.rowIds,
+              runMode: 'incomplete',
+            })
+          }}
+          onRefresh={() => {
+            const scope = selection.selectedRunScope
+            if (!scope) return
+            runScope({
+              groupIds: scope.groupIds,
+              rowIds: scope.allRows ? undefined : scope.rowIds,
+              runMode: 'all',
+            })
+          }}
+          onStopWorkflows={() => {
+            const scope = selection.selectedRunScope
+            if (!scope) return
+            scope.allRows ? onStopAll() : onStopRows(scope.rowIds)
+          }}
           onViewExecution={
             selection.singleWorkflowCell?.canViewExecution &&
             selection.singleWorkflowCell.executionId
@@ -544,6 +585,14 @@ export function Table({
         workspaceId={workspaceId}
         tableId={tableId}
         onColumnRename={onColumnRename}
+      />
+      <EnrichmentsSidebar
+        open={slideout.kind === 'enrichments'}
+        onClose={onCloseSlideout}
+        allColumns={columns}
+        workspaceId={workspaceId}
+        tableId={tableId}
+        editGroup={slideout.kind === 'enrichments' ? slideout.editGroup : undefined}
       />
       <WorkflowSidebar
         config={workflowConfig}
@@ -604,7 +653,7 @@ export function Table({
               : 'Delete Column'}
           </ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               {deletingColumns && deletingColumns.length > 1 ? (
                 <>
                   Are you sure you want to delete{' '}
@@ -627,7 +676,7 @@ export function Table({
                 {deletingColumns && deletingColumns.length > 1 ? 'these columns' : 'this column'}.
               </span>{' '}
               You can undo this action.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setDeletingColumns(null)}>
@@ -652,14 +701,14 @@ export function Table({
           <ModalContent size='sm'>
             <ModalHeader>Delete Table</ModalHeader>
             <ModalBody>
-              <p className='text-[var(--text-secondary)]'>
+              <ModalDescription className='text-[var(--text-secondary)]'>
                 Are you sure you want to delete{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
                 <span className='text-[var(--text-error)]'>
                   All {tableData?.rowCount ?? 0} rows will be removed.
                 </span>{' '}
                 You can restore it from Recently Deleted in Settings.
-              </p>
+              </ModalDescription>
             </ModalBody>
             <ModalFooter>
               <Button

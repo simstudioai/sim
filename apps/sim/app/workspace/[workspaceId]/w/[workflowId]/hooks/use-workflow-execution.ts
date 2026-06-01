@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { generateId } from '@sim/utils/id'
+import { generateId, generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
@@ -10,6 +10,7 @@ import { requestJson } from '@/lib/api/client/request'
 import { cancelWorkflowExecutionContract, workflowLogContract } from '@/lib/api/contracts/workflows'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
+import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import type { ExecutionPausedData } from '@/lib/workflows/executor/execution-events'
 import {
   extractTriggerMockPayload,
@@ -70,7 +71,7 @@ const logger = createLogger('useWorkflowExecution')
 const activeReconnections = new Set<string>()
 
 function isReconnectNonRetryable(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : ''
+  const message = getErrorMessage(error, '')
   return (
     message.includes('Execution events pruned before requested event id') ||
     (isExecutionStreamHttpError(error) &&
@@ -505,65 +506,84 @@ export function useWorkflowExecution() {
               typeof (value as any).onUploadError === 'function'
             if (workflowInput.files && Array.isArray(workflowInput.files)) {
               try {
+                const presignedEndpoint = `/api/files/presigned?type=execution&workflowId=${encodeURIComponent(activeWorkflowId)}&executionId=${encodeURIComponent(executionId)}&workspaceId=${encodeURIComponent(workspaceId)}`
                 for (const fileData of workflowInput.files) {
-                  // Create FormData for upload
-                  const formData = new FormData()
-                  formData.append('file', fileData.file)
-                  formData.append('context', 'execution')
-                  formData.append('workflowId', activeWorkflowId)
-                  formData.append('executionId', executionId)
-                  formData.append('workspaceId', workspaceId)
-
-                  // boundary-raw-fetch: multipart/form-data file upload, requestJson only supports JSON bodies
-                  const response = await fetch('/api/files/upload', {
-                    method: 'POST',
-                    body: formData,
-                  })
-
-                  if (response.ok) {
-                    const uploadResult = await response.json()
-                    // Convert upload result to clean UserFile format
-                    const processUploadResult = (result: any) => ({
-                      id:
-                        result.id ||
-                        `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-                      name: result.name,
-                      url: result.url,
-                      size: result.size,
-                      type: result.type,
-                      key: result.key,
-                      uploadedAt: result.uploadedAt,
-                      expiresAt: result.expiresAt,
+                  try {
+                    const result = await runUploadStrategy({
+                      file: fileData.file,
+                      workspaceId,
+                      context: 'execution',
+                      workflowId: activeWorkflowId,
+                      executionId,
+                      presignedEndpoint,
                     })
+                    uploadedFiles.push({
+                      id: `file_${Date.now()}_${generateShortId(7)}`,
+                      name: fileData.file.name,
+                      url: result.path,
+                      size: fileData.file.size,
+                      type: fileData.file.type,
+                      key: result.key,
+                      context: 'execution',
+                    })
+                  } catch (uploadError) {
+                    if (
+                      uploadError instanceof DirectUploadError &&
+                      uploadError.code === 'FALLBACK_REQUIRED'
+                    ) {
+                      const formData = new FormData()
+                      formData.append('file', fileData.file)
+                      formData.append('context', 'execution')
+                      formData.append('workflowId', activeWorkflowId)
+                      formData.append('executionId', executionId)
+                      formData.append('workspaceId', workspaceId)
 
-                    // The API returns the file directly for single uploads
-                    // or { files: [...] } for multiple uploads
-                    if (uploadResult.files && Array.isArray(uploadResult.files)) {
-                      uploadedFiles.push(...uploadResult.files.map(processUploadResult))
-                    } else if (uploadResult.path || uploadResult.url) {
-                      // Single file upload - the result IS the file object
-                      uploadedFiles.push(processUploadResult(uploadResult))
+                      // boundary-raw-fetch: local-dev fallback when cloud storage is not configured; multipart upload incompatible with requestJson
+                      const response = await fetch('/api/files/upload', {
+                        method: 'POST',
+                        body: formData,
+                      })
+                      if (!response.ok) {
+                        const errorData = await response.json().catch(() => null)
+                        const reason =
+                          errorData?.message || errorData?.error || `${response.status}`
+                        const message = `Failed to upload ${fileData.name}: ${reason}`
+                        logger.error(message)
+                        if (isUploadErrorCapable(workflowInput)) {
+                          try {
+                            workflowInput.onUploadError(message)
+                          } catch {}
+                        }
+                        continue
+                      }
+                      const uploadResult = await response.json()
+                      const processUploadResult = (r: any) => ({
+                        id: r.id || `file_${Date.now()}_${generateShortId(7)}`,
+                        name: r.name,
+                        url: r.url,
+                        size: r.size,
+                        type: r.type,
+                        key: r.key,
+                        context: r.context || 'execution',
+                        uploadedAt: r.uploadedAt,
+                        expiresAt: r.expiresAt,
+                      })
+                      if (uploadResult.files && Array.isArray(uploadResult.files)) {
+                        uploadedFiles.push(...uploadResult.files.map(processUploadResult))
+                      } else if (uploadResult.path || uploadResult.url) {
+                        uploadedFiles.push(processUploadResult(uploadResult))
+                      }
                     } else {
-                      logger.error('Unexpected upload response format:', uploadResult)
-                    }
-                  } else {
-                    const cloned = response.clone()
-                    const errorData = await response.json().catch(() => null)
-                    const reason =
-                      errorData?.message ||
-                      errorData?.error ||
-                      (await cloned.text().catch(() => '')) ||
-                      `${response.status}`
-                    const message = `Failed to upload ${fileData.name}: ${reason}`
-                    logger.error(message)
-                    if (isUploadErrorCapable(workflowInput)) {
-                      try {
-                        workflowInput.onUploadError(message)
-                      } catch {}
+                      const message = `Failed to upload ${fileData.name}: ${toError(uploadError).message}`
+                      logger.error(message)
+                      if (isUploadErrorCapable(workflowInput)) {
+                        try {
+                          workflowInput.onUploadError(message)
+                        } catch {}
+                      }
                     }
                   }
                 }
-                // Update workflow input with uploaded files
                 workflowInput.files = uploadedFiles
               } catch (error) {
                 logger.error('Error uploading files:', error)
@@ -743,7 +763,7 @@ export function useWorkflowExecution() {
 
                 // Invalidate subscription queries to update usage
                 setTimeout(() => {
-                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
                 }, 1000)
 
                 safeEnqueue(encodeSSE({ event: 'final', data: result }))
@@ -1106,6 +1126,7 @@ export function useWorkflowExecution() {
         await executionStream.execute({
           workflowId: activeWorkflowId,
           input: finalWorkflowInput,
+          executionId,
           startBlockId,
           selectedOutputs,
           triggerType: overrideTriggerType || 'manual',
@@ -1275,7 +1296,7 @@ export function useWorkflowExecution() {
                   setActiveBlocks(activeWorkflowId, new Set())
                 }
                 setTimeout(() => {
-                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
                 }, 1000)
               }
             },
@@ -2077,6 +2098,7 @@ export function useWorkflowExecution() {
     let reconnectionComplete = false
     let ownsReconnect = false
     let ownedReconnectExecutionId: string | null = null
+    let retryTimeoutId: ReturnType<typeof setTimeout> | undefined
     const reconnectWorkflowId = activeWorkflowId
 
     const releaseReconnectOwnership = () => {
@@ -2186,7 +2208,7 @@ export function useWorkflowExecution() {
       }
       const scheduleRetryableReconnect = () => {
         releaseReconnectOwnership()
-        setTimeout(() => {
+        retryTimeoutId = setTimeout(() => {
           if (!cleanupRan && !reconnectionComplete) {
             setReconnectAttemptNonce((nonce) => nonce + 1)
           }
@@ -2383,6 +2405,7 @@ export function useWorkflowExecution() {
 
     return () => {
       cleanupRan = true
+      clearTimeout(retryTimeoutId)
       if (ownsReconnect) {
         if (ownedReconnectExecutionId) {
           executionStream.cancelReconnect(reconnectWorkflowId, ownedReconnectExecutionId)

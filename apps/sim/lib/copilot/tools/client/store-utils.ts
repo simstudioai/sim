@@ -96,7 +96,7 @@ function describeReadTarget(path: string | undefined): string | undefined {
   }
 
   if (resourceType === 'file') {
-    return segments.slice(1).join('/') || segments[segments.length - 1]
+    return describeFileReadTarget(segments)
   }
 
   if (resourceType === 'workflow') {
@@ -105,6 +105,32 @@ function describeReadTarget(path: string | undefined): string | undefined {
 
   const resourceName = segments[1] || segments[segments.length - 1]
   return stripExtension(resourceName)
+}
+
+const FILE_SPECIAL_READ_TARGET_PREFIXES: Record<string, string> = {
+  content: 'the content of',
+  'meta.json': 'metadata for',
+  style: 'style details for',
+  'compiled-check': 'the final file check for',
+}
+
+function describeFileReadTarget(segments: string[]): string {
+  const lastSegment = segments[segments.length - 1] || ''
+  const specialPrefix = FILE_SPECIAL_READ_TARGET_PREFIXES[lastSegment]
+  if (specialPrefix) {
+    return `${specialPrefix} ${describeSpecialFilePathSubject(segments)}`
+  }
+
+  return segments.slice(1).join('/') || lastSegment
+}
+
+function describeSpecialFilePathSubject(segments: string[]): string {
+  if (segments[1] === 'by-id') {
+    const namedRemainder = segments.slice(3, -1).join('/')
+    return namedRemainder || 'this file'
+  }
+
+  return segments.slice(1, -1).join('/') || 'this file'
 }
 
 function getLeafResourceSegment(segments: string[]): string {

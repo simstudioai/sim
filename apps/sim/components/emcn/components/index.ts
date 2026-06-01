@@ -2,26 +2,22 @@ export {
   Avatar,
   AvatarFallback,
   AvatarImage,
-  type AvatarProps,
   avatarStatusVariants,
   avatarVariants,
 } from './avatar/avatar'
 export { Badge } from './badge/badge'
-export { Banner, type BannerProps } from './banner/banner'
-export { Breadcrumb, type BreadcrumbItem, type BreadcrumbProps } from './breadcrumb/breadcrumb'
-export { Button, type ButtonProps, buttonVariants } from './button/button'
+export { Banner } from './banner/banner'
+export { Breadcrumb } from './breadcrumb/breadcrumb'
+export { Button, buttonVariants } from './button/button'
 export {
   ButtonGroup,
   ButtonGroupItem,
-  type ButtonGroupItemProps,
-  type ButtonGroupProps,
   buttonGroupItemVariants,
   buttonGroupVariants,
 } from './button-group/button-group'
-export { Callout, type CalloutProps, calloutVariants } from './callout/callout'
+export { Callout, calloutVariants } from './callout/callout'
 export {
   Checkbox,
-  type CheckboxProps,
   checkboxIconVariants,
   checkboxVariants,
 } from './checkbox/checkbox'
@@ -34,12 +30,13 @@ export {
   languages,
 } from './code/code'
 export { CopyCodeButton } from './code/copy-code-button'
+export { CollapsibleCard, type CollapsibleCardProps } from './collapsible-card/collapsible-card'
 export {
   Combobox,
   type ComboboxOption,
   type ComboboxOptionGroup,
 } from './combobox/combobox'
-export { DatePicker, type DatePickerProps, datePickerVariants } from './date-picker/date-picker'
+export { DatePicker, datePickerVariants } from './date-picker/date-picker'
 export {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -59,9 +56,9 @@ export {
   DropdownMenuTrigger,
 } from './dropdown-menu/dropdown-menu'
 export { Expandable, ExpandableContent } from './expandable/expandable'
-export { FieldDivider, type FieldDividerProps } from './field-divider/field-divider'
-export { FormField, type FormFieldProps } from './form-field/form-field'
-export { Input, type InputProps, inputVariants } from './input/input'
+export { FieldDivider } from './field-divider/field-divider'
+export { FormField } from './form-field/form-field'
+export { Input, inputVariants } from './input/input'
 export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
 export { Label } from './label/label'
 export { focusFirstTextInput, focusFirstTextInputIn } from './modal/auto-focus'
@@ -71,7 +68,6 @@ export {
   ModalBody,
   ModalClose,
   ModalContent,
-  type ModalContentProps,
   ModalDescription,
   ModalFooter,
   ModalHeader,
@@ -88,21 +84,13 @@ export {
   Popover,
   PopoverAnchor,
   PopoverBackButton,
-  type PopoverBackButtonProps,
   PopoverContent,
-  type PopoverContentProps,
   PopoverDivider,
-  type PopoverDividerProps,
   PopoverFolder,
-  type PopoverFolderProps,
   PopoverItem,
-  type PopoverItemProps,
   PopoverScrollArea,
-  type PopoverScrollAreaProps,
   PopoverSearch,
-  type PopoverSearchProps,
   PopoverSection,
-  type PopoverSectionProps,
   PopoverTrigger,
   usePopoverContext,
 } from './popover/popover'
@@ -116,7 +104,6 @@ export {
   SModalSidebar,
   SModalSidebarHeader,
   SModalSidebarItem,
-  type SModalSidebarItemProps,
   SModalSidebarSection,
   SModalSidebarSectionTitle,
   SModalTabs,
@@ -126,10 +113,10 @@ export {
   SModalTabsTrigger,
   SModalTrigger,
 } from './s-modal/s-modal'
-export { SecretInput, type SecretInputProps } from './secret-input/secret-input'
-export { SecretReveal, type SecretRevealProps } from './secret-reveal/secret-reveal'
+export { SecretInput } from './secret-input/secret-input'
+export { SecretReveal } from './secret-reveal/secret-reveal'
 export { Skeleton } from './skeleton/skeleton'
-export { Slider, type SliderProps } from './slider/slider'
+export { Slider } from './slider/slider'
 export { Switch } from './switch/switch'
 export {
   Table,
@@ -145,22 +132,14 @@ export {
   type FileInputOptions,
   Tag,
   TagInput,
-  type TagInputProps,
   type TagItem,
-  type TagProps,
   tagInputVariants,
   tagVariants,
 } from './tag-input/tag-input'
 export { Textarea } from './textarea/textarea'
-export { TimePicker, type TimePickerProps, timePickerVariants } from './time-picker/time-picker'
+export { TimePicker, timePickerVariants } from './time-picker/time-picker'
 export { CountdownRing } from './toast/countdown-ring'
 export { ToastProvider, toast, useToast } from './toast/toast'
 export { Tooltip } from './tooltip/tooltip'
-export {
-  TourCard,
-  type TourCardProps,
-  TourTooltip,
-  type TourTooltipPlacement,
-  type TourTooltipProps,
-} from './tour-tooltip/tour-tooltip'
-export { Wizard, type WizardProps, type WizardStepProps } from './wizard/wizard'
+export { TourCard, TourTooltip } from './tour-tooltip/tour-tooltip'
+export { Wizard } from './wizard/wizard'

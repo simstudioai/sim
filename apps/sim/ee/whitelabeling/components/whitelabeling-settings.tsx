@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { X } from 'lucide-react'
@@ -55,7 +55,7 @@ function DropZone({ onDrop, children, className }: DropZoneProps) {
     >
       {children}
       {isDragging && (
-        <div className='pointer-events-none absolute inset-0 z-10 rounded-lg border-[1.5px] border-[var(--brand)] border-dashed bg-[color-mix(in_srgb,var(--brand)_8%,transparent)]' />
+        <div className='pointer-events-none absolute inset-0 z-10 rounded-lg border-[1.5px] border-[var(--brand-accent)] border-dashed bg-[color-mix(in_srgb,var(--brand-accent)_8%,transparent)]' />
       )}
     </div>
   )
@@ -75,7 +75,7 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
     <div className='flex flex-col gap-1.5'>
       <Label className='text-[13px] text-[var(--text-primary)]'>{label}</Label>
       <div className='flex items-center gap-2'>
-        <div className='relative flex h-[36px] w-[36px] shrink-0 items-center justify-center overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)]'>
+        <div className='relative flex size-[36px] shrink-0 items-center justify-center overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)]'>
           {value && isValidHex ? (
             <div className='h-full w-full rounded-md' style={{ backgroundColor: value }} />
           ) : (
@@ -103,7 +103,7 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
       </div>
       {!isValidHex && (
         <p className='text-[12px] text-[var(--text-error)]'>
-          Must be a valid hex color (e.g. #701ffc)
+          Must be a valid hex color (e.g. #33c482)
         </p>
       )}
     </div>
@@ -143,7 +143,7 @@ export function WhitelabelingSettings() {
   const [privacyUrl, setPrivacyUrl] = useState('')
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [wordmarkUrl, setWordmarkUrl] = useState<string | null>(null)
-  const [formInitialized, setFormInitialized] = useState(false)
+  const formInitializedRef = useRef(false)
   const [savedBrandName, setSavedBrandName] = useState('')
   const [savedPrimaryColor, setSavedPrimaryColor] = useState('')
   const [savedPrimaryHoverColor, setSavedPrimaryHoverColor] = useState('')
@@ -157,7 +157,7 @@ export function WhitelabelingSettings() {
   const [savedWordmarkUrl, setSavedWordmarkUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!savedSettings || formInitialized) return
+    if (!savedSettings || formInitializedRef.current) return
     const brand = savedSettings.brandName ?? ''
     const primary = savedSettings.primaryColor ?? ''
     const primaryHover = savedSettings.primaryHoverColor ?? ''
@@ -191,8 +191,8 @@ export function WhitelabelingSettings() {
     setSavedPrivacyUrl(privacy)
     setSavedLogoUrl(logo)
     setSavedWordmarkUrl(wordmark)
-    setFormInitialized(true)
-  }, [savedSettings, formInitialized])
+    formInitializedRef.current = true
+  }, [savedSettings])
 
   const logoUpload = useProfilePictureUpload({
     currentImage: logoUrl,
@@ -211,7 +211,7 @@ export function WhitelabelingSettings() {
   })
 
   const hasChanges =
-    formInitialized &&
+    formInitializedRef.current &&
     (brandName !== savedBrandName ||
       primaryColor !== savedPrimaryColor ||
       primaryHoverColor !== savedPrimaryHoverColor ||
@@ -236,7 +236,7 @@ export function WhitelabelingSettings() {
 
     for (const [fieldName, value] of colorFields) {
       if (value && !HEX_COLOR_REGEX.test(value)) {
-        toast.error(`${fieldName} must be a valid hex color (e.g. #701ffc)`)
+        toast.error(`${fieldName} must be a valid hex color (e.g. #33c482)`)
         return
       }
     }
@@ -333,10 +333,10 @@ export function WhitelabelingSettings() {
                     type='button'
                     onClick={logoUpload.handleThumbnailClick}
                     disabled={logoUpload.isUploading}
-                    className='group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                    className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                   >
                     {logoUpload.isUploading ? (
-                      <Loader className='h-5 w-5 text-[var(--text-muted)]' animate />
+                      <Loader className='size-5 text-[var(--text-muted)]' animate />
                     ) : logoUpload.previewUrl ? (
                       <Image
                         src={logoUpload.previewUrl}
@@ -367,7 +367,7 @@ export function WhitelabelingSettings() {
                       onClick={logoUpload.handleRemove}
                       className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                     >
-                      <X className='h-3.5 w-3.5' />
+                      <X className='size-3.5' />
                     </Button>
                   )}
                 </div>
@@ -394,7 +394,7 @@ export function WhitelabelingSettings() {
                     className='group relative flex h-16 w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                   >
                     {wordmarkUpload.isUploading ? (
-                      <Loader className='h-5 w-5 text-[var(--text-muted)]' animate />
+                      <Loader className='size-5 text-[var(--text-muted)]' animate />
                     ) : wordmarkUpload.previewUrl ? (
                       <Image
                         src={wordmarkUpload.previewUrl}
@@ -425,7 +425,7 @@ export function WhitelabelingSettings() {
                       onClick={wordmarkUpload.handleRemove}
                       className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                     >
-                      <X className='h-3.5 w-3.5' />
+                      <X className='size-3.5' />
                     </Button>
                   )}
                 </div>
@@ -462,25 +462,25 @@ export function WhitelabelingSettings() {
             label='Primary color'
             value={primaryColor}
             onChange={setPrimaryColor}
-            placeholder='#701ffc'
+            placeholder='#33c482'
           />
           <ColorInput
             label='Primary hover color'
             value={primaryHoverColor}
             onChange={setPrimaryHoverColor}
-            placeholder='#802fff'
+            placeholder='#2dac72'
           />
           <ColorInput
             label='Accent color'
             value={accentColor}
             onChange={setAccentColor}
-            placeholder='#9d54ff'
+            placeholder='#33b4ff'
           />
           <ColorInput
             label='Accent hover color'
             value={accentHoverColor}
             onChange={setAccentHoverColor}
-            placeholder='#a66fff'
+            placeholder='#29a0e8'
           />
         </div>
       </section>

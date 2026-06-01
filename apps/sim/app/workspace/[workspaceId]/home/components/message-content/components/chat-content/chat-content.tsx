@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentPropsWithoutRef, useEffect, useMemo, useRef } from 'react'
+import { type ComponentPropsWithoutRef, memo, useEffect, useMemo, useRef } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import 'prismjs/components/prism-typescript'
@@ -217,9 +217,16 @@ const MARKDOWN_COMPONENTS = {
   },
   inlineCode({ children }: { children?: React.ReactNode }) {
     return (
-      <code className='rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-[400] font-mono text-[var(--text-primary)] text-small before:content-none after:content-none'>
+      <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-[400] font-mono text-[var(--text-primary)] not-italic before:content-none after:content-none'>
         {children}
       </code>
+    )
+  },
+  blockquote({ children }: { children?: React.ReactNode }) {
+    return (
+      <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 text-[var(--text-primary)] italic [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>p]:my-2'>
+        {children}
+      </blockquote>
     )
   },
   input({ type, checked }: { type?: string; checked?: boolean }) {
@@ -227,6 +234,23 @@ const MARKDOWN_COMPONENTS = {
       return <Checkbox checked={checked || false} disabled size='sm' className='mt-1.5 shrink-0' />
     }
     return <input type={type} checked={checked} readOnly />
+  },
+  em({ children }: { children?: React.ReactNode }) {
+    return <em className='text-[var(--text-primary)] italic'>{children}</em>
+  },
+  del({ children }: { children?: React.ReactNode }) {
+    return <del className='text-[var(--text-tertiary)] line-through'>{children}</del>
+  },
+  img({ src, alt }: ComponentPropsWithoutRef<'img'>) {
+    if (typeof src !== 'string' || !src) return null
+    return (
+      <img
+        src={src}
+        alt={alt ?? ''}
+        loading='lazy'
+        className='my-4 h-auto max-w-full rounded-lg border border-[var(--divider)]'
+      />
+    )
   },
 }
 
@@ -237,7 +261,7 @@ interface ChatContentProps {
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
 }
 
-export function ChatContent({
+function ChatContentInner({
   content,
   isStreaming = false,
   onOptionSelect,
@@ -335,3 +359,5 @@ export function ChatContent({
     </div>
   )
 }
+
+export const ChatContent = memo(ChatContentInner)

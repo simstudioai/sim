@@ -6,6 +6,28 @@ import { generateSearchEmbedding } from '@/lib/embeddings'
 export const runtime = 'nodejs'
 export const revalidate = 0
 
+const DEFAULT_SEARCH_LIMIT = 10
+const MAX_SEARCH_LIMIT = 20
+
+function getSearchLimit(value: unknown): number {
+  const limit = Number.parseInt(String(value ?? DEFAULT_SEARCH_LIMIT), 10)
+
+  if (!Number.isFinite(limit) || limit <= 0) {
+    return DEFAULT_SEARCH_LIMIT
+  }
+
+  return Math.min(limit, MAX_SEARCH_LIMIT)
+}
+
+function getSearchParams(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams
+  return {
+    query: searchParams.get('query') || searchParams.get('q') || '',
+    locale: searchParams.get('locale') || 'en',
+    limit: getSearchLimit(searchParams.get('limit')),
+  }
+}
+
 /**
  * Hybrid search API endpoint
  * - English: Vector embeddings + keyword search
@@ -13,10 +35,7 @@ export const revalidate = 0
  */
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
-    const query = searchParams.get('query') || searchParams.get('q') || ''
-    const locale = searchParams.get('locale') || 'en'
-    const limit = Number.parseInt(searchParams.get('limit') || '10', 10)
+    const { query, locale, limit } = getSearchParams(request)
 
     if (!query || query.trim().length === 0) {
       return NextResponse.json([])
@@ -94,6 +113,10 @@ export async function GET(request: NextRequest) {
     const keywordRankMap = new Map<string, number>()
     keywordResults.forEach((r, idx) => keywordRankMap.set(r.chunkId, idx + 1))
 
+    const resultByChunkId = new Map<string, (typeof vectorResults)[number]>()
+    keywordResults.forEach((result) => resultByChunkId.set(result.chunkId, result))
+    vectorResults.forEach((result) => resultByChunkId.set(result.chunkId, result))
+
     const allChunkIds = new Set([
       ...vectorResults.map((r) => r.chunkId),
       ...keywordResults.map((r) => r.chunkId),
@@ -109,9 +132,7 @@ export async function GET(request: NextRequest) {
 
       const rrfScore = 1 / (k + vectorRank) + 1 / (k + keywordRank)
 
-      const result =
-        vectorResults.find((r) => r.chunkId === chunkId) ||
-        keywordResults.find((r) => r.chunkId === chunkId)
+      const result = resultByChunkId.get(chunkId)
 
       if (result) {
         scoredResults.push({ ...result, rrfScore })
@@ -167,31 +188,38 @@ export async function GET(request: NextRequest) {
       const pathParts = result.sourceDocument
         .replace('.mdx', '')
         .split('/')
-        .filter((part) => part !== 'index' && !knownLocales.includes(part))
-        .map((part) => {
-          return part
-            .replace(/_/g, ' ')
-            .split(' ')
-            .map((word) => {
-              const acronyms = [
-                'api',
-                'mcp',
-                'sdk',
-                'url',
-                'http',
-                'json',
-                'xml',
-                'html',
-                'css',
-                'ai',
-              ]
-              if (acronyms.includes(word.toLowerCase())) {
-                return word.toUpperCase()
-              }
-              return word.charAt(0).toUpperCase() + word.slice(1)
-            })
-            .join(' ')
-        })
+        .reduce<string[]>((parts, part) => {
+          if (part === 'index' || knownLocales.includes(part)) {
+            return parts
+          }
+
+          parts.push(
+            part
+              .replace(/_/g, ' ')
+              .split(' ')
+              .map((word) => {
+                const acronyms = [
+                  'api',
+                  'mcp',
+                  'sdk',
+                  'url',
+                  'http',
+                  'json',
+                  'xml',
+                  'html',
+                  'css',
+                  'ai',
+                ]
+                if (acronyms.includes(word.toLowerCase())) {
+                  return word.toUpperCase()
+                }
+                return word.charAt(0).toUpperCase() + word.slice(1)
+              })
+              .join(' ')
+          )
+
+          return parts
+        }, [])
 
       return {
         id: result.chunkId,

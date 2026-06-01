@@ -26,6 +26,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
@@ -113,6 +114,8 @@ const BlockRow = memo(function BlockRow({
   return (
     <div
       data-entry-id={entry.id}
+      role='button'
+      tabIndex={0}
       className={clsx(
         ROW_STYLES.base,
         'h-[30px]',
@@ -122,13 +125,14 @@ const BlockRow = memo(function BlockRow({
         e.stopPropagation()
         onSelect(entry)
       }}
+      onKeyDown={(event) => handleKeyboardActivation(event, () => onSelect(entry))}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
         <div
-          className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+          className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
           style={{ background: bgColor }}
         >
-          {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
+          {BlockIcon && <BlockIcon className='size-[10px] text-white' />}
         </div>
         <span
           className={clsx(
@@ -162,8 +166,6 @@ const IterationNodeRow = memo(function IterationNodeRow({
   node,
   selectedEntryId,
   onSelectEntry,
-  isExpanded,
-  onToggle,
   expandedNodes,
   onToggleNode,
   renderChildren = true,
@@ -171,17 +173,20 @@ const IterationNodeRow = memo(function IterationNodeRow({
   node: EntryNode
   selectedEntryId: string | null
   onSelectEntry: (entry: ConsoleEntry) => void
-  isExpanded: boolean
-  onToggle: () => void
   expandedNodes: Set<string>
   onToggleNode: (nodeId: string) => void
   renderChildren?: boolean
 }) {
   const { entry, children, iterationInfo } = node
+  const nodeId = entry.id
+  const isExpanded = expandedNodes.has(nodeId)
   const hasError = Boolean(entry.error) || children.some((c) => c.entry.error)
   const hasChildren = children.length > 0
   const hasRunningChild = children.some((c) => c.entry.isRunning)
   const hasCanceledChild = children.some((c) => c.entry.isCanceled) && !hasRunningChild
+  const handleToggle = useCallback(() => {
+    onToggleNode(nodeId)
+  }, [nodeId, onToggleNode])
 
   const iterationLabel = iterationInfo
     ? `Iteration ${iterationInfo.current + 1}${iterationInfo.total !== undefined ? ` / ${iterationInfo.total}` : ''}`
@@ -191,11 +196,14 @@ const IterationNodeRow = memo(function IterationNodeRow({
     <div className='flex min-w-0 flex-col'>
       {/* Iteration Header */}
       <div
+        role='button'
+        tabIndex={0}
         className={clsx(ROW_STYLES.base, 'h-[30px]', ROW_STYLES.hover)}
         onClick={(e) => {
           e.stopPropagation()
-          onToggle()
+          handleToggle()
         }}
+        onKeyDown={(event) => handleKeyboardActivation(event, handleToggle)}
       >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           <span
@@ -288,18 +296,21 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
     <div className='flex min-w-0 flex-col'>
       {/* Subflow Header */}
       <div
+        role='button'
+        tabIndex={0}
         className={clsx(ROW_STYLES.base, 'h-[30px]', ROW_STYLES.hover)}
         onClick={(e) => {
           e.stopPropagation()
           onToggleNode(nodeId)
         }}
+        onKeyDown={(event) => handleKeyboardActivation(event, () => onToggleNode(nodeId))}
       >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           <div
-            className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
+            {BlockIcon && <BlockIcon className='size-[10px] text-white' />}
           </div>
           <span
             className={clsx(
@@ -341,8 +352,6 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
               node={iterNode}
               selectedEntryId={selectedEntryId}
               onSelectEntry={onSelectEntry}
-              isExpanded={expandedNodes.has(iterNode.entry.id)}
-              onToggle={() => onToggleNode(iterNode.entry.id)}
               expandedNodes={expandedNodes}
               onToggleNode={onToggleNode}
             />
@@ -396,6 +405,8 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
     <div className='flex min-w-0 flex-col'>
       {/* Workflow Block Header */}
       <div
+        role='button'
+        tabIndex={0}
         className={clsx(
           ROW_STYLES.base,
           'h-[30px]',
@@ -406,13 +417,19 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
           if (!isSelected) onSelectEntry(entry)
           if (hasChildren) onToggleNode(nodeId)
         }}
+        onKeyDown={(event) =>
+          handleKeyboardActivation(event, () => {
+            if (!isSelected) onSelectEntry(entry)
+            if (hasChildren) onToggleNode(nodeId)
+          })
+        }
       >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           <div
-            className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
+            {BlockIcon && <BlockIcon className='size-[10px] text-white' />}
           </div>
           <span
             className={clsx(
@@ -516,8 +533,6 @@ const EntryNodeRow = memo(function EntryNodeRow({
         node={node}
         selectedEntryId={selectedEntryId}
         onSelectEntry={onSelectEntry}
-        isExpanded={expandedNodes.has(node.entry.id)}
-        onToggle={() => onToggleNode(node.entry.id)}
         expandedNodes={expandedNodes}
         onToggleNode={onToggleNode}
         renderChildren={renderChildren}
@@ -1304,8 +1319,14 @@ export const Terminal = memo(function Terminal() {
           >
             {/* Header */}
             <div
+              role='group'
+              aria-label='Terminal logs header'
               className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-4'
               onClick={handleHeaderClick}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return
+                handleKeyboardActivation(event, handleHeaderClick)
+              }}
             >
               {/* Left side - Logs label */}
               <span className={TERMINAL_CONFIG.HEADER_TEXT_CLASS}>Logs</span>
@@ -1327,9 +1348,9 @@ export const Terminal = memo(function Terminal() {
                           className='!p-1.5 -m-1.5'
                         >
                           {sortConfig.direction === 'desc' ? (
-                            <ArrowDown className='h-3.5 w-3.5' />
+                            <ArrowDown className='size-3.5' />
                           ) : (
-                            <ArrowUp className='h-3.5 w-3.5' />
+                            <ArrowUp className='size-3.5' />
                           )}
                         </Button>
                       </Tooltip.Trigger>
@@ -1348,7 +1369,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Component Playground'
                             className='!p-1.5 -m-1.5'
                           >
-                            <Palette className='h-3.5 w-3.5' />
+                            <Palette className='size-3.5' />
                           </Button>
                         </Link>
                       </Tooltip.Trigger>
@@ -1371,9 +1392,9 @@ export const Terminal = memo(function Terminal() {
                           )}
                         >
                           {isTraining ? (
-                            <Pause className='h-3.5 w-3.5' />
+                            <Pause className='size-3.5' />
                           ) : (
-                            <Database className='h-3.5 w-3.5' />
+                            <Database className='size-3.5' />
                           )}
                         </Button>
                       </Tooltip.Trigger>
@@ -1393,7 +1414,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Download console CSV'
                             className='!p-1.5 -m-1.5'
                           >
-                            <ArrowDownToLine className='h-3.5 w-3.5' />
+                            <ArrowDownToLine className='size-3.5' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
@@ -1408,7 +1429,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Clear console'
                             className='!p-1.5 -m-1.5'
                           >
-                            <Trash2 className='h-3.5 w-3.5' />
+                            <Trash2 className='size-3.5' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
@@ -1428,7 +1449,7 @@ export const Terminal = memo(function Terminal() {
                         aria-label='Terminal options'
                         className='!p-1.5 -m-1.5'
                       >
-                        <MoreHorizontal className='h-3.5 w-3.5' />
+                        <MoreHorizontal className='size-3.5' />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent

@@ -32,6 +32,7 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
+  DEFAULT_BLOCK_COLOR,
   formatCostAmount,
   formatTokenCount,
   formatTps,
@@ -54,6 +55,13 @@ const MIN_BAR_PCT = 0.5
 
 interface TraceViewProps {
   traceSpans: TraceSpan[]
+  /**
+   * Authoritative, multiplier-inclusive run cost (dollars) from the persisted
+   * execution log. When provided it drives the header credit chip so the Trace
+   * tab and the Overview cost breakdown can never show different totals. Falls
+   * back to the root span's own cost only when absent (e.g. live previews).
+   */
+  runCostDollars?: number
 }
 
 interface FlatSpanEntry {
@@ -118,6 +126,21 @@ function iconColorClass(bgColor: string): string {
   const g = Number.parseInt(hex.slice(2, 4), 16)
   const b = Number.parseInt(hex.slice(4, 6), 16)
   return r * 299 + g * 587 + b * 114 > 160_000 ? 'text-[#111111]' : 'text-white'
+}
+
+/**
+ * Near-black bgColors disappear against the dark-mode surface (--bg: #1b1b1b).
+ * Below the luminance threshold we fall back to the neutral block color used
+ * for blocks with no distinct identity; everything brighter passes through.
+ */
+function adjustBgForContrast(bgColor: string): string {
+  const hex = bgColor.replace('#', '')
+  if (hex.length !== 6) return bgColor
+  const r = Number.parseInt(hex.slice(0, 2), 16)
+  const g = Number.parseInt(hex.slice(2, 4), 16)
+  const b = Number.parseInt(hex.slice(4, 6), 16)
+  if (r * 299 + g * 587 + b * 114 < 30_000) return DEFAULT_BLOCK_COLOR
+  return bgColor
 }
 
 /**
@@ -268,7 +291,12 @@ const TraceTreeRow = memo(function TraceTreeRow({
   const duration = span.duration || endMs - startMs
   const isRootWorkflow = depth === 0 && span.type?.toLowerCase() === 'workflow'
   const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
-  const { icon: BlockIcon, bgColor } = getBlockIconAndColor(span.type, span.name, span.provider)
+  const { icon: BlockIcon, bgColor: rawBgColor } = getBlockIconAndColor(
+    span.type,
+    span.name,
+    span.provider
+  )
+  const bgColor = adjustBgForContrast(rawBgColor)
   const nameMatches = !!matchQuery && spanMatchesQuery(span, matchQuery)
 
   const offsetMs = runStartMs > 0 ? Math.max(0, startMs - runStartMs) : 0
@@ -307,7 +335,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
           <Button
             type='button'
             variant='ghost'
-            className='h-[14px] w-[14px] flex-shrink-0 p-0 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
+            className='size-[14px] flex-shrink-0 p-0 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
             onClick={(e) => {
               e.stopPropagation()
               onToggleExpand(id)
@@ -322,11 +350,11 @@ const TraceTreeRow = memo(function TraceTreeRow({
             />
           </Button>
         ) : (
-          <div className='h-[14px] w-[14px] flex-shrink-0' />
+          <div className='size-[14px] flex-shrink-0' />
         )}
         {!isIterationType(span.type) && (
           <div
-            className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+            className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
             style={{ background: bgColor }}
           >
             {BlockIcon && (
@@ -499,12 +527,12 @@ function DetailCodeSection({
                         e.stopPropagation()
                         handleCopy()
                       }}
-                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                      className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                     >
                       {copied ? (
-                        <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
+                        <Check className='size-[10px] text-[var(--text-success)]' />
                       ) : (
-                        <Clipboard className='h-[10px] w-[10px]' />
+                        <Clipboard className='size-[10px]' />
                       )}
                     </Button>
                   </Tooltip.Trigger>
@@ -519,9 +547,9 @@ function DetailCodeSection({
                         e.stopPropagation()
                         activateSearch()
                       }}
-                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                      className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                     >
-                      <Search className='h-[10px] w-[10px]' />
+                      <Search className='size-[10px]' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>Search</Tooltip.Content>
@@ -531,6 +559,7 @@ function DetailCodeSection({
           </div>
           {isSearchActive && (
             <div
+              role='presentation'
               className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-sm'
               onClick={(e) => e.stopPropagation()}
             >
@@ -557,7 +586,7 @@ function DetailCodeSection({
                 disabled={matchCount === 0}
                 aria-label='Previous match'
               >
-                <ArrowUp className='h-[12px] w-[12px]' />
+                <ArrowUp className='size-[12px]' />
               </Button>
               <Button
                 variant='ghost'
@@ -566,7 +595,7 @@ function DetailCodeSection({
                 disabled={matchCount === 0}
                 aria-label='Next match'
               >
-                <ArrowDown className='h-[12px] w-[12px]' />
+                <ArrowDown className='size-[12px]' />
               </Button>
               <Button
                 variant='ghost'
@@ -574,7 +603,7 @@ function DetailCodeSection({
                 onClick={closeSearch}
                 aria-label='Close search'
               >
-                <X className='h-[12px] w-[12px]' />
+                <X className='size-[12px]' />
               </Button>
             </div>
           )}
@@ -650,7 +679,12 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   }
 
   const duration = span.duration || parseTime(span.endTime) - parseTime(span.startTime)
-  const { icon: BlockIcon, bgColor } = getBlockIconAndColor(span.type, span.name, span.provider)
+  const { icon: BlockIcon, bgColor: rawBgColor } = getBlockIconAndColor(
+    span.type,
+    span.name,
+    span.provider
+  )
+  const bgColor = adjustBgForContrast(rawBgColor)
   const isRootWorkflow = span.type?.toLowerCase() === 'workflow'
   const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
   const isDirectError = span.status === 'error'
@@ -681,8 +715,10 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   if (cacheRead) metaEntries.push({ label: 'Cache read', value: cacheRead })
   if (cacheWrite) metaEntries.push({ label: 'Cache write', value: cacheWrite })
   if (reasoning) metaEntries.push({ label: 'Reasoning tokens', value: reasoning })
-  const costTotal = formatCostAmount(span.cost?.total)
-  if (costTotal) metaEntries.push({ label: 'Cost', value: costTotal })
+  // Per-span cost is intentionally not shown: cost lives only in the usage_log
+  // ledger (the authoritative, multiplier-inclusive run total drives the header
+  // chip). Persisted spans are cost-stripped, so a per-span row would render on
+  // live runs but vanish on reload — show one consistent total instead.
   if (span.errorType) metaEntries.push({ label: 'Error type', value: span.errorType })
   if (span.iterationIndex !== undefined)
     metaEntries.push({ label: 'Iteration', value: String(span.iterationIndex + 1) })
@@ -694,7 +730,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
       <div className='flex items-start gap-2'>
         {!isIterationType(span.type) && (
           <div
-            className='mt-[2px] flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='mt-[2px] flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
             {BlockIcon && (
@@ -720,7 +756,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
             {Number.isFinite(startedAt) && startedAt > 0 && (
               <>
                 <span>·</span>
-                <span title={new Date(startedAt).toISOString()}>
+                <span title={new Date(startedAt).toISOString()} suppressHydrationWarning>
                   {new Date(startedAt).toLocaleTimeString()}
                 </span>
               </>
@@ -767,10 +803,10 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
 
       {Number.isFinite(startedAt) && Number.isFinite(endedAt) && startedAt > 0 && endedAt > 0 && (
         <div className='flex items-center justify-between font-medium text-[var(--text-tertiary)] text-caption'>
-          <span title={new Date(startedAt).toISOString()}>
+          <span title={new Date(startedAt).toISOString()} suppressHydrationWarning>
             Started {new Date(startedAt).toLocaleTimeString()}
           </span>
-          <span title={new Date(endedAt).toISOString()}>
+          <span title={new Date(endedAt).toISOString()} suppressHydrationWarning>
             Ended {new Date(endedAt).toLocaleTimeString()}
           </span>
         </div>
@@ -785,7 +821,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
  * in a way that mirrors the executor's internal structure so investigators can
  * follow block-by-block and segment-by-segment what happened and why.
  */
-export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps) {
+export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }: TraceViewProps) {
   const treeRef = useRef<HTMLDivElement>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [treePaneWidth, setTreePaneWidth] = useState(DEFAULT_TREE_PANE_WIDTH)
@@ -994,7 +1030,7 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
           {blockCount} {blockCount === 1 ? 'span' : 'spans'}
         </span>
         {(() => {
-          const rootCost = formatCostAmount(normalizedSpans[0]?.cost?.total)
+          const rootCost = formatCostAmount(runCostDollars ?? normalizedSpans[0]?.cost?.total)
           return rootCost ? (
             <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption tabular-nums'>
               {rootCost}
@@ -1003,7 +1039,7 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
         })()}
         <div className='ml-auto flex items-center gap-1'>
           <div className='relative'>
-            <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-[7px] h-[11px] w-[11px] text-[var(--text-tertiary)]' />
+            <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-[7px] size-[11px] text-[var(--text-tertiary)]' />
             <Input
               type='text'
               value={searchQuery}
@@ -1021,7 +1057,7 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
                 onClick={() => setExpandedNodes(new Set(allIds))}
                 aria-label='Expand all'
               >
-                <ChevronsUpDown className='h-[12px] w-[12px]' />
+                <ChevronsUpDown className='size-[12px]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Expand all</Tooltip.Content>
@@ -1035,7 +1071,7 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
                 onClick={() => setExpandedNodes(new Set())}
                 aria-label='Collapse all'
               >
-                <ChevronsDownUp className='h-[12px] w-[12px]' />
+                <ChevronsDownUp className='size-[12px]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Collapse all</Tooltip.Content>
@@ -1075,6 +1111,8 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
         </div>
         {/* Resize handle */}
         <div
+          role='separator'
+          aria-orientation='vertical'
           className='relative w-px flex-shrink-0 cursor-ew-resize bg-[var(--border)] transition-colors hover-hover:bg-[var(--border-1)]'
           onMouseDown={(e) => {
             isResizingRef.current = true

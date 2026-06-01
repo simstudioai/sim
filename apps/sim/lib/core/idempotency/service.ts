@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, lt } from 'drizzle-orm'
@@ -16,6 +17,14 @@ export interface IdempotencyConfig {
   namespace?: string
   /** When true, failed keys are deleted rather than stored so the operation is retried on the next attempt. */
   retryFailures?: boolean
+  /**
+   * When false, only `{ success, status, error? }` is persisted — not the
+   * operation's return value. Duplicate calls still short-circuit but
+   * resolve to `undefined`. Use when callers don't consume the cached
+   * body (e.g. webhook receivers, where the provider just wants a 2xx).
+   * Defaults to true.
+   */
+  storeResultBody?: boolean
   /**
    * Force a specific storage backend regardless of the environment's
    * auto-detection. Use `'database'` for correctness-critical flows
@@ -77,6 +86,7 @@ export class IdempotencyService {
       ttlSeconds: config.ttlSeconds ?? DEFAULT_TTL,
       namespace: config.namespace ?? 'default',
       retryFailures: config.retryFailures ?? false,
+      storeResultBody: config.storeResultBody ?? true,
     }
     this.storageMethod = config.forceStorage ?? getStorageMethod()
     logger.info(`IdempotencyService using ${this.storageMethod} storage`, {
@@ -441,14 +451,16 @@ export class IdempotencyService {
 
       await this.storeResult(
         claimResult.normalizedKey,
-        { success: true, result, status: 'completed' },
+        this.config.storeResultBody
+          ? { success: true, result, status: 'completed' }
+          : { success: true, status: 'completed' },
         claimResult.storageMethod
       )
 
       logger.debug(`Successfully completed operation: ${claimResult.normalizedKey}`)
       return result
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = getErrorMessage(error, 'Unknown error')
 
       if (this.config.retryFailures) {
         await this.deleteKey(claimResult.normalizedKey, claimResult.storageMethod)
@@ -510,15 +522,22 @@ export class IdempotencyService {
   }
 }
 
+/**
+ * As a webhook receiver we only need a "we saw this delivery" marker —
+ * the provider's retry just needs a 2xx, not our cached response body.
+ * TTL must exceed the longest provider retry window (Gmail / Pub-Sub: 7d).
+ */
 export const webhookIdempotency = new IdempotencyService({
   namespace: 'webhook',
   ttlSeconds: 60 * 60 * 24 * 7, // 7 days
+  storeResultBody: false,
 })
 
 export const pollingIdempotency = new IdempotencyService({
   namespace: 'polling',
   ttlSeconds: 60 * 60 * 24 * 3, // 3 days
   retryFailures: true,
+  storeResultBody: false,
 })
 
 /**

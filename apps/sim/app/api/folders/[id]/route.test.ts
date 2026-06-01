@@ -34,6 +34,7 @@ const { mockLogger, mockDbRef } = vi.hoisted(() => {
 })
 
 const mockPerformDeleteFolder = workflowsOrchestrationMockFns.mockPerformDeleteFolder
+const mockPerformUpdateFolder = workflowsOrchestrationMockFns.mockPerformUpdateFolder
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
@@ -53,16 +54,6 @@ vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { DELETE, PUT } from '@/app/api/folders/[id]/route'
-
-/** Type for captured folder values in tests */
-interface CapturedFolderValues {
-  name?: string
-  color?: string
-  parentId?: string | null
-  isExpanded?: boolean
-  sortOrder?: number
-  updatedAt?: Date
-}
 
 interface FolderDbMockOptions {
   folderLookupResult?: any
@@ -160,6 +151,41 @@ describe('Individual Folder API Route', () => {
       success: true,
       deletedItems: { folders: 1, workflows: 0 },
     })
+    mockPerformUpdateFolder.mockImplementation(async (params) => {
+      if (params.parentId && params.parentId === params.folderId) {
+        return {
+          success: false,
+          error: 'Folder cannot be its own parent',
+          errorCode: 'validation',
+        }
+      }
+      if (
+        params.parentId &&
+        (await workflowsUtilsMockFns.mockCheckForCircularReference(
+          params.folderId,
+          params.parentId
+        ))
+      ) {
+        return {
+          success: false,
+          error: 'Cannot create circular folder reference',
+          errorCode: 'validation',
+        }
+      }
+      return {
+        success: true,
+        folder: {
+          ...mockFolder,
+          id: params.folderId,
+          name: params.name !== undefined ? params.name.trim() : 'Updated Folder',
+          color: params.color ?? mockFolder.color,
+          parentId: params.parentId ?? mockFolder.parentId,
+          isExpanded: params.isExpanded,
+          sortOrder: params.sortOrder ?? mockFolder.sortOrder,
+          updatedAt: new Date(),
+        },
+      }
+    })
     workflowsUtilsMockFns.mockCheckForCircularReference.mockResolvedValue(false)
   })
 
@@ -180,7 +206,7 @@ describe('Individual Folder API Route', () => {
       const data = await response.json()
       expect(data).toHaveProperty('folder')
       expect(data.folder).toMatchObject({
-        name: 'Updated Folder',
+        name: 'Updated Folder Name',
       })
     })
 
@@ -285,44 +311,15 @@ describe('Individual Folder API Route', () => {
     it('should trim folder name when updating', async () => {
       mockAuthenticatedUser()
 
-      let capturedUpdates: CapturedFolderValues | null = null
-
-      const mockSelect = vi.fn().mockImplementation(() => ({
-        from: vi.fn().mockImplementation(() => ({
-          where: vi.fn().mockImplementation(() => ({
-            then: vi.fn().mockImplementation((callback) => {
-              return Promise.resolve(callback([mockFolder]))
-            }),
-          })),
-        })),
-      }))
-
-      const mockUpdate = vi.fn().mockImplementation(() => ({
-        set: vi.fn().mockImplementation((updates) => {
-          capturedUpdates = updates
-          return {
-            where: vi.fn().mockImplementation(() => ({
-              returning: vi.fn().mockReturnValue([{ ...mockFolder, name: 'Folder With Spaces' }]),
-            })),
-          }
-        }),
-      }))
-
-      mockDbRef.current = {
-        select: mockSelect,
-        update: mockUpdate,
-        delete: vi.fn(),
-      }
-
       const req = createMockRequest('PUT', {
         name: '  Folder With Spaces  ',
       })
       const params = Promise.resolve({ id: 'folder-1' })
 
-      await PUT(req, { params })
+      const response = await PUT(req, { params })
+      const data = await response.json()
 
-      expect(capturedUpdates).not.toBeNull()
-      expect(capturedUpdates!.name).toBe('Folder With Spaces')
+      expect(data.folder.name).toBe('Folder With Spaces')
     })
 
     it('should handle database errors gracefully', async () => {

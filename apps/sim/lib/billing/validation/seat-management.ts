@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { invitation, member, organization, subscription, user, userStats } from '@sim/db/schema'
+import { invitation, member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, gt, ne } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
@@ -307,35 +307,15 @@ export async function getOrganizationSeatAnalytics(organizationId: string) {
       return null
     }
 
-    const memberActivity = await db
-      .select({
-        userId: member.userId,
-        userName: user.name,
-        userEmail: user.email,
-        role: member.role,
-        joinedAt: member.createdAt,
-        lastActive: userStats.lastActive,
-      })
-      .from(member)
-      .innerJoin(user, eq(member.userId, user.id))
-      .leftJoin(userStats, eq(member.userId, userStats.userId))
-      .where(eq(member.organizationId, organizationId))
-
     const utilizationRate =
       seatInfo.maxSeats > 0 ? (seatInfo.currentSeats / seatInfo.maxSeats) * 100 : 0
 
-    const recentlyActive = memberActivity.filter((memberData) => {
-      if (!memberData.lastActive) return false
-      const daysSinceActive = (Date.now() - memberData.lastActive.getTime()) / (1000 * 60 * 60 * 24)
-      return daysSinceActive <= 30 // Active in last 30 days
-    }).length
-
+    // Member activity analytics (active/inactive counts, memberActivity) were
+    // derived from userStats.lastActive, which is no longer written. Dropped
+    // rather than report frozen data; reintroduce with a real activity source.
     return {
       ...seatInfo,
       utilizationRate: Math.round(utilizationRate * 100) / 100,
-      activeMembers: recentlyActive,
-      inactiveMembers: seatInfo.currentSeats - recentlyActive,
-      memberActivity,
     }
   } catch (error) {
     logger.error('Failed to get organization seat analytics', { organizationId, error })

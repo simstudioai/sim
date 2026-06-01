@@ -21,14 +21,21 @@ import {
   SYSTEM_REFERENCE_PREFIXES,
   splitReferenceSegment,
 } from '@/lib/workflows/sanitization/references'
+import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/constants'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import {
+  formatDisplayText,
+  getValidWorkflowSearchRange,
+  type WorkflowSearchTextHighlight,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
   checkTagTrigger,
   TagDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { restoreCursorAfterInsertion } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
@@ -36,6 +43,7 @@ import { normalizeName } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 import { createShouldHighlightEnvVar, useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('ConditionInput')
@@ -49,6 +57,15 @@ const ROUTER_DEFAULT_HEIGHT_PX = 100
  * Minimum height for router textareas in pixels
  */
 const ROUTER_MIN_HEIGHT_PX = 80
+const WORKFLOW_SEARCH_MATCH_PLACEHOLDER = '__WORKFLOW_SEARCH_MATCH__'
+
+const escapeHtml = (value: string): string =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
 
 /**
  * Represents a single conditional block (if/else if/else).
@@ -88,6 +105,7 @@ interface ConditionInputProps {
   disabled?: boolean
   /** Mode: 'condition' for code editor, 'router' for text input */
   mode?: 'condition' | 'router'
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -116,6 +134,7 @@ export function ConditionInput({
   previewValue,
   disabled = false,
   mode = 'condition',
+  activeSearchTarget,
 }: ConditionInputProps) {
   const isRouterMode = mode === 'router'
   const params = useParams()
@@ -132,6 +151,7 @@ export function ConditionInput({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map())
+  const overlayRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   /**
    * Determines if a reference string should be highlighted in the editor.
@@ -169,6 +189,68 @@ export function ConditionInput({
 
     return accessiblePrefixes.has(normalizedPrefix)
   }
+
+  const createHighlightFunction = (
+    workflowSearchHighlight?: WorkflowSearchTextHighlight | null
+  ) => {
+    return (codeToHighlight: string) => {
+      const placeholders: {
+        placeholder: string
+        original: string
+        type: 'var' | 'env'
+        shouldHighlight: boolean
+      }[] = []
+      let processedCode = codeToHighlight
+      const workflowSearchRange = getValidWorkflowSearchRange(
+        codeToHighlight,
+        workflowSearchHighlight
+      )
+
+      if (workflowSearchRange) {
+        processedCode = `${codeToHighlight.slice(0, workflowSearchRange.start)}${WORKFLOW_SEARCH_MATCH_PLACEHOLDER}${codeToHighlight.slice(workflowSearchRange.end)}`
+      }
+
+      processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
+        const varName = match.slice(2, -2).trim()
+        if (shouldHighlightEnvVar(varName)) {
+          const placeholder = `__ENV_VAR_${placeholders.length}__`
+          placeholders.push({ placeholder, original: match, type: 'env', shouldHighlight: true })
+          return placeholder
+        }
+        return match
+      })
+
+      processedCode = processedCode.replace(createReferencePattern(), (match) => {
+        const shouldHighlight = shouldHighlightReference(match)
+        if (shouldHighlight) {
+          const placeholder = `__VAR_REF_${placeholders.length}__`
+          placeholders.push({ placeholder, original: match, type: 'var', shouldHighlight: true })
+          return placeholder
+        }
+        return match
+      })
+
+      let highlightedCode = highlight(processedCode, languages.javascript, 'javascript')
+
+      placeholders.forEach(({ placeholder, original, type, shouldHighlight }) => {
+        if (!shouldHighlight) return
+
+        highlightedCode = highlightedCode.replace(
+          placeholder,
+          `<span style="color: var(--brand-secondary);">${type === 'env' ? original : escapeHtml(original)}</span>`
+        )
+      })
+
+      if (workflowSearchRange) {
+        highlightedCode = highlightedCode.replace(
+          WORKFLOW_SEARCH_MATCH_PLACEHOLDER,
+          `<mark class="${WORKFLOW_SEARCH_HIGHLIGHT_CLASS}">${escapeHtml(codeToHighlight.slice(workflowSearchRange.start, workflowSearchRange.end))}</mark>`
+        )
+      }
+
+      return highlightedCode
+    }
+  }
   const [visualLineHeights, setVisualLineHeights] = useState<{
     [key: string]: number[]
   }>({})
@@ -180,6 +262,7 @@ export function ConditionInput({
   const hasInitializedRef = useRef(false)
   const previousBlockIdRef = useRef<string>(blockId)
   const shouldPersistRef = useRef<boolean>(false)
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   /**
    * Creates default blocks with stable IDs.
@@ -328,9 +411,15 @@ export function ConditionInput({
         shouldPersistRef.current = false
       }
     } finally {
-      setTimeout(() => {
+      clearTimeout(syncTimeoutRef.current)
+      syncTimeoutRef.current = setTimeout(() => {
         isSyncingFromStoreRef.current = false
       }, 0)
+    }
+
+    return () => {
+      clearTimeout(syncTimeoutRef.current)
+      isSyncingFromStoreRef.current = false
     }
   }, [storeValue, previewValue, isPreview, blockId, isReady])
 
@@ -728,10 +817,12 @@ export function ConditionInput({
 
   // Add useEffect to handle keyboard events for both dropdowns
   useEffect(() => {
+    const attached: Array<{ el: Element; handler: (e: Event) => void }> = []
+
     conditionalBlocks.forEach((block) => {
       const textarea = containerRef.current?.querySelector(`[data-block-id="${block.id}"] textarea`)
       if (textarea) {
-        textarea.addEventListener('keydown', (e: Event) => {
+        const handler = (e: Event) => {
           if ((e as KeyboardEvent).key === 'Escape') {
             setConditionalBlocks((blocks) =>
               blocks.map((b) =>
@@ -746,9 +837,17 @@ export function ConditionInput({
               )
             )
           }
-        })
+        }
+        textarea.addEventListener('keydown', handler)
+        attached.push({ el: textarea, handler })
       }
     })
+
+    return () => {
+      for (const { el, handler } of attached) {
+        el.removeEventListener('keydown', handler)
+      }
+    }
   }, [conditionalBlocks.length])
 
   // Capture textarea refs from Editor components (condition mode)
@@ -802,8 +901,12 @@ export function ConditionInput({
 
       // Update the textarea height directly for smooth resizing
       const textarea = inputRefs.current.get(blockId)
+      const overlay = overlayRefs.current.get(blockId)
       if (textarea) {
         textarea.style.height = `${newHeight}px`
+      }
+      if (overlay) {
+        overlay.style.height = `${newHeight}px`
       }
 
       // Update state to keep track
@@ -824,453 +927,432 @@ export function ConditionInput({
   if (!isReady || conditionalBlocks.length === 0) {
     return (
       <div className='flex min-h-[150px] items-center justify-center text-muted-foreground'>
-        Loading conditions...
+        Loading conditions…
       </div>
     )
   }
 
   return (
     <div className='space-y-2' ref={containerRef}>
-      {conditionalBlocks.map((block, index) => (
-        <div
-          key={block.id}
-          className='group relative overflow-visible rounded-sm border border-[var(--border-1)] bg-[var(--surface-3)] dark:bg-[var(--code-bg)]'
-        >
+      {conditionalBlocks.map((block, index) => {
+        const workflowSearchHighlight = getActiveWorkflowSearchHighlight({
+          activeSearchTarget,
+          blockId,
+          subBlockId,
+          valuePath: [index, 'value'],
+        })
+        return (
           <div
-            className={cn(
-              'flex items-center justify-between overflow-hidden bg-transparent px-2.5 py-[5px]',
-              isRouterMode
-                ? 'rounded-t-[4px] border-[var(--border-1)] border-b'
-                : block.title === 'else'
-                  ? 'rounded-sm border-0'
-                  : 'rounded-t-[4px] border-[var(--border-1)] border-b'
-            )}
+            key={block.id}
+            className='group relative overflow-visible rounded-sm border border-[var(--border-1)] bg-[var(--surface-3)] dark:bg-[var(--code-bg)]'
           >
-            <span className='font-medium text-[var(--text-tertiary)] text-sm'>
-              {isRouterMode ? `Route ${index + 1}` : block.title}
-            </span>
-            <div className='flex items-center gap-2'>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    onClick={() => addBlock(block.id)}
-                    disabled={isPreview || disabled || (!isRouterMode && block.title === 'else')}
-                    className='h-auto p-0'
-                  >
-                    <Plus className='h-[14px] w-[14px]' />
-                    <span className='sr-only'>Add Block</span>
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>Add Block</Tooltip.Content>
-              </Tooltip.Root>
-
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    onClick={() => moveBlock(block.id, 'up')}
-                    disabled={
-                      isPreview ||
-                      index === 0 ||
-                      disabled ||
-                      (!isRouterMode && block.title === 'else')
-                    }
-                    className='h-auto p-0'
-                  >
-                    <ChevronUp className='h-[14px] w-[14px]' />
-                    <span className='sr-only'>Move Up</span>
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>Move Up</Tooltip.Content>
-              </Tooltip.Root>
-
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    onClick={() => moveBlock(block.id, 'down')}
-                    disabled={
-                      isPreview ||
-                      disabled ||
-                      index === conditionalBlocks.length - 1 ||
-                      (!isRouterMode && conditionalBlocks[index + 1]?.title === 'else') ||
-                      (!isRouterMode && block.title === 'else')
-                    }
-                    className='h-auto p-0'
-                  >
-                    <ChevronDown className='h-[14px] w-[14px]' />
-                    <span className='sr-only'>Move Down</span>
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>Move Down</Tooltip.Content>
-              </Tooltip.Root>
-
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    onClick={() => removeBlock(block.id)}
-                    disabled={
-                      isPreview || disabled || conditionalBlocks.length <= (isRouterMode ? 1 : 2)
-                    }
-                    className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
-                  >
-                    <Trash className='h-[14px] w-[14px]' />
-                    <span className='sr-only'>Delete Block</span>
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  {isRouterMode ? 'Delete Route' : 'Delete Condition'}
-                </Tooltip.Content>
-              </Tooltip.Root>
-            </div>
-          </div>
-          {/* Router mode: show description textarea with tag/env var support */}
-          {isRouterMode && (
             <div
-              className='relative'
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => handleDrop(block.id, e)}
+              className={cn(
+                'flex items-center justify-between overflow-hidden bg-transparent px-2.5 py-[5px]',
+                isRouterMode
+                  ? 'rounded-t-[4px] border-[var(--border-1)] border-b'
+                  : block.title === 'else'
+                    ? 'rounded-sm border-0'
+                    : 'rounded-t-[4px] border-[var(--border-1)] border-b'
+              )}
             >
-              <Textarea
-                ref={(el) => {
-                  if (el) inputRefs.current.set(block.id, el)
-                }}
-                data-router-block-id={block.id}
-                value={block.value}
-                onChange={(e) => {
-                  if (!isPreview && !disabled) {
-                    const newValue = e.target.value
-                    const pos = e.target.selectionStart ?? 0
+              <span className='font-medium text-[var(--text-tertiary)] text-sm'>
+                {isRouterMode ? `Route ${index + 1}` : block.title}
+              </span>
+              <div className='flex items-center gap-2'>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='ghost'
+                      onClick={() => addBlock(block.id)}
+                      disabled={isPreview || disabled || (!isRouterMode && block.title === 'else')}
+                      className='h-auto p-0'
+                    >
+                      <Plus className='size-[14px]' />
+                      <span className='sr-only'>Add Block</span>
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>Add Block</Tooltip.Content>
+                </Tooltip.Root>
 
-                    const tagTrigger = checkTagTrigger(newValue, pos)
-                    const envVarTrigger = checkEnvVarTrigger(newValue, pos)
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='ghost'
+                      onClick={() => moveBlock(block.id, 'up')}
+                      disabled={
+                        isPreview ||
+                        index === 0 ||
+                        disabled ||
+                        (!isRouterMode && block.title === 'else')
+                      }
+                      className='h-auto p-0'
+                    >
+                      <ChevronUp className='size-[14px]' />
+                      <span className='sr-only'>Move Up</span>
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>Move Up</Tooltip.Content>
+                </Tooltip.Root>
 
-                    shouldPersistRef.current = true
-                    setConditionalBlocks((blocks) =>
-                      blocks.map((b) =>
-                        b.id === block.id
-                          ? {
-                              ...b,
-                              value: newValue,
-                              showTags: tagTrigger.show,
-                              showEnvVars: envVarTrigger.show,
-                              searchTerm: envVarTrigger.show ? envVarTrigger.searchTerm : '',
-                              cursorPosition: pos,
-                            }
-                          : b
-                      )
-                    )
-                  }
-                }}
-                onFocus={() => {
-                  if (!isPreview && !disabled && block.value.trim() === '') {
-                    setConditionalBlocks((blocks) =>
-                      blocks.map((b) =>
-                        b.id === block.id ? { ...b, showTags: true, cursorPosition: 0 } : b
-                      )
-                    )
-                  }
-                }}
-                onBlur={() => {
-                  setTimeout(() => {
-                    setConditionalBlocks((blocks) =>
-                      blocks.map((b) =>
-                        b.id === block.id ? { ...b, showTags: false, showEnvVars: false } : b
-                      )
-                    )
-                  }, 150)
-                }}
-                placeholder='Describe when this route should be taken...'
-                disabled={disabled || isPreview}
-                className='min-h-[100px] resize-none rounded-none border-0 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
-                rows={4}
-                style={{ height: `${getRouterHeight(block.id)}px` }}
-              />
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='ghost'
+                      onClick={() => moveBlock(block.id, 'down')}
+                      disabled={
+                        isPreview ||
+                        disabled ||
+                        index === conditionalBlocks.length - 1 ||
+                        (!isRouterMode && conditionalBlocks[index + 1]?.title === 'else') ||
+                        (!isRouterMode && block.title === 'else')
+                      }
+                      className='h-auto p-0'
+                    >
+                      <ChevronDown className='size-[14px]' />
+                      <span className='sr-only'>Move Down</span>
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>Move Down</Tooltip.Content>
+                </Tooltip.Root>
 
-              {/* Custom resize handle */}
-              {!isPreview && !disabled && (
-                <div
-                  className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
-                  onMouseDown={(e) => startRouterResize(e, block.id)}
-                  onDragStart={(e) => {
-                    e.preventDefault()
-                  }}
-                >
-                  <ChevronsUpDown className='h-3 w-3 text-[var(--text-muted)]' />
-                </div>
-              )}
-
-              {block.showEnvVars && (
-                <EnvVarDropdown
-                  visible={block.showEnvVars}
-                  onSelect={(newValue, newCursorPosition) =>
-                    handleEnvVarSelectImmediate(block.id, newValue, newCursorPosition)
-                  }
-                  searchTerm={block.searchTerm}
-                  inputValue={block.value}
-                  cursorPosition={block.cursorPosition}
-                  workspaceId={workspaceId}
-                  onClose={() => {
-                    setConditionalBlocks((blocks) =>
-                      blocks.map((b) =>
-                        b.id === block.id
-                          ? {
-                              ...b,
-                              showEnvVars: false,
-                              searchTerm: '',
-                            }
-                          : b
-                      )
-                    )
-                  }}
-                />
-              )}
-
-              {block.showTags && (
-                <TagDropdown
-                  visible={block.showTags}
-                  onSelect={(newValue, newCursorPosition) =>
-                    handleTagSelectImmediate(block.id, newValue, newCursorPosition)
-                  }
-                  blockId={blockId}
-                  activeSourceBlockId={block.activeSourceBlockId}
-                  inputValue={block.value}
-                  cursorPosition={block.cursorPosition}
-                  onClose={() => {
-                    setConditionalBlocks((blocks) =>
-                      blocks.map((b) =>
-                        b.id === block.id
-                          ? {
-                              ...b,
-                              showTags: false,
-                              activeSourceBlockId: null,
-                            }
-                          : b
-                      )
-                    )
-                  }}
-                  inputRef={
-                    {
-                      current: inputRefs.current.get(block.id) || null,
-                    } as React.RefObject<HTMLTextAreaElement>
-                  }
-                />
-              )}
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='ghost'
+                      onClick={() => removeBlock(block.id)}
+                      disabled={
+                        isPreview || disabled || conditionalBlocks.length <= (isRouterMode ? 1 : 2)
+                      }
+                      className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
+                    >
+                      <Trash className='size-[14px]' />
+                      <span className='sr-only'>Delete Block</span>
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>
+                    {isRouterMode ? 'Delete Route' : 'Delete Condition'}
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
             </div>
-          )}
+            {/* Router mode: show description textarea with tag/env var support */}
+            {isRouterMode && (
+              <div
+                className='relative'
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => handleDrop(block.id, e)}
+              >
+                <Textarea
+                  ref={(el) => {
+                    if (el) inputRefs.current.set(block.id, el)
+                  }}
+                  data-router-block-id={block.id}
+                  value={block.value}
+                  onChange={(e) => {
+                    if (!isPreview && !disabled) {
+                      const newValue = e.target.value
+                      const pos = e.target.selectionStart ?? 0
 
-          {/* Condition mode: show code editor */}
-          {!isRouterMode &&
-            block.title !== 'else' &&
-            (() => {
-              const blockLineCount = block.value.split('\n').length
-              const blockGutterWidth = calculateGutterWidth(blockLineCount)
+                      const tagTrigger = checkTagTrigger(newValue, pos)
+                      const envVarTrigger = checkEnvVarTrigger(newValue, pos)
 
-              return (
-                <Code.Container
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => handleDrop(block.id, e)}
-                  className='rounded-t-none border-0'
+                      shouldPersistRef.current = true
+                      setConditionalBlocks((blocks) =>
+                        blocks.map((b) =>
+                          b.id === block.id
+                            ? {
+                                ...b,
+                                value: newValue,
+                                showTags: tagTrigger.show,
+                                showEnvVars: envVarTrigger.show,
+                                searchTerm: envVarTrigger.show ? envVarTrigger.searchTerm : '',
+                                cursorPosition: pos,
+                              }
+                            : b
+                        )
+                      )
+                    }
+                  }}
+                  onFocus={() => {
+                    if (!isPreview && !disabled && block.value.trim() === '') {
+                      setConditionalBlocks((blocks) =>
+                        blocks.map((b) =>
+                          b.id === block.id ? { ...b, showTags: true, cursorPosition: 0 } : b
+                        )
+                      )
+                    }
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => {
+                      setConditionalBlocks((blocks) =>
+                        blocks.map((b) =>
+                          b.id === block.id ? { ...b, showTags: false, showEnvVars: false } : b
+                        )
+                      )
+                    }, 150)
+                  }}
+                  onScroll={(e) => {
+                    const overlay = overlayRefs.current.get(block.id)
+                    if (overlay) {
+                      overlay.scrollTop = e.currentTarget.scrollTop
+                      overlay.scrollLeft = e.currentTarget.scrollLeft
+                    }
+                  }}
+                  placeholder='Describe when this route should be taken...'
+                  disabled={disabled || isPreview}
+                  className='min-h-[100px] resize-none rounded-none border-0 px-3 py-2 text-sm text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+                  rows={4}
+                  style={{ height: `${getRouterHeight(block.id)}px` }}
+                />
+                <div
+                  ref={(el) => {
+                    if (el) {
+                      overlayRefs.current.set(block.id, el)
+                    } else {
+                      overlayRefs.current.delete(block.id)
+                    }
+                  }}
+                  className={cn(
+                    'pointer-events-none absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-3 py-2 font-sans text-sm',
+                    (isPreview || disabled) && 'opacity-50'
+                  )}
+                  style={{
+                    fontFamily: 'inherit',
+                    lineHeight: 'inherit',
+                    height: `${getRouterHeight(block.id)}px`,
+                  }}
                 >
-                  <Code.Gutter width={blockGutterWidth}>{renderLineNumbers(block.id)}</Code.Gutter>
+                  {formatDisplayText(block.value, {
+                    accessiblePrefixes,
+                    highlightAll: !accessiblePrefixes,
+                    workflowSearchHighlight,
+                  })}
+                </div>
 
-                  <Code.Content paddingLeft={`${blockGutterWidth}px`}>
-                    <div data-block-id={block.id}>
-                      <Code.Placeholder
-                        gutterWidth={blockGutterWidth}
-                        show={block.value.length === 0}
-                      >
-                        {'<response> === true'}
-                      </Code.Placeholder>
+                {/* Custom resize handle */}
+                {!isPreview && !disabled && (
+                  <div
+                    role='separator'
+                    aria-orientation='horizontal'
+                    className='absolute right-1 bottom-1 flex size-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                    onMouseDown={(e) => startRouterResize(e, block.id)}
+                    onDragStart={(e) => {
+                      e.preventDefault()
+                    }}
+                  >
+                    <ChevronsUpDown className='size-3 text-[var(--text-muted)]' />
+                  </div>
+                )}
 
-                      <Editor
-                        value={block.value}
-                        onValueChange={(newCode) => {
-                          if (!isPreview && !disabled) {
-                            const textarea = containerRef.current?.querySelector(
-                              `[data-block-id="${block.id}"] textarea`
-                            ) as HTMLTextAreaElement | null
-                            if (textarea) {
-                              const pos = textarea.selectionStart ?? 0
+                {block.showEnvVars && (
+                  <EnvVarDropdown
+                    visible={block.showEnvVars}
+                    onSelect={(newValue, newCursorPosition) =>
+                      handleEnvVarSelectImmediate(block.id, newValue, newCursorPosition)
+                    }
+                    searchTerm={block.searchTerm}
+                    inputValue={block.value}
+                    cursorPosition={block.cursorPosition}
+                    workspaceId={workspaceId}
+                    onClose={() => {
+                      setConditionalBlocks((blocks) =>
+                        blocks.map((b) =>
+                          b.id === block.id
+                            ? {
+                                ...b,
+                                showEnvVars: false,
+                                searchTerm: '',
+                              }
+                            : b
+                        )
+                      )
+                    }}
+                  />
+                )}
 
-                              const tagTrigger = checkTagTrigger(newCode, pos)
-                              const envVarTrigger = checkEnvVarTrigger(newCode, pos)
+                {block.showTags && (
+                  <TagDropdown
+                    visible={block.showTags}
+                    onSelect={(newValue, newCursorPosition) =>
+                      handleTagSelectImmediate(block.id, newValue, newCursorPosition)
+                    }
+                    blockId={blockId}
+                    activeSourceBlockId={block.activeSourceBlockId}
+                    inputValue={block.value}
+                    cursorPosition={block.cursorPosition}
+                    onClose={() => {
+                      setConditionalBlocks((blocks) =>
+                        blocks.map((b) =>
+                          b.id === block.id
+                            ? {
+                                ...b,
+                                showTags: false,
+                                activeSourceBlockId: null,
+                              }
+                            : b
+                        )
+                      )
+                    }}
+                    inputRef={
+                      {
+                        current: inputRefs.current.get(block.id) || null,
+                      } as React.RefObject<HTMLTextAreaElement>
+                    }
+                  />
+                )}
+              </div>
+            )}
 
-                              shouldPersistRef.current = true
+            {/* Condition mode: show code editor */}
+            {!isRouterMode &&
+              block.title !== 'else' &&
+              (() => {
+                const blockLineCount = block.value.split('\n').length
+                const blockGutterWidth = calculateGutterWidth(blockLineCount)
+
+                return (
+                  <Code.Container
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => handleDrop(block.id, e)}
+                    className='rounded-t-none border-0'
+                  >
+                    <Code.Gutter width={blockGutterWidth}>
+                      {renderLineNumbers(block.id)}
+                    </Code.Gutter>
+
+                    <Code.Content paddingLeft={`${blockGutterWidth}px`}>
+                      <div data-block-id={block.id}>
+                        <Code.Placeholder
+                          gutterWidth={blockGutterWidth}
+                          show={block.value.length === 0}
+                        >
+                          {'<response> === true'}
+                        </Code.Placeholder>
+
+                        <Editor
+                          value={block.value}
+                          onValueChange={(newCode) => {
+                            if (!isPreview && !disabled) {
+                              const textarea = containerRef.current?.querySelector(
+                                `[data-block-id="${block.id}"] textarea`
+                              ) as HTMLTextAreaElement | null
+                              if (textarea) {
+                                const pos = textarea.selectionStart ?? 0
+
+                                const tagTrigger = checkTagTrigger(newCode, pos)
+                                const envVarTrigger = checkEnvVarTrigger(newCode, pos)
+
+                                shouldPersistRef.current = true
+                                setConditionalBlocks((blocks) =>
+                                  blocks.map((b) => {
+                                    if (b.id === block.id) {
+                                      return {
+                                        ...b,
+                                        value: newCode,
+                                        showTags: tagTrigger.show,
+                                        showEnvVars: envVarTrigger.show,
+                                        searchTerm: envVarTrigger.show
+                                          ? envVarTrigger.searchTerm
+                                          : '',
+                                        cursorPosition: pos,
+                                        activeSourceBlockId: tagTrigger.show
+                                          ? b.activeSourceBlockId
+                                          : null,
+                                      }
+                                    }
+                                    return b
+                                  })
+                                )
+                              }
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
                               setConditionalBlocks((blocks) =>
-                                blocks.map((b) => {
-                                  if (b.id === block.id) {
-                                    return {
-                                      ...b,
-                                      value: newCode,
-                                      showTags: tagTrigger.show,
-                                      showEnvVars: envVarTrigger.show,
-                                      searchTerm: envVarTrigger.show
-                                        ? envVarTrigger.searchTerm
-                                        : '',
-                                      cursorPosition: pos,
-                                      activeSourceBlockId: tagTrigger.show
-                                        ? b.activeSourceBlockId
-                                        : null,
-                                    }
-                                  }
-                                  return b
-                                })
-                              )
-                            }
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape') {
-                            setConditionalBlocks((blocks) =>
-                              blocks.map((b) =>
-                                b.id === block.id
-                                  ? { ...b, showTags: false, showEnvVars: false }
-                                  : b
-                              )
-                            )
-                          }
-                        }}
-                        onFocus={() => {
-                          if (!isPreview && !disabled && block.value.trim() === '') {
-                            setConditionalBlocks((blocks) =>
-                              blocks.map((b) =>
-                                b.id === block.id ? { ...b, showTags: true, cursorPosition: 0 } : b
-                              )
-                            )
-                          }
-                        }}
-                        highlight={(codeToHighlight) => {
-                          const placeholders: {
-                            placeholder: string
-                            original: string
-                            type: 'var' | 'env'
-                            shouldHighlight: boolean
-                          }[] = []
-                          let processedCode = codeToHighlight
-
-                          processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
-                            const varName = match.slice(2, -2).trim()
-                            if (shouldHighlightEnvVar(varName)) {
-                              const placeholder = `__ENV_VAR_${placeholders.length}__`
-                              placeholders.push({
-                                placeholder,
-                                original: match,
-                                type: 'env',
-                                shouldHighlight: true,
-                              })
-                              return placeholder
-                            }
-                            return match
-                          })
-
-                          processedCode = processedCode.replace(
-                            createReferencePattern(),
-                            (match) => {
-                              const shouldHighlight = shouldHighlightReference(match)
-                              if (shouldHighlight) {
-                                const placeholder = `__VAR_REF_${placeholders.length}__`
-                                placeholders.push({
-                                  placeholder,
-                                  original: match,
-                                  type: 'var',
-                                  shouldHighlight: true,
-                                })
-                                return placeholder
-                              }
-                              return match
-                            }
-                          )
-
-                          let highlightedCode = highlight(
-                            processedCode,
-                            languages.javascript,
-                            'javascript'
-                          )
-
-                          placeholders.forEach(
-                            ({ placeholder, original, type, shouldHighlight }) => {
-                              if (!shouldHighlight) return
-
-                              if (type === 'env') {
-                                highlightedCode = highlightedCode.replace(
-                                  placeholder,
-                                  `<span style="color: var(--brand-secondary);">${original}</span>`
+                                blocks.map((b) =>
+                                  b.id === block.id
+                                    ? { ...b, showTags: false, showEnvVars: false }
+                                    : b
                                 )
-                              } else if (type === 'var') {
-                                const escaped = original.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                                highlightedCode = highlightedCode.replace(
-                                  placeholder,
-                                  `<span style="color: var(--brand-secondary);">${escaped}</span>`
-                                )
-                              }
+                              )
                             }
-                          )
-
-                          return highlightedCode
-                        }}
-                        {...getCodeEditorProps({ isPreview, disabled })}
-                      />
-
-                      {block.showEnvVars && (
-                        <EnvVarDropdown
-                          visible={block.showEnvVars}
-                          onSelect={(newValue, newCursorPosition) =>
-                            handleEnvVarSelectImmediate(block.id, newValue, newCursorPosition)
-                          }
-                          searchTerm={block.searchTerm}
-                          inputValue={block.value}
-                          cursorPosition={block.cursorPosition}
-                          workspaceId={workspaceId}
-                          onClose={() => {
-                            setConditionalBlocks((blocks) =>
-                              blocks.map((b) =>
-                                b.id === block.id ? { ...b, showEnvVars: false, searchTerm: '' } : b
-                              )
-                            )
                           }}
-                        />
-                      )}
-
-                      {block.showTags && (
-                        <TagDropdown
-                          visible={block.showTags}
-                          onSelect={(newValue, newCursorPosition) =>
-                            handleTagSelectImmediate(block.id, newValue, newCursorPosition)
-                          }
-                          blockId={blockId}
-                          activeSourceBlockId={block.activeSourceBlockId}
-                          inputValue={block.value}
-                          cursorPosition={block.cursorPosition}
-                          onClose={() => {
-                            setConditionalBlocks((blocks) =>
-                              blocks.map((b) =>
-                                b.id === block.id
-                                  ? {
-                                      ...b,
-                                      showTags: false,
-                                      activeSourceBlockId: null,
-                                    }
-                                  : b
+                          onFocus={() => {
+                            if (!isPreview && !disabled && block.value.trim() === '') {
+                              setConditionalBlocks((blocks) =>
+                                blocks.map((b) =>
+                                  b.id === block.id
+                                    ? { ...b, showTags: true, cursorPosition: 0 }
+                                    : b
+                                )
                               )
-                            )
+                            }
                           }}
-                          inputRef={
-                            {
-                              current: inputRefs.current.get(block.id) || null,
-                            } as React.RefObject<HTMLTextAreaElement>
-                          }
+                          highlight={createHighlightFunction(workflowSearchHighlight)}
+                          {...getCodeEditorProps({ isPreview, disabled })}
                         />
-                      )}
-                    </div>
-                  </Code.Content>
-                </Code.Container>
-              )
-            })()}
-        </div>
-      ))}
+
+                        {block.showEnvVars && (
+                          <EnvVarDropdown
+                            visible={block.showEnvVars}
+                            onSelect={(newValue, newCursorPosition) =>
+                              handleEnvVarSelectImmediate(block.id, newValue, newCursorPosition)
+                            }
+                            searchTerm={block.searchTerm}
+                            inputValue={block.value}
+                            cursorPosition={block.cursorPosition}
+                            workspaceId={workspaceId}
+                            onClose={() => {
+                              setConditionalBlocks((blocks) =>
+                                blocks.map((b) =>
+                                  b.id === block.id
+                                    ? { ...b, showEnvVars: false, searchTerm: '' }
+                                    : b
+                                )
+                              )
+                            }}
+                          />
+                        )}
+
+                        {block.showTags && (
+                          <TagDropdown
+                            visible={block.showTags}
+                            onSelect={(newValue, newCursorPosition) =>
+                              handleTagSelectImmediate(block.id, newValue, newCursorPosition)
+                            }
+                            blockId={blockId}
+                            activeSourceBlockId={block.activeSourceBlockId}
+                            inputValue={block.value}
+                            cursorPosition={block.cursorPosition}
+                            onClose={() => {
+                              setConditionalBlocks((blocks) =>
+                                blocks.map((b) =>
+                                  b.id === block.id
+                                    ? {
+                                        ...b,
+                                        showTags: false,
+                                        activeSourceBlockId: null,
+                                      }
+                                    : b
+                                )
+                              )
+                            }}
+                            inputRef={
+                              {
+                                current: inputRefs.current.get(block.id) || null,
+                              } as React.RefObject<HTMLTextAreaElement>
+                            }
+                          />
+                        )}
+                      </div>
+                    </Code.Content>
+                  </Code.Container>
+                )
+              })()}
+          </div>
+        )
+      })}
     </div>
   )
 }

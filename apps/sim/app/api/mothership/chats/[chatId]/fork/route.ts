@@ -6,22 +6,27 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-tasks'
 import { parseRequest } from '@/lib/api/server'
-import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { loadCopilotChatMessages } from '@/lib/copilot/chat/lifecycle'
+import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
+  createForbiddenResponse,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
+import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  assertActiveWorkspaceAccess,
+  isWorkspaceAccessDeniedError,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('ForkChatAPI')
 
@@ -45,9 +50,19 @@ export const POST = withRouteHandler(
       const { chatId } = parsed.data.params
       const { upToMessageId } = parsed.data.body
 
-      // Load parent chat and verify ownership.
       const [parent] = await db
-        .select()
+        .select({
+          id: copilotChats.id,
+          userId: copilotChats.userId,
+          type: copilotChats.type,
+          workspaceId: copilotChats.workspaceId,
+          title: copilotChats.title,
+          model: copilotChats.model,
+          resources: copilotChats.resources,
+          previewYaml: copilotChats.previewYaml,
+          planArtifact: copilotChats.planArtifact,
+          config: copilotChats.config,
+        })
         .from(copilotChats)
         .where(eq(copilotChats.id, chatId))
         .limit(1)
@@ -60,8 +75,7 @@ export const POST = withRouteHandler(
         await assertActiveWorkspaceAccess(parent.workspaceId, userId)
       }
 
-      // Find the fork point in the Sim-side messages array.
-      const messages = Array.isArray(parent.messages) ? (parent.messages as PersistedMessage[]) : []
+      const messages = await loadCopilotChatMessages(chatId)
       const forkIdx = messages.findIndex((m) => m.id === upToMessageId)
       if (forkIdx < 0) {
         return createBadRequestResponse('Message not found in chat')
@@ -78,25 +92,31 @@ export const POST = withRouteHandler(
       const title = `Fork | ${baseTitle}`
       const now = new Date()
 
-      const [newChat] = await db
-        .insert(copilotChats)
-        .values({
-          id: newId,
-          userId,
-          workspaceId: parent.workspaceId,
-          type: parent.type,
-          title,
-          model: parent.model,
-          messages: forkedMessages,
-          resources: parentResources,
-          previewYaml: parent.previewYaml,
-          planArtifact: parent.planArtifact,
-          config: parent.config,
-          conversationId: null,
-          updatedAt: now,
-          lastSeenAt: now,
-        })
-        .returning({ id: copilotChats.id, workspaceId: copilotChats.workspaceId })
+      const newChat = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(copilotChats)
+          .values({
+            id: newId,
+            userId,
+            workspaceId: parent.workspaceId,
+            type: parent.type,
+            title,
+            model: parent.model,
+            resources: parentResources,
+            previewYaml: parent.previewYaml,
+            planArtifact: parent.planArtifact,
+            config: parent.config,
+            conversationId: null,
+            updatedAt: now,
+            lastSeenAt: now,
+          })
+          .returning({ id: copilotChats.id, workspaceId: copilotChats.workspaceId })
+
+        if (!row) return null
+
+        await appendCopilotChatMessages(newId, forkedMessages, { chatModel: parent.model }, tx)
+        return row
+      })
 
       if (!newChat) {
         return createInternalServerErrorResponse('Failed to create forked chat')
@@ -109,7 +129,9 @@ export const POST = withRouteHandler(
         if (env.COPILOT_API_KEY) {
           copilotHeaders['x-api-key'] = env.COPILOT_API_KEY
         }
-        const copilotRes = await fetchGo(`${SIM_AGENT_API_URL}/api/chats/fork`, {
+        Object.assign(copilotHeaders, getMothershipSourceEnvHeaders())
+        const mothershipBaseURL = await getMothershipBaseURL({ userId })
+        const copilotRes = await fetchGo(`${mothershipBaseURL}/api/chats/fork`, {
           method: 'POST',
           headers: copilotHeaders,
           body: JSON.stringify({
@@ -148,6 +170,9 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ success: true, id: newId })
     } catch (error) {
+      if (isWorkspaceAccessDeniedError(error)) {
+        return createForbiddenResponse('Workspace access denied')
+      }
       logger.error('Error forking chat:', error)
       return createInternalServerErrorResponse('Failed to fork chat')
     }

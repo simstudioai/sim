@@ -13,6 +13,7 @@
 import { db } from '@sim/db'
 import { auditLog, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -82,7 +83,7 @@ export const GET = withRouteHandler(
 
       return NextResponse.json(response.body, { headers: response.headers })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
+      const message = getErrorMessage(error, 'Unknown error')
       logger.error(`[${requestId}] Audit log detail fetch error`, { error: message })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }

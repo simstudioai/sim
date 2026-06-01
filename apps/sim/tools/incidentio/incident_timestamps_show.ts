@@ -29,7 +29,7 @@ export const incidentTimestampsShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/incident_timestamps/${params.id}`,
+    url: (params) => `https://api.incident.io/v2/incident_timestamps/${params.id.trim()}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

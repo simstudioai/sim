@@ -21,6 +21,30 @@ export class TableQueryValidationError extends Error {
   }
 }
 
+type ColumnType = ColumnDefinition['type']
+type ColumnTypeMap = ReadonlyMap<string, ColumnType>
+
+/**
+ * Returns the Postgres cast needed to compare a JSONB text value of the given
+ * column type, or `null` when text comparison is correct. Single source of
+ * truth for both filter range operators and sort ordering — keeps the two
+ * paths from drifting apart.
+ */
+function jsonbCastForType(type: ColumnType | undefined): 'numeric' | 'timestamptz' | null {
+  switch (type) {
+    case 'number':
+      return 'numeric'
+    case 'date':
+      return 'timestamptz'
+    default:
+      return null
+  }
+}
+
+function buildColumnTypeMap(columns: ColumnDefinition[]): ColumnTypeMap {
+  return new Map(columns.map((col) => [col.name, col.type]))
+}
+
 /**
  * Whitelist of allowed operators for query filtering.
  * Only these operators can be used in filter conditions.
@@ -35,6 +59,10 @@ const ALLOWED_OPERATORS = new Set([
   '$in',
   '$nin',
   '$contains',
+  '$ncontains',
+  '$startsWith',
+  '$endsWith',
+  '$empty',
 ])
 
 /**
@@ -43,28 +71,51 @@ const ALLOWED_OPERATORS = new Set([
  *
  * Index behavior: equality ($eq, $in) uses the JSONB containment operator (@>) and
  * can leverage the GIN index on `user_table_rows.data` (jsonb_path_ops). Range
- * operators ($gt, $gte, $lt, $lte) and pattern match ($contains) fall back to
- * text extraction via `data->>'field'`, which defeats the GIN index and produces
+ * operators ($gt, $gte, $lt, $lte), pattern matches ($contains, $ncontains,
+ * $startsWith, $endsWith), and emptiness checks ($empty) fall back to text
+ * extraction via `data->>'field'`, which defeats the GIN index and produces
  * a sequential scan over the table's rows (bounded by a btree prefix on
  * `table_id`). Prefer equality filters on hot paths; assume range filters are
  * O(rows per table) until a per-column expression index is added.
  *
  * @param filter - Filter object with field conditions and logical operators
  * @param tableName - Table name for the query (e.g., 'user_table_rows')
+ * @param columns - Column definitions; drives type-aware JSONB casts (numeric for numbers, timestamptz for dates)
  * @returns SQL WHERE clause or undefined if no filter specified
  * @throws {TableQueryValidationError} if field name is invalid or operator is not allowed
  *
  * @example
  * // Simple equality
- * buildFilterClause({ name: 'John' }, 'user_table_rows')
+ * buildFilterClause({ name: 'John' }, 'user_table_rows', [{ name: 'name', type: 'string' }])
  *
- * // Complex filter with operators
- * buildFilterClause({ age: { $gte: 18 }, status: { $in: ['active', 'pending'] } }, 'user_table_rows')
+ * // Range on a date column — emits `::timestamptz` on both sides
+ * buildFilterClause(
+ *   { birthDate: { $gte: '2024-01-01' } },
+ *   'user_table_rows',
+ *   [{ name: 'birthDate', type: 'date' }],
+ * )
  *
  * // Logical operators
- * buildFilterClause({ $or: [{ status: 'active' }, { verified: true }] }, 'user_table_rows')
+ * buildFilterClause(
+ *   { $or: [{ status: 'active' }, { verified: true }] },
+ *   'user_table_rows',
+ *   [{ name: 'status', type: 'string' }, { name: 'verified', type: 'boolean' }],
+ * )
  */
-export function buildFilterClause(filter: Filter, tableName: string): SQL | undefined {
+export function buildFilterClause(
+  filter: Filter,
+  tableName: string,
+  columns: ColumnDefinition[]
+): SQL | undefined {
+  const columnTypeMap = buildColumnTypeMap(columns)
+  return buildFilterClauseInternal(filter, tableName, columnTypeMap)
+}
+
+function buildFilterClauseInternal(
+  filter: Filter,
+  tableName: string,
+  columnTypeMap: ColumnTypeMap
+): SQL | undefined {
   const conditions: SQL[] = []
 
   for (const [field, condition] of Object.entries(filter)) {
@@ -75,7 +126,7 @@ export function buildFilterClause(filter: Filter, tableName: string): SQL | unde
     // This represents a case where the filter is a logical OR of multiple filters
     // e.g. { $or: [{ status: 'active' }, { status: 'pending' }] }
     if (field === '$or' && Array.isArray(condition)) {
-      const orClause = buildLogicalClause(condition as Filter[], tableName, 'OR')
+      const orClause = buildLogicalClause(condition as Filter[], tableName, 'OR', columnTypeMap)
       if (orClause) {
         conditions.push(orClause)
       }
@@ -85,7 +136,7 @@ export function buildFilterClause(filter: Filter, tableName: string): SQL | unde
     // This represents a case where the filter is a logical AND of multiple filters
     // e.g. { $and: [{ status: 'active' }, { status: 'pending' }] }
     if (field === '$and' && Array.isArray(condition)) {
-      const andClause = buildLogicalClause(condition as Filter[], tableName, 'AND')
+      const andClause = buildLogicalClause(condition as Filter[], tableName, 'AND', columnTypeMap)
       if (andClause) {
         conditions.push(andClause)
       }
@@ -103,7 +154,8 @@ export function buildFilterClause(filter: Filter, tableName: string): SQL | unde
     const fieldConditions = buildFieldCondition(
       tableName,
       field,
-      condition as JsonValue | ConditionOperators
+      condition as JsonValue | ConditionOperators,
+      columnTypeMap.get(field)
     )
     conditions.push(...fieldConditions)
   }
@@ -119,26 +171,33 @@ export function buildFilterClause(filter: Filter, tableName: string): SQL | unde
  *
  * @param sort - Sort object with field names and directions
  * @param tableName - Table name for the query (e.g., 'user_table_rows')
- * @param columns - Optional column definitions for type-aware sorting
+ * @param columns - Column definitions; drives type-aware casts (numeric for numbers, timestamptz for dates)
  * @returns SQL ORDER BY clause or undefined if no sort specified
  * @throws {TableQueryValidationError} if field name or sort direction is invalid
  *
  * @example
- * buildSortClause({ name: 'asc', age: 'desc' }, 'user_table_rows')
- * // Returns: ORDER BY data->>'name' ASC, data->>'age' DESC
+ * buildSortClause(
+ *   { name: 'asc' },
+ *   'user_table_rows',
+ *   [{ name: 'name', type: 'string' }],
+ * )
+ * // Returns: ORDER BY user_table_rows.data->>'name' ASC
  *
  * @example
- * // With column types for proper numeric sorting
- * buildSortClause({ salary: 'desc' }, 'user_table_rows', [{ name: 'salary', type: 'number' }])
- * // Returns: ORDER BY (data->>'salary')::numeric DESC NULLS LAST
+ * buildSortClause(
+ *   { salary: 'desc' },
+ *   'user_table_rows',
+ *   [{ name: 'salary', type: 'number' }],
+ * )
+ * // Returns: ORDER BY (user_table_rows.data->>'salary')::numeric DESC NULLS LAST
  */
 export function buildSortClause(
   sort: Sort,
   tableName: string,
-  columns?: ColumnDefinition[]
+  columns: ColumnDefinition[]
 ): SQL | undefined {
   const clauses: SQL[] = []
-  const columnTypeMap = new Map(columns?.map((col) => [col.name, col.type]))
+  const columnTypeMap = buildColumnTypeMap(columns)
 
   for (const [field, direction] of Object.entries(sort)) {
     validateFieldName(field)
@@ -190,6 +249,31 @@ function validateOperator(operator: string): void {
 }
 
 /**
+ * Validates that a range-operator value matches its column's expected JS type
+ * before it reaches Postgres. Surfaces an actionable, column-named error at the
+ * SQL builder layer instead of a generic `invalid input syntax for type numeric`
+ * from the database.
+ */
+function validateComparisonValue(
+  field: string,
+  columnType: ColumnType | undefined,
+  cast: 'numeric' | 'timestamptz',
+  value: number | string
+): void {
+  if (cast === 'numeric' && typeof value !== 'number') {
+    const label = columnType ?? 'number'
+    throw new TableQueryValidationError(
+      `Range operator on column "${field}" (${label}) requires a number, got ${typeof value}`
+    )
+  }
+  if (cast === 'timestamptz' && typeof value !== 'string') {
+    throw new TableQueryValidationError(
+      `Range operator on column "${field}" (date) requires a date string, got ${typeof value}`
+    )
+  }
+}
+
+/**
  * Builds SQL conditions for a single field based on the provided condition.
  *
  * Supports both simple equality checks (using JSONB containment) and complex
@@ -208,7 +292,8 @@ function validateOperator(operator: string): void {
 function buildFieldCondition(
   tableName: string,
   field: string,
-  condition: JsonValue | ConditionOperators
+  condition: JsonValue | ConditionOperators,
+  columnType: ColumnType | undefined
 ): SQL[] {
   validateFieldName(field)
 
@@ -231,19 +316,27 @@ function buildFieldCondition(
           break
 
         case '$gt':
-          conditions.push(buildComparisonClause(tableName, field, '>', value as number))
+          conditions.push(
+            buildComparisonClause(tableName, field, '>', value as number | string, columnType)
+          )
           break
 
         case '$gte':
-          conditions.push(buildComparisonClause(tableName, field, '>=', value as number))
+          conditions.push(
+            buildComparisonClause(tableName, field, '>=', value as number | string, columnType)
+          )
           break
 
         case '$lt':
-          conditions.push(buildComparisonClause(tableName, field, '<', value as number))
+          conditions.push(
+            buildComparisonClause(tableName, field, '<', value as number | string, columnType)
+          )
           break
 
         case '$lte':
-          conditions.push(buildComparisonClause(tableName, field, '<=', value as number))
+          conditions.push(
+            buildComparisonClause(tableName, field, '<=', value as number | string, columnType)
+          )
           break
 
         case '$in':
@@ -269,7 +362,25 @@ function buildFieldCondition(
           break
 
         case '$contains':
-          conditions.push(buildContainsClause(tableName, field, value as string))
+          conditions.push(buildLikeClause(tableName, field, value as string, 'contains'))
+          break
+
+        case '$ncontains':
+          conditions.push(
+            buildLikeClause(tableName, field, value as string, 'contains', { negate: true })
+          )
+          break
+
+        case '$startsWith':
+          conditions.push(buildLikeClause(tableName, field, value as string, 'startsWith'))
+          break
+
+        case '$endsWith':
+          conditions.push(buildLikeClause(tableName, field, value as string, 'endsWith'))
+          break
+
+        case '$empty':
+          conditions.push(buildEmptyClause(tableName, field, coerceEmptyFlag(field, value)))
           break
 
         default:
@@ -312,11 +423,12 @@ function buildFieldCondition(
 function buildLogicalClause(
   subFilters: Filter[],
   tableName: string,
-  operator: 'OR' | 'AND'
+  operator: 'OR' | 'AND',
+  columnTypeMap: ColumnTypeMap
 ): SQL | undefined {
   const clauses: SQL[] = []
   for (const subFilter of subFilters) {
-    const clause = buildFilterClause(subFilter, tableName)
+    const clause = buildFilterClauseInternal(subFilter, tableName, columnTypeMap)
     if (clause) {
       clauses.push(clause)
     }
@@ -334,15 +446,36 @@ function buildContainmentClause(tableName: string, field: string, value: JsonVal
   return sql`${sql.raw(`${tableName}.data`)} @> ${jsonObj}::jsonb`
 }
 
-/** Builds numeric comparison: `(data->>'field')::numeric <op> value` (cannot use GIN index) */
+/**
+ * Builds a typed range comparison against a JSONB cell.
+ *
+ * `number` columns cast both sides to `numeric`; `date` columns cast both sides
+ * to `timestamptz` so date strings compare chronologically and timezone offsets
+ * in ISO strings (e.g. `2024-01-01T00:00:00Z`) are preserved rather than
+ * silently stripped (which would make results depend on the server's TimeZone
+ * setting). Unknown/other types
+ * fall back to `numeric` (legacy default — preserves behavior for ad-hoc fields
+ * with no schema entry). The right-hand value is cast explicitly because
+ * drizzle parameterizes it as `text`; without the cast, Postgres would compare
+ * `text <op> text` and silently produce lexicographic results.
+ *
+ * Cannot use the GIN index — falls back to a sequential scan over the table's
+ * rows (bounded by the btree prefix on `table_id`).
+ */
 function buildComparisonClause(
   tableName: string,
   field: string,
   operator: '>' | '>=' | '<' | '<=',
-  value: number
+  value: number | string,
+  columnType: ColumnType | undefined
 ): SQL {
   const escapedField = field.replace(/'/g, "''")
-  return sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric ${sql.raw(operator)} ${value}`
+  const cast = jsonbCastForType(columnType) ?? 'numeric'
+  validateComparisonValue(field, columnType, cast, value)
+  const cell = sql.raw(`(${tableName}.data->>'${escapedField}')::${cast}`)
+  return cast === 'timestamptz'
+    ? sql`${cell} ${sql.raw(operator)} ${value}::timestamptz`
+    : sql`${cell} ${sql.raw(operator)} ${value}`
 }
 
 /** Escapes LIKE/ILIKE wildcard characters so they match literally */
@@ -350,10 +483,73 @@ function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, '\\$&')
 }
 
-/** Builds case-insensitive pattern match: `data->>'field' ILIKE '%value%'` */
-function buildContainsClause(tableName: string, field: string, value: string): SQL {
+/**
+ * Builds a case-insensitive pattern match against a JSONB cell using ILIKE.
+ * `position` controls wildcard placement: `contains` → `%value%`, `startsWith`
+ * → `value%`, `endsWith` → `%value`. When `negate` is set the match is inverted
+ * and null cells are included — "does not contain X" should keep empty rows,
+ * mirroring `$ne` (which also surfaces nulls). Cannot use the GIN index; falls
+ * back to a sequential scan bounded by the `table_id` btree prefix.
+ */
+function buildLikeClause(
+  tableName: string,
+  field: string,
+  value: string,
+  position: 'contains' | 'startsWith' | 'endsWith',
+  options?: { negate?: boolean }
+): SQL {
   const escapedField = field.replace(/'/g, "''")
-  return sql`${sql.raw(`${tableName}.data->>'${escapedField}'`)} ILIKE ${`%${escapeLikePattern(value)}%`}`
+  // Coerce defensively: filters arriving via the raw v1 API / tools may carry a
+  // non-string value (e.g. `{ $contains: 123 }`), and ILIKE compares text anyway.
+  const text = String(value)
+  // An empty pattern collapses to `%`/`%%`, which matches every non-null row —
+  // a silent footgun for raw-API callers (the UI gates empty values out). Reject
+  // it, consistent with the range/`$empty` operand validation.
+  if (text.length === 0) {
+    const opName = position === 'contains' && options?.negate ? 'ncontains' : position
+    throw new TableQueryValidationError(
+      `$${opName} on column "${field}" requires a non-empty value`
+    )
+  }
+  const escaped = escapeLikePattern(text)
+  const pattern =
+    position === 'startsWith'
+      ? `${escaped}%`
+      : position === 'endsWith'
+        ? `%${escaped}`
+        : `%${escaped}%`
+  const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
+  return options?.negate
+    ? sql`(${cell} IS NULL OR ${cell} NOT ILIKE ${pattern})`
+    : sql`${cell} ILIKE ${pattern}`
+}
+
+/**
+ * Coerces a `$empty` operand to a boolean. Accepts a real boolean (the UI path)
+ * and the string forms `'true'` / `'false'` (lenient raw-API input). Anything
+ * else throws rather than silently inverting the check — a 400 with a clear
+ * message beats returning the opposite row set.
+ */
+function coerceEmptyFlag(field: string, value: unknown): boolean {
+  if (typeof value === 'boolean') return value
+  if (value === 'true') return true
+  if (value === 'false') return false
+  throw new TableQueryValidationError(
+    `$empty on column "${field}" requires a boolean, got ${typeof value}`
+  )
+}
+
+/**
+ * Builds an emptiness check against a JSONB cell. `isEmpty` matches null cells
+ * (absent key or JSON null, both surfaced as SQL NULL by `->>`) and empty
+ * strings; the negation requires the cell to be present and non-empty.
+ */
+function buildEmptyClause(tableName: string, field: string, isEmpty: boolean): SQL {
+  const escapedField = field.replace(/'/g, "''")
+  const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
+  return isEmpty
+    ? sql`(${cell} IS NULL OR ${cell} = '')`
+    : sql`(${cell} IS NOT NULL AND ${cell} <> '')`
 }
 
 /**
@@ -370,7 +566,7 @@ function buildSortFieldClause(
   tableName: string,
   field: string,
   direction: 'asc' | 'desc',
-  columnType?: string
+  columnType: ColumnType | undefined
 ): SQL {
   const escapedField = field.replace(/'/g, "''")
   const directionSql = direction.toUpperCase()
@@ -380,18 +576,13 @@ function buildSortFieldClause(
   }
 
   const jsonbExtract = `${tableName}.data->>'${escapedField}'`
+  const cast = jsonbCastForType(columnType)
 
-  // Cast to appropriate type for correct sorting
-  if (columnType === 'number') {
-    // Cast to numeric, with NULLS LAST to handle null/invalid values
-    return sql.raw(`(${jsonbExtract})::numeric ${directionSql} NULLS LAST`)
+  if (cast === null) {
+    // Sort as text (string, boolean, json, or unknown types)
+    return sql.raw(`${jsonbExtract} ${directionSql}`)
   }
 
-  if (columnType === 'date') {
-    // Cast to timestamp for chronological sorting
-    return sql.raw(`(${jsonbExtract})::timestamp ${directionSql} NULLS LAST`)
-  }
-
-  // Default: sort as text (for string, boolean, json, or unknown types)
-  return sql.raw(`${jsonbExtract} ${directionSql}`)
+  // NULLS LAST so rows with null/invalid values sort to the bottom regardless of direction
+  return sql.raw(`(${jsonbExtract})::${cast} ${directionSql} NULLS LAST`)
 }

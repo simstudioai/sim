@@ -1,15 +1,11 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1DeleteFileContract, v1DownloadFileContract } from '@/lib/api/contracts/v1/files'
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  deleteWorkspaceFile,
-  fetchWorkspaceFileBuffer,
-  getWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace'
+import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
+import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import {
   checkRateLimit,
   createRateLimitResponse,
@@ -97,23 +93,18 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Fil
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    await deleteWorkspaceFile(workspaceId, fileId)
+    const result = await performDeleteWorkspaceFileItems({
+      workspaceId,
+      userId,
+      fileIds: [fileId],
+    })
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 500 })
+    }
 
     logger.info(
       `[${requestId}] Archived file: ${fileRecord.name} (${fileId}) from workspace ${workspaceId}`
     )
-
-    recordAudit({
-      workspaceId,
-      actorId: userId,
-      action: AuditAction.FILE_DELETED,
-      resourceType: AuditResourceType.FILE,
-      resourceId: fileId,
-      resourceName: fileRecord.name,
-      description: `Archived file "${fileRecord.name}" via API`,
-      metadata: { fileSize: fileRecord.size, fileType: fileRecord.type },
-      request,
-    })
 
     return NextResponse.json({
       success: true,

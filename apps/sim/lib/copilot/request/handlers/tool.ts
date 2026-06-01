@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
 import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
@@ -98,7 +98,7 @@ export async function prePersistClientExecutableToolCall(
     logger.warn('Failed to pre-persist async tool row before forwarding call frame', {
       toolCallId: data.toolCallId,
       toolName: data.toolName,
-      error: err instanceof Error ? err.message : String(err),
+      error: getErrorMessage(err),
     })
   })
 }

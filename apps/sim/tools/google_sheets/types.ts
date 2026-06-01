@@ -1,16 +1,17 @@
 import type { GoogleSheetsV2DeleteRowsResponse } from '@/tools/google_sheets/delete_rows'
 import type { GoogleSheetsV2DeleteSheetResponse } from '@/tools/google_sheets/delete_sheet'
 import type { GoogleSheetsV2DeleteSpreadsheetResponse } from '@/tools/google_sheets/delete_spreadsheet'
+import type { SheetFilterMatchType } from '@/tools/google_sheets/filter'
 import type { ToolResponse } from '@/tools/types'
 
-export interface GoogleSheetsRange {
+interface GoogleSheetsRange {
   sheetId?: number
   sheetName?: string
   range: string
   values: any[][]
 }
 
-export interface GoogleSheetsMetadata {
+interface GoogleSheetsMetadata {
   spreadsheetId: string
   spreadsheetUrl?: string
   title?: string
@@ -81,12 +82,28 @@ export type GoogleSheetsResponse =
 
 // V2 Types - with explicit sheetName parameter
 
+export interface GoogleSheetsFilterInfo {
+  /** Whether row filtering was actually applied to the data rows. */
+  applied: boolean
+  /** The column header the filter targeted. */
+  column: string
+  /** The match type used for the comparison. */
+  matchType: SheetFilterMatchType
+  /** Whether the requested filter column was found in the header row. */
+  columnFound: boolean
+  /** Number of data rows (excluding the header) that matched the filter. */
+  matchedRows: number
+  /** Total number of data rows (excluding the header) that were considered. */
+  totalRows: number
+}
+
 export interface GoogleSheetsV2ReadResponse extends ToolResponse {
   output: {
     sheetName: string
     range: string
     values: any[][]
     metadata: GoogleSheetsMetadata
+    filter?: GoogleSheetsFilterInfo
   }
 }
 
@@ -134,7 +151,7 @@ export interface GoogleSheetsV2ToolParams {
   majorDimension?: 'ROWS' | 'COLUMNS'
   filterColumn?: string
   filterValue?: string
-  filterMatchType?: 'contains' | 'exact' | 'starts_with' | 'ends_with'
+  filterMatchType?: SheetFilterMatchType
 }
 
 export type GoogleSheetsV2Response =

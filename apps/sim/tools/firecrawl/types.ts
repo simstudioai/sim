@@ -287,12 +287,12 @@ export const AGENT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 // Common types
-export interface LocationConfig {
+interface LocationConfig {
   country?: string
   languages?: string[]
 }
 
-export interface ScrapeOptions {
+interface ScrapeOptions {
   formats?: string[]
   onlyMainContent?: boolean
   includeTags?: string[]

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { importSkillContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
@@ -58,7 +59,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     try {
       rawUrl = toRawGitHubUrl(url)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Invalid URL'
+      const message = getErrorMessage(err, 'Invalid URL')
       return NextResponse.json({ error: message }, { status: 400 })
     }
 

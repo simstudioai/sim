@@ -31,30 +31,42 @@ export function Video({
   const startTimeRef = useRef(0)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
 
-  const handleVideoClick = () => {
-    if (enableLightbox) {
-      startTimeRef.current = videoRef.current?.currentTime ?? 0
-      setIsLightboxOpen(true)
-    }
+  const openLightbox = () => {
+    startTimeRef.current = videoRef.current?.currentTime ?? 0
+    setIsLightboxOpen(true)
   }
+
+  const video = (
+    <video
+      ref={videoRef}
+      autoPlay={autoPlay}
+      loop={loop}
+      muted={muted}
+      playsInline={playsInline}
+      width={width}
+      height={height}
+      className={cn(
+        className,
+        enableLightbox && 'cursor-pointer transition-opacity group-hover:opacity-[0.97]'
+      )}
+      src={getAssetUrl(src)}
+    />
+  )
 
   return (
     <>
-      <video
-        ref={videoRef}
-        autoPlay={autoPlay}
-        loop={loop}
-        muted={muted}
-        playsInline={playsInline}
-        width={width}
-        height={height}
-        className={cn(
-          className,
-          enableLightbox && 'cursor-pointer transition-opacity hover:opacity-[0.97]'
-        )}
-        src={getAssetUrl(src)}
-        onClick={handleVideoClick}
-      />
+      {enableLightbox ? (
+        <button
+          type='button'
+          onClick={openLightbox}
+          aria-label={`Open ${src} in media viewer`}
+          className='group contents'
+        >
+          {video}
+        </button>
+      ) : (
+        video
+      )}
 
       {enableLightbox && (
         <Lightbox

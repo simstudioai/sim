@@ -104,12 +104,12 @@ export default function LessonPage({ params }: LessonPageProps) {
         <div className='flex items-center gap-2'>
           {prevLesson ? (
             <Link href={`/academy/${courseSlug}/${prevLesson.slug}`} className={navBtnClass}>
-              <ChevronLeft className='h-3.5 w-3.5' />
+              <ChevronLeft className='size-3.5' />
               Previous
             </Link>
           ) : (
             <Link href={`/academy/${courseSlug}`} className={navBtnClass}>
-              <ChevronLeft className='h-3.5 w-3.5' />
+              <ChevronLeft className='size-3.5' />
               Course
             </Link>
           )}
@@ -126,7 +126,7 @@ export default function LessonPage({ params }: LessonPageProps) {
               }`}
             >
               Next
-              <ChevronRight className='h-3.5 w-3.5' />
+              <ChevronRight className='size-3.5' />
             </Link>
           )}
         </div>

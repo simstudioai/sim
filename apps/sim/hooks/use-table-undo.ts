@@ -1,9 +1,6 @@
-/**
- * Hook that connects the table undo/redo store to React Query mutations.
- */
-
 import { useCallback, useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -22,9 +19,6 @@ import type { TableUndoAction } from '@/stores/table/types'
 
 const logger = createLogger('useTableUndo')
 
-/**
- * Extract the row ID from a create-row API response.
- */
 export function extractCreatedRowId(response: Record<string, unknown>): string | undefined {
   const data = response?.data as Record<string, unknown> | undefined
   const row = data?.row as Record<string, unknown> | undefined
@@ -37,6 +31,8 @@ interface UseTableUndoProps {
   onColumnOrderChange?: (order: string[]) => void
   onColumnRename?: (oldName: string, newName: string) => void
   onColumnWidthsChange?: (widths: Record<string, number>) => void
+  onPinnedColumnsChange?: (pinned: string[]) => void
+  getPinnedColumns?: () => string[]
   getColumnWidths?: () => Record<string, number>
 }
 
@@ -46,6 +42,8 @@ export function useTableUndo({
   onColumnOrderChange,
   onColumnRename,
   onColumnWidthsChange,
+  onPinnedColumnsChange,
+  getPinnedColumns,
   getColumnWidths,
 }: UseTableUndoProps) {
   const push = useTableUndoStore((s) => s.push)
@@ -75,6 +73,10 @@ export function useTableUndo({
   onColumnRenameRef.current = onColumnRename
   const onColumnWidthsChangeRef = useRef(onColumnWidthsChange)
   onColumnWidthsChangeRef.current = onColumnWidthsChange
+  const onPinnedColumnsChangeRef = useRef(onPinnedColumnsChange)
+  onPinnedColumnsChangeRef.current = onPinnedColumnsChange
+  const getPinnedColumnsRef = useRef(getPinnedColumns)
+  getPinnedColumnsRef.current = getPinnedColumns
   const getColumnWidthsRef = useRef(getColumnWidths)
   getColumnWidthsRef.current = getColumnWidths
 
@@ -90,7 +92,7 @@ export function useTableUndo({
   )
 
   const executeAction = useCallback(
-    (action: TableUndoAction, direction: 'undo' | 'redo') => {
+    async (action: TableUndoAction, direction: 'undo' | 'redo') => {
       try {
         switch (action.type) {
           case 'update-cell': {
@@ -110,7 +112,11 @@ export function useTableUndo({
                   ? cell.data
                   : Object.fromEntries(Object.keys(cell.data).map((k) => [k, null])),
             }))
-            batchUpdateRowsMutation.mutate({ updates })
+            for (let i = 0; i < updates.length; i += TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
+              await batchUpdateRowsMutation.mutateAsync({
+                updates: updates.slice(i, i + TABLE_LIMITS.MAX_BULK_OPERATION_SIZE),
+              })
+            }
             break
           }
 
@@ -119,7 +125,11 @@ export function useTableUndo({
               rowId: cell.rowId,
               data: direction === 'undo' ? cell.oldData : cell.newData,
             }))
-            batchUpdateRowsMutation.mutate({ updates })
+            for (let i = 0; i < updates.length; i += TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
+              await batchUpdateRowsMutation.mutateAsync({
+                updates: updates.slice(i, i + TABLE_LIMITS.MAX_BULK_OPERATION_SIZE),
+              })
+            }
             break
           }
 
@@ -204,11 +214,21 @@ export function useTableUndo({
             if (direction === 'undo') {
               deleteColumnMutation.mutate(action.columnName, {
                 onSuccess: () => {
+                  const metadata: Record<string, unknown> = {}
                   const currentWidths = getColumnWidthsRef.current?.() ?? {}
                   if (action.columnName in currentWidths) {
                     const { [action.columnName]: _, ...rest } = currentWidths
                     onColumnWidthsChangeRef.current?.(rest)
-                    updateMetadataMutation.mutate({ columnWidths: rest })
+                    metadata.columnWidths = rest
+                  }
+                  const currentPinned = getPinnedColumnsRef.current?.() ?? []
+                  if (currentPinned.includes(action.columnName)) {
+                    const newPinned = currentPinned.filter((n) => n !== action.columnName)
+                    onPinnedColumnsChangeRef.current?.(newPinned)
+                    metadata.pinnedColumns = newPinned
+                  }
+                  if (Object.keys(metadata).length > 0) {
+                    updateMetadataMutation.mutate(metadata)
                   }
                 },
               })
@@ -239,17 +259,24 @@ export function useTableUndo({
                         rowId: c.rowId,
                         data: { [action.columnName]: c.value },
                       }))
-                      batchUpdateRowsMutation.mutate(
-                        { updates },
-                        {
-                          onError: (error) => {
-                            logger.error('Failed to restore cell data on delete-column undo', {
-                              columnName: action.columnName,
-                              error,
+                      void (async () => {
+                        try {
+                          for (
+                            let i = 0;
+                            i < updates.length;
+                            i += TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
+                          ) {
+                            await batchUpdateRowsMutation.mutateAsync({
+                              updates: updates.slice(i, i + TABLE_LIMITS.MAX_BULK_OPERATION_SIZE),
                             })
-                          },
+                          }
+                        } catch (error) {
+                          logger.error('Failed to restore cell data on delete-column undo', {
+                            columnName: action.columnName,
+                            error,
+                          })
                         }
-                      )
+                      })()
                     }
                     const metadata: Record<string, unknown> = {}
                     if (action.previousOrder) {
@@ -263,6 +290,27 @@ export function useTableUndo({
                       }
                       metadata.columnWidths = merged
                       onColumnWidthsChangeRef.current?.(merged)
+                    }
+                    if (action.previousPinnedColumns !== null) {
+                      const wasColumnPinned = action.previousPinnedColumns.includes(
+                        action.columnName
+                      )
+                      if (wasColumnPinned) {
+                        const currentPinned = getPinnedColumnsRef.current?.() ?? []
+                        if (!currentPinned.includes(action.columnName)) {
+                          const insertIndex = action.previousPinnedColumns.indexOf(
+                            action.columnName
+                          )
+                          const restoredPinned = [...currentPinned]
+                          restoredPinned.splice(
+                            Math.min(insertIndex, restoredPinned.length),
+                            0,
+                            action.columnName
+                          )
+                          onPinnedColumnsChangeRef.current?.(restoredPinned)
+                          metadata.pinnedColumns = restoredPinned
+                        }
+                      }
                     }
                     if (Object.keys(metadata).length > 0) {
                       updateMetadataMutation.mutate(metadata)
@@ -284,6 +332,14 @@ export function useTableUndo({
                     const { [action.columnName]: _, ...rest } = currentWidths
                     metadata.columnWidths = rest
                     onColumnWidthsChangeRef.current?.(rest)
+                  }
+                  if (action.previousPinnedColumns !== null) {
+                    const currentPinned = getPinnedColumnsRef.current?.() ?? []
+                    if (currentPinned.includes(action.columnName)) {
+                      const newPinned = currentPinned.filter((n) => n !== action.columnName)
+                      onPinnedColumnsChangeRef.current?.(newPinned)
+                      metadata.pinnedColumns = newPinned
+                    }
                   }
                   if (Object.keys(metadata).length > 0) {
                     updateMetadataMutation.mutate(metadata)
@@ -330,7 +386,21 @@ export function useTableUndo({
           }
 
           case 'reorder-columns': {
-            const order = direction === 'undo' ? action.previousOrder : action.newOrder
+            const restored = direction === 'undo' ? action.previousOrder : action.newOrder
+            // The user may have pinned/unpinned since the original reorder;
+            // restoring the raw snapshot can leave a currently-pinned column
+            // in the middle, which breaks the sticky-offset walk in
+            // pinnedOffsets and causes the column to jump over its left
+            // neighbors on scroll.
+            const pinned = getPinnedColumnsRef.current?.() ?? []
+            let order = restored
+            if (pinned.length > 0) {
+              const pinnedSet = new Set(pinned)
+              order = [
+                ...restored.filter((n) => pinnedSet.has(n)),
+                ...restored.filter((n) => !pinnedSet.has(n)),
+              ]
+            }
             onColumnOrderChangeRef.current?.(order)
             updateMetadataMutation.mutate({ columnOrder: order })
             break
@@ -346,19 +416,13 @@ export function useTableUndo({
   const undo = useCallback(() => {
     const entry = popUndo(tableId)
     if (!entry) return
-
-    runWithoutRecording(() => {
-      executeAction(entry.action, 'undo')
-    })
+    void runWithoutRecording(() => executeAction(entry.action, 'undo'))
   }, [popUndo, tableId, executeAction])
 
   const redo = useCallback(() => {
     const entry = popRedo(tableId)
     if (!entry) return
-
-    runWithoutRecording(() => {
-      executeAction(entry.action, 'redo')
-    })
+    void runWithoutRecording(() => executeAction(entry.action, 'redo'))
   }, [popRedo, tableId, executeAction])
 
   return { pushUndo, undo, redo, canUndo, canRedo }

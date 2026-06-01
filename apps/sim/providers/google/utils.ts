@@ -14,6 +14,7 @@ import {
 } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { buildGeminiMessageParts } from '@/providers/attachments'
 import type { ProviderRequest } from '@/providers/types'
 import { trackForcedToolUsage } from '@/providers/utils'
 
@@ -47,7 +48,7 @@ export interface GeminiUsage {
 /**
  * Parsed function call from Gemini response
  */
-export interface ParsedFunctionCall {
+interface ParsedFunctionCall {
   name: string
   args: Record<string, unknown>
 }
@@ -166,7 +167,10 @@ export interface GeminiToolDef {
 /**
  * Converts OpenAI-style request format to Gemini format
  */
-export function convertToGeminiFormat(request: ProviderRequest): {
+export function convertToGeminiFormat(
+  request: ProviderRequest,
+  providerId = 'google'
+): {
   contents: Content[]
   tools: GeminiToolDef[] | undefined
   systemInstruction: Content | undefined
@@ -192,9 +196,10 @@ export function convertToGeminiFormat(request: ProviderRequest): {
         }
       } else if (message.role === 'user' || message.role === 'assistant') {
         const geminiRole = message.role === 'user' ? 'user' : 'model'
+        const parts = buildGeminiMessageParts(message.content, message.files, providerId) as Part[]
 
-        if (message.content) {
-          contents.push({ role: geminiRole, parts: [{ text: message.content }] })
+        if (parts.length > 0) {
+          contents.push({ role: geminiRole, parts })
         }
 
         if (message.role === 'assistant' && message.tool_calls?.length) {

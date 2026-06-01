@@ -163,7 +163,7 @@ function buildQuery(sourceConfig: Record<string, unknown>): string {
 export const googleDocsConnector: ConnectorConfig = {
   id: 'google_docs',
   name: 'Google Docs',
-  description: 'Sync Google Docs documents into your knowledge base',
+  description: 'Sync Google Docs documents',
   version: '1.0.0',
   icon: GoogleDocsIcon,
 

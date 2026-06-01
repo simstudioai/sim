@@ -14,7 +14,7 @@ interface FooterItem {
 }
 
 const PRODUCT_LINKS: FooterItem[] = [
-  { label: 'Mothership', href: 'https://docs.sim.ai', external: true },
+  { label: 'Mothership', href: 'https://docs.sim.ai/mothership', external: true },
   { label: 'Workflows', href: 'https://docs.sim.ai', external: true },
   { label: 'Knowledge Base', href: 'https://docs.sim.ai/knowledgebase', external: true },
   { label: 'Tables', href: 'https://docs.sim.ai/tables', external: true },

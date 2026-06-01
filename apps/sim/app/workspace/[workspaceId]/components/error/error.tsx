@@ -54,7 +54,7 @@ export function ErrorState({
             </Button>
           )}
           <Button variant='default' size='sm' onClick={reset}>
-            <RefreshCw className='mr-1.5 h-[14px] w-[14px]' />
+            <RefreshCw className='mr-1.5 size-[14px]' />
             Try again
           </Button>
         </div>

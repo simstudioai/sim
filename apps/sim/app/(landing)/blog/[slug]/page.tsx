@@ -92,8 +92,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
               </time>
               <meta itemProp='dateModified' content={post.updated ?? post.date} />
               <div className='flex items-center gap-3'>
-                {(post.authors || [post.author]).map((a, idx) => (
-                  <div key={idx} className='flex items-center gap-2'>
+                {(post.authors || [post.author]).map((a) => (
+                  <div key={a?.name} className='flex items-center gap-2'>
                     {a?.avatarUrl ? (
                       <Avatar className='size-5'>
                         <AvatarImage src={a.avatarUrl} alt={a.name} />

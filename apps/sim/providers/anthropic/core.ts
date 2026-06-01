@@ -2,13 +2,14 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema'
 import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages/messages'
 import type { Logger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { BlockTokens, IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromAnthropicStream,
 } from '@/providers/anthropic/utils'
+import { buildAnthropicMessageContent } from '@/providers/attachments'
 import {
   getMaxOutputTokensForModel,
   getThinkingCapability,
@@ -81,13 +82,15 @@ const THINKING_BUDGET_TOKENS: Record<string, number> = {
 
 /**
  * Checks if a model supports adaptive thinking (thinking.type: "adaptive").
- * Opus 4.7 supports ONLY adaptive thinking (no extended thinking / budget_tokens).
+ * Opus 4.8 and Opus 4.7 support ONLY adaptive thinking (no extended thinking / budget_tokens).
  * Opus 4.6 and Sonnet 4.6 support both extended and adaptive thinking — use adaptive.
  * Opus 4.5 supports effort but NOT adaptive thinking — it uses budget_tokens with type: "enabled".
  */
 function supportsAdaptiveThinking(modelId: string): boolean {
   const normalizedModel = modelId.toLowerCase()
   return (
+    normalizedModel.includes('opus-4-8') ||
+    normalizedModel.includes('opus-4.8') ||
     normalizedModel.includes('opus-4-7') ||
     normalizedModel.includes('opus-4.7') ||
     normalizedModel.includes('opus-4-6') ||
@@ -100,7 +103,7 @@ function supportsAdaptiveThinking(modelId: string): boolean {
 /**
  * Builds the thinking configuration for the Anthropic API based on model capabilities and level.
  *
- * - Opus 4.7: Uses adaptive thinking only (no extended thinking support)
+ * - Opus 4.8, Opus 4.7: Uses adaptive thinking only (no extended thinking support)
  * - Opus 4.6, Sonnet 4.6: Uses adaptive thinking with effort parameter
  * - Other models: Uses budget_tokens-based extended thinking
  *
@@ -229,9 +232,11 @@ export async function executeAnthropicProviderRequest(
           ],
         })
       } else {
+        const content = buildAnthropicMessageContent(msg.content, msg.files, config.providerId)
         messages.push({
           role: msg.role === 'assistant' ? 'assistant' : 'user',
-          content: msg.content ? [{ type: 'text', text: msg.content }] : [],
+          // double-cast-allowed: shared attachment builder returns Anthropic-compatible content blocks but avoids importing SDK-only union types
+          content: content as unknown as Anthropic.Messages.ContentBlockParam[],
         })
       }
     })
@@ -568,7 +573,9 @@ export async function executeAnthropicProviderRequest(
               if (!tool) return null
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-              const result = await executeTool(toolName, executionParams)
+              const result = await executeTool(toolName, executionParams, {
+                signal: request.abortSignal,
+              })
               const toolCallEndTime = Date.now()
 
               return {
@@ -593,7 +600,7 @@ export async function executeAnthropicProviderRequest(
                 result: {
                   success: false,
                   output: undefined,
-                  error: error instanceof Error ? error.message : 'Tool execution failed',
+                  error: getErrorMessage(error, 'Tool execution failed'),
                 },
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
@@ -1000,7 +1007,10 @@ export async function executeAnthropicProviderRequest(
             if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, true)
+            const result = await executeTool(toolName, executionParams, {
+              skipPostProcess: true,
+              signal: request.abortSignal,
+            })
             const toolCallEndTime = Date.now()
 
             return {
@@ -1025,7 +1035,7 @@ export async function executeAnthropicProviderRequest(
               result: {
                 success: false,
                 output: undefined,
-                error: error instanceof Error ? error.message : 'Tool execution failed',
+                error: getErrorMessage(error, 'Tool execution failed'),
               },
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,

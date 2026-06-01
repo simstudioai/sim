@@ -141,6 +141,6 @@ export interface SESDeleteTemplateResponse extends ToolResponse {
   }
 }
 
-export interface SESBaseResponse extends ToolResponse {
+interface SESBaseResponse extends ToolResponse {
   output: { message: string }
 }

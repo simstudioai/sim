@@ -22,7 +22,7 @@ const CONDITION_TIMEOUT_MS = 5000
  * Variable resolution is handled consistently with the function block via the function_execute tool.
  * Returns true if condition is met, false otherwise.
  */
-export async function evaluateConditionExpression(
+async function evaluateConditionExpression(
   ctx: ExecutionContext,
   conditionExpression: string,
   providedEvalContext?: Record<string, any>,
@@ -54,8 +54,7 @@ export async function evaluateConditionExpression(
           enforceCredentialAccess: ctx.enforceCredentialAccess,
         },
       },
-      false,
-      ctx
+      { executionContext: ctx }
     )
 
     if (!result.success) {

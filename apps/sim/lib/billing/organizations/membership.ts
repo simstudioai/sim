@@ -20,6 +20,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
@@ -460,7 +461,7 @@ async function revokeWorkspaceCredentialMembershipsTx({
   return revokedMemberships.length
 }
 
-export interface MembershipValidationResult {
+interface MembershipValidationResult {
   canAdd: boolean
   reason?: string
   failureCode?: MembershipAdditionFailureCode
@@ -516,7 +517,7 @@ export async function ensureUserInOrganization(
  * Validate if a user can be added to an organization.
  * Checks single-org constraint and seat availability.
  */
-export async function validateMembershipAddition(
+async function validateMembershipAddition(
   userId: string,
   organizationId: string,
   options: { acceptingInvitationId?: string } = {}
@@ -926,34 +927,6 @@ export async function removeUserFromOrganization(
         )
       }
 
-      let capturedUsage = 0
-      if (!skipBillingLogic) {
-        const [departingUserStats] = await tx
-          .select({ currentPeriodCost: userStats.currentPeriodCost })
-          .from(userStats)
-          .where(eq(userStats.userId, userId))
-          .limit(1)
-
-        if (departingUserStats?.currentPeriodCost) {
-          const usage = toNumber(toDecimal(departingUserStats.currentPeriodCost))
-          if (usage > 0) {
-            await tx
-              .update(organization)
-              .set({
-                departedMemberUsage: sql`${organization.departedMemberUsage} + ${usage}`,
-              })
-              .where(eq(organization.id, organizationId))
-
-            await tx
-              .update(userStats)
-              .set({ currentPeriodCost: '0' })
-              .where(eq(userStats.userId, userId))
-
-            capturedUsage = usage
-          }
-        }
-      }
-
       const [targetUser] = await tx
         .select({ email: user.email })
         .from(user)
@@ -979,7 +952,44 @@ export async function removeUserFromOrganization(
         .from(workspace)
         .where(eq(workspace.organizationId, organizationId))
 
+      const captureDepartedUsage = async () => {
+        if (skipBillingLogic) return 0
+
+        await tx
+          .select({ id: organization.id })
+          .from(organization)
+          .where(eq(organization.id, organizationId))
+          .for('update')
+          .limit(1)
+
+        const [departingUserStats] = await tx
+          .select({ currentPeriodCost: userStats.currentPeriodCost })
+          .from(userStats)
+          .where(eq(userStats.userId, userId))
+          .for('update')
+          .limit(1)
+
+        const usage = toNumber(toDecimal(departingUserStats?.currentPeriodCost))
+        if (usage <= 0) return 0
+
+        await tx
+          .update(organization)
+          .set({
+            departedMemberUsage: sql`${organization.departedMemberUsage} + ${usage}`,
+          })
+          .where(eq(organization.id, organizationId))
+
+        await tx
+          .update(userStats)
+          .set({ currentPeriodCost: '0' })
+          .where(eq(userStats.userId, userId))
+
+        return usage
+      }
+
       if (orgWorkspaces.length === 0) {
+        const capturedUsage = await captureDepartedUsage()
+
         return {
           workspaceIdsToRevoke: [] as string[],
           usageCaptured: capturedUsage,
@@ -1022,6 +1032,7 @@ export async function removeUserFromOrganization(
         workspaceIds,
         userId,
       })
+      const capturedUsage = await captureDepartedUsage()
 
       return {
         workspaceIdsToRevoke: deletedPerms.map((row) => row.entityId),
@@ -1498,7 +1509,7 @@ export async function transferOrganizationOwnership(
     return {
       ...result,
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to transfer ownership',
+      error: getErrorMessage(error, 'Failed to transfer ownership'),
     }
   }
 }

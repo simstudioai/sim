@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { onePasswordListVaultsContract } from '@/lib/api/contracts/tools/onepassword'
@@ -74,7 +75,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(data)
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    const message = getErrorMessage(error, 'Unknown error')
     logger.error(`[${requestId}] List vaults failed:`, error)
     return NextResponse.json({ error: `Failed to list vaults: ${message}` }, { status: 500 })
   }

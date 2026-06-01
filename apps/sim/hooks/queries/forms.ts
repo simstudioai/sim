@@ -14,8 +14,10 @@ import {
   type FormStatusResponse,
   getFormDetailContract,
   getFormStatusContract,
+  requestFormEmailOtpContract,
   type UpdateFormInput,
   updateFormContract,
+  verifyFormEmailOtpContract,
 } from '@/lib/api/contracts/forms'
 import { deploymentKeys } from './deployments'
 
@@ -34,6 +36,36 @@ export const formKeys = {
  * Auth types for form access control
  */
 export type { FormAuthType }
+
+/**
+ * Requests a one-time passcode for an email-gated deployed form.
+ * Used for both the initial send and resend flows.
+ */
+export function useFormEmailOtpRequest(identifier: string) {
+  return useMutation({
+    mutationFn: async ({ email }: { email: string }) => {
+      await requestJson(requestFormEmailOtpContract, {
+        params: { identifier },
+        body: { email },
+      })
+    },
+  })
+}
+
+/**
+ * Verifies a one-time passcode for an email-gated deployed form.
+ * On success the server sets the auth cookie; the caller should re-fetch the form config.
+ */
+export function useFormEmailOtpVerify(identifier: string) {
+  return useMutation({
+    mutationFn: async ({ email, otp }: { email: string; otp: string }) => {
+      await requestJson(verifyFormEmailOtpContract, {
+        params: { identifier },
+        body: { email, otp },
+      })
+    },
+  })
+}
 
 /**
  * Field configuration for form fields

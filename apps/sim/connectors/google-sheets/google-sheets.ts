@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { GoogleSheetsIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -199,7 +199,7 @@ async function sheetToDocument(
 export const googleSheetsConnector: ConnectorConfig = {
   id: 'google_sheets',
   name: 'Google Sheets',
-  description: 'Sync spreadsheet data from Google Sheets into your knowledge base',
+  description: 'Sync spreadsheet data from Google Sheets',
   version: '1.0.0',
   icon: GoogleSheetsIcon,
 
@@ -380,7 +380,7 @@ export const googleSheetsConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       return { valid: false, error: message }
     }
   },

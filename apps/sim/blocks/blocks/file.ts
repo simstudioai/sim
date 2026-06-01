@@ -44,6 +44,26 @@ const resolveFilePathsFromInput = (fileInput: unknown): string[] => {
   return resolved ? [resolved] : []
 }
 
+const resolveHttpFileUrl = (value: unknown): string => {
+  const fileUrl = typeof value === 'string' ? value.trim() : ''
+  if (!fileUrl) {
+    throw new Error('File URL is required')
+  }
+
+  let parsed: URL
+  try {
+    parsed = new URL(fileUrl)
+  } catch {
+    throw new Error('File URL must be a valid http or https URL')
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('File URL must use http or https')
+  }
+
+  return fileUrl
+}
+
 export const FileBlock: BlockConfig<FileParserOutput> = {
   type: 'file',
   name: 'File (Legacy)',
@@ -259,6 +279,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
   tags: ['document-processing'],
   bgColor: '#40916C',
   icon: DocumentIcon,
+  hideFromToolbar: true,
   subBlocks: [
     {
       id: 'operation',
@@ -266,6 +287,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
       type: 'dropdown' as SubBlockType,
       options: [
         { label: 'Read', id: 'file_parser_v3' },
+        { label: 'Get', id: 'file_get' },
         { label: 'Write', id: 'file_write' },
         { label: 'Append', id: 'file_append' },
       ],
@@ -293,6 +315,28 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
       mode: 'advanced',
       required: { field: 'operation', value: 'file_parser_v3' },
       condition: { field: 'operation', value: 'file_parser_v3' },
+    },
+    {
+      id: 'getFile',
+      title: 'File',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'getFileInput',
+      acceptedTypes: '*',
+      placeholder: 'Select a workspace file',
+      multiple: false,
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_get' },
+      required: { field: 'operation', value: 'file_get' },
+    },
+    {
+      id: 'getFileId',
+      title: 'File ID',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'getFileInput',
+      placeholder: 'Workspace file ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_get' },
+      required: { field: 'operation', value: 'file_get' },
     },
     {
       id: 'fileName',
@@ -349,7 +393,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     },
   ],
   tools: {
-    access: ['file_parser_v3', 'file_write', 'file_append'],
+    access: ['file_parser_v3', 'file_get', 'file_write', 'file_append'],
     config: {
       tool: (params) => params.operation || 'file_parser_v3',
       params: (params) => {
@@ -386,6 +430,25 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
           return {
             fileName,
             content: params.appendContent,
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_get') {
+          const getInput = params.getFileInput
+          if (!getInput) {
+            throw new Error('File is required for get')
+          }
+
+          if (typeof getInput === 'string') {
+            return {
+              fileId: getInput.trim(),
+              workspaceId: params._context?.workspaceId,
+            }
+          }
+
+          return {
+            fileInput: normalizeFileInput(getInput, { single: true }),
             workspaceId: params._context?.workspaceId,
           }
         }
@@ -428,9 +491,13 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     },
   },
   inputs: {
-    operation: { type: 'string', description: 'Operation to perform (read, write, or append)' },
+    operation: {
+      type: 'string',
+      description: 'Operation to perform (read, get, write, or append)',
+    },
     fileInput: { type: 'json', description: 'File input for read' },
     fileType: { type: 'string', description: 'File type for read' },
+    getFileInput: { type: 'json', description: 'Selected file or workspace file ID for get' },
     fileName: { type: 'string', description: 'Name for a new file (write)' },
     content: { type: 'string', description: 'File content to write' },
     contentType: { type: 'string', description: 'MIME content type for write' },
@@ -445,6 +512,294 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     combinedContent: {
       type: 'string',
       description: 'All file contents merged into a single text string (read)',
+    },
+    file: {
+      type: 'file',
+      description: 'Workspace file object (get)',
+    },
+    id: {
+      type: 'string',
+      description: 'File ID (write)',
+    },
+    name: {
+      type: 'string',
+      description: 'File name (write)',
+    },
+    size: {
+      type: 'number',
+      description: 'File size in bytes (write)',
+    },
+    url: {
+      type: 'string',
+      description: 'URL to access the file (write)',
+    },
+  },
+}
+
+const parseReadFileIds = (input: unknown): string | string[] | null => {
+  let value = input
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+
+    try {
+      value = JSON.parse(trimmed)
+    } catch {
+      return trimmed
+    }
+  }
+
+  if (Array.isArray(value)) {
+    const fileIds = value
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter((item) => item.length > 0)
+
+    if (fileIds.length === 0) return null
+    return fileIds.length === 1 ? fileIds[0] : fileIds
+  }
+
+  return null
+}
+
+export const FileV4Block: BlockConfig<FileParserV3Output> = {
+  ...FileV3Block,
+  type: 'file_v4',
+  name: 'File',
+  description: 'Read, fetch, write, and append files',
+  longDescription:
+    'Read workspace files by picker or canonical ID, fetch and parse files from URLs with optional headers, write new workspace files, or append content to existing files.',
+  hideFromToolbar: false,
+  bestPractices: `
+  - Use Read when you need an existing workspace file object by picker selection or canonical file ID.
+  - Use Fetch for external file URLs. Add headers for authenticated downloads, for example Slack private file URLs require an Authorization Bearer token.
+  `,
+  subBlocks: [
+    {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown' as SubBlockType,
+      options: [
+        { label: 'Read', id: 'file_read' },
+        { label: 'Fetch', id: 'file_fetch' },
+        { label: 'Write', id: 'file_write' },
+        { label: 'Append', id: 'file_append' },
+      ],
+      value: () => 'file_read',
+    },
+    {
+      id: 'readFile',
+      title: 'File',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'readFileInput',
+      acceptedTypes: '*',
+      placeholder: 'Select workspace files',
+      multiple: true,
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_read' },
+      required: { field: 'operation', value: 'file_read' },
+    },
+    {
+      id: 'readFileId',
+      title: 'File ID',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'readFileInput',
+      placeholder: 'Workspace file ID or JSON array of IDs',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_read' },
+      required: { field: 'operation', value: 'file_read' },
+    },
+    {
+      id: 'fileUrl',
+      title: 'File URL',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'https://example.com/document.pdf',
+      condition: { field: 'operation', value: 'file_fetch' },
+      required: { field: 'operation', value: 'file_fetch' },
+    },
+    {
+      id: 'headers',
+      title: 'Headers',
+      type: 'table' as SubBlockType,
+      columns: ['Key', 'Value'],
+      description:
+        'Custom headers for fetching the file URL, such as Authorization: Bearer <token>.',
+      condition: { field: 'operation', value: 'file_fetch' },
+    },
+    {
+      id: 'fileName',
+      title: 'File Name',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'File name (e.g., data.csv)',
+      condition: { field: 'operation', value: 'file_write' },
+      required: { field: 'operation', value: 'file_write' },
+    },
+    {
+      id: 'content',
+      title: 'Content',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'File content to write...',
+      condition: { field: 'operation', value: 'file_write' },
+      required: { field: 'operation', value: 'file_write' },
+    },
+    {
+      id: 'contentType',
+      title: 'Content Type',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'text/plain (auto-detected from extension)',
+      condition: { field: 'operation', value: 'file_write' },
+      mode: 'advanced',
+    },
+    {
+      id: 'appendFile',
+      title: 'File',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'appendFileInput',
+      acceptedTypes: '.txt,.md,.json,.csv,.xml,.html,.htm,.yaml,.yml,.log,.rtf',
+      placeholder: 'Select or upload a workspace file',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_append' },
+      required: { field: 'operation', value: 'file_append' },
+    },
+    {
+      id: 'appendFileName',
+      title: 'File',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'appendFileInput',
+      placeholder: 'File name (e.g., notes.md)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_append' },
+      required: { field: 'operation', value: 'file_append' },
+    },
+    {
+      id: 'appendContent',
+      title: 'Content',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'Content to append...',
+      condition: { field: 'operation', value: 'file_append' },
+      required: { field: 'operation', value: 'file_append' },
+    },
+  ],
+  tools: {
+    access: ['file_fetch', 'file_read', 'file_write', 'file_append'],
+    config: {
+      tool: (params) => {
+        const operation = params.operation || 'file_read'
+        if (operation === 'file_read') return 'file_read'
+        if (operation === 'file_fetch') return 'file_fetch'
+        return operation
+      },
+      params: (params) => {
+        const operation = params.operation || 'file_read'
+
+        if (operation === 'file_write') {
+          return {
+            fileName: params.fileName,
+            content: params.content,
+            contentType: params.contentType,
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_append') {
+          const appendInput = params.appendFileInput
+          if (!appendInput) {
+            throw new Error('File is required for append')
+          }
+
+          let fileName: string
+          if (typeof appendInput === 'string') {
+            fileName = appendInput.trim()
+          } else {
+            const normalized = normalizeFileInput(appendInput, { single: true })
+            const file = normalized as Record<string, unknown> | null
+            fileName = (file?.name as string) ?? ''
+          }
+
+          if (!fileName) {
+            throw new Error('Could not determine file name')
+          }
+
+          return {
+            fileName,
+            content: params.appendContent,
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_read') {
+          const readInput = params.readFileInput
+          if (!readInput) {
+            throw new Error('File is required for read')
+          }
+
+          const fileIds = parseReadFileIds(readInput)
+          if (fileIds) {
+            return {
+              fileId: fileIds,
+              workspaceId: params._context?.workspaceId,
+            }
+          }
+
+          const normalized = normalizeFileInput(readInput)
+          if (!normalized || normalized.length === 0) {
+            throw new Error('File is required for read')
+          }
+
+          return {
+            fileInput: normalized,
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_fetch') {
+          const fileUrl = resolveHttpFileUrl(params.fileUrl)
+
+          return {
+            filePath: fileUrl,
+            fileType: params.fileType || 'auto',
+            headers: params.headers,
+            workspaceId: params._context?.workspaceId,
+            workflowId: params._context?.workflowId,
+            executionId: params._context?.executionId,
+          }
+        }
+
+        logger.error(`Invalid file operation: ${operation}`)
+        throw new Error('Invalid file operation')
+      },
+    },
+  },
+  inputs: {
+    operation: {
+      type: 'string',
+      description: 'Operation to perform (read, fetch, write, or append)',
+    },
+    readFileInput: {
+      type: 'json',
+      description: 'Selected workspace file or canonical file ID for read',
+    },
+    fileUrl: { type: 'string', description: 'External file URL for fetch' },
+    headers: { type: 'json', description: 'Request headers for fetch' },
+    fileType: { type: 'string', description: 'File type for fetch' },
+    fileName: { type: 'string', description: 'Name for a new file (write)' },
+    content: { type: 'string', description: 'File content to write' },
+    contentType: { type: 'string', description: 'MIME content type for write' },
+    appendFileInput: { type: 'json', description: 'File to append to' },
+    appendContent: { type: 'string', description: 'Content to append to file' },
+  },
+  outputs: {
+    file: {
+      type: 'file',
+      description: 'First workspace file object (read)',
+    },
+    files: {
+      type: 'file[]',
+      description: 'Workspace file objects (read) or fetched file objects (fetch)',
+    },
+    combinedContent: {
+      type: 'string',
+      description: 'All fetched file contents merged into a single text string (fetch)',
     },
     id: {
       type: 'string',

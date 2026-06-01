@@ -24,7 +24,7 @@ export function PageNavigationArrows({ previous, next }: PageNavigationArrowsPro
           aria-label='Previous page'
           title='Previous page'
         >
-          <ChevronLeft className='h-4 w-4' />
+          <ChevronLeft className='size-4' />
         </Link>
       )}
       {next && (
@@ -34,7 +34,7 @@ export function PageNavigationArrows({ previous, next }: PageNavigationArrowsPro
           aria-label='Next page'
           title='Next page'
         >
-          <ChevronRight className='h-4 w-4' />
+          <ChevronRight className='size-4' />
         </Link>
       )}
     </div>

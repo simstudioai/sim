@@ -1,12 +1,10 @@
-import { createLogger } from '@sim/logger'
-import { BlockType, PARALLEL, type SentinelType } from '@/executor/constants'
-import type { DAG, DAGNode } from '@/executor/dag/builder'
+import { BlockType, PARALLEL } from '@/executor/constants'
+import type { DAG } from '@/executor/dag/builder'
+import { createSubflowSentinelNode } from '@/executor/dag/construction/sentinels'
 import {
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
 } from '@/executor/utils/subflow-utils'
-
-const logger = createLogger('ParallelConstructor')
 
 export class ParallelConstructor {
   execute(dag: DAG, reachableBlocks: Set<string>): void {
@@ -32,9 +30,10 @@ export class ParallelConstructor {
 
     dag.nodes.set(
       startId,
-      this.createSentinelNode({
+      createSubflowSentinelNode({
         id: startId,
-        parallelId,
+        subflowId: parallelId,
+        subflowType: 'parallel',
         sentinelType: PARALLEL.SENTINEL.START_TYPE,
         blockType: BlockType.SENTINEL_START,
         name: `${PARALLEL.SENTINEL.START_NAME_PREFIX} (${parallelId})`,
@@ -43,43 +42,14 @@ export class ParallelConstructor {
 
     dag.nodes.set(
       endId,
-      this.createSentinelNode({
+      createSubflowSentinelNode({
         id: endId,
-        parallelId,
+        subflowId: parallelId,
+        subflowType: 'parallel',
         sentinelType: PARALLEL.SENTINEL.END_TYPE,
         blockType: BlockType.SENTINEL_END,
         name: `${PARALLEL.SENTINEL.END_NAME_PREFIX} (${parallelId})`,
       })
     )
-  }
-
-  private createSentinelNode(config: {
-    id: string
-    parallelId: string
-    sentinelType: SentinelType
-    blockType: BlockType
-    name: string
-  }): DAGNode {
-    return {
-      id: config.id,
-      block: {
-        id: config.id,
-        enabled: true,
-        metadata: {
-          id: config.blockType,
-          name: config.name,
-          parallelId: config.parallelId,
-        },
-        config: { params: {} },
-      } as any,
-      incomingEdges: new Set(),
-      outgoingEdges: new Map(),
-      metadata: {
-        isSentinel: true,
-        isParallelSentinel: true,
-        sentinelType: config.sentinelType,
-        parallelId: config.parallelId,
-      },
-    }
   }
 }

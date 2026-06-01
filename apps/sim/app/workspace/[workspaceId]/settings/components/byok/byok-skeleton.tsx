@@ -7,7 +7,7 @@ export function BYOKKeySkeleton() {
   return (
     <div className='flex items-center justify-between gap-3'>
       <div className='flex items-center gap-3'>
-        <Skeleton className='h-9 w-9 flex-shrink-0 rounded-md' />
+        <Skeleton className='size-9 flex-shrink-0 rounded-md' />
         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
           <Skeleton className='h-[16px] w-[100px]' />
           <Skeleton className='h-[14px] w-[200px]' />

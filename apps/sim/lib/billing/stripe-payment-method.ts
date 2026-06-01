@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type Stripe from 'stripe'
 
 const logger = createLogger('StripePaymentMethod')
@@ -66,7 +67,7 @@ export async function resolveDefaultPaymentMethod(
     logger.warn('Failed to resolve default payment method', {
       stripeSubscriptionId,
       customerId,
-      error: error instanceof Error ? error.message : error,
+      error: getErrorMessage(error),
     })
   }
 

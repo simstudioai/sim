@@ -33,7 +33,7 @@ export interface GoogleDrivePermission {
 }
 
 // Label/tag information
-export interface GoogleDriveLabel {
+interface GoogleDriveLabel {
   id?: string
   revisionId?: string
   kind?: string
@@ -53,7 +53,7 @@ export interface GoogleDriveLabel {
 }
 
 // Content hints for indexing
-export interface GoogleDriveContentHints {
+interface GoogleDriveContentHints {
   indexableText?: string
   thumbnail?: {
     image?: string
@@ -62,7 +62,7 @@ export interface GoogleDriveContentHints {
 }
 
 // Image-specific metadata
-export interface GoogleDriveImageMediaMetadata {
+interface GoogleDriveImageMediaMetadata {
   width?: number
   height?: number
   rotation?: number
@@ -91,21 +91,21 @@ export interface GoogleDriveImageMediaMetadata {
 }
 
 // Video-specific metadata
-export interface GoogleDriveVideoMediaMetadata {
+interface GoogleDriveVideoMediaMetadata {
   width?: number
   height?: number
   durationMillis?: string
 }
 
 // Shortcut details
-export interface GoogleDriveShortcutDetails {
+interface GoogleDriveShortcutDetails {
   targetId?: string
   targetMimeType?: string
   targetResourceKey?: string
 }
 
 // Content restrictions
-export interface GoogleDriveContentRestriction {
+interface GoogleDriveContentRestriction {
   readOnly?: boolean
   reason?: string
   type?: string
@@ -116,13 +116,13 @@ export interface GoogleDriveContentRestriction {
 }
 
 // Link share metadata
-export interface GoogleDriveLinkShareMetadata {
+interface GoogleDriveLinkShareMetadata {
   securityUpdateEligible?: boolean
   securityUpdateEnabled?: boolean
 }
 
 // Capabilities - what the current user can do with the file
-export interface GoogleDriveCapabilities {
+interface GoogleDriveCapabilities {
   canAcceptOwnership?: boolean
   canAddChildren?: boolean
   canAddFolderFromAnotherDrive?: boolean

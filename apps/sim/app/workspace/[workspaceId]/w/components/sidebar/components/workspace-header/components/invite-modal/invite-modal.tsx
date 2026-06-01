@@ -10,6 +10,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   TagInput,
@@ -515,6 +516,9 @@ export function InviteModal({
           autoComplete='off'
         >
           <ModalBody>
+            <ModalDescription className='sr-only'>
+              Invite members to this workspace by email and manage their permissions
+            </ModalDescription>
             <div className='space-y-3'>
               <div>
                 <Label
@@ -656,13 +660,13 @@ export function InviteModal({
         <ModalContent size='sm'>
           <ModalHeader>Remove Member</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to remove{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {memberToRemove?.email}
               </span>{' '}
               from this workspace? This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button
@@ -688,13 +692,13 @@ export function InviteModal({
         <ModalContent size='sm'>
           <ModalHeader>Cancel Invitation</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to cancel the invitation for{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {invitationToRemove?.email}
               </span>
               ? This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

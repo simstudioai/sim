@@ -68,8 +68,18 @@ export const resendListDomainsTool: ToolConfig<ListDomainsParams, ListDomainsRes
 
   outputs: {
     domains: {
-      type: 'json',
-      description: 'Array of domains with id, name, status, region, and createdAt',
+      type: 'array',
+      description: 'Array of domains',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Domain ID' },
+          name: { type: 'string', description: 'Domain name' },
+          status: { type: 'string', description: 'Domain verification status' },
+          region: { type: 'string', description: 'Region the domain is configured in' },
+          createdAt: { type: 'string', description: 'Domain creation timestamp' },
+        },
+      },
     },
     hasMore: { type: 'boolean', description: 'Whether there are more domains to retrieve' },
   },

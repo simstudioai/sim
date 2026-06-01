@@ -61,7 +61,7 @@ const timePickerVariants = cva(
 /**
  * Props for the TimePicker component.
  */
-export interface TimePickerProps
+interface TimePickerProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onChange'>,
     VariantProps<typeof timePickerVariants> {
   /** Current time value in 24h format (HH:mm) */
@@ -74,6 +74,8 @@ export interface TimePickerProps
   disabled?: boolean
   /** Size variant */
   size?: 'default' | 'sm'
+  /** Optional rendered trigger label. */
+  overlayContent?: React.ReactNode
 }
 
 /**
@@ -125,6 +127,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
       onChange,
       placeholder = 'Select time',
       disabled = false,
+      overlayContent,
       ...props
     },
     ref
@@ -147,10 +150,11 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
 
     React.useEffect(() => {
       if (open) {
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           hourInputRef.current?.focus()
           hourInputRef.current?.select()
         }, 0)
+        return () => clearTimeout(timeoutId)
       }
     }, [open])
 
@@ -236,7 +240,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
               onKeyDown={handleKeyDown}
             >
               <span className={cn('flex-1 truncate', !displayValue && 'text-[var(--text-muted)]')}>
-                {displayValue || placeholder}
+                {overlayContent ?? (displayValue || placeholder)}
               </span>
               <ChevronDown
                 className={cn(

@@ -221,10 +221,11 @@ Return ONLY the email body - no explanations, no extra text.`,
       title: 'Unsubscribed',
       type: 'dropdown',
       options: [
+        { label: 'Use Default', id: '' },
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
-      value: () => 'false',
+      value: () => '',
       condition: { field: 'operation', value: ['create_contact', 'update_contact'] },
     },
 
@@ -267,7 +268,9 @@ Return ONLY the email body - no explanations, no extra text.`,
       params: (params) => {
         const { operation, ...rest } = params
 
-        if (rest.unsubscribed !== undefined) {
+        if (rest.unsubscribed === undefined || rest.unsubscribed === '') {
+          rest.unsubscribed = undefined
+        } else {
           rest.unsubscribed = rest.unsubscribed === 'true'
         }
 

@@ -11,6 +11,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   SecretReveal,
@@ -179,7 +180,7 @@ export function Copilot() {
         <div className='flex items-center gap-2'>
           <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
-              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
             />
             <Input
@@ -197,7 +198,7 @@ export function Copilot() {
             variant='primary'
             disabled={isLoading}
           >
-            <Plus className='mr-1.5 h-[13px] w-[13px]' />
+            <Plus className='mr-1.5 size-[13px]' />
             Create
           </Button>
         </div>
@@ -256,10 +257,10 @@ export function Copilot() {
         <ModalContent size='sm'>
           <ModalHeader>Create new API key</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               This key will allow access to Copilot features. Make sure to copy it after creation as
               you won't be able to see it again.
-            </p>
+            </ModalDescription>
 
             <div className='mt-4 flex flex-col gap-2'>
               <p className='font-medium text-[var(--text-secondary)] text-sm'>
@@ -316,12 +317,12 @@ export function Copilot() {
         <ModalContent size='sm'>
           <ModalHeader>Your API key has been created</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               This is the only time you will see your API key.{' '}
               <span className='font-semibold text-[var(--text-primary)]'>
                 Copy it now and store it securely.
               </span>
-            </p>
+            </ModalDescription>
 
             {newKey && <SecretReveal value={newKey} className='mt-2.5' />}
           </ModalBody>
@@ -333,7 +334,7 @@ export function Copilot() {
         <ModalContent size='sm'>
           <ModalHeader>Delete API key</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Deleting{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {deleteKey?.name || 'Unnamed Key'}
@@ -342,7 +343,7 @@ export function Copilot() {
                 will immediately revoke access for any integrations using it.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

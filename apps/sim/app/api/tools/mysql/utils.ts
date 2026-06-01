@@ -1,3 +1,4 @@
+import net from 'node:net'
 import mysql from 'mysql2/promise'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 
@@ -16,12 +17,19 @@ export async function createMySQLConnection(config: MySQLConnectionConfig) {
     throw new Error(hostValidation.error)
   }
 
+  const resolvedIP = hostValidation.resolvedIP ?? config.host
+
   const connectionConfig: mysql.ConnectionOptions = {
     host: config.host,
     port: config.port,
     database: config.database,
     user: config.username,
     password: config.password,
+    stream: () => {
+      const socket = net.connect({ host: resolvedIP, port: config.port, timeout: 10000 })
+      socket.setNoDelay(true)
+      return socket
+    },
   }
 
   if (config.ssl === 'disabled') {

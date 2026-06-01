@@ -125,7 +125,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         fileName: {
           type: 'string',
           description:
-            'Plain workspace filename including extension, e.g. "main.py" or "report.md". Must not contain slashes.',
+            'Workspace filename or slash-separated file path including extension, e.g. "main.py", "report.md", or "Reports/2026/report.md".',
         },
       },
       required: ['fileName'],
@@ -148,6 +148,27 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
       required: ['success', 'message'],
     },
+  },
+  create_file_folder: {
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Folder name.',
+        },
+        parentId: {
+          type: 'string',
+          description: 'Optional parent file-folder ID.',
+        },
+        workspaceId: {
+          type: 'string',
+          description: 'Optional workspace ID. Defaults to the current workspace.',
+        },
+      },
+      required: ['name'],
+    },
+    resultSchema: undefined,
   },
   create_folder: {
     parameters: {
@@ -253,13 +274,25 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           description: 'Optional description for the server',
         },
+        isPublic: {
+          type: 'boolean',
+          description: 'Whether the workflow MCP server is publicly accessible',
+        },
         name: {
           type: 'string',
           description: 'Required: server name',
         },
+        workflowIds: {
+          type: 'array',
+          description: 'Optional deployed workflow IDs to publish as tools on the new server',
+          items: {
+            type: 'string',
+          },
+        },
         workspaceId: {
           type: 'string',
-          description: 'Workspace ID (defaults to current workspace)',
+          description:
+            'Workspace ID. Required when no current workspace context is available, such as headless MCP calls.',
         },
       },
       required: ['name'],
@@ -313,6 +346,22 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
       required: ['success', 'message'],
     },
+  },
+  delete_file_folder: {
+    parameters: {
+      type: 'object',
+      properties: {
+        folderIds: {
+          type: 'array',
+          description: 'The workspace file-folder IDs to delete.',
+          items: {
+            type: 'string',
+          },
+        },
+      },
+      required: ['folderIds'],
+    },
+    resultSchema: undefined,
   },
   delete_folder: {
     parameters: {
@@ -819,7 +868,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         inputFiles: {
           type: 'array',
           description:
-            'Canonical workspace file IDs to mount in the sandbox. Discover IDs via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json"). Mounted path: /home/user/files/{fileId}/{originalName}. Example: ["wf_123"]',
+            'Canonical workspace file IDs to mount in the sandbox. Discover IDs via read("files/{path}/{name}/meta.json") or glob("files/**/meta.json") / glob("files/by-id/*/meta.json"). Mounted path: /home/user/files/{fileId}/{originalName}. Example: ["wf_123"]',
           items: {
             type: 'string',
           },
@@ -851,7 +900,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         outputPath: {
           type: 'string',
           description:
-            'Pipe output directly to a NEW workspace file instead of returning in context. ALWAYS use this instead of a separate workspace_file write call. Use a flat path like "files/result.json" — nested paths are not supported.',
+            'Pipe output directly to a NEW workspace file instead of returning in context. ALWAYS use this instead of a separate workspace_file write call. Use a root path like "files/result.json" — nested output paths are not supported.',
         },
         outputSandboxPath: {
           type: 'string',
@@ -898,7 +947,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         fileName: {
           type: 'string',
           description:
-            'Output file name. Defaults to "generated-image.png". Workspace files are flat, so pass a plain file name, not a nested path.',
+            'Output file name. Defaults to "generated-image.png". New generated images currently create root workspace files, so pass a plain file name, not a nested path.',
         },
         overwriteFileId: {
           type: 'string',
@@ -935,12 +984,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         fileName: {
           type: 'string',
           description:
-            'Output file name. Defaults to "chart.png". Workspace files are flat, so pass a plain file name, not a nested path.',
+            'Output file name. Defaults to "chart.png". New visualization outputs currently create root workspace files, so pass a plain file name, not a nested path.',
         },
         inputFiles: {
           type: 'array',
           description:
-            'Canonical workspace file IDs to mount in the sandbox. Discover IDs via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json"). Mounted path: /home/user/files/{fileId}/{originalName}.',
+            'Canonical workspace file IDs to mount in the sandbox. Discover IDs via read("files/{path}/{name}/meta.json") or glob("files/**/meta.json") / glob("files/by-id/*/meta.json"). Mounted path: /home/user/files/{fileId}/{originalName}.',
           items: {
             type: 'string',
           },
@@ -1341,7 +1390,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             fileIds: {
               type: 'array',
               description:
-                'Canonical workspace file IDs to add as documents (for add_file). Discover via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json").',
+                'Canonical workspace file IDs to add as documents (for add_file). Discover via read("files/{path}/{name}/meta.json") or glob("files/**/meta.json") / glob("files/by-id/*/meta.json").',
               items: {
                 type: 'string',
               },
@@ -1452,6 +1501,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
+  list_file_folders: {
+    parameters: {
+      type: 'object',
+      properties: {
+        workspaceId: {
+          type: 'string',
+          description: 'Optional workspace ID. Defaults to the current workspace.',
+        },
+      },
+    },
+    resultSchema: undefined,
+  },
   list_folders: {
     parameters: {
       type: 'object',
@@ -1477,7 +1538,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         workspaceId: {
           type: 'string',
-          description: 'Workspace ID (defaults to current workspace)',
+          description:
+            'Workspace ID. Required when no current workspace context is available, such as headless MCP calls.',
         },
       },
     },
@@ -1778,6 +1840,45 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  move_file: {
+    parameters: {
+      type: 'object',
+      properties: {
+        fileIds: {
+          type: 'array',
+          description: 'Canonical workspace file IDs to move.',
+          items: {
+            type: 'string',
+          },
+        },
+        folderId: {
+          type: 'string',
+          description:
+            'Target file-folder ID. Omit or pass empty string to move to workspace root.',
+        },
+      },
+      required: ['fileIds'],
+    },
+    resultSchema: undefined,
+  },
+  move_file_folder: {
+    parameters: {
+      type: 'object',
+      properties: {
+        folderId: {
+          type: 'string',
+          description: 'The workspace file-folder ID to move.',
+        },
+        parentId: {
+          type: 'string',
+          description:
+            'Target parent file-folder ID. Omit or pass empty string to move to workspace root.',
+        },
+      },
+      required: ['folderId'],
+    },
+    resultSchema: undefined,
+  },
   move_folder: {
     parameters: {
       type: 'object',
@@ -1856,7 +1957,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             properties: {
               id: {
                 type: 'string',
-                description: 'The resource ID.',
+                description:
+                  'Canonical resource ID. For type "file" this must be a UUID from the workspace file meta.json "id" field—never a VFS path or display name.',
               },
               type: {
                 type: 'string',
@@ -1978,7 +2080,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         newName: {
           type: 'string',
           description:
-            'New filename including extension, e.g. "draft_v2.md". Must not contain slashes.',
+            'New filename including extension, e.g. "draft_v2.md". Use move_file to move files between folders.',
         },
       },
       required: ['fileId', 'newName'],
@@ -2001,6 +2103,23 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
       required: ['success', 'message'],
     },
+  },
+  rename_file_folder: {
+    parameters: {
+      type: 'object',
+      properties: {
+        folderId: {
+          type: 'string',
+          description: 'The workspace file-folder ID to rename.',
+        },
+        name: {
+          type: 'string',
+          description: 'New folder name.',
+        },
+      },
+      required: ['folderId', 'name'],
+    },
+    resultSchema: undefined,
   },
   rename_workflow: {
     parameters: {
@@ -2066,7 +2185,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         type: {
           type: 'string',
           description: 'The resource type to restore.',
-          enum: ['workflow', 'table', 'file', 'knowledgebase', 'folder'],
+          enum: ['workflow', 'table', 'file', 'knowledgebase', 'folder', 'file_folder'],
         },
       },
       required: ['type', 'id'],
@@ -2597,7 +2716,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             autoRun: {
               type: 'boolean',
               description:
-                "Optional flag for add_workflow_group and update_workflow_group. On add: when true, existing rows whose dependencies are already filled run immediately; default false stages the group silently — call run_column when ready to fire rows. On update: toggle a group's auto-fire behavior on an existing group — false stages it (no auto-runs on dep satisfaction; only manual run_column fires rows), true re-enables auto-fire (rows whose deps fill will be scheduled). Set true on add only if the user explicitly asked to start runs immediately.",
+                "Optional flag for add_workflow_group, add_enrichment, and update_workflow_group. On add (workflow group or enrichment): when true, existing rows whose dependencies are already filled run immediately; default false stages the group silently — call run_column when ready to fire rows. On update: toggle a group's auto-fire behavior on an existing group — false stages it (no auto-runs on dep satisfaction; only manual run_column fires rows), true re-enables auto-fire (rows whose deps fill will be scheduled). Set true on add only if the user explicitly asked to start runs immediately.",
             },
             blockId: {
               type: 'string',
@@ -2625,7 +2744,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             dependencies: {
               type: 'object',
               description:
-                "Dependencies the workflow group requires before running a row. { columns?: string[] } lists input column names that must be filled. Workflow output columns count too — depend on the column produced by an upstream group, not the group itself. The dep graph is column-induced. A group can't depend on its own output columns. Used by add_workflow_group and update_workflow_group.",
+                "Dependencies the group requires before running a row. { columns?: string[] } lists input column names that must be filled. Workflow output columns count too — depend on the column produced by an upstream group, not the group itself. The dep graph is column-induced. A group can't depend on its own output columns. Used by add_workflow_group and update_workflow_group, and optionally by add_enrichment (omit and the handler defaults deps to the mapped input columns).",
               properties: {
                 columns: {
                   type: 'array',
@@ -2641,10 +2760,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'string',
               description: "Table description (optional for 'create')",
             },
+            enrichmentId: {
+              type: 'string',
+              description:
+                "Enrichment registry ID for add_enrichment. Discover the available IDs (and each one's inputs/outputs) via list_enrichments first — don't hardcode. Examples: work-email, phone-number, company-domain, company-info.",
+            },
             fileId: {
               type: 'string',
               description:
-                'Canonical workspace file ID for create_from_file/import_file. Discover via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json").',
+                'Canonical workspace file ID for create_from_file/import_file. Discover via read("files/{path}/{name}/meta.json") or glob("files/**/meta.json") / glob("files/by-id/*/meta.json").',
             },
             filePath: {
               type: 'string',
@@ -2667,6 +2791,25 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 'Array of workflow group IDs. Required for run_column — non-empty list of columns to run.',
               items: {
                 type: 'string',
+              },
+            },
+            inputMappings: {
+              type: 'array',
+              description:
+                'For add_enrichment: maps each enrichment input to an existing table column. Each item is { inputName, columnName } where inputName is the enrichment input id (from list_enrichments) and columnName is an existing column on the table. Provide a mapping for every required input. (The field is named inputName for consistency with workflow-group input mappings; for enrichments it holds the enrichment input id.)',
+              items: {
+                type: 'object',
+                properties: {
+                  columnName: {
+                    type: 'string',
+                    description: 'Existing table column name that supplies this input.',
+                  },
+                  inputName: {
+                    type: 'string',
+                    description: 'Enrichment input id to bind (from list_enrichments).',
+                  },
+                },
+                required: ['inputName', 'columnName'],
               },
             },
             limit: {
@@ -2715,7 +2858,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             name: {
               type: 'string',
-              description: "Table name (required for 'create')",
+              description:
+                "Table name (required for 'create'). Also the optional display name for add_enrichment — defaults to the enrichment's registry name when omitted.",
             },
             newName: {
               type: 'string',
@@ -2730,6 +2874,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'number',
               description: 'Number of rows to skip (optional for query_rows, default 0)',
             },
+            outputColumnNames: {
+              type: 'object',
+              description:
+                'Optional output column name overrides for add_enrichment, as { "<outputId>": "<columnName>" }. Omit to use each enrichment output\'s default name.',
+              additionalProperties: {
+                type: 'string',
+                description: 'Target column name for this enrichment output id.',
+              },
+            },
             outputFormat: {
               type: 'string',
               description:
@@ -2739,7 +2892,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             outputPath: {
               type: 'string',
               description:
-                'Pipe query_rows results directly to a NEW workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use .csv for tabular exports. Use a flat path like "files/export.csv" — nested paths are not supported.',
+                'Pipe query_rows results directly to a NEW workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use a root output path like "files/export.csv" — nested output paths are not supported.',
             },
             outputs: {
               type: 'array',
@@ -2891,6 +3044,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'run_column',
             'cancel_table_runs',
             'list_workflow_outputs',
+            'list_enrichments',
+            'add_enrichment',
           ],
         },
       },

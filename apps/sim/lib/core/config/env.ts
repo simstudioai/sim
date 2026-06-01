@@ -27,6 +27,8 @@ export const env = createEnv({
     ALLOWED_LOGIN_EMAILS:                  z.string().optional(),                  // Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS:                 z.string().optional(),                  // Comma-separated list of allowed email domains for login
     BLOCKED_SIGNUP_DOMAINS:                z.string().optional(),                  // Comma-separated list of email domains blocked from signing up (e.g., "gmail.com,yahoo.com")
+    SIGNUP_MX_VALIDATION_ENABLED:          z.boolean().optional(),                 // Opt-in: validate the email's MX backend at signup (blocks no-MX domains and denylisted shared spam backends). Off by default; enable on hosted/abuse-targeted deployments.
+    BLOCKED_EMAIL_MX_HOSTS:                z.string().optional(),                  // Comma-separated MX-host substrings blocked from signing up; matched against the domain's resolved MX backend to catch throwaway domains that share a mail backend. No defaults — operators supply their own list. Only used when SIGNUP_MX_VALIDATION_ENABLED is set.
     TRUSTED_ORIGINS:                       z.string().optional(),                  // Comma-separated additional origins to trust for auth (e.g., "https://app.example.com,https://www.example.com"). Merged into Better Auth trustedOrigins.
     TURNSTILE_SECRET_KEY:                  z.string().min(1).optional(),           // Cloudflare Turnstile secret key for captcha verification
     SIGNUP_EMAIL_VALIDATION_ENABLED:       z.boolean().optional(),                 // Enable disposable email blocking via better-auth-harmony (55K+ domains)
@@ -37,6 +39,10 @@ export const env = createEnv({
     // Copilot
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
+    COPILOT_SOURCE_ENV:                    z.enum(['dev', 'staging', 'prod']).optional(), // Source Sim environment sent to mothership for callbacks
+    COPILOT_DEV_URL:                       z.string().url().optional(),            // Sim agent API URL for the dev mothership environment
+    COPILOT_STAGING_URL:                   z.string().url().optional(),            // Sim agent API URL for the staging mothership environment
+    COPILOT_PROD_URL:                      z.string().url().optional(),            // Sim agent API URL for the production mothership environment
     AGENT_INDEXER_URL:                     z.string().url().optional(),            // URL for agent training data indexer
     AGENT_INDEXER_API_KEY:                 z.string().min(1).optional(),           // API key for agent indexer authentication
     COPILOT_STREAM_TTL_SECONDS:            z.number().optional(),                  // Redis TTL for copilot SSE buffer
@@ -44,6 +50,7 @@ export const env = createEnv({
 
     // Database & Storage
     REDIS_URL:                             z.string().url().optional(),            // Redis connection string for caching/sessions
+    REDIS_TLS_SERVERNAME:                  z.string().min(1).optional(),           // TLS SNI override; required when REDIS_URL targets an IP over rediss:// (e.g. trigger.dev PrivateLink VPCE IP) so cert hostname verification matches the ElastiCache cert's CN
 
     // Payment & Billing
     STRIPE_SECRET_KEY:                     z.string().min(1).optional(),           // Stripe secret key for payment processing
@@ -94,6 +101,12 @@ export const env = createEnv({
     PERSONAL_EMAIL_FROM:                   z.string().min(1).optional(),           // From address for personalized emails
     EMAIL_DOMAIN:                          z.string().min(1).optional(),           // Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
     AZURE_ACS_CONNECTION_STRING:           z.string().optional(),                  // Azure Communication Services connection string
+    AWS_SES_REGION:                        z.string().min(1).optional(),           // AWS region for SES (credentials resolved via default SDK provider chain)
+    SMTP_HOST:                             z.string().min(1).optional(),           // SMTP server hostname
+    SMTP_PORT:                             z.coerce.number().int().min(1).max(65535).optional(),
+    SMTP_USER:                             z.string().min(1).optional(),           // SMTP username
+    SMTP_PASS:                             z.string().min(1).optional(),           // SMTP password
+    SMTP_SECURE:                           z.boolean().optional(),                 // Force TLS on connect (defaults to true on port 465); read via envBoolean to handle string values from process.env
 
     // SMS & Messaging
     TWILIO_ACCOUNT_SID:                    z.string().min(1).optional(),           // Twilio Account SID for SMS sending
@@ -116,7 +129,11 @@ export const env = createEnv({
     OLLAMA_URL:                            z.string().url().optional(),            // Ollama local LLM server URL
     VLLM_BASE_URL:                         z.string().url().optional(),            // vLLM self-hosted base URL (OpenAI-compatible)
     VLLM_API_KEY:                          z.string().optional(),                  // Optional bearer token for vLLM
+    LITELLM_BASE_URL:                      z.string().url().optional(),            // LiteLLM proxy base URL (OpenAI-compatible)
+    LITELLM_API_KEY:                       z.string().optional(),                  // Optional bearer token for LiteLLM
     FIREWORKS_API_KEY:                     z.string().optional(),                  // Optional Fireworks AI API key for model listing
+    TOGETHER_API_KEY:                      z.string().optional(),                  // Optional Together AI API key for model listing and inference
+    BASETEN_API_KEY:                       z.string().optional(),                  // Optional Baseten API key for model listing and inference
     COHERE_API_KEY:                        z.string().min(1).optional(),           // Cohere API key for reranker (rerank-v4.0-pro, rerank-v4.0-fast, rerank-v3.5)
     COHERE_API_KEY_1:                      z.string().min(1).optional(),           // Primary Cohere API key for rotation
     COHERE_API_KEY_2:                      z.string().min(1).optional(),           // Additional Cohere API key for load balancing
@@ -153,6 +170,9 @@ export const env = createEnv({
     LOG_LEVEL:                             z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).optional(), // Minimum log level to display (defaults to ERROR in production, DEBUG in development)
     PROFOUND_API_KEY:                      z.string().min(1).optional(),           // Profound analytics API key
     PROFOUND_ENDPOINT:                     z.string().url().optional(),            // Profound analytics endpoint
+    GRAFANA_OTLP_ENDPOINT:                 z.string().url().optional(),            // Grafana Cloud OTLP HTTP gateway base URL (e.g., https://otlp-gateway-prod-us-east-0.grafana.net/otlp). Trigger.dev exporters append /v1/traces, /v1/logs, /v1/metrics.
+    GRAFANA_OTLP_HEADERS:                  z.string().min(1).optional(),           // Comma-separated key=value headers for OTLP requests (e.g., "Authorization=Basic <base64(instanceId:token)>"). Same format as the OTEL_EXPORTER_OTLP_HEADERS spec.
+    GRAFANA_DEPLOYMENT_ENVIRONMENT:        z.string().min(1).optional(),           // Deployment tier label (e.g., "production", "staging", "development"). Emitted as the stable `deployment.environment.name` resource attribute on Trigger.dev telemetry to match the rest of the Sim OTEL stack.
 
     // External Services
     BROWSERBASE_API_KEY:                   z.string().min(1).optional(),           // Browserbase API key for browser automation
@@ -178,6 +198,12 @@ export const env = createEnv({
     TRIGGER_DEV_ENABLED:                   z.boolean().optional(),                 // Toggle to enable/disable Trigger.dev for async jobs
     CRON_SECRET:                           z.string().optional(),                  // Secret for authenticating cron job requests
     JOB_RETENTION_DAYS:                    z.string().optional().default('1'),     // Days to retain job logs/data
+    SCHEDULE_EXECUTION_CONCURRENCY_LIMIT:  z.string().optional().default('50'),
+    SCHEDULE_ENQUEUE_BUDGET_MULTIPLIER:    z.string().optional().default('2'),
+    SCHEDULE_JITTER_MAX_MS:                z.string().optional().default('30000'),
+    SCHEDULE_INFRA_RETRY_BASE_MS:          z.string().optional().default('60000'),
+    SCHEDULE_INFRA_RETRY_MAX_MS:           z.string().optional().default('300000'),
+    SCHEDULE_INFRA_RETRY_MAX_ATTEMPTS:     z.string().optional().default('10'),
 
     // Cloud Storage - AWS S3
     AWS_REGION:                            z.string().optional(),                  // AWS region for S3 buckets
@@ -248,7 +274,7 @@ export const env = createEnv({
     IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER:z.string().optional().default('2200'),   // Max owner in-flight leases across replicas
     IVM_DISTRIBUTED_LEASE_MIN_TTL_MS:      z.string().optional().default('120000'), // Min TTL for distributed in-flight leases (ms)
     IVM_QUEUE_TIMEOUT_MS:                  z.string().optional().default('300000'), // Max queue wait before rejection (ms)
-    IVM_MAX_EXECUTIONS_PER_WORKER:         z.string().optional().default('500'),    // Max lifetime executions before worker is recycled
+    IVM_MAX_EXECUTIONS_PER_WORKER:         z.string().optional().default('200'),    // Max lifetime executions before worker is recycled
     IVM_MAX_BROKER_ARGS_JSON_CHARS:        z.string().optional().default('262144'),  // Max JSON payload size for sandbox task broker args (isolate→host)
     IVM_MAX_BROKER_RESULT_JSON_CHARS:      z.string().optional().default('16777216'),// Max JSON payload size for sandbox task broker results (host→isolate)
     IVM_MAX_BROKERS_PER_EXECUTION:         z.string().optional().default('1000'),    // Max broker calls per sandbox task execution
@@ -441,7 +467,7 @@ export const env = createEnv({
     NEXT_PUBLIC_PRIVACY_URL:               z.string().url().optional(),            // Custom privacy policy URL
 
     // Theme Customization
-    NEXT_PUBLIC_BRAND_PRIMARY_COLOR:       z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),     // Primary brand color (hex format, e.g., "#701ffc")
+    NEXT_PUBLIC_BRAND_PRIMARY_COLOR:       z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),     // Primary brand color (hex format, e.g., "#33c482")
     NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),     // Primary brand hover state (hex format)
     NEXT_PUBLIC_BRAND_ACCENT_COLOR:        z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),     // Accent brand color (hex format)
     NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR:  z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),     // Accent brand hover state (hex format)
@@ -539,11 +565,33 @@ export { getEnv }
 export function envNumber(
   value: number | string | undefined | null,
   fallback: number,
-  options: { min?: number } = {}
+  options: { min?: number; integer?: boolean } = {}
 ): number {
   const min = options.min ?? 0
-  if (typeof value === 'number' && Number.isFinite(value) && value >= min) return value
+  if (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= min &&
+    (!options.integer || Number.isInteger(value))
+  ) {
+    return value
+  }
   if (value === undefined || value === null || value === '') return fallback
   const parsed = Number(value)
-  return Number.isFinite(parsed) && parsed >= min ? parsed : fallback
+  return Number.isFinite(parsed) && parsed >= min && (!options.integer || Number.isInteger(parsed))
+    ? parsed
+    : fallback
+}
+
+/**
+ * Coerce an env-derived value to a boolean. Returns `undefined` when unset
+ * so callers can apply context-aware defaults. Required because
+ * `Boolean("false") === true`, so `z.coerce.boolean()` would silently flip
+ * the meaning of `MY_FLAG=false`.
+ */
+export function envBoolean(value: boolean | string | undefined | null): boolean | undefined {
+  if (typeof value === 'boolean') return value
+  if (value === undefined || value === null || value === '') return undefined
+  const normalized = String(value).trim().toLowerCase()
+  return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on'
 }

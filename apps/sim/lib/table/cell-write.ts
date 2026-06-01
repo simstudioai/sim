@@ -10,6 +10,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { appendTableEvent } from '@/lib/table/events'
 import type { RowData, RowExecutionMetadata, RowExecutions, WorkflowGroup } from '@/lib/table/types'
 
 const logger = createLogger('WorkflowCellWrite')
@@ -113,6 +114,25 @@ export async function writeWorkflowGroupState(
     )
     return 'skipped'
   }
+
+  const dataPatch = payload.dataPatch
+  const hasOutputs = dataPatch && Object.keys(dataPatch).length > 0
+  const runningBlockIds = payload.executionState.runningBlockIds
+  const blockErrors = payload.executionState.blockErrors
+  void appendTableEvent({
+    kind: 'cell',
+    tableId,
+    rowId,
+    groupId,
+    status: payload.executionState.status,
+    executionId: payload.executionState.executionId ?? null,
+    jobId: payload.executionState.jobId ?? null,
+    error: payload.executionState.error ?? null,
+    ...(hasOutputs ? { outputs: dataPatch } : {}),
+    ...(runningBlockIds && runningBlockIds.length > 0 ? { runningBlockIds } : {}),
+    ...(blockErrors && Object.keys(blockErrors).length > 0 ? { blockErrors } : {}),
+  })
+
   return 'wrote'
 }
 
@@ -141,7 +161,9 @@ export async function markWorkflowGroupPickedUp(
 /** Builds the canonical `cancelled` execution state used by every cancel path.
  *  Preserves `blockErrors` from the prior state so errored cells keep
  *  rendering Error after a stop click — only cells that hadn't yet produced
- *  a value or an error should flip to "Cancelled". */
+ *  a value or an error should flip to "Cancelled". `cancelledAt` is the
+ *  tombstone the dispatcher reads to skip re-runs of cells the user killed
+ *  mid-cascade. */
 export function buildCancelledExecution(
   prev: Pick<RowExecutionMetadata, 'executionId' | 'workflowId' | 'blockErrors'>
 ): RowExecutionMetadata {
@@ -151,6 +173,7 @@ export function buildCancelledExecution(
     jobId: null,
     workflowId: prev.workflowId,
     error: 'Cancelled',
+    cancelledAt: new Date().toISOString(),
     ...(prev.blockErrors ? { blockErrors: prev.blockErrors } : {}),
   }
 }

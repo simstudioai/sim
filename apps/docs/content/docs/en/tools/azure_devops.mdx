@@ -1,0 +1,556 @@
+---
+title: Azure DevOps
+description: Interact with Azure DevOps pipelines, builds, and work items
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="azure_devops"
+  color="#0078D4"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Azure DevOps](https://azure.microsoft.com/en-us/products/devops) is Microsoft's end-to-end DevOps platform for planning, building, testing, and shipping software. It powers engineering at tens of thousands of enterprises across automotive, financial services, government, and any organization built on the Microsoft stack.
+
+With the Azure DevOps integration in Sim, you can:
+
+- **Inspect pipelines and runs**: List pipelines, fetch metadata, and walk through run history with status and result
+- **Triage build failures**: Pull build timelines to see which stage, job, or task failed, then fetch the exact log for the failing step
+- **Audit changes between builds**: Surface the work items that landed between any two builds — useful for release notes and regression hunts
+- **Query work items with WIQL**: Run full WIQL queries and get hydrated work item fields back in a single call, not just IDs
+- **Manage work item lifecycle**: Create, update, and read Issues, Tasks, and Epics with structured fields — title, description, priority, assignee, area path, iteration, tags, effort, and dates
+- **Collaborate via comments**: Add internal or public comments to work items and read full comment history
+- **React in real time**: Trigger workflows when builds fail or new work items are created via Azure DevOps service hooks
+
+These capabilities let your Sim agents close the loop on the DevOps lifecycle — automatically triaging broken builds, drafting release notes between deployments, syncing work items across systems, and keeping engineering operations running while your team focuses on shipping.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Azure DevOps into your workflow. List and inspect pipelines and builds, query and manage work items, and add or read comments.
+
+
+
+## Tools
+
+### `azure_devops_list_pipelines`
+
+List all pipelines in an Azure DevOps project. Returns pipeline ID, name, folder, revision, and URL.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `orderBy` | string | No | Field to sort results by \(e.g. "name"\) |
+| `top` | number | No | Maximum number of pipelines to return |
+| `continuationToken` | string | No | Continuation token for paginating results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Human-readable summary of pipelines |
+| `metadata` | object | Pipelines metadata |
+|   ↳ `count` | number | Total number of pipelines returned |
+|   ↳ `pipelines` | array | Array of pipeline objects |
+|     ↳ `id` | number | Pipeline ID |
+|     ↳ `name` | string | Pipeline name |
+|     ↳ `folder` | string | Folder path \(e.g. "\\\\"\) |
+|     ↳ `revision` | number | Pipeline revision number |
+|     ↳ `url` | string | Pipeline API URL |
+
+### `azure_devops_get_pipeline`
+
+Get details for a specific pipeline in an Azure DevOps project, including configuration and repository info.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `pipelineId` | number | Yes | ID of the pipeline to retrieve |
+| `pipelineVersion` | number | No | Specific revision of the pipeline to retrieve \(defaults to latest\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Human-readable summary of the pipeline |
+| `metadata` | object | Pipeline detail metadata |
+|   ↳ `pipeline` | object | Full pipeline detail object |
+|     ↳ `id` | number | Pipeline ID |
+|     ↳ `name` | string | Pipeline name |
+|     ↳ `folder` | string | Folder path |
+|     ↳ `revision` | number | Pipeline revision number |
+|     ↳ `url` | string | Pipeline API URL |
+|     ↳ `configuration` | object | Pipeline configuration |
+|       ↳ `type` | string | Configuration type \(e.g. "yaml"\) |
+|       ↳ `path` | string | YAML file path in the repository |
+|       ↳ `repository` | object | Source repository info |
+|         ↳ `id` | string | Repository ID |
+|         ↳ `type` | string | Repository type \(e.g. "azureReposGit"\) |
+|     ↳ `links` | object | Hypermedia links |
+|       ↳ `self` | string | API self-link |
+|       ↳ `web` | string | Browser URL for the pipeline |
+
+### `azure_devops_list_pipeline_runs`
+
+List runs for a specific pipeline in an Azure DevOps project. Returns run ID, name, state, result, and timestamps.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `pipelineId` | number | Yes | ID of the pipeline whose runs to list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Human-readable summary of pipeline runs |
+| `metadata` | object | Pipeline runs metadata |
+|   ↳ `count` | number | Total number of runs returned |
+|   ↳ `runs` | array | Array of pipeline run objects |
+|     ↳ `id` | number | Run ID |
+|     ↳ `name` | string | Run name \(e.g. "20210601.1"\) |
+|     ↳ `state` | string | Run state \(e.g. "completed", "inProgress"\) |
+|     ↳ `result` | string | Run result \(e.g. "succeeded", "failed"\) — absent if still running |
+|     ↳ `createdDate` | string | ISO 8601 creation timestamp |
+|     ↳ `finishedDate` | string | ISO 8601 finish timestamp — absent if still running |
+|     ↳ `url` | string | Run API URL |
+|     ↳ `webUrl` | string | Browser URL for the run |
+
+### `azure_devops_get_pipeline_run`
+
+Get details for a specific pipeline run in an Azure DevOps project. Returns run state, result, timestamps, and the pipeline reference.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `pipelineId` | number | Yes | ID of the pipeline |
+| `runId` | number | Yes | ID of the run to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Human-readable summary of the pipeline run |
+| `metadata` | object | Pipeline run metadata |
+|   ↳ `run` | object | Full pipeline run detail object |
+|     ↳ `id` | number | Run ID |
+|     ↳ `name` | string | Run name \(e.g. "20210601.1"\) |
+|     ↳ `state` | string | Run state \(e.g. "completed", "inProgress"\) |
+|     ↳ `result` | string | Run result \(e.g. "succeeded", "failed"\) — absent if still running |
+|     ↳ `createdDate` | string | ISO 8601 creation timestamp |
+|     ↳ `finishedDate` | string | ISO 8601 finish timestamp — absent if still running |
+|     ↳ `url` | string | Run API URL |
+|     ↳ `webUrl` | string | Browser URL for the run |
+|     ↳ `pipeline` | object | Pipeline reference |
+|       ↳ `id` | number | Pipeline ID |
+|       ↳ `name` | string | Pipeline name |
+|       ↳ `folder` | string | Pipeline folder |
+|       ↳ `revision` | number | Pipeline revision number |
+|       ↳ `url` | string | Pipeline API URL |
+
+### `azure_devops_list_builds`
+
+List builds in an Azure DevOps project. Optionally filter by pipeline definition, status, result, or branch.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `definitionIds` | string | No | Comma-separated pipeline definition IDs to filter by \(e.g. "1,2,3"\) |
+| `top` | number | No | Maximum number of builds to return |
+| `statusFilter` | string | No | Filter by build status: inProgress, completed, cancelling, postponed, notStarted, none |
+| `resultFilter` | string | No | Filter by build result: succeeded, partiallySucceeded, failed, canceled |
+| `branchName` | string | No | Filter by source branch name \(e.g. "refs/heads/main"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Human-readable summary of builds |
+| `metadata` | object | Builds metadata |
+|   ↳ `count` | number | Total number of builds returned |
+|   ↳ `builds` | array | Array of build objects |
+|     ↳ `id` | number | Build ID |
+|     ↳ `buildNumber` | string | Build number \(e.g. "20210601.1"\) |
+|     ↳ `status` | string | Build status \(e.g. "completed", "inProgress"\) |
+|     ↳ `result` | string | Build result \(e.g. "succeeded", "failed"\) — absent if still running |
+|     ↳ `queueTime` | string | ISO 8601 queue timestamp |
+|     ↳ `startTime` | string | ISO 8601 start timestamp |
+|     ↳ `finishTime` | string | ISO 8601 finish timestamp — absent if still running |
+|     ↳ `sourceBranch` | string | Source branch \(e.g. "refs/heads/main"\) |
+|     ↳ `sourceVersion` | string | Source commit SHA |
+|     ↳ `definition` | object | Pipeline definition reference |
+|       ↳ `id` | number | Definition ID |
+|       ↳ `name` | string | Definition name |
+|     ↳ `webUrl` | string | Browser URL for the build |
+
+### `azure_devops_list_build_logs`
+
+List all log entries for a specific build in Azure DevOps. Returns log IDs, types, and line counts — use the log ID with the Get Build Log tool to fetch actual log text.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `buildId` | number | Yes | The build ID whose logs to list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Human-readable summary of build logs |
+| `metadata` | object | Build logs metadata |
+|   ↳ `count` | number | Total number of log entries returned |
+|   ↳ `logs` | array | Array of log entry objects |
+|     ↳ `id` | number | Log entry ID — use with Get Build Log to fetch content |
+|     ↳ `type` | string | Log type \(e.g. "Container", "Task", "Section"\) |
+|     ↳ `url` | string | API URL for the log entry |
+|     ↳ `lineCount` | number | Number of lines in the log |
+|     ↳ `createdOn` | string | ISO 8601 creation timestamp |
+|     ↳ `lastChangedOn` | string | ISO 8601 last-changed timestamp |
+
+### `azure_devops_get_build_log`
+
+Fetch the text content of a specific build log in Azure DevOps. Use List Build Logs first to get the log ID. Optionally retrieve only a line range with startLine/endLine.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `buildId` | number | Yes | The build ID containing the log |
+| `logId` | number | Yes | The log entry ID to fetch \(from List Build Logs\) |
+| `startLine` | number | No | First line to return \(1-based, inclusive\) |
+| `endLine` | number | No | Last line to return \(1-based, inclusive\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Raw log text |
+| `metadata` | object | Log metadata |
+|   ↳ `lineCount` | number | Number of lines in the returned log text |
+
+### `azure_devops_get_build_timeline`
+
+Get the execution timeline for an Azure DevOps build — every stage, job, and task with its result and log ID. Use this to identify which steps failed before fetching their logs with Get Build Log.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `buildId` | number | Yes | ID of the build whose timeline to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Summary of the build timeline, highlighting failed steps |
+| `metadata` | object | Build timeline metadata |
+|   ↳ `totalCount` | number | Total number of timeline records |
+|   ↳ `failedCount` | number | Number of failed records |
+|   ↳ `records` | array | All timeline records \(stages, jobs, tasks\) |
+|     ↳ `id` | string | Record GUID |
+|     ↳ `name` | string | Step name \(e.g. "Run tests"\) |
+|     ↳ `type` | string | Stage \| Phase \| Job \| Task |
+|     ↳ `result` | string | succeeded \| failed \| skipped \| canceled \| null |
+|     ↳ `logId` | number | Log ID to pass to Get Build Log, or null |
+|     ↳ `errorCount` | number | Number of errors |
+|     ↳ `warningCount` | number | Number of warnings |
+|     ↳ `startTime` | string | ISO 8601 start timestamp |
+|     ↳ `finishTime` | string | ISO 8601 finish timestamp |
+|   ↳ `failedRecords` | array | Subset of records where result is failed, partiallySucceeded, or succeededWithIssues — use logId to fetch logs |
+|     ↳ `id` | string | Record GUID |
+|     ↳ `name` | string | Step name |
+|     ↳ `type` | string | Stage \| Phase \| Job \| Task |
+|     ↳ `result` | string | failed |
+|     ↳ `logId` | number | Log ID to pass to Get Build Log |
+|     ↳ `errorCount` | number | Number of errors |
+|     ↳ `warningCount` | number | Number of warnings |
+|     ↳ `startTime` | string | ISO 8601 start timestamp |
+|     ↳ `finishTime` | string | ISO 8601 finish timestamp |
+
+### `azure_devops_get_work_items_between_builds`
+
+Get work item references associated with commits between two builds in Azure DevOps. Returns work item IDs and URLs — use Get Work Items Batch for full field details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `fromBuildId` | number | Yes | The older build ID \(start of range\) |
+| `toBuildId` | number | Yes | The newer build ID \(end of range\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Human-readable summary of work items between builds |
+| `metadata` | object | Work items metadata |
+|   ↳ `count` | number | Total number of work item references returned |
+|   ↳ `workItems` | array | Array of work item references |
+|     ↳ `id` | string | Work item ID |
+|     ↳ `url` | string | API URL for the work item |
+
+### `azure_devops_query_work_items`
+
+Execute a WIQL query to search for work items in Azure DevOps and return full field details. Use TOP N in your query to limit results (Azure enforces a 200-item maximum per batch fetch).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `wiqlQuery` | string | Yes | WIQL query string \(e.g. "SELECT \[System.Id\] FROM workitems WHERE \[System.State\] = \'Doing\' ORDER BY \[System.Id\] ASC"\). Use TOP N to limit results. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Human-readable summary of matching work items |
+| `metadata` | object | Work items metadata |
+|   ↳ `count` | number | Number of work items returned \(after hydration\) |
+|   ↳ `totalMatched` | number | Total number of work items matched by the WIQL query before hydration |
+|   ↳ `workItems` | array | Array of work item details |
+|     ↳ `id` | number | Work item ID |
+|     ↳ `title` | string | Work item title |
+|     ↳ `state` | string | Current state for Basic process \(e.g. To Do, Doing, Done\) |
+|     ↳ `workItemType` | string | Work item type returned by Azure DevOps \(e.g. Issue, Task, Epic\) |
+|     ↳ `assignedTo` | string | Display name of assigned user, or null if unassigned |
+|     ↳ `areaPath` | string | Area path of the work item |
+|     ↳ `url` | string | API URL for the work item |
+
+### `azure_devops_get_work_item`
+
+Fetch full details of a single work item by ID from Azure DevOps, including title, state, type, assignee, and area path.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `workItemId` | number | Yes | The work item ID to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Human-readable summary of the work item |
+| `metadata` | object | Work item metadata |
+|   ↳ `workItem` | object | Full work item details |
+|     ↳ `id` | number | Work item ID |
+|     ↳ `title` | string | Work item title |
+|     ↳ `state` | string | Current state for Basic process \(e.g. To Do, Doing, Done\) |
+|     ↳ `workItemType` | string | Work item type returned by Azure DevOps \(e.g. Issue, Task, Epic\) |
+|     ↳ `assignedTo` | string | Display name of assigned user, or null if unassigned |
+|     ↳ `areaPath` | string | Area path of the work item |
+|     ↳ `url` | string | API URL for the work item |
+
+### `azure_devops_get_work_items_batch`
+
+Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-separated IDs (e.g. 
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `ids` | string | Yes | Comma-separated work item IDs to fetch \(e.g. "123,456,789"\). Lists longer than 200 IDs are chunked automatically. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Human-readable summary of the fetched work items |
+| `metadata` | object | Work items metadata |
+|   ↳ `count` | number | Number of work items returned |
+|   ↳ `totalRequested` | number | Total number of IDs requested \(across all chunks\) |
+|   ↳ `workItems` | array | Array of work item details |
+|     ↳ `id` | number | Work item ID |
+|     ↳ `title` | string | Work item title |
+|     ↳ `state` | string | Current state for Basic process \(e.g. To Do, Doing, Done\) |
+|     ↳ `workItemType` | string | Work item type returned by Azure DevOps \(e.g. Issue, Task, Epic\) |
+|     ↳ `assignedTo` | string | Display name of assigned user, or null if unassigned |
+|     ↳ `areaPath` | string | Area path of the work item |
+|     ↳ `url` | string | API URL for the work item |
+
+### `azure_devops_create_work_item`
+
+Create a new Basic-process work item (Issue, Task, or Epic) in Azure DevOps. Returns the created work item with its assigned ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `workItemType` | string | Yes | Basic-process work item type to create \("Issue", "Task", or "Epic"\). Use Issue for bug or defect tracking. |
+| `title` | string | Yes | Title of the new work item |
+| `description` | string | No | HTML description of the work item \(optional\) |
+| `assignedTo` | string | No | Email or display name of the user to assign the work item to \(optional\) |
+| `priority` | number | No | Priority of the work item \(1 = Critical, 2 = High, 3 = Medium, 4 = Low\) |
+| `effort` | number | No | Effort \(Microsoft.VSTS.Scheduling.Effort\). Basic process: Issue only. |
+| `startDate` | string | No | Start date \(Microsoft.VSTS.Scheduling.StartDate\), ISO 8601. Basic process: Epic only. |
+| `targetDate` | string | No | Target date \(Microsoft.VSTS.Scheduling.TargetDate\), ISO 8601. Basic process: Epic only. |
+| `activity` | string | No | Activity \(Microsoft.VSTS.Common.Activity\). One of Deployment, Design, Development, Documentation, Requirements, Testing. Basic process: Task only. |
+| `remainingWork` | number | No | Remaining work hours \(Microsoft.VSTS.Scheduling.RemainingWork\). Basic process: Task only. |
+| `completedWork` | number | No | Completed work hours \(Microsoft.VSTS.Scheduling.CompletedWork\). Basic process: Task only. |
+| `areaPath` | string | No | Area path for the work item, e.g. "MyProject\\\\Team" \(optional\) |
+| `iterationPath` | string | No | Iteration path for the work item, e.g. "MyProject\\\\Sprint 1" \(optional\) |
+| `tags` | string | No | Semicolon-separated tags, e.g. "issue; p1; auth" \(optional\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Human-readable summary of the created work item |
+| `metadata` | object | Created work item metadata |
+|   ↳ `workItem` | object | Full details of the created work item |
+|     ↳ `id` | number | Assigned work item ID |
+|     ↳ `title` | string | Work item title |
+|     ↳ `state` | string | Initial state for Basic process \(e.g. To Do, Doing, Done\) |
+|     ↳ `workItemType` | string | Work item type returned by Azure DevOps \(e.g. Issue, Task, Epic\) |
+|     ↳ `assignedTo` | string | Display name of assigned user, or null if unassigned |
+|     ↳ `areaPath` | string | Area path of the work item |
+|     ↳ `url` | string | API URL for the created work item |
+
+### `azure_devops_update_work_item`
+
+Update one or more fields on an existing work item in Azure DevOps. Provide only the fields you want to change.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `workItemId` | number | Yes | ID of the work item to update |
+| `title` | string | No | New title for the work item \(optional\) |
+| `description` | string | No | New HTML description for the work item \(optional\) |
+| `assignedTo` | string | No | Email or display name to reassign the work item to \(optional\) |
+| `areaPath` | string | No | New area path for the work item \(optional\) |
+| `priority` | number | No | Priority of the work item \(1 = Critical, 2 = High, 3 = Medium, 4 = Low\) \(optional\) |
+| `state` | string | No | New state for Basic-process work items: "To Do", "Doing", or "Done" \(optional\) |
+| `effort` | number | No | Effort \(Microsoft.VSTS.Scheduling.Effort\). Basic process: Issue only. |
+| `startDate` | string | No | Start date \(Microsoft.VSTS.Scheduling.StartDate\), ISO 8601. Basic process: Epic only. |
+| `targetDate` | string | No | Target date \(Microsoft.VSTS.Scheduling.TargetDate\), ISO 8601. Basic process: Epic only. |
+| `activity` | string | No | Activity \(Microsoft.VSTS.Common.Activity\). One of Deployment, Design, Development, Documentation, Requirements, Testing. Basic process: Task only. |
+| `remainingWork` | number | No | Remaining work hours \(Microsoft.VSTS.Scheduling.RemainingWork\). Basic process: Task only. |
+| `completedWork` | number | No | Completed work hours \(Microsoft.VSTS.Scheduling.CompletedWork\). Basic process: Task only. |
+| `tags` | string | No | Semicolon-separated tags to set on the work item \(optional\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Human-readable summary of the updated work item |
+| `metadata` | object | Updated work item metadata |
+|   ↳ `workItem` | object | Full details of the updated work item |
+|     ↳ `id` | number | Work item ID |
+|     ↳ `title` | string | Work item title |
+|     ↳ `state` | string | Current state after update |
+|     ↳ `workItemType` | string | Work item type returned by Azure DevOps \(e.g. Issue, Task, Epic\) |
+|     ↳ `assignedTo` | string | Display name of assigned user, or null if unassigned |
+|     ↳ `areaPath` | string | Area path of the work item |
+|     ↳ `url` | string | API URL for the work item |
+
+### `azure_devops_add_comment`
+
+Add a comment to a work item in Azure DevOps.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `workItemId` | number | Yes | ID of the work item to comment on |
+| `text` | string | Yes | Comment text \(HTML supported, e.g. "&lt;p&gt;My comment&lt;/p&gt;"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Human-readable confirmation of the added comment |
+| `metadata` | object | Added comment metadata |
+|   ↳ `comment` | object | Full details of the created comment |
+|     ↳ `workItemId` | number | Work item the comment belongs to |
+|     ↳ `commentId` | number | Comment ID |
+|     ↳ `version` | number | Comment version |
+|     ↳ `text` | string | Comment text |
+|     ↳ `renderedText` | string | Rendered HTML comment text when available |
+|     ↳ `createdBy` | string | Display name of the comment author, or null |
+|     ↳ `createdDate` | string | ISO timestamp when comment was created |
+|     ↳ `modifiedBy` | string | Display name of the last modifier, or null |
+|     ↳ `modifiedDate` | string | ISO timestamp when comment was modified |
+|     ↳ `isDeleted` | boolean | Whether the comment is deleted |
+|     ↳ `url` | string | API URL for the comment |
+
+### `azure_devops_get_comments`
+
+List comments for an Azure DevOps work item.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organization` | string | Yes | Azure DevOps organization name |
+| `project` | string | Yes | Azure DevOps project name |
+| `workItemId` | number | Yes | ID of the work item whose comments should be listed |
+| `top` | number | No | Maximum number of comments to return |
+| `continuationToken` | string | No | Continuation token for paginating comments |
+| `includeDeleted` | boolean | No | Whether deleted comments should be returned |
+| `expand` | string | No | Additional comment data to include: none, reactions, renderedText, renderedTextOnly, all |
+| `order` | string | No | Sort order for comments: asc or desc |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Human-readable summary of work item comments |
+| `metadata` | object | Comments metadata |
+|   ↳ `count` | number | Number of comments returned in this page |
+|   ↳ `totalCount` | number | Total number of comments on the work item |
+|   ↳ `continuationToken` | string | Continuation token for the next page |
+|   ↳ `nextPage` | string | API URL for the next page |
+|   ↳ `url` | string | API URL for this comments list |
+|   ↳ `comments` | array | Array of work item comments |
+|     ↳ `workItemId` | number | Work item ID |
+|     ↳ `commentId` | number | Comment ID |
+|     ↳ `version` | number | Comment version |
+|     ↳ `text` | string | Comment text |
+|     ↳ `renderedText` | string | Rendered HTML comment text when available |
+|     ↳ `createdBy` | string | Display name of the comment author |
+|     ↳ `createdDate` | string | ISO 8601 creation timestamp |
+|     ↳ `modifiedBy` | string | Display name of the last modifier |
+|     ↳ `modifiedDate` | string | ISO 8601 modified timestamp |
+|     ↳ `isDeleted` | boolean | Whether the comment is deleted |
+|     ↳ `url` | string | API URL for the comment |
+
+

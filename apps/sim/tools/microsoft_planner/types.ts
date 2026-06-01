@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface PlannerIdentitySet {
+interface PlannerIdentitySet {
   user?: {
     displayName?: string
     id?: string
@@ -11,14 +11,14 @@ export interface PlannerIdentitySet {
   }
 }
 
-export interface PlannerAssignment {
+interface PlannerAssignment {
   '@odata.type': string
   assignedDateTime?: string
   orderHint?: string
   assignedBy?: PlannerIdentitySet
 }
 
-export interface PlannerReference {
+interface PlannerReference {
   alias?: string
   lastModifiedBy?: PlannerIdentitySet
   lastModifiedDateTime?: string
@@ -26,7 +26,7 @@ export interface PlannerReference {
   type?: string
 }
 
-export interface PlannerChecklistItem {
+interface PlannerChecklistItem {
   '@odata.type': string
   isChecked?: boolean
   title?: string
@@ -35,7 +35,7 @@ export interface PlannerChecklistItem {
   lastModifiedDateTime?: string
 }
 
-export interface PlannerContainer {
+interface PlannerContainer {
   containerId?: string
   type?: string
   url?: string
@@ -69,7 +69,7 @@ export interface PlannerTask {
   }
 }
 
-export interface PlannerBucket {
+interface PlannerBucket {
   id: string
   name: string
   planId: string
@@ -77,7 +77,7 @@ export interface PlannerBucket {
   '@odata.etag'?: string
 }
 
-export interface PlannerPlan {
+interface PlannerPlan {
   id: string
   title: string
   owner?: string
@@ -86,7 +86,7 @@ export interface PlannerPlan {
   '@odata.etag'?: string
 }
 
-export interface PlannerTaskDetails {
+interface PlannerTaskDetails {
   id: string
   description?: string
   previewType?: string
@@ -95,7 +95,7 @@ export interface PlannerTaskDetails {
   '@odata.etag'?: string
 }
 
-export interface MicrosoftPlannerMetadata {
+interface MicrosoftPlannerMetadata {
   planId?: string
   taskId?: string
   userId?: string | null

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { HubspotIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -173,7 +174,7 @@ function recordToDocument(
 export const hubspotConnector: ConnectorConfig = {
   id: 'hubspot',
   name: 'HubSpot',
-  description: 'Sync CRM records from HubSpot into your knowledge base',
+  description: 'Sync CRM records from HubSpot',
   version: '1.0.0',
   icon: HubspotIcon,
 
@@ -366,7 +367,7 @@ export const hubspotConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       return { valid: false, error: message }
     }
   },

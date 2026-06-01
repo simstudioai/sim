@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { randomFloat } from '@sim/utils/random'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -12,6 +13,10 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  isPayloadSizeLimitError,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { isUserFile } from '@/lib/core/utils/user-file'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
@@ -19,7 +24,10 @@ import { parseMcpToolId } from '@/lib/mcp/utils'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
-import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
+import {
+  resolveSkillContent,
+  resolveSkillContentById,
+} from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
@@ -224,8 +232,15 @@ async function injectHostedKeyIfNeeded(
 ): Promise<HostedKeyInjectionResult> {
   if (!tool.hosting) return { isUsingHostedKey: false }
   if (!isHosted) return { isUsingHostedKey: false }
+  if (tool.hosting.enabled && !tool.hosting.enabled(params)) {
+    return { isUsingHostedKey: false }
+  }
 
   const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
+  const userProvidedKey = params[apiKeyParam]
+  if (typeof userProvidedKey === 'string' && userProvidedKey.trim().length > 0) {
+    return { isUsingHostedKey: false }
+  }
 
   const { workspaceId, userId, workflowId } = resolveToolScope(params, executionContext)
 
@@ -257,7 +272,8 @@ async function injectHostedKeyIfNeeded(
     provider,
     envKeyPrefix,
     rateLimit,
-    billingActorId
+    billingActorId,
+    executionContext?.abortSignal
   )
 
   if (!acquireResult.success && acquireResult.billingActorRateLimited) {
@@ -291,6 +307,7 @@ async function injectHostedKeyIfNeeded(
   }
 
   params[apiKeyParam] = acquireResult.key
+  params.__usingHostedKey = true
   logger.info(`[${requestId}] Using hosted key for ${tool.id} (${acquireResult.envVarName})`, {
     keyIndex: acquireResult.keyIndex,
     provider,
@@ -300,6 +317,49 @@ async function injectHostedKeyIfNeeded(
     isUsingHostedKey: true,
     envVarName: acquireResult.envVarName,
   }
+}
+
+/**
+ * Re-acquire a hosted key after upstream-429 retries have been exhausted. Calls
+ * `acquireKey` (which now blocks on the per-workspace bucket) and re-injects the
+ * fresh key into `params`. Returns false if no key could be obtained — caller
+ * should re-throw the original upstream 429.
+ *
+ * Does not consult BYOK. We only enter this path from inside the hosted-key
+ * branch of `executeTool`, so BYOK has already been ruled out for this call.
+ */
+async function reacquireHostedKey(
+  tool: ToolConfig,
+  params: Record<string, unknown>,
+  executionContext: ExecutionContext | undefined,
+  requestId: string
+): Promise<boolean> {
+  if (!tool.hosting) return false
+  const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
+  const { workspaceId } = resolveToolScope(params, executionContext)
+  if (!workspaceId) return false
+
+  const provider = byokProviderId || tool.id
+  const acquireResult = await getHostedKeyRateLimiter().acquireKey(
+    provider,
+    envKeyPrefix,
+    rateLimit,
+    workspaceId,
+    executionContext?.abortSignal
+  )
+
+  if (!acquireResult.success || !acquireResult.key) {
+    logger.warn(
+      `[${requestId}] Re-acquire of hosted key for ${tool.id} failed: ${acquireResult.error ?? 'unknown'}`
+    )
+    return false
+  }
+
+  params[apiKeyParam] = acquireResult.key
+  logger.info(
+    `[${requestId}] Re-acquired hosted key for ${tool.id} (${acquireResult.envVarName}) after upstream throttling`
+  )
+  return true
 }
 
 /**
@@ -328,11 +388,23 @@ interface RetryContext {
   toolId: string
   envVarName: string
   executionContext?: ExecutionContext
+  /**
+   * Optional callback invoked after the local exponential backoff has been exhausted by
+   * upstream 429s. Should re-enter the per-workspace hosted-key queue (which now blocks
+   * on the bucket) and return a fresh execution thunk bound to the newly acquired key.
+   * If the callback returns null, we give up and re-throw the last error.
+   */
+  reacquireAfterRetriesExhausted?: () => Promise<(() => Promise<unknown>) | null>
 }
 
 /**
  * Execute a function with exponential backoff retry for rate limiting errors.
  * Only used for hosted key requests. Tracks rate limit events via telemetry.
+ *
+ * On terminal upstream 429, optionally re-enters the hosted-key queue (which waits for
+ * the per-workspace bucket to refill) and retries once with a freshly acquired key.
+ * This handles the case where the upstream provider's limit is tighter than ours — we
+ * re-queue the call instead of surfacing the error.
  */
 async function executeWithRetry<T>(
   fn: () => Promise<T>,
@@ -340,7 +412,8 @@ async function executeWithRetry<T>(
   maxRetries = 3,
   baseDelayMs = 1000
 ): Promise<T> {
-  const { requestId, toolId, envVarName, executionContext } = context
+  const { requestId, toolId, envVarName, executionContext, reacquireAfterRetriesExhausted } =
+    context
   let lastError: unknown
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -351,6 +424,23 @@ async function executeWithRetry<T>(
 
       if (!isRateLimitError(error) || attempt === maxRetries) {
         if (isRateLimitError(error) && attempt === maxRetries) {
+          if (reacquireAfterRetriesExhausted) {
+            try {
+              const requeued = await reacquireAfterRetriesExhausted()
+              if (requeued) {
+                logger.warn(
+                  `[${requestId}] Upstream retries exhausted for ${toolId} (${envVarName}); re-queued and retrying once with fresh key`
+                )
+                return (await requeued()) as T
+              }
+            } catch (requeueError) {
+              logger.error(
+                `[${requestId}] Re-queue after exhausted upstream retries failed for ${toolId}`,
+                { error: toError(requeueError).message }
+              )
+            }
+          }
+
           PlatformEvents.hostedKeyUserThrottled({
             toolId,
             reason: 'upstream_retries_exhausted',
@@ -552,19 +642,21 @@ async function applyHostedKeyCostToResult(
 
 import { normalizeToolId } from '@/tools/normalize'
 
-export { normalizeToolId } from '@/tools/normalize'
-
 /**
  * Maximum request body size in bytes before we warn/error about size limits.
  * Next.js 16 has a default middleware/proxy body limit of 10MB.
  */
 const MAX_REQUEST_BODY_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
+const MAX_TOOL_RESPONSE_BODY_BYTES = 10 * 1024 * 1024 // 10MB
 
 /**
  * User-friendly error message for body size limit exceeded
  */
 const BODY_SIZE_LIMIT_ERROR_MESSAGE =
   'Request body size limit exceeded (10MB). The workflow data is too large to process. Try reducing the size of variables, inputs, or data being passed between blocks.'
+
+const RESPONSE_SIZE_LIMIT_ERROR_MESSAGE =
+  'Tool response size limit exceeded (10MB). The response is too large to keep in workflow data. Reduce the response size or return a file reference instead.'
 
 /**
  * Validates request body size and throws a user-friendly error if exceeded
@@ -630,6 +722,67 @@ function handleBodySizeLimitError(error: unknown, requestId: string, context: st
   }
 
   return false
+}
+
+function handleResponseSizeLimitError(error: unknown, requestId: string, context: string): boolean {
+  if (!isPayloadSizeLimitError(error)) return false
+
+  logger.error(`[${requestId}] Response body size limit exceeded for ${context}:`, {
+    label: error.label,
+    maxBytes: error.maxBytes,
+    observedBytes: error.observedBytes,
+  })
+  throw new Error(RESPONSE_SIZE_LIMIT_ERROR_MESSAGE)
+}
+
+function cloneResponseHeaders(headers: Headers | HeadersInit | undefined): Headers {
+  const clonedHeaders = new Headers()
+  if (!headers) return clonedHeaders
+
+  if (typeof (headers as Headers).forEach === 'function') {
+    ;(headers as Headers).forEach((value, key) => {
+      clonedHeaders.set(key, value)
+    })
+    return clonedHeaders
+  }
+
+  return new Headers(headers)
+}
+
+async function readToolResponseBody(
+  response: {
+    ok?: boolean
+    headers?: { get(name: string): string | null }
+    body?: ReadableStream<Uint8Array> | null
+    arrayBuffer?: () => Promise<ArrayBuffer>
+    text?: () => Promise<string>
+  },
+  options: {
+    requestId: string
+    toolId: string
+    signal?: AbortSignal
+  }
+): Promise<Buffer> {
+  try {
+    return await readResponseToBufferWithLimit(response, {
+      maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+      label: `${options.toolId} response body`,
+      signal: options.signal,
+      allowNoBodyFallback: true,
+    })
+  } catch (error) {
+    if (isPayloadSizeLimitError(error) || response.ok !== false) {
+      throw error
+    }
+
+    logger.warn(
+      `[${options.requestId}] Failed to read non-OK response body for ${options.toolId}`,
+      {
+        error: toError(error).message,
+      }
+    )
+    return Buffer.alloc(0)
+  }
 }
 
 /**
@@ -709,6 +862,12 @@ async function processFileOutputs(
   }
 }
 
+export interface ExecuteToolOptions {
+  skipPostProcess?: boolean
+  executionContext?: ExecutionContext
+  signal?: AbortSignal
+}
+
 /**
  * Execute a tool by making the appropriate HTTP request
  * All requests go directly - internal routes use regular fetch, external use SSRF-protected fetch
@@ -716,9 +875,9 @@ async function processFileOutputs(
 export async function executeTool(
   toolId: string,
   params: Record<string, any>,
-  skipPostProcess = false,
-  executionContext?: ExecutionContext
+  options: ExecuteToolOptions = {}
 ): Promise<ToolResponse> {
+  const { skipPostProcess = false, executionContext, signal } = options
   // Capture start time for precise timing
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
@@ -733,7 +892,7 @@ export async function executeTool(
     const scope = resolveToolScope(params, executionContext)
 
     const toolKind: 'skill' | 'custom' | 'mcp' | undefined =
-      normalizedToolId === 'load_skill'
+      normalizedToolId === 'load_skill' || toolId.startsWith('load_skill_')
         ? 'skill'
         : isCustomTool(normalizedToolId)
           ? 'custom'
@@ -748,6 +907,29 @@ export async function executeTool(
         toolKind,
         ctx: executionContext,
       })
+    }
+
+    if (toolId.startsWith('load_skill_')) {
+      const skillId = toolId.slice('load_skill_'.length)
+      if (!skillId || !scope.workspaceId) {
+        return {
+          success: false,
+          output: { error: 'Missing skill id or workspace context' },
+          error: 'Missing skill id or workspace context',
+        }
+      }
+      const loadedSkill = await resolveSkillContentById(skillId, scope.workspaceId)
+      if (!loadedSkill) {
+        return {
+          success: false,
+          output: { error: `Skill "${skillId}" not found` },
+          error: `Skill "${skillId}" not found`,
+        }
+      }
+      return {
+        success: true,
+        output: { name: loadedSkill.name, content: loadedSkill.content },
+      }
     }
 
     if (normalizedToolId === 'load_skill') {
@@ -788,7 +970,8 @@ export async function executeTool(
         params,
         executionContext,
         requestId,
-        startTimeISO
+        startTimeISO,
+        signal
       )
     } else {
       // For built-in tools, use the synchronous version
@@ -985,13 +1168,23 @@ export async function executeTool(
     // Execute the tool request directly (internal routes use regular fetch, external use SSRF-protected fetch)
     // Wrap with retry logic for hosted keys to handle rate limiting due to higher usage
     const result = hostedKeyInfo.isUsingHostedKey
-      ? await executeWithRetry(() => executeToolRequest(toolId, tool, contextParams), {
+      ? await executeWithRetry(() => executeToolRequest(toolId, tool, contextParams, signal), {
           requestId,
           toolId,
           envVarName: hostedKeyInfo.envVarName!,
           executionContext,
+          reacquireAfterRetriesExhausted: async () => {
+            const reacquired = await reacquireHostedKey(
+              tool,
+              contextParams,
+              executionContext,
+              requestId
+            )
+            if (!reacquired) return null
+            return () => executeToolRequest(toolId, tool, contextParams)
+          },
         })
-      : await executeToolRequest(toolId, tool, contextParams)
+      : await executeToolRequest(toolId, tool, contextParams, signal)
 
     // Apply post-processing if available and not skipped
     let finalResult = result
@@ -1047,6 +1240,18 @@ export async function executeTool(
 
     if (error instanceof Error) {
       errorMessage = error.message || `Error executing tool ${toolId}`
+      // HTTP errors are thrown as Error instances carrying `status`/`statusText`/
+      // `data` (see createTransformedErrorFromErrorInfo). Surface them on the
+      // output so callers can branch on the status (e.g. treat 404 as a clean
+      // no-match) — the object branch below only ran for non-Error throws.
+      const httpStatus = (error as { status?: unknown }).status
+      if (typeof httpStatus === 'number') {
+        errorDetails = {
+          status: httpStatus,
+          statusText: (error as { statusText?: string }).statusText,
+          data: (error as { data?: unknown }).data,
+        }
+      }
     } else if (typeof error === 'string') {
       errorMessage = error
     } else if (error && typeof error === 'object') {
@@ -1249,7 +1454,7 @@ function isRetryableFailure(error: unknown, status?: number): boolean {
 
 function calculateBackoff(attempt: number, initialDelayMs: number, maxDelayMs: number): number {
   const base = Math.min(initialDelayMs * 2 ** attempt, maxDelayMs)
-  return Math.round(base / 2 + Math.random() * (base / 2))
+  return Math.round(base / 2 + randomFloat() * (base / 2))
 }
 
 function parseRetryAfterHeader(header: string | null): number {
@@ -1267,6 +1472,18 @@ function parseRetryAfterHeader(header: string | null): number {
   return 0
 }
 
+function shouldRetryWithoutReadingBody(
+  status: number,
+  headers: { get(name: string): string | null },
+  retryConfig: ResolvedRetryConfig | null | undefined,
+  isLastAttempt: boolean
+): boolean {
+  if (!retryConfig || isLastAttempt || !isRetryableFailure(null, status)) {
+    return false
+  }
+  return parseRetryAfterHeader(headers.get('retry-after')) <= retryConfig.maxDelayMs
+}
+
 /**
  * Execute a tool request directly
  * Internal routes (/api/...) use regular fetch
@@ -1275,7 +1492,8 @@ function parseRetryAfterHeader(header: string | null): number {
 async function executeToolRequest(
   toolId: string,
   tool: ToolConfig,
-  params: Record<string, any>
+  params: Record<string, any>,
+  signal?: AbortSignal
 ): Promise<ToolResponse> {
   const requestId = generateRequestId()
 
@@ -1359,6 +1577,7 @@ async function executeToolRequest(
 
     let response: Response | undefined
     let lastError: unknown
+    const nullBodyStatuses = new Set([101, 204, 205, 304])
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const isLastAttempt = attempt === maxAttempts - 1
@@ -1372,20 +1591,65 @@ async function executeToolRequest(
             timeout
           )
 
+          let abortListener: (() => void) | null = null
+          if (signal) {
+            if (signal.aborted) {
+              controller.abort('caller_aborted')
+            } else {
+              abortListener = () => controller.abort('caller_aborted')
+              signal.addEventListener('abort', abortListener, { once: true })
+            }
+          }
+
           try {
-            response = await fetch(fullUrl, {
+            const internalResponse = await fetch(fullUrl, {
               method: requestParams.method,
               headers: headers,
               body: requestParams.body,
               signal: controller.signal,
             })
+            if (
+              nullBodyStatuses.has(internalResponse.status) ||
+              shouldRetryWithoutReadingBody(
+                internalResponse.status,
+                internalResponse.headers,
+                retryConfig,
+                isLastAttempt
+              )
+            ) {
+              internalResponse.body?.cancel().catch(() => {})
+              response = new Response(null, {
+                status: internalResponse.status,
+                statusText: internalResponse.statusText,
+                headers: cloneResponseHeaders(internalResponse.headers),
+              })
+            } else {
+              const bodyBuffer = await readToolResponseBody(internalResponse, {
+                requestId,
+                toolId,
+                signal: controller.signal,
+              })
+              response = new Response(new Uint8Array(bodyBuffer), {
+                status: internalResponse.status,
+                statusText: internalResponse.statusText,
+                headers: cloneResponseHeaders(internalResponse.headers),
+              })
+            }
           } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
+              // Distinguish caller cancellation from local timeout: rethrow the AbortError
+              // when the caller's signal triggered the abort so cancellation propagates as-is.
+              if (signal?.aborted) {
+                throw error
+              }
               throw new Error(`Request timed out after ${timeout}ms`)
             }
             throw error
           } finally {
             clearTimeout(timeoutId)
+            if (abortListener) {
+              signal?.removeEventListener('abort', abortListener)
+            }
           }
         } else {
           const urlValidation = await validateUrlWithDNS(fullUrl, 'toolUrl')
@@ -1398,20 +1662,34 @@ async function executeToolRequest(
             headers: headersRecord,
             body: requestParams.body ?? undefined,
             timeout: requestParams.timeout,
+            maxResponseBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+            signal,
           })
 
           const responseHeaders = new Headers(secureResponse.headers.toRecord())
-          const nullBodyStatuses = new Set([101, 204, 205, 304])
 
-          if (nullBodyStatuses.has(secureResponse.status)) {
+          if (
+            nullBodyStatuses.has(secureResponse.status) ||
+            shouldRetryWithoutReadingBody(
+              secureResponse.status,
+              responseHeaders,
+              retryConfig,
+              isLastAttempt
+            )
+          ) {
+            secureResponse.body?.cancel().catch(() => {})
             response = new Response(null, {
               status: secureResponse.status,
               statusText: secureResponse.statusText,
               headers: responseHeaders,
             })
           } else {
-            const bodyBuffer = await secureResponse.arrayBuffer()
-            response = new Response(bodyBuffer, {
+            const bodyBuffer = await readToolResponseBody(secureResponse, {
+              requestId,
+              toolId,
+              signal,
+            })
+            response = new Response(new Uint8Array(bodyBuffer), {
               status: secureResponse.status,
               statusText: secureResponse.statusText,
               headers: responseHeaders,
@@ -1432,7 +1710,7 @@ async function executeToolRequest(
           `[${requestId}] Retrying ${toolId} after error (attempt ${attempt + 1}/${maxAttempts})`,
           { delayMs }
         )
-        await new Promise((r) => setTimeout(r, delayMs))
+        await sleep(delayMs)
         continue
       }
 
@@ -1465,7 +1743,7 @@ async function executeToolRequest(
           `[${requestId}] Retrying ${toolId} after HTTP ${response.status} (attempt ${attempt + 1}/${maxAttempts})`,
           { delayMs }
         )
-        await new Promise((r) => setTimeout(r, delayMs))
+        await sleep(delayMs)
         continue
       }
 
@@ -1476,29 +1754,18 @@ async function executeToolRequest(
       throw lastError ?? new Error(`Request failed for ${toolId}`)
     }
 
-    // For non-OK responses, attempt JSON first; if parsing fails, fall back to text
     if (!response.ok) {
-      // Check for 413 (Entity Too Large) - body size limit exceeded
-      if (response.status === 413) {
-        logger.error(`[${requestId}] Request body too large for ${toolId} (HTTP 413):`, {
-          status: response.status,
-          statusText: response.statusText,
-        })
-        throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
-      }
-
       let errorData: any
       try {
-        errorData = await response.json()
-      } catch (jsonError) {
-        // JSON parsing failed, fall back to reading as text for error extraction
-        logger.warn(`[${requestId}] Response is not JSON for ${toolId}, reading as text`)
+        const errorText = await response.text()
         try {
-          errorData = await response.text()
-        } catch (textError) {
-          logger.error(`[${requestId}] Failed to read response body for ${toolId}`)
-          errorData = null
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = errorText
         }
+      } catch {
+        logger.error(`[${requestId}] Failed to read response body for ${toolId}`)
+        errorData = null
       }
 
       const errorInfo: ErrorInfo = {
@@ -1508,6 +1775,20 @@ async function executeToolRequest(
       }
 
       const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
+      const hasStructuredErrorPayload =
+        errorData !== null &&
+        typeof errorData === 'object' &&
+        !Array.isArray(errorData) &&
+        ('error' in errorData || 'message' in errorData)
+
+      if (response.status === 413 && !hasStructuredErrorPayload) {
+        logger.error(`[${requestId}] Request body too large for ${toolId} (HTTP 413):`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorData,
+        })
+        throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
+      }
 
       logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
         status: errorInfo.status,
@@ -1584,6 +1865,8 @@ async function executeToolRequest(
       error: undefined,
     }
   } catch (error: any) {
+    handleResponseSizeLimitError(error, requestId, toolId)
+
     // Check if this is a body size limit error and throw user-friendly message
     handleBodySizeLimitError(error, requestId, toolId)
 
@@ -1677,7 +1960,8 @@ async function executeMcpTool(
   params: Record<string, any>,
   executionContext?: ExecutionContext,
   requestId?: string,
-  startTimeISO?: string
+  startTimeISO?: string,
+  signal?: AbortSignal
 ): Promise<ToolResponse> {
   const actualRequestId = requestId || generateRequestId()
   const actualStartTime = startTimeISO || new Date().toISOString()
@@ -1770,6 +2054,7 @@ async function executeMcpTool(
       method: 'POST',
       headers,
       body,
+      signal,
     })
 
     const endTime = new Date()
@@ -1866,8 +2151,7 @@ async function executeMcpTool(
 
     logger.error(`[${actualRequestId}] Error executing MCP tool ${toolId}:`, error)
 
-    const errorMessage =
-      error instanceof Error ? error.message : `Failed to execute MCP tool ${toolId}`
+    const errorMessage = getErrorMessage(error, `Failed to execute MCP tool ${toolId}`)
 
     return {
       success: false,

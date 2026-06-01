@@ -7,6 +7,7 @@ import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import {
   executeWorkflowCore,
   wasExecutionFinalizedByCore,
@@ -196,6 +197,8 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       })
 
       throw error
+    } finally {
+      void cleanupExecutionBase64Cache(executionId)
     }
   })
 }

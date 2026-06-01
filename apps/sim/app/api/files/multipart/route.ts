@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   abortMultipartUploadContract,
@@ -22,7 +23,7 @@ import {
   type UploadTokenPayload,
   verifyUploadToken,
 } from '@/lib/uploads/core/upload-token'
-import type { StorageConfig } from '@/lib/uploads/shared/types'
+import { QUOTA_EXEMPT_STORAGE_CONTEXTS, type StorageConfig } from '@/lib/uploads/shared/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MultipartUploadAPI')
@@ -36,7 +37,6 @@ const ALLOWED_UPLOAD_CONTEXTS = new Set<StorageContext>([
   'workspace',
   'profile-pictures',
   'og-images',
-  'logs',
   'workspace-logos',
 ])
 
@@ -135,8 +135,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         const config = getStorageConfig(storageContext)
 
+        if (!QUOTA_EXEMPT_STORAGE_CONTEXTS.has(context as StorageContext)) {
+          const { checkStorageQuota } = await import('@/lib/billing/storage')
+          const quotaCheck = await checkStorageQuota(userId, fileSize ?? 0)
+          if (!quotaCheck.allowed) {
+            return NextResponse.json(
+              { error: quotaCheck.error || 'Storage limit exceeded' },
+              { status: 413 }
+            )
+          }
+        }
+
         let customKey: string | undefined
-        if (context === 'workspace') {
+        if (context === 'workspace' || context === 'mothership') {
           const { MAX_WORKSPACE_FILE_SIZE } = await import('@/lib/uploads/shared/types')
           if (typeof fileSize === 'number' && fileSize > MAX_WORKSPACE_FILE_SIZE) {
             return NextResponse.json(
@@ -149,15 +160,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             '@/lib/uploads/contexts/workspace/workspace-file-manager'
           )
           customKey = generateWorkspaceFileKey(workspaceId, fileName)
-
-          const { checkStorageQuota } = await import('@/lib/billing/storage')
-          const quotaCheck = await checkStorageQuota(userId, fileSize)
-          if (!quotaCheck.allowed) {
+        } else if (context === 'execution') {
+          const workflowId = (data as { workflowId?: unknown }).workflowId
+          const executionId = (data as { executionId?: unknown }).executionId
+          if (typeof workflowId !== 'string' || !workflowId.trim()) {
             return NextResponse.json(
-              { error: quotaCheck.error || 'Storage limit exceeded' },
-              { status: 413 }
+              { error: 'workflowId is required for execution uploads' },
+              { status: 400 }
             )
           }
+          if (typeof executionId !== 'string' || !executionId.trim()) {
+            return NextResponse.json(
+              { error: 'executionId is required for execution uploads' },
+              { status: 400 }
+            )
+          }
+          const { generateExecutionFileKey } = await import(
+            '@/lib/uploads/contexts/execution/utils'
+          )
+          customKey = generateExecutionFileKey({ workspaceId, workflowId, executionId }, fileName)
         }
 
         let uploadId: string
@@ -418,7 +439,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error('Multipart upload error:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Multipart upload failed' },
+      { error: getErrorMessage(error, 'Multipart upload failed') },
       { status: 500 }
     )
   }

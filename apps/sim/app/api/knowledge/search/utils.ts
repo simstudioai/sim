@@ -3,9 +3,22 @@ import { document, embedding } from '@sim/db/schema'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
-export async function getDocumentNamesByIds(
+export interface DocumentMetadata {
+  filename: string
+  sourceUrl: string | null
+}
+
+/**
+ * Batch-fetch display metadata for documents referenced by search results.
+ * Excludes documents that are user-excluded, archived, or soft-deleted —
+ * mirrors the visibility filters applied inside the search SQL itself, so
+ * the lookup will never surface metadata for a row a caller could not have
+ * legitimately matched. Returns a map keyed by document id; missing ids
+ * indicate the document is no longer visible and should be skipped.
+ */
+export async function getDocumentMetadataByIds(
   documentIds: string[]
-): Promise<Record<string, string>> {
+): Promise<Record<string, DocumentMetadata>> {
   if (documentIds.length === 0) {
     return {}
   }
@@ -15,6 +28,7 @@ export async function getDocumentNamesByIds(
     .select({
       id: document.id,
       filename: document.filename,
+      sourceUrl: document.sourceUrl,
     })
     .from(document)
     .where(
@@ -26,12 +40,12 @@ export async function getDocumentNamesByIds(
       )
     )
 
-  const documentNameMap: Record<string, string> = {}
+  const map: Record<string, DocumentMetadata> = {}
   documents.forEach((doc) => {
-    documentNameMap[doc.id] = doc.filename
+    map[doc.id] = { filename: doc.filename, sourceUrl: doc.sourceUrl ?? null }
   })
 
-  return documentNameMap
+  return map
 }
 
 export interface SearchResult {

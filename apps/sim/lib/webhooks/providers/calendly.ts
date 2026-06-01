@@ -174,6 +174,7 @@ export const calendlyHandler: WebhookProviderHandler = {
         logger.warn(
           `[${ctx.requestId}] Missing apiKey for Calendly webhook deletion ${ctx.webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Missing Calendly apiKey for webhook deletion')
         return
       }
 
@@ -181,6 +182,7 @@ export const calendlyHandler: WebhookProviderHandler = {
         logger.warn(
           `[${ctx.requestId}] Missing externalId for Calendly webhook deletion ${ctx.webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Missing Calendly externalId for webhook deletion')
         return
       }
 
@@ -199,6 +201,9 @@ export const calendlyHandler: WebhookProviderHandler = {
           `[${ctx.requestId}] Failed to delete Calendly webhook (non-fatal): ${calendlyResponse.status}`,
           { response: responseBody }
         )
+        if (ctx.strict) {
+          throw new Error(`Failed to delete Calendly webhook: ${calendlyResponse.status}`)
+        }
       } else {
         logger.info(
           `[${ctx.requestId}] Successfully deleted Calendly webhook subscription ${externalId}`
@@ -206,6 +211,7 @@ export const calendlyHandler: WebhookProviderHandler = {
       }
     } catch (error) {
       logger.warn(`[${ctx.requestId}] Error deleting Calendly webhook (non-fatal)`, error)
+      if (ctx.strict) throw error
     }
   },
 }

@@ -7,6 +7,8 @@ export const ttsToolBodySchema = z.object({
   voiceId: z.string({ error: 'Missing required parameters' }).min(1, 'Missing required parameters'),
   apiKey: z.string({ error: 'Missing required parameters' }).min(1, 'Missing required parameters'),
   modelId: z.string().optional().default('eleven_monolingual_v1'),
+  stability: z.coerce.number().min(0).max(1).optional(),
+  similarityBoost: z.coerce.number().min(0).max(1).optional(),
   workspaceId: z.string().optional(),
   workflowId: z.string().optional(),
   executionId: z.string().optional(),
@@ -54,7 +56,13 @@ export const ttsUnifiedToolBodySchema = z
     volumeGainDb: z.coerce.number().optional(),
     sampleRateHertz: z.coerce.number().optional(),
     effectsProfileId: z.array(z.string()).optional(),
-    region: z.string().optional(),
+    region: z
+      .string()
+      .regex(
+        /^[a-z][a-z0-9-]{1,30}[a-z0-9]$/,
+        'region must be a valid Azure region identifier (e.g. eastus, westeurope)'
+      )
+      .optional(),
     rate: z.string().optional(),
     styleDegree: z.coerce.number().optional(),
     role: z.string().optional(),

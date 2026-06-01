@@ -24,6 +24,7 @@ import {
   hasAdvancedValues,
   isCanonicalPair,
   resolveCanonicalMode,
+  shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -31,6 +32,7 @@ import {
   SubBlock,
   SubflowEditor,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   useBlockConnections,
   useConnectionsResize,
@@ -47,12 +49,11 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
-import type { SubBlockType } from '@/blocks/types'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap, useWorkflowState } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { usePanelEditorStore } from '@/stores/panel'
+import { usePanelEditorSearchStore, usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -94,10 +95,22 @@ export function Editor() {
         registerRenameCallback: state.registerRenameCallback,
       }))
     )
+  const activeSearchTarget = usePanelEditorSearchStore((state) => state.activeSearchTarget)
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
   const title = currentBlock?.name || 'Editor'
+  const isBlockNameSearchHighlighted =
+    activeSearchTarget?.targetKind === 'block-name' && activeSearchTarget.blockId === currentBlockId
+  const blockNameSearchHighlight =
+    isBlockNameSearchHighlighted && activeSearchTarget?.range
+      ? {
+          range: activeSearchTarget.range,
+          rawValue: activeSearchTarget.rawValue,
+        }
+      : null
+  const activeSearchTargetForCurrentBlock =
+    activeSearchTarget?.blockId === currentBlockId ? activeSearchTarget : null
 
   const isSubflow =
     currentBlock && (currentBlock.type === 'loop' || currentBlock.type === 'parallel')
@@ -148,12 +161,7 @@ export function Editor() {
   const subBlocksForCanonical = useMemo(() => {
     const subBlocks = blockConfig?.subBlocks || []
     if (!triggerMode) return subBlocks
-    return subBlocks.filter(
-      (subBlock) =>
-        subBlock.mode === 'trigger' ||
-        subBlock.mode === 'trigger-advanced' ||
-        subBlock.type === ('trigger-config' as SubBlockType)
-    )
+    return subBlocks.filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
   }, [blockConfig?.subBlocks, triggerMode])
 
   const canonicalIndex = useMemo(
@@ -161,11 +169,23 @@ export function Editor() {
     [subBlocksForCanonical]
   )
   const canonicalModeOverrides = currentBlock?.data?.canonicalModes
+  const activeSearchTargetNeedsAdvanced = useMemo(() => {
+    if (!activeSearchTarget || activeSearchTarget.blockId !== currentBlockId) return false
+
+    return subBlocksForCanonical.some(
+      (subBlock) =>
+        subBlock.mode === 'advanced' &&
+        (activeSearchTarget.subBlockId === subBlock.id ||
+          activeSearchTarget.canonicalSubBlockId === (subBlock.canonicalParamId ?? subBlock.id))
+    )
+  }, [activeSearchTarget, currentBlockId, subBlocksForCanonical])
   const advancedValuesPresent = useMemo(
     () => hasAdvancedValues(subBlocksForCanonical, blockSubBlockValues, canonicalIndex),
     [subBlocksForCanonical, blockSubBlockValues, canonicalIndex]
   )
-  const displayAdvancedOptions = canEditBlock ? advancedMode : advancedMode || advancedValuesPresent
+  const displayAdvancedOptions = canEditBlock
+    ? advancedMode || activeSearchTargetNeedsAdvanced
+    : advancedMode || advancedValuesPresent || activeSearchTargetNeedsAdvanced
 
   const hasAdvancedOnlyFields = useMemo(() => {
     for (const subBlock of subBlocksForCanonical) {
@@ -237,6 +257,23 @@ export function Editor() {
   const [isRenaming, setIsRenaming] = useState(false)
   const [editedName, setEditedName] = useState('')
   const renamingBlockIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!activeSearchTarget || activeSearchTarget.blockId !== currentBlockId) return
+    if (activeSearchTarget.targetKind === 'block-name') return
+    const container = subBlocksRef.current
+    if (!container) return
+
+    const directTarget = container.querySelector<HTMLElement>(
+      `[data-workflow-search-subblock-id="${activeSearchTarget.subBlockId}"]`
+    )
+    const target =
+      directTarget ??
+      container.querySelector<HTMLElement>(
+        `[data-workflow-search-canonical-id="${activeSearchTarget.canonicalSubBlockId}"]`
+      )
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [activeSearchTarget, currentBlockId, subBlocks])
 
   /**
    * Ref callback that auto-selects the input text when mounted.
@@ -337,12 +374,12 @@ export function Editor() {
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           {(blockConfig || isSubflow) && currentBlock?.type !== 'note' && (
             <div
-              className='flex h-[18px] w-[18px] items-center justify-center rounded-sm'
+              className='flex size-[18px] items-center justify-center rounded-sm'
               style={{ background: isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor }}
             >
               <IconComponent
                 icon={isSubflow ? subflowConfig?.icon : blockConfig?.icon}
-                className='h-[12px] w-[12px] text-[var(--white)]'
+                className='size-[12px] text-[var(--white)]'
               />
             </div>
           )}
@@ -364,7 +401,7 @@ export function Editor() {
             />
           ) : (
             <h2
-              className='min-w-0 flex-1 cursor-pointer select-none truncate pr-2 font-medium text-[var(--text-primary)] text-sm'
+              className='min-w-0 flex-1 cursor-pointer select-none text-ellipsis whitespace-nowrap pr-2 font-medium text-[var(--text-primary)] text-sm [overflow-clip-margin:3px] [overflow:clip]'
               title={title}
               onDoubleClick={handleStartRename}
               onMouseDown={(e) => {
@@ -373,7 +410,9 @@ export function Editor() {
                 }
               }}
             >
-              {title}
+              {blockNameSearchHighlight
+                ? formatDisplayText(title, { workflowSearchHighlight: blockNameSearchHighlight })
+                : title}
             </h2>
           )}
         </div>
@@ -389,11 +428,11 @@ export function Editor() {
                     onClick={() => collaborativeBatchToggleLocked([currentBlockId!])}
                     aria-label='Unlock block'
                   >
-                    <Unlock className='h-[14px] w-[14px] text-[var(--text-secondary)]' />
+                    <Unlock className='size-[14px] text-[var(--text-secondary)]' />
                   </Button>
                 ) : (
                   <div className='flex items-center justify-center'>
-                    <Lock className='h-[14px] w-[14px] text-[var(--text-secondary)]' />
+                    <Lock className='size-[14px] text-[var(--text-secondary)]' />
                   </div>
                 )}
               </Tooltip.Trigger>
@@ -420,9 +459,9 @@ export function Editor() {
                   aria-label={isRenaming ? 'Save name' : 'Rename block'}
                 >
                   {isRenaming ? (
-                    <Check className='h-[14px] w-[14px]' />
+                    <Check className='size-[14px]' />
                   ) : (
-                    <Pencil className='h-[14px] w-[14px]' />
+                    <Pencil className='size-[14px]' />
                   )}
                 </Button>
               </Tooltip.Trigger>
@@ -457,7 +496,7 @@ export function Editor() {
                 onClick={handleOpenDocs}
                 aria-label='Open documentation'
               >
-                <BookOpen className='h-[14px] w-[14px]' />
+                <BookOpen className='size-[14px]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
@@ -484,6 +523,7 @@ export function Editor() {
           toggleConnectionsCollapsed={toggleConnectionsCollapsed}
           userCanEdit={canEditBlock}
           isConnectionsAtMinHeight={isConnectionsAtMinHeight}
+          activeSearchTarget={activeSearchTargetForCurrentBlock}
         />
       ) : (
         <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
@@ -503,7 +543,7 @@ export function Editor() {
                     <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
                       {isLoadingChildWorkflow ? (
                         <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
-                          <Loader className='h-5 w-5 text-[var(--text-tertiary)]' animate />
+                          <Loader className='size-5 text-[var(--text-tertiary)]' animate />
                         </div>
                       ) : childWorkflowState ? (
                         <>
@@ -525,9 +565,9 @@ export function Editor() {
                                 type='button'
                                 variant='ghost'
                                 onClick={handleOpenChildWorkflow}
-                                className='absolute right-[6px] bottom-1.5 z-10 h-[24px] w-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
+                                className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
                               >
-                                <ExternalLink className='h-[12px] w-[12px]' />
+                                <ExternalLink className='size-[12px]' />
                               </Button>
                             </Tooltip.Trigger>
                             <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
@@ -584,6 +624,13 @@ export function Editor() {
                           subBlockValues={subBlockState}
                           disabled={!canEditBlock}
                           allowExpandInPreview={false}
+                          isSearchHighlighted={
+                            activeSearchTarget?.blockId === currentBlockId &&
+                            (activeSearchTarget.subBlockId === subBlock.id ||
+                              activeSearchTarget.canonicalSubBlockId ===
+                                (subBlock.canonicalParamId ?? subBlock.id))
+                          }
+                          activeSearchTarget={activeSearchTargetForCurrentBlock}
                           canonicalToggle={
                             isCanonicalSwap && canonicalMode && canonicalId
                               ? {
@@ -652,6 +699,13 @@ export function Editor() {
                           subBlockValues={subBlockState}
                           disabled={!canEditBlock}
                           allowExpandInPreview={false}
+                          isSearchHighlighted={
+                            activeSearchTarget?.blockId === currentBlockId &&
+                            (activeSearchTarget.subBlockId === subBlock.id ||
+                              activeSearchTarget.canonicalSubBlockId ===
+                                (subBlock.canonicalParamId ?? subBlock.id))
+                          }
+                          activeSearchTarget={activeSearchTargetForCurrentBlock}
                         />
                         {index < advancedOnlySubBlocks.length - 1 && (
                           <FieldDivider subblockMarker />
@@ -676,6 +730,8 @@ export function Editor() {
               {/* Resize Handle */}
               <div className='relative'>
                 <div
+                  role='separator'
+                  aria-orientation='horizontal'
                   className='absolute top-[-4px] right-0 left-0 z-30 h-[8px] cursor-ns-resize'
                   onMouseDown={handleConnectionsResizeMouseDown}
                 />

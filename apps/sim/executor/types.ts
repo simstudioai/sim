@@ -126,7 +126,7 @@ export interface ProviderTimingSegment {
 }
 
 /** Timing info reported by an LLM provider for a single block execution. */
-export interface BlockProviderTiming {
+interface BlockProviderTiming {
   startTime: string
   endTime: string
   duration: number
@@ -138,7 +138,7 @@ export interface BlockProviderTiming {
 }
 
 /** Cost breakdown from provider usage. */
-export interface BlockCost {
+interface BlockCost {
   input: number
   output: number
   total: number
@@ -180,7 +180,7 @@ export interface BlockToolCall {
 }
 
 /** Normalized tool-call container emitted by providers. */
-export interface BlockToolCalls {
+interface BlockToolCalls {
   list: BlockToolCall[]
   count: number
 }
@@ -253,7 +253,7 @@ export interface BlockLog {
   childTraceSpans?: TraceSpan[]
 }
 
-export interface ExecutionMetadata {
+interface ExecutionMetadata {
   requestId?: string
   workflowId?: string
   workspaceId?: string
@@ -265,6 +265,8 @@ export interface ExecutionMetadata {
   context?: ExecutionContext
   workflowConnections?: Array<{ source: string; target: string }>
   credentialAccountUserId?: string
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   status?: 'running' | 'paused' | 'completed'
   pausePoints?: string[]
   resumeChain?: {
@@ -290,6 +292,10 @@ export interface ExecutionContext {
   workflowId: string
   workspaceId?: string
   executionId?: string
+  largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
+  allowLargeValueWorkflowScope?: boolean
   userId?: string
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
@@ -335,6 +341,7 @@ export interface ExecutionContext {
       items?: any[]
       condition?: string
       skipFirstConditionCheck?: boolean
+      skippedAtStart?: boolean
       loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
     }
   >
@@ -344,9 +351,15 @@ export interface ExecutionContext {
     {
       parallelId: string
       totalBranches: number
+      batchSize?: number
+      currentBatchStart?: number
+      currentBatchSize?: number
+      accumulatedOutputs?: Map<number, any[]>
       branchOutputs: Map<number, any[]>
       parallelType?: 'count' | 'collection'
       items?: any[]
+      validationError?: string
+      isEmpty?: boolean
     }
   >
 
@@ -405,9 +418,6 @@ export interface ExecutionContext {
    * This is triggered when the SSE client disconnects.
    */
   abortSignal?: AbortSignal
-
-  // Dynamically added nodes that need to be scheduled (e.g., from parallel expansion)
-  pendingDynamicNodes?: string[]
 
   /**
    * When true, UserFile objects in block outputs will be hydrated with base64 content
@@ -484,7 +494,7 @@ export interface StreamingExecution {
   onFullContent?: (content: string) => void | Promise<void>
 }
 
-export interface BlockExecutor {
+interface BlockExecutor {
   canExecute(block: SerializedBlock): boolean
 
   execute(
@@ -520,7 +530,7 @@ export interface BlockHandler {
   ) => Promise<BlockOutput | StreamingExecution>
 }
 
-export interface Tool<P = any, O = Record<string, any>> {
+interface Tool<P = any, O = Record<string, any>> {
   id: string
   name: string
   description: string
@@ -549,7 +559,7 @@ export interface Tool<P = any, O = Record<string, any>> {
   }>
 }
 
-export interface ToolRegistry {
+interface ToolRegistry {
   [key: string]: Tool
 }
 

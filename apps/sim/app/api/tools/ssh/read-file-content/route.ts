@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { Client, SFTPWrapper } from 'ssh2'
@@ -73,9 +74,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       const content = await new Promise<string>((resolve, reject) => {
         const chunks: Buffer[] = []
+        let totalBytes = 0
         const readStream = sftp.createReadStream(filePath)
 
         readStream.on('data', (chunk: Buffer) => {
+          totalBytes += chunk.length
+          if (totalBytes > maxBytes) {
+            readStream.destroy()
+            reject(new Error(`File exceeds maximum allowed size of ${params.maxSize}MB`))
+            return
+          }
           chunks.push(chunk)
         })
 
@@ -104,7 +112,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.end()
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] SSH read file content failed:`, error)
 
     return NextResponse.json(

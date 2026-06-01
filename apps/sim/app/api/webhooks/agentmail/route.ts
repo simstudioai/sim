@@ -8,6 +8,7 @@ import {
   workspace,
 } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
 import { and, eq, gt, isNotNull, ne, sql } from 'drizzle-orm'
@@ -214,7 +215,7 @@ export const POST = withRouteHandler(async (req: Request) => {
         executeInboxTask(taskId).catch((err) => {
           logger.error('Local inbox task execution failed', {
             taskId,
-            error: err instanceof Error ? err.message : 'Unknown error',
+            error: getErrorMessage(err, 'Unknown error'),
           })
         })
       }
@@ -223,7 +224,7 @@ export const POST = withRouteHandler(async (req: Request) => {
       executeInboxTask(taskId).catch((err) => {
         logger.error('Local inbox task execution failed', {
           taskId,
-          error: err instanceof Error ? err.message : 'Unknown error',
+          error: getErrorMessage(err, 'Unknown error'),
         })
       })
     }
@@ -231,7 +232,7 @@ export const POST = withRouteHandler(async (req: Request) => {
     return NextResponse.json({ ok: true })
   } catch (error) {
     logger.error('AgentMail webhook error', {
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
     })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

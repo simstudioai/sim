@@ -23,7 +23,7 @@ export const customFieldsShowTool: ToolConfig<CustomFieldsShowParams, CustomFiel
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/custom_fields/${params.id}`,
+    url: (params) => `https://api.incident.io/v2/custom_fields/${params.id.trim()}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -40,7 +41,8 @@ export function useSubscriptionUpgrade() {
         throw new Error('User not authenticated')
       }
 
-      let currentSubscriptionId: string | undefined
+      let currentSubscriptionRowId: string | undefined
+      let currentStripeSubscriptionId: string | undefined
       let allSubscriptions: any[] = []
       try {
         const listResult = await client.subscription.list()
@@ -48,9 +50,22 @@ export function useSubscriptionUpgrade() {
         const activePersonalSub = allSubscriptions.find(
           (sub: any) => hasPaidSubscriptionStatus(sub.status) && sub.referenceId === userId
         )
-        currentSubscriptionId = activePersonalSub?.id
+        currentSubscriptionRowId = activePersonalSub?.id
+        currentStripeSubscriptionId = activePersonalSub?.stripeSubscriptionId
       } catch (_e) {
-        currentSubscriptionId = undefined
+        currentSubscriptionRowId = undefined
+        currentStripeSubscriptionId = undefined
+      }
+
+      if (currentSubscriptionRowId && !currentStripeSubscriptionId) {
+        logger.error('Active paid subscription is missing its Stripe subscription ID', {
+          userId,
+          subscriptionRowId: currentSubscriptionRowId,
+          targetPlan,
+        })
+        throw new Error(
+          'We could not match your current plan with our payment provider. Please contact support before upgrading so you are not charged twice.'
+        )
       }
 
       let referenceId = userId
@@ -103,7 +118,7 @@ export function useSubscriptionUpgrade() {
             } catch (error) {
               logger.warn('Failed to set organization as active, proceeding with upgrade', {
                 organizationId: referenceId,
-                error: error instanceof Error ? error.message : 'Unknown error',
+                error: getErrorMessage(error, 'Unknown error'),
               })
             }
           } else if (orgsData.isMemberOfAnyOrg) {
@@ -136,36 +151,45 @@ export function useSubscriptionUpgrade() {
           ...(annual && { annual: true }),
         } as const
 
-        const finalParams = currentSubscriptionId
-          ? { ...upgradeParams, subscriptionId: currentSubscriptionId }
+        const finalParams = currentStripeSubscriptionId
+          ? { ...upgradeParams, subscriptionId: currentStripeSubscriptionId }
           : upgradeParams
 
         logger.info(
-          currentSubscriptionId ? 'Upgrading existing subscription' : 'Creating new subscription',
-          { targetPlan, planName, annual, currentSubscriptionId, referenceId }
+          currentStripeSubscriptionId
+            ? 'Upgrading existing subscription'
+            : 'Creating new subscription',
+          {
+            targetPlan,
+            planName,
+            annual,
+            currentStripeSubscriptionId,
+            currentSubscriptionRowId,
+            referenceId,
+          }
         )
 
         await betterAuthSubscription.upgrade(finalParams)
 
-        if (targetPlan === 'team' && currentSubscriptionId && referenceId !== userId) {
+        if (targetPlan === 'team' && currentSubscriptionRowId && referenceId !== userId) {
           try {
             logger.info('Transferring subscription to organization after upgrade', {
-              subscriptionId: currentSubscriptionId,
+              subscriptionId: currentSubscriptionRowId,
               organizationId: referenceId,
             })
 
             try {
               await requestJson(subscriptionTransferContract, {
-                params: { id: currentSubscriptionId },
+                params: { id: currentSubscriptionRowId },
                 body: { organizationId: referenceId },
               })
               logger.info('Successfully transferred subscription to organization', {
-                subscriptionId: currentSubscriptionId,
+                subscriptionId: currentSubscriptionRowId,
                 organizationId: referenceId,
               })
             } catch (transferError) {
               logger.error('Failed to transfer subscription to organization', {
-                subscriptionId: currentSubscriptionId,
+                subscriptionId: currentSubscriptionRowId,
                 organizationId: referenceId,
                 error:
                   transferError instanceof ApiClientError
@@ -202,7 +226,7 @@ export function useSubscriptionUpgrade() {
         }
 
         throw new Error(
-          `Failed to upgrade subscription: ${error instanceof Error ? error.message : 'Unknown error'}`
+          `Failed to upgrade subscription: ${getErrorMessage(error, 'Unknown error')}`
         )
       }
     },

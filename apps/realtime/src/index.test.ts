@@ -5,6 +5,7 @@
  */
 import { createServer, request as httpRequest } from 'http'
 import { createMockLogger } from '@sim/testing'
+import { randomInt } from '@sim/utils/random'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSocketIOServer } from '@/config/socket'
 import { MemoryRoomManager } from '@/rooms'
@@ -95,7 +96,7 @@ describe('Socket Server Index Integration', () => {
   })
 
   beforeEach(async () => {
-    PORT = 3333 + Math.floor(Math.random() * 1000)
+    PORT = 3333 + randomInt(0, 1000)
 
     httpServer = createServer()
 
@@ -120,7 +121,7 @@ describe('Socket Server Index Integration', () => {
       httpServer.on('error', (err: any) => {
         clearTimeout(timeout)
         if (err.code === 'EADDRINUSE') {
-          PORT = 3333 + Math.floor(Math.random() * 1000)
+          PORT = 3333 + randomInt(0, 1000)
           httpServer.close(() => {
             httpServer.listen(PORT, '0.0.0.0', () => {
               resolve()

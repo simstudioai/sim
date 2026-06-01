@@ -357,6 +357,12 @@ Use Tailwind only, no inline styles. Use `cn()` from `@/lib/utils` for condition
 <div className={cn('base-classes', isActive && 'active-classes')} />
 ```
 
+For equal height and width, use the `size-*` shorthand — never `h-[Npx] w-[Npx]` or `h-N w-N`. Default icon size is `size-[14px]`.
+
+```typescript
+<Icon className='size-[14px] text-[var(--text-icon)]' />
+```
+
 ## EMCN Components
 
 Import from `@/components/emcn`, never from subpaths (except CSS files). Use CVA when 2+ variants exist.

@@ -206,6 +206,7 @@ export const emailBisonHandler: WebhookProviderHandler = {
           hasApiBaseUrl: Boolean(apiBaseUrl),
           hasExternalId: Boolean(externalId),
         })
+        if (ctx.strict) throw new Error('Missing Email Bison webhook cleanup configuration')
         return
       }
 
@@ -223,6 +224,7 @@ export const emailBisonHandler: WebhookProviderHandler = {
           status: response.status,
           response: responseBody,
         })
+        if (ctx.strict) throw new Error(`Failed to delete Email Bison webhook: ${response.status}`)
         return
       }
 
@@ -235,6 +237,7 @@ export const emailBisonHandler: WebhookProviderHandler = {
       logger.warn(`[${requestId}] Error deleting Email Bison webhook`, {
         message: toError(error).message,
       })
+      if (ctx.strict) throw error
     }
   },
 }

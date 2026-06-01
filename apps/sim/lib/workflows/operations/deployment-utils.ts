@@ -6,7 +6,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('DeploymentUtils')
 
-export interface InputField {
+interface InputField {
   name: string
   type: string
 }

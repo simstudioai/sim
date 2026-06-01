@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { workdayGetCompensationContract } from '@/lib/api/contracts/tools/workday'
 import { parseRequest } from '@/lib/api/server'
@@ -9,6 +10,7 @@ import {
   createWorkdaySoapClient,
   extractRefId,
   normalizeSoapArray,
+  parseSoapNumber,
   type WorkdayCompensationDataSoap,
   type WorkdayCompensationPlanSoap,
   type WorkdayWorkerSoap,
@@ -60,7 +62,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const mapPlan = (p: WorkdayCompensationPlanSoap) => ({
       id: extractRefId(p.Compensation_Plan_Reference) ?? null,
       planName: p.Compensation_Plan_Reference?.attributes?.Descriptor ?? null,
-      amount: p.Amount ?? p.Per_Unit_Amount ?? p.Individual_Target_Amount ?? null,
+      amount:
+        parseSoapNumber(p.Amount) ??
+        parseSoapNumber(p.Per_Unit_Amount) ??
+        parseSoapNumber(p.Individual_Target_Amount) ??
+        null,
       currency: extractRefId(p.Currency_Reference) ?? null,
       frequency: extractRefId(p.Frequency_Reference) ?? null,
     })
@@ -89,7 +95,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error(`[${requestId}] Workday get compensation failed`, { error })
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, error: getErrorMessage(error, 'Unknown error') },
       { status: 500 }
     )
   }

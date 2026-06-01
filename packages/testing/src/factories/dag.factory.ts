@@ -3,6 +3,7 @@
  * These are used in executor tests for DAG construction and edge management
  */
 
+import { generateRandomString } from '@sim/utils/random'
 import { createSerializedBlock, type SerializedBlock } from './serialized-block.factory'
 
 /**
@@ -62,7 +63,7 @@ export interface DAGNodeFactoryOptions {
  * ```
  */
 export function createDAGNode(options: DAGNodeFactoryOptions = {}): DAGNode {
-  const id = options.id ?? `node-${Math.random().toString(36).substring(2, 8)}`
+  const id = options.id ?? `node-${generateRandomString(6)}`
   const block =
     options.block ??
     createSerializedBlock({

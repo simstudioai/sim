@@ -18,6 +18,7 @@ import {
 import type { AdminDeployResult, AdminUndeployResult } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkflowDeployAPI')
+export const maxDuration = 120
 
 interface RouteParams {
   id: string
@@ -109,6 +110,7 @@ export const DELETE = withRouteHandler(
 
       const response: AdminUndeployResult = {
         isDeployed: false,
+        warnings: result.warnings,
       }
 
       return singleResponse(response)

@@ -1,9 +1,23 @@
+import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { getBlock } from '@/blocks'
 import { isHiddenFromDisplay } from '@/blocks/types'
 import { isTriggerBehavior, isTriggerInternalKey } from '@/executor/constants'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
+
+function setFilteredOutputValue(
+  output: Record<string, unknown>,
+  key: string,
+  value: unknown
+): void {
+  Object.defineProperty(output, key, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  })
+}
 
 /**
  * Filters block output for logging/display purposes.
@@ -25,6 +39,9 @@ export function filterOutputForLog(
   }
 ): NormalizedBlockOutput {
   if (typeof output !== 'object' || output === null || Array.isArray(output)) {
+    return output as NormalizedBlockOutput
+  }
+  if (isLargeValueRef(output)) {
     return output as NormalizedBlockOutput
   }
   const blockConfig = blockType ? getBlock(blockType) : undefined
@@ -50,7 +67,7 @@ export function filterOutputForLog(
     }
 
     // Recursively filter globally hidden keys from nested objects
-    filtered[key] = filterHiddenOutputKeys(value)
+    setFilteredOutputValue(filtered, key, filterHiddenOutputKeys(value))
   }
 
   return filtered

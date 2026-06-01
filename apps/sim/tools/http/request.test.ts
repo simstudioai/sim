@@ -237,6 +237,20 @@ describe('HTTP Request Tool', () => {
       expect(result.output.headers).toHaveProperty('content-type')
     })
 
+    it('should reject responses that exceed the workflow data cap', async () => {
+      const response = new Response('too large', {
+        status: 200,
+        headers: {
+          'content-type': 'text/plain',
+          'content-length': '10485761',
+        },
+      })
+
+      await expect(requestTool.transformResponse?.(response, {} as any)).rejects.toMatchObject({
+        name: 'PayloadSizeLimitError',
+      })
+    })
+
     it('should handle POST requests with body', async () => {
       tester.setup({ result: 'success' })
 

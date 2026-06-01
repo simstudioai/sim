@@ -143,7 +143,7 @@ export interface KalshiGetOrdersV2Params extends KalshiAuthParams, KalshiPaginat
   subaccount?: string // Subaccount to filter orders
 }
 
-export interface KalshiOrderV2 {
+interface KalshiOrderV2 {
   order_id: string
   user_id: string | null
   client_order_id: string | null

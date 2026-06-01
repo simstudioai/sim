@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import type {
@@ -32,7 +33,7 @@ export const stripeHandler: WebhookProviderHandler = {
       Stripe.webhooks.constructEvent(rawBody, signature, secret)
     } catch (error) {
       logger.warn(`[${requestId}] Stripe signature verification failed`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       })
       return new NextResponse('Unauthorized - Invalid Stripe signature', { status: 401 })
     }

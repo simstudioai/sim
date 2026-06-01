@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Loader, Tooltip } from '@/components/emcn'
+import { Button, Tooltip } from '@/components/emcn'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,
   useDeployment,
+  useDeployReadiness,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { useDeployedWorkflowState, useDeploymentInfo } from '@/hooks/queries/deployments'
@@ -42,24 +43,37 @@ export function Deploy({
     isFetching: isFetchingDeployedState,
   } = useDeployedWorkflowState(activeWorkflowId, { enabled: isDeployedStateEnabled })
   const deployedState = isDeployedStateEnabled ? (deployedStateData ?? null) : null
+  const deployReadiness = useDeployReadiness(activeWorkflowId)
 
-  const { changeDetected } = useChangeDetection({
+  const { changeDetected, isChangeDetectionSettling } = useChangeDetection({
     workflowId: activeWorkflowId,
     deployedState,
     isLoadingDeployedState: isLoadingDeployedState || isFetchingDeployedState,
   })
+  const isDeploymentSettling = isChangeDetectionSettling || deployReadiness.isSyncing
 
   const { isDeploying, handleDeployClick } = useDeployment({
     workflowId: activeWorkflowId,
     isDeployed,
+    deployReadiness,
   })
 
   const isEmpty = !hasBlocks()
   const canDeploy = userPermissions.canAdmin
-  const isDisabled = disabled || isDeploying || !canDeploy || isEmpty
+  const isDisabled =
+    disabled ||
+    isDeploying ||
+    !canDeploy ||
+    isEmpty ||
+    (!isDeployed && deployReadiness.isBlocked && !deployReadiness.isSyncing)
 
   const onDeployClick = async () => {
     if (disabled || !canDeploy || !activeWorkflowId) return
+
+    if (isDeploymentSettling) {
+      setIsModalOpen(true)
+      return
+    }
 
     const result = await handleDeployClick()
     if (result.shouldOpenModal) {
@@ -80,6 +94,12 @@ export function Deploy({
     if (isDeploying) {
       return 'Deploying...'
     }
+    if (isChangeDetectionSettling) {
+      return 'Syncing deployment state...'
+    }
+    if (deployReadiness.isBlocked && !isDeployed) {
+      return deployReadiness.tooltip
+    }
     if (changeDetected) {
       return 'Update deployment'
     }
@@ -87,6 +107,16 @@ export function Deploy({
       return 'Active deployment'
     }
     return 'Deploy workflow'
+  }
+
+  const getButtonLabel = () => {
+    if (changeDetected) {
+      return 'Update'
+    }
+    if (isDeployed) {
+      return 'Live'
+    }
+    return 'Deploy'
   }
 
   return (
@@ -102,8 +132,7 @@ export function Deploy({
               onClick={onDeployClick}
               disabled={isRegistryLoading || isDisabled}
             >
-              {isDeploying && <Loader className='h-[13px] w-[13px]' animate />}
-              {changeDetected ? 'Update' : isDeployed ? 'Live' : 'Deploy'}
+              {getButtonLabel()}
             </Button>
           </span>
         </Tooltip.Trigger>
@@ -117,7 +146,9 @@ export function Deploy({
         isDeployed={isDeployed}
         needsRedeployment={changeDetected}
         deployedState={deployedState}
-        isLoadingDeployedState={isLoadingDeployedState}
+        isLoadingDeployedState={isLoadingDeployedState || isFetchingDeployedState}
+        deployReadiness={deployReadiness}
+        isDeploymentSettling={isDeploymentSettling}
       />
     </>
   )

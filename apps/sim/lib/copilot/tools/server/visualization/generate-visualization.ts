@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { GenerateVisualization } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -117,11 +118,11 @@ async function collectSandboxFiles(
   if (inputTables?.length) {
     for (const tableId of inputTables) {
       const table = await getTableById(tableId)
-      if (!table) {
+      if (!table || table.workspaceId !== workspaceId) {
         logger.warn('Sandbox input table not found', { tableId })
         continue
       }
-      const { rows } = await queryRows(tableId, workspaceId, { limit: 10000 }, 'sandbox-input')
+      const { rows } = await queryRows(table, { limit: 10000 }, 'sandbox-input')
       const schema = table.schema as { columns: Array<{ name: string; type?: string }> }
       const cols = schema.columns.map((c) => c.name)
       const typeComment = `# types: ${schema.columns.map((c) => `${c.name}=${c.type || 'string'}`).join(', ')}`
@@ -278,7 +279,7 @@ export const generateVisualizationServerTool: BaseServerTool<
         downloadUrl: uploaded.url,
       }
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error'
+      const msg = getErrorMessage(error, 'Unknown error')
       logger.error('Visualization generation failed', { error: msg })
       return { success: false, message: `Failed to generate visualization: ${msg}` }
     }
