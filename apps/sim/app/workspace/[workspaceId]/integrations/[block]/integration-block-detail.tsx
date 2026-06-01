@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
+import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Chip, ChipDropdown, ChipLink } from '@/components/emcn'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
@@ -11,14 +12,17 @@ import {
   type Integration,
   resolveOAuthServiceForIntegration,
 } from '@/lib/integrations'
+import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
+import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
   CONNECT_MODE,
   CONNECT_QUERY_PARAM,
 } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { getTemplatesForBlock, type ScopedBlockTemplate } from '@/blocks/registry'
+import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
 /** Maximum number of overlapping icon tiles rendered per template row. */
@@ -44,6 +48,22 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   const matchingTemplates = getTemplatesForBlock(integration.type)
   const oauthService = resolveOAuthServiceForIntegration(integration)
   const [oauthOpen, setOAuthOpen] = useState(false)
+
+  const { data: credentials = [] } = useWorkspaceCredentials({
+    workspaceId,
+    enabled: Boolean(workspaceId),
+  })
+
+  const connectedCredentials = useMemo(() => {
+    if (!oauthService) return []
+    return credentials.filter(
+      (c) =>
+        (c.type === 'oauth' || c.type === 'service_account') &&
+        c.providerId &&
+        getServiceConfigByProviderId(c.providerId)?.name.toLowerCase() ===
+          oauthService.serviceName.toLowerCase()
+    )
+  }, [credentials, oauthService])
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)
   const hasServiceAccount = Boolean(oauthService?.serviceAccountProviderId)
   const hasHandledConnectQueryRef = useRef(false)
@@ -166,6 +186,29 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
               <p className='text-[var(--text-muted)] text-md'>{integration.description}</p>
             </div>
           </div>
+
+          {connectedCredentials.length > 0 && (
+            <IntegrationSection label='Connected'>
+              {connectedCredentials.map((credential) => (
+                <Link
+                  key={credential.id}
+                  href={`/workspace/${workspaceId}/integrations/connected/${credential.id}`}
+                  className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
+                >
+                  {Icon && <IntegrationTile blockType={integration.type} icon={Icon} />}
+                  <div className='flex min-w-0 flex-1 flex-col'>
+                    <span className='truncate text-[14px] text-[var(--text-body)]'>
+                      {credential.displayName}
+                    </span>
+                    <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                      {credential.description || oauthService?.serviceName}
+                    </span>
+                  </div>
+                  <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
+                </Link>
+              ))}
+            </IntegrationSection>
+          )}
 
           {matchingTemplates.length > 0 && (
             <TemplatesSection
