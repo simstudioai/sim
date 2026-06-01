@@ -487,8 +487,12 @@ async function runWorkflowAndWriteTerminal(
           })
           return 'error'
         }
-        const retryAfterMs = rl.retryAfterMs ?? Math.max(0, rl.resetAt.getTime() - Date.now())
-        const waitMs = backoffWithJitter(attempt, retryAfterMs)
+        // Exponential backoff WITH jitter — pass null, not the bucket's
+        // resetAt. That reset time is shared across all waiters, and
+        // backoffWithJitter clamps a non-null hint to a fixed value with no
+        // jitter, so honoring it would wake all ~20 concurrent cells in
+        // lockstep and stampede the bucket. Jittered backoff spreads retries.
+        const waitMs = backoffWithJitter(attempt, null)
         logger.info(
           `Rate limited — waiting ${Math.round(waitMs)}ms before retry ${attempt + 1} (table=${tableId} row=${rowId} group=${groupId})`
         )
