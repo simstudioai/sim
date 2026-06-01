@@ -899,7 +899,8 @@ export function KnowledgeBase({
             options={STATUS_FILTER_OPTIONS}
             value={enabledFilter}
             onChange={(value) => {
-              setEnabledFilter(value as 'all' | 'enabled' | 'disabled')
+              if (value !== 'all' && value !== 'enabled' && value !== 'disabled') return
+              setEnabledFilter(value)
               setCurrentPage(1)
               setSelectedDocuments(new Set())
               setIsSelectAllMode(false)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -100,6 +100,12 @@ export function Calendar({ value, onChange, className }: CalendarProps) {
     const base = selected ?? today
     return { month: base.getMonth(), year: base.getFullYear() }
   })
+
+  useEffect(() => {
+    if (selected) {
+      setView({ month: selected.getMonth(), year: selected.getFullYear() })
+    }
+  }, [selected])
 
   const cells = useMemo<(number | null)[]>(() => {
     const leading = getFirstDayOfMonth(view.year, view.month)
