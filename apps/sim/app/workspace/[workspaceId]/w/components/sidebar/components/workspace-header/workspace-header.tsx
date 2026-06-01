@@ -1,23 +1,21 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { MoreHorizontal, Search } from 'lucide-react'
 import {
   Button,
   ChevronDown,
   Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   chipVariants,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Plus,
   Send,
   Skeleton,
@@ -128,18 +126,18 @@ function WorkspaceHeaderImpl({
   const [highlightedIndex, setHighlightedIndex] = useState(0)
 
   const showSearch = workspaces.length > WORKSPACE_SEARCH_THRESHOLD
-  const searchQuery = workspaceSearch.trim().toLowerCase()
-  const filteredWorkspaces = searchQuery
-    ? workspaces.filter((w) => w.name.toLowerCase().includes(searchQuery))
-    : workspaces
+  const filteredWorkspaces = useMemo(() => {
+    const q = workspaceSearch.trim().toLowerCase()
+    return q ? workspaces.filter((w) => w.name.toLowerCase().includes(q)) : workspaces
+  }, [workspaceSearch, workspaces])
 
   useEffect(() => {
-    if (!showSearch) return
+    if (!showSearch || !isWorkspaceMenuOpen) return
     const el = workspaceListRef.current?.querySelector<HTMLElement>(
       `[data-workspace-row-idx="${highlightedIndex}"]`
     )
     el?.scrollIntoView({ block: 'nearest' })
-  }, [highlightedIndex, showSearch])
+  }, [highlightedIndex, showSearch, isWorkspaceMenuOpen])
 
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => {
@@ -424,7 +422,7 @@ function WorkspaceHeaderImpl({
             ) : (
               <>
                 {showSearch && (
-                  <div className='-mx-1.5 -mt-1.5 mb-1 flex h-[28px] items-center gap-1.5 rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2 mx-0'>
+                  <div className='mb-1.5 flex h-[28px] items-center gap-1.5 rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2'>
                     <Search
                       className='size-[11px] flex-shrink-0 text-[var(--text-muted)]'
                       strokeWidth={2}
@@ -461,7 +459,10 @@ function WorkspaceHeaderImpl({
                 )}
                 <div
                   ref={workspaceListRef}
-                  className='-mx-1.5 -mt-1.5 flex max-h-[106px] flex-col gap-0.5 overflow-y-auto px-1.5 py-1.5'
+                  className={cn(
+                    '-mx-1.5 flex max-h-[106px] flex-col gap-0.5 overflow-y-auto px-1.5 py-1.5',
+                    showSearch ? 'mt-0' : '-mt-1.5'
+                  )}
                 >
                   {filteredWorkspaces.length === 0 && workspaceSearch && (
                     <div className='px-2 py-[5px] text-[var(--text-muted)] text-caption'>
@@ -760,35 +761,37 @@ function WorkspaceHeaderImpl({
         itemType='workspace'
         itemName={deleteTarget?.name}
       />
-      <Modal open={isLeaveModalOpen} onOpenChange={() => setIsLeaveModalOpen(false)}>
-        <ModalContent size='sm'>
-          <ModalHeader>Leave Workspace</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to leave{' '}
-              <span className='font-base text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
-              will lose access to all workflows and data in this workspace. This action cannot be
-              undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => setIsLeaveModalOpen(false)}
-              disabled={isLeavingWorkspace}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleLeaveWorkspace}
-              disabled={isLeavingWorkspace}
-            >
-              {isLeavingWorkspace ? 'Leaving...' : 'Leave Workspace'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={isLeaveModalOpen}
+        onOpenChange={() => setIsLeaveModalOpen(false)}
+        srTitle='Leave Workspace'
+      >
+        <ChipModalHeader showDivider={false}>Leave Workspace</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to leave{' '}
+            <span className='font-base text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
+            will lose access to all workflows and data in this workspace. This action cannot be
+            undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Button
+            variant='default'
+            onClick={() => setIsLeaveModalOpen(false)}
+            disabled={isLeavingWorkspace}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant='destructive'
+            onClick={handleLeaveWorkspace}
+            disabled={isLeavingWorkspace}
+          >
+            {isLeavingWorkspace ? 'Leaving...' : 'Leave Workspace'}
+          </Button>
+        </ChipModalFooter>
+      </ChipModal>
     </div>
   )
 }
