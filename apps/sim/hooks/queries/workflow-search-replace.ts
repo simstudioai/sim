@@ -33,7 +33,7 @@ import {
   fetchOAuthCredentialDetail,
   fetchOAuthCredentials,
 } from '@/hooks/queries/oauth/oauth-credentials'
-import { getSelectorDefinition } from '@/hooks/selectors/registry'
+import { getSelectorDefinition, loadAllSelectorOptions } from '@/hooks/selectors/registry'
 import type { SelectorKey, SelectorOption } from '@/hooks/selectors/types'
 
 export interface WorkflowSearchResolvedResource {
@@ -374,7 +374,11 @@ export function useWorkflowSearchSelectorDetails(matches: WorkflowSearchMatch[])
             return definition.fetchById({ ...queryArgs, signal })
           }
 
-          const options = await definition.fetchList({ key: selectorKey, context, signal })
+          const options = await loadAllSelectorOptions(definition, {
+            key: selectorKey,
+            context,
+            signal,
+          })
           return options.find((option) => option.id === match.rawValue) ?? null
         },
         enabled: Boolean(selectorKey && match.rawValue && baseEnabled),
@@ -620,7 +624,7 @@ export function useWorkflowSearchSelectorReplacementOptions(matches: WorkflowSea
       return {
         queryKey: workflowSearchReplaceKeys.selectorReplacementOptions(selectorKey, contextKey),
         queryFn: ({ signal }: { signal: AbortSignal }) =>
-          definition.fetchList({ ...queryArgs, signal }),
+          loadAllSelectorOptions(definition, { ...queryArgs, signal }),
         enabled: Boolean(selectorKey && baseEnabled),
         staleTime: definition.staleTime ?? 60 * 1000,
         select: (options: SelectorOption[]): WorkflowSearchReplacementOption[] =>

@@ -21,7 +21,11 @@ export function filterRulesToFilter(rules: FilterRule[]): Filter | null {
       currentGroup = {}
     }
 
-    currentGroup[rule.column] = ruleValue as Filter[string]
+    const existing = currentGroup[rule.column]
+    currentGroup[rule.column] =
+      existing === undefined
+        ? (ruleValue as Filter[string])
+        : (mergeConditions(existing, ruleValue) as Filter[string])
   }
 
   if (Object.keys(currentGroup).length > 0) {
@@ -77,8 +81,29 @@ export function sortToRules(sort: Sort | null): SortRule[] {
 }
 
 function toRuleValue(operator: string, value: string): JsonValue {
+  if (operator === 'isEmpty') return { $empty: true }
+  if (operator === 'isNotEmpty') return { $empty: false }
   const parsedValue = parseValue(value, operator)
   return operator === 'eq' ? parsedValue : { [`$${operator}`]: parsedValue }
+}
+
+/**
+ * Merges two conditions targeting the same column within one AND group into a
+ * single operator object, so `age > 18 AND age < 65` becomes
+ * `{ age: { $gt: 18, $lt: 65 } }` instead of the second rule clobbering the
+ * first. Bare-equality shorthands are normalized to `{ $eq: value }` so they
+ * can coexist with operators. On a same-operator collision (e.g. two
+ * `$contains`) the later rule wins.
+ */
+function mergeConditions(existing: unknown, incoming: unknown): Record<string, JsonValue> {
+  return { ...toOperatorObject(existing), ...toOperatorObject(incoming) }
+}
+
+function toOperatorObject(value: unknown): Record<string, JsonValue> {
+  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    return { ...(value as Record<string, JsonValue>) }
+  }
+  return { $eq: value as JsonValue }
 }
 
 function applyLogicalOperators(groups: FilterRule[][]): FilterRule[] {
@@ -101,12 +126,21 @@ function applyLogicalOperators(groups: FilterRule[][]): FilterRule[] {
   return rules
 }
 
+const ARRAY_OPERATORS = new Set(['in', 'nin'])
+const TEXT_MATCH_OPERATORS = new Set(['contains', 'ncontains', 'startsWith', 'endsWith'])
+
 function parseValue(value: string, operator: string): JsonValue {
-  if (operator === 'in') {
+  if (ARRAY_OPERATORS.has(operator)) {
     return value
       .split(',')
       .map((part) => part.trim())
       .map((part) => parseScalar(part))
+  }
+
+  // Substring/prefix/suffix matches are textual — keep the raw string so a value
+  // like "123" isn't coerced to a number the SQL builder's ILIKE path can't use.
+  if (TEXT_MATCH_OPERATORS.has(operator)) {
+    return value
   }
 
   return parseScalar(value)
@@ -130,15 +164,29 @@ function parseFilterGroup(group: Filter): FilterRule[] {
 
     if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
       for (const [op, opValue] of Object.entries(value)) {
-        if (op.startsWith('$')) {
+        if (!op.startsWith('$')) continue
+        // `$empty` is a valueless boolean operator — map it back to the two
+        // distinct UI operators rather than exposing a raw `empty` operator.
+        // Accept the string forms `'true'`/`'false'` too, matching the lenient
+        // coercion in the SQL builder's `coerceEmptyFlag` so a filter authored
+        // via the raw API doesn't flip its predicate when re-opened in the UI.
+        if (op === '$empty') {
           rules.push({
             id: generateShortId(),
             logicalOperator: 'and',
             column,
-            operator: op.substring(1),
-            value: formatValueForBuilder(opValue as JsonValue),
+            operator: opValue === true || opValue === 'true' ? 'isEmpty' : 'isNotEmpty',
+            value: '',
           })
+          continue
         }
+        rules.push({
+          id: generateShortId(),
+          logicalOperator: 'and',
+          column,
+          operator: op.substring(1),
+          value: formatValueForBuilder(opValue as JsonValue),
+        })
       }
       continue
     }

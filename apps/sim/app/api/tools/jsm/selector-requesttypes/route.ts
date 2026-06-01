@@ -14,6 +14,72 @@ const logger = createLogger('JsmSelectorRequestTypesAPI')
 
 export const dynamic = 'force-dynamic'
 
+const JSM_REQUEST_TYPES_PAGE_SIZE = 100
+const MAX_JSM_REQUEST_TYPES_PAGES = 50
+
+interface JsmPagedResponse<T> {
+  values?: T[]
+  isLastPage?: boolean
+  _links?: { next?: string }
+}
+
+interface JsmRequestTypeValue {
+  id: string
+  name: string
+}
+
+/**
+ * Drains the offset-paginated JSM `/servicedesk/{id}/requesttype` endpoint,
+ * advancing `start` by the number of rows actually returned until
+ * `isLastPage === true` (or `_links.next` is absent, or a page comes back
+ * empty). Advancing by the real row count — not the requested `limit` —
+ * prevents skipping items if the server returns a short non-final page. Bounded
+ * by `MAX_JSM_REQUEST_TYPES_PAGES`; emits a `logger.warn` and returns the
+ * partial set rather than looping unbounded when the cap is hit.
+ */
+async function fetchAllJsmRequestTypes(
+  requestTypeUrl: string,
+  accessToken: string
+): Promise<{ values: JsmRequestTypeValue[]; lastResponse: Response }> {
+  const values: JsmRequestTypeValue[] = []
+  let start = 0
+  let lastResponse: Response
+
+  for (let page = 0; page < MAX_JSM_REQUEST_TYPES_PAGES; page++) {
+    const url = `${requestTypeUrl}?start=${start}&limit=${JSM_REQUEST_TYPES_PAGE_SIZE}`
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getJsmHeaders(accessToken),
+    })
+
+    if (!response.ok) {
+      return { values, lastResponse: response }
+    }
+
+    const data = (await response.json()) as JsmPagedResponse<JsmRequestTypeValue>
+    lastResponse = response
+
+    const pageValues = data.values ?? []
+    values.push(...pageValues)
+
+    if (data.isLastPage === true || !data._links?.next || pageValues.length === 0) {
+      return { values, lastResponse }
+    }
+
+    start += pageValues.length
+
+    if (page === MAX_JSM_REQUEST_TYPES_PAGES - 1) {
+      logger.warn('JSM request type list hit pagination cap; list may be incomplete', {
+        pages: MAX_JSM_REQUEST_TYPES_PAGES,
+        collected: values.length,
+      })
+    }
+  }
+
+  return { values, lastResponse: lastResponse! }
+}
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   try {
@@ -72,28 +138,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const baseUrl = getJsmApiBaseUrl(cloudIdValidation.sanitized!)
-    const url = `${baseUrl}/servicedesk/${serviceDeskIdValidation.sanitized}/requesttype?limit=100`
+    const requestTypeUrl = `${baseUrl}/servicedesk/${serviceDeskIdValidation.sanitized}/requesttype`
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: getJsmHeaders(accessToken),
-    })
+    const { values, lastResponse } = await fetchAllJsmRequestTypes(requestTypeUrl, accessToken)
 
-    if (!response.ok) {
-      const errorText = await response.text()
+    if (!lastResponse.ok) {
+      const errorText = await lastResponse.text()
       logger.error('JSM API error:', {
-        status: response.status,
-        statusText: response.statusText,
+        status: lastResponse.status,
+        statusText: lastResponse.statusText,
         error: errorText,
       })
       return NextResponse.json(
-        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
-        { status: response.status }
+        {
+          error: parseAtlassianErrorMessage(
+            lastResponse.status,
+            lastResponse.statusText,
+            errorText
+          ),
+        },
+        { status: lastResponse.status }
       )
     }
 
-    const data = await response.json()
-    const requestTypes = (data.values || []).map((rt: { id: string; name: string }) => ({
+    const requestTypes = values.map((rt) => ({
       id: rt.id,
       name: rt.name,
     }))

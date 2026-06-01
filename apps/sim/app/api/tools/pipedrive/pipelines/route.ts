@@ -11,6 +11,86 @@ const logger = createLogger('PipedrivePipelinesAPI')
 
 export const dynamic = 'force-dynamic'
 
+const PIPEDRIVE_PAGE_LIMIT = 500
+const PIPEDRIVE_MAX_PIPELINES_PAGES = 50
+
+interface PipedrivePipeline {
+  id: number
+  name: string
+}
+
+interface PipedrivePipelinesPage {
+  data?: PipedrivePipeline[]
+  additional_data?: {
+    pagination?: {
+      more_items_in_collection?: boolean
+      next_start?: number
+    }
+  }
+}
+
+/**
+ * Lists all Pipedrive pipelines using v1 offset pagination (`start`/`limit`),
+ * following `additional_data.pagination.next_start` while
+ * `more_items_in_collection` is true so the full set is returned. Bounded by
+ * `PIPEDRIVE_MAX_PIPELINES_PAGES`; logs a warning rather than silently dropping
+ * pipelines when the cap is hit.
+ */
+async function fetchAllPipelines(accessToken: string): Promise<PipedrivePipeline[]> {
+  const pipelines: PipedrivePipeline[] = []
+  let start = 0
+
+  for (let page = 0; page < PIPEDRIVE_MAX_PIPELINES_PAGES; page++) {
+    const url = new URL('https://api.pipedrive.com/v1/pipelines')
+    url.searchParams.set('start', String(start))
+    url.searchParams.set('limit', String(PIPEDRIVE_PAGE_LIMIT))
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new PipedriveFetchError(response.status, errorData)
+    }
+
+    const data = (await response.json()) as PipedrivePipelinesPage
+    if (Array.isArray(data.data)) {
+      pipelines.push(...data.data)
+    }
+
+    const pagination = data.additional_data?.pagination
+    if (!pagination?.more_items_in_collection || typeof pagination.next_start !== 'number') {
+      return pipelines
+    }
+    start = pagination.next_start
+
+    if (page === PIPEDRIVE_MAX_PIPELINES_PAGES - 1) {
+      logger.warn(
+        'Pipedrive pipelines listing hit pagination cap; pipeline list may be incomplete',
+        {
+          pages: PIPEDRIVE_MAX_PIPELINES_PAGES,
+        }
+      )
+    }
+  }
+
+  return pipelines
+}
+
+class PipedriveFetchError extends Error {
+  constructor(
+    readonly status: number,
+    readonly details: unknown
+  ) {
+    super('Failed to fetch Pipedrive pipelines')
+    this.name = 'PipedriveFetchError'
+  }
+}
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   try {
@@ -42,27 +122,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const response = await fetch('https://api.pipedrive.com/v1/pipelines', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      logger.error('Failed to fetch Pipedrive pipelines', {
-        status: response.status,
-        error: errorData,
-      })
-      return NextResponse.json(
-        { error: 'Failed to fetch Pipedrive pipelines', details: errorData },
-        { status: response.status }
-      )
+    let allPipelines: PipedrivePipeline[]
+    try {
+      allPipelines = await fetchAllPipelines(accessToken)
+    } catch (error) {
+      if (error instanceof PipedriveFetchError) {
+        logger.error('Failed to fetch Pipedrive pipelines', {
+          status: error.status,
+          error: error.details,
+        })
+        return NextResponse.json(
+          { error: 'Failed to fetch Pipedrive pipelines', details: error.details },
+          { status: error.status }
+        )
+      }
+      throw error
     }
 
-    const data = await response.json()
-    const pipelines = (data.data || []).map((pipeline: { id: number; name: string }) => ({
+    const pipelines = allPipelines.map((pipeline) => ({
       id: String(pipeline.id),
       name: pipeline.name,
     }))

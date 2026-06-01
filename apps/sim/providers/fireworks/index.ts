@@ -34,7 +34,7 @@ const logger = createLogger('FireworksProvider')
 
 /**
  * Applies structured output configuration to a payload based on model capabilities.
- * Uses json_schema with strict mode for supported models, falls back to json_object with prompt instructions.
+ * Uses native json_schema for supported models, falls back to json_object with prompt instructions.
  */
 async function applyResponseFormat(
   targetPayload: any,
@@ -51,7 +51,6 @@ async function applyResponseFormat(
       json_schema: {
         name: responseFormat.name || 'response_schema',
         schema: responseFormat.schema || responseFormat,
-        strict: responseFormat.strict !== false,
       },
     }
     return messages
@@ -469,7 +468,7 @@ export const fireworksProvider: ProviderConfig = {
         const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           messages: [...currentMessages],
-          tool_choice: 'auto',
+          tool_choice: 'none',
           stream: true,
           stream_options: { include_usage: true },
         }
@@ -652,8 +651,3 @@ export const fireworksProvider: ProviderConfig = {
     }
   },
 }
-
-/**
- * Enriches the last model segment with per-iteration content from a Chat
- * Completions response: assistant text, tool calls, finish reason, token usage.
- */

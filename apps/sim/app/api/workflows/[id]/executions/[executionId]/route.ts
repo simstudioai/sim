@@ -9,6 +9,7 @@ import {
 } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import type { PausePoint } from '@/executor/types'
 
@@ -117,6 +118,7 @@ export const GET = withRouteHandler(
       .select({
         executionId: workflowExecutionLogs.executionId,
         workflowId: workflowExecutionLogs.workflowId,
+        workspaceId: workflowExecutionLogs.workspaceId,
         status: workflowExecutionLogs.status,
         level: workflowExecutionLogs.level,
         trigger: workflowExecutionLogs.trigger,
@@ -124,7 +126,7 @@ export const GET = withRouteHandler(
         endedAt: workflowExecutionLogs.endedAt,
         totalDurationMs: workflowExecutionLogs.totalDurationMs,
         executionData: workflowExecutionLogs.executionData,
-        cost: workflowExecutionLogs.cost,
+        costTotal: workflowExecutionLogs.costTotal,
       })
       .from(workflowExecutionLogs)
       .where(
@@ -177,13 +179,20 @@ export const GET = withRouteHandler(
       }
     }
 
-    const cost = logRow.cost
-      ? { total: Number((logRow.cost as { total?: number }).total ?? 0) }
-      : null
+    const cost = logRow.costTotal != null ? { total: Number(logRow.costTotal) } : null
 
-    const error = status === 'failed' ? extractError(logRow.executionData) : null
+    // Heavy execution data may live in object storage; resolve the pointer
+    // before reading error / finalOutput / traceSpans (no-op for inline rows).
+    const executionData = (await materializeExecutionData(
+      logRow.executionData as Record<string, unknown> | null,
+      {
+        workspaceId: logRow.workspaceId,
+        workflowId: logRow.workflowId,
+        executionId: logRow.executionId,
+      }
+    )) as ExecutionDataShape | undefined
 
-    const executionData = logRow.executionData as ExecutionDataShape | undefined
+    const error = status === 'failed' ? extractError(executionData) : null
 
     const finalOutput =
       includeOutput && status === 'completed' && executionData

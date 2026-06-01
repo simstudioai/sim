@@ -3,212 +3,145 @@
  */
 
 import { copilotChats } from '@sim/db/schema'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  selectForUpdate,
-  selectLimit,
-  selectWhere,
-  selectFrom,
-  select,
-  updateWhere,
-  updateSet,
-  update,
-  transaction,
-} = vi.hoisted(() => {
-  const selectLimit = vi.fn()
-  const selectForUpdate = vi.fn(() => ({ limit: selectLimit }))
-  const selectWhere = vi.fn(() => ({ for: selectForUpdate }))
-  const selectFrom = vi.fn(() => ({ where: selectWhere }))
-  const select = vi.fn(() => ({ from: selectFrom }))
+vi.mock('@sim/db', () => dbChainMock)
 
-  const updateWhere = vi.fn()
-  const updateSet = vi.fn(() => ({ where: updateWhere }))
-  const update = vi.fn(() => ({ set: updateSet }))
+const { mockAppendCopilotChatMessages } = vi.hoisted(() => ({
+  mockAppendCopilotChatMessages: vi.fn(),
+}))
 
-  const transaction = vi.fn(
-    (callback: (tx: { select: typeof select; update: typeof update }) => unknown) =>
-      callback({ select, update })
-  )
-
-  return {
-    selectForUpdate,
-    selectLimit,
-    selectWhere,
-    selectFrom,
-    select,
-    updateWhere,
-    updateSet,
-    update,
-    transaction,
-  }
-})
-
-vi.mock('@sim/db', () => ({
-  db: {
-    transaction,
-  },
+vi.mock('@/lib/copilot/chat/messages-store', () => ({
+  appendCopilotChatMessages: mockAppendCopilotChatMessages,
 }))
 
 import { finalizeAssistantTurn } from './terminal-state'
 
+const assistantMessage = {
+  id: 'assistant-1',
+  role: 'assistant' as const,
+  content: 'hi',
+  timestamp: '2024-01-01T00:00:00.000Z',
+}
+
+/**
+ * Sequence the two in-tx reads: the chat row (`FOR UPDATE ... LIMIT 1`) and the
+ * last-message lookup that drives dedup — both terminate on `.limit(1)`.
+ */
+function mockReads(opts: {
+  chat: Record<string, unknown> | null
+  last?: { messageId: string; role: string }
+}) {
+  dbChainMockFns.limit.mockResolvedValueOnce(opts.chat ? [opts.chat] : [])
+  dbChainMockFns.limit.mockResolvedValueOnce(opts.last ? [opts.last] : [])
+}
+
 describe('finalizeAssistantTurn', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    updateWhere.mockResolvedValue(undefined)
+    // Drain the once-queue (clearAllMocks/resetDbChainMock don't), then restore defaults.
+    dbChainMockFns.limit.mockReset()
+    resetDbChainMock()
   })
 
-  it('appends the assistant message when the user turn is still last', async () => {
-    selectLimit.mockResolvedValue([
-      {
-        messages: [{ id: 'user-1', role: 'user', content: 'hello' }],
-        conversationId: 'user-1',
-        workspaceId: 'ws-1',
-      },
-    ])
-
-    await finalizeAssistantTurn({
-      chatId: 'chat-1',
-      userMessageId: 'user-1',
-      assistantMessage: {
-        id: 'assistant-1',
-        role: 'assistant',
-        content: 'hi',
-        timestamp: '2024-01-01T00:00:00.000Z',
-      },
+  it('appends the assistant message when the user turn has no reply yet', async () => {
+    mockReads({
+      chat: { conversationId: 'user-1', workspaceId: 'ws-1', model: null },
+      last: { messageId: 'user-1', role: 'user' },
     })
-
-    expect(updateSet).toHaveBeenCalledWith(
-      expect.objectContaining({
-        updatedAt: expect.any(Date),
-        conversationId: null,
-        messages: expect.anything(),
-      })
-    )
-    expect(updateWhere).toHaveBeenCalledWith(eq(copilotChats.id, 'chat-1'))
-  })
-
-  it('only clears the active stream marker when a response is already persisted', async () => {
-    selectLimit.mockResolvedValue([
-      {
-        messages: [
-          { id: 'user-1', role: 'user', content: 'hello' },
-          { id: 'assistant-1', role: 'assistant', content: 'partial' },
-        ],
-        conversationId: 'user-1',
-        workspaceId: 'ws-1',
-      },
-    ])
-
-    await finalizeAssistantTurn({
-      chatId: 'chat-1',
-      userMessageId: 'user-1',
-      assistantMessage: {
-        id: 'assistant-2',
-        role: 'assistant',
-        content: 'final',
-        timestamp: '2024-01-01T00:00:00.000Z',
-      },
-    })
-
-    const updateCalls = updateSet.mock.calls as unknown as Array<[Record<string, unknown>]>
-    const updateArg = updateCalls[0]?.[0]
-    expect(updateArg).toBeDefined()
-    if (!updateArg) {
-      throw new Error('Expected updateSet to be called')
-    }
-    expect(updateArg).toEqual(
-      expect.objectContaining({
-        updatedAt: expect.any(Date),
-        conversationId: null,
-      })
-    )
-    expect(Object.hasOwn(updateArg, 'messages')).toBe(false)
-    expect(updateWhere).toHaveBeenCalledWith(eq(copilotChats.id, 'chat-1'))
-  })
-
-  it('appends a stopped assistant when the stream marker was already cleared', async () => {
-    selectLimit.mockResolvedValue([
-      {
-        messages: [{ id: 'user-1', role: 'user', content: 'hello' }],
-        conversationId: null,
-        workspaceId: 'ws-1',
-      },
-    ])
 
     const result = await finalizeAssistantTurn({
       chatId: 'chat-1',
       userMessageId: 'user-1',
-      streamMarkerPolicy: 'active-or-cleared',
-      assistantMessage: {
-        id: 'assistant-1',
-        role: 'assistant',
-        content: 'partial',
-        timestamp: '2024-01-01T00:00:00.000Z',
-      },
+      assistantMessage,
     })
 
     expect(result.appendedAssistant).toBe(true)
-    expect(updateSet).toHaveBeenCalledWith(
-      expect.objectContaining({
-        updatedAt: expect.any(Date),
-        conversationId: null,
-        messages: expect.anything(),
-      })
+    const updateArg = dbChainMockFns.set.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(updateArg).toEqual(
+      expect.objectContaining({ updatedAt: expect.any(Date), conversationId: null })
+    )
+    expect(Object.hasOwn(updateArg, 'messages')).toBe(false)
+    expect(dbChainMockFns.where).toHaveBeenCalledWith(eq(copilotChats.id, 'chat-1'))
+    expect(mockAppendCopilotChatMessages).toHaveBeenCalledTimes(1)
+    expect(mockAppendCopilotChatMessages).toHaveBeenCalledWith(
+      'chat-1',
+      [assistantMessage],
+      { streamId: 'user-1', chatModel: null },
+      expect.anything()
     )
   })
 
-  it('does not append on a cleared marker unless the policy allows it', async () => {
-    selectLimit.mockResolvedValue([
-      {
-        messages: [{ id: 'user-1', role: 'user', content: 'hello' }],
-        conversationId: null,
-        workspaceId: 'ws-1',
-      },
-    ])
+  it('only clears the active stream marker when a response is already persisted', async () => {
+    mockReads({
+      chat: { conversationId: 'user-1', workspaceId: 'ws-1', model: null },
+      last: { messageId: 'assistant-1', role: 'assistant' },
+    })
 
     const result = await finalizeAssistantTurn({
       chatId: 'chat-1',
       userMessageId: 'user-1',
-      assistantMessage: {
-        id: 'assistant-1',
-        role: 'assistant',
-        content: 'partial',
-        timestamp: '2024-01-01T00:00:00.000Z',
-      },
+      assistantMessage: { ...assistantMessage, id: 'assistant-2' },
     })
 
-    expect(result.updated).toBe(false)
-    expect(updateSet).not.toHaveBeenCalled()
+    expect(result.outcome).toBe('assistant_already_persisted')
+    const updateArg = dbChainMockFns.set.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(updateArg).toEqual(
+      expect.objectContaining({ updatedAt: expect.any(Date), conversationId: null })
+    )
+    expect(Object.hasOwn(updateArg, 'messages')).toBe(false)
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
   })
 
-  it('reports already persisted when a cleared marker races with a duplicate stop', async () => {
-    selectLimit.mockResolvedValue([
-      {
-        messages: [
-          { id: 'user-1', role: 'user', content: 'hello' },
-          { id: 'assistant-1', role: 'assistant', content: 'partial' },
-        ],
-        conversationId: null,
-        workspaceId: 'ws-1',
-      },
-    ])
+  it('appends a stopped assistant when the stream marker was already cleared', async () => {
+    mockReads({
+      chat: { conversationId: null, workspaceId: 'ws-1', model: null },
+      last: { messageId: 'user-1', role: 'user' },
+    })
 
     const result = await finalizeAssistantTurn({
       chatId: 'chat-1',
       userMessageId: 'user-1',
       streamMarkerPolicy: 'active-or-cleared',
-      assistantMessage: {
-        id: 'assistant-2',
-        role: 'assistant',
-        content: 'partial',
-        timestamp: '2024-01-01T00:00:00.000Z',
-      },
+      assistantMessage,
+    })
+
+    expect(result.appendedAssistant).toBe(true)
+    expect(mockAppendCopilotChatMessages).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not append on a cleared marker unless the policy allows it', async () => {
+    mockReads({ chat: { conversationId: null, workspaceId: 'ws-1', model: null } })
+
+    const result = await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userMessageId: 'user-1',
+      assistantMessage,
+    })
+
+    expect(result.updated).toBe(false)
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+  })
+
+  it('reports already persisted when a cleared marker races with a duplicate stop', async () => {
+    mockReads({
+      chat: { conversationId: null, workspaceId: 'ws-1', model: null },
+      last: { messageId: 'assistant-1', role: 'assistant' },
+    })
+
+    const result = await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userMessageId: 'user-1',
+      streamMarkerPolicy: 'active-or-cleared',
+      assistantMessage: { ...assistantMessage, id: 'assistant-2' },
     })
 
     expect(result.updated).toBe(false)
     expect(result.outcome).toBe('assistant_already_persisted')
-    expect(updateSet).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
   })
 })

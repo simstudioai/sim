@@ -15,6 +15,7 @@ export {
   buttonGroupItemVariants,
   buttonGroupVariants,
 } from './button-group/button-group'
+export { Calendar, type CalendarProps, formatDateLabel, parseDateValue } from './calendar/calendar'
 export { Callout, calloutVariants } from './callout/callout'
 export {
   Checkbox,
@@ -22,6 +23,7 @@ export {
   checkboxVariants,
 } from './checkbox/checkbox'
 export { Chip, ChipLink, type ChipLinkProps, type ChipProps, chipVariants } from './chip/chip'
+export { ChipDatePicker, type ChipDatePickerProps } from './chip-date-picker/chip-date-picker'
 export {
   ChipDropdown,
   type ChipDropdownOption,
@@ -40,6 +42,11 @@ export {
   type ChipModalHeaderProps,
   type ChipModalProps,
 } from './chip-modal/chip-modal'
+export {
+  ChipMultiSelect,
+  type ChipMultiSelectOption,
+  type ChipMultiSelectProps,
+} from './chip-multi-select/chip-multi-select'
 export {
   ChipSwitch,
   type ChipSwitchOption,

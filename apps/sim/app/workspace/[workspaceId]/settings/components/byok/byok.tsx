@@ -17,8 +17,10 @@ import {
 } from '@/components/emcn'
 import {
   AnthropicIcon,
+  BasetenIcon,
   BrandfetchIcon,
   ExaAIIcon,
+  FindymailIcon,
   FirecrawlIcon,
   FireworksIcon,
   GeminiIcon,
@@ -28,11 +30,15 @@ import {
   JinaAIIcon,
   LinkupIcon,
   MistralIcon,
+  OllamaIcon,
   OpenAIIcon,
   ParallelIcon,
   PeopleDataLabsIcon,
   PerplexityIcon,
+  ProspeoIcon,
   SerperIcon,
+  TogetherIcon,
+  WizaIcon,
 } from '@/components/icons'
 import { Input } from '@/components/ui'
 import {
@@ -86,6 +92,27 @@ const PROVIDERS: {
     icon: FireworksIcon,
     description: 'LLM calls',
     placeholder: 'Enter your Fireworks API key',
+  },
+  {
+    id: 'together',
+    name: 'Together AI',
+    icon: TogetherIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your Together AI API key',
+  },
+  {
+    id: 'baseten',
+    name: 'Baseten',
+    icon: BasetenIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your Baseten API key',
+  },
+  {
+    id: 'ollama-cloud',
+    name: 'Ollama Cloud',
+    icon: OllamaIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your Ollama API key',
   },
   {
     id: 'falai',
@@ -170,6 +197,27 @@ const PROVIDERS: {
     icon: PeopleDataLabsIcon,
     description: 'Person and company enrichment, search, and identity',
     placeholder: 'Enter your People Data Labs API key',
+  },
+  {
+    id: 'findymail',
+    name: 'Findymail',
+    icon: FindymailIcon,
+    description: 'Email finder, verification, and phone lookup',
+    placeholder: 'Enter your Findymail API key',
+  },
+  {
+    id: 'prospeo',
+    name: 'Prospeo',
+    icon: ProspeoIcon,
+    description: 'Person and company enrichment and search',
+    placeholder: 'Enter your Prospeo API key',
+  },
+  {
+    id: 'wiza',
+    name: 'Wiza',
+    icon: WizaIcon,
+    description: 'Prospect search, individual reveal, and company enrichment',
+    placeholder: 'Enter your Wiza API key',
   },
 ]
 

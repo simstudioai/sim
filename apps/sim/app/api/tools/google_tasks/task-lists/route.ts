@@ -5,12 +5,26 @@ import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { drainGooglePagedList, GooglePageError } from '@/lib/oauth/google-pagination'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('GoogleTasksTaskListsAPI')
 
 export const dynamic = 'force-dynamic'
+
+const MAX_TASK_LIST_PAGES = 20
+const TASK_LIST_PAGE_SIZE = 1000
+
+interface GoogleTaskList {
+  id: string
+  title: string
+}
+
+interface GoogleTaskListsResponse {
+  items?: GoogleTaskList[]
+  nextPageToken?: string
+}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -56,33 +70,44 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const response = await fetch('https://tasks.googleapis.com/tasks/v1/users/@me/lists', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+    const { items } = await drainGooglePagedList<GoogleTaskList, GoogleTaskListsResponse>({
+      buildUrl: (pageToken) => {
+        const url = new URL('https://tasks.googleapis.com/tasks/v1/users/@me/lists')
+        url.searchParams.set('maxResults', String(TASK_LIST_PAGE_SIZE))
+        if (pageToken) url.searchParams.set('pageToken', pageToken)
+        return url.toString()
       },
+      fetch: (url) =>
+        fetch(url, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+      parseError: (response) => response.json().catch(() => ({})),
+      getItems: (body) => body.items,
+      getNextPageToken: (body) => body.nextPageToken,
+      maxPages: MAX_TASK_LIST_PAGES,
+      label: 'Google Tasks task lists',
     })
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      logger.error('Failed to fetch Google Tasks task lists', {
-        status: response.status,
-        error: errorData,
-      })
-      return NextResponse.json(
-        { error: 'Failed to fetch Google Tasks task lists', details: errorData },
-        { status: response.status }
-      )
-    }
-
-    const data = await response.json()
-    const taskLists = (data.items || []).map((list: { id: string; title: string }) => ({
+    const taskLists = items.map((list) => ({
       id: list.id,
       title: list.title,
     }))
 
     return NextResponse.json({ taskLists })
   } catch (error) {
+    if (error instanceof GooglePageError) {
+      logger.error('Failed to fetch Google Tasks task lists', {
+        status: error.status,
+        error: error.body,
+      })
+      return NextResponse.json(
+        { error: 'Failed to fetch Google Tasks task lists', details: error.body },
+        { status: error.status }
+      )
+    }
     if (error instanceof ServiceAccountTokenError) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }

@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from 'react'
+import { memo, type ReactNode, useState } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import {
   ArrowDown,
@@ -14,11 +14,14 @@ import {
   Search,
   X,
 } from '@/components/emcn'
+import { POPOVER_ANIMATION_CLASSES } from '@/components/emcn/components/chip-date-picker/chip-date-picker'
 import { cn } from '@/lib/core/utils/cn'
 
 const SEARCH_ICON = (
   <Search className='pointer-events-none size-[14px] shrink-0 text-[var(--text-icon)]' />
 )
+
+const RESOURCE_MENU_EDGE_OFFSET = 6
 
 type SortDirection = 'asc' | 'desc'
 
@@ -73,6 +76,10 @@ interface ResourceOptionsBarProps {
   filterActive?: boolean
   filterTags?: FilterTag[]
   extras?: ReactNode
+  /** Right-aligned slot. Unlike `extras` (which sits with the left controls),
+   *  `trailing` is pushed to the far right via `justify-between` — used for the
+   *  table's run/stop control opposite the left-aligned filter/sort. */
+  trailing?: ReactNode
 }
 
 export const ResourceOptionsBar = memo(function ResourceOptionsBar({
@@ -83,9 +90,24 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
   filterActive,
   filterTags,
   extras,
+  trailing,
 }: ResourceOptionsBarProps) {
+  /**
+   * Coordinates the Filter popover and Sort menu as a single menu bar: clicking
+   * one while the other is open switches to it in a single click. Functional
+   * updates make the close→open ordering race-proof, so whichever menu the click
+   * targets wins regardless of which `onOpenChange` fires first.
+   */
+  const [openMenu, setOpenMenu] = useState<'filter' | 'sort' | null>(null)
+
   const hasContent =
-    search || sort || filter || onFilterToggle || extras || (filterTags && filterTags.length > 0)
+    search ||
+    sort ||
+    filter ||
+    onFilterToggle ||
+    extras ||
+    trailing ||
+    (filterTags && filterTags.length > 0)
   if (!hasContent) return null
 
   return (
@@ -123,26 +145,52 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
               Filter
             </Button>
           ) : filter ? (
-            <PopoverPrimitive.Root>
-              <PopoverPrimitive.Trigger asChild>
-                <Button variant='subtle' className='px-2 py-1 text-caption'>
-                  <ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
-                  Filter
-                </Button>
-              </PopoverPrimitive.Trigger>
+            <PopoverPrimitive.Root
+              open={openMenu === 'filter'}
+              onOpenChange={(open) =>
+                setOpenMenu((current) => (open ? 'filter' : current === 'filter' ? null : current))
+              }
+            >
+              <PopoverPrimitive.Anchor asChild>
+                <div className='flex items-center gap-1.5'>
+                  <PopoverPrimitive.Trigger asChild>
+                    <Button variant='subtle' className='px-2 py-1 text-caption'>
+                      <ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
+                      Filter
+                    </Button>
+                  </PopoverPrimitive.Trigger>
+                  {sort && (
+                    <SortDropdown
+                      config={sort}
+                      open={openMenu === 'sort'}
+                      onOpenChange={(open) =>
+                        setOpenMenu((current) =>
+                          open ? 'sort' : current === 'sort' ? null : current
+                        )
+                      }
+                    />
+                  )}
+                </div>
+              </PopoverPrimitive.Anchor>
               <PopoverPrimitive.Portal>
                 <PopoverPrimitive.Content
-                  align='start'
+                  align='end'
+                  alignOffset={RESOURCE_MENU_EDGE_OFFSET}
+                  collisionPadding={6}
                   sideOffset={6}
-                  className='z-50 w-fit rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+                  className={cn(
+                    POPOVER_ANIMATION_CLASSES,
+                    'z-50 w-fit origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+                  )}
                 >
                   {filter}
                 </PopoverPrimitive.Content>
               </PopoverPrimitive.Portal>
             </PopoverPrimitive.Root>
           ) : null}
-          {sort && <SortDropdown config={sort} />}
+          {sort && (onFilterToggle || !filter) && <SortDropdown config={sort} />}
         </div>
+        {trailing && <div className='flex shrink-0 items-center gap-1.5'>{trailing}</div>}
       </div>
     </div>
   )
@@ -200,11 +248,19 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
   )
 })
 
-const SortDropdown = memo(function SortDropdown({ config }: { config: SortConfig }) {
+interface SortDropdownProps {
+  config: SortConfig
+  /** Controlled open state — omit for standalone (uncontrolled) usage. */
+  open?: boolean
+  /** Controlled open-change handler, paired with {@link SortDropdownProps.open}. */
+  onOpenChange?: (open: boolean) => void
+}
+
+const SortDropdown = memo(function SortDropdown({ config, open, onOpenChange }: SortDropdownProps) {
   const { options, active, onSort, onClear } = config
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false} open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           variant='subtle'
@@ -222,7 +278,11 @@ const SortDropdown = memo(function SortDropdown({ config }: { config: SortConfig
           Sort
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='start'>
+      <DropdownMenuContent
+        align='end'
+        alignOffset={RESOURCE_MENU_EDGE_OFFSET}
+        className='max-h-[var(--radix-dropdown-menu-content-available-height,400px)]'
+      >
         {options.map((option) => {
           const isActive = active?.column === option.id
           const Icon = option.icon

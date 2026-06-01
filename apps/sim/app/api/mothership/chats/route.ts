@@ -106,7 +106,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         type: 'mothership',
         title: null,
         model: 'claude-opus-4-6',
-        messages: [],
         updatedAt: now,
         lastSeenAt: now,
       })

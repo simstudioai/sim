@@ -1,3 +1,4 @@
+import { findymailHosting } from '@/tools/findymail/hosting'
 import type {
   FindymailVerifyEmailParams,
   FindymailVerifyEmailResponse,
@@ -10,6 +11,11 @@ export const verifyEmailTool: ToolConfig<FindymailVerifyEmailParams, FindymailVe
     name: 'Findymail Verify Email',
     description: 'Verifies the deliverability of an email address. Uses one verifier credit.',
     version: '1.0.0',
+
+    hosting: findymailHosting<FindymailVerifyEmailParams>(() => {
+      // Each verification consumes one verifier credit, billed at the finder-credit rate.
+      return 1
+    }),
 
     params: {
       email: {

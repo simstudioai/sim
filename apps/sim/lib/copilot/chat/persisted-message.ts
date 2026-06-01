@@ -79,6 +79,34 @@ export interface PersistedMessage {
   contexts?: PersistedMessageContext[]
 }
 
+/**
+ * Drop the `output` of every persisted tool result, keeping `success` and
+ * `error`. Tool outputs are never rendered (the chat thread shows only the tool
+ * name/title/status) and never replayed to the model (the upstream copilot
+ * service owns conversation memory), so storing them only bloats
+ * `copilot_messages.content` — a single `get_workflow_logs`/`run_workflow`
+ * result can reach hundreds of MB and stall task loads.
+ *
+ * Applied on both the write path (so new rows never store outputs) and the read
+ * path (so already-bloated rows still load fast). Returns the original
+ * reference when there is nothing to strip, preserving memoized identity for
+ * read-side consumers.
+ */
+export function stripToolResultOutput(message: PersistedMessage): PersistedMessage {
+  if (!message.contentBlocks?.length) return message
+  let changed = false
+  const contentBlocks = message.contentBlocks.map((block) => {
+    const toolCall = block.toolCall
+    const result = toolCall?.result
+    if (!toolCall || !result || typeof result !== 'object' || !('output' in result)) return block
+    changed = true
+    const strippedResult: { success: boolean; error?: string } = { success: result.success }
+    if (result.error !== undefined) strippedResult.error = result.error
+    return { ...block, toolCall: { ...toolCall, result: strippedResult } }
+  })
+  return changed ? { ...message, contentBlocks } : message
+}
+
 // ---------------------------------------------------------------------------
 // Write: OrchestratorResult → PersistedMessage
 // ---------------------------------------------------------------------------

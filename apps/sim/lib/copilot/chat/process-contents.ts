@@ -579,6 +579,7 @@ async function processExecutionLogFromDb(
       .select({
         id: workflowExecutionLogs.id,
         workflowId: workflowExecutionLogs.workflowId,
+        workspaceId: workflowExecutionLogs.workspaceId,
         executionId: workflowExecutionLogs.executionId,
         level: workflowExecutionLogs.level,
         trigger: workflowExecutionLogs.trigger,
@@ -586,7 +587,7 @@ async function processExecutionLogFromDb(
         endedAt: workflowExecutionLogs.endedAt,
         totalDurationMs: workflowExecutionLogs.totalDurationMs,
         executionData: workflowExecutionLogs.executionData,
-        cost: workflowExecutionLogs.cost,
+        costTotal: workflowExecutionLogs.costTotal,
         workflowName: workflow.name,
       })
       .from(workflowExecutionLogs)
@@ -611,6 +612,13 @@ async function processExecutionLogFromDb(
       }
     }
 
+    // Heavy execution data may live in object storage; resolve the pointer.
+    const { materializeExecutionData } = await import('@/lib/logs/execution/trace-store')
+    const executionData = (await materializeExecutionData(
+      log.executionData as Record<string, unknown> | null,
+      { workspaceId: log.workspaceId, workflowId: log.workflowId, executionId: log.executionId }
+    )) as any
+
     const summary = {
       id: log.id,
       workflowId: log.workflowId,
@@ -621,13 +629,13 @@ async function processExecutionLogFromDb(
       endedAt: log.endedAt?.toISOString?.() || (log.endedAt ? String(log.endedAt) : null),
       totalDurationMs: log.totalDurationMs ?? null,
       workflowName: log.workflowName || '',
-      executionData: log.executionData
+      executionData: executionData
         ? {
-            traceSpans: (log.executionData as any).traceSpans || undefined,
-            errorDetails: (log.executionData as any).errorDetails || undefined,
+            traceSpans: executionData.traceSpans || undefined,
+            errorDetails: executionData.errorDetails || undefined,
           }
         : undefined,
-      cost: log.cost || undefined,
+      cost: log.costTotal != null ? { total: Number(log.costTotal) } : undefined,
     }
 
     const content = JSON.stringify(summary)

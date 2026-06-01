@@ -3,7 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
 import { getBlacklistedProvidersFromEnv, isHosted } from '@/lib/core/config/feature-flags'
 import {
@@ -131,6 +131,7 @@ function buildProviderMetadata(providerId: ProviderId): ProviderMetadata {
 
 export const providers: Record<ProviderId, ProviderMetadata> = {
   ollama: buildProviderMetadata('ollama'),
+  'ollama-cloud': buildProviderMetadata('ollama-cloud'),
   vllm: buildProviderMetadata('vllm'),
   litellm: buildProviderMetadata('litellm'),
   openai: {
@@ -155,6 +156,8 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),
   fireworks: buildProviderMetadata('fireworks'),
+  together: buildProviderMetadata('together'),
+  baseten: buildProviderMetadata('baseten'),
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
@@ -186,15 +189,36 @@ export async function updateFireworksProviderModels(models: string[]): Promise<v
   providers.fireworks.models = getProviderModelsFromDefinitions('fireworks')
 }
 
+export async function updateOllamaCloudProviderModels(models: string[]): Promise<void> {
+  const { updateOllamaCloudModels } = await import('@/providers/models')
+  updateOllamaCloudModels(models)
+  providers['ollama-cloud'].models = getProviderModelsFromDefinitions('ollama-cloud')
+}
+
+export async function updateTogetherProviderModels(models: string[]): Promise<void> {
+  const { updateTogetherModels } = await import('@/providers/models')
+  updateTogetherModels(models)
+  providers.together.models = getProviderModelsFromDefinitions('together')
+}
+
+export async function updateBasetenProviderModels(models: string[]): Promise<void> {
+  const { updateBasetenModels } = await import('@/providers/models')
+  updateBasetenModels(models)
+  providers.baseten.models = getProviderModelsFromDefinitions('baseten')
+}
+
 export function getBaseModelProviders(): Record<string, ProviderId> {
   const allProviders = Object.entries(providers)
     .filter(
       ([providerId]) =>
         providerId !== 'ollama' &&
+        providerId !== 'ollama-cloud' &&
         providerId !== 'vllm' &&
         providerId !== 'litellm' &&
         providerId !== 'openrouter' &&
-        providerId !== 'fireworks'
+        providerId !== 'fireworks' &&
+        providerId !== 'together' &&
+        providerId !== 'baseten'
     )
     .reduce(
       (map, [providerId, config]) => {
@@ -670,6 +694,59 @@ export function calculateCost(
 }
 
 /**
+ * Recursively enforces OpenAI strict-mode requirements on a JSON schema:
+ * - Sets `additionalProperties: false` on every object type.
+ * - Forces `required` to include ALL property keys.
+ *
+ * Required for any OpenAI-compatible backend that validates strict structured
+ * outputs (OpenAI, Azure OpenAI, and OpenAI routes behind proxies like LiteLLM),
+ * which reject schemas missing these constraints with an HTTP 400.
+ */
+export function enforceStrictSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  if (!schema || typeof schema !== 'object') return schema
+
+  const result = { ...schema }
+
+  if (result.type === 'object') {
+    result.additionalProperties = false
+
+    if (result.properties && typeof result.properties === 'object') {
+      const propKeys = Object.keys(result.properties as Record<string, unknown>)
+      result.required = propKeys
+      result.properties = Object.fromEntries(
+        Object.entries(result.properties as Record<string, unknown>).map(([key, value]) => [
+          key,
+          enforceStrictSchema(value as Record<string, unknown>),
+        ])
+      )
+    }
+  }
+
+  if (result.type === 'array' && result.items) {
+    result.items = enforceStrictSchema(result.items as Record<string, unknown>)
+  }
+
+  for (const keyword of ['anyOf', 'oneOf', 'allOf']) {
+    if (Array.isArray(result[keyword])) {
+      result[keyword] = (result[keyword] as Record<string, unknown>[]).map(enforceStrictSchema)
+    }
+  }
+
+  for (const defKey of ['$defs', 'definitions']) {
+    if (result[defKey] && typeof result[defKey] === 'object') {
+      result[defKey] = Object.fromEntries(
+        Object.entries(result[defKey] as Record<string, unknown>).map(([key, value]) => [
+          key,
+          enforceStrictSchema(value as Record<string, unknown>),
+        ])
+      )
+    }
+  }
+
+  return result
+}
+
+/**
  * Sums the `cost.total` from each tool result returned during a provider tool loop.
  * Tool results may carry a `cost` object injected by `applyHostedKeyCostToResult`.
  */
@@ -700,11 +777,7 @@ export function getModelPricing(modelId: string): any {
  * @returns Formatted credit string (e.g. "200 credits", "<1 credit", "0 credits")
  */
 export function formatCost(cost: number): string {
-  if (cost === undefined || cost === null) return '—'
-  const credits = dollarsToCredits(cost)
-  if (credits <= 0 && cost > 0) return '<1 credit'
-  if (credits <= 0) return '0 credits'
-  return `${credits.toLocaleString()} credits`
+  return formatCreditCost(cost) ?? '—'
 }
 
 /**

@@ -1,79 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { authMockFns } from '@sim/testing'
+import { authMockFns, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockSelect,
-  mockFrom,
-  mockWhereSelect,
-  mockLimit,
-  mockForUpdate,
-  mockUpdate,
-  mockSet,
-  mockWhereUpdate,
-  mockReturning,
-  mockPublishStatusChanged,
-  mockSql,
-  mockTransaction,
-} = vi.hoisted(() => {
-  const mockSelect = vi.fn()
-  const mockFrom = vi.fn()
-  const mockWhereSelect = vi.fn()
-  const mockLimit = vi.fn()
-  const mockForUpdate = vi.fn()
-  const mockUpdate = vi.fn()
-  const mockSet = vi.fn()
-  const mockWhereUpdate = vi.fn()
-  const mockReturning = vi.fn()
-  const mockPublishStatusChanged = vi.fn()
-  const mockSql = vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
-    strings,
-    values,
-  }))
-  const mockTransaction = vi.fn(
-    (callback: (tx: { select: typeof mockSelect; update: typeof mockUpdate }) => unknown) =>
-      callback({ select: mockSelect, update: mockUpdate })
-  )
+vi.mock('@sim/db', () => dbChainMock)
 
-  return {
-    mockSelect,
-    mockFrom,
-    mockWhereSelect,
-    mockLimit,
-    mockForUpdate,
-    mockUpdate,
-    mockSet,
-    mockWhereUpdate,
-    mockReturning,
-    mockPublishStatusChanged,
-    mockSql,
-    mockTransaction,
-  }
-})
-
-vi.mock('@sim/db/schema', () => ({
-  copilotChats: {
-    id: 'copilotChats.id',
-    userId: 'copilotChats.userId',
-    workspaceId: 'copilotChats.workspaceId',
-    messages: 'copilotChats.messages',
-    conversationId: 'copilotChats.conversationId',
-  },
+const { mockAppendCopilotChatMessages, mockPublishStatusChanged } = vi.hoisted(() => ({
+  mockAppendCopilotChatMessages: vi.fn(),
+  mockPublishStatusChanged: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    transaction: mockTransaction,
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
-  sql: mockSql,
+vi.mock('@/lib/copilot/chat/messages-store', () => ({
+  appendCopilotChatMessages: mockAppendCopilotChatMessages,
 }))
 
 vi.mock('@/lib/copilot/tasks', () => ({
@@ -92,39 +32,33 @@ function createRequest(body: Record<string, unknown>) {
   })
 }
 
+/**
+ * Sequence the two in-tx reads `finalizeAssistantTurn` issues: the chat row
+ * (`FOR UPDATE ... LIMIT 1`) and the last-message lookup that drives dedup
+ * (both terminate on `.limit(1)`).
+ */
+function mockReads(opts: {
+  chat: Record<string, unknown> | null
+  last?: { messageId: string; role: string }
+}) {
+  dbChainMockFns.limit.mockResolvedValueOnce(opts.chat ? [opts.chat] : [])
+  dbChainMockFns.limit.mockResolvedValueOnce(opts.last ? [opts.last] : [])
+}
+
 describe('copilot chat stop route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
+    // Drain the once-queue (clearAllMocks/resetDbChainMock don't), then restore defaults.
+    dbChainMockFns.limit.mockReset()
+    resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-
-    mockLimit.mockResolvedValue([
-      {
-        workspaceId: 'ws-1',
-        messages: [{ id: 'stream-1', role: 'user', content: 'hello' }],
-        conversationId: 'stream-1',
-      },
-    ])
-    mockForUpdate.mockReturnValue({ limit: mockLimit })
-    mockWhereSelect.mockReturnValue({ for: mockForUpdate })
-    mockFrom.mockReturnValue({ where: mockWhereSelect })
-    mockSelect.mockReturnValue({ from: mockFrom })
-
-    mockReturning.mockResolvedValue([{ workspaceId: 'ws-1' }])
-    mockWhereUpdate.mockReturnValue({ returning: mockReturning })
-    mockSet.mockReturnValue({ where: mockWhereUpdate })
-    mockUpdate.mockReturnValue({ set: mockSet })
   })
 
   it('returns 401 when unauthenticated', async () => {
     authMockFns.mockGetSession.mockResolvedValueOnce(null)
 
     const response = await POST(
-      createRequest({
-        chatId: 'chat-1',
-        streamId: 'stream-1',
-        content: '',
-      })
+      createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: '' })
     )
 
     expect(response.status).toBe(401)
@@ -132,41 +66,37 @@ describe('copilot chat stop route', () => {
   })
 
   it('is a no-op when the chat is missing', async () => {
-    mockLimit.mockResolvedValueOnce([])
+    mockReads({ chat: null })
 
     const response = await POST(
-      createRequest({
-        chatId: 'missing-chat',
-        streamId: 'stream-1',
-        content: '',
-      })
+      createRequest({ chatId: 'missing-chat', streamId: 'stream-1', content: '' })
     )
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ success: true })
-    expect(mockUpdate).not.toHaveBeenCalled()
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
   })
 
   it('appends a stopped assistant message even with no content', async () => {
+    mockReads({
+      chat: { workspaceId: 'ws-1', conversationId: 'stream-1', model: null },
+      last: { messageId: 'stream-1', role: 'user' },
+    })
+
     const response = await POST(
-      createRequest({
-        chatId: 'chat-1',
-        streamId: 'stream-1',
-        content: '',
-      })
+      createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: '' })
     )
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ success: true })
 
-    const setArg = mockSet.mock.calls[0]?.[0]
-    expect(setArg).toBeTruthy()
+    const setArg = dbChainMockFns.set.mock.calls[0]?.[0] as Record<string, unknown>
     expect(setArg.conversationId).toBeNull()
-    expect(setArg.messages).toBeTruthy()
+    expect(Object.hasOwn(setArg, 'messages')).toBe(false)
 
-    const appendedPayload = JSON.parse(setArg.messages.values[1] as string)
-    expect(appendedPayload).toHaveLength(1)
-    expect(appendedPayload[0]).toMatchObject({
+    expect(mockAppendCopilotChatMessages).toHaveBeenCalledTimes(1)
+    const [, appended] = mockAppendCopilotChatMessages.mock.calls[0]
+    expect(appended[0]).toMatchObject({
       role: 'assistant',
       content: '',
       contentBlocks: [{ type: 'complete', status: 'cancelled' }],
@@ -181,32 +111,21 @@ describe('copilot chat stop route', () => {
   })
 
   it('appends a stopped assistant message if the stream marker was already cleared', async () => {
-    mockLimit.mockResolvedValueOnce([
-      {
-        workspaceId: 'ws-1',
-        messages: [{ id: 'stream-1', role: 'user', content: 'hello' }],
-        conversationId: null,
-      },
-    ])
+    mockReads({
+      chat: { workspaceId: 'ws-1', conversationId: null, model: null },
+      last: { messageId: 'stream-1', role: 'user' },
+    })
 
     const response = await POST(
-      createRequest({
-        chatId: 'chat-1',
-        streamId: 'stream-1',
-        content: 'partial',
-      })
+      createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: 'partial' })
     )
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ success: true })
 
-    const setArg = mockSet.mock.calls[0]?.[0]
-    expect(setArg.messages).toBeTruthy()
-    const appendedPayload = JSON.parse(setArg.messages.values[1] as string)
-    expect(appendedPayload[0]).toMatchObject({
-      role: 'assistant',
-      content: 'partial',
-    })
+    expect(mockAppendCopilotChatMessages).toHaveBeenCalledTimes(1)
+    const [, appended] = mockAppendCopilotChatMessages.mock.calls[0]
+    expect(appended[0]).toMatchObject({ role: 'assistant', content: 'partial' })
 
     expect(mockPublishStatusChanged).toHaveBeenCalledWith({
       workspaceId: 'ws-1',
@@ -217,28 +136,19 @@ describe('copilot chat stop route', () => {
   })
 
   it('republishes completed status when the assistant was already persisted', async () => {
-    mockLimit.mockResolvedValueOnce([
-      {
-        workspaceId: 'ws-1',
-        messages: [
-          { id: 'stream-1', role: 'user', content: 'hello' },
-          { id: 'assistant-1', role: 'assistant', content: 'partial' },
-        ],
-        conversationId: null,
-      },
-    ])
+    mockReads({
+      chat: { workspaceId: 'ws-1', conversationId: null, model: null },
+      last: { messageId: 'assistant-1', role: 'assistant' },
+    })
 
     const response = await POST(
-      createRequest({
-        chatId: 'chat-1',
-        streamId: 'stream-1',
-        content: 'partial',
-      })
+      createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: 'partial' })
     )
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ success: true })
-    expect(mockUpdate).not.toHaveBeenCalled()
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
     expect(mockPublishStatusChanged).toHaveBeenCalledWith({
       workspaceId: 'ws-1',
       chatId: 'chat-1',

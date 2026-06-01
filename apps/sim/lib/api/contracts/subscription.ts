@@ -103,7 +103,6 @@ export const organizationBillingMemberSchema = z
     userName: z.string().nullable().optional(),
     userEmail: z.string().nullable().optional(),
     joinedAt: z.string().nullable().optional(),
-    lastActive: z.string().nullable().optional(),
   })
   .passthrough()
 
