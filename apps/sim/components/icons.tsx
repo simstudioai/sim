@@ -2439,6 +2439,21 @@ export function JiraIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function LinqIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 113.4 116' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <polygon
+        fill='#FFFFFF'
+        points='34.3 116 39.2 114.3 97 91 105.1 63.9 41.5 90.5 15.4 27.4 8.8 55.1 34.2 116'
+      />
+      <path
+        fill='#FFFFFF'
+        d='m18.5 24.1 25.3 60.9 60.9-25-25.4-60-60.8 24.1zm33.6-9.7 25-9.9 2.9 6.7-24.9 10.3-3-7.1zm33.7 7.6-4.2-7.3-25.1 10.4 5.8 13.9 25.3-10.1-1.8-4.5v-1.5-0.9zm-62.2 4.2 18-7.3 2.9 7.2 7.2-3 7.1 17.5-24.7 10.7-10.5-25.1zm40.3 16.6 25.2-10.5 7.5 18.1-3.6 1.4 1.4 3.7-3.6 1.4 1.5 3.5-17.9 7.2-10.5-24.8zm-28.4 11.9 14.4-5.8 1.5 3.6 3.3-1.5-1.4-3.6 6.9-3 10.6 24.7-14.2 5.8-1.5-3.6-3.6 1.5 1.4 3.6-7 3.1-10.4-24.8zm59 0.8 3.7-1.5 1.5 3.6-3.6 1.4-1.6-3.5z'
+      />
+    </svg>
+  )
+}
+
 export function LinearIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
