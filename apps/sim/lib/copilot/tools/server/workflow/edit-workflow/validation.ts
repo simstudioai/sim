@@ -369,7 +369,7 @@ export function validateValueForSubBlockType(
               blockType,
               field: fieldName,
               value,
-              error: `Unknown model id "${trimmed}" for block "${blockType}". Read components/blocks/${blockType}.json (the model.options array) for valid ids; prefer entries with recommended: true and avoid deprecated: true. For user-configured models (Ollama, vLLM, LiteLLM, OpenRouter, Fireworks), prefix the id with the provider slash, e.g. "ollama/llama3.1:8b".${suggestionText}`,
+              error: `Unknown model id "${trimmed}" for block "${blockType}". Read components/blocks/${blockType}.json (the model.options array) for valid ids; prefer entries with recommended: true and avoid deprecated: true. For user-configured models (Ollama, Ollama Cloud, vLLM, LiteLLM, OpenRouter, Fireworks, Together AI, Baseten), prefix the id with the provider slash, e.g. "ollama/llama3.1:8b" or "ollama-cloud/gpt-oss:120b".${suggestionText}`,
             },
           }
         }

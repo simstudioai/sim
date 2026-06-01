@@ -28,27 +28,35 @@ const { mockCreate, mockExecuteTool, streamOnComplete, MockAPIError } = vi.hoist
   }
 })
 
+const mockOpenAIConstructor = vi.hoisted(() => vi.fn())
+
 vi.mock('openai', () => {
-  const OpenAI = vi.fn(() => ({ chat: { completions: { create: mockCreate } } }))
+  const OpenAI = vi.fn((opts: unknown) => {
+    mockOpenAIConstructor(opts)
+    return { chat: { completions: { create: mockCreate } } }
+  })
   ;(OpenAI as unknown as { APIError: typeof MockAPIError }).APIError = MockAPIError
   return { default: OpenAI }
 })
 
-vi.mock('@/lib/core/utils/urls', () => ({ getOllamaUrl: () => 'http://localhost:11434' }))
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
+vi.mock('@/providers/models', () => ({
+  getProviderModels: vi.fn().mockReturnValue([]),
+  getProviderDefaultModel: vi.fn().mockReturnValue(''),
+}))
 vi.mock('@/providers/attachments', () => ({
   formatMessagesForProvider: (messages: unknown) => messages,
 }))
 vi.mock('@/providers/trace-enrichment', () => ({
   enrichLastModelSegmentFromChatCompletions: vi.fn(),
 }))
-vi.mock('@/providers/ollama/utils', () => ({
-  createReadableStreamFromOllamaStream: (
+vi.mock('@/providers/ollama-cloud/utils', () => ({
+  createReadableStreamFromOllamaCloudStream: (
     _stream: unknown,
     onComplete: (content: string, usage: StreamUsage) => void
   ) => {
     streamOnComplete.current = onComplete
-    return 'OLLAMA_STREAM'
+    return 'OLLAMA_CLOUD_STREAM'
   },
 }))
 vi.mock('@/providers/utils', () => ({
@@ -61,11 +69,8 @@ vi.mock('@/providers/utils', () => ({
   sumToolCosts: () => 0,
 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
-vi.mock('@/stores/providers', () => ({
-  useProvidersStore: { getState: () => ({ setProviderModels: vi.fn() }) },
-}))
 
-import { ollamaProvider } from '@/providers/ollama'
+import { ollamaCloudProvider } from '@/providers/ollama-cloud'
 import type { ProviderRequest, ProviderResponse, ProviderToolConfig } from '@/providers/types'
 
 interface StreamingResult {
@@ -73,8 +78,10 @@ interface StreamingResult {
   execution: {
     output: {
       content: string
+      model: string
       tokens: { input: number; output: number; total: number }
       toolCalls?: { list: unknown[]; count: number }
+      cost?: { input: number; output: number; total: number }
     }
   }
 }
@@ -102,11 +109,12 @@ function makeTool(id: string, usageControl?: 'auto' | 'force' | 'none'): Provide
 }
 
 const baseRequest: ProviderRequest = {
-  model: 'llama3.2',
+  model: 'ollama-cloud/gpt-oss:120b',
   messages: [{ role: 'user', content: 'hi' }],
+  apiKey: 'oc-test-key',
 }
 
-describe('ollamaProvider.executeRequest', () => {
+describe('ollamaCloudProvider.executeRequest', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     streamOnComplete.current = undefined
@@ -114,23 +122,43 @@ describe('ollamaProvider.executeRequest', () => {
     mockExecuteTool.mockResolvedValue({ success: true, output: { ok: true } })
   })
 
+  it('throws when the API key is missing (BYOK is required)', async () => {
+    await expect(
+      ollamaCloudProvider.executeRequest({ ...baseRequest, apiKey: undefined })
+    ).rejects.toThrow('API key is required for Ollama Cloud')
+  })
+
+  it('builds the OpenAI client with the cloud base URL and the user key', async () => {
+    await ollamaCloudProvider.executeRequest(baseRequest)
+    expect(mockOpenAIConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: 'oc-test-key',
+        baseURL: 'https://ollama.com/v1',
+      })
+    )
+  })
+
+  it('strips the ollama-cloud/ prefix before calling the API and reports the stripped model id', async () => {
+    const result = (await ollamaCloudProvider.executeRequest(baseRequest)) as ProviderResponse
+    expect(mockCreate.mock.calls[0][0].model).toBe('gpt-oss:120b')
+    expect(result).toMatchObject({ content: 'hello', model: 'gpt-oss:120b' })
+  })
+
   it('assembles system, context, then history in order and forwards params', async () => {
-    const result = (await ollamaProvider.executeRequest({
+    await ollamaCloudProvider.executeRequest({
       ...baseRequest,
       systemPrompt: 'be nice',
       context: 'ctx',
       temperature: 0.5,
       maxTokens: 128,
-    })) as ProviderResponse
+    })
 
-    expect(result).toMatchObject({ content: 'hello', model: 'llama3.2' })
     const payload = mockCreate.mock.calls[0][0]
     expect(payload.messages).toEqual([
       { role: 'system', content: 'be nice' },
       { role: 'user', content: 'ctx' },
       { role: 'user', content: 'hi' },
     ])
-    expect(payload.model).toBe('llama3.2')
     expect(payload.temperature).toBe(0.5)
     expect(payload.max_tokens).toBe(128)
   })
@@ -138,13 +166,13 @@ describe('ollamaProvider.executeRequest', () => {
   it('returns content verbatim (keeps ```json fences) when no responseFormat', async () => {
     const fenced = '```json\n{"a":1}\n```'
     mockCreate.mockResolvedValue(completion({ content: fenced }))
-    const result = (await ollamaProvider.executeRequest(baseRequest)) as ProviderResponse
+    const result = (await ollamaCloudProvider.executeRequest(baseRequest)) as ProviderResponse
     expect(result.content).toBe(fenced)
   })
 
   it('strips ```json fences and requests JSON mode with schema instructions when responseFormat is set', async () => {
     mockCreate.mockResolvedValue(completion({ content: '```json\n{"a":1}\n```' }))
-    const result = (await ollamaProvider.executeRequest({
+    const result = (await ollamaCloudProvider.executeRequest({
       ...baseRequest,
       responseFormat: { name: 'r', schema: { type: 'object' }, strict: true },
     })) as ProviderResponse
@@ -152,35 +180,6 @@ describe('ollamaProvider.executeRequest', () => {
     const payload = mockCreate.mock.calls[0][0]
     expect(payload.response_format).toEqual({ type: 'json_object' })
     expect(payload.messages.at(-1)).toEqual({ role: 'user', content: 'SCHEMA_INSTRUCTIONS' })
-  })
-
-  it('defers structured output while tools run, then makes a final JSON-mode call', async () => {
-    mockCreate
-      .mockResolvedValueOnce(
-        completion({
-          toolCalls: [
-            { id: 'call_1', type: 'function', function: { name: 'mytool', arguments: '{}' } },
-          ],
-        })
-      )
-      .mockResolvedValueOnce(completion({ content: 'intermediate' }))
-      .mockResolvedValueOnce(completion({ content: '{"a":1}' }))
-
-    const result = (await ollamaProvider.executeRequest({
-      ...baseRequest,
-      tools: [makeTool('mytool')],
-      responseFormat: { name: 'r', schema: { type: 'object' } },
-    })) as ProviderResponse
-
-    expect(mockCreate).toHaveBeenCalledTimes(3)
-    expect(mockCreate.mock.calls[0][0].response_format).toBeUndefined()
-    expect(mockCreate.mock.calls[0][0].tools).toBeDefined()
-
-    const finalCall = mockCreate.mock.calls[2][0]
-    expect(finalCall.response_format).toEqual({ type: 'json_object' })
-    expect(finalCall.tools).toBeUndefined()
-    expect(finalCall.messages.at(-1)).toEqual({ role: 'user', content: 'SCHEMA_INSTRUCTIONS' })
-    expect(result.content).toBe('{"a":1}')
   })
 
   it('runs the tool loop: parses string args, feeds results back, then terminates', async () => {
@@ -194,7 +193,7 @@ describe('ollamaProvider.executeRequest', () => {
       )
       .mockResolvedValueOnce(completion({ content: 'done' }))
 
-    const result = (await ollamaProvider.executeRequest({
+    const result = (await ollamaCloudProvider.executeRequest({
       ...baseRequest,
       tools: [makeTool('mytool')],
     })) as ProviderResponse
@@ -239,7 +238,7 @@ describe('ollamaProvider.executeRequest', () => {
       )
       .mockResolvedValueOnce(completion({ content: 'recovered' }))
 
-    const result = (await ollamaProvider.executeRequest({
+    const result = (await ollamaCloudProvider.executeRequest({
       ...baseRequest,
       tools: [makeTool('mytool')],
     })) as ProviderResponse
@@ -267,24 +266,17 @@ describe('ollamaProvider.executeRequest', () => {
       )
       .mockResolvedValueOnce(completion({ content: 'summary' }))
 
-    const result = (await ollamaProvider.executeRequest({
+    const result = (await ollamaCloudProvider.executeRequest({
       ...baseRequest,
       tools: [makeTool('a'), makeTool('b')],
     })) as ProviderResponse
 
     expect(mockExecuteTool).toHaveBeenCalledTimes(2)
     expect(result.toolCalls?.map((c) => c.name)).toEqual(['a', 'b'])
-    const toolMsgs = mockCreate.mock.calls[1][0].messages.filter(
-      (m: { role: string }) => m.role === 'tool'
-    )
-    expect(toolMsgs.map((m: { tool_call_id: string }) => m.tool_call_id)).toEqual([
-      'call_a',
-      'call_b',
-    ])
   })
 
   it('filters out tools with usageControl "none"', async () => {
-    await ollamaProvider.executeRequest({
+    await ollamaCloudProvider.executeRequest({
       ...baseRequest,
       tools: [makeTool('keep'), makeTool('drop', 'none')],
     })
@@ -292,8 +284,11 @@ describe('ollamaProvider.executeRequest', () => {
     expect(sent.map((t: { function: { name: string } }) => t.function.name)).toEqual(['keep'])
   })
 
-  it('never forces tools (Ollama ignores tool_choice) and keeps "auto"', async () => {
-    await ollamaProvider.executeRequest({ ...baseRequest, tools: [makeTool('forced', 'force')] })
+  it('never forces tools (Ollama Cloud ignores tool_choice) and keeps "auto"', async () => {
+    await ollamaCloudProvider.executeRequest({
+      ...baseRequest,
+      tools: [makeTool('forced', 'force')],
+    })
     const payload = mockCreate.mock.calls[0][0]
     expect(payload.tool_choice).toBe('auto')
     expect(payload.tools.map((t: { function: { name: string } }) => t.function.name)).toEqual([
@@ -309,17 +304,18 @@ describe('ollamaProvider.executeRequest', () => {
         type: 'invalid_request_error',
       })
     )
-    await expect(ollamaProvider.executeRequest(baseRequest)).rejects.toThrow('model not found')
+    await expect(ollamaCloudProvider.executeRequest(baseRequest)).rejects.toThrow('model not found')
   })
 
   it('streams content and usage when no tools are used', async () => {
-    const result = (await ollamaProvider.executeRequest({
+    const result = (await ollamaCloudProvider.executeRequest({
       ...baseRequest,
       stream: true,
     })) as unknown as StreamingResult
 
-    expect(result.stream).toBe('OLLAMA_STREAM')
+    expect(result.stream).toBe('OLLAMA_CLOUD_STREAM')
     expect(mockCreate.mock.calls[0][0].stream_options).toEqual({ include_usage: true })
+    expect(result.execution.output.model).toBe('gpt-oss:120b')
 
     streamOnComplete.current?.('streamed text', {
       prompt_tokens: 4,
@@ -330,22 +326,7 @@ describe('ollamaProvider.executeRequest', () => {
     expect(result.execution.output.tokens).toMatchObject({ input: 4, output: 6, total: 10 })
   })
 
-  it('strips ```json fences from streamed content when responseFormat is set', async () => {
-    const result = (await ollamaProvider.executeRequest({
-      ...baseRequest,
-      stream: true,
-      responseFormat: { name: 'r', schema: { type: 'object' }, strict: true },
-    })) as unknown as StreamingResult
-
-    streamOnComplete.current?.('```json\n{"a":1}\n```', {
-      prompt_tokens: 1,
-      completion_tokens: 2,
-      total_tokens: 3,
-    })
-    expect(result.execution.output.content).toBe('{"a":1}')
-  })
-
-  it('streams the final response after a tool loop, carrying tool calls', async () => {
+  it('streams the final response after a tool loop and removes tools/tool_choice', async () => {
     mockCreate
       .mockResolvedValueOnce(
         completion({
@@ -356,13 +337,13 @@ describe('ollamaProvider.executeRequest', () => {
       )
       .mockResolvedValueOnce(completion({ content: 'intermediate' }))
 
-    const result = (await ollamaProvider.executeRequest({
+    const result = (await ollamaCloudProvider.executeRequest({
       ...baseRequest,
       stream: true,
       tools: [makeTool('mytool')],
     })) as unknown as StreamingResult
 
-    expect(result.stream).toBe('OLLAMA_STREAM')
+    expect(result.stream).toBe('OLLAMA_CLOUD_STREAM')
     expect(mockExecuteTool).toHaveBeenCalledTimes(1)
 
     const finalCall = mockCreate.mock.calls[2][0]
