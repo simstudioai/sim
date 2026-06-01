@@ -5,19 +5,17 @@ import { useSidebarStore } from '@/stores/sidebar/store'
 /**
  * Handles sidebar drag-resize with zero React renders during the drag.
  *
- * On mousedown:
- *   - Adds `is-resizing` to the sidebar DOM node immediately (no React render lag,
- *     so the CSS transition is suppressed from the very first frame).
- *   - Registers native mousemove/mouseup listeners.
+ * Architecture (confirmed industry best-practice for resize handles):
  *
- * On mousemove:
- *   - Writes the new width directly to the `--sidebar-width` CSS custom property.
- *   - Does NOT touch React/Zustand state, so zero re-renders fire during the drag.
- *
- * On mouseup:
- *   - Persists the final width to Zustand exactly once (triggers one re-render to
- *     save to localStorage and sync dependent components).
- *   - Cleans up the `is-resizing` class and body cursor/select overrides.
+ * mousedown  → add `is-resizing` class directly to DOM (no React round-trip,
+ *              so the CSS width transition is suppressed from the very first frame)
+ * mousemove  → write to --sidebar-width CSS custom property inside a
+ *              requestAnimationFrame callback (aligns work with the browser
+ *              paint cycle; mousemove fires faster than 60fps on modern hardware
+ *              so without RAF we'd do redundant writes between paints)
+ * mouseup    → cancel any pending RAF, persist final width to Zustand once
+ *              (one React re-render to save to localStorage and sync
+ *              components that read sidebarWidth from state)
  */
 export function useSidebarResize() {
   const setSidebarWidth = useSidebarStore((s) => s.setSidebarWidth)
@@ -28,15 +26,25 @@ export function useSidebarResize() {
     document.body.style.cursor = 'ew-resize'
     document.body.style.userSelect = 'none'
 
+    let rafId: number | null = null
+
     const onMouseMove = (e: MouseEvent) => {
-      const clamped = Math.min(
-        Math.max(e.clientX, SIDEBAR_WIDTH.MIN),
-        window.innerWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE
-      )
-      document.documentElement.style.setProperty('--sidebar-width', `${clamped}px`)
+      if (rafId !== null) cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        const clamped = Math.min(
+          Math.max(e.clientX, SIDEBAR_WIDTH.MIN),
+          window.innerWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE
+        )
+        document.documentElement.style.setProperty('--sidebar-width', `${clamped}px`)
+        rafId = null
+      })
     }
 
     const onMouseUp = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
       sidebar?.classList.remove('is-resizing')
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
