@@ -60,6 +60,11 @@ export const POPULAR_WORKFLOWS: readonly PopularWorkflow[] = (() => {
 })()
 
 export { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
+export {
+  type OAuthServiceMatch,
+  resolveOAuthServiceForIntegration,
+  resolveOAuthServiceForSlug,
+} from '@/lib/integrations/oauth-service'
 export type { AuthType, FAQItem, Integration } from '@/lib/integrations/types'
 export { getAllBlockMeta, getBlockMeta, getTemplatesForBlock } from '@/blocks/registry'
 export type { BlockMeta, BlockTemplate } from '@/blocks/types'

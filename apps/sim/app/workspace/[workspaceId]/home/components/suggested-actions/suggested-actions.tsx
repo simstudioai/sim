@@ -1,7 +1,7 @@
 'use client'
 
 import { type ComponentType, useEffect, useMemo, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { ArrowRight, ChevronDown, Expandable, ExpandableContent } from '@/components/emcn'
 import { Table } from '@/components/emcn/icons'
 import {
@@ -16,8 +16,12 @@ import {
   SlackIcon,
 } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { INTEGRATIONS } from '@/lib/integrations'
-import { integrationConnectHref } from '@/app/workspace/[workspaceId]/integrations/connect-route'
+import {
+  INTEGRATIONS,
+  type OAuthServiceMatch,
+  resolveOAuthServiceForSlug,
+} from '@/lib/integrations'
+import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthConnections } from '@/hooks/queries/oauth/oauth-connections'
 
@@ -222,14 +226,25 @@ interface SuggestedActionsProps {
 
 export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const router = useRouter()
-  const [expanded, setExpanded] = useState(true)
 
   const { data: credentials = EMPTY_CREDENTIALS } = useWorkspaceCredentials({
     workspaceId,
     enabled: Boolean(workspaceId),
   })
   const { data: services = EMPTY_SERVICES } = useOAuthConnections()
+
+  const [expanded, setExpanded] = useState(true)
+  // Collapsible animations are enabled only after the first user toggle, so the
+  // initially-open, server-rendered panel appears at full height on first paint
+  // instead of replaying the open animation and shifting the input above it.
+  const [animationsEnabled, setAnimationsEnabled] = useState(false)
+  const [actions, setActions] = useState<Action[]>(INITIAL_ACTIONS)
+  /**
+   * OAuth connect modal target. Setting this opens the modal; setting it back
+   * to `null` (via `onOpenChange(false)`) closes it. Mirrors the local-state
+   * pattern used by the integrations detail page.
+   */
+  const [oauthTarget, setOAuthTarget] = useState<OAuthServiceMatch | null>(null)
 
   const connectedProviders = useMemo(
     () =>
@@ -241,8 +256,6 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
       ),
     [credentials]
   )
-
-  const [actions, setActions] = useState<Action[]>(INITIAL_ACTIONS)
 
   useEffect(() => {
     if (services.length === 0 || connectedProviders.size === 0) return
@@ -273,14 +286,18 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
       onSelectPrompt(action.prompt)
       return
     }
-    router.push(integrationConnectHref(workspaceId, action.slug))
+    const match = resolveOAuthServiceForSlug(action.slug)
+    if (match) setOAuthTarget(match)
   }
 
   return (
     <div className='mx-auto mt-7 w-full max-w-[48rem]'>
       <button
         type='button'
-        onClick={() => setExpanded((prev) => !prev)}
+        onClick={() => {
+          setAnimationsEnabled(true)
+          setExpanded((prev) => !prev)
+        }}
         aria-expanded={expanded}
         className='flex items-center gap-2'
       >
@@ -293,7 +310,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
         />
       </button>
       <Expandable expanded={expanded}>
-        <ExpandableContent className='mt-2'>
+        <ExpandableContent className={cn('mt-2', !animationsEnabled && '!animate-none')}>
           <div className='flex flex-col'>
             {actions.map((action, i) => {
               const Icon = action.icon
@@ -318,6 +335,21 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
           </div>
         </ExpandableContent>
       </Expandable>
+      {oauthTarget && workspaceId && (
+        <ConnectOAuthModal
+          mode='connect'
+          origin='integrations'
+          open
+          onOpenChange={(open) => {
+            if (!open) setOAuthTarget(null)
+          }}
+          workspaceId={workspaceId}
+          providerId={oauthTarget.providerId}
+          requiredScopes={oauthTarget.requiredScopes}
+          serviceName={oauthTarget.serviceName}
+          serviceIcon={oauthTarget.serviceIcon}
+        />
+      )}
     </div>
   )
 }

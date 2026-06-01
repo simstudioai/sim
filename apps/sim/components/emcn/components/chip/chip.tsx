@@ -21,7 +21,8 @@ import { cn } from '@/lib/core/utils/cn'
  *
  * @remarks
  * Variants: `ghost` (transparent → `--surface-active` hover), `filled` (`--surface-active` → `--surface-6` hover),
- * `primary` (inverse surface), `destructive` (red surface with red border).
+ * `primary` (inverse surface), `destructive` (red surface with red border),
+ * `border-shadow` (raised card-like surface with `--border-1` border and `--shadow-card`).
  * `active` renders ghost/filled in their selected state. `fullWidth` swaps `inline-flex` for block-level `flex`.
  * `flush` removes the default horizontal margin (`mx-0.5`) used by chip clusters — use when a single chip sits
  * inside its own layout slot (grid cell, table cell) where the cluster spacing is unwanted.
@@ -38,6 +39,8 @@ const chipVariants = cva(
           'bg-[var(--text-primary)] text-[var(--text-inverse)] hover-hover:bg-[var(--text-body)] hover-hover:text-[var(--text-inverse)] dark:bg-white dark:text-[var(--bg)] dark:hover-hover:bg-[var(--text-secondary)] dark:hover-hover:text-[var(--bg)]',
         destructive:
           'border border-[#E54C4C] bg-[#FF5454] text-white hover-hover:border-[#D63535] hover-hover:bg-[#EE3B3B]',
+        'border-shadow':
+          'bg-[var(--surface-2)] shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-3)]',
       },
       active: { true: '', false: '' },
       fullWidth: { true: 'flex', false: 'inline-flex' },

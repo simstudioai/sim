@@ -35,18 +35,12 @@ import {
   toast,
 } from '@/components/emcn'
 import { ArrowLeft, Check, Duplicate } from '@/components/emcn/icons'
-import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { INTEGRATIONS } from '@/lib/integrations'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
-import {
-  getSampleConnectedCredentials,
-  getSampleConnectedMembers,
-  PREVIEW_CONNECTED_WITH_SAMPLES,
-} from '@/app/workspace/[workspaceId]/integrations/fixtures/sample-credentials'
 import {
   useCreateCredentialDraft,
   useDeleteWorkspaceCredential,
@@ -108,9 +102,6 @@ export function ConnectedCredentialDetail({
 
   useOAuthReturnRouter()
 
-  const { data: session } = useSession()
-  const currentUserId = session?.user?.id || ''
-
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
     workspaceId,
     enabled: Boolean(workspaceId),
@@ -127,20 +118,14 @@ export function ConnectedCredentialDetail({
   const upsertMember = useUpsertWorkspaceCredentialMember()
   const removeMember = useRemoveWorkspaceCredentialMember()
 
-  const credential = useMemo<WorkspaceCredential | null>(() => {
-    const previewMatch = PREVIEW_CONNECTED_WITH_SAMPLES
-      ? getSampleConnectedCredentials(workspaceId, currentUserId).find((c) => c.id === credentialId)
-      : undefined
-    if (previewMatch) return previewMatch
-    return credentials.find((c) => c.id === credentialId) ?? null
-  }, [credentials, credentialId, workspaceId, currentUserId])
+  const credential = useMemo<WorkspaceCredential | null>(
+    () => credentials.find((c) => c.id === credentialId) ?? null,
+    [credentials, credentialId]
+  )
 
-  const { data: realMembers = [], isPending: realMembersLoading } = useWorkspaceCredentialMembers(
+  const { data: members = [], isPending: membersLoading } = useWorkspaceCredentialMembers(
     credential?.id
   )
-  const isSamplePreview = PREVIEW_CONNECTED_WITH_SAMPLES && credentialId.startsWith('sample-')
-  const members = isSamplePreview ? getSampleConnectedMembers(credentialId) : realMembers
-  const membersLoading = isSamplePreview ? false : realMembersLoading
 
   const oauthServiceNameByProviderId = useMemo(
     () => new Map(oauthConnections.map((service) => [service.providerId, service.name])),

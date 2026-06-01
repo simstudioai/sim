@@ -6,6 +6,7 @@ import {
   Table as TableIcon,
   Task,
 } from '@/components/emcn/icons'
+import { AgentSkillsIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
@@ -100,4 +101,8 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
   docs: { label: 'Docs', renderIcon: () => null },
   slash_command: { label: 'Command', renderIcon: () => null },
   integration: { label: 'Integration', renderIcon: renderIntegrationTile },
+  skill: {
+    label: 'Skill',
+    renderIcon: ({ className }) => <AgentSkillsIcon className={className} />,
+  },
 }

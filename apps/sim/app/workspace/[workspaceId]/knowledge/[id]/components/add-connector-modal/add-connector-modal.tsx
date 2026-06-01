@@ -24,8 +24,12 @@ import {
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
-import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
-import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
+import {
+  getCanonicalScopesForProvider,
+  getProviderIdFromServiceId,
+  type OAuthProvider,
+} from '@/lib/oauth'
+import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
@@ -515,18 +519,22 @@ export function AddConnectorModal({
         connectorConfig &&
         connectorConfig.auth.mode === 'oauth' &&
         connectorProviderId && (
-          <OAuthModal
+          <ConnectOAuthModal
             mode='connect'
-            isOpen={showOAuthModal}
-            onClose={() => {
-              consumeOAuthReturnContext()
-              setShowOAuthModal(false)
+            origin='kb-connectors'
+            open={showOAuthModal}
+            onOpenChange={(open) => {
+              if (!open) {
+                consumeOAuthReturnContext()
+                setShowOAuthModal(false)
+              }
             }}
             provider={connectorProviderId}
             serviceId={connectorConfig.auth.provider}
+            providerId={connectorProviderId}
+            requiredScopes={getCanonicalScopesForProvider(connectorProviderId)}
             workspaceId={workspaceId}
             knowledgeBaseId={knowledgeBaseId}
-            credentialCount={credentials.length}
             connectorType={selectedType ?? undefined}
           />
         )}
