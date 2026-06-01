@@ -131,6 +131,7 @@ function buildProviderMetadata(providerId: ProviderId): ProviderMetadata {
 
 export const providers: Record<ProviderId, ProviderMetadata> = {
   ollama: buildProviderMetadata('ollama'),
+  'ollama-cloud': buildProviderMetadata('ollama-cloud'),
   vllm: buildProviderMetadata('vllm'),
   litellm: buildProviderMetadata('litellm'),
   openai: {
@@ -155,6 +156,8 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),
   fireworks: buildProviderMetadata('fireworks'),
+  together: buildProviderMetadata('together'),
+  baseten: buildProviderMetadata('baseten'),
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
@@ -186,15 +189,36 @@ export async function updateFireworksProviderModels(models: string[]): Promise<v
   providers.fireworks.models = getProviderModelsFromDefinitions('fireworks')
 }
 
+export async function updateOllamaCloudProviderModels(models: string[]): Promise<void> {
+  const { updateOllamaCloudModels } = await import('@/providers/models')
+  updateOllamaCloudModels(models)
+  providers['ollama-cloud'].models = getProviderModelsFromDefinitions('ollama-cloud')
+}
+
+export async function updateTogetherProviderModels(models: string[]): Promise<void> {
+  const { updateTogetherModels } = await import('@/providers/models')
+  updateTogetherModels(models)
+  providers.together.models = getProviderModelsFromDefinitions('together')
+}
+
+export async function updateBasetenProviderModels(models: string[]): Promise<void> {
+  const { updateBasetenModels } = await import('@/providers/models')
+  updateBasetenModels(models)
+  providers.baseten.models = getProviderModelsFromDefinitions('baseten')
+}
+
 export function getBaseModelProviders(): Record<string, ProviderId> {
   const allProviders = Object.entries(providers)
     .filter(
       ([providerId]) =>
         providerId !== 'ollama' &&
+        providerId !== 'ollama-cloud' &&
         providerId !== 'vllm' &&
         providerId !== 'litellm' &&
         providerId !== 'openrouter' &&
-        providerId !== 'fireworks'
+        providerId !== 'fireworks' &&
+        providerId !== 'together' &&
+        providerId !== 'baseten'
     )
     .reduce(
       (map, [providerId, config]) => {

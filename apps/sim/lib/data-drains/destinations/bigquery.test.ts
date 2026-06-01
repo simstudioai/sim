@@ -17,7 +17,11 @@ const { mockGetAccessToken, JWTCtor, loggerInstance } = vi.hoisted(() => {
   }
   return {
     mockGetAccessToken,
-    JWTCtor: vi.fn(() => ({ getAccessToken: mockGetAccessToken })),
+    JWTCtor: vi.fn().mockImplementation(
+      class {
+        getAccessToken = mockGetAccessToken
+      }
+    ),
     loggerInstance,
   }
 })

@@ -643,7 +643,12 @@ export async function addTableColumnsWithTx(
     )
   }
 
-  const updatedSchema: TableSchema = { columns: [...table.schema.columns, ...additions] }
+  // Spread `table.schema` first so workflow groups (and any future top-level
+  // schema fields) survive a CSV import that only adds plain columns.
+  const updatedSchema: TableSchema = {
+    ...table.schema,
+    columns: [...table.schema.columns, ...additions],
+  }
   const now = new Date()
 
   await trx
@@ -1067,7 +1072,9 @@ export async function batchInsertRows(
   table: TableDefinition,
   requestId: string
 ): Promise<TableRow[]> {
-  return db.transaction((trx) => batchInsertRowsWithTx(trx, data, table, requestId))
+  const result = await db.transaction((trx) => batchInsertRowsWithTx(trx, data, table, requestId))
+  dispatchAfterBatchInsert(table, result, requestId)
+  return result
 }
 
 /**
@@ -1165,7 +1172,21 @@ export async function batchInsertRowsWithTx(
     updatedAt: r.updatedAt,
   }))
 
-  void fireTableTrigger(data.tableId, table.name, 'insert', result, null, table.schema, requestId)
+  return result
+}
+
+/**
+ * Side-effect dispatch for an insert batch. Caller fires this AFTER the
+ * surrounding transaction commits — `fireTableTrigger` and `runWorkflowColumn`
+ * both read through the global db connection, so firing inside the tx can see
+ * no rows and no-op.
+ */
+export function dispatchAfterBatchInsert(
+  table: TableDefinition,
+  result: TableRow[],
+  requestId: string
+): void {
+  void fireTableTrigger(table.id, table.name, 'insert', result, null, table.schema, requestId)
   // Scope to the newly-inserted row ids so the dispatcher doesn't walk every
   // row in the table. After the sidecar migration, all existing rows have
   // zero entries → `mode:'new'`'s `NOT EXISTS` filter would otherwise include
@@ -1178,8 +1199,6 @@ export async function batchInsertRowsWithTx(
     isManualRun: false,
     requestId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (batchInsertRows) failed:`, err))
-
-  return result
 }
 
 /**

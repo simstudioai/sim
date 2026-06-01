@@ -32,6 +32,7 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   deleteDocument: vi.fn(),
   getProcessingConfig: vi.fn().mockReturnValue({ maxConcurrentDocuments: 1, batchSize: 1 }),
   processDocumentsWithQueue: vi.fn(),
+  KnowledgeBaseFileOwnershipError: class KnowledgeBaseFileOwnershipError extends Error {},
 }))
 
 import { createDocumentRecords, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'

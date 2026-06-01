@@ -24,6 +24,18 @@ export const fireworksProviderModelsQuerySchema = z.object({
   workspaceId: z.string().min(1).optional(),
 })
 
+export const ollamaCloudProviderModelsQuerySchema = z.object({
+  workspaceId: z.string().min(1).optional(),
+})
+
+export const togetherProviderModelsQuerySchema = z.object({
+  workspaceId: z.string().min(1).optional(),
+})
+
+export const basetenProviderModelsQuerySchema = z.object({
+  workspaceId: z.string().min(1).optional(),
+})
+
 export const openRouterUpstreamResponseSchema = z.object({
   data: z
     .array(
@@ -73,6 +85,38 @@ export const fireworksUpstreamResponseSchema = z.object({
   object: z.string().optional(),
 })
 
+const togetherModelObjectSchema = z
+  .object({
+    id: z.string(),
+    object: z.string().optional(),
+    created: z.number().optional(),
+    type: z.string().optional(),
+    display_name: z.string().optional(),
+    organization: z.string().optional(),
+    context_length: z.number().optional(),
+  })
+  .passthrough()
+
+/** Together's `GET /v1/models` returns a bare top-level array of model objects. */
+export const togetherUpstreamResponseSchema = z.array(togetherModelObjectSchema)
+
+export const basetenUpstreamResponseSchema = z.object({
+  data: z
+    .array(
+      z
+        .object({
+          id: z.string(),
+          object: z.string().optional(),
+          created: z.number().optional(),
+          owned_by: z.string().optional(),
+        })
+        .passthrough()
+    )
+    .default([]),
+  object: z.string().optional(),
+})
+
+// Shared by the local Ollama and Ollama Cloud /api/tags endpoints — same `{ models: [{ name }] }` shape.
 export const ollamaUpstreamResponseSchema = z.object({
   models: z
     .array(
@@ -220,6 +264,36 @@ export const getFireworksProviderModelsContract = defineRouteContract({
   method: 'GET',
   path: '/api/providers/fireworks/models',
   query: fireworksProviderModelsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: providerModelsResponseSchema,
+  },
+})
+
+export const getOllamaCloudProviderModelsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/providers/ollama-cloud/models',
+  query: ollamaCloudProviderModelsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: providerModelsResponseSchema,
+  },
+})
+
+export const getTogetherProviderModelsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/providers/together/models',
+  query: togetherProviderModelsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: providerModelsResponseSchema,
+  },
+})
+
+export const getBasetenProviderModelsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/providers/baseten/models',
+  query: basetenProviderModelsQuerySchema,
   response: {
     mode: 'json',
     schema: providerModelsResponseSchema,

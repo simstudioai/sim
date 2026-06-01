@@ -72,19 +72,26 @@ vi.mock('@/lib/workflows/triggers/triggers', () => ({
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/executor', () => ({
-  Executor: vi.fn().mockImplementation((args) => {
-    executorConstructorMock(args)
-    return {
-      execute: executorExecuteMock,
-      executeFromBlock: executorExecuteMock,
+  Executor: vi.fn().mockImplementation(
+    class {
+      constructor(args: unknown) {
+        executorConstructorMock(args)
+        // biome-ignore lint/correctness/noConstructorReturn: vitest 4 constructs mocks via Reflect.construct; returning the instance overrides `new Executor(...)`
+        return {
+          execute: executorExecuteMock,
+          executeFromBlock: executorExecuteMock,
+        }
+      }
     }
-  }),
+  ),
 }))
 
 vi.mock('@/serializer', () => ({
-  Serializer: vi.fn().mockImplementation(() => ({
-    serializeWorkflow: serializeWorkflowMock,
-  })),
+  Serializer: vi.fn().mockImplementation(
+    class {
+      serializeWorkflow = serializeWorkflowMock
+    }
+  ),
 }))
 
 import {
