@@ -116,19 +116,8 @@ export const basetenUpstreamResponseSchema = z.object({
   object: z.string().optional(),
 })
 
+// Shared by the local Ollama and Ollama Cloud /api/tags endpoints — same `{ models: [{ name }] }` shape.
 export const ollamaUpstreamResponseSchema = z.object({
-  models: z
-    .array(
-      z
-        .object({
-          name: z.string(),
-        })
-        .passthrough()
-    )
-    .default([]),
-})
-
-export const ollamaCloudUpstreamResponseSchema = z.object({
   models: z
     .array(
       z

@@ -3,7 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   ollamaCloudProviderModelsQuerySchema,
-  ollamaCloudUpstreamResponseSchema,
+  ollamaUpstreamResponseSchema,
   providerModelsResponseSchema,
 } from '@/lib/api/contracts/providers'
 import { validationErrorResponse } from '@/lib/api/server'
@@ -70,7 +70,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ models: [] })
     }
 
-    const data = ollamaCloudUpstreamResponseSchema.parse(await response.json())
+    const data = ollamaUpstreamResponseSchema.parse(await response.json())
 
     const allModels = data.models.map((model) => `ollama-cloud/${model.name}`)
     const uniqueModels = Array.from(new Set(allModels))
