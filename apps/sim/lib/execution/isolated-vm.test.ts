@@ -8,7 +8,6 @@ import {
   redisConfigMock,
   redisConfigMockFns,
 } from '@sim/testing'
-import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type MockProc = EventEmitter & {
@@ -81,6 +80,54 @@ function createReadyProcWithDelay(delayMs: number): MockProc {
   }
   setImmediate(() => proc.emit('message', { type: 'ready' }))
   return proc
+}
+
+type ControllableReadyProc = {
+  spawn: SpawnFactory
+  dispatched: Promise<void>
+  release: (result?: unknown) => void
+}
+
+/**
+ * A ready worker whose execution is held open until {@link ControllableReadyProc.release}
+ * is called. {@link ControllableReadyProc.dispatched} resolves the moment the worker
+ * receives its `execute` message — i.e. once the scheduler has counted the execution as
+ * active — giving tests a deterministic, event-driven signal that the concurrency slot is
+ * occupied without relying on wall-clock delays. The proc is built inside {@link spawn} so
+ * its `ready` event is emitted only after the module attaches its listeners.
+ */
+function createControllableReadyProc(): ControllableReadyProc {
+  let markDispatched: () => void = () => {}
+  const dispatched = new Promise<void>((resolve) => {
+    markDispatched = resolve
+  })
+  let proc: MockProc | undefined
+  let lastExecutionId = 0
+
+  const spawn: SpawnFactory = () => {
+    const current = createBaseProc()
+    current.send = (message: unknown) => {
+      const msg = message as { type?: string; executionId?: number }
+      if (msg.type === 'execute') {
+        lastExecutionId = msg.executionId ?? 0
+        markDispatched()
+      }
+      return true
+    }
+    setImmediate(() => current.emit('message', { type: 'ready' }))
+    proc = current
+    return current
+  }
+
+  const release = (result: unknown = 'released') => {
+    proc?.emit('message', {
+      type: 'result',
+      executionId: lastExecutionId,
+      result: { result, stdout: '' },
+    })
+  }
+
+  return { spawn, dispatched, release }
 }
 
 function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: string }): MockProc {
@@ -256,15 +303,31 @@ describe('isolated-vm scheduler', () => {
   })
 
   it('rejects new requests when the queue is full', async () => {
+    const holder = createControllableReadyProc()
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
+        IVM_MAX_CONCURRENT: '1',
         IVM_MAX_QUEUE_SIZE: '1',
-        IVM_QUEUE_TIMEOUT_MS: '200',
+        IVM_QUEUE_TIMEOUT_MS: '50',
       },
-      spawns: [createStartupFailureProc, createStartupFailureProc, createStartupFailureProc],
+      spawns: [holder.spawn],
     })
 
-    const firstPromise = executeInIsolatedVM({
+    // Occupy the single global concurrency slot with an active execution. Awaiting
+    // `dispatched` is event-driven, so the queue state below is fully deterministic.
+    const holderPromise = executeInIsolatedVM({
+      code: 'return "holder"',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 1000,
+      requestId: 'req-holder',
+      ownerKey: 'user:holder',
+    })
+    await holder.dispatched
+
+    // With the slot held, this request lands in the queue (size 1, now full)...
+    const queuedPromise = executeInIsolatedVM({
       code: 'return 1',
       params: {},
       envVars: {},
@@ -274,9 +337,8 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:a',
     })
 
-    await sleep(1)
-
-    const second = await executeInIsolatedVM({
+    // ...and this one overflows it and is rejected immediately.
+    const rejected = await executeInIsolatedVM({
       code: 'return 2',
       params: {},
       envVars: {},
@@ -286,22 +348,41 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:b',
     })
 
-    expect(second.error?.message).toContain('at capacity')
+    expect(rejected.error?.message).toContain('at capacity')
 
-    const first = await firstPromise
-    expect(first.error?.message).toContain('timed out waiting')
+    const queued = await queuedPromise
+    expect(queued.error?.message).toContain('timed out waiting')
+
+    holder.release()
+    await holderPromise
   })
 
   it('enforces per-owner queued limit', async () => {
+    const holder = createControllableReadyProc()
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
+        IVM_MAX_CONCURRENT: '1',
         IVM_MAX_QUEUED_PER_OWNER: '1',
-        IVM_QUEUE_TIMEOUT_MS: '200',
+        IVM_QUEUE_TIMEOUT_MS: '50',
       },
-      spawns: [createStartupFailureProc, createStartupFailureProc, createStartupFailureProc],
+      spawns: [holder.spawn],
     })
 
-    const firstPromise = executeInIsolatedVM({
+    // Hold the single global slot with one of the owner's executions so the next
+    // requests deterministically queue instead of dispatching.
+    const holderPromise = executeInIsolatedVM({
+      code: 'return "holder"',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 1000,
+      requestId: 'req-holder',
+      ownerKey: 'user:hog',
+    })
+    await holder.dispatched
+
+    // First queued request for the owner fills their per-owner queue allowance...
+    const queuedPromise = executeInIsolatedVM({
       code: 'return 1',
       params: {},
       envVars: {},
@@ -311,9 +392,8 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:hog',
     })
 
-    await sleep(1)
-
-    const second = await executeInIsolatedVM({
+    // ...so the second is rejected for exceeding the per-owner queued limit.
+    const rejected = await executeInIsolatedVM({
       code: 'return 2',
       params: {},
       envVars: {},
@@ -323,10 +403,13 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:hog',
     })
 
-    expect(second.error?.message).toContain('Too many concurrent')
+    expect(rejected.error?.message).toContain('Too many concurrent')
 
-    const first = await firstPromise
-    expect(first.error?.message).toContain('timed out waiting')
+    const queued = await queuedPromise
+    expect(queued.error?.message).toContain('timed out waiting')
+
+    holder.release()
+    await holderPromise
   })
 
   it('enforces distributed owner in-flight lease limit when Redis is configured', async () => {

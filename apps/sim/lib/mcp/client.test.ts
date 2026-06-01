@@ -10,25 +10,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 let capturedNotificationHandler: (() => Promise<void>) | null = null
 
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
-  Client: vi.fn().mockImplementation(() => ({
-    connect: vi.fn().mockResolvedValue(undefined),
-    close: vi.fn().mockResolvedValue(undefined),
-    getServerVersion: vi.fn().mockReturnValue('2025-06-18'),
-    getServerCapabilities: vi.fn().mockReturnValue({ tools: { listChanged: true } }),
-    setNotificationHandler: vi
-      .fn()
-      .mockImplementation((_schema: unknown, handler: () => Promise<void>) => {
-        capturedNotificationHandler = handler
-      }),
-    listTools: vi.fn().mockResolvedValue({ tools: [] }),
-  })),
+  Client: vi.fn().mockImplementation(
+    class {
+      constructor() {
+        Object.assign(this, {
+          connect: vi.fn().mockResolvedValue(undefined),
+          close: vi.fn().mockResolvedValue(undefined),
+          getServerVersion: vi.fn().mockReturnValue('2025-06-18'),
+          getServerCapabilities: vi.fn().mockReturnValue({ tools: { listChanged: true } }),
+          setNotificationHandler: vi
+            .fn()
+            .mockImplementation((_schema: unknown, handler: () => Promise<void>) => {
+              capturedNotificationHandler = handler
+            }),
+          listTools: vi.fn().mockResolvedValue({ tools: [] }),
+        })
+      }
+    }
+  ),
 }))
 
 vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
-  StreamableHTTPClientTransport: vi.fn().mockImplementation(() => ({
-    onclose: null,
-    sessionId: 'test-session',
-  })),
+  StreamableHTTPClientTransport: vi.fn().mockImplementation(
+    class {
+      onclose: null = null
+      sessionId = 'test-session'
+    }
+  ),
 }))
 
 vi.mock('@modelcontextprotocol/sdk/types.js', () => ({

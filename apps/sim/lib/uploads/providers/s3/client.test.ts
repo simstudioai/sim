@@ -27,10 +27,17 @@ const {
   return {
     mockSend,
     mockS3Client,
-    mockS3ClientConstructor: vi.fn(() => mockS3Client),
-    mockPutObjectCommand: vi.fn(),
-    mockGetObjectCommand: vi.fn(),
-    mockDeleteObjectCommand: vi.fn(),
+    mockS3ClientConstructor: vi.fn().mockImplementation(
+      class {
+        constructor() {
+          // biome-ignore lint/correctness/noConstructorReturn: vitest 4 constructs mocks via Reflect.construct; returning the object overrides the instance so `new S3Client()` yields the shared mock the tests assert on
+          return mockS3Client
+        }
+      }
+    ),
+    mockPutObjectCommand: vi.fn().mockImplementation(class {}),
+    mockGetObjectCommand: vi.fn().mockImplementation(class {}),
+    mockDeleteObjectCommand: vi.fn().mockImplementation(class {}),
     mockGetSignedUrl: vi.fn(),
     mockEnv,
   }
