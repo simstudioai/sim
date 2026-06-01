@@ -99,6 +99,7 @@ interface ConnectedDisplayItem {
   serviceName: string
   integrationType: string | null
   blockType: string
+  slug: string
   icon: ComponentType<{ className?: string }>
 }
 
@@ -154,6 +155,7 @@ export function Integrations() {
           serviceName: service.name,
           integrationType: integration?.integrationType ?? null,
           blockType: integration?.type ?? '',
+          slug: integration?.slug ?? '',
           icon: service.icon as ComponentType<{ className?: string }>,
         },
       ]
