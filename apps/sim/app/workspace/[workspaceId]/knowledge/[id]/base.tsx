@@ -262,8 +262,6 @@ export function KnowledgeBase({
     [tagFilterEntries]
   )
 
-  const enabledFilterParam = enabledFilter
-
   const handleSearchChange = useCallback((newQuery: string) => {
     setSearchQuery(newQuery)
     setCurrentPage(1)
@@ -354,7 +352,7 @@ export function KnowledgeBase({
       if (hasSyncingConnectorsRef.current) return 5000
       return false
     },
-    enabledFilter: enabledFilterParam,
+    enabledFilter: enabledFilter,
     tagFilters: activeTagFilters.length > 0 ? activeTagFilters : undefined,
   })
 
@@ -609,7 +607,7 @@ export function KnowledgeBase({
           knowledgeBaseId: id,
           operation: 'enable',
           selectAll: true,
-          enabledFilter: enabledFilterParam,
+          enabledFilter: enabledFilter,
         },
         {
           onSuccess: (result) => {
@@ -656,7 +654,7 @@ export function KnowledgeBase({
           knowledgeBaseId: id,
           operation: 'disable',
           selectAll: true,
-          enabledFilter: enabledFilterParam,
+          enabledFilter: enabledFilter,
         },
         {
           onSuccess: (result) => {
@@ -705,7 +703,7 @@ export function KnowledgeBase({
           knowledgeBaseId: id,
           operation: 'delete',
           selectAll: true,
-          enabledFilter: enabledFilterParam,
+          enabledFilter: enabledFilter,
         },
         {
           onSuccess: (result) => {
@@ -745,12 +743,12 @@ export function KnowledgeBase({
 
   const selectedDocumentsList = documents.filter((doc) => selectedDocuments.has(doc.id))
   const enabledCount = isSelectAllMode
-    ? enabledFilterParam === 'disabled'
+    ? enabledFilter === 'disabled'
       ? 0
       : pagination.total
     : selectedDocumentsList.filter((doc) => doc.enabled).length
   const disabledCount = isSelectAllMode
-    ? enabledFilterParam === 'enabled'
+    ? enabledFilter === 'enabled'
       ? 0
       : pagination.total
     : selectedDocumentsList.filter((doc) => !doc.enabled).length

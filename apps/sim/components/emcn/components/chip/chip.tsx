@@ -136,5 +136,12 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
   )
 })
 
+/**
+ * 1px border applied to `filled` and `ghost` chip triggers to read as
+ * interactive form controls rather than static pills. Omitted on `primary` and
+ * `destructive` variants which already carry their own border styling.
+ */
+export const TRIGGER_BORDER_CLASS = 'border border-[var(--border-1)]'
+
 export { Chip, ChipLink, chipVariants }
 export type { ChipLinkProps, ChipProps }

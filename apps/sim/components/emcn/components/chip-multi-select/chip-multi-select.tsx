@@ -2,7 +2,7 @@
 
 import { type ComponentType, forwardRef, type ReactNode, useMemo, useState } from 'react'
 import type { VariantProps } from 'class-variance-authority'
-import { chipVariants } from '@/components/emcn/components/chip/chip'
+import { chipVariants, TRIGGER_BORDER_CLASS } from '@/components/emcn/components/chip/chip'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,12 +59,6 @@ interface ChipMultiSelectProps
 }
 
 /**
- * Mirrors {@link ChipDropdown}'s flat-surface treatment — a 1px border makes
- * the `filled` chip read as an interactive control rather than a static pill.
- */
-const TRIGGER_BORDER_CLASS = 'border border-[var(--border-1)]'
-
-/**
  * Multi-select counterpart to {@link ChipDropdown} — a chip trigger that opens a
  * menu of toggleable options with a leading "all" reset row and an optional
  * search field. The menu stays open across selections; a trailing check marks
@@ -104,11 +98,12 @@ const ChipMultiSelect = forwardRef<HTMLButtonElement, ChipMultiSelectProps>(
     const [open, setOpen] = useState(false)
     const [search, setSearch] = useState('')
 
-    const displayLabel = useMemo(() => {
-      if (values.length === 0) return allLabel
-      if (values.length === 1) return options.find((o) => o.value === values[0])?.label ?? allLabel
-      return `${values.length} selected`
-    }, [values, options, allLabel])
+    const displayLabel =
+      values.length === 0
+        ? allLabel
+        : values.length === 1
+          ? (options.find((o) => o.value === values[0])?.label ?? allLabel)
+          : `${values.length} selected`
 
     const filteredOptions = useMemo(() => {
       const query = search.trim().toLowerCase()

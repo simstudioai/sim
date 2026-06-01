@@ -2,7 +2,7 @@
 
 import { type ComponentType, forwardRef, type ReactNode } from 'react'
 import type { VariantProps } from 'class-variance-authority'
-import { chipVariants } from '@/components/emcn/components/chip/chip'
+import { chipVariants, TRIGGER_BORDER_CLASS } from '@/components/emcn/components/chip/chip'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,17 +67,6 @@ interface ChipDropdownProps extends VariantProps<typeof chipVariants> {
   /** Forwarded class for the trigger button. */
   className?: string
 }
-
-/**
- * Variants that read as flat surfaces — `ghost` is transparent, `filled` is a
- * muted surface tint. We add a 1px border on these so the chip reads as an
- * interactive form control.
- *
- * `primary` ships with a solid contrast background and `destructive` already
- * carries its own red border via {@link chipVariants}; both are skipped here
- * to avoid stacking a second border on top.
- */
-const TRIGGER_BORDER_CLASS = 'border border-[var(--border-1)]'
 
 /**
  * Dropdown counterpart to {@link Chip} — a 30px pill that opens a menu of
