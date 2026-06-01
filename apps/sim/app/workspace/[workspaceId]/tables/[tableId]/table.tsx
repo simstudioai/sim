@@ -588,6 +588,7 @@ export function Table({
               groupIds: scope.groupIds,
               rowIds: scope.allRows ? undefined : scope.rowIds,
               runMode: 'incomplete',
+              source: 'rows',
             })
           }}
           onRefresh={() => {
@@ -597,6 +598,7 @@ export function Table({
               groupIds: scope.groupIds,
               rowIds: scope.allRows ? undefined : scope.rowIds,
               runMode: 'all',
+              source: 'rows',
             })
           }}
           onStopWorkflows={() => {
