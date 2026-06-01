@@ -26,6 +26,31 @@ const assistantMsg: PersistedMessage = {
   timestamp: '2026-01-01T00:00:01.000Z',
 }
 
+const toolMsg: PersistedMessage = {
+  id: 'msg-tool-1',
+  role: 'assistant',
+  content: '',
+  timestamp: '2026-01-01T00:00:02.000Z',
+  contentBlocks: [
+    {
+      type: 'tool',
+      phase: 'call',
+      toolCall: {
+        id: 'tc-1',
+        name: 'get_workflow_logs',
+        state: 'error',
+        params: { workflowId: 'wf-1' },
+        result: { success: false, output: { huge: 'x'.repeat(5000) }, error: 'too big' },
+      },
+    },
+  ],
+}
+
+/** The persisted `content` of the most recently inserted row at `index`. */
+function lastRowContent(index: number): PersistedMessage {
+  return lastValuesRows()[index].content as PersistedMessage
+}
+
 /** The first arg passed to the most recent `.values(...)` call. */
 function lastValuesRows() {
   const calls = dbChainMockFns.values.mock.calls
@@ -131,6 +156,14 @@ describe('messages-store', () => {
         'connection lost'
       )
     })
+
+    it('strips tool-result output before persisting, keeping success/error', async () => {
+      await appendCopilotChatMessages('chat-1', [toolMsg])
+
+      const toolCall = lastRowContent(0).contentBlocks?.[0].toolCall
+      expect(toolCall?.result).toEqual({ success: false, error: 'too big' })
+      expect(JSON.stringify(lastValuesRows())).not.toContain('huge')
+    })
   })
 
   describe('replaceCopilotChatMessages', () => {
@@ -191,6 +224,14 @@ describe('messages-store', () => {
       dbChainMockFns.transaction.mockRejectedValueOnce(new Error('tx aborted'))
 
       await expect(replaceCopilotChatMessages('chat-1', [userMsg])).rejects.toThrow('tx aborted')
+    })
+
+    it('strips tool-result output before persisting, keeping success/error', async () => {
+      await replaceCopilotChatMessages('chat-1', [toolMsg])
+
+      const toolCall = lastRowContent(0).contentBlocks?.[0].toolCall
+      expect(toolCall?.result).toEqual({ success: false, error: 'too big' })
+      expect(JSON.stringify(lastValuesRows())).not.toContain('huge')
     })
   })
 })

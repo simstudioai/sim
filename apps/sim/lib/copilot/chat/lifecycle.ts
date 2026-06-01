@@ -6,7 +6,7 @@ import {
   getActiveWorkflowRecord,
 } from '@sim/workflow-authz'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
-import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import { type PersistedMessage, stripToolResultOutput } from '@/lib/copilot/chat/persisted-message'
 import {
   assertActiveWorkspaceAccess,
   checkWorkspaceAccess,
@@ -84,7 +84,8 @@ export async function loadCopilotChatMessages(chatId: string): Promise<Persisted
       asc(copilotMessages.createdAt),
       asc(copilotMessages.id)
     )
-  return rows.map((row) => row.content as PersistedMessage)
+  // Also strip on read: rows written before the backfill still carry outputs.
+  return rows.map((row) => stripToolResultOutput(row.content as PersistedMessage))
 }
 
 type CopilotChatAuthRow = Pick<
