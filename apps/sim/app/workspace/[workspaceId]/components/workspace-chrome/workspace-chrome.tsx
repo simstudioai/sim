@@ -56,7 +56,7 @@ export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
     <div className='flex min-h-0 flex-1'>
       <div
         className={cn(
-          'shrink-0 overflow-hidden transition-[width]',
+          'sidebar-shell-outer shrink-0 overflow-hidden transition-[width]',
           SLIDE_TRANSITION,
           isFullscreen ? 'w-0' : 'w-[var(--sidebar-width)]'
         )}
@@ -65,7 +65,7 @@ export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
       >
         <div
           className={cn(
-            'h-full w-[var(--sidebar-width)] shrink-0 transition-transform',
+            'sidebar-shell-inner h-full w-[var(--sidebar-width)] shrink-0 transition-transform',
             SLIDE_TRANSITION,
             isFullscreen && '-translate-x-full'
           )}

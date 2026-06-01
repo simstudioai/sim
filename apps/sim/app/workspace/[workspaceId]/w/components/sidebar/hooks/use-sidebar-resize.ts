@@ -23,6 +23,7 @@ export function useSidebarResize() {
   const handleMouseDown = useCallback(() => {
     const sidebar = document.querySelector<HTMLElement>('.sidebar-container')
     sidebar?.classList.add('is-resizing')
+    document.documentElement.classList.add('sidebar-resizing')
     document.body.style.cursor = 'ew-resize'
     document.body.style.userSelect = 'none'
 
@@ -46,6 +47,7 @@ export function useSidebarResize() {
         rafId = null
       }
       sidebar?.classList.remove('is-resizing')
+      document.documentElement.classList.remove('sidebar-resizing')
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
       document.removeEventListener('mousemove', onMouseMove)
