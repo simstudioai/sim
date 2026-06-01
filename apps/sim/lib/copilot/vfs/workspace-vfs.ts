@@ -508,7 +508,7 @@ export class WorkspaceVFS {
 
   /**
    * Renders a renderable doc (pptx/docx/pdf) record to a contact-sheet image and
-   * returns it as a model-readable JPEG attachment. Shared by the `/render` and
+   * returns it as a model readable JPEG attachment. Shared by the `/render` and
    * `/compiled` reads so a binary doc is NEVER attached as a raw (non-PDF)
    * `document` block — the model only reads images and application/pdf. Compiles
    * the source first when needed (E2B doc sandbox, else isolated-vm); uses the
