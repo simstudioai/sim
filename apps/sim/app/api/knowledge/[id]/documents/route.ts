@@ -20,6 +20,7 @@ import {
   createSingleDocument,
   getDocuments,
   getProcessingConfig,
+  KnowledgeBaseFileOwnershipError,
   processDocumentsWithQueue,
   type TagFilterCondition,
 } from '@/lib/knowledge/documents/service'
@@ -301,6 +302,13 @@ export const POST = withRouteHandler(
       })
     } catch (error) {
       logger.error(`[${requestId}] Error creating document`, error)
+
+      if (error instanceof KnowledgeBaseFileOwnershipError) {
+        return NextResponse.json(
+          { error: 'File URL does not reference a file owned by this knowledge base' },
+          { status: 403 }
+        )
+      }
 
       const errorMessage = getErrorMessage(error, 'Failed to create document')
       const isStorageLimitError =

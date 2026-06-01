@@ -1607,6 +1607,10 @@ export const document = pgTable(
     // File information
     filename: text('filename').notNull(),
     fileUrl: text('file_url').notNull(),
+    // Canonical storage key derived from fileUrl at write time (e.g. 'kb/<...>'),
+    // or null for external/data: ingestion URLs. KB file authorization matches on
+    // this exact key rather than re-parsing the URL at read time.
+    storageKey: text('storage_key'),
     fileSize: integer('file_size').notNull(), // Size in bytes
     mimeType: text('mime_type').notNull(), // e.g., 'application/pdf', 'text/plain'
 
@@ -1677,6 +1681,10 @@ export const document = pgTable(
       .where(sql`${table.deletedAt} IS NULL`),
     // Sync engine: load all active docs for a connector
     connectorIdIdx: index('doc_connector_id_idx').on(table.connectorId),
+    // KB file-access liveness: exact lookup by canonical storage key
+    storageKeyIdx: index('doc_storage_key_idx')
+      .on(table.storageKey)
+      .where(sql`${table.storageKey} IS NOT NULL`),
     archivedAtPartialIdx: index('doc_archived_at_partial_idx')
       .on(table.archivedAt)
       .where(sql`${table.archivedAt} IS NOT NULL`),
