@@ -63,7 +63,6 @@ export const LinqBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/linq',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['messaging', 'automation', 'webhooks'],
   bgColor: '#000000',
   icon: LinqIcon,
   authMode: AuthMode.ApiKey,
