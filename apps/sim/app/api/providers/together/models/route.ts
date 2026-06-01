@@ -16,6 +16,17 @@ import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/util
 
 const logger = createLogger('TogetherModelsAPI')
 
+/** Together's catalog includes non-text models; only chat models work with chat completions. */
+const NON_CHAT_MODEL_TYPES = new Set([
+  'image',
+  'video',
+  'audio',
+  'transcribe',
+  'embedding',
+  'moderation',
+  'rerank',
+])
+
 export const GET = withRouteHandler(async (request: NextRequest) => {
   if (isProviderBlacklisted('together')) {
     logger.info('Together provider is blacklisted, returning empty models')
@@ -72,6 +83,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const allModels: string[] = []
     for (const model of data) {
+      if (model.type && NON_CHAT_MODEL_TYPES.has(model.type)) continue
       allModels.push(`together/${model.id}`)
     }
 

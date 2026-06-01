@@ -236,4 +236,24 @@ describe('GET /api/providers/together/models', () => {
       'together/Qwen/Qwen2.5-72B-Instruct-Turbo',
     ])
   })
+
+  it('filters out non-chat model types (image, embedding, rerank, etc.)', async () => {
+    mutableEnv.TOGETHER_API_KEY = 'env-together-key'
+    mockFetch.mockResolvedValue(
+      okResponse([
+        { id: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', type: 'chat' },
+        { id: 'black-forest-labs/FLUX.1-schnell', type: 'image' },
+        { id: 'BAAI/bge-large-en-v1.5', type: 'embedding' },
+        { id: 'Salesforce/Llama-Rank-V1', type: 'rerank' },
+        { id: 'openai/whisper-large-v3', type: 'transcribe' },
+      ])
+    )
+
+    const res = await GET(requestWithWorkspace())
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({
+      models: ['together/meta-llama/Llama-3.3-70B-Instruct-Turbo'],
+    })
+  })
 })
