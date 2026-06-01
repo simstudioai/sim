@@ -92,6 +92,44 @@ $$;--> statement-breakpoint
 CALL backfill_document_storage_key_0222();--> statement-breakpoint
 DROP PROCEDURE backfill_document_storage_key_0222();--> statement-breakpoint
 
+-- (1b) Fully URL-decode keys that carry encodings beyond the separator (e.g.
+-- '%2C' -> ',', '%26' -> '&', multi-byte UTF-8 like '%C3%ADa' -> 'ía'). The app
+-- derives the canonical key with decodeURIComponent (extractStorageKey), so a
+-- storage_key that is only %2F-decoded would never match the runtime key for
+-- these documents — breaking their liveness lookups and stranding their
+-- ownership bindings. The bulk pass above already handled '%2F'; only the
+-- remaining residual-'%' rows are re-derived here (a small subset), so the heavy
+-- decode never runs over the whole table. This single UPDATE evaluates its target
+-- set once, so a key that legitimately contains a literal '%' is not reprocessed.
+CREATE OR REPLACE FUNCTION url_decode_0222(input text) RETURNS text LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE
+    WHEN input IS NULL THEN NULL
+    WHEN position('%' IN input) = 0 THEN input
+    ELSE convert_from(
+      (
+        SELECT string_agg(
+          CASE
+            WHEN r.m[1] ~ '^%[0-9A-Fa-f]{2}$' THEN decode(substring(r.m[1] FROM 2), 'hex')
+            ELSE convert_to(r.m[1], 'UTF8')
+          END,
+          ''::bytea ORDER BY r.ord
+        )
+        FROM regexp_matches(input, '%[0-9A-Fa-f]{2}|.', 'g') WITH ORDINALITY AS r(m, ord)
+      ),
+      'UTF8'
+    )
+  END
+$$;--> statement-breakpoint
+UPDATE "document"
+SET "storage_key" = regexp_replace(
+  url_decode_0222(substring(split_part("file_url", '?', 1) FROM '/api/files/serve/(.*)$')),
+  '^(s3|blob)/',
+  ''
+)
+WHERE "storage_key" LIKE 'kb/%'
+  AND position('%' IN "storage_key") > 0;--> statement-breakpoint
+DROP FUNCTION url_decode_0222(text);--> statement-breakpoint
+
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "doc_storage_key_idx" ON "document" USING btree ("storage_key") WHERE "storage_key" IS NOT NULL;--> statement-breakpoint
 
 -- (2) Backfill workspace_files ownership bindings from the populated storage_key.

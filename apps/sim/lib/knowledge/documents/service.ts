@@ -90,7 +90,8 @@ async function assertKnowledgeBaseFileUrlsOwnership(
   fileUrls: string[],
   kbWorkspaceId: string | null,
   kbUserId: string,
-  requestId: string
+  requestId: string,
+  executor: DbExecutor = db
 ): Promise<void> {
   const keys = [
     ...new Set(
@@ -103,7 +104,9 @@ async function assertKnowledgeBaseFileUrlsOwnership(
     return
   }
 
-  const bindings = await getFileMetadataByKeys(keys, 'knowledge-base')
+  // Read bindings on the caller's transaction so the security check shares the
+  // same connection/lock context as the FOR UPDATE'd insert that follows.
+  const bindings = await getFileMetadataByKeys(keys, 'knowledge-base', executor)
   const bindingByKey = new Map(bindings.map((binding) => [binding.key, binding]))
 
   for (const key of keys) {
@@ -868,7 +871,8 @@ export async function createDocumentRecords(
       documents.map((docData) => docData.fileUrl),
       kbWorkspaceId,
       kb[0].userId,
-      requestId
+      requestId,
+      tx
     )
 
     // One load per batch (was N+1); skip entirely if no doc carries tags.
@@ -1434,7 +1438,8 @@ export async function createSingleDocument(
       [documentData.fileUrl],
       kb[0].workspaceId,
       kb[0].userId,
-      requestId
+      requestId,
+      tx
     )
 
     await tx.insert(document).values(newDocument)

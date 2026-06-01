@@ -193,12 +193,13 @@ export async function getFileMetadataByKey(
  */
 export async function getFileMetadataByKeys(
   keys: string[],
-  context: StorageContext
+  context: StorageContext,
+  executor: Pick<typeof db, 'select'> = db
 ): Promise<FileMetadataRecord[]> {
   if (keys.length === 0) {
     return []
   }
-  return db
+  return executor
     .select()
     .from(workspaceFiles)
     .where(
