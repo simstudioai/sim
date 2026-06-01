@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineCommunicationToolContract } from '@/lib/api/contracts/tools/communication/shared'
 import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contracts/types'
-import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
+import { FileInputSchema, RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 
 export const smsSendBodySchema = z.object({
   to: z.string().min(1, 'To phone number is required'),
@@ -21,6 +21,14 @@ export const twilioGetRecordingBodySchema = z.object({
   recordingSid: z.string().min(1, 'Recording SID is required'),
 })
 
+export const linqUploadAttachmentBodySchema = z.object({
+  apiKey: z.string().min(1, 'API key is required'),
+  file: FileInputSchema.optional().nullable(),
+  fileContent: z.string().optional().nullable(),
+  filename: z.string().min(1).max(1024).optional().nullable(),
+  contentType: z.string().min(1).max(255).optional().nullable(),
+})
+
 export const smsSendContract = defineCommunicationToolContract(
   '/api/tools/sms/send',
   smsSendBodySchema
@@ -33,11 +41,17 @@ export const twilioGetRecordingContract = defineCommunicationToolContract(
   '/api/tools/twilio/get-recording',
   twilioGetRecordingBodySchema
 )
+export const linqUploadAttachmentContract = defineCommunicationToolContract(
+  '/api/tools/linq/upload',
+  linqUploadAttachmentBodySchema
+)
 
 export type SmsSendBody = ContractBodyInput<typeof smsSendContract>
 export type TelegramSendDocumentBody = ContractBodyInput<typeof telegramSendDocumentContract>
 export type TwilioGetRecordingBody = ContractBodyInput<typeof twilioGetRecordingContract>
+export type LinqUploadAttachmentBody = ContractBodyInput<typeof linqUploadAttachmentContract>
 
 export type SmsSendResponse = ContractJsonResponse<typeof smsSendContract>
 export type TelegramSendDocumentResponse = ContractJsonResponse<typeof telegramSendDocumentContract>
 export type TwilioGetRecordingResponse = ContractJsonResponse<typeof twilioGetRecordingContract>
+export type LinqUploadAttachmentResponse = ContractJsonResponse<typeof linqUploadAttachmentContract>
