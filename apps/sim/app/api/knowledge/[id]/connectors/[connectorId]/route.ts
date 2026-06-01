@@ -359,10 +359,15 @@ export const DELETE = withRouteHandler(async (request: NextRequest, { params }: 
       return { deletedDocs: deleteDocuments ? docs : [], docCount: docs.length }
     })
 
+    const kbWorkspaceId = writeCheck.knowledgeBase?.workspaceId ?? null
+
     if (deleteDocuments) {
       await Promise.all([
         deletedDocs.length > 0
-          ? deleteDocumentStorageFiles(deletedDocs, requestId)
+          ? deleteDocumentStorageFiles(
+              deletedDocs.map((doc) => ({ ...doc, workspaceId: kbWorkspaceId })),
+              requestId
+            )
           : Promise.resolve(),
         cleanupUnusedTagDefinitions(knowledgeBaseId, requestId).catch((error) => {
           logger.warn(`[${requestId}] Failed to cleanup tag definitions`, error)
@@ -374,13 +379,12 @@ export const DELETE = withRouteHandler(async (request: NextRequest, { params }: 
       `[${requestId}] Deleted connector ${connectorId}${deleteDocuments ? ` and ${docCount} documents` : `, kept ${docCount} documents`}`
     )
 
-    const kbWorkspaceId = writeCheck.knowledgeBase.workspaceId ?? ''
     captureServerEvent(
       auth.userId,
       'knowledge_base_connector_removed',
       {
         knowledge_base_id: knowledgeBaseId,
-        workspace_id: kbWorkspaceId,
+        workspace_id: kbWorkspaceId ?? '',
         connector_type: existingConnector[0].connectorType,
         documents_deleted: deleteDocuments ? docCount : 0,
       },
