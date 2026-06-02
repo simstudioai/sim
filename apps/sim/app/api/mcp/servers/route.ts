@@ -134,10 +134,10 @@ export const POST = withRouteHandler(
 )
 
 /**
- * DELETE - Delete an MCP server from the workspace (requires admin permission)
+ * DELETE - Delete an MCP server from the workspace (requires write permission)
  */
 export const DELETE = withRouteHandler(
-  withMcpAuth('admin')(
+  withMcpAuth('write')(
     async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
       try {
         const { searchParams } = new URL(request.url)

@@ -147,7 +147,7 @@ export const PATCH = withRouteHandler(
  * DELETE - Delete a workflow MCP server and all its tools
  */
 export const DELETE = withRouteHandler(
-  withMcpAuth<RouteParams>('admin')(
+  withMcpAuth<RouteParams>('write')(
     async (
       request: NextRequest,
       { userId, userName, userEmail, workspaceId, requestId },
