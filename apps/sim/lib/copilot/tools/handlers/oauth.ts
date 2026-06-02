@@ -1,8 +1,4 @@
-import { db } from '@sim/db'
-import { pendingCredentialDraft, user } from '@sim/db/schema'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import { and, eq, lt } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -20,7 +16,6 @@ export async function executeOAuthGetAuthLink(
     }
     await ensureWorkspaceAccess(context.workspaceId, context.userId, 'write')
     const result = await generateOAuthLink(
-      context.userId,
       context.workspaceId,
       context.workflowId,
       context.chatId,
@@ -72,13 +67,13 @@ export async function executeOAuthRequestAccess(
  * Resolves a human-friendly provider name to a providerId and returns a
  * browser-initiated authorize URL the user opens to connect the service.
  *
- * Steps: resolve provider → create credential draft → return the Sim
- * `/api/auth/oauth2/authorize` URL. That endpoint (not this server-side handler)
- * calls Better Auth, so the signed `state` cookie is planted in the user's
- * browser and the OAuth callback's state check passes.
+ * Steps: resolve provider → return the Sim `/api/auth/oauth2/authorize` URL.
+ * That endpoint (not this server-side handler) creates the credential draft and
+ * calls Better Auth, so the draft's TTL starts at click and the signed `state`
+ * cookie is planted in the user's browser and the OAuth callback's state check
+ * passes.
  */
 async function generateOAuthLink(
-  userId: string,
   workspaceId: string | undefined,
   workflowId: string | undefined,
   chatId: string | undefined,
@@ -129,54 +124,19 @@ async function generateOAuthLink(
     }
   }
 
-  let displayName = serviceName
-  try {
-    const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, userId))
-    if (row?.name) {
-      displayName = `${row.name}'s ${serviceName}`
-    }
-  } catch {
-    // Fall back to service name only
-  }
-
-  const now = new Date()
-  await db
-    .delete(pendingCredentialDraft)
-    .where(
-      and(eq(pendingCredentialDraft.userId, userId), lt(pendingCredentialDraft.expiresAt, now))
-    )
-  await db
-    .insert(pendingCredentialDraft)
-    .values({
-      id: generateId(),
-      userId,
-      workspaceId,
-      providerId,
-      displayName,
-      expiresAt: new Date(now.getTime() + 15 * 60 * 1000),
-      createdAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [
-        pendingCredentialDraft.userId,
-        pendingCredentialDraft.providerId,
-        pendingCredentialDraft.workspaceId,
-      ],
-      set: {
-        displayName,
-        expiresAt: new Date(now.getTime() + 15 * 60 * 1000),
-        createdAt: now,
-      },
-    })
-
   // Hand back a browser-initiated authorize URL rather than calling
   // oAuth2LinkAccount here. Generating the link server-side would set Better
   // Auth's signed `state` cookie on this server-to-server response instead of the
   // user's browser, so the OAuth callback would fail with `state_mismatch`. The
   // authorize endpoint runs the link inside the user's browser, planting the
   // cookie correctly while keeping the callback's state check enabled.
+  //
+  // The pending credential draft is created by that authorize endpoint at click
+  // time (not here), so the draft's TTL starts when the user actually initiates
+  // the connect and reliably outlives the OAuth round-trip.
   const authorizeUrl = new URL(`${baseUrl}/api/auth/oauth2/authorize`)
   authorizeUrl.searchParams.set('providerId', providerId)
+  authorizeUrl.searchParams.set('workspaceId', workspaceId)
   authorizeUrl.searchParams.set('callbackURL', callbackURL)
 
   return { url: authorizeUrl.toString(), providerId, serviceName }
