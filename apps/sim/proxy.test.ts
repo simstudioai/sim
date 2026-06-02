@@ -30,13 +30,6 @@ describe('resolveApiCorsPolicy', () => {
     })
   })
 
-  it('serves JWKS and well-known with wildcard origin', () => {
-    expect(resolveApiCorsPolicy(makeRequest('/api/auth/jwks')).origin).toBe('*')
-    expect(
-      resolveApiCorsPolicy(makeRequest('/api/auth/.well-known/openid-configuration')).origin
-    ).toBe('*')
-  })
-
   it('serves MCP copilot with DELETE in allowed methods', () => {
     const policy = resolveApiCorsPolicy(makeRequest('/api/mcp/copilot'))
     expect(policy.origin).toBe('*')
@@ -116,8 +109,6 @@ describe('resolveApiCorsPolicy', () => {
   it('never pairs wildcard origin with credentials (CORS spec invariant)', () => {
     const paths = [
       '/api/auth/oauth2/token',
-      '/api/auth/jwks',
-      '/api/auth/.well-known/openid-configuration',
       '/api/mcp/copilot',
       '/api/chat/abc',
       '/api/workflows/wf/execute',

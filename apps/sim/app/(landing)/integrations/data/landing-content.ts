@@ -37,5 +37,7 @@ export const INTEGRATION_LANDING_CONTENT: Record<string, IntegrationLandingConte
       body: 'Sim requests only the Slack permissions its actions and triggers need, and never shows private channel names or messages to people who are not members of those channels in Slack.',
       href: '/privacy',
     },
+    aiDisclaimer:
+      'Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete — review automated outputs before relying on them, especially for important communications.',
   },
 }
