@@ -32,7 +32,7 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 import { applyOperationsToWorkflowState } from './engine'
 import { formatWorkflowLintMessage, hasWorkflowLintIssues, lintEditedWorkflowState } from './lint'
-import type { EditWorkflowParams, ValidationError } from './types'
+import { isDeferredSkippedItem, type EditWorkflowParams, type ValidationError } from './types'
 import { preValidateCredentialInputs, validateWorkflowSelectorIds } from './validation'
 
 async function getCurrentWorkflowStateFromDb(
@@ -226,9 +226,28 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         ? validationErrors.map((e) => `Block "${e.blockId}" (${e.blockType}): ${e.error}`)
         : undefined
 
-    // Format skipped items for LLM feedback
-    const skippedMessages =
-      skippedItems.length > 0 ? skippedItems.map((item) => item.reason) : undefined
+    // Split engine skipped items into genuine failures vs benign, self-healing
+    // deferrals. A deferred forward-reference edge (invalid_edge_target) is NOT
+    // a failure: the engine wires it automatically once its target block exists
+    // (this call or a later one) via pendingConnections. Surfacing it through
+    // the same "skipped" failure channel as real skips makes a literal model
+    // thrash (re-issuing a self-healing op). Keep them in separate result fields
+    // and preserve item.type/details so the prompt can branch on a
+    // machine-readable category instead of pattern-matching prose.
+    const mapSkippedItem = (item: (typeof skippedItems)[number]) => ({
+      type: item.type,
+      operationType: item.operationType,
+      blockId: item.blockId,
+      reason: item.reason,
+      ...(item.details && { details: item.details }),
+    })
+
+    const genuineSkippedItems = skippedItems.filter((item) => !isDeferredSkippedItem(item))
+    const deferredItems = skippedItems.filter((item) => isDeferredSkippedItem(item))
+
+    const skippedDetails =
+      genuineSkippedItems.length > 0 ? genuineSkippedItems.map(mapSkippedItem) : undefined
+    const deferredDetails = deferredItems.length > 0 ? deferredItems.map(mapSkippedItem) : undefined
 
     // Persist the workflow state to the database
     const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
@@ -320,9 +339,13 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         inputValidationErrors: inputErrors,
         inputValidationMessage: `${inputErrors.length} input(s) were rejected due to validation errors. The workflow was still updated with valid inputs only. Errors: ${inputErrors.join('; ')}`,
       }),
-      ...(skippedMessages && {
-        skippedItems: skippedMessages,
-        skippedItemsMessage: `${skippedItems.length} operation(s) were skipped due to invalid references. Details: ${skippedMessages.join('; ')}`,
+      ...(skippedDetails && {
+        skippedItems: skippedDetails,
+        skippedItemsMessage: `${skippedDetails.length} operation(s) were skipped (not applied) and need attention. Each item includes a machine-readable "type" (e.g. block_not_found, block_locked, duplicate_block_name, invalid_block_type, invalid_source_handle, invalid_target_handle, invalid_edge_scope). Details: ${skippedDetails.map((item) => item.reason).join('; ')}`,
+      }),
+      ...(deferredDetails && {
+        deferredConnections: deferredDetails,
+        deferredMessage: `${deferredDetails.length} edge(s) were deferred because their target block does not exist yet. This is NOT a failure and does NOT need fixing: the engine wires these edges automatically once the target block exists (in this edit or a later one). Do not re-issue them. Only act on a deferred edge if its target id was a typo or hallucination that you do not intend to create. Details: ${deferredDetails.map((item) => item.reason).join('; ')}`,
       }),
       ...(sanitizationWarnings && {
         sanitizationWarnings,

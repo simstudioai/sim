@@ -872,10 +872,12 @@ export function handleInsertIntoSubflowOperation(
   }
 
   if (subflowBlock.type !== 'loop' && subflowBlock.type !== 'parallel') {
-    logger.error('Subflow block has invalid type', {
-      subflowId,
-      type: subflowBlock.type,
-      block_id,
+    logSkippedItem(skippedItems, {
+      type: 'invalid_subflow_parent',
+      operationType: 'insert_into_subflow',
+      blockId: block_id,
+      reason: `Cannot insert block "${block_id}" into "${subflowId}" - the target is a "${subflowBlock.type}" block, not a loop or parallel container`,
+      details: { subflowId, subflowType: subflowBlock.type },
     })
     return
   }

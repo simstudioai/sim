@@ -457,7 +457,7 @@ export function createValidatedEdge(
       type: 'invalid_edge_target',
       operationType,
       blockId: sourceBlockId,
-      reason: `Edge from "${sourceBlockId}" to "${targetBlockId}" deferred - target block does not exist yet; it will be created automatically once the target block is added`,
+      reason: `Edge from "${sourceBlockId}" to "${targetBlockId}" deferred until the target block "${targetBlockId}" exists - if it is created later (in this or a following edit) the engine wires this edge automatically; if you did not intend to create "${targetBlockId}", fix the target id.`,
       details: { sourceHandle, targetHandle, targetId: targetBlockId },
     })
     return false
