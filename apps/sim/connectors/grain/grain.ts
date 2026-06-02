@@ -47,17 +47,15 @@ interface GrainMeetingType {
  * A Grain recording as returned by the v2 recordings endpoints. Only the fields the
  * connector reads are modeled; the API returns additional optional fields.
  *
- * The v2 Public API returns the recording identifier as `recording_id` (confirmed in
- * the live list/get response examples). The legacy `id` field is also modeled and used
- * as a defensive fallback by {@link recordingId} so the connector tolerates either shape.
+ * The v2 Public API returns the recording identifier as `id` (confirmed against the
+ * Grain Public API reference and the in-repo Grain tools).
  *
- * `source` and `tags` are always present on the recording object. `teams`,
- * `meeting_type`, and `participants` are populated only when requested via the
- * corresponding `include` flag — the connector requests all three (see
- * {@link RECORDING_INCLUDE}) so they are available for tag mapping.
+ * `source`, `tags`, `teams`, and `meeting_type` are returned by default on the
+ * recording object. `participants` is populated only when requested via the
+ * `include.participants` flag — the connector requests it (see {@link RECORDING_INCLUDE})
+ * so participant names are available for tag mapping.
  */
 interface GrainRecording {
-  recording_id?: string
   id?: string
   title?: string
   start_datetime?: string
@@ -69,14 +67,6 @@ interface GrainRecording {
   teams?: GrainTeam[]
   meeting_type?: GrainMeetingType | null
   participants?: GrainParticipant[]
-}
-
-/**
- * The get-recording endpoint may return the recording bare or wrapped in a `Recording`
- * envelope depending on API version. This models both shapes.
- */
-interface GrainRecordingResponse extends GrainRecording {
-  Recording?: GrainRecording
 }
 
 interface GrainRecordingsListResponse {
@@ -97,11 +87,12 @@ interface GrainTranscriptSegment {
 }
 
 /**
- * The `include` flags requested on every recordings call. Grain gates `participants`,
- * `teams`, and `meeting_type` behind include flags; all three feed connector tag
- * mapping, so they are always requested. Requesting an already-default field is a no-op.
+ * The `include` flags requested on every recordings call. Grain returns `teams` and
+ * `meeting_type` by default, but gates `participants` behind an include flag. Participant
+ * names feed connector tag mapping, so the flag is always requested. Only documented
+ * include flags are sent to avoid the API rejecting unknown keys.
  */
-const RECORDING_INCLUDE = { participants: true, teams: true, meeting_type: true } as const
+const RECORDING_INCLUDE = { participants: true } as const
 
 /**
  * Builds the auth + version headers shared by every Grain API request.
@@ -115,12 +106,11 @@ function grainHeaders(accessToken: string): Record<string, string> {
 }
 
 /**
- * Resolves the recording's unique identifier. Prefers the documented v2 field
- * `recording_id`, falling back to the legacy `id` field. Returns an empty string when
- * neither is present.
+ * Resolves the recording's unique identifier. The v2 Public API returns the recording
+ * id as the `id` field. Returns an empty string when it is absent.
  */
 function recordingId(recording: GrainRecording): string {
-  return (recording.recording_id ?? recording.id ?? '').trim()
+  return (recording.id ?? '').trim()
 }
 
 /**
@@ -249,8 +239,7 @@ async function fetchRecording(accessToken: string, id: string): Promise<GrainRec
     throw new Error(`Failed to fetch Grain recording: ${response.status}`)
   }
 
-  const data = (await response.json()) as GrainRecordingResponse
-  return data.Recording ?? data
+  return (await response.json()) as GrainRecording
 }
 
 /**

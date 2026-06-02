@@ -40,7 +40,11 @@ interface IncidentioRoleAssignment {
 
 interface IncidentioTimestampValue {
   incident_timestamp?: { id?: string; name?: string; rank?: number }
-  value?: string
+  /**
+   * The v2 API nests the timestamp string under `value.value` (an object), not a
+   * flat string. A flat string is tolerated defensively for older shapes.
+   */
+  value?: { value?: string } | string
 }
 
 interface IncidentioIncident {
@@ -256,8 +260,9 @@ function formatIncidentContent(incident: IncidentioIncident, updates: Incidentio
   const timestampLines = (incident.incident_timestamp_values ?? [])
     .map((entry) => {
       const name = entry.incident_timestamp?.name
-      if (!name || !entry.value) return undefined
-      return `${name}: ${entry.value}`
+      const value = typeof entry.value === 'string' ? entry.value : entry.value?.value
+      if (!name || !value) return undefined
+      return `${name}: ${value}`
     })
     .filter((line): line is string => Boolean(line))
   if (timestampLines.length > 0) {
