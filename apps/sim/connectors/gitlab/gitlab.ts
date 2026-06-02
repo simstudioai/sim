@@ -395,7 +395,6 @@ export const gitlabConnector: ConnectorConfig = {
       throw new Error('Project is required')
     }
 
-    // Resolve the project path once per sync for building source URLs.
     let projectPath = (syncContext?.projectPath as string) ?? ''
     if (!projectPath && syncContext) {
       const projectResponse = await fetchProject(apiBase, encodedProject, accessToken)
@@ -410,7 +409,6 @@ export const gitlabConnector: ConnectorConfig = {
     const state = decodeCursor(cursor, initialPhase)
 
     if (state.phase === 'wiki' && wantsWiki) {
-      // Wikis have no pagination; list every page (with content) in one pass.
       const url = `${apiBase}/projects/${encodedProject}/wikis?with_content=1`
       logger.info('Listing GitLab wiki pages', { host, project: encodedProject })
 
@@ -446,7 +444,6 @@ export const gitlabConnector: ConnectorConfig = {
         return { documents: capped, hasMore: false }
       }
 
-      // Advance to the issues phase.
       return {
         documents: capped,
         nextCursor: encodeCursor({ phase: 'issues', issuePage: 1 }),
@@ -624,7 +621,6 @@ export const gitlabConnector: ConnectorConfig = {
 
       const projectRecord = (await response.json()) as GitLabProject
 
-      // When syncing wikis, confirm the wiki feature is enabled on the project.
       if (choice === 'wiki' || choice === 'both') {
         const accessLevel = projectRecord.wiki_access_level
         const enabled =

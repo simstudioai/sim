@@ -381,8 +381,6 @@ export const mondayConnector: ConnectorConfig = {
     const fallbackBoard = { id: board.id, name: board.name }
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
-    // monday charges query complexity per returned item, so when a maxItems cap
-    // leaves fewer than a full page remaining, request only what's needed.
     const pageLimit =
       maxItems > 0
         ? Math.min(ITEMS_PAGE_SIZE, Math.max(1, maxItems - prevFetched))
@@ -449,7 +447,7 @@ export const mondayConnector: ConnectorConfig = {
     let hasMore = false
 
     if (hitLimit) {
-      // Stop syncing — item cap reached
+      nextCursor = undefined
     } else if (nextItemsCursor) {
       nextCursor = encodeCursor({ boardIndex: state.boardIndex, itemsCursor: nextItemsCursor })
       hasMore = true

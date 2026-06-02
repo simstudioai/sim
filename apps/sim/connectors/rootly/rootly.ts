@@ -421,9 +421,6 @@ export const rootlyConnector: ConnectorConfig = {
     if (status) queryParams.set('filter[status]', status)
     if (severity) queryParams.set('filter[severity]', severity)
 
-    // Incremental sync: Rootly supports filtering by update time and sorting by it,
-    // so the engine only re-reads incidents changed since the last successful sync.
-    // Sort most-recently-updated first so the freshest changes page in first.
     if (lastSyncAt) {
       queryParams.set('filter[updated_at][gt]', lastSyncAt.toISOString())
       queryParams.set('sort', '-updated_at')

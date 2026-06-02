@@ -489,10 +489,6 @@ export const fathomConnector: ConnectorConfig = {
         return hydrated
       }
 
-      // No cached header (defensive — `listDocuments` always caches one in the
-      // shared sync context before `getDocument` runs in the same run). Omit the
-      // hash so the engine reuses the authoritative stub `contentHash` instead of
-      // persisting a divergent value that would loop as a perpetual "update".
       return omit(hydrated, ['contentHash']) as ExternalDocument
     } catch (error) {
       logger.warn('Failed to get Fathom meeting', {
