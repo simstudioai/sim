@@ -46,7 +46,7 @@ describe('MiniMax Provider', () => {
     })
 
     it('has default model set', () => {
-      expect(minimaxProvider.defaultModel).toBe('MiniMax-M2.7')
+      expect(minimaxProvider.defaultModel).toBe('MiniMax-M3')
     })
   })
 
@@ -54,7 +54,7 @@ describe('MiniMax Provider', () => {
     it('throws when API key is missing', async () => {
       await expect(
         minimaxProvider.executeRequest({
-          model: 'MiniMax-M2.5',
+          model: 'MiniMax-M3',
           messages: [{ role: 'user', content: 'Hello' }],
         })
       ).rejects.toThrow('API key is required for MiniMax')
@@ -67,7 +67,7 @@ describe('MiniMax Provider', () => {
       })
 
       await minimaxProvider.executeRequest({
-        model: 'MiniMax-M2.5',
+        model: 'MiniMax-M3',
         apiKey: 'test-key',
         messages: [{ role: 'user', content: 'Hello' }],
       })
@@ -85,7 +85,7 @@ describe('MiniMax Provider', () => {
       })
 
       const result = await minimaxProvider.executeRequest({
-        model: 'MiniMax-M2.5',
+        model: 'MiniMax-M3',
         apiKey: 'test-key',
         messages: [{ role: 'user', content: 'Hello' }],
       })
@@ -100,7 +100,7 @@ describe('MiniMax Provider', () => {
       })
 
       await minimaxProvider.executeRequest({
-        model: 'MiniMax-M2.5',
+        model: 'MiniMax-M3',
         apiKey: 'test-key',
         temperature: 0,
         messages: [{ role: 'user', content: 'Hi' }],
@@ -118,7 +118,7 @@ describe('MiniMax Provider', () => {
       })
 
       await minimaxProvider.executeRequest({
-        model: 'MiniMax-M2.5',
+        model: 'MiniMax-M3',
         apiKey: 'test-key',
         systemPrompt: 'You are a helpful assistant',
         messages: [{ role: 'user', content: 'Hi' }],
@@ -138,7 +138,7 @@ describe('MiniMax Provider', () => {
       })
 
       const result = await minimaxProvider.executeRequest({
-        model: 'MiniMax-M2.5',
+        model: 'MiniMax-M3',
         apiKey: 'test-key',
         messages: [{ role: 'user', content: 'Hello' }],
       })

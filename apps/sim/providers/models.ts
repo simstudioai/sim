@@ -1190,13 +1190,27 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'minimax',
     name: 'MiniMax',
     description: "MiniMax's chat models",
-    defaultModel: 'MiniMax-M2.7',
+    defaultModel: 'MiniMax-M3',
     modelPatterns: [/^minimax/i],
     icon: MiniMaxIcon,
     capabilities: {
       toolUsageControl: true,
     },
     models: [
+      {
+        id: 'MiniMax-M3',
+        pricing: {
+          input: 0.6,
+          cachedInput: 0.12,
+          output: 2.4,
+          updatedAt: '2026-06-02',
+        },
+        capabilities: {
+          temperature: { min: 0.01, max: 1 },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 512000,
+      },
       {
         id: 'MiniMax-M2.7',
         pricing: {
@@ -1218,34 +1232,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           cachedInput: 0.06,
           output: 2.4,
           updatedAt: '2025-07-01',
-        },
-        capabilities: {
-          temperature: { min: 0.01, max: 1 },
-          maxOutputTokens: 192000,
-        },
-        contextWindow: 204800,
-      },
-      {
-        id: 'MiniMax-M2.5',
-        pricing: {
-          input: 0.3,
-          cachedInput: 0.03,
-          output: 1.2,
-          updatedAt: '2025-06-01',
-        },
-        capabilities: {
-          temperature: { min: 0.01, max: 1 },
-          maxOutputTokens: 192000,
-        },
-        contextWindow: 204800,
-      },
-      {
-        id: 'MiniMax-M2.5-highspeed',
-        pricing: {
-          input: 0.6,
-          cachedInput: 0.03,
-          output: 2.4,
-          updatedAt: '2025-06-01',
         },
         capabilities: {
           temperature: { min: 0.01, max: 1 },
