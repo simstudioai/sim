@@ -566,6 +566,13 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     return 'done'
   }
 
+  // A cell may have halted the dispatch mid-window (e.g. usage limit calls
+  // completeDispatchIfActive). Re-read before emitting the per-window
+  // `dispatching` event — otherwise that stale event arrives after the client
+  // already dropped the dispatch and re-adds it, flickering "X running" back.
+  const current = await readDispatch(dispatchId)
+  if (!current || current.status === 'cancelled' || current.status === 'complete') return 'done'
+
   await Promise.all([
     advanceCursor(dispatchId, lastPosition),
     appendTableEvent({
