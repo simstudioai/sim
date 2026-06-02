@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import {
   Button,
   Modal,
@@ -15,6 +16,7 @@ import {
 } from '@/components/emcn'
 import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
+import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import {
   type ColumnOption,
@@ -34,6 +36,7 @@ import {
   useRunColumn,
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import {
@@ -123,7 +126,19 @@ export function Table({
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
 
-  useTableEventStream({ tableId, workspaceId })
+  const posthog = usePostHog()
+  const posthogRef = useRef(posthog)
+  posthogRef.current = posthog
+
+  const { navigateToSettings } = useSettingsNavigation()
+  // Plain function: `useTableEventStream` keeps it in a ref (its effect doesn't
+  // depend on the identity), so a stable reference buys nothing here.
+  const onUsageLimitReached = ({ message }: { dispatchId?: string; message: string }) => {
+    toast.error(message, {
+      action: { label: 'Upgrade', onClick: () => navigateToSettings({ section: 'subscription' }) },
+    })
+  }
+  useTableEventStream({ tableId, workspaceId, onUsageLimitReached })
 
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
@@ -135,6 +150,7 @@ export function Table({
     actionBarRowIds: [],
     runningInActionBarSelection: 0,
     totalRunning: 0,
+    hasActiveDispatch: false,
     hasWorkflowColumns: false,
     selectedRunScope: null,
     selectionStats: { hasIncompleteOrFailed: false, hasCompleted: false, hasInFlight: false },
@@ -225,24 +241,40 @@ export function Table({
   // gutter, action-bar Play/Refresh, right-click context menu) reduces to a
   // (groupIds, rowIds?, runMode) triple. Empty groupIds = no-op.
   const runScope = useCallback(
-    (args: { groupIds: string[]; rowIds?: string[]; runMode: RunMode; limit?: RunLimit }) => {
-      if (args.groupIds.length === 0) return
-      if (args.rowIds && args.rowIds.length === 0) return
-      runColumnMutate(args)
+    (args: {
+      groupIds: string[]
+      rowIds?: string[]
+      runMode: RunMode
+      limit?: RunLimit
+      source: 'row' | 'rows' | 'column'
+    }) => {
+      const { source, ...mutateArgs } = args
+      if (mutateArgs.groupIds.length === 0) return
+      if (mutateArgs.rowIds && mutateArgs.rowIds.length === 0) return
+      runColumnMutate(mutateArgs)
+      captureEvent(posthogRef.current, 'table_workflow_run', {
+        table_id: tableId,
+        workspace_id: workspaceId,
+        source,
+        run_mode: mutateArgs.runMode,
+        group_count: mutateArgs.groupIds.length,
+        row_count: mutateArgs.rowIds?.length ?? null,
+        has_limit: mutateArgs.limit != null,
+      })
     },
-    [runColumnMutate]
+    [runColumnMutate, tableId, workspaceId]
   )
 
   const onRunColumn = useCallback(
     (groupId: string, runMode: RunMode, rowIds?: string[], limit?: RunLimit) => {
-      runScope({ groupIds: [groupId], rowIds, runMode, limit })
+      runScope({ groupIds: [groupId], rowIds, runMode, limit, source: 'column' })
     },
     [runScope]
   )
 
   const onRunRows = useCallback(
     (rowIds: string[], runMode: RunMode) => {
-      runScope({ groupIds: tableWorkflowGroups.map((g) => g.id), rowIds, runMode })
+      runScope({ groupIds: tableWorkflowGroups.map((g) => g.id), rowIds, runMode, source: 'rows' })
     },
     [runScope, tableWorkflowGroups]
   )
@@ -253,6 +285,7 @@ export function Table({
         groupIds: tableWorkflowGroups.map((g) => g.id),
         rowIds: [rowId],
         runMode: 'incomplete',
+        source: 'row',
       })
     },
     [runScope, tableWorkflowGroups]
@@ -263,8 +296,14 @@ export function Table({
   const onStopRow = useCallback(
     (rowId: string) => {
       cancelRunsMutate({ scope: 'row', rowId })
+      captureEvent(posthogRef.current, 'table_workflow_stopped', {
+        table_id: tableId,
+        workspace_id: workspaceId,
+        scope: 'row',
+        row_count: 1,
+      })
     },
-    [cancelRunsMutate]
+    [cancelRunsMutate, tableId, workspaceId]
   )
 
   const onStopRows = (rowIds: string[]) => {
@@ -272,12 +311,24 @@ export function Table({
     for (const rowId of rowIds) {
       cancelRunsMutate({ scope: 'row', rowId })
     }
+    captureEvent(posthogRef.current, 'table_workflow_stopped', {
+      table_id: tableId,
+      workspace_id: workspaceId,
+      scope: 'rows',
+      row_count: rowIds.length,
+    })
   }
 
   // useCallback because <RunStatusControl> is memo-wrapped.
   const onStopAll = useCallback(() => {
     cancelRunsMutate({ scope: 'all' })
-  }, [cancelRunsMutate])
+    captureEvent(posthogRef.current, 'table_workflow_stopped', {
+      table_id: tableId,
+      workspace_id: workspaceId,
+      scope: 'all',
+      row_count: null,
+    })
+  }, [cancelRunsMutate, tableId, workspaceId])
 
   const onSelectionChange = (next: SelectionSnapshot) => {
     setSelection(next)
@@ -468,7 +519,7 @@ export function Table({
           createTrigger={createTrigger}
           actions={headerActions}
           leadingActions={
-            selection.totalRunning > 0 ? (
+            selection.totalRunning > 0 || selection.hasActiveDispatch ? (
               <RunStatusControl
                 running={selection.totalRunning}
                 onStopAll={onStopAll}
@@ -486,7 +537,7 @@ export function Table({
         onFilterToggle={() => setFilterOpen((prev) => !prev)}
         filterActive={filterOpen || !!queryOptions.filter}
         trailing={
-          embedded && selection.totalRunning > 0 ? (
+          embedded && (selection.totalRunning > 0 || selection.hasActiveDispatch) ? (
             <RunStatusControl
               running={selection.totalRunning}
               onStopAll={onStopAll}
@@ -547,6 +598,7 @@ export function Table({
               groupIds: scope.groupIds,
               rowIds: scope.allRows ? undefined : scope.rowIds,
               runMode: 'incomplete',
+              source: 'rows',
             })
           }}
           onRefresh={() => {
@@ -556,6 +608,7 @@ export function Table({
               groupIds: scope.groupIds,
               rowIds: scope.allRows ? undefined : scope.rowIds,
               runMode: 'all',
+              source: 'rows',
             })
           }}
           onStopWorkflows={() => {

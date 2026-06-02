@@ -612,7 +612,7 @@ export function FolderItem({
           !userPermissions.canEdit || isDuplicatingSelection || !hasExportableContent
         }
         disableExport={!userPermissions.canEdit || isExporting || !hasExportableContent}
-        showDelete={userPermissions.canAdmin}
+        showDelete={userPermissions.canEdit}
         disableDelete={effectiveLocked || !canDeleteSelection}
         onToggleLock={handleToggleLock}
         showLock={!isMixedSelection && selectedFolders.size <= 1}

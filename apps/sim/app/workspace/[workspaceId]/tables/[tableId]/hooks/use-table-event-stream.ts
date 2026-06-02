@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
@@ -44,6 +44,9 @@ interface UseTableEventStreamArgs {
   tableId: string | undefined
   workspaceId: string | undefined
   enabled?: boolean
+  /** Fired when the server halts a dispatch because the billed account is over
+   *  its usage limit. The page surfaces an upgrade prompt + redirect. */
+  onUsageLimitReached?: (event: { dispatchId?: string; message: string }) => void
 }
 
 /**
@@ -59,8 +62,13 @@ export function useTableEventStream({
   tableId,
   workspaceId,
   enabled = true,
+  onUsageLimitReached,
 }: UseTableEventStreamArgs): void {
   const queryClient = useQueryClient()
+
+  // Ref so a changing callback identity doesn't tear down + reconnect the SSE.
+  const onUsageLimitReachedRef = useRef(onUsageLimitReached)
+  onUsageLimitReachedRef.current = onUsageLimitReached
 
   useEffect(() => {
     if (!enabled || !tableId || !workspaceId) return
@@ -205,6 +213,28 @@ export function useTableEventStream({
       scheduleDispatchInvalidate()
     }
 
+    const applyUsageLimit = (event: Extract<TableEvent, { kind: 'usageLimitReached' }>): void => {
+      // Drop the halted dispatch from the overlay so the "running" UI clears
+      // immediately (the dispatcher was marked complete server-side). Cascade /
+      // auto-fire events carry no dispatchId — nothing to remove.
+      if (event.dispatchId) {
+        queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
+          if (!prev) return prev
+          const filtered = prev.dispatches.filter((d) => d.id !== event.dispatchId)
+          return filtered.length === prev.dispatches.length
+            ? prev
+            : { ...prev, dispatches: filtered }
+        })
+      }
+      // Blocked cells are left `queued` in the DB with no terminal cell event,
+      // so `runningByRowId` would otherwise stay non-zero (stale "X running").
+      // Re-sync the server counts, and refetch rows so cells whose pre-stamps
+      // the server cleared drop their "Queued" state.
+      scheduleDispatchInvalidate()
+      void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      onUsageLimitReachedRef.current?.({ dispatchId: event.dispatchId, message: event.message })
+    }
+
     const handlePrune = (payload: PrunedEvent): void => {
       logger.info('Table event buffer pruned — full refetch', { tableId, ...payload })
       void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
@@ -253,6 +283,7 @@ export function useTableEventStream({
           savePointer(tableId, lastEventId)
           if (entry.event?.kind === 'cell') applyCell(entry.event)
           else if (entry.event?.kind === 'dispatch') applyDispatch(entry.event)
+          else if (entry.event?.kind === 'usageLimitReached') applyUsageLimit(entry.event)
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })
         }

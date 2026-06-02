@@ -22,6 +22,7 @@ import {
   type WorkflowSearchSubflowFieldId,
   workflowSearchSubflowFieldMatchesExpected,
 } from '@/lib/workflows/search-replace/subflow-fields'
+import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { getSubBlocksDependingOnChange } from '@/blocks/utils'
@@ -1494,7 +1495,7 @@ export function useCollaborativeWorkflow() {
       useSubBlockStore.getState().setValue(blockId, subblockId, value)
       useWorkflowStore.getState().syncDynamicHandleSubblockValue(blockId, subblockId, value)
 
-      if (activeWorkflowId) {
+      if (activeWorkflowId && !isSyntheticToolSubBlockId(subblockId)) {
         const operationId = generateId()
 
         addToQueue({
@@ -1604,6 +1605,10 @@ export function useCollaborativeWorkflow() {
         return false
       }
 
+      const persistedUpdates = updates.filter(
+        (update) => !isSyntheticToolSubBlockId(update.subblockId)
+      )
+
       if (updates.length > 0) {
         updates.forEach((update) => {
           useSubBlockStore.getState().setValue(update.blockId, update.subblockId, update.value)
@@ -1612,21 +1617,23 @@ export function useCollaborativeWorkflow() {
             .syncDynamicHandleSubblockValue(update.blockId, update.subblockId, update.value)
         })
 
-        const operationId = generateId()
-        addToQueue({
-          id: operationId,
-          operation: {
-            operation: SUBBLOCK_OPERATIONS.BATCH_UPDATE,
-            target: OPERATION_TARGETS.SUBBLOCK,
-            payload: { updates },
-          },
-          workflowId: activeWorkflowId,
-          userId: session?.user?.id || 'unknown',
-        })
+        if (persistedUpdates.length > 0) {
+          const operationId = generateId()
+          addToQueue({
+            id: operationId,
+            operation: {
+              operation: SUBBLOCK_OPERATIONS.BATCH_UPDATE,
+              target: OPERATION_TARGETS.SUBBLOCK,
+              payload: { updates: persistedUpdates },
+            },
+            workflowId: activeWorkflowId,
+            userId: session?.user?.id || 'unknown',
+          })
+        }
       }
 
       undoRedo.recordBatchUpdateSubblocks(
-        updates.map((update) => ({
+        persistedUpdates.map((update) => ({
           blockId: update.blockId,
           subBlockId: update.subblockId,
           before: update.expectedValue,
@@ -1656,6 +1663,8 @@ export function useCollaborativeWorkflow() {
 
       // Apply locally first (immediate UI feedback)
       useSubBlockStore.getState().setValue(blockId, subblockId, value)
+
+      if (isSyntheticToolSubBlockId(subblockId)) return
 
       // Use the operation queue but with immediate processing (no debouncing)
       const operationId = generateId()

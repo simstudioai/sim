@@ -184,7 +184,7 @@ export const DELETE = withRouteHandler(
       const authorization = await authorizeWorkflowByWorkspacePermission({
         workflowId,
         userId,
-        action: 'admin',
+        action: 'write',
       })
       const workflowData = authorization.workflow || (await getWorkflowById(workflowId))
 

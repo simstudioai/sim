@@ -27,6 +27,7 @@ import {
 import type { McpToolSchema } from '@/lib/mcp/types'
 import { getProviderIdFromServiceId, type OAuthProvider, type OAuthService } from '@/lib/oauth'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
+import { buildToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { McpServerFormModal } from '@/app/workspace/[workspaceId]/settings/components/mcp/components/mcp-server-form-modal/mcp-server-form-modal'
 import {
@@ -1159,7 +1160,7 @@ export const ToolInput = memo(function ToolInput({
   ) => {
     const uniqueSubBlockId =
       toolIndex !== undefined
-        ? `${subBlockId}-tool-${toolIndex}-${param.id}`
+        ? buildToolSubBlockId(subBlockId, toolIndex, param.id)
         : `${subBlockId}-${param.id}`
     const paramActiveSearchTarget = getParamActiveSearchTarget(
       toolIndex,
@@ -2060,7 +2061,7 @@ export const ToolInput = memo(function ToolInput({
                           activeSearchTarget={getParamActiveSearchTarget(
                             toolIndex,
                             effectiveParamId,
-                            `${subBlockId}-tool-${toolIndex}-${effectiveParamId}`
+                            buildToolSubBlockId(subBlockId, toolIndex, effectiveParamId)
                           )}
                         />
                       )

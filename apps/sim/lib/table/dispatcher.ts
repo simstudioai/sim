@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { and, asc, eq, gt, inArray, isNotNull, ne, or, type SQL, sql } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs/config'
 import { writeWorkflowGroupState } from '@/lib/table/cell-write'
+import { isExecCancelledAfter } from '@/lib/table/deps'
 import { appendTableEvent } from '@/lib/table/events'
 import type { RowExecutionMetadata, RowExecutions, TableRow } from '@/lib/table/types'
 import {
@@ -359,6 +360,22 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       .update(tableRunDispatches)
       .set({ status: 'dispatching' })
       .where(eq(tableRunDispatches.id, dispatchId))
+    // Announce the dispatch the moment it starts — before the first window's
+    // cells finish. Without this, auto-fired and capped dispatches (no client-
+    // side optimistic seed) emit their first `dispatch` event only after window
+    // 1 completes, so the "X running" / Stop-all control stays hidden while a
+    // long first window runs. The client refetches the run-state count on this.
+    await appendTableEvent({
+      kind: 'dispatch',
+      tableId: dispatch.tableId,
+      dispatchId,
+      status: 'dispatching',
+      scope: dispatch.scope,
+      cursor: dispatch.cursor,
+      mode: dispatch.mode,
+      isManualRun: dispatch.isManualRun,
+      ...(dispatch.limit ? { limit: dispatch.limit } : {}),
+    })
   }
 
   const filters = [
@@ -444,12 +461,9 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
   const tombstoneFiltered: TableRow[] = []
   for (const r of chunk) {
     const tableRow = toTableRow(r, executionsByRow.get(r.id) ?? {})
-    const tombstoned = dispatch.scope.groupIds.some((gid) => {
-      const exec = tableRow.executions?.[gid]
-      if (!exec?.cancelledAt) return false
-      const cancelledAtMs = Date.parse(exec.cancelledAt)
-      return Number.isFinite(cancelledAtMs) && cancelledAtMs > dispatch.requestedAt.getTime()
-    })
+    const tombstoned = dispatch.scope.groupIds.some((gid) =>
+      isExecCancelledAfter(tableRow.executions?.[gid], dispatch.requestedAt)
+    )
     if (!tombstoned) tombstoneFiltered.push(tableRow)
   }
 
@@ -457,7 +471,7 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     isManualRun: dispatch.isManualRun,
     groupIds: dispatch.scope.groupIds,
     mode: dispatch.mode,
-  })
+  }).map((p) => ({ ...p, dispatchId }))
 
   // Cursor advances to the last position in this chunk regardless of
   // eligibility — otherwise a window full of skipped cells loops forever.
@@ -552,6 +566,13 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     return 'done'
   }
 
+  // A cell may have halted the dispatch mid-window (e.g. usage limit calls
+  // completeDispatchIfActive). Re-read before emitting the per-window
+  // `dispatching` event — otherwise that stale event arrives after the client
+  // already dropped the dispatch and re-adds it, flickering "X running" back.
+  const current = await readDispatch(dispatchId)
+  if (!current || current.status === 'cancelled' || current.status === 'complete') return 'done'
+
   await Promise.all([
     advanceCursor(dispatchId, lastPosition),
     appendTableEvent({
@@ -625,11 +646,29 @@ async function advanceCursor(dispatchId: string, newCursor: number): Promise<voi
     .where(eq(tableRunDispatches.id, dispatchId))
 }
 
-async function markDispatchComplete(dispatchId: string): Promise<void> {
+export async function markDispatchComplete(dispatchId: string): Promise<void> {
   await db
     .update(tableRunDispatches)
     .set({ status: 'complete', completedAt: new Date() })
     .where(eq(tableRunDispatches.id, dispatchId))
+}
+
+/** Complete a dispatch only if it's still active, returning whether THIS call
+ *  performed the transition. Lets concurrent cells that all hit a hard stop
+ *  (e.g. usage limit) elect a single owner — only the winner emits the
+ *  user-facing event, instead of one toast per in-flight cell. */
+export async function completeDispatchIfActive(dispatchId: string): Promise<boolean> {
+  const transitioned = await db
+    .update(tableRunDispatches)
+    .set({ status: 'complete', completedAt: new Date() })
+    .where(
+      and(
+        eq(tableRunDispatches.id, dispatchId),
+        inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES])
+      )
+    )
+    .returning({ id: tableRunDispatches.id })
+  return transitioned.length > 0
 }
 
 export async function markDispatchCancelled(dispatchId: string): Promise<void> {

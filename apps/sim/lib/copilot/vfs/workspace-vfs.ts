@@ -1175,27 +1175,32 @@ export class WorkspaceVFS {
         .select({
           id: copilotChats.id,
           title: copilotChats.title,
-          messageCount: sql<number>`COALESCE(jsonb_array_length(${copilotChats.messages}), 0)`,
+          messageCount: sql<number>`COALESCE((
+            SELECT COUNT(*) FROM copilot_messages cm
+            WHERE cm.chat_id = ${copilotChats.id} AND cm.deleted_at IS NULL
+          ), 0)`,
           messages: sql<unknown[]>`COALESCE((
             SELECT jsonb_agg(
               jsonb_build_object(
-                'role', m.value->>'role',
-                'content', m.value->'content',
+                'role', cm.content->>'role',
+                'content', cm.content->'content',
                 'contentBlocks', COALESCE((
                   SELECT jsonb_agg(jsonb_build_object('type', 'text', 'content', b.value->'content') ORDER BY b.ord)
                   FROM jsonb_array_elements(
-                    CASE WHEN jsonb_typeof(m.value->'contentBlocks') = 'array'
-                         THEN m.value->'contentBlocks'
+                    CASE WHEN jsonb_typeof(cm.content->'contentBlocks') = 'array'
+                         THEN cm.content->'contentBlocks'
                          ELSE '[]'::jsonb
                     END
                   ) WITH ORDINALITY AS b(value, ord)
                   WHERE b.value->>'type' = 'text'
                 ), '[]'::jsonb)
               )
-              ORDER BY m.ord
+              ORDER BY cm.seq ASC NULLS LAST, cm.created_at ASC, cm.id ASC
             )
-            FROM jsonb_array_elements(${copilotChats.messages}) WITH ORDINALITY AS m(value, ord)
-            WHERE m.value->>'role' IN ('user', 'assistant')
+            FROM copilot_messages cm
+            WHERE cm.chat_id = ${copilotChats.id}
+              AND cm.deleted_at IS NULL
+              AND cm.content->>'role' IN ('user', 'assistant')
           ), '[]'::jsonb)`,
           createdAt: copilotChats.createdAt,
           updatedAt: copilotChats.updatedAt,

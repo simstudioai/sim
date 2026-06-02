@@ -28,6 +28,7 @@ const {
   releasePendingChatStream,
   resolveOrCreateChat,
   finalizeAssistantTurn,
+  appendCopilotChatMessages,
   mockPublishStatusChanged,
 } = vi.hoisted(() => ({
   getEffectiveDecryptedEnv: vi.fn(),
@@ -41,6 +42,7 @@ const {
   releasePendingChatStream: vi.fn(),
   resolveOrCreateChat: vi.fn(),
   finalizeAssistantTurn: vi.fn(),
+  appendCopilotChatMessages: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
 }))
 
@@ -86,30 +88,40 @@ vi.mock('@/lib/copilot/chat/terminal-state', () => ({
   finalizeAssistantTurn,
 }))
 
+vi.mock('@/lib/copilot/chat/messages-store', () => ({
+  appendCopilotChatMessages,
+}))
+
 vi.mock('@/lib/copilot/tasks', () => ({
   taskPubSub: {
     publishStatusChanged: mockPublishStatusChanged,
   },
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    update: vi.fn(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn(() => ({
-          returning: vi.fn().mockResolvedValue([]),
-        })),
+vi.mock('@sim/db', () => {
+  const update = vi.fn(() => ({
+    set: vi.fn(() => ({
+      where: vi.fn(() => ({
+        returning: vi.fn().mockResolvedValue([]),
       })),
     })),
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn().mockResolvedValue([{ permissionType: 'write' }]),
-        })),
+  }))
+  const select = vi.fn(() => ({
+    from: vi.fn(() => ({
+      where: vi.fn(() => ({
+        limit: vi.fn().mockResolvedValue([{ permissionType: 'write' }]),
       })),
     })),
-  },
-}))
+  }))
+  return {
+    db: {
+      update,
+      select,
+      transaction: async (cb: (tx: { update: typeof update; select: typeof select }) => unknown) =>
+        cb({ update, select }),
+    },
+  }
+})
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(() => ({})),

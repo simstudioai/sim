@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { updateCopilotMessagesContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
 import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
-import { replaceCopilotChatMessages } from '@/lib/copilot/chat/messages-dual-write'
+import { replaceCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -73,9 +73,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return createNotFoundResponse('Chat not found or unauthorized')
     }
 
-    // Update chat with new messages, plan artifact, and config
     const updateData: Record<string, unknown> = {
-      messages: normalizedMessages,
       updatedAt: new Date(),
     }
 
@@ -87,16 +85,20 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       updateData.config = config
     }
 
-    const [updated] = await db
-      .update(copilotChats)
-      .set(updateData)
-      .where(eq(copilotChats.id, chatId))
-      .returning({ model: copilotChats.model })
-    if (updated) {
-      await replaceCopilotChatMessages(chatId, normalizedMessages, {
-        chatModel: updated.model ?? null,
-      })
-    }
+    await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(copilotChats)
+        .set(updateData)
+        .where(eq(copilotChats.id, chatId))
+        .returning({ model: copilotChats.model })
+      if (!updated) return
+      await replaceCopilotChatMessages(
+        chatId,
+        normalizedMessages,
+        { chatModel: updated.model ?? null },
+        tx
+      )
+    })
 
     logger.info(`[${tracker.requestId}] Successfully updated chat`, {
       chatId,
