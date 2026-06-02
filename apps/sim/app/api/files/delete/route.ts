@@ -64,8 +64,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       const storageContext: StorageContext = context || inferContextFromKey(key)
 
-      // KB deletes are binding-only and require write/admin on the owning workspace;
-      // they never use the transitional read fallback that file serving allows.
+      // Deletes require write/admin on the owning workspace (owner-scoped files
+      // like copilot/regular uploads still authorize by ownership). KB deletes
+      // are binding-only and never use the transitional read fallback that file
+      // serving allows.
       const hasAccess =
         storageContext === 'knowledge-base'
           ? await verifyKBFileWriteAccess(key, userId)
@@ -74,7 +76,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               userId,
               undefined, // customConfig
               storageContext, // context
-              !hasCloudStorage() // isLocal
+              !hasCloudStorage(), // isLocal
+              { requireWrite: true }
             )
 
       if (!hasAccess) {

@@ -220,8 +220,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const { workspaceId, title, prompt, cronExpression, timezone, lifecycle, maxRuns, startDate } =
       parsed.data.body
 
-    const hasPermission = await verifyWorkspaceMembership(session.user.id, workspaceId)
-    if (!hasPermission) {
+    const permission = await verifyWorkspaceMembership(session.user.id, workspaceId)
+    if (permission !== 'admin' && permission !== 'write') {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 

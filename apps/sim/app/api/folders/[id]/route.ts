@@ -140,9 +140,9 @@ export const DELETE = withRouteHandler(
         existingFolder.workspaceId
       )
 
-      if (workspacePermission !== 'admin') {
+      if (!workspacePermission || workspacePermission === 'read') {
         return NextResponse.json(
-          { error: 'Admin access required to delete folders' },
+          { error: 'Write or Admin access required to delete folders' },
           { status: 403 }
         )
       }
