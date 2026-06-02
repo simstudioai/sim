@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import type {
   ContractBody,
   ContractBodyInput,
@@ -188,6 +189,19 @@ export const trelloCallbackContract = defineRouteContract({
   path: '/api/auth/trello/callback',
   query: trelloCallbackQuerySchema,
   response: { mode: 'text' },
+})
+
+export const authorizeOAuth2QuerySchema = z.object({
+  providerId: z.string().min(1, 'providerId is required'),
+  workspaceId: workspaceIdSchema,
+  callbackURL: z.string().min(1).optional(),
+})
+
+export const authorizeOAuth2Contract = defineRouteContract({
+  method: 'GET',
+  path: '/api/auth/oauth2/authorize',
+  query: authorizeOAuth2QuerySchema,
+  response: { mode: 'redirect' },
 })
 
 export type StoreTrelloTokenBody = ContractBody<typeof storeTrelloTokenContract>
