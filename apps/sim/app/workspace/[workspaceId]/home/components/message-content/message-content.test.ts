@@ -23,6 +23,14 @@ function subagentToolCall(
   }
 }
 
+function mainText(content: string): ContentBlock {
+  return { type: 'text', content, timestamp: 1 }
+}
+
+function mainToolCall(id: string, name: string): ContentBlock {
+  return { type: 'tool_call', toolCall: { id, name, status: 'success' }, timestamp: 1 }
+}
+
 describe('parseBlocks span-identity tree', () => {
   it('nests a deploy subagent inside the workflow subagent that spawned it', () => {
     const blocks: ContentBlock[] = [
@@ -99,6 +107,61 @@ describe('parseBlocks span-identity tree', () => {
     // The empty, ended deploy group is pruned; only the workflow tool remains.
     expect(segments[0].items.some((item) => item.type === 'agent_group')).toBe(false)
     expect(segments[0].items.some((item) => item.type === 'tool')).toBe(true)
+  })
+
+  it('interleaves mothership tools with main text instead of clustering them at the top', () => {
+    const blocks: ContentBlock[] = [
+      mainText('Let me search.'),
+      mainToolCall('t1', 'grep'),
+      subagentStart('research', 'S1', 'main'),
+      { type: 'subagent_text', content: 'looking', spanId: 'S1', timestamp: 2 },
+      { type: 'subagent_end', spanId: 'S1', parentSpanId: 'main', timestamp: 3 },
+      mainText('Found it, now finding files.'),
+      mainToolCall('t2', 'glob'),
+    ]
+
+    const segments = parseBlocks(blocks)
+
+    // Order is preserved chronologically: the second mothership tool stays below
+    // the research subagent and the trailing text rather than jumping back up
+    // into the first group.
+    const shape = segments.map((s) => (s.type === 'agent_group' ? s.agentName : s.type))
+    expect(shape).toEqual(['text', 'mothership', 'research', 'text', 'mothership'])
+
+    // The two mothership tools land in two distinct groups, one each.
+    const mothershipGroups = segments.filter(
+      (s) => s.type === 'agent_group' && s.agentName === 'mothership'
+    )
+    expect(mothershipGroups).toHaveLength(2)
+    const [first, second] = mothershipGroups
+    if (first.type !== 'agent_group' || second.type !== 'agent_group') {
+      throw new Error('expected mothership groups')
+    }
+    expect(first.items).toHaveLength(1)
+    expect(second.items).toHaveLength(1)
+    expect(first.items[0].type === 'tool' && first.items[0].data.toolName).toBe('grep')
+    expect(second.items[0].type === 'tool' && second.items[0].data.toolName).toBe('glob')
+  })
+
+  it('absorbs the dispatch tool of a nested file subagent from its parent span group', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('workflow', 'S1', 'main'),
+      subagentToolCall('t1', 'workspace_file', 'S1', 'workflow'),
+      { type: 'subagent', content: 'file', spanId: 'S2', parentSpanId: 'S1', timestamp: 2 },
+      { type: 'subagent_text', content: 'writing', spanId: 'S2', timestamp: 3 },
+    ]
+
+    const segments = parseBlocks(blocks)
+    expect(segments).toHaveLength(1)
+    const workflow = segments[0]
+    if (workflow.type !== 'agent_group') throw new Error('expected workflow group')
+
+    // The workspace_file dispatch tool is absorbed (not shown as a sibling tool);
+    // only the nested file subagent remains under workflow.
+    expect(workflow.items.some((item) => item.type === 'tool')).toBe(false)
+    const nested = workflow.items.find((item) => item.type === 'agent_group')
+    if (!nested || nested.type !== 'agent_group') throw new Error('expected nested file group')
+    expect(nested.group.agentName).toBe('file')
   })
 
   it('falls back to legacy flat grouping when blocks have no span identity', () => {

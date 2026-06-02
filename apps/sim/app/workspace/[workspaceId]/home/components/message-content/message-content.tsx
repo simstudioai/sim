@@ -184,14 +184,39 @@ function appendTextItem(group: AgentGroupSegment, content: string): void {
 function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   const segments: MessageSegment[] = []
   const groupsBySpanId = new Map<string, AgentGroupSegment>()
-  let mothership: AgentGroupSegment | null = null
 
+  const tailMothershipGroup = (): AgentGroupSegment | null => {
+    const last = segments[segments.length - 1]
+    return last?.type === 'agent_group' && last.agentName === 'mothership' ? last : null
+  }
+
+  // Top-level (mothership) tool calls render in a collapsible group. Reuse that
+  // group only while it is still the most recent segment so consecutive tools
+  // stay together; once any other segment (main text, a spawned subagent,
+  // thinking, etc.) breaks the run, the next tool opens a fresh group below it
+  // instead of jumping back up into the original one. This keeps the mothership's
+  // tools and prose interleaved in the order they actually happened.
   const ensureMothership = (): AgentGroupSegment => {
-    if (!mothership) {
-      mothership = createAgentGroupSegment('mothership', 'mothership', segments.length)
-      segments.push(mothership)
+    const existing = tailMothershipGroup()
+    if (existing) return existing
+    const group = createAgentGroupSegment('mothership', 'mothership', segments.length)
+    segments.push(group)
+    return group
+  }
+
+  // When a subagent spawns, drop the dispatch tool that triggered it (e.g.
+  // workspace_file -> file) from whichever container it landed in so it does not
+  // render as a separate entry beside the agent group.
+  const absorbDispatchTool = (toolName: string, parentSpanId: string | undefined): void => {
+    const container =
+      parentSpanId && parentSpanId !== SPAN_ROOT
+        ? groupsBySpanId.get(parentSpanId)
+        : tailMothershipGroup()
+    if (!container) return
+    const last = container.items[container.items.length - 1]
+    if (last?.type === 'tool' && last.data.toolName === toolName) {
+      container.items.pop()
     }
-    return mothership
   }
 
   const attachSpanGroup = (group: AgentGroupSegment, parentSpanId: string | undefined): void => {
@@ -283,14 +308,9 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
     if (block.type === 'subagent') {
       if (!block.content || !block.spanId) continue
       // Absorb a trailing dispatch tool (e.g. workspace_file -> file) so it does
-      // not render as a separate Mothership entry alongside the agent group.
+      // not render as a separate entry alongside the agent group.
       const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[block.content]
-      if (dispatchToolName && mothership) {
-        const last = mothership.items[mothership.items.length - 1]
-        if (last?.type === 'tool' && last.data.toolName === dispatchToolName) {
-          mothership.items.pop()
-        }
-      }
+      if (dispatchToolName) absorbDispatchTool(dispatchToolName, block.parentSpanId)
       const g = ensureSpanGroup(block.content, block.spanId, block.parentSpanId, i)
       // Show the working/delegating spinner from span open until the agent
       // emits its first content or tool (or ends). The legacy path derived this
