@@ -429,10 +429,24 @@ async function runWorkflowAndWriteTerminal(
           logger.warn(
             `Usage limit reached — halting dispatch (table=${tableId} row=${rowId} group=${groupId})`
           )
+          // Don't leave the cell stuck on its `pending` pre-stamp. Clear this
+          // cell's exec so it reverts to un-run (no error/cancelled badge —
+          // matching "don't mark"; re-runnable after upgrade). Each blocked
+          // cell clears its own.
+          const { updateRow } = await import('@/lib/table/service')
+          await updateRow(
+            { tableId, rowId, data: {}, workspaceId, executionsPatch: { [groupId]: null } },
+            table,
+            requestId
+          ).catch((err) =>
+            logger.warn(`Failed to clear cell pre-stamp on usage limit`, {
+              error: toError(err).message,
+            })
+          )
           // With up to 20 concurrent cells all hitting the limit at once, only
-          // the cell that actually transitions the dispatch active→complete
-          // emits the event — otherwise the user sees a toast per in-flight
-          // cell. Cells with no owning dispatch (auto-fire) always emit.
+          // the cell that transitions the dispatch active→complete emits the
+          // event — otherwise the user sees a toast per in-flight cell. Cells
+          // with no owning dispatch (auto-fire) always emit.
           let shouldEmit = true
           if (dispatchId) {
             const { completeDispatchIfActive } = await import('@/lib/table/dispatcher')
@@ -442,7 +456,7 @@ async function runWorkflowAndWriteTerminal(
             await appendTableEvent({
               kind: 'usageLimitReached',
               tableId,
-              dispatchId: dispatchId ?? '',
+              ...(dispatchId ? { dispatchId } : {}),
               message:
                 preprocess.error?.message ??
                 'Usage limit exceeded. Please upgrade your plan to continue.',
