@@ -62,7 +62,6 @@ import {
   ResourceHeader,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
@@ -1720,10 +1719,7 @@ export function Files() {
             multiSelectValues={typeFilter}
             onMultiSelectChange={setTypeFilter}
             overlayContent={
-              <FloatingOverflowText
-                label={typeDisplayLabel}
-                className='block truncate text-[var(--text-primary)]'
-              />
+              <span className='truncate text-[var(--text-primary)]'>{typeDisplayLabel}</span>
             }
             showAllOption
             allOptionLabel='All'
@@ -1743,10 +1739,7 @@ export function Files() {
             multiSelectValues={sizeFilter}
             onMultiSelectChange={setSizeFilter}
             overlayContent={
-              <FloatingOverflowText
-                label={sizeDisplayLabel}
-                className='block truncate text-[var(--text-primary)]'
-              />
+              <span className='truncate text-[var(--text-primary)]'>{sizeDisplayLabel}</span>
             }
             showAllOption
             allOptionLabel='All'
@@ -1765,10 +1758,9 @@ export function Files() {
               multiSelectValues={uploadedByFilter}
               onMultiSelectChange={setUploadedByFilter}
               overlayContent={
-                <FloatingOverflowText
-                  label={uploadedByDisplayLabel}
-                  className='block truncate text-[var(--text-primary)]'
-                />
+                <span className='truncate text-[var(--text-primary)]'>
+                  {uploadedByDisplayLabel}
+                </span>
               }
               searchable
               searchPlaceholder='Search members...'

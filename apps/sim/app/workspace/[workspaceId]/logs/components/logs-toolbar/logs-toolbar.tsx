@@ -21,7 +21,6 @@ import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { captureEvent } from '@/lib/posthog/client'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import {
   formatDateShort,
   type LogStatus,
@@ -551,10 +550,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                             style={{ backgroundColor: selectedStatusColor, width: 8, height: 8 }}
                           />
                         )}
-                        <FloatingOverflowText
-                          label={statusDisplayLabel}
-                          className='block truncate'
-                        />
+                        <span className='truncate'>{statusDisplayLabel}</span>
                       </span>
                     }
                     showAllOption
@@ -587,10 +583,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                             }}
                           />
                         )}
-                        <FloatingOverflowText
-                          label={workflowDisplayLabel}
-                          className='block truncate'
-                        />
+                        <span className='truncate'>{workflowDisplayLabel}</span>
                       </span>
                     }
                     searchable
@@ -614,10 +607,9 @@ export const LogsToolbar = memo(function LogsToolbar({
                     onMultiSelectChange={handleFolderFilterChange}
                     placeholder='All folders'
                     overlayContent={
-                      <FloatingOverflowText
-                        label={folderDisplayLabel}
-                        className='block truncate text-[var(--text-primary)]'
-                      />
+                      <span className='truncate text-[var(--text-primary)]'>
+                        {folderDisplayLabel}
+                      </span>
                     }
                     searchable
                     searchPlaceholder='Search folders...'
@@ -640,10 +632,9 @@ export const LogsToolbar = memo(function LogsToolbar({
                     onMultiSelectChange={handleTriggerFilterChange}
                     placeholder='All triggers'
                     overlayContent={
-                      <FloatingOverflowText
-                        label={triggerDisplayLabel}
-                        className='block truncate text-[var(--text-primary)]'
-                      />
+                      <span className='truncate text-[var(--text-primary)]'>
+                        {triggerDisplayLabel}
+                      </span>
                     }
                     searchable
                     searchPlaceholder='Search triggers...'
@@ -665,10 +656,9 @@ export const LogsToolbar = memo(function LogsToolbar({
                     onChange={handleTimeRangeChange}
                     placeholder='All time'
                     overlayContent={
-                      <FloatingOverflowText
-                        label={timeDisplayLabel}
-                        className='block truncate text-[var(--text-primary)]'
-                      />
+                      <span className='truncate text-[var(--text-primary)]'>
+                        {timeDisplayLabel}
+                      </span>
                     }
                     size='sm'
                     className='h-[32px] w-full rounded-md'
@@ -695,7 +685,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                       style={{ backgroundColor: selectedStatusColor, width: 8, height: 8 }}
                     />
                   )}
-                  <FloatingOverflowText label={statusDisplayLabel} className='block truncate' />
+                  <span className='truncate'>{statusDisplayLabel}</span>
                 </span>
               }
               showAllOption
@@ -724,7 +714,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                       }}
                     />
                   )}
-                  <FloatingOverflowText label={workflowDisplayLabel} className='block truncate' />
+                  <span className='truncate'>{workflowDisplayLabel}</span>
                 </span>
               }
               searchable
@@ -744,10 +734,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               onMultiSelectChange={handleFolderFilterChange}
               placeholder='Folder'
               overlayContent={
-                <FloatingOverflowText
-                  label={folderDisplayLabel}
-                  className='block truncate text-[var(--text-primary)]'
-                />
+                <span className='truncate text-[var(--text-primary)]'>{folderDisplayLabel}</span>
               }
               searchable
               searchPlaceholder='Search folders...'
@@ -766,10 +753,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               onMultiSelectChange={handleTriggerFilterChange}
               placeholder='Trigger'
               overlayContent={
-                <FloatingOverflowText
-                  label={triggerDisplayLabel}
-                  className='block truncate text-[var(--text-primary)]'
-                />
+                <span className='truncate text-[var(--text-primary)]'>{triggerDisplayLabel}</span>
               }
               searchable
               searchPlaceholder='Search triggers...'
@@ -788,10 +772,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                 onChange={handleTimeRangeChange}
                 placeholder='Time'
                 overlayContent={
-                  <FloatingOverflowText
-                    label={timeDisplayLabel}
-                    className='block truncate text-[var(--text-primary)]'
-                  />
+                  <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
                 }
                 size='sm'
                 align='end'
