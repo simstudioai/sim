@@ -36,6 +36,7 @@ import {
   useRunColumn,
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import {
@@ -129,7 +130,15 @@ export function Table({
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
 
-  useTableEventStream({ tableId, workspaceId })
+  const { navigateToSettings } = useSettingsNavigation()
+  // Plain function: `useTableEventStream` keeps it in a ref (its effect doesn't
+  // depend on the identity), so a stable reference buys nothing here.
+  const onUsageLimitReached = ({ message }: { dispatchId?: string; message: string }) => {
+    toast.error(message, {
+      action: { label: 'Upgrade', onClick: () => navigateToSettings({ section: 'subscription' }) },
+    })
+  }
+  useTableEventStream({ tableId, workspaceId, onUsageLimitReached })
 
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
@@ -141,6 +150,7 @@ export function Table({
     actionBarRowIds: [],
     runningInActionBarSelection: 0,
     totalRunning: 0,
+    hasActiveDispatch: false,
     hasWorkflowColumns: false,
     selectedRunScope: null,
     selectionStats: { hasIncompleteOrFailed: false, hasCompleted: false, hasInFlight: false },
@@ -509,7 +519,7 @@ export function Table({
           createTrigger={createTrigger}
           actions={headerActions}
           leadingActions={
-            selection.totalRunning > 0 ? (
+            selection.totalRunning > 0 || selection.hasActiveDispatch ? (
               <RunStatusControl
                 running={selection.totalRunning}
                 onStopAll={onStopAll}
@@ -527,7 +537,7 @@ export function Table({
         onFilterToggle={() => setFilterOpen((prev) => !prev)}
         filterActive={filterOpen || !!queryOptions.filter}
         trailing={
-          embedded && selection.totalRunning > 0 ? (
+          embedded && (selection.totalRunning > 0 || selection.hasActiveDispatch) ? (
             <RunStatusControl
               running={selection.totalRunning}
               onStopAll={onStopAll}

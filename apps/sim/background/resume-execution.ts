@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
+import { isExecCancelled } from '@/lib/table/deps'
 import type { RowData, RowExecutionMetadata } from '@/lib/table/types'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 
@@ -43,6 +44,36 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
     // at the pause boundary.
     const { findCellContextByExecutionId } = await import('@/lib/table/workflow-columns')
     const cellContext = await findCellContextByExecutionId(parentExecutionId)
+
+    // A paused/awaiting table cell that was cancelled by "Stop all" must not
+    // resume — the cancel write is authoritative (matches the cell-write guard
+    // philosophy). Aborting here also stops the wasted compute the guard alone
+    // can't prevent. Read the cell's current exec and bail if cancelled.
+    if (cellContext) {
+      const { getRowById } = await import('@/lib/table/service')
+      const cellRow = await getRowById(
+        cellContext.tableId,
+        cellContext.rowId,
+        cellContext.workspaceId
+      )
+      if (isExecCancelled(cellRow?.executions?.[cellContext.groupId])) {
+        logger.info('Skipping resume — table cell cancelled', {
+          tableId: cellContext.tableId,
+          rowId: cellContext.rowId,
+          groupId: cellContext.groupId,
+          parentExecutionId,
+        })
+        return {
+          success: false,
+          workflowId,
+          executionId: resumeExecutionId,
+          parentExecutionId,
+          status: 'cancelled' as const,
+          output: undefined,
+          executedAt: new Date().toISOString(),
+        }
+      }
+    }
 
     const writers = cellContext
       ? await buildResumeCellWriters(cellContext, parentExecutionId)
