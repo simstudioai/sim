@@ -6,7 +6,7 @@ export function mondayHeaders(accessToken: string): Record<string, string> {
   return {
     'Content-Type': 'application/json',
     Authorization: accessToken,
-    'API-Version': '2024-10',
+    'API-Version': '2026-04',
   }
 }
 

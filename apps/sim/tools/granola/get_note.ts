@@ -59,6 +59,7 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
         ownerEmail: data.owner?.email ?? '',
         createdAt: data.created_at ?? '',
         updatedAt: data.updated_at ?? '',
+        webUrl: data.web_url ?? null,
         summaryText: data.summary_text ?? '',
         summaryMarkdown: data.summary_markdown ?? null,
         attendees: (data.attendees ?? []).map((a: { name: string | null; email: string }) => ({
@@ -69,12 +70,10 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
           id: f.id ?? '',
           name: f.name ?? '',
         })),
-        calendarEventTitle: data.calendar_event?.event_title ?? null,
-        calendarOrganiser: data.calendar_event?.organiser ?? null,
-        calendarEventId: data.calendar_event?.calendar_event_id ?? null,
-        scheduledStartTime: data.calendar_event?.scheduled_start_time ?? null,
-        scheduledEndTime: data.calendar_event?.scheduled_end_time ?? null,
-        invitees: (data.calendar_event?.invitees ?? []).map((i: { email: string }) => i.email),
+        calendarEventTitle: data.calendar_event?.title ?? null,
+        calendarEventId: data.calendar_event?.id ?? null,
+        startTime: data.calendar_event?.start_time ?? null,
+        endTime: data.calendar_event?.end_time ?? null,
         transcript: data.transcript
           ? data.transcript.map(
               (t: {
@@ -101,6 +100,7 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
     ownerEmail: { type: 'string', description: 'Note owner email' },
     createdAt: { type: 'string', description: 'Creation timestamp' },
     updatedAt: { type: 'string', description: 'Last update timestamp' },
+    webUrl: { type: 'string', description: 'URL to view the note in Granola', optional: true },
     summaryText: { type: 'string', description: 'Plain text summary of the meeting' },
     summaryMarkdown: {
       type: 'string',
@@ -128,19 +128,13 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
       description: 'Calendar event title',
       optional: true,
     },
-    calendarOrganiser: {
-      type: 'string',
-      description: 'Calendar event organiser email',
-      optional: true,
-    },
     calendarEventId: { type: 'string', description: 'Calendar event ID', optional: true },
-    scheduledStartTime: {
+    startTime: {
       type: 'string',
-      description: 'Scheduled start time',
+      description: 'Calendar event start time',
       optional: true,
     },
-    scheduledEndTime: { type: 'string', description: 'Scheduled end time', optional: true },
-    invitees: { type: 'json', description: 'Calendar event invitee emails' },
+    endTime: { type: 'string', description: 'Calendar event end time', optional: true },
     transcript: {
       type: 'json',
       description: 'Meeting transcript entries (only if requested)',
