@@ -37,7 +37,8 @@ export interface ChipSwitchProps<T extends string = string> {
  * A pill-shaped segmented switch built from the chip language: each segment is
  * a {@link chipVariants}-styled button — `border-shadow` when active, `ghost`
  * when not — so text size, padding, height, and rounding match {@link Chip}
- * exactly. The active segment lifts via `--border-1` + `--shadow-subtle`.
+ * exactly. The active segment is a flat lifted surface against the trough
+ * (`--surface-2` light / `--surface-6` dark, no shadow) for a clean, even pill.
  *
  * @example
  * <ChipSwitch
@@ -61,7 +62,7 @@ export function ChipSwitch<T extends string>({
       role='radiogroup'
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex items-center rounded-[10px] bg-[var(--surface-5)] p-[2px]',
+        'inline-flex items-center rounded-[10px] bg-[var(--surface-5)] p-[2px] dark:bg-[var(--surface-4)]',
         className
       )}
     >
@@ -83,7 +84,7 @@ export function ChipSwitch<T extends string>({
               }),
               'justify-center',
               isActive
-                ? 'text-[var(--text-primary)] shadow-none hover-hover:bg-[var(--surface-2)]'
+                ? 'text-[var(--text-primary)] shadow-none hover-hover:bg-[var(--surface-2)] dark:bg-[var(--surface-6)] dark:shadow-none dark:hover-hover:bg-[var(--surface-6)]'
                 : 'text-[var(--text-muted)] hover-hover:bg-transparent hover-hover:text-[var(--text-primary)]'
             )}
           >

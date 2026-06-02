@@ -40,7 +40,7 @@ export function BillingPeriodToggle({ isAnnual, onChange, className }: BillingPe
           label: (
             <>
               Annual
-              <ChipTag variant='blue'>{DISCOUNT_LABEL}</ChipTag>
+              <ChipTag variant='mono'>{DISCOUNT_LABEL}</ChipTag>
             </>
           ),
         },
