@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { Chip } from '@/components/emcn'
 import { Credit } from '@/components/emcn/icons'
+import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { formatCredits } from '@/lib/billing/credits/conversion'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { prefetchUpgradeBillingData, useSubscriptionData } from '@/hooks/queries/subscription'
@@ -34,15 +35,25 @@ function CreditsChipInner() {
 
   if (isLoading || !data?.data) return null
 
+  const { usageLimit, currentUsage, creditBalance } = data.data
+
+  // Credits remaining = unused plan allowance plus any purchased credit balance.
+  // Uncapped plans (limit at/above the on-demand threshold) render as ∞ via
+  // `formatCredits`, so short-circuit instead of subtracting usage from it.
+  const remainingCredits =
+    usageLimit >= ON_DEMAND_UNLIMITED
+      ? ON_DEMAND_UNLIMITED
+      : Math.max(0, usageLimit + creditBalance - currentUsage)
+
   return (
     <Chip
-      aria-label='Upgrade plan'
+      aria-label='Credits remaining — upgrade plan'
       onClick={() => router.push(upgradeHref)}
       onMouseEnter={prefetchUpgrade}
       onFocus={prefetchUpgrade}
       leftIcon={Credit}
     >
-      {formatCredits(data.data.creditBalance)}
+      {formatCredits(remainingCredits)}
     </Chip>
   )
 }
