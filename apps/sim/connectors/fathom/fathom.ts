@@ -317,6 +317,30 @@ export const fathomConnector: ConnectorConfig = {
       description: 'Only sync meetings belonging to this team',
     },
     {
+      id: 'meetingType',
+      title: 'Filter by Meeting Type',
+      type: 'dropdown',
+      mode: 'advanced',
+      required: false,
+      description:
+        'Only sync internal meetings (everyone shares the recorder’s domain) or external meetings (at least one outside attendee). Leave as All to sync both.',
+      options: [
+        { id: 'all', label: 'All meetings' },
+        { id: 'one_or_more_external', label: 'External (customer-facing) only' },
+        { id: 'only_internal', label: 'Internal only' },
+      ],
+    },
+    {
+      id: 'inviteeDomains',
+      title: 'Filter by Attendee Domain',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'e.g. acme.com',
+      required: false,
+      description:
+        'Only sync meetings that include a calendar invitee from this company email domain (exact match).',
+    },
+    {
       id: 'maxMeetings',
       title: 'Max Meetings',
       type: 'short-input',
@@ -334,11 +358,17 @@ export const fathomConnector: ConnectorConfig = {
   ): Promise<ExternalDocumentList> => {
     const recordedBy = (sourceConfig.recordedBy as string | undefined)?.trim()
     const teams = (sourceConfig.teams as string | undefined)?.trim()
+    const meetingType = (sourceConfig.meetingType as string | undefined)?.trim()
+    const inviteeDomain = (sourceConfig.inviteeDomains as string | undefined)?.trim()
     const maxMeetings = sourceConfig.maxMeetings ? Number(sourceConfig.maxMeetings) : 0
 
     const url = new URL(`${FATHOM_API_BASE}/meetings`)
     if (recordedBy) url.searchParams.append('recorded_by[]', recordedBy)
     if (teams) url.searchParams.append('teams[]', teams)
+    if (meetingType && meetingType !== 'all') {
+      url.searchParams.append('calendar_invitees_domains_type', meetingType)
+    }
+    if (inviteeDomain) url.searchParams.append('calendar_invitees_domains[]', inviteeDomain)
     if (cursor) url.searchParams.append('cursor', cursor)
     if (lastSyncAt) url.searchParams.append('created_after', lastSyncAt.toISOString())
 
@@ -346,6 +376,8 @@ export const fathomConnector: ConnectorConfig = {
       hasCursor: Boolean(cursor),
       recordedBy,
       teams,
+      meetingType,
+      inviteeDomain,
       incremental: Boolean(lastSyncAt),
     })
 

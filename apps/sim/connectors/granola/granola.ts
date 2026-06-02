@@ -11,6 +11,9 @@ const GRANOLA_API_BASE = 'https://public-api.granola.ai/v1'
 /** Granola caps page_size at 30; request the maximum to minimize round trips. */
 const PAGE_SIZE = 30
 
+/** Granola folder identifiers match `fol_` followed by 14 alphanumeric chars. */
+const FOLDER_ID_PATTERN = /^fol_[a-zA-Z0-9]{14}$/
+
 /**
  * A note owner or attendee as returned by the Granola API.
  */
@@ -106,6 +109,33 @@ function parseMaxNotes(sourceConfig: Record<string, unknown>): number {
   if (raw == null || raw === '') return 0
   const num = Number(raw)
   return Number.isFinite(num) && num > 0 ? Math.floor(num) : 0
+}
+
+/**
+ * Parses the optional `folderId` scope from source config. Returns a trimmed
+ * folder id only when it matches Granola's `fol_…` identifier shape; otherwise
+ * returns undefined so the request is not scoped to an invalid folder.
+ */
+function parseFolderId(sourceConfig: Record<string, unknown>): string | undefined {
+  const raw = sourceConfig.folderId
+  if (typeof raw !== 'string') return undefined
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  return FOLDER_ID_PATTERN.test(trimmed) ? trimmed : undefined
+}
+
+/**
+ * Parses the optional `createdAfter` date filter from source config. Returns a
+ * normalized ISO 8601 string when the value is a valid date; otherwise returns
+ * undefined so the request is not scoped to an invalid date.
+ */
+function parseCreatedAfter(sourceConfig: Record<string, unknown>): string | undefined {
+  const raw = sourceConfig.createdAfter
+  if (typeof raw !== 'string') return undefined
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  const parsed = new Date(trimmed)
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString()
 }
 
 /**
@@ -212,6 +242,26 @@ export const granolaConnector: ConnectorConfig = {
       placeholder: 'e.g. 200 (default: unlimited)',
       description: 'Cap the number of notes synced. Leave blank to sync all notes.',
     },
+    {
+      id: 'folderId',
+      title: 'Folder ID',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. fol_4y6LduVdwSKC27',
+      description:
+        'Scope the sync to a single folder and its child folders. Leave blank to sync notes from all folders.',
+    },
+    {
+      id: 'createdAfter',
+      title: 'Created After',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. 2025-01-01 or 2025-01-01T00:00:00Z',
+      description:
+        'Only sync notes created on or after this date (ISO 8601). Leave blank to sync notes regardless of creation date.',
+    },
   ],
 
   listDocuments: async (
@@ -222,15 +272,21 @@ export const granolaConnector: ConnectorConfig = {
     lastSyncAt?: Date
   ): Promise<ExternalDocumentList> => {
     const maxNotes = parseMaxNotes(sourceConfig)
+    const folderId = parseFolderId(sourceConfig)
+    const createdAfter = parseCreatedAfter(sourceConfig)
 
     const url = new URL(`${GRANOLA_API_BASE}/notes`)
     url.searchParams.set('page_size', String(PAGE_SIZE))
     if (cursor) url.searchParams.set('cursor', cursor)
     if (lastSyncAt) url.searchParams.set('updated_after', lastSyncAt.toISOString())
+    if (folderId) url.searchParams.set('folder_id', folderId)
+    if (createdAfter) url.searchParams.set('created_after', createdAfter)
 
     logger.info('Listing Granola notes', {
       hasCursor: Boolean(cursor),
       incremental: Boolean(lastSyncAt),
+      scopedToFolder: Boolean(folderId),
+      scopedByCreatedAfter: Boolean(createdAfter),
     })
 
     const response = await fetchWithRetry(url.toString(), {
@@ -348,6 +404,32 @@ export const granolaConnector: ConnectorConfig = {
     const maxNotes = sourceConfig.maxNotes as string | undefined
     if (maxNotes && (Number.isNaN(Number(maxNotes)) || Number(maxNotes) < 0)) {
       return { valid: false, error: 'Max notes must be a non-negative number' }
+    }
+
+    const folderId = sourceConfig.folderId
+    if (
+      typeof folderId === 'string' &&
+      folderId.trim() &&
+      !FOLDER_ID_PATTERN.test(folderId.trim())
+    ) {
+      return {
+        valid: false,
+        error:
+          'Folder ID must look like fol_ followed by 14 alphanumeric characters (e.g. fol_4y6LduVdwSKC27)',
+      }
+    }
+
+    const createdAfter = sourceConfig.createdAfter
+    if (
+      typeof createdAfter === 'string' &&
+      createdAfter.trim() &&
+      Number.isNaN(new Date(createdAfter.trim()).getTime())
+    ) {
+      return {
+        valid: false,
+        error:
+          'Created After must be a valid date (ISO 8601, e.g. 2025-01-01 or 2025-01-01T00:00:00Z)',
+      }
     }
 
     try {

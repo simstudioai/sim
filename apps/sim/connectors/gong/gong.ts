@@ -126,6 +126,24 @@ function buildHeaders(accessToken: string): Record<string, string> {
 }
 
 /**
+ * Parses a comma- or newline-separated list of Gong IDs into a trimmed,
+ * de-duplicated, non-empty array. Returns `undefined` when nothing usable
+ * remains so the caller can omit the filter key entirely.
+ */
+function parseIdList(raw: unknown): string[] | undefined {
+  if (typeof raw !== 'string') return undefined
+  const ids = Array.from(
+    new Set(
+      raw
+        .split(/[\n,]/)
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+    )
+  )
+  return ids.length > 0 ? ids : undefined
+}
+
+/**
  * Metadata-based content hash shared by `listDocuments` stubs and `getDocument`
  * results. Derived purely from call identity and its start time so the value is
  * identical across both paths — guaranteeing the sync engine only re-fetches a
@@ -327,6 +345,16 @@ export const gongConnector: ConnectorConfig = {
       required: false,
       placeholder: 'Optional — limit to a single Gong workspace',
     },
+    {
+      id: 'primaryUserIds',
+      title: 'Host User IDs',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'Optional — comma-separated Gong user IDs (call hosts)',
+      description:
+        'Only sync calls hosted by these users. Find IDs in Gong under Company Settings → Users, or via the API.',
+    },
   ],
 
   listDocuments: async (
@@ -339,6 +367,7 @@ export const gongConnector: ConnectorConfig = {
     const lookbackDays = computeLookbackDays(sourceConfig, lastSyncAt)
     const maxCalls = sourceConfig.maxCalls ? Number(sourceConfig.maxCalls) : 0
     const workspaceId = (sourceConfig.workspaceId as string | undefined)?.trim()
+    const primaryUserIds = parseIdList(sourceConfig.primaryUserIds)
 
     const now = new Date()
     const fromDateTime = new Date(now.getTime() - lookbackDays * MS_PER_DAY).toISOString()
@@ -346,6 +375,7 @@ export const gongConnector: ConnectorConfig = {
 
     const filter: Record<string, unknown> = { fromDateTime, toDateTime }
     if (workspaceId) filter.workspaceId = workspaceId
+    if (primaryUserIds) filter.primaryUserIds = primaryUserIds
 
     logger.info('Listing Gong calls', {
       fromDateTime,
