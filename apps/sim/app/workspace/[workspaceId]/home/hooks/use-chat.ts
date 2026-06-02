@@ -582,18 +582,15 @@ function resolveOperationDisplayTitle(
   return label ?? fallback
 }
 
-function prefixFunctionExecuteTitle(title: string | undefined, language: unknown): string {
-  const modePrefix = language === 'shell' ? 'CLI' : 'Code'
-  const baseTitle = title ?? 'Running code'
-  if (baseTitle.startsWith(`${modePrefix}:`)) return baseTitle
-  return `${modePrefix}: ${baseTitle}`
+function functionExecuteTitle(title: string | undefined): string {
+  return title ?? 'Running code'
 }
 
 function resolveToolDisplayTitle(name: string, args?: Record<string, unknown>): string | undefined {
   if (!args) return undefined
 
   if (name === FunctionExecute.id) {
-    return prefixFunctionExecuteTitle(stringParam(args.title), args.language)
+    return functionExecuteTitle(stringParam(args.title))
   }
 
   if (name === WorkspaceFile.id) {
@@ -744,10 +741,7 @@ function matchStreamingStringArg(streamingArgs: string, key: string): string | u
 
 function resolveStreamingToolDisplayTitle(name: string, streamingArgs: string): string | undefined {
   if (name === FunctionExecute.id) {
-    return prefixFunctionExecuteTitle(
-      matchStreamingStringArg(streamingArgs, 'title'),
-      matchStreamingStringArg(streamingArgs, 'language')
-    )
+    return functionExecuteTitle(matchStreamingStringArg(streamingArgs, 'title'))
   }
 
   if (name === WorkspaceFile.id) {
