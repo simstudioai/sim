@@ -202,7 +202,8 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
         if (rest.timeout) result.timeout = Number(rest.timeout)
         if (rest.waitForFinish) result.waitForFinish = Number(rest.waitForFinish)
         if (rest.itemLimit) result.itemLimit = Number(rest.itemLimit)
-        if (rest.offset) result.offset = Number(rest.offset)
+        if (rest.offset !== undefined && rest.offset !== null && rest.offset !== '')
+          result.offset = Number(rest.offset)
 
         return result
       },

@@ -51,7 +51,7 @@ export const apifyGetDatasetItemsTool: ToolConfig<GetDatasetItemsParams, GetData
         const limit = Math.max(1, Math.min(params.itemLimit, 250000))
         queryParams.set('limit', limit.toString())
       }
-      if (params.offset) {
+      if (params.offset != null) {
         queryParams.set('offset', params.offset.toString())
       }
       if (params.fields) {

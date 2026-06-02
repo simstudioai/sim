@@ -168,7 +168,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
         run.status === 'ABORTED' ||
         run.status === 'TIMED-OUT'
       ) {
-        if (run.status === 'SUCCEEDED') {
+        if (run.status === 'SUCCEEDED' && run.defaultDatasetId) {
           const limit = Math.max(1, Math.min(params.itemLimit || 100, 250000))
           const itemsResponse = await fetch(
             `https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?limit=${limit}`,
