@@ -446,12 +446,13 @@ export const grainConnector: ConnectorConfig = {
       const segments = await fetchTranscript(accessToken, externalId)
       if (!segments) return null
 
-      const content = formatTranscriptContent(recording, segments)
       const hasTranscript = segments.some((segment) => segment.text?.trim())
       if (!hasTranscript) {
         logger.info('Transcript not yet available for Grain recording', { externalId })
         return null
       }
+
+      const content = formatTranscriptContent(recording, segments)
 
       return {
         externalId,

@@ -372,9 +372,16 @@ export const gongConnector: ConnectorConfig = {
     const workspaceId = (sourceConfig.workspaceId as string | undefined)?.trim()
     const primaryUserIds = parseIdList(sourceConfig.primaryUserIds)
 
+    const cachedWindow = syncContext?.gongDateWindow as
+      | { fromDateTime: string; toDateTime: string }
+      | undefined
     const now = new Date()
-    const fromDateTime = new Date(now.getTime() - lookbackDays * MS_PER_DAY).toISOString()
-    const toDateTime = now.toISOString()
+    const window = cachedWindow ?? {
+      fromDateTime: new Date(now.getTime() - lookbackDays * MS_PER_DAY).toISOString(),
+      toDateTime: now.toISOString(),
+    }
+    if (syncContext && !cachedWindow) syncContext.gongDateWindow = window
+    const { fromDateTime, toDateTime } = window
 
     const filter: Record<string, unknown> = { fromDateTime, toDateTime }
     if (workspaceId) filter.workspaceId = workspaceId
