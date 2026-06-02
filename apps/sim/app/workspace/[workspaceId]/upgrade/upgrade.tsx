@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Chip } from '@/components/emcn'
@@ -15,14 +15,19 @@ import { UsageLimit } from '@/app/workspace/[workspaceId]/settings/components/us
 import {
   BillingPeriodToggle,
   BillingUsageNotificationsToggle,
+  ComparisonTable,
   CreditBalance,
   ManagePlanModal,
+  type PlanName,
   UpgradePlanCard,
 } from '@/app/workspace/[workspaceId]/upgrade/components'
 import { useUpgradeState } from '@/app/workspace/[workspaceId]/upgrade/hooks'
 import {
+  ENTERPRISE_PLAN_CREDITS,
   ENTERPRISE_PLAN_FEATURES,
+  MAX_PLAN_CREDITS,
   MAX_PLAN_FEATURES,
+  PRO_PLAN_CREDITS,
   PRO_PLAN_FEATURES,
 } from '@/app/workspace/[workspaceId]/upgrade/plan-configs'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
@@ -46,10 +51,27 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
   const state = useUpgradeState()
   const router = useRouter()
   const origin = useFullscreenOriginStore((s) => s.origin)
+  const [showAllFeatures, setShowAllFeatures] = useState(false)
 
   const handleBack = useCallback(() => {
     router.replace(origin ?? `/workspace/${workspaceId}/home`)
   }, [origin, router, workspaceId])
+
+  const handleSelectPlan = useCallback(
+    (plan: PlanName) => {
+      if (plan === 'Enterprise') {
+        window.open(TYPEFORM_ENTERPRISE_URL, '_blank')
+      } else if (plan === 'Pro') {
+        state.doUpgrade('pro', state.proTier.credits)
+      } else if (plan === 'Max') {
+        if (state.subscription.isPaid) state.upgradeOrSwitchToMax()
+        else state.doUpgrade('pro', state.maxTier.credits)
+      } else {
+        handleBack()
+      }
+    },
+    [handleBack, state]
+  )
 
   if (state.isLoading) return null
 
@@ -143,7 +165,6 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                 ? (state.billingOrganizationId ?? undefined)
                 : undefined
             }
-            onLimitUpdated={() => {}}
           />
         ) : undefined
       }
@@ -162,7 +183,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
       canPurchase={state.hasUsablePaidAccess && state.permissions.canEditUsageLimit}
       entityType={state.subscription.isOrgScoped ? 'organization' : 'user'}
       isLoading={state.isLoading}
-      onPurchaseComplete={() => state.refetchSubscription()}
+      onPurchaseComplete={state.refetchSubscription}
     />
   ) : undefined
 
@@ -178,11 +199,11 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
         </Chip>
       </div>
 
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 pb-20 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex w-full max-w-[960px] flex-col gap-7 pt-6'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex w-full max-w-[960px] flex-col gap-7 pt-6 pb-3'>
           <div className='flex flex-col items-center gap-4'>
             <h1 className='text-balance text-center font-season text-[30px] text-[var(--text-primary)]'>
-              Plans that grow with you
+              Plans that scale with you
             </h1>
             {state.showUpgradePlans && (
               <BillingPeriodToggle isAnnual={state.isAnnual} onChange={state.setIsAnnual} />
@@ -196,10 +217,11 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                   name='Pro'
                   price={`$${proPrice}`}
                   discountLabel={state.isAnnual ? `${discountPct}% off` : undefined}
-                  strikethroughPrice={state.isAnnual ? `$${state.proTier.dollars}` : undefined}
                   priceSubtext={priceSubtext}
                   segmentLabel='For growing teams'
-                  features={PRO_PLAN_FEATURES.map((f) => f.text)}
+                  credits={PRO_PLAN_CREDITS.credits}
+                  refresh={PRO_PLAN_CREDITS.refresh}
+                  features={PRO_PLAN_FEATURES}
                   buttonText={
                     state.isOnPro
                       ? 'Manage plan'
@@ -217,7 +239,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                               .catch((e) => alert(getErrorMessage(e, 'Failed to switch interval')))
                         : () => state.doUpgrade('pro', state.proTier.credits)
                   }
-                  highlighted={state.isOnPro}
+                  highlighted
                   bannerText={proBanner}
                 />
 
@@ -225,10 +247,11 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                   name='Max'
                   price={`$${maxPrice}`}
                   discountLabel={state.isAnnual ? `${discountPct}% off` : undefined}
-                  strikethroughPrice={state.isAnnual ? `$${state.maxTier.dollars}` : undefined}
                   priceSubtext={priceSubtext}
                   segmentLabel='For scaling businesses'
-                  features={MAX_PLAN_FEATURES.map((f) => f.text)}
+                  credits={MAX_PLAN_CREDITS.credits}
+                  refresh={MAX_PLAN_CREDITS.refresh}
+                  features={MAX_PLAN_FEATURES}
                   buttonText={
                     state.isOnMax
                       ? 'Manage plan'
@@ -258,12 +281,35 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                   name='Enterprise'
                   price='Custom'
                   segmentLabel='For large organizations'
-                  features={ENTERPRISE_PLAN_FEATURES.map((f) => f.text)}
+                  credits={ENTERPRISE_PLAN_CREDITS.credits}
+                  refresh={ENTERPRISE_PLAN_CREDITS.refresh}
+                  features={ENTERPRISE_PLAN_FEATURES}
                   buttonText='Talk to sales'
                   onButtonClick={() => window.open(TYPEFORM_ENTERPRISE_URL, '_blank')}
                   highlighted={state.subscription.isEnterprise}
                   bannerText={entBanner}
                 />
+              </div>
+
+              {/* Show / Hide all features */}
+              <div className='flex flex-col items-center gap-6'>
+                <Chip
+                  variant='ghost'
+                  onClick={() => setShowAllFeatures((prev) => !prev)}
+                  aria-expanded={showAllFeatures}
+                >
+                  {showAllFeatures ? 'Hide all features' : 'Show all features'}
+                </Chip>
+
+                {showAllFeatures && (
+                  <ComparisonTable
+                    proPrice={`$${proPrice}`}
+                    maxPrice={`$${maxPrice}`}
+                    isAnnual={state.isAnnual}
+                    onIsAnnualChange={state.setIsAnnual}
+                    onSelectPlan={handleSelectPlan}
+                  />
+                )}
               </div>
             </>
           )}

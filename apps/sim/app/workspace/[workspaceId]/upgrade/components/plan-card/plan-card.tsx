@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipTag, chipVariants } from '@/components/emcn'
+import { Check, ChipTag, Credit, chipVariants, RefreshCw } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
 /**
@@ -15,12 +15,20 @@ export interface UpgradePlanCardProps {
   priceSubtext?: string
   /** Optional discount pill rendered next to the price, e.g. `"20% off"`. */
   discountLabel?: string
-  /** Optional struck-through original price, e.g. `"$34"`. */
-  strikethroughPrice?: string
   /** Short description below the plan name, e.g. `"For growing teams"`. */
   segmentLabel: string
-  /** Feature list — each row renders with a check icon. */
-  features: string[]
+  /**
+   * Monthly credit allocation shown prominently under the CTA, e.g. `"6,000 credits/mo"` or `"Custom"`.
+   * When omitted the credits/refresh block is not rendered.
+   */
+  credits?: string
+  /**
+   * Daily refresh allocation shown below the credit amount, e.g. `"+50/day refresh"`.
+   * Only rendered when {@link UpgradePlanCardProps.credits} is also set.
+   */
+  refresh?: string
+  /** Feature bullet list — each row renders with a check icon. */
+  features: readonly string[]
   /** CTA label. */
   buttonText: string
   /** CTA click handler. */
@@ -36,34 +44,24 @@ export interface UpgradePlanCardProps {
 }
 
 /**
- * Inline check icon — inherits color via `currentColor` from its `<li>` parent.
- */
-function CheckIcon() {
-  return (
-    <svg width='14' height='14' viewBox='0 0 14 14' fill='none' aria-hidden='true'>
-      <path
-        d='M2.5 7L5.5 10L11.5 4'
-        stroke='currentColor'
-        strokeWidth='1.5'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      />
-    </svg>
-  )
-}
-
-/**
  * Vertical pricing card styled with workspace surface, border, and text tokens.
  * CTA reuses {@link chipVariants} so it picks up the platform's standard 30px
  * pill chrome (primary filled when highlighted, neutral filled otherwise).
+ *
+ * When `credits` is supplied, a prominent stats block using the same `Credit`
+ * icon as the home-page chip is rendered directly below the CTA, followed by a
+ * solid `1px` divider (matching the integrations/skills section separator) before
+ * the bullet feature list. Pass `credits` on every card tier, including Enterprise
+ * (which uses `"Custom"` for both `credits` and `refresh`).
  */
 export function UpgradePlanCard({
   name,
   price,
   priceSubtext,
   discountLabel,
-  strikethroughPrice,
   segmentLabel,
+  credits,
+  refresh,
   features,
   buttonText,
   onButtonClick,
@@ -72,8 +70,6 @@ export function UpgradePlanCard({
   bannerText,
   className,
 }: UpgradePlanCardProps) {
-  const showPill = Boolean(bannerText)
-
   return (
     <article
       className={cn(
@@ -84,7 +80,7 @@ export function UpgradePlanCard({
       <div className='flex flex-col gap-4'>
         <div className='flex items-start justify-between gap-2'>
           <h3 className='font-medium text-[24px] text-[var(--text-primary)]'>{name}</h3>
-          {showPill && <ChipTag variant='gray'>{bannerText}</ChipTag>}
+          {bannerText && <ChipTag variant='gray'>{bannerText}</ChipTag>}
         </div>
 
         <div className='flex flex-col'>
@@ -92,12 +88,7 @@ export function UpgradePlanCard({
             <span className='font-medium text-[20px] text-[var(--text-primary)] tabular-nums'>
               {price}
             </span>
-            {discountLabel && <ChipTag variant='blue'>{discountLabel}</ChipTag>}
-            {strikethroughPrice && (
-              <span className='text-[var(--text-muted)] text-small line-through'>
-                {strikethroughPrice}
-              </span>
-            )}
+            {discountLabel && <ChipTag variant='mono'>{discountLabel}</ChipTag>}
           </div>
           <p className='text-[var(--text-muted)] text-base'>{priceSubtext ?? '\u00A0'}</p>
         </div>
@@ -112,20 +103,38 @@ export function UpgradePlanCard({
               fullWidth: true,
               flush: true,
             }),
-            'w-full justify-center text-center'
+            'w-full justify-center'
           )}
         >
           {buttonText}
         </button>
+
+        {/* Credits + refresh stats block — omitted on plans without a fixed credit amount */}
+        {credits && (
+          <div className='flex flex-col gap-1.5'>
+            <div className='flex items-center gap-1.5'>
+              <Credit className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              <span className='text-[var(--text-body)] text-sm'>{credits}</span>
+            </div>
+            {refresh && (
+              <div className='flex items-center gap-1.5'>
+                <RefreshCw className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                <span className='text-[var(--text-body)] text-sm'>{refresh}</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className='flex flex-col gap-2'>
-        <p className='text-[var(--text-muted)] text-base'>{segmentLabel}</p>
+      {/* Section header + divider matching integrations/skills separator language */}
+      <div className='flex flex-col'>
+        <span className='pl-0.5 text-[var(--text-muted)] text-small'>{segmentLabel}</span>
+        <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
         <ul className='flex flex-col gap-2'>
           {features.map((feature) => (
-            <li key={feature} className='flex items-center gap-2 text-[var(--text-primary)]'>
-              <CheckIcon />
-              <span className='text-[var(--text-primary)] text-small'>{feature}</span>
+            <li key={feature} className='flex items-center gap-2'>
+              <Check className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+              <span className='text-[var(--text-body)] text-sm'>{feature}</span>
             </li>
           ))}
         </ul>

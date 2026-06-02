@@ -1,57 +1,46 @@
-import type { ComponentType, SVGProps } from 'react'
-import type { LucideIcon } from 'lucide-react'
-import {
-  Clock,
-  HardDrive,
-  HeadphonesIcon,
-  LayoutGrid,
-  Server,
-  ShieldCheck,
-  Table2,
-  Timer,
-  Users,
-  Zap,
-} from 'lucide-react'
-import { SlackMonoIcon } from '@/components/icons'
-
-export interface PlanFeature {
-  icon: LucideIcon | ComponentType<SVGProps<SVGSVGElement>>
-  text: string
+/**
+ * Config for a plan's top-level credit stats.
+ * When `credits` is omitted the credits/refresh block is not rendered.
+ */
+export interface PlanCredits {
+  /** Formatted credits string, e.g. `"6,000 credits/mo"`. */
+  credits: string
+  /** Formatted daily-refresh string, e.g. `"+50/day refresh"`. */
+  refresh: string
 }
 
-export const PRO_PLAN_FEATURES: PlanFeature[] = [
-  { icon: Zap, text: '150 runs/min (sync)' },
-  { icon: Clock, text: '1,000 runs/min (async)' },
-  { icon: Timer, text: '50 min sync run limit' },
-  { icon: HardDrive, text: '50GB file storage' },
-  { icon: Table2, text: '25 tables · 5,000 rows each' },
-  { icon: LayoutGrid, text: 'Up to 3 personal workspaces' },
+export const PRO_PLAN_CREDITS: PlanCredits = {
+  credits: '6,000 credits/mo',
+  refresh: '+50/day refresh',
+}
+
+export const MAX_PLAN_CREDITS: PlanCredits = {
+  credits: '25,000 credits/mo',
+  refresh: '+200/day refresh',
+}
+
+export const ENTERPRISE_PLAN_CREDITS: PlanCredits = {
+  credits: 'Custom',
+  refresh: 'Custom',
+}
+
+export const PRO_PLAN_FEATURES: readonly string[] = [
+  'Higher rate limits',
+  'Extended run timeouts',
+  'More storage & tables',
+  'Unlimited log retention',
 ]
 
-export const MAX_PLAN_FEATURES: PlanFeature[] = [
-  { icon: Zap, text: '300 runs/min (sync)' },
-  { icon: Clock, text: '2,500 runs/min (async)' },
-  { icon: Timer, text: '50 min sync run limit' },
-  { icon: HardDrive, text: '500GB file storage' },
-  { icon: Table2, text: '25 tables · 5,000 rows each' },
-  { icon: LayoutGrid, text: 'Up to 10 personal workspaces' },
+export const MAX_PLAN_FEATURES: readonly string[] = [
+  'Sim Mailer & Live Sync',
+  'Highest individual rate limits',
+  'Expanded storage & tables',
+  'Unlimited log retention',
 ]
 
-export const TEAM_INLINE_FEATURES: PlanFeature[] = [
-  { icon: Users, text: 'Shared credit pool' },
-  { icon: Zap, text: 'Max plan rate limits' },
-  { icon: HardDrive, text: 'Max plan file storage' },
-  { icon: Table2, text: '100 tables · 10,000 rows each' },
-  { icon: LayoutGrid, text: 'Unlimited shared workspaces' },
-  { icon: ShieldCheck, text: 'Access controls' },
-  { icon: SlackMonoIcon, text: 'Dedicated Slack channel' },
-]
-
-export const ENTERPRISE_PLAN_FEATURES: PlanFeature[] = [
-  { icon: Zap, text: 'Custom infra limits' },
-  { icon: LayoutGrid, text: 'Unlimited shared workspaces' },
-  { icon: Server, text: 'SSO' },
-  { icon: ShieldCheck, text: 'SOC2' },
-  { icon: HardDrive, text: 'Self hosting' },
-  { icon: HeadphonesIcon, text: 'Dedicated support' },
+export const ENTERPRISE_PLAN_FEATURES: readonly string[] = [
+  'Custom limits & infrastructure',
+  'SSO & SOC2 compliance',
+  'Access control & self-hosting',
+  'Dedicated support',
 ]

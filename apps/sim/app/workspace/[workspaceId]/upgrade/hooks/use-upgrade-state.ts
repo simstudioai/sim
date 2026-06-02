@@ -8,7 +8,7 @@ import { requestJson } from '@/lib/api/client/request'
 import { billingSwitchPlanContract } from '@/lib/api/contracts/subscription'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
-import { CREDIT_TIERS, DAILY_REFRESH_RATE, ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
+import { CREDIT_TIERS, ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
 import {
   getPlanTierCredits,
@@ -28,10 +28,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { UsageLimitRef } from '@/app/workspace/[workspaceId]/settings/components/usage-limit'
 import type { SubscriptionPermissions } from '@/app/workspace/[workspaceId]/upgrade/subscription-permissions'
-import {
-  getSubscriptionPermissions,
-  getVisiblePlans,
-} from '@/app/workspace/[workspaceId]/upgrade/subscription-permissions'
+import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/upgrade/subscription-permissions'
 import {
   useOrganizationBilling,
   useOrganizations,
@@ -77,14 +74,9 @@ export interface UpgradeState {
   isCancelledAtPeriodEnd: boolean
   currentInterval: 'month' | 'year'
   permissions: SubscriptionPermissions
-  visiblePlans: Array<'pro' | 'team' | 'enterprise'>
   showUpgradePlans: boolean
-  hasEnterprise: boolean
   proTier: { credits: number; dollars: number; name: string }
   maxTier: { credits: number; dollars: number; name: string }
-  proDailyRefresh: number
-  maxDailyRefresh: number
-  showProCard: boolean
   isOnPro: boolean
   isOnMax: boolean
   isOnProTier: boolean
@@ -164,7 +156,7 @@ export function useUpgradeState(): UpgradeState {
   const openBillingPortal = useOpenBillingPortal()
   const updateUserLimit = useUpdateUsageLimit()
   const updateOrgLimit = useUpdateOrganizationUsageLimit()
-  const [isAnnual, setIsAnnual] = useState(false)
+  const [isAnnual, setIsAnnual] = useState(true)
   const [managePlanModalOpen, setManagePlanModalOpen] = useState(false)
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
   const hasInitializedInterval = useRef(false)
@@ -225,22 +217,32 @@ export function useUpgradeState(): UpgradeState {
       (user: UpgradeStateWorkspaceAdmin) => user.permissionType === 'admin'
     ) || []
 
-  const updateWorkspaceSettings = async (updates: { billedAccountUserId?: string }) => {
-    if (!workspaceId) return
-    try {
-      await updateWorkspaceMutation.mutateAsync({ workspaceId, ...updates })
-    } catch (error) {
-      logger.error('Error updating workspace settings:', { error })
-      throw error
-    }
-  }
+  const updateWorkspaceSettings = useCallback(
+    async (updates: { billedAccountUserId?: string }) => {
+      if (!workspaceId) return
+      try {
+        await updateWorkspaceMutation.mutateAsync({ workspaceId, ...updates })
+      } catch (error) {
+        logger.error('Error updating workspace settings:', { error })
+        throw error
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutateAsync is stable in TanStack Query v5
+    [workspaceId]
+  )
 
+  /**
+   * Sync the billing-period toggle to a paid subscriber's actual interval once
+   * subscription data loads. Free/unsubscribed users keep the Annual default
+   * (the API reports `billingInterval: 'month'` for them, which must not
+   * override the default).
+   */
   useEffect(() => {
-    if (!hasInitializedInterval.current && subscriptionData?.data?.billingInterval) {
+    if (!hasInitializedInterval.current && subscription.isPaid) {
       hasInitializedInterval.current = true
-      setIsAnnual(subscriptionData.data.billingInterval === 'year')
+      setIsAnnual(subscriptionData?.data?.billingInterval === 'year')
     }
-  }, [subscriptionData?.data?.billingInterval])
+  }, [subscription.isPaid, subscriptionData?.data?.billingInterval])
 
   const userRole = subscriptionData?.data?.organization?.role ?? 'member'
   const isTeamAdmin = ['owner', 'admin'].includes(userRole)
@@ -320,20 +322,6 @@ export function useUpgradeState(): UpgradeState {
     { isTeamAdmin, userRole: userRole || 'member' }
   )
 
-  const visiblePlans = getVisiblePlans(
-    {
-      isFree: subscription.isFree,
-      isPro: subscription.isPro,
-      isTeam: subscription.isTeam,
-      isEnterprise: subscription.isEnterprise,
-      isPaid: subscription.isPaid,
-      isOrgScoped: subscription.isOrgScoped,
-      plan: subscription.plan || 'free',
-      status: subscription.status || 'inactive',
-    },
-    { isTeamAdmin, userRole: userRole || 'member' }
-  )
-
   const showBadge =
     !permissions.isEnterpriseMember &&
     (permissions.showTeamMemberView ||
@@ -341,7 +329,7 @@ export function useUpgradeState(): UpgradeState {
       isBlocked ||
       subscription.isFree)
 
-  const getBadgeConfig = (): { text: string; variant: 'blue-secondary' | 'red' } => {
+  const badgeConfig = ((): { text: string; variant: 'blue-secondary' | 'red' } => {
     if (permissions.isEnterpriseMember) return { text: '', variant: 'blue-secondary' }
     if (permissions.showTeamMemberView || subscription.isEnterprise)
       return { text: `${subscription.seats} seats`, variant: 'blue-secondary' }
@@ -349,8 +337,7 @@ export function useUpgradeState(): UpgradeState {
     if (isBlocked) return { text: 'Fix Now', variant: 'red' }
     if (subscription.isFree) return { text: 'Upgrade', variant: 'blue-secondary' }
     return { text: '', variant: 'blue-secondary' }
-  }
-  const badgeConfig = getBadgeConfig()
+  })()
 
   const hasUsablePaidAccess = subscription.isPaid
     ? hasUsableSubscriptionAccess(subscription.status, isBlocked)
@@ -436,11 +423,7 @@ export function useUpgradeState(): UpgradeState {
     [refetchSubscription, subscription.plan, isLegacyPlan]
   )
 
-  const proDailyRefresh = Math.round(PRO_TIER.dollars * DAILY_REFRESH_RATE * CREDIT_MULTIPLIER)
-  const maxDailyRefresh = Math.round(MAX_TIER.dollars * DAILY_REFRESH_RATE * CREDIT_MULTIPLIER)
-
   const showUpgradePlans = permissions.showUpgradePlans
-  const hasEnterprise = visiblePlans.includes('enterprise')
 
   const currentCredits = getPlanTierCredits(subscription.plan)
   const hasPaidPlan = isPro(subscription.plan) || isTeam(subscription.plan)
@@ -457,7 +440,6 @@ export function useUpgradeState(): UpgradeState {
     hasPaidPlan && !isLegacyPlan && isAnnual !== (currentInterval === 'year')
   const isOnPro = isOnProTier && !wantsIntervalSwitch
   const isOnMax = isOnMaxTier && !wantsIntervalSwitch
-  const showProCard = !isOnMaxTier
 
   const onCancel = useCallback(async () => {
     setManagePlanModalOpen(false)
@@ -601,14 +583,9 @@ export function useUpgradeState(): UpgradeState {
     isCancelledAtPeriodEnd,
     currentInterval,
     permissions,
-    visiblePlans,
     showUpgradePlans,
-    hasEnterprise,
     proTier: PRO_TIER,
     maxTier: MAX_TIER,
-    proDailyRefresh,
-    maxDailyRefresh,
-    showProCard,
     isOnPro,
     isOnMax,
     isOnProTier,

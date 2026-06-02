@@ -40,7 +40,7 @@ const chipVariants = cva(
         destructive:
           'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
         'border-shadow':
-          'bg-[var(--surface-2)] shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-3)]',
+          'bg-[var(--surface-2)] shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-3)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)] dark:hover-hover:bg-[var(--surface-4)]',
       },
       active: { true: '', false: '' },
       fullWidth: { true: 'flex', false: 'inline-flex' },
