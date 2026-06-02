@@ -121,7 +121,13 @@ import {
   amplitudeUserProfileTool,
   amplitudeUserSearchTool,
 } from '@/tools/amplitude'
-import { apifyRunActorAsyncTool, apifyRunActorSyncTool } from '@/tools/apify'
+import {
+  apifyGetDatasetItemsTool,
+  apifyGetRunTool,
+  apifyRunActorAsyncTool,
+  apifyRunActorSyncTool,
+  apifyRunTaskTool,
+} from '@/tools/apify'
 import {
   apolloAccountBulkCreateTool,
   apolloAccountBulkUpdateTool,
@@ -5062,6 +5068,9 @@ export const tools: Record<string, ToolConfig> = {
   ahrefs_broken_backlinks: ahrefsBrokenBacklinksTool,
   apify_run_actor_sync: apifyRunActorSyncTool,
   apify_run_actor_async: apifyRunActorAsyncTool,
+  apify_run_task: apifyRunTaskTool,
+  apify_get_dataset_items: apifyGetDatasetItemsTool,
+  apify_get_run: apifyGetRunTool,
   apollo_people_search: apolloPeopleSearchTool,
   apollo_people_enrich: apolloPeopleEnrichTool,
   apollo_people_bulk_enrich: apolloPeopleBulkEnrichTool,
