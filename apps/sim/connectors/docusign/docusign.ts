@@ -15,6 +15,14 @@ const logger = createLogger('DocuSignConnector')
  */
 const DOCUSIGN_USERINFO_URL = 'https://account-d.docusign.com/oauth/userinfo'
 
+/**
+ * DocuSign web-app base for envelope deep links. MUST match the same environment as
+ * {@link DOCUSIGN_USERINFO_URL}: demo/sandbox envelopes only exist in the demo web app
+ * (`appdemo.docusign.com`), not production (`app.docusign.com`). Keep these in lockstep
+ * if the OAuth environment ever changes.
+ */
+const DOCUSIGN_WEB_BASE = 'https://appdemo.docusign.com'
+
 const DEFAULT_LOOKBACK_DAYS = 90
 const MAX_PAGE_SIZE = 100
 const DEFAULT_MAX_ENVELOPES = 0
@@ -219,7 +227,7 @@ function buildContentHash(envelope: DocuSignEnvelope): string {
  */
 function buildSourceUrl(envelopeId: string | undefined): string | undefined {
   if (!envelopeId) return undefined
-  return `https://app.docusign.com/documents/details/${envelopeId}`
+  return `${DOCUSIGN_WEB_BASE}/documents/details/${envelopeId}`
 }
 
 /**

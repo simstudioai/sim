@@ -12,12 +12,15 @@ const DEFAULT_LOOKBACK_DAYS = 90
 const MAX_LOOKBACK_DAYS = 180
 /**
  * Days of overlap added when computing the incremental sync window. Gong call data
- * (parties, transcript) can finish processing minutes to hours after a call ends.
- * A small overlap re-checks recently-ended calls so late-arriving transcripts are
- * not missed, at the cost of re-listing a few already-synced calls (which are
- * skipped downstream when their content hash is unchanged).
+ * (parties, transcript) can finish processing minutes to hours — occasionally a
+ * day or two — after a call ends. The sync engine re-attempts calls whose
+ * transcript was not yet ready (a null getDocument result is never persisted, so
+ * the call is re-listed and re-fetched on the next sync), but only while the call
+ * stays inside the incremental window. A two-week overlap keeps recently-ended
+ * calls in that window long enough for late transcripts to be picked up, at the
+ * cost of re-listing already-synced calls (skipped downstream by content hash).
  */
-const INCREMENTAL_OVERLAP_DAYS = 2
+const INCREMENTAL_OVERLAP_DAYS = 14
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 /**

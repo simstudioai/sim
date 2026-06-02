@@ -370,6 +370,41 @@ export const incidentioConnector: ConnectorConfig = {
 
   configFields: [
     {
+      id: 'statusCategory',
+      title: 'Status Category',
+      type: 'dropdown',
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Live (active)', id: 'live' },
+        { label: 'Closed', id: 'closed' },
+        { label: 'Triage', id: 'triage' },
+        { label: 'Learning (post-incident)', id: 'learning' },
+        { label: 'Declined', id: 'declined' },
+        { label: 'Merged', id: 'merged' },
+        { label: 'Canceled', id: 'canceled' },
+      ],
+      description:
+        'Only sync incidents in this status category. Leave as All to sync every category.',
+    },
+    {
+      id: 'mode',
+      title: 'Mode',
+      type: 'dropdown',
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Standard (real incidents)', id: 'standard' },
+        { label: 'Retrospective', id: 'retrospective' },
+        { label: 'Test', id: 'test' },
+        { label: 'Tutorial', id: 'tutorial' },
+      ],
+      description:
+        'Only sync incidents of this mode. Use Standard to exclude test/tutorial incidents.',
+    },
+    {
       id: 'maxIncidents',
       title: 'Max Incidents',
       type: 'short-input',
@@ -388,11 +423,17 @@ export const incidentioConnector: ConnectorConfig = {
   ): Promise<ExternalDocumentList> => {
     const maxIncidents = sourceConfig.maxIncidents ? Number(sourceConfig.maxIncidents) : 0
 
+    const statusCategory =
+      typeof sourceConfig.statusCategory === 'string' ? sourceConfig.statusCategory.trim() : ''
+    const mode = typeof sourceConfig.mode === 'string' ? sourceConfig.mode.trim() : ''
+
     const url = new URL(`${INCIDENTIO_API_BASE}/v2/incidents`)
     url.searchParams.set('page_size', String(PAGE_SIZE))
     url.searchParams.set('sort_by', 'created_at_oldest_first')
     if (cursor) url.searchParams.set('after', cursor)
     if (lastSyncAt) url.searchParams.set('updated_at[gte]', lastSyncAt.toISOString())
+    if (statusCategory) url.searchParams.set('status_category[one_of]', statusCategory)
+    if (mode) url.searchParams.set('mode[one_of]', mode)
 
     logger.info('Listing incident.io incidents', {
       cursor: cursor ?? 'initial',

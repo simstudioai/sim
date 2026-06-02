@@ -10,6 +10,14 @@ const logger = createLogger('GreenhouseConnector')
 const GREENHOUSE_API_BASE = 'https://harvest.greenhouse.io/v1'
 
 /**
+ * Upper bound on per-application scorecard requests during a single getDocument call.
+ * A candidate can have many applications (e.g. internal-transfer tracking); without a
+ * cap, one document fetch could fan out into dozens of sequential requests. Mirrors the
+ * Ashby connector's MAX_APPLICATIONS_FOR_FEEDBACK bound.
+ */
+const MAX_APPLICATIONS_FOR_SCORECARDS = 10
+
+/**
  * Greenhouse Harvest allows up to 500 candidates per page. We page through the
  * full list using the `page` query parameter and stop when the `Link` response
  * header no longer advertises a `rel="next"` relationship.
@@ -436,7 +444,7 @@ async function fetchScorecards(
 ): Promise<GreenhouseScorecard[]> {
   const all: GreenhouseScorecard[] = []
 
-  for (const applicationId of applicationIds) {
+  for (const applicationId of applicationIds.slice(0, MAX_APPLICATIONS_FOR_SCORECARDS)) {
     try {
       const response = await fetchWithRetry(
         `${GREENHOUSE_API_BASE}/applications/${applicationId}/scorecards`,
