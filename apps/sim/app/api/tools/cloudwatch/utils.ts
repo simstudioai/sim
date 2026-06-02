@@ -5,6 +5,7 @@ import {
   GetQueryResultsCommand,
   type ResultField,
 } from '@aws-sdk/client-cloudwatch-logs'
+import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 
@@ -96,37 +97,82 @@ export async function pollQueryResults(
   }
 }
 
+/** AWS DescribeLogStreams caps `limit` at 50 items per page. */
+const LOG_STREAMS_PAGE_SIZE = 50
+
+/** Upper bound on pages drained to avoid unbounded loops on log groups with many streams. */
+const MAX_LOG_STREAMS_PAGES = 20
+
+const logger = createLogger('CloudWatchUtils')
+
+interface DescribedLogStream {
+  logStreamName: string
+  lastEventTimestamp: number | undefined
+  firstEventTimestamp: number | undefined
+  creationTime: number | undefined
+  storedBytes: number
+}
+
+/**
+ * Lists log streams for a log group, following `nextToken` so the complete set
+ * is returned rather than just the first page. Bounded by
+ * `MAX_LOG_STREAMS_PAGES`; logs a warning rather than silently dropping streams
+ * when the cap is hit. Ordering/prefix inputs are preserved across all pages.
+ *
+ * When `limit` is provided it is treated as a total result cap: draining stops
+ * once enough streams have been collected. When omitted, every page is drained.
+ */
 export async function describeLogStreams(
   client: CloudWatchLogsClient,
   logGroupName: string,
   options?: { prefix?: string; limit?: number }
-): Promise<{
-  logStreams: {
-    logStreamName: string
-    lastEventTimestamp: number | undefined
-    firstEventTimestamp: number | undefined
-    creationTime: number | undefined
-    storedBytes: number
-  }[]
-}> {
+): Promise<{ logStreams: DescribedLogStream[] }> {
   const hasPrefix = Boolean(options?.prefix)
-  const command = new DescribeLogStreamsCommand({
-    logGroupName,
-    ...(hasPrefix
-      ? { orderBy: 'LogStreamName', logStreamNamePrefix: options!.prefix }
-      : { orderBy: 'LastEventTime', descending: true }),
-    ...(options?.limit !== undefined && { limit: options.limit }),
-  })
+  const totalLimit = options?.limit
+  const logStreams: DescribedLogStream[] = []
+  let nextToken: string | undefined
 
-  const response = await client.send(command)
+  for (let page = 0; page < MAX_LOG_STREAMS_PAGES; page++) {
+    const pageLimit =
+      totalLimit !== undefined
+        ? Math.min(LOG_STREAMS_PAGE_SIZE, totalLimit - logStreams.length)
+        : LOG_STREAMS_PAGE_SIZE
+
+    const command = new DescribeLogStreamsCommand({
+      logGroupName,
+      ...(hasPrefix
+        ? { orderBy: 'LogStreamName', logStreamNamePrefix: options!.prefix }
+        : { orderBy: 'LastEventTime', descending: true }),
+      limit: pageLimit,
+      ...(nextToken && { nextToken }),
+    })
+
+    const response = await client.send(command)
+
+    for (const ls of response.logStreams ?? []) {
+      logStreams.push({
+        logStreamName: ls.logStreamName ?? '',
+        lastEventTimestamp: ls.lastEventTimestamp,
+        firstEventTimestamp: ls.firstEventTimestamp,
+        creationTime: ls.creationTime,
+        storedBytes: ls.storedBytes ?? 0,
+      })
+    }
+
+    nextToken = response.nextToken
+    if (!nextToken) break
+    if (totalLimit !== undefined && logStreams.length >= totalLimit) break
+
+    if (page === MAX_LOG_STREAMS_PAGES - 1) {
+      logger.warn(
+        `DescribeLogStreams hit pagination cap of ${MAX_LOG_STREAMS_PAGES} pages; log stream list may be incomplete`,
+        { logGroupName }
+      )
+    }
+  }
+
   return {
-    logStreams: (response.logStreams ?? []).map((ls) => ({
-      logStreamName: ls.logStreamName ?? '',
-      lastEventTimestamp: ls.lastEventTimestamp,
-      firstEventTimestamp: ls.firstEventTimestamp,
-      creationTime: ls.creationTime,
-      storedBytes: ls.storedBytes ?? 0,
-    })),
+    logStreams: totalLimit !== undefined ? logStreams.slice(0, totalLimit) : logStreams,
   }
 }
 

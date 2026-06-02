@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { copilotChats, workspaceFiles } from '@sim/db/schema'
+import { copilotMessages, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, inArray, isNull } from 'drizzle-orm'
 import { chunkArray } from '@/lib/cleanup/batch-delete'
@@ -11,7 +11,7 @@ import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 const logger = createLogger('ChatCleanup')
 
 const COPILOT_CLEANUP_BATCH_SIZE = 1000
-/** Bounds JSONB detoast memory: `messages` can be MBs per row. */
+/** Bounds how many chats' `copilot_messages` rows are scanned per query. */
 const CHAT_FILE_COLLECT_CHUNK_SIZE = 500
 
 /**
@@ -31,7 +31,7 @@ interface FileRef {
 /**
  * Collect all file storage keys for the given chat IDs from two sources:
  * 1. workspaceFiles rows with chatId FK (chat-scoped contexts only)
- * 2. fileAttachments[].key inside copilotChats.messages JSONB
+ * 2. fileAttachments[].key inside each copilot_messages.content
  */
 export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
   const files: FileRef[] = []
@@ -40,7 +40,7 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
   const seen = new Set<string>()
 
   for (const chunk of chunkArray(chatIds, CHAT_FILE_COLLECT_CHUNK_SIZE)) {
-    const [linkedFiles, chatsWithMessages] = await Promise.all([
+    const [linkedFiles, messageRows] = await Promise.all([
       db
         .select({ key: workspaceFiles.key, context: workspaceFiles.context })
         .from(workspaceFiles)
@@ -51,10 +51,12 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
             inArray(workspaceFiles.context, [...CHAT_SCOPED_CONTEXTS])
           )
         ),
+      // Scan every message row for the chat (no deleted_at filter): this is a
+      // deletion path collecting blob keys, so attachments on any row count.
       db
-        .select({ messages: copilotChats.messages })
-        .from(copilotChats)
-        .where(inArray(copilotChats.id, chunk)),
+        .select({ content: copilotMessages.content })
+        .from(copilotMessages)
+        .where(inArray(copilotMessages.chatId, chunk)),
     ])
 
     for (const f of linkedFiles) {
@@ -64,24 +66,21 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
       }
     }
 
-    for (const chat of chatsWithMessages) {
-      const messages = chat.messages as unknown[]
-      if (!Array.isArray(messages)) continue
-      for (const msg of messages) {
-        if (!msg || typeof msg !== 'object') continue
-        const attachments = (msg as Record<string, unknown>).fileAttachments
-        if (!Array.isArray(attachments)) continue
-        for (const attachment of attachments) {
-          if (
-            attachment &&
-            typeof attachment === 'object' &&
-            (attachment as Record<string, unknown>).key
-          ) {
-            const key = (attachment as Record<string, unknown>).key as string
-            if (!seen.has(key)) {
-              seen.add(key)
-              files.push({ key, context: 'copilot' })
-            }
+    for (const row of messageRows) {
+      const msg = row.content
+      if (!msg || typeof msg !== 'object') continue
+      const attachments = (msg as Record<string, unknown>).fileAttachments
+      if (!Array.isArray(attachments)) continue
+      for (const attachment of attachments) {
+        if (
+          attachment &&
+          typeof attachment === 'object' &&
+          (attachment as Record<string, unknown>).key
+        ) {
+          const key = (attachment as Record<string, unknown>).key as string
+          if (!seen.has(key)) {
+            seen.add(key)
+            files.push({ key, context: 'copilot' })
           }
         }
       }

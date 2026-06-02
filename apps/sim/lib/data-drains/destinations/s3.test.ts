@@ -10,9 +10,30 @@ const { mockSend, mockDestroy, S3ClientCtor, PutObjectCommandCtor, DeleteObjectC
     return {
       mockSend,
       mockDestroy,
-      S3ClientCtor: vi.fn(() => ({ send: mockSend, destroy: mockDestroy })),
-      PutObjectCommandCtor: vi.fn((args: unknown) => ({ __cmd: 'put', args })),
-      DeleteObjectCommandCtor: vi.fn((args: unknown) => ({ __cmd: 'delete', args })),
+      S3ClientCtor: vi.fn().mockImplementation(
+        class {
+          send = mockSend
+          destroy = mockDestroy
+        }
+      ),
+      PutObjectCommandCtor: vi.fn().mockImplementation(
+        class {
+          __cmd = 'put'
+          args: unknown
+          constructor(args: unknown) {
+            this.args = args
+          }
+        }
+      ),
+      DeleteObjectCommandCtor: vi.fn().mockImplementation(
+        class {
+          __cmd = 'delete'
+          args: unknown
+          constructor(args: unknown) {
+            this.args = args
+          }
+        }
+      ),
     }
   })
 

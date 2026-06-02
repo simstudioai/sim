@@ -6,6 +6,7 @@ import {
   getActiveWorkflowRecord,
 } from '@sim/workflow-authz'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
+import { type PersistedMessage, stripToolResultOutput } from '@/lib/copilot/chat/persisted-message'
 import {
   assertActiveWorkspaceAccess,
   checkWorkspaceAccess,
@@ -53,16 +54,6 @@ const copilotChatDetailColumns = {
 } as const
 
 /**
- * Returning column set for newly-inserted chats. A fresh chat has no
- * `copilot_messages` rows yet, so the transcript is the just-inserted empty
- * JSONB array — return it directly rather than issuing a second query.
- */
-const copilotChatDetailReturningColumns = {
-  ...copilotChatDetailColumns,
-  messages: copilotChats.messages,
-} as const
-
-/**
  * Column set for the legacy copilot chat detail endpoint. Extends
  * `copilotChatDetailColumns` with `model`, `planArtifact`, and `config` — the
  * fields the legacy `transformChat` response shape includes. Still drops
@@ -83,7 +74,7 @@ const copilotChatLegacyDetailColumns = {
  * to a legacy JSONB array element — so the downstream normalize/transcript
  * pipeline is unchanged.
  */
-async function loadCopilotChatMessages(chatId: string): Promise<Record<string, unknown>[]> {
+export async function loadCopilotChatMessages(chatId: string): Promise<PersistedMessage[]> {
   const rows = await db
     .select({ content: copilotMessages.content })
     .from(copilotMessages)
@@ -93,7 +84,8 @@ async function loadCopilotChatMessages(chatId: string): Promise<Record<string, u
       asc(copilotMessages.createdAt),
       asc(copilotMessages.id)
     )
-  return rows.map((row) => row.content as Record<string, unknown>)
+  // Also strip on read: rows written before the backfill still carry outputs.
+  return rows.map((row) => stripToolResultOutput(row.content as PersistedMessage))
 }
 
 type CopilotChatAuthRow = Pick<
@@ -298,10 +290,9 @@ export async function resolveOrCreateChat(params: {
       type: type ?? 'copilot',
       title: null,
       model,
-      messages: [],
       lastSeenAt: now,
     })
-    .returning(copilotChatDetailReturningColumns)
+    .returning(copilotChatDetailColumns)
 
   if (!newChat) {
     logger.warn('Failed to create new copilot chat row', { userId, workflowId, workspaceId })
@@ -315,7 +306,7 @@ export async function resolveOrCreateChat(params: {
 
   return {
     chatId: newChat.id,
-    chat: newChat,
+    chat: { ...newChat, messages: [] },
     conversationHistory: [],
     isNew: true,
   }

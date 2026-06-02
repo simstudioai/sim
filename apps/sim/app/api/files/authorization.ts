@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { document, knowledgeBase, workspaceFile } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull, like, or } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
@@ -371,8 +371,46 @@ async function verifyCopilotFileAccess(
 }
 
 /**
- * Verify access to KB files
- * KB files: kb/filename
+ * Whether an active KB document (non-archived/excluded/deleted, in a
+ * non-deleted KB) in the owning workspace references exactly `cloudKey`, matched
+ * on the document's persisted canonical `storageKey`. This is an exact, indexed
+ * lookup — no URL parsing or wildcard matching at read time. It is a lifecycle
+ * signal only: it reflects whether the file is still part of a live KB, not who
+ * owns it (ownership comes from the binding).
+ */
+async function hasActiveKbDocumentForKey(cloudKey: string, workspaceId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: document.id })
+    .from(document)
+    .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+    .where(
+      and(
+        eq(knowledgeBase.workspaceId, workspaceId),
+        eq(document.storageKey, cloudKey),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+    .limit(1)
+
+  return rows.length > 0
+}
+
+/**
+ * Verify access to KB files (`kb/<key>`).
+ *
+ * Authorization is determined entirely by clear state:
+ *   1. Ownership — the trusted `workspace_files` binding (exact key) names the
+ *      owning workspace; the caller must have permission on it. Ownership is
+ *      never inferred from an attacker-authorable `document.fileUrl`.
+ *   2. Liveness — an active document must still reference the exact key, so the
+ *      retained bytes of an archived document or soft-deleted KB are not
+ *      downloadable (the liveness document is not an authorization signal).
+ *
+ * A missing binding denies (the ownership backfill populates bindings for
+ * pre-existing objects before this path is deployed).
  */
 async function verifyKBFileAccess(
   cloudKey: string,
@@ -380,60 +418,79 @@ async function verifyKBFileAccess(
   customConfig?: StorageConfig
 ): Promise<boolean> {
   try {
-    const activeKbFileDocuments = await db
-      .select({
-        workspaceId: knowledgeBase.workspaceId,
-      })
-      .from(document)
-      .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
-      .where(
-        and(
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt),
-          isNull(knowledgeBase.deletedAt),
-          or(
-            like(document.fileUrl, `%${cloudKey}%`),
-            like(document.fileUrl, `%${encodeURIComponent(cloudKey)}%`)
-          )
-        )
-      )
-      .limit(10)
-
-    for (const doc of activeKbFileDocuments) {
-      if (!doc.workspaceId) {
-        continue
-      }
-
-      const permission = await getUserEntityPermissions(userId, 'workspace', doc.workspaceId)
-      if (permission !== null) {
-        logger.debug('KB file access granted (active document lookup)', {
-          userId,
-          workspaceId: doc.workspaceId,
-          cloudKey,
-        })
-        return true
-      }
-    }
-
-    // KB file access must resolve through an active KB document. Metadata alone is not enough
-    // because parent archives intentionally keep the underlying file bytes around for history.
-    const fileRecord = await getFileMetadataByKey(cloudKey, 'knowledge-base', {
+    const binding = await getFileMetadataByKey(cloudKey, 'knowledge-base', {
       includeDeleted: true,
     })
 
-    if (fileRecord?.deletedAt) {
-      logger.warn('KB file access denied for deleted file metadata', { userId, cloudKey })
+    if (!binding) {
+      logger.warn('KB file access denied: no ownership binding', { userId, cloudKey })
+      return false
+    }
+    if (binding.deletedAt) {
+      logger.warn('KB file access denied for deleted file binding', { userId, cloudKey })
+      return false
+    }
+    if (!binding.workspaceId) {
+      logger.warn('KB file binding missing workspace owner', { userId, cloudKey })
       return false
     }
 
-    logger.warn('KB file access denied because no active KB document matched the file', {
-      cloudKey,
+    const permission = await getUserEntityPermissions(userId, 'workspace', binding.workspaceId)
+    if (permission === null) {
+      logger.warn('User does not have workspace access for KB file', {
+        userId,
+        workspaceId: binding.workspaceId,
+        cloudKey,
+      })
+      return false
+    }
+
+    if (!(await hasActiveKbDocumentForKey(cloudKey, binding.workspaceId))) {
+      logger.warn('KB file access denied: no active document references the file', {
+        userId,
+        cloudKey,
+      })
+      return false
+    }
+
+    logger.debug('KB file access granted (ownership binding)', {
       userId,
+      workspaceId: binding.workspaceId,
+      cloudKey,
     })
-    return false
+    return true
   } catch (error) {
     logger.error('Error verifying KB file access', { cloudKey, userId, error })
+    return false
+  }
+}
+
+/**
+ * Authorize a destructive operation (delete) on a KB file.
+ *
+ * Binding-only: resolves the owning workspace from the trusted ownership binding
+ * and requires write/admin permission. Never uses the transitional read fallback,
+ * so a not-yet-bound key cannot be deleted cross-tenant.
+ */
+export async function verifyKBFileWriteAccess(cloudKey: string, userId: string): Promise<boolean> {
+  try {
+    const binding = await getFileMetadataByKey(cloudKey, 'knowledge-base')
+    if (!binding?.workspaceId) {
+      logger.warn('KB file delete denied: no ownership binding', { userId, cloudKey })
+      return false
+    }
+    const permission = await getUserEntityPermissions(userId, 'workspace', binding.workspaceId)
+    if (permission !== 'write' && permission !== 'admin') {
+      logger.warn('KB file delete denied: write/admin required on owner workspace', {
+        userId,
+        workspaceId: binding.workspaceId,
+        cloudKey,
+      })
+      return false
+    }
+    return true
+  } catch (error) {
+    logger.error('Error verifying KB file write access', { cloudKey, userId, error })
     return false
   }
 }

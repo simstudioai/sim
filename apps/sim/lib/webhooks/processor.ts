@@ -305,8 +305,12 @@ async function findWebhookAndWorkflow(
 }
 
 /**
- * Find ALL webhooks matching a path.
- * Used for credential sets where multiple webhooks share the same path.
+ * Finds all webhooks matching a path, scoped to a single workflow.
+ *
+ * Legitimate fan-out (credential sets) is always within one workflow, but paths
+ * are user-controlled and only unique per deployment version, so two tenants can
+ * register the same path. On collision we keep only the workflow that registered
+ * the path first, so one tenant can never receive another's webhook deliveries.
  */
 export async function findAllWebhooksForPath(
   options: WebhookProcessorOptions
@@ -344,7 +348,31 @@ export async function findAllWebhooksForPath(
 
   if (results.length === 0) {
     logger.warn(`[${options.requestId}] No active webhooks found for path: ${options.path}`)
-  } else if (results.length > 1) {
+    return results
+  }
+
+  const distinctWorkflowIds = new Set(results.map((result) => result.webhook.workflowId))
+
+  if (distinctWorkflowIds.size > 1) {
+    const owner = results.reduce((earliest, candidate) => {
+      const candidateTime = new Date(candidate.webhook.createdAt).getTime()
+      const earliestTime = new Date(earliest.webhook.createdAt).getTime()
+      if (candidateTime !== earliestTime) {
+        return candidateTime < earliestTime ? candidate : earliest
+      }
+      return candidate.webhook.id < earliest.webhook.id ? candidate : earliest
+    })
+    const ownerWorkflowId = owner.webhook.workflowId
+    const ownerResults = results.filter((result) => result.webhook.workflowId === ownerWorkflowId)
+
+    logger.error(
+      `[${options.requestId}] Cross-tenant webhook path collision for path: ${options.path}. Found ${results.length} active webhooks across ${distinctWorkflowIds.size} workflows. Dispatching only to owner workflow ${ownerWorkflowId} and dropping ${results.length - ownerResults.length} foreign webhook(s).`
+    )
+
+    return ownerResults
+  }
+
+  if (results.length > 1) {
     logger.info(
       `[${options.requestId}] Found ${results.length} webhooks for path: ${options.path} (credential set fan-out)`
     )

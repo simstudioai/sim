@@ -15,6 +15,7 @@ import {
   createDocumentRecords,
   deleteDocument,
   getProcessingConfig,
+  KnowledgeBaseFileOwnershipError,
   processDocumentsWithQueue,
 } from '@/lib/knowledge/documents/service'
 import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
@@ -218,6 +219,13 @@ export const POST = withRouteHandler(
       })
     } catch (error) {
       logger.error(`[${requestId}] Error upserting document`, error)
+
+      if (error instanceof KnowledgeBaseFileOwnershipError) {
+        return NextResponse.json(
+          { error: 'File URL does not reference a file owned by this knowledge base' },
+          { status: 403 }
+        )
+      }
 
       const errorMessage = getErrorMessage(error, 'Failed to upsert document')
       const isStorageLimitError =

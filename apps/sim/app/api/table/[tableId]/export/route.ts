@@ -53,7 +53,9 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
       const encoder = new TextEncoder()
       try {
         if (format === 'csv') {
-          controller.enqueue(encoder.encode(`${toCsvRow(columns.map((c) => c.name))}\n`))
+          controller.enqueue(
+            encoder.encode(`${toCsvRow(columns.map((c) => neutralizeCsvFormula(c.name)))}\n`)
+          )
         } else {
           controller.enqueue(encoder.encode('['))
         }
@@ -111,10 +113,23 @@ function sanitizeFilename(name: string): string {
   return cleaned || 'table'
 }
 
+/**
+ * Prefixes a single quote to values starting with a spreadsheet formula trigger
+ * (`=`, `+`, `-`, `@`, tab, CR), neutralizing CSV injection in Excel/Sheets.
+ */
+function neutralizeCsvFormula(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+}
+
+/**
+ * Serializes a cell for CSV. Only string cells are formula-neutralized; numbers,
+ * booleans, dates, and JSON objects can never form a trigger and pass through verbatim.
+ */
 function formatCsvValue(value: unknown): string {
   if (value === null || value === undefined) return ''
   if (value instanceof Date) return value.toISOString()
   if (typeof value === 'object') return JSON.stringify(value)
+  if (typeof value === 'string') return neutralizeCsvFormula(value)
   return String(value)
 }
 

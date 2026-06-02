@@ -40,6 +40,7 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   deleteDocument: vi.fn(),
   markDocumentAsFailedTimeout: vi.fn(),
   retryDocumentProcessing: vi.fn(),
+  KnowledgeBaseFileOwnershipError: class KnowledgeBaseFileOwnershipError extends Error {},
 }))
 
 vi.mock('@sim/audit', () => auditMock)

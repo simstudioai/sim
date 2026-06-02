@@ -12,6 +12,18 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WealthboxItemsAPI')
 
+/**
+ * Wealthbox `GET /v1/contacts` paginates with `?page=` / `?per_page=`, starting
+ * at page 1. Wealthbox documents no `per_page` maximum and its contacts response
+ * carries no pagination `meta`, so termination relies on the short-page check:
+ * we stop once a page returns fewer items than `WEALTHBOX_PAGE_SIZE` (the
+ * `meta.total_pages` / `meta.current_page` check is a defensive fallback for if
+ * Wealthbox ever adds that block). Bounded by `MAX_WEALTHBOX_PAGES` so a runaway
+ * response can't loop forever.
+ */
+const WEALTHBOX_PAGE_SIZE = 50
+const MAX_WEALTHBOX_PAGES = 50
+
 interface WealthboxItem {
   id: string
   name: string
@@ -19,6 +31,15 @@ interface WealthboxItem {
   content: string
   createdAt: string
   updatedAt: string
+}
+
+interface WealthboxContactsPage {
+  contacts?: Array<Record<string, unknown>>
+  meta?: {
+    total_count?: number
+    total_pages?: number
+    current_page?: number
+  }
 }
 
 /**
@@ -69,63 +90,83 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
     const endpoint = endpoints[type as keyof typeof endpoints]
 
-    const url = new URL(`https://api.crmworkspace.com/v1/${endpoint}`)
-
     logger.info(`[${requestId}] Fetching ${type}s from Wealthbox`, {
       endpoint,
-      url: url.toString(),
       hasQuery: !!query.trim(),
     })
 
-    const response = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
+    const allContacts: Array<Record<string, unknown>> = []
+    let page = 1
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error(
-        `[${requestId}] Wealthbox API error: ${response.status} ${response.statusText}`,
-        {
-          error: errorText,
-          endpoint,
-          url: url.toString(),
-        }
-      )
-      return NextResponse.json(
-        { error: `Failed to fetch ${type}s from Wealthbox` },
-        { status: response.status }
-      )
-    }
+    for (; page <= MAX_WEALTHBOX_PAGES; page++) {
+      const url = new URL(`https://api.crmworkspace.com/v1/${endpoint}`)
+      url.searchParams.set('per_page', String(WEALTHBOX_PAGE_SIZE))
+      url.searchParams.set('page', String(page))
 
-    const data = (await response.json()) as { contacts?: Array<Record<string, unknown>> } & Record<
-      string,
-      unknown
-    >
+      const response = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
 
-    logger.info(`[${requestId}] Wealthbox API raw response`, {
-      type,
-      status: response.status,
-      dataKeys: Object.keys(data || {}),
-      hasContacts: !!data.contacts,
-      dataStructure: typeof data === 'object' ? Object.keys(data) : 'not an object',
-    })
+      if (!response.ok) {
+        const errorText = await response.text()
+        logger.error(
+          `[${requestId}] Wealthbox API error: ${response.status} ${response.statusText}`,
+          {
+            error: errorText,
+            endpoint,
+            url: url.toString(),
+          }
+        )
+        return NextResponse.json(
+          { error: `Failed to fetch ${type}s from Wealthbox` },
+          { status: response.status }
+        )
+      }
 
-    let items: WealthboxItem[] = []
+      const data = (await response.json()) as WealthboxContactsPage
 
-    if (type === 'contact') {
       const contacts = data.contacts || []
       if (!Array.isArray(contacts)) {
         logger.warn(`[${requestId}] Contacts is not an array`, {
           contacts,
           dataType: typeof contacts,
         })
-        return NextResponse.json({ items: [] }, { status: 200 })
+        break
       }
 
-      items = contacts.map((item) => {
+      allContacts.push(...contacts)
+
+      const totalPages = data.meta?.total_pages
+      const currentPage = data.meta?.current_page ?? page
+      const reachedLastByMeta =
+        typeof totalPages === 'number' && totalPages > 0 && currentPage >= totalPages
+      const reachedLastByCount = contacts.length < WEALTHBOX_PAGE_SIZE
+
+      if (reachedLastByMeta || reachedLastByCount) {
+        break
+      }
+
+      if (page === MAX_WEALTHBOX_PAGES) {
+        logger.warn(
+          `[${requestId}] Wealthbox pagination hit MAX_WEALTHBOX_PAGES cap; contact list may be incomplete`,
+          { endpoint, maxPages: MAX_WEALTHBOX_PAGES }
+        )
+      }
+    }
+
+    logger.info(`[${requestId}] Wealthbox API drained`, {
+      type,
+      pagesFetched: Math.min(page, MAX_WEALTHBOX_PAGES),
+      totalContacts: allContacts.length,
+    })
+
+    let items: WealthboxItem[] = []
+
+    if (type === 'contact') {
+      items = allContacts.map((item) => {
         const firstName = typeof item.first_name === 'string' ? item.first_name : ''
         const lastName = typeof item.last_name === 'string' ? item.last_name : ''
         return {

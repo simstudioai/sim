@@ -4,7 +4,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
-import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-dual-write'
+import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import {
   buildPersistedAssistantMessage,
@@ -227,7 +227,6 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     if (chatId) {
       await persistChatMessages(
         chatId,
-        userId,
         userMessageId,
         messageContent,
         {
@@ -328,7 +327,6 @@ async function resolveUserId(
  */
 async function persistChatMessages(
   chatId: string,
-  userId: string,
   userMessageId: string,
   userContent: string,
   result: OrchestratorResult,
@@ -343,22 +341,24 @@ async function persistChatMessages(
 
     const assistantMessage = buildPersistedAssistantMessage(result)
 
-    const newMessages = JSON.stringify([userMessage, assistantMessage])
-    const [updated] = await db
-      .update(copilotChats)
-      .set({
-        messages: sql`COALESCE(${copilotChats.messages}, '[]'::jsonb) || ${newMessages}::jsonb`,
-        updatedAt: new Date(),
-      })
-      .where(eq(copilotChats.id, chatId))
-      .returning({ model: copilotChats.model })
-    if (updated) {
-      await appendCopilotChatMessages(chatId, [userMessage, assistantMessage], {
-        chatModel: updated.model ?? null,
-      })
-    }
+    // Best-effort: the email response is the primary deliverable, so a failure
+    // here is logged (in the catch below) rather than failing the task.
+    await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(copilotChats)
+        .set({ updatedAt: new Date() })
+        .where(eq(copilotChats.id, chatId))
+        .returning({ model: copilotChats.model })
+      if (!updated) return
+      await appendCopilotChatMessages(
+        chatId,
+        [userMessage, assistantMessage],
+        { chatModel: updated.model ?? null },
+        tx
+      )
+    })
   } catch (err) {
-    logger.warn('Failed to persist chat messages', {
+    logger.error('Failed to persist chat messages', {
       chatId,
       error: getErrorMessage(err, 'Unknown error'),
     })

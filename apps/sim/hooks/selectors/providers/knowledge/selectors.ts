@@ -3,6 +3,8 @@ import * as selectorContracts from '@/lib/api/contracts/selectors'
 import { ensureKnowledgeBase, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
+const KNOWLEDGE_DOCUMENTS_PAGE_LIMIT = 100
+
 export const knowledgeSelectors = {
   'knowledge.documents': {
     key: 'knowledge.documents',
@@ -18,20 +20,32 @@ export const knowledgeSelectors = {
       search ?? '',
     ],
     enabled: ({ context }) => Boolean(context.knowledgeBaseId),
-    fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
+    /**
+     * Drives pagination through {@link useSelectorOptions}, which drains every
+     * page via this callback. The `pagination.hasMore` flag from the route
+     * decides when to stop; `nextCursor` encodes the next `offset`.
+     */
+    fetchPage: async ({ context, search, cursor, signal }) => {
       const knowledgeBaseId = ensureKnowledgeBase(context)
+      const offset = cursor ? Number(cursor) : 0
       const result = await requestJson(selectorContracts.listKnowledgeSelectorDocumentsContract, {
         params: { id: knowledgeBaseId },
         query: {
-          limit: 100,
+          limit: KNOWLEDGE_DOCUMENTS_PAGE_LIMIT,
+          offset,
           search,
         },
         signal,
       })
-      return result.data.documents.map((doc) => ({
-        id: doc.id,
-        label: doc.filename,
-      }))
+      const { pagination } = result.data
+      const nextOffset = pagination.offset + pagination.limit
+      return {
+        items: result.data.documents.map((doc) => ({
+          id: doc.id,
+          label: doc.filename,
+        })),
+        nextCursor: pagination.hasMore ? String(nextOffset) : undefined,
+      }
     },
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null

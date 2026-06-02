@@ -112,3 +112,85 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
   })
 })
+
+/**
+ * These tests guard the file-authorization follow-through: KB file ownership is
+ * resolved from the trusted `workspace_files` binding, so when a KB moves to a
+ * new workspace the bindings for its stored files must move with it. Otherwise
+ * the bindings stay frozen at the upload-time workspace and the KB's files
+ * become unreadable after a move.
+ */
+describe('updateKnowledgeBase — file ownership binding re-point on workspace change', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    dbChainMockFns.limit.mockReset()
+    resetDbChainMock()
+  })
+
+  // The mocked `@sim/db` cannot satisfy the post-transaction read-back select, so
+  // the call rejects after the transaction body commits. These tests assert the
+  // in-transaction binding statements, then swallow that read-back rejection.
+  const runIgnoringReadBack = (promise: Promise<unknown>) => promise.catch(() => undefined)
+
+  it('re-points file ownership bindings to the new workspace on a move', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'u-1' }])
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce('admin')
+
+    await runIgnoringReadBack(
+      updateKnowledgeBase('kb-1', { workspaceId: 'ws-target' }, 'req-1', { actorUserId: 'u-1' })
+    )
+
+    // Two updates inside the txn: the KB row, then the file bindings.
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ workspaceId: 'ws-target' })
+  })
+
+  it('clears file ownership bindings when the KB is removed from its workspace', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'owner' }])
+
+    await runIgnoringReadBack(
+      updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId: 'owner' })
+    )
+
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ workspaceId: null })
+  })
+
+  it('does not re-point bindings when promoting a personal (null-workspace) KB into a workspace', async () => {
+    // A null current workspace owns no bindings, so the move must not rewrite
+    // any binding — this prevents a key planted in a personal KB from being
+    // laundered into the destination workspace on move.
+    dbChainMockFns.limit.mockResolvedValueOnce([{ workspaceId: null, userId: 'owner' }])
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce('admin')
+
+    await runIgnoringReadBack(
+      updateKnowledgeBase('kb-1', { workspaceId: 'ws-target' }, 'req-1', { actorUserId: 'owner' })
+    )
+
+    // Only the KB row is updated; the binding re-point is skipped entirely.
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith({ workspaceId: 'ws-target' })
+  })
+
+  it('does not touch bindings when the workspace is unchanged', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'u-1' }])
+
+    await runIgnoringReadBack(
+      updateKnowledgeBase('kb-1', { workspaceId: 'ws-current' }, 'req-1', { actorUserId: 'u-1' })
+    )
+
+    // Only the KB row is updated; no binding re-point statement runs.
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith({ workspaceId: 'ws-current' })
+  })
+
+  it('does not touch bindings when no workspace change is requested', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'u-1' }]) // currentKb lock
+      .mockResolvedValueOnce([]) // duplicate-name check: none
+
+    await runIgnoringReadBack(updateKnowledgeBase('kb-1', { name: 'Renamed' }, 'req-1'))
+
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+  })
+})

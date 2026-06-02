@@ -19,11 +19,19 @@ vi.mock('@/lib/core/storage', () => ({
 }))
 
 vi.mock('@/lib/core/rate-limiter/storage/db-token-bucket', () => ({
-  DbTokenBucket: vi.fn(() => ({ type: 'db' })),
+  DbTokenBucket: vi.fn().mockImplementation(
+    class {
+      type = 'db'
+    }
+  ),
 }))
 
 vi.mock('@/lib/core/rate-limiter/storage/redis-token-bucket', () => ({
-  RedisTokenBucket: vi.fn(() => ({ type: 'redis' })),
+  RedisTokenBucket: vi.fn().mockImplementation(
+    class {
+      type = 'redis'
+    }
+  ),
 }))
 
 import { createStorageAdapter, resetStorageAdapter } from '@/lib/core/rate-limiter/storage/factory'
