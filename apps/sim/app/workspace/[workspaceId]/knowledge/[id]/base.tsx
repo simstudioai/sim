@@ -795,10 +795,12 @@ export function KnowledgeBase({
   const breadcrumbs: BreadcrumbItem[] = [
     {
       label: 'Knowledge Base',
+      icon: Database,
       onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
     },
     {
       label: knowledgeBaseName,
+      icon: Database,
       editing: kbRename.editingId
         ? {
             isEditing: true,

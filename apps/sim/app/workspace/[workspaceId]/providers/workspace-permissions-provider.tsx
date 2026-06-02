@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
-import { toast } from '@/components/emcn'
+import { useToast } from '@/components/emcn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
@@ -56,6 +56,7 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
   const params = useParams()
   const workspaceId = params?.workspaceId as string
   const queryClient = useQueryClient()
+  const { toast } = useToast()
 
   const [hasShownOfflineNotification, setHasShownOfflineNotification] = useState(false)
   const hasOperationError = useOperationQueueStore((state) => state.hasOperationError)

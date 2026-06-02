@@ -56,7 +56,7 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'updated', header: 'Last Updated' },
 ]
 
-const DATABASE_ICON = <Database className='size-[14px]' />
+const KNOWLEDGE_BASE_ICON = <Database className='size-[14px]' />
 
 const CONNECTOR_FILTER_OPTIONS: ChipDropdownOption[] = [
   { value: 'all', label: 'All' },
@@ -299,7 +299,7 @@ export function Knowledge() {
           id: kb.id,
           cells: {
             name: {
-              icon: DATABASE_ICON,
+              icon: KNOWLEDGE_BASE_ICON,
               label: kb.name,
             },
             documents: {

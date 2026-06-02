@@ -14,6 +14,7 @@ import {
   Combobox,
   Trash,
 } from '@/components/emcn'
+import { Database } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { formatTokenCount } from '@/lib/tokenization'
@@ -40,8 +41,10 @@ import {
   DocumentTagsModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import {
   useBulkChunkOperation,
@@ -295,6 +298,11 @@ export function Document({
   const isConnectorDocument = Boolean(documentData?.connectorId)
   const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
   const effectiveDocumentName = documentData?.filename || documentName || 'Document'
+  const ConnectorIcon = documentData?.connectorType
+    ? CONNECTOR_REGISTRY[documentData.connectorType]?.icon
+    : null
+  const DocumentIcon =
+    ConnectorIcon || getDocumentIcon(documentData?.mimeType ?? '', effectiveDocumentName)
   const isCompleted = documentData?.processingStatus === 'completed'
   const canEdit = userPermissions.canEdit === true
 
@@ -457,15 +465,24 @@ export function Document({
     () =>
       combinedError
         ? [
-            { label: 'Knowledge Base', onClick: handleNavToKB },
-            { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
+            { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
+            {
+              label: effectiveKnowledgeBaseName,
+              icon: Database,
+              onClick: handleNavToKBDetail,
+            },
             { label: 'Error' },
           ]
         : [
-            { label: 'Knowledge Base', onClick: handleNavToKB },
-            { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
+            { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
+            {
+              label: effectiveKnowledgeBaseName,
+              icon: Database,
+              onClick: handleNavToKBDetail,
+            },
             {
               label: effectiveDocumentName,
+              icon: DocumentIcon,
               editing: docRename.editingId
                 ? {
                     isEditing: true,
@@ -492,6 +509,7 @@ export function Document({
       handleNavToKBDetail,
       effectiveKnowledgeBaseName,
       effectiveDocumentName,
+      DocumentIcon,
       docRename.editingId,
       docRename.editValue,
       docRename.setEditValue,
@@ -938,15 +956,20 @@ export function Document({
 
   const editorBreadcrumbBase = useMemo<BreadcrumbItem[]>(
     () => [
-      { label: 'Knowledge Base', onClick: handleNavToKB },
-      { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
-      { label: effectiveDocumentName, onClick: handleBackAttempt },
+      { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
+      {
+        label: effectiveKnowledgeBaseName,
+        icon: Database,
+        onClick: handleNavToKBDetail,
+      },
+      { label: effectiveDocumentName, icon: DocumentIcon, onClick: handleBackAttempt },
     ],
     [
       handleNavToKB,
       handleNavToKBDetail,
       effectiveKnowledgeBaseName,
       effectiveDocumentName,
+      DocumentIcon,
       handleBackAttempt,
     ]
   )
@@ -966,9 +989,13 @@ export function Document({
 
   const loadingBreadcrumbs = useMemo<BreadcrumbItem[]>(
     () => [
-      { label: 'Knowledge Base', onClick: handleNavToKB },
-      { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
-      { label: effectiveDocumentName, onClick: handleClearSelectedChunk },
+      { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
+      {
+        label: effectiveKnowledgeBaseName,
+        icon: Database,
+        onClick: handleNavToKBDetail,
+      },
+      { label: effectiveDocumentName, icon: DocumentIcon, onClick: handleClearSelectedChunk },
       { label: 'Loading...' },
     ],
     [
@@ -976,6 +1003,7 @@ export function Document({
       handleNavToKBDetail,
       effectiveKnowledgeBaseName,
       effectiveDocumentName,
+      DocumentIcon,
       handleClearSelectedChunk,
     ]
   )
