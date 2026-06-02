@@ -108,6 +108,7 @@ const ChatContextSchema = z.object({
     'file',
     'folder',
     'filefolder',
+    'integration',
   ]),
   label: z.string(),
   chatId: z.string().optional(),
