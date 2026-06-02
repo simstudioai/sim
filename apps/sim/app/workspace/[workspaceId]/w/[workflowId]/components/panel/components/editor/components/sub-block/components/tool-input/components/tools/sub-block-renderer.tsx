@@ -1,6 +1,11 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
+import {
+  buildToolSubBlockId,
+  resolveToolParamSync,
+} from '@/lib/workflows/tool-input/synthetic-subblocks'
+import { parseStoredToolInputValue } from '@/lib/workflows/tool-input/types'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
@@ -47,13 +52,33 @@ export function ToolSubBlockRenderer({
   canonicalToggle,
   activeSearchTarget,
 }: ToolSubBlockRendererProps) {
-  const syntheticId = `${subBlockId}-tool-${toolIndex}-${effectiveParamId}`
+  const syntheticId = buildToolSubBlockId(subBlockId, toolIndex, effectiveParamId)
   const toolParamValue = toolParams?.[effectiveParamId] ?? ''
   const isObjectType = OBJECT_SUBBLOCK_TYPES.has(subBlock.type)
 
   const syncedRef = useRef<string | null>(null)
   const onParamChangeRef = useRef(onParamChange)
   onParamChangeRef.current = onParamChange
+
+  const pushParamValueToStore = useCallback(
+    (rawValue: string) => {
+      syncedRef.current = rawValue
+      if (isObjectType && rawValue) {
+        try {
+          const parsed = JSON.parse(rawValue)
+          if (typeof parsed === 'object' && parsed !== null) {
+            useSubBlockStore.getState().setValue(blockId, syntheticId, parsed)
+            return
+          }
+        } catch {}
+      }
+      useSubBlockStore.getState().setValue(blockId, syntheticId, rawValue)
+    },
+    [blockId, syntheticId, isObjectType]
+  )
+
+  const pushParamValueToStoreRef = useRef(pushParamValueToStore)
+  pushParamValueToStoreRef.current = pushParamValueToStore
 
   useEffect(() => {
     const unsub = useSubBlockStore.subscribe((state, prevState) => {
@@ -62,29 +87,29 @@ export function ToolSubBlockRenderer({
       const newVal = state.workflowValues[wfId]?.[blockId]?.[syntheticId]
       const oldVal = prevState.workflowValues[wfId]?.[blockId]?.[syntheticId]
       if (newVal === oldVal) return
-      const stringified =
-        newVal == null ? '' : typeof newVal === 'string' ? newVal : JSON.stringify(newVal)
-      if (stringified === syncedRef.current) return
-      syncedRef.current = stringified
-      onParamChangeRef.current(toolIndex, effectiveParamId, stringified)
+
+      const result = resolveToolParamSync(newVal, syncedRef.current)
+      if (result.action === 'noop') return
+
+      if (result.action === 'reproject') {
+        const tools = parseStoredToolInputValue(
+          useSubBlockStore.getState().getValue(blockId, subBlockId)
+        )
+        const sourceValue = tools[toolIndex]?.params?.[effectiveParamId]
+        pushParamValueToStoreRef.current(typeof sourceValue === 'string' ? sourceValue : '')
+        return
+      }
+
+      syncedRef.current = result.value
+      onParamChangeRef.current(toolIndex, effectiveParamId, result.value)
     })
     return unsub
-  }, [blockId, syntheticId, toolIndex, effectiveParamId])
+  }, [blockId, subBlockId, syntheticId, toolIndex, effectiveParamId])
 
   useEffect(() => {
     if (toolParamValue === syncedRef.current) return
-    syncedRef.current = toolParamValue
-    if (isObjectType && toolParamValue) {
-      try {
-        const parsed = JSON.parse(toolParamValue)
-        if (typeof parsed === 'object' && parsed !== null) {
-          useSubBlockStore.getState().setValue(blockId, syntheticId, parsed)
-          return
-        }
-      } catch {}
-    }
-    useSubBlockStore.getState().setValue(blockId, syntheticId, toolParamValue)
-  }, [toolParamValue, blockId, syntheticId, isObjectType])
+    pushParamValueToStore(toolParamValue)
+  }, [toolParamValue, pushParamValueToStore])
 
   const visibility = subBlock.paramVisibility ?? 'user-or-llm'
   const isOptionalForUser = visibility !== 'user-only'

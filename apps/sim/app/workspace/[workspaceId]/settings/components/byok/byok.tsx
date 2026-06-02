@@ -17,6 +17,7 @@ import {
 } from '@/components/emcn'
 import {
   AnthropicIcon,
+  BasetenIcon,
   BrandfetchIcon,
   ExaAIIcon,
   FindymailIcon,
@@ -29,12 +30,14 @@ import {
   JinaAIIcon,
   LinkupIcon,
   MistralIcon,
+  OllamaIcon,
   OpenAIIcon,
   ParallelIcon,
   PeopleDataLabsIcon,
   PerplexityIcon,
   ProspeoIcon,
   SerperIcon,
+  TogetherIcon,
   WizaIcon,
 } from '@/components/icons'
 import { Input } from '@/components/ui'
@@ -90,6 +93,27 @@ const PROVIDERS: {
     icon: FireworksIcon,
     description: 'LLM calls',
     placeholder: 'Enter your Fireworks API key',
+  },
+  {
+    id: 'together',
+    name: 'Together AI',
+    icon: TogetherIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your Together AI API key',
+  },
+  {
+    id: 'baseten',
+    name: 'Baseten',
+    icon: BasetenIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your Baseten API key',
+  },
+  {
+    id: 'ollama-cloud',
+    name: 'Ollama Cloud',
+    icon: OllamaIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your Ollama API key',
   },
   {
     id: 'falai',

@@ -4,13 +4,13 @@ import { copilotChats, permissions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
-import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-dual-write'
+import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
 import {
   buildPersistedAssistantMessage,
@@ -293,7 +293,7 @@ async function persistUserMessage(params: {
    * span parented to the about-to-be-dropped Next.js HTTP span.
    */
   parentOtelContext?: OtelContext
-}): Promise<unknown[] | undefined> {
+}): Promise<void> {
   const {
     chatId,
     userMessageId,
@@ -304,7 +304,7 @@ async function persistUserMessage(params: {
     notifyWorkspaceStatus,
     parentOtelContext,
   } = params
-  if (!chatId) return undefined
+  if (!chatId) return
 
   return withCopilotSpan(
     TraceSpan.CopilotChatPersistUserMessage,
@@ -326,30 +326,31 @@ async function persistUserMessage(params: {
         contexts,
       })
 
-      const [updated] = await db
-        .update(copilotChats)
-        .set({
-          messages: sql`${copilotChats.messages} || ${JSON.stringify([userMsg])}::jsonb`,
-          conversationId: userMessageId,
-          updatedAt: new Date(),
-        })
-        .where(eq(copilotChats.id, chatId))
-        .returning({ messages: copilotChats.messages, model: copilotChats.model })
+      const updated = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(copilotChats)
+          .set({
+            conversationId: userMessageId,
+            updatedAt: new Date(),
+          })
+          .where(eq(copilotChats.id, chatId))
+          .returning({ model: copilotChats.model })
 
-      if (updated) {
-        await appendCopilotChatMessages(chatId, [userMsg], {
-          streamId: userMessageId,
-          chatModel: updated.model ?? null,
-        })
-      }
+        if (!row) return null
 
-      const messagesAfter = Array.isArray(updated?.messages) ? updated.messages : undefined
-      span.setAttributes({
-        [TraceAttr.ChatPersistOutcome]: updated
-          ? CopilotChatPersistOutcome.Appended
-          : CopilotChatPersistOutcome.ChatNotFound,
-        [TraceAttr.ChatMessagesAfter]: messagesAfter?.length ?? 0,
+        await appendCopilotChatMessages(
+          chatId,
+          [userMsg],
+          { streamId: userMessageId, chatModel: row.model ?? null },
+          tx
+        )
+        return row
       })
+
+      span.setAttribute(
+        TraceAttr.ChatPersistOutcome,
+        updated ? CopilotChatPersistOutcome.Appended : CopilotChatPersistOutcome.ChatNotFound
+      )
 
       if (notifyWorkspaceStatus && updated && workspaceId) {
         taskPubSub?.publishStatusChanged({
@@ -359,8 +360,6 @@ async function persistUserMessage(params: {
           streamId: userMessageId,
         })
       }
-
-      return messagesAfter
     },
     parentOtelContext
   )
@@ -885,7 +884,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           }),
         activeOtelRoot.context
       )
-      const persistedMessagesPromise = persistUserMessage({
+      const persistUserMessagePromise = persistUserMessage({
         chatId: actualChatId,
         userMessageId,
         message: body.message,
@@ -908,23 +907,16 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.context
       )
 
-      const [agentContexts, userPermission, workspaceContext, persistedMessages, executionContext] =
+      const [agentContexts, userPermission, workspaceContext, , executionContext] =
         await Promise.all([
           agentContextsPromise,
           userPermissionPromise,
           workspaceContextPromise,
-          persistedMessagesPromise,
+          persistUserMessagePromise,
           executionContextPromise,
         ])
 
       executionContext.userPermission = userPermission ?? undefined
-
-      if (persistedMessages) {
-        conversationHistory = persistedMessages.filter((message) => {
-          const record = message as Record<string, unknown>
-          return record.id !== userMessageId
-        })
-      }
 
       // buildPayload is the last synchronous step before the outbound
       // Sim → Go HTTP call. It runs per-tool schema generation (subscription

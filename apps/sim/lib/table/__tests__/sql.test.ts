@@ -135,6 +135,72 @@ describe('SQL Builder', () => {
       const out = render(buildFilterClause({ name: { $contains: 'john' } }, TABLE, NO_COLUMNS))
       expect(out).toContain(`${TABLE}.data->>'name'`)
       expect(out).toContain('ILIKE')
+      expect(out).toContain('%john%')
+    })
+
+    it('handles $ncontains as negated ILIKE that surfaces null cells', () => {
+      const out = render(buildFilterClause({ name: { $ncontains: 'john' } }, TABLE, NO_COLUMNS))
+      expect(out).toContain('IS NULL')
+      expect(out).toContain('NOT ILIKE')
+      expect(out).toContain('%john%')
+    })
+
+    it('handles $startsWith with a trailing wildcard only', () => {
+      const out = render(buildFilterClause({ name: { $startsWith: 'jo' } }, TABLE, NO_COLUMNS))
+      expect(out).toContain('ILIKE')
+      expect(out).toContain('jo%')
+      expect(out).not.toContain('%jo%')
+    })
+
+    it('handles $endsWith with a leading wildcard only', () => {
+      const out = render(buildFilterClause({ file: { $endsWith: '.pdf' } }, TABLE, NO_COLUMNS))
+      expect(out).toContain('ILIKE')
+      expect(out).toContain('%.pdf')
+    })
+
+    it('escapes ILIKE wildcards in pattern values', () => {
+      const out = render(buildFilterClause({ name: { $contains: '50%_off' } }, TABLE, NO_COLUMNS))
+      expect(out).toContain('50\\%\\_off')
+    })
+
+    it('rejects an empty pattern value rather than matching every row', () => {
+      for (const op of ['$contains', '$ncontains', '$startsWith', '$endsWith'] as const) {
+        expect(() =>
+          buildFilterClause({ name: { [op]: '' } } as Filter, TABLE, NO_COLUMNS)
+        ).toThrow(/requires a non-empty value/)
+      }
+    })
+
+    it('handles $empty: true as null-or-empty-string check', () => {
+      const out = render(buildFilterClause({ phone: { $empty: true } }, TABLE, NO_COLUMNS))
+      expect(out).toContain(`${TABLE}.data->>'phone'`)
+      expect(out).toContain('IS NULL')
+      expect(out).toContain("= ''")
+      expect(out).toContain(' OR ')
+    })
+
+    it('handles $empty: false as present-and-non-empty check', () => {
+      const out = render(buildFilterClause({ phone: { $empty: false } }, TABLE, NO_COLUMNS))
+      expect(out).toContain('IS NOT NULL')
+      expect(out).toContain("<> ''")
+      expect(out).toContain(' AND ')
+    })
+
+    it('coerces string "true"/"false" $empty operands (lenient raw-API input)', () => {
+      const truthy = render(
+        buildFilterClause({ phone: { $empty: 'true' } } as Filter, TABLE, NO_COLUMNS)
+      )
+      expect(truthy).toContain('IS NULL')
+      const falsy = render(
+        buildFilterClause({ phone: { $empty: 'false' } } as Filter, TABLE, NO_COLUMNS)
+      )
+      expect(falsy).toContain('IS NOT NULL')
+    })
+
+    it('throws on a non-boolean $empty operand rather than silently inverting', () => {
+      expect(() =>
+        buildFilterClause({ phone: { $empty: 1 } } as unknown as Filter, TABLE, NO_COLUMNS)
+      ).toThrow(/\$empty on column "phone" requires a boolean/)
     })
 
     it('joins multiple top-level conditions with AND', () => {

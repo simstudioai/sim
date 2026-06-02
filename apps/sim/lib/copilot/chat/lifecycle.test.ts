@@ -71,6 +71,34 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
     expect(dbChainMockFns.orderBy).toHaveBeenCalledTimes(1)
   })
 
+  it('strips tool-result output on read, keeping success/error', async () => {
+    const toolMsg = {
+      id: 'm-tool',
+      role: 'assistant',
+      content: '',
+      timestamp: '2026-01-01T00:00:02.000Z',
+      contentBlocks: [
+        {
+          type: 'tool',
+          phase: 'call',
+          toolCall: {
+            id: 'tc-1',
+            name: 'get_workflow_logs',
+            state: 'success',
+            result: { success: true, output: { huge: 'x'.repeat(5000) } },
+          },
+        },
+      ],
+    }
+    dbChainMockFns.limit.mockResolvedValueOnce([chatRow])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([{ content: toolMsg }])
+
+    const result = await getAccessibleCopilotChatWithMessages(CHAT_ID, USER_ID)
+
+    expect(result?.messages?.[0].contentBlocks?.[0].toolCall?.result).toEqual({ success: true })
+    expect(JSON.stringify(result?.messages)).not.toContain('huge')
+  })
+
   it('returns an empty transcript for a chat with no messages', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([chatRow])
     dbChainMockFns.orderBy.mockResolvedValueOnce([])
@@ -122,13 +150,15 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
   })
 
   it('resolveOrCreateChat creates a new chat with an empty transcript', async () => {
-    // insert().values().returning() -> fresh chat with empty messages
-    dbChainMockFns.returning.mockResolvedValueOnce([{ ...chatRow, messages: [] }])
+    dbChainMockFns.returning.mockResolvedValueOnce([chatRow])
 
     const result = await resolveOrCreateChat({ userId: USER_ID, model: 'm' })
 
     expect(result.isNew).toBe(true)
     expect(result.conversationHistory).toEqual([])
+    expect(result.chat?.messages).toEqual([])
+    const insertValues = dbChainMockFns.values.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(Object.hasOwn(insertValues, 'messages')).toBe(false)
     // a brand-new chat must not trigger a messages read
     expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
   })

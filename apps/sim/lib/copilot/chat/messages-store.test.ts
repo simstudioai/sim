@@ -9,7 +9,7 @@ vi.mock('@sim/db', () => dbChainMock)
 import {
   appendCopilotChatMessages,
   replaceCopilotChatMessages,
-} from '@/lib/copilot/chat/messages-dual-write'
+} from '@/lib/copilot/chat/messages-store'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 
 const userMsg: PersistedMessage = {
@@ -26,13 +26,38 @@ const assistantMsg: PersistedMessage = {
   timestamp: '2026-01-01T00:00:01.000Z',
 }
 
+const toolMsg: PersistedMessage = {
+  id: 'msg-tool-1',
+  role: 'assistant',
+  content: '',
+  timestamp: '2026-01-01T00:00:02.000Z',
+  contentBlocks: [
+    {
+      type: 'tool',
+      phase: 'call',
+      toolCall: {
+        id: 'tc-1',
+        name: 'get_workflow_logs',
+        state: 'error',
+        params: { workflowId: 'wf-1' },
+        result: { success: false, output: { huge: 'x'.repeat(5000) }, error: 'too big' },
+      },
+    },
+  ],
+}
+
+/** The persisted `content` of the most recently inserted row at `index`. */
+function lastRowContent(index: number): PersistedMessage {
+  return lastValuesRows()[index].content as PersistedMessage
+}
+
 /** The first arg passed to the most recent `.values(...)` call. */
 function lastValuesRows() {
   const calls = dbChainMockFns.values.mock.calls
   return calls[calls.length - 1][0] as Array<Record<string, unknown>>
 }
 
-describe('messages-dual-write', () => {
+describe('messages-store', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -124,10 +149,20 @@ describe('messages-dual-write', () => {
       expect(rows[0].messageId).toBe('msg-user-1')
     })
 
-    it('swallows DB errors so the legacy JSONB write stays canonical', async () => {
+    it('propagates DB errors — copilot_messages is the sole store', async () => {
       dbChainMockFns.onConflictDoUpdate.mockRejectedValueOnce(new Error('connection lost'))
 
-      await expect(appendCopilotChatMessages('chat-1', [userMsg])).resolves.toBeUndefined()
+      await expect(appendCopilotChatMessages('chat-1', [userMsg])).rejects.toThrow(
+        'connection lost'
+      )
+    })
+
+    it('strips tool-result output before persisting, keeping success/error', async () => {
+      await appendCopilotChatMessages('chat-1', [toolMsg])
+
+      const toolCall = lastRowContent(0).contentBlocks?.[0].toolCall
+      expect(toolCall?.result).toEqual({ success: false, error: 'too big' })
+      expect(JSON.stringify(lastValuesRows())).not.toContain('huge')
     })
   })
 
@@ -185,10 +220,18 @@ describe('messages-dual-write', () => {
       expect(rows[0].model).toBe('gpt-4o-mini')
     })
 
-    it('swallows DB errors so the legacy JSONB write stays canonical', async () => {
+    it('propagates DB errors — the snapshot is authoritative', async () => {
       dbChainMockFns.transaction.mockRejectedValueOnce(new Error('tx aborted'))
 
-      await expect(replaceCopilotChatMessages('chat-1', [userMsg])).resolves.toBeUndefined()
+      await expect(replaceCopilotChatMessages('chat-1', [userMsg])).rejects.toThrow('tx aborted')
+    })
+
+    it('strips tool-result output before persisting, keeping success/error', async () => {
+      await replaceCopilotChatMessages('chat-1', [toolMsg])
+
+      const toolCall = lastRowContent(0).contentBlocks?.[0].toolCall
+      expect(toolCall?.result).toEqual({ success: false, error: 'too big' })
+      expect(JSON.stringify(lastValuesRows())).not.toContain('huge')
     })
   })
 })

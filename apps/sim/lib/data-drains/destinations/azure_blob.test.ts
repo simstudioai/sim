@@ -12,8 +12,12 @@ const { mockUpload, mockDeleteIfExists, BlobServiceClientCtor, StorageSharedKeyC
     return {
       mockUpload,
       mockDeleteIfExists,
-      BlobServiceClientCtor: vi.fn(() => ({ getContainerClient: vi.fn(() => containerClient) })),
-      StorageSharedKeyCredentialCtor: vi.fn(),
+      BlobServiceClientCtor: vi.fn().mockImplementation(
+        class {
+          getContainerClient = vi.fn(() => containerClient)
+        }
+      ),
+      StorageSharedKeyCredentialCtor: vi.fn().mockImplementation(class {}),
     }
   })
 
