@@ -509,6 +509,10 @@ export const rootlyConnector: ConnectorConfig = {
 
       const events = await fetchTimelineEvents(accessToken, id)
       const content = formatIncidentContent(attrs, events)
+      if (!content.trim()) {
+        logger.info('Skipping Rootly incident with no indexable content', { externalId: id })
+        return null
+      }
       const metadata = buildMetadata(attrs)
 
       return {

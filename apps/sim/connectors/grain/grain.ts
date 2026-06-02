@@ -376,7 +376,9 @@ export const grainConnector: ConnectorConfig = {
     const body: Record<string, unknown> = { include: RECORDING_INCLUDE }
     if (cursor) body.cursor = cursor
 
-    const filter = buildRecordingFilter(sourceConfig)
+    const cachedFilter = syncContext?.grainFilter as Record<string, unknown> | undefined | null
+    const filter = cachedFilter !== undefined ? cachedFilter : buildRecordingFilter(sourceConfig)
+    if (syncContext && cachedFilter === undefined) syncContext.grainFilter = filter ?? null
     if (filter) body.filter = filter
 
     logger.info('Listing Grain recordings', {

@@ -537,7 +537,8 @@ export const greenhouseConnector: ConnectorConfig = {
     lastSyncAt?: Date
   ): Promise<ExternalDocumentList> => {
     const maxCandidates = sourceConfig.maxCandidates ? Number(sourceConfig.maxCandidates) : 0
-    const page = cursor ? Number(cursor) : 1
+    const parsedPage = cursor ? Number(cursor) : 1
+    const page = Number.isFinite(parsedPage) && parsedPage > 0 ? Math.floor(parsedPage) : 1
     const updatedAfter = computeUpdatedAfter(lastSyncAt)
     const jobId = typeof sourceConfig.jobId === 'string' ? sourceConfig.jobId.trim() : ''
     const createdAfter =
