@@ -40,6 +40,11 @@ export interface IntegrationLandingContent {
     body: string
     href: string
   }
+  /**
+   * Disclaimer about AI-generated content, required by some marketplaces for
+   * apps with an AI component (e.g. Slack's AI-components guideline).
+   */
+  aiDisclaimer?: string
 }
 
 export interface Integration {
