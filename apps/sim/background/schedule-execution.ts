@@ -76,6 +76,29 @@ function resetScheduleInfraRetryCount(): Pick<WorkflowScheduleUpdate, 'infraRetr
   return { infraRetryCount: 0 }
 }
 
+/**
+ * Builds the schedule update shared by every path that treats a run as a failure:
+ * clears the claim, advances to `nextRunAt`, increments the consecutive-failure
+ * counter, stamps `lastFailedAt`, and auto-disables once `MAX_CONSECUTIVE_FAILURES`
+ * is reached. Centralizing this keeps all failure branches (preprocessing,
+ * execution, exhausted infra retries, usage limit) from diverging — only the
+ * `nextRunAt` cadence differs per caller.
+ */
+export function buildScheduleFailureUpdate(
+  now: Date,
+  nextRunAt: Date | null
+): WorkflowScheduleUpdate {
+  return {
+    updatedAt: now,
+    lastQueuedAt: null,
+    nextRunAt,
+    failedCount: incrementScheduleFailedCount(),
+    lastFailedAt: now,
+    status: scheduleStatusAfterFailedCountIncrement(),
+    ...resetScheduleInfraRetryCount(),
+  }
+}
+
 type RunWorkflowResult =
   | {
       status: 'skip'
@@ -191,15 +214,7 @@ async function retryScheduleAfterInfraFailure({
     const nextRunAt = await determineNextRunAfterError(payload, now, requestId)
     await applyScheduleUpdate(
       payload.scheduleId,
-      {
-        updatedAt: now,
-        nextRunAt,
-        lastQueuedAt: null,
-        failedCount: incrementScheduleFailedCount(),
-        lastFailedAt: now,
-        status: scheduleStatusAfterFailedCountIncrement(),
-        ...resetScheduleInfraRetryCount(),
-      },
+      buildScheduleFailureUpdate(now, nextRunAt),
       requestId,
       `Error updating schedule ${payload.scheduleId} after exhausted infrastructure retries`,
       { expectedLastQueuedAt: claimedAt }
@@ -777,17 +792,22 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
           }
 
           case 402: {
-            logger.warn(`[${requestId}] Usage limit exceeded, scheduling next run`)
+            /**
+             * Usage limits are a billing state, not a broken workflow, but they only
+             * clear on billing-period rollover or upgrade. Keep retrying at the normal
+             * cadence, but count each hit toward the shared auto-disable threshold so an
+             * abandoned over-limit schedule eventually stops instead of running forever.
+             * A successful run resets failedCount, so transient overages self-heal.
+             */
             const nextRunAt =
               (await calculateNextRunFromDeployment(payload, requestId)) ??
               new Date(now.getTime() + 60 * 60 * 1000)
+            logger.warn(`[${requestId}] Usage limit exceeded, counting as failed run`, {
+              scheduleId: payload.scheduleId,
+              nextRunAt: nextRunAt.toISOString(),
+            })
             await updateClaimedSchedule(
-              {
-                updatedAt: now,
-                lastQueuedAt: null,
-                nextRunAt,
-                ...resetScheduleInfraRetryCount(),
-              },
+              buildScheduleFailureUpdate(now, nextRunAt),
               `Error updating schedule ${payload.scheduleId} after usage limit check`
             )
             return
@@ -809,15 +829,7 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
             const nextRunAt = await determineNextRunAfterError(payload, now, requestId)
 
             await updateClaimedSchedule(
-              {
-                updatedAt: now,
-                lastQueuedAt: null,
-                nextRunAt,
-                failedCount: incrementScheduleFailedCount(),
-                lastFailedAt: now,
-                status: scheduleStatusAfterFailedCountIncrement(),
-                ...resetScheduleInfraRetryCount(),
-              },
+              buildScheduleFailureUpdate(now, nextRunAt),
               `Error updating schedule ${payload.scheduleId} after preprocessing failure`
             )
             return
@@ -914,15 +926,7 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
         const nextRunAt = calculateNextRunTime(payload, executionResult.blocks)
 
         await updateClaimedSchedule(
-          {
-            updatedAt: now,
-            lastQueuedAt: null,
-            nextRunAt,
-            failedCount: incrementScheduleFailedCount(),
-            lastFailedAt: now,
-            status: scheduleStatusAfterFailedCountIncrement(),
-            ...resetScheduleInfraRetryCount(),
-          },
+          buildScheduleFailureUpdate(now, nextRunAt),
           `Error updating schedule ${payload.scheduleId} after failure`
         )
       } catch (error: unknown) {
@@ -934,15 +938,7 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
         const nextRunAt = await determineNextRunAfterError(payload, now, requestId)
 
         await updateClaimedSchedule(
-          {
-            updatedAt: now,
-            lastQueuedAt: null,
-            nextRunAt,
-            failedCount: incrementScheduleFailedCount(),
-            lastFailedAt: now,
-            status: scheduleStatusAfterFailedCountIncrement(),
-            ...resetScheduleInfraRetryCount(),
-          },
+          buildScheduleFailureUpdate(now, nextRunAt),
           `Error updating schedule ${payload.scheduleId} after execution error`
         )
       }
