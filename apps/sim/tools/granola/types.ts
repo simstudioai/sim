@@ -5,6 +5,7 @@ export interface GranolaListNotesParams {
   createdBefore?: string
   createdAfter?: string
   updatedAfter?: string
+  folderId?: string
   cursor?: string
   pageSize?: number
 }
@@ -38,6 +39,7 @@ export interface GranolaGetNoteResponse extends ToolResponse {
     ownerEmail: string
     createdAt: string
     updatedAt: string
+    webUrl: string | null
     summaryText: string
     summaryMarkdown: string | null
     attendees: { name: string | null; email: string }[]
