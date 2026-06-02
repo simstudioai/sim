@@ -10,6 +10,19 @@ const logger = createLogger('FathomConnector')
 
 const FATHOM_API_BASE = 'https://api.fathom.ai/external/v1'
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+/**
+ * Days subtracted from `lastSyncAt` when computing the incremental `created_after`
+ * window. Fathom's list endpoint only filters by creation time (no update-based
+ * filter), so a meeting whose transcript was not yet ready on the sync that first
+ * saw it would otherwise never be re-listed. The overlap keeps recently-created
+ * meetings in the window long enough for late transcripts to be retried — the sync
+ * engine re-attempts meetings whose `getDocument` previously returned null, since
+ * those are never persisted. Matches the Gong connector's overlap approach.
+ */
+const INCREMENTAL_OVERLAP_DAYS = 14
+
 /**
  * Fathom authenticates external API requests with the `X-Api-Key` header.
  * (The API also accepts `Authorization: Bearer` for OAuth-connected apps, but
@@ -370,7 +383,10 @@ export const fathomConnector: ConnectorConfig = {
     }
     if (inviteeDomain) url.searchParams.append('calendar_invitees_domains[]', inviteeDomain)
     if (cursor) url.searchParams.append('cursor', cursor)
-    if (lastSyncAt) url.searchParams.append('created_after', lastSyncAt.toISOString())
+    if (lastSyncAt) {
+      const createdAfter = new Date(lastSyncAt.getTime() - INCREMENTAL_OVERLAP_DAYS * MS_PER_DAY)
+      url.searchParams.append('created_after', createdAfter.toISOString())
+    }
 
     logger.info('Listing Fathom meetings', {
       hasCursor: Boolean(cursor),
