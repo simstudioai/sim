@@ -10,13 +10,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Plus,
+  POPOVER_ANIMATION_CLASSES,
   Popover,
   PopoverAnchor,
   PopoverContent,
   PopoverItem,
   PopoverSection,
 } from '@/components/emcn'
-import { POPOVER_ANIMATION_CLASSES } from '@/components/emcn/components/chip-date-picker/chip-date-picker'
 import { cn } from '@/lib/core/utils/cn'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
@@ -259,10 +259,9 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
   editing,
   className,
 }: BreadcrumbSegmentProps) {
-  const labelRef = useRef<HTMLSpanElement>(null)
-  const isOverflowing = useIsOverflowing(labelRef)
+  const { ref: labelRef, node: labelNode, isOverflowing } = useIsOverflowing<HTMLSpanElement>()
   const { state: tooltipState, handlers: tooltipHandlers } = useFloatingTooltip((target) =>
-    isBreadcrumbTextClipped(labelRef.current, target)
+    isBreadcrumbTextClipped(labelNode.current, target)
   )
 
   if (editing?.isEditing) {

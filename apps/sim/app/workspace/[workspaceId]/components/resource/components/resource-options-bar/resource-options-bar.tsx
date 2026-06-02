@@ -11,10 +11,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   ListFilter,
+  POPOVER_ANIMATION_CLASSES,
   Search,
   X,
 } from '@/components/emcn'
-import { POPOVER_ANIMATION_CLASSES } from '@/components/emcn/components/chip-date-picker/chip-date-picker'
 import { cn } from '@/lib/core/utils/cn'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 

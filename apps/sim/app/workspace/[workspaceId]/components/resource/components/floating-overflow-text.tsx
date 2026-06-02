@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { memo, useRef } from 'react'
+import { memo } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import {
   FloatingTooltip,
@@ -30,10 +30,9 @@ export const FloatingOverflowText = memo(function FloatingOverflowText({
   className,
   showWhen,
 }: FloatingOverflowTextProps) {
-  const textRef = useRef<HTMLSpanElement>(null)
-  const isOverflowing = useIsOverflowing(textRef)
+  const { ref: textRef, node, isOverflowing } = useIsOverflowing<HTMLSpanElement>()
   const { state, handlers } = useFloatingTooltip(() => {
-    const element = textRef.current
+    const element = node.current
     if (!element || label.length === 0) return false
     return Boolean(showWhen) || isTextClipped(element)
   })

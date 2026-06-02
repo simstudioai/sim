@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, type RefObject, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -136,30 +136,52 @@ export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
 }
 
 /**
- * Tracks whether a referenced element's text is horizontally clipped, staying in
- * sync via a `ResizeObserver` and window resizes.
+ * Tracks whether an element's text is horizontally clipped, re-measuring via a
+ * `ResizeObserver` and window resizes.
+ *
+ * Returns a callback `ref` to attach to the element — the observer follows the
+ * element across mount, unmount, and reassignment, so it is safe to use on
+ * conditionally rendered children. `node` is a stable ref for reading the
+ * current element (e.g. for live measurements in event handlers).
  */
-export function useIsOverflowing(ref: RefObject<HTMLElement | null>): boolean {
+export function useIsOverflowing<T extends HTMLElement = HTMLElement>(): {
+  ref: (node: T | null) => void
+  node: RefObject<T | null>
+  isOverflowing: boolean
+} {
   const [isOverflowing, setIsOverflowing] = useState(false)
+  const nodeRef = useRef<T | null>(null)
+  const observerRef = useRef<ResizeObserver | null>(null)
+
+  const measure = useCallback(() => {
+    const element = nodeRef.current
+    if (element) setIsOverflowing(isTextClipped(element))
+  }, [])
+
+  const ref = useCallback(
+    (node: T | null) => {
+      observerRef.current?.disconnect()
+      observerRef.current = null
+      nodeRef.current = node
+      if (!node) return
+
+      measure()
+      const observer = new ResizeObserver(measure)
+      observer.observe(node)
+      observerRef.current = observer
+    },
+    [measure]
+  )
 
   useEffect(() => {
-    const element = ref.current
-    if (!element) return
-
-    const update = () => setIsOverflowing(isTextClipped(element))
-    update()
-
-    const resizeObserver = new ResizeObserver(update)
-    resizeObserver.observe(element)
-    window.addEventListener('resize', update)
-
+    window.addEventListener('resize', measure)
     return () => {
-      resizeObserver.disconnect()
-      window.removeEventListener('resize', update)
+      window.removeEventListener('resize', measure)
+      observerRef.current?.disconnect()
     }
-  }, [ref])
+  }, [measure])
 
-  return isOverflowing
+  return { ref, node: nodeRef, isOverflowing }
 }
 
 /** Whether an element's content is wider than its visible box. */
