@@ -15,10 +15,10 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverSection,
-  Tooltip,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
 const HEADER_PLUS_ICON = <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
 const TERMINAL_BREADCRUMB_LABELS = /^(Chunk #|New Chunk|Loading\.\.\.)/
@@ -113,64 +113,55 @@ export const ResourceHeader = memo(function ResourceHeader({
       )}
     >
       <div className='flex min-w-0 items-center justify-between gap-3'>
-        <Tooltip.Provider>
-          <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
-            {hasBreadcrumbs ? (
-              breadcrumbs.map((crumb, i) => {
-                const segmentClassName = getBreadcrumbSegmentClassName(
-                  i,
-                  breadcrumbs.length,
-                  currentResourceIndex,
-                  terminalBreadcrumbIndex
-                )
-                const LocationIcon = i === 0 ? (crumb.icon ?? Icon) : undefined
+        <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
+          {hasBreadcrumbs ? (
+            breadcrumbs.map((crumb, i) => {
+              const segmentClassName = getBreadcrumbSegmentClassName(
+                i,
+                breadcrumbs.length,
+                currentResourceIndex,
+                terminalBreadcrumbIndex
+              )
+              const LocationIcon = i === 0 ? (crumb.icon ?? Icon) : undefined
 
-                return (
-                  <Fragment key={`${crumb.label}-${i}`}>
-                    {i > 0 && (
-                      <span className='mx-0.5 shrink-0 select-none text-[var(--text-icon)] text-sm'>
-                        /
-                      </span>
-                    )}
-                    {LocationIcon ? (
-                      <BreadcrumbLocationPopover
-                        icon={LocationIcon}
-                        breadcrumbs={breadcrumbs}
-                        className={segmentClassName}
-                        veilBoundaryRef={headerRef}
-                      />
-                    ) : (
-                      <BreadcrumbSegment
-                        icon={crumb.icon}
-                        label={crumb.label}
-                        onClick={crumb.onClick}
-                        dropdownItems={crumb.dropdownItems}
-                        editing={crumb.editing}
-                        className={segmentClassName}
-                      />
-                    )}
-                  </Fragment>
-                )
-              })
-            ) : (
-              <>
-                {Icon && <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
-                {title && (
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <h1 className='truncate font-medium text-[var(--text-body)] text-sm'>
-                        {title}
-                      </h1>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content className='max-w-[min(520px,calc(100vw-2rem))] whitespace-normal break-words px-2.5 py-2 text-left leading-5'>
-                      {title}
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                )}
-              </>
-            )}
-          </div>
-        </Tooltip.Provider>
+              return (
+                <Fragment key={`${crumb.label}-${i}`}>
+                  {i > 0 && (
+                    <span className='mx-0.5 shrink-0 select-none text-[var(--text-icon)] text-sm'>
+                      /
+                    </span>
+                  )}
+                  {LocationIcon ? (
+                    <BreadcrumbLocationPopover
+                      icon={LocationIcon}
+                      breadcrumbs={breadcrumbs}
+                      className={segmentClassName}
+                      veilBoundaryRef={headerRef}
+                    />
+                  ) : (
+                    <BreadcrumbSegment
+                      icon={crumb.icon}
+                      label={crumb.label}
+                      onClick={crumb.onClick}
+                      dropdownItems={crumb.dropdownItems}
+                      editing={crumb.editing}
+                      className={segmentClassName}
+                    />
+                  )}
+                </Fragment>
+              )
+            })
+          ) : (
+            <>
+              {Icon && <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
+              {title && (
+                <h1 className='min-w-0 flex-1 font-medium text-[var(--text-body)] text-sm'>
+                  <FloatingOverflowText label={title} className='block truncate' />
+                </h1>
+              )}
+            </>
+          )}
+        </div>
         <div className='flex shrink-0 items-center gap-1.5'>
           {leadingActions}
           {actions?.map((action) => {

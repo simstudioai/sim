@@ -16,6 +16,7 @@ import {
 } from '@/components/emcn'
 import { POPOVER_ANIMATION_CLASSES } from '@/components/emcn/components/chip-date-picker/chip-date-picker'
 import { cn } from '@/lib/core/utils/cn'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
 const SEARCH_ICON = (
   <Search className='pointer-events-none size-[14px] shrink-0 text-[var(--text-icon)]' />
@@ -123,7 +124,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
               className='max-w-[280px] px-2 py-1 text-caption'
               onClick={tag.onRemove}
             >
-              <span className='truncate'>{tag.label}</span>
+              <FloatingOverflowText label={tag.label} className='block truncate' />
               <span className='ml-1 shrink-0 text-[var(--text-icon)] text-micro'>✕</span>
             </Button>
           ))}
@@ -206,12 +207,14 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
             key={`${tag.label}-${tag.value}`}
             variant='subtle'
             className={cn(
-              'shrink-0 px-2 py-1 text-caption',
+              'max-w-[280px] shrink-0 px-2 py-1 text-caption',
               search.highlightedTagIndex === i && 'ring-1 ring-[var(--border-focus)] ring-offset-1'
             )}
             onClick={tag.onRemove}
           >
-            {tag.label}: {tag.value}
+            <FloatingOverflowText label={`${tag.label}: ${tag.value}`} className='block truncate'>
+              {tag.label}: {tag.value}
+            </FloatingOverflowText>
             <span className='ml-1 text-[var(--text-icon)] text-micro'>✕</span>
           </Button>
         ))}

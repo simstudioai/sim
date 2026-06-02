@@ -3,6 +3,7 @@ import { useParams } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import {
   DELETED_WORKFLOW_COLOR,
   DELETED_WORKFLOW_LABEL,
@@ -106,9 +107,10 @@ function WorkflowsListInner({
                         backgroundClip: 'padding-box',
                       }}
                     />
-                    <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-caption'>
-                      {workflow.workflowName}
-                    </span>
+                    <FloatingOverflowText
+                      label={workflow.workflowName}
+                      className='block truncate font-medium text-[var(--text-primary)] text-caption'
+                    />
                   </div>
 
                   {/* Status bar - takes most of the space */}

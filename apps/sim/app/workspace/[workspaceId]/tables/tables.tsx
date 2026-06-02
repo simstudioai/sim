@@ -25,6 +25,7 @@ import type {
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ImportCsvDialog,
@@ -264,7 +265,10 @@ export function Tables() {
             multiSelectValues={rowCountFilter}
             onMultiSelectChange={setRowCountFilter}
             overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{rowCountDisplayLabel}</span>
+              <FloatingOverflowText
+                label={rowCountDisplayLabel}
+                className='block truncate text-[var(--text-primary)]'
+              />
             }
             showAllOption
             allOptionLabel='All'
@@ -281,7 +285,10 @@ export function Tables() {
               multiSelectValues={ownerFilter}
               onMultiSelectChange={setOwnerFilter}
               overlayContent={
-                <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
+                <FloatingOverflowText
+                  label={ownerDisplayLabel}
+                  className='block truncate text-[var(--text-primary)]'
+                />
               }
               searchable
               searchPlaceholder='Search members...'

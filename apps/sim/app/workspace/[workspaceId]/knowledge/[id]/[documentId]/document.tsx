@@ -34,6 +34,7 @@ import {
   Resource,
   ResourceHeader,
 } from '@/app/workspace/[workspaceId]/components'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import {
   ChunkContextMenu,
   ChunkEditor,
@@ -609,7 +610,10 @@ export function Document({
               void goToPage(1)
             }}
             overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{enabledDisplayLabel}</span>
+              <FloatingOverflowText
+                label={enabledDisplayLabel}
+                className='block truncate text-[var(--text-primary)]'
+              />
             }
             showAllOption
             allOptionLabel='All'
@@ -900,39 +904,43 @@ export function Document({
       ]
     }
 
-    return displayChunks.map((chunk: ChunkData) => ({
-      id: chunk.id,
-      cells: {
-        content: {
-          content: (
-            <span
-              className='block min-w-0 truncate text-[var(--text-primary)] text-sm'
-              title={chunk.content}
-            >
-              <SearchHighlight
-                text={truncateContent(chunk.content, 150, searchQuery)}
-                searchQuery={searchQuery}
-              />
-            </span>
-          ),
+    return displayChunks.map((chunk: ChunkData) => {
+      const previewContent = truncateContent(chunk.content, 150, searchQuery)
+
+      return {
+        id: chunk.id,
+        cells: {
+          content: {
+            content: (
+              <FloatingOverflowText
+                label={chunk.content}
+                showWhen={previewContent !== chunk.content}
+                className='block truncate text-[var(--text-primary)] text-sm'
+              >
+                <SearchHighlight text={previewContent} searchQuery={searchQuery} />
+              </FloatingOverflowText>
+            ),
+          },
+          index: {
+            content: (
+              <span className='font-mono text-[var(--text-primary)] text-sm'>
+                {chunk.chunkIndex}
+              </span>
+            ),
+          },
+          tokens: {
+            label: formatTokenCount(chunk.tokenCount),
+          },
+          status: {
+            content: (
+              <Badge variant={chunk.enabled ? 'green' : 'gray'} size='sm'>
+                {chunk.enabled ? 'Enabled' : 'Disabled'}
+              </Badge>
+            ),
+          },
         },
-        index: {
-          content: (
-            <span className='font-mono text-[var(--text-primary)] text-sm'>{chunk.chunkIndex}</span>
-          ),
-        },
-        tokens: {
-          label: formatTokenCount(chunk.tokenCount),
-        },
-        status: {
-          content: (
-            <Badge variant={chunk.enabled ? 'green' : 'gray'} size='sm'>
-              {chunk.enabled ? 'Enabled' : 'Disabled'}
-            </Badge>
-          ),
-        },
-      },
-    }))
+      }
+    })
   }, [isCompleted, documentData?.processingStatus, displayChunks, searchQuery])
 
   const emptyMessage = combinedError ? 'Error loading document' : undefined

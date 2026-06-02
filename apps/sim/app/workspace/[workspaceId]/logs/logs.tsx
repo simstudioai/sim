@@ -58,6 +58,7 @@ import {
   ResourceOptionsBar,
   ResourceTable,
 } from '@/app/workspace/[workspaceId]/components'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -1408,7 +1409,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
                   style={{ backgroundColor: selectedStatusColor, width: 8, height: 8 }}
                 />
               )}
-              <span className='truncate'>{statusDisplayLabel}</span>
+              <FloatingOverflowText label={statusDisplayLabel} className='block truncate' />
             </span>
           }
           showAllOption
@@ -1438,7 +1439,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
                   }}
                 />
               )}
-              <span className='truncate'>{workflowDisplayLabel}</span>
+              <FloatingOverflowText label={workflowDisplayLabel} className='block truncate' />
             </span>
           }
           searchable
@@ -1459,7 +1460,10 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           onMultiSelectChange={setFolderIds}
           placeholder='All folders'
           overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{folderDisplayLabel}</span>
+            <FloatingOverflowText
+              label={folderDisplayLabel}
+              className='block truncate text-[var(--text-primary)]'
+            />
           }
           searchable
           searchPlaceholder='Search folders...'
@@ -1479,7 +1483,10 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           onMultiSelectChange={setTriggers}
           placeholder='All triggers'
           overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{triggerDisplayLabel}</span>
+            <FloatingOverflowText
+              label={triggerDisplayLabel}
+              className='block truncate text-[var(--text-primary)]'
+            />
           }
           searchable
           searchPlaceholder='Search triggers...'
@@ -1499,7 +1506,10 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             onChange={handleTimeRangeChange}
             placeholder='All time'
             overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
+              <FloatingOverflowText
+                label={timeDisplayLabel}
+                className='block truncate text-[var(--text-primary)]'
+              />
             }
             size='sm'
             className='h-[32px] w-full rounded-md'

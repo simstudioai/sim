@@ -62,6 +62,7 @@ import {
   ResourceHeader,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
@@ -1719,7 +1720,10 @@ export function Files() {
             multiSelectValues={typeFilter}
             onMultiSelectChange={setTypeFilter}
             overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{typeDisplayLabel}</span>
+              <FloatingOverflowText
+                label={typeDisplayLabel}
+                className='block truncate text-[var(--text-primary)]'
+              />
             }
             showAllOption
             allOptionLabel='All'
@@ -1739,7 +1743,10 @@ export function Files() {
             multiSelectValues={sizeFilter}
             onMultiSelectChange={setSizeFilter}
             overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{sizeDisplayLabel}</span>
+              <FloatingOverflowText
+                label={sizeDisplayLabel}
+                className='block truncate text-[var(--text-primary)]'
+              />
             }
             showAllOption
             allOptionLabel='All'
@@ -1758,9 +1765,10 @@ export function Files() {
               multiSelectValues={uploadedByFilter}
               onMultiSelectChange={setUploadedByFilter}
               overlayContent={
-                <span className='truncate text-[var(--text-primary)]'>
-                  {uploadedByDisplayLabel}
-                </span>
+                <FloatingOverflowText
+                  label={uploadedByDisplayLabel}
+                  className='block truncate text-[var(--text-primary)]'
+                />
               }
               searchable
               searchPlaceholder='Search members...'
