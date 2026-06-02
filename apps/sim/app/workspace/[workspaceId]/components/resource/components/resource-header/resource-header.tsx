@@ -16,15 +16,17 @@ import {
   PopoverItem,
   PopoverSection,
 } from '@/components/emcn'
+import { POPOVER_ANIMATION_CLASSES } from '@/components/emcn/components/chip-date-picker/chip-date-picker'
 import { cn } from '@/lib/core/utils/cn'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
+import {
+  FloatingTooltip,
+  useFloatingTooltip,
+  useIsOverflowing,
+} from '@/app/workspace/[workspaceId]/components/resource/components/floating-tooltip'
 
 const HEADER_PLUS_ICON = <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
-const TERMINAL_BREADCRUMB_LABELS = /^(Chunk #|New Chunk|Loading\.\.\.)/
-const FLOATING_TOOLTIP_OFFSET = 16
-const FLOATING_TOOLTIP_EDGE_GUTTER = 16
-const FLOATING_TOOLTIP_EDGE_THRESHOLD = 360
 
 export interface DropdownOption {
   label: string
@@ -47,6 +49,11 @@ export interface BreadcrumbItem {
   onClick?: () => void
   dropdownItems?: DropdownOption[]
   editing?: BreadcrumbEditing
+  /**
+   * Marks a non-navigable trailing crumb (e.g. "New Chunk", "Loading...") so the
+   * header sizes it as the terminal segment rather than the current resource.
+   */
+  terminal?: boolean
 }
 
 export interface HeaderAction {
@@ -94,9 +101,7 @@ export const ResourceHeader = memo(function ResourceHeader({
   const headerRef = useRef<HTMLDivElement>(null)
   const hasBreadcrumbs = breadcrumbs && breadcrumbs.length > 0
   const terminalBreadcrumbIndex =
-    hasBreadcrumbs && TERMINAL_BREADCRUMB_LABELS.test(breadcrumbs[breadcrumbs.length - 1].label)
-      ? breadcrumbs.length - 1
-      : -1
+    hasBreadcrumbs && breadcrumbs[breadcrumbs.length - 1].terminal ? breadcrumbs.length - 1 : -1
   const currentResourceIndex =
     terminalBreadcrumbIndex > -1
       ? terminalBreadcrumbIndex - 1
@@ -255,102 +260,10 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
   className,
 }: BreadcrumbSegmentProps) {
   const labelRef = useRef<HTMLSpanElement>(null)
-  const lastPointerRef = useRef<PointerSnapshot | null>(null)
-  const [isOverflowing, setIsOverflowing] = useState(false)
-  const [tooltipState, setTooltipState] = useState<BreadcrumbFloatingTooltipState>({
-    visible: false,
-    x: 0,
-    y: 0,
-    skew: 0,
-    scaleX: 1,
-    scaleY: 1,
-    alignX: 'left',
-    alignY: 'below',
-  })
-
-  useEffect(() => {
-    const element = labelRef.current
-    if (!element) return
-
-    const updateOverflowState = () => {
-      setIsOverflowing(element.scrollWidth > element.clientWidth + 1)
-    }
-
-    updateOverflowState()
-
-    const resizeObserver = new ResizeObserver(updateOverflowState)
-    resizeObserver.observe(element)
-    window.addEventListener('resize', updateOverflowState)
-
-    return () => {
-      resizeObserver.disconnect()
-      window.removeEventListener('resize', updateOverflowState)
-    }
-  }, [])
-
-  const handleTooltipMove = (event: React.PointerEvent<HTMLElement>) => {
-    if (!isBreadcrumbTextClipped(labelRef.current, event.currentTarget)) return
-
-    const now = performance.now()
-    const previous = lastPointerRef.current
-    const elapsed = previous ? Math.max(now - previous.time, 16) : 16
-    const velocityX = previous ? ((event.clientX - previous.x) / elapsed) * 16 : 0
-    const velocityY = previous ? ((event.clientY - previous.y) / elapsed) * 16 : 0
-    const velocity = Math.hypot(velocityX, velocityY)
-    const position = getFloatingTooltipPosition(event.clientX, event.clientY)
-
-    lastPointerRef.current = { x: event.clientX, y: event.clientY, time: now }
-    setTooltipState({
-      visible: true,
-      ...position,
-      skew: clamp(velocityX * 0.11, -6, 6),
-      scaleX: 1 + Math.min(0.035, velocity / 1100),
-      scaleY: 1 - Math.min(0.02, velocity / 1500),
-    })
-  }
-
-  const showTooltip = (event: React.PointerEvent<HTMLElement>) => {
-    if (!isBreadcrumbTextClipped(labelRef.current, event.currentTarget)) return
-    const position = getFloatingTooltipPosition(event.clientX, event.clientY)
-    lastPointerRef.current = { x: event.clientX, y: event.clientY, time: performance.now() }
-    setIsOverflowing(true)
-    setTooltipState({
-      visible: true,
-      ...position,
-      skew: 0,
-      scaleX: 1,
-      scaleY: 1,
-    })
-  }
-
-  const showTooltipFromFocus = (event: React.FocusEvent<HTMLElement>) => {
-    if (!isBreadcrumbTextClipped(labelRef.current, event.currentTarget)) return
-    const rect = event.currentTarget.getBoundingClientRect()
-    const position = getFloatingTooltipPosition(rect.left + rect.width / 2, rect.bottom)
-    lastPointerRef.current = null
-    setIsOverflowing(true)
-    setTooltipState({
-      visible: true,
-      ...position,
-      skew: 0,
-      scaleX: 1,
-      scaleY: 1,
-    })
-  }
-
-  const hideTooltip = () => {
-    lastPointerRef.current = null
-    setTooltipState((current) => ({ ...current, visible: false, skew: 0, scaleX: 1, scaleY: 1 }))
-  }
-
-  const tooltipHandlers = {
-    onPointerEnter: showTooltip,
-    onPointerMove: handleTooltipMove,
-    onPointerLeave: hideTooltip,
-    onFocus: showTooltipFromFocus,
-    onBlur: hideTooltip,
-    onPointerDown: hideTooltip,
-  }
+  const isOverflowing = useIsOverflowing(labelRef)
+  const { state: tooltipState, handlers: tooltipHandlers } = useFloatingTooltip((target) =>
+    isBreadcrumbTextClipped(labelRef.current, target)
+  )
 
   if (editing?.isEditing) {
     return (
@@ -381,7 +294,7 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
     return (
       <>
         <DropdownMenu>
-          <BreadcrumbFloatingTooltip label={label} state={tooltipState} />
+          <FloatingTooltip label={label} state={tooltipState} />
           <DropdownMenuTrigger asChild>
             <Button
               variant='subtle'
@@ -411,7 +324,7 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
   if (onClick) {
     return (
       <>
-        <BreadcrumbFloatingTooltip label={label} state={tooltipState} />
+        <FloatingTooltip label={label} state={tooltipState} />
         <Button
           variant='subtle'
           className={cn(triggerClassName, className, 'border-0')}
@@ -426,7 +339,7 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
 
   return (
     <>
-      <BreadcrumbFloatingTooltip label={label} state={tooltipState} />
+      <FloatingTooltip label={label} state={tooltipState} />
       <span
         className={cn(
           chipVariants({ variant: 'ghost', flush: true }),
@@ -476,6 +389,12 @@ function BreadcrumbLocationPopover({
     }, 120)
   }
 
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current)
+    }
+  }, [])
+
   return (
     <>
       <LocationFocusVeil visible={open} boundaryRef={veilBoundaryRef} />
@@ -500,7 +419,7 @@ function BreadcrumbLocationPopover({
               className
             )}
           >
-            <span className='relative inline-grid size-[14px] flex-shrink-0 place-items-center'>
+            <span className='relative inline-grid size-[14px] shrink-0 place-items-center'>
               <Icon className='col-start-1 row-start-1 size-[14px] text-[var(--text-icon)] opacity-100 blur-0 transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
               <ArrowUpLeft
                 strokeWidth={1.55}
@@ -517,7 +436,10 @@ function BreadcrumbLocationPopover({
           maxWidth={300}
           maxHeight={420}
           border
-          className='data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
+          className={cn(
+            POPOVER_ANIMATION_CLASSES,
+            'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
+          )}
           onMouseEnter={openPopover}
           onMouseLeave={scheduleClose}
           onMouseMove={openPopover}
@@ -608,7 +530,7 @@ function BreadcrumbLocationItem({
 }: BreadcrumbLocationItemProps) {
   const labelContent = (
     <>
-      <span className='flex size-[18px] flex-shrink-0 items-center justify-center'>
+      <span className='flex size-[18px] shrink-0 items-center justify-center'>
         {Icon ? (
           <Icon className='size-3 text-[var(--text-icon)]' />
         ) : (
@@ -668,50 +590,6 @@ interface BreadcrumbLabelProps {
   label: string
 }
 
-interface BreadcrumbFloatingTooltipState {
-  visible: boolean
-  x: number
-  y: number
-  skew: number
-  scaleX: number
-  scaleY: number
-  alignX: 'left' | 'right'
-  alignY: 'above' | 'below'
-}
-
-interface PointerSnapshot {
-  x: number
-  y: number
-  time: number
-}
-
-function BreadcrumbFloatingTooltip({
-  label,
-  state,
-}: {
-  label: string
-  state: BreadcrumbFloatingTooltipState
-}) {
-  if (typeof document === 'undefined' || !state.visible) return null
-
-  return createPortal(
-    <div
-      aria-hidden='true'
-      className={cn(
-        'pointer-events-none fixed top-0 left-0 z-[var(--z-tooltip)] w-fit max-w-[min(16rem,calc(100vw-2rem))] rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-[var(--text-body)] text-xs opacity-100 shadow-sm transition-[opacity,filter,transform] duration-150 ease-out',
-        'motion-reduce:transition-none'
-      )}
-      style={{
-        transform: `${getFloatingTooltipTranslate(state)} skew(${state.skew}deg) scale(${state.scaleX}, ${state.scaleY})`,
-        transformOrigin: state.alignX === 'left' ? '12px 12px' : 'calc(100% - 12px) 12px',
-      }}
-    >
-      <span className='block whitespace-normal break-words text-left leading-[18px]'>{label}</span>
-    </div>,
-    document.body
-  )
-}
-
 function isBreadcrumbTextClipped(
   labelElement: HTMLSpanElement | null,
   triggerElement: HTMLElement
@@ -727,49 +605,4 @@ function isBreadcrumbTextClipped(
     triggerElement.scrollWidth > triggerElement.clientWidth + 1 ||
     labelElement.scrollWidth > visibleLabelWidth + 1
   )
-}
-
-function getFloatingTooltipPosition(
-  clientX: number,
-  clientY: number
-): Pick<BreadcrumbFloatingTooltipState, 'x' | 'y' | 'alignX' | 'alignY'> {
-  if (typeof window === 'undefined') {
-    return { x: clientX, y: clientY, alignX: 'left', alignY: 'below' }
-  }
-
-  const alignX = window.innerWidth - clientX < FLOATING_TOOLTIP_EDGE_THRESHOLD ? 'right' : 'left'
-  const alignY =
-    window.innerHeight - clientY < FLOATING_TOOLTIP_EDGE_THRESHOLD / 2 ? 'above' : 'below'
-
-  return {
-    x: clamp(
-      clientX,
-      FLOATING_TOOLTIP_EDGE_GUTTER,
-      window.innerWidth - FLOATING_TOOLTIP_EDGE_GUTTER
-    ),
-    y: clamp(
-      clientY,
-      FLOATING_TOOLTIP_EDGE_GUTTER,
-      window.innerHeight - FLOATING_TOOLTIP_EDGE_GUTTER
-    ),
-    alignX,
-    alignY,
-  }
-}
-
-function getFloatingTooltipTranslate(state: BreadcrumbFloatingTooltipState): string {
-  const xOffset =
-    state.alignX === 'left'
-      ? `${FLOATING_TOOLTIP_OFFSET}px`
-      : `calc(-100% - ${FLOATING_TOOLTIP_OFFSET}px)`
-  const yOffset =
-    state.alignY === 'below'
-      ? `${FLOATING_TOOLTIP_OFFSET}px`
-      : `calc(-100% - ${FLOATING_TOOLTIP_OFFSET}px)`
-
-  return `translate3d(${state.x}px, ${state.y}px, 0) translate(${xOffset}, ${yOffset})`
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value))
 }

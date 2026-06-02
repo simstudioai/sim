@@ -610,10 +610,7 @@ export function Document({
               void goToPage(1)
             }}
             overlayContent={
-              <FloatingOverflowText
-                label={enabledDisplayLabel}
-                className='block truncate text-[var(--text-primary)]'
-              />
+              <span className='truncate text-[var(--text-primary)]'>{enabledDisplayLabel}</span>
             }
             showAllOption
             allOptionLabel='All'
@@ -982,15 +979,15 @@ export function Document({
     ]
   )
 
-  const newChunkBreadcrumbs = useMemo(
-    () => [...editorBreadcrumbBase, { label: 'New Chunk' }],
+  const newChunkBreadcrumbs = useMemo<BreadcrumbItem[]>(
+    () => [...editorBreadcrumbBase, { label: 'New Chunk', terminal: true }],
     [editorBreadcrumbBase]
   )
 
-  const editChunkBreadcrumbs = useMemo(
+  const editChunkBreadcrumbs = useMemo<BreadcrumbItem[]>(
     () => [
       ...editorBreadcrumbBase,
-      { label: selectedChunk ? `Chunk #${selectedChunk.chunkIndex}` : '' },
+      { label: selectedChunk ? `Chunk #${selectedChunk.chunkIndex}` : '', terminal: true },
     ],
     [editorBreadcrumbBase, selectedChunk?.chunkIndex]
   )
@@ -1004,7 +1001,7 @@ export function Document({
         onClick: handleNavToKBDetail,
       },
       { label: effectiveDocumentName, icon: DocumentIcon, onClick: handleClearSelectedChunk },
-      { label: 'Loading...' },
+      { label: 'Loading...', terminal: true },
     ],
     [
       handleNavToKB,

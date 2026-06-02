@@ -25,7 +25,6 @@ import {
   Resource,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { ScheduleModal } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/create-schedule-modal'
 import { ScheduleContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-context-menu'
 import { ScheduleListContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-list-context-menu'
@@ -295,10 +294,9 @@ export function ScheduledTasks() {
             multiSelectValues={scheduleTypeFilter}
             onMultiSelectChange={setScheduleTypeFilter}
             overlayContent={
-              <FloatingOverflowText
-                label={scheduleTypeDisplayLabel}
-                className='block truncate text-[var(--text-primary)]'
-              />
+              <span className='truncate text-[var(--text-primary)]'>
+                {scheduleTypeDisplayLabel}
+              </span>
             }
             showAllOption
             allOptionLabel='All'
@@ -317,10 +315,7 @@ export function ScheduledTasks() {
             multiSelectValues={statusFilter}
             onMultiSelectChange={setStatusFilter}
             overlayContent={
-              <FloatingOverflowText
-                label={statusDisplayLabel}
-                className='block truncate text-[var(--text-primary)]'
-              />
+              <span className='truncate text-[var(--text-primary)]'>{statusDisplayLabel}</span>
             }
             showAllOption
             allOptionLabel='All'
@@ -336,10 +331,7 @@ export function ScheduledTasks() {
             multiSelectValues={healthFilter}
             onMultiSelectChange={setHealthFilter}
             overlayContent={
-              <FloatingOverflowText
-                label={healthDisplayLabel}
-                className='block truncate text-[var(--text-primary)]'
-              />
+              <span className='truncate text-[var(--text-primary)]'>{healthDisplayLabel}</span>
             }
             showAllOption
             allOptionLabel='All'
