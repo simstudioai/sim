@@ -4598,6 +4598,7 @@ export function useChat(
         ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
         ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
         ...(c.kind === 'skill' && 'skillId' in c ? { skillId: c.skillId } : {}),
+        ...(c.kind === 'integration' && 'blockType' in c ? { blockType: c.blockType } : {}),
       }))
       const cachedUserMsg: PersistedMessage = {
         id: userMessageId,
