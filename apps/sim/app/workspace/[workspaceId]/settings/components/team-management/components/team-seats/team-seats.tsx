@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
-  Button,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
   Combobox,
   type ComboboxOption,
-  Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Tooltip,
 } from '@/components/emcn'
 
@@ -65,40 +65,37 @@ export function TeamSeats({
   }))
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size='sm'>
-        <ModalHeader>{title}</ModalHeader>
-        <ModalBody>
-          <ModalDescription className='text-[var(--text-secondary)]'>
-            {description}
-          </ModalDescription>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={title}>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>{title}</ChipModalHeader>
+      <ChipModalBody>
+        <p className='px-2 text-[var(--text-secondary)] text-sm'>{description}</p>
 
-          <div className='mt-4 flex flex-col gap-1'>
-            <Label htmlFor='seats' className='text-small'>
-              Number of seats
-            </Label>
-            <Combobox
-              options={seatOptions}
-              value={selectedSeats > 0 ? selectedSeats.toString() : ''}
-              onChange={(value) => {
-                const num = Number.parseInt(value, 10)
-                if (!Number.isNaN(num) && num > 0) {
-                  setSelectedSeats(num)
-                }
-              }}
-              placeholder='Select or enter number of seats'
-              editable
-              disabled={isLoading}
-            />
-          </div>
+        <ChipModalField type='custom' title='Number of seats'>
+          <Combobox
+            options={seatOptions}
+            value={selectedSeats > 0 ? selectedSeats.toString() : ''}
+            onChange={(value) => {
+              const num = Number.parseInt(value, 10)
+              if (!Number.isNaN(num) && num > 0) {
+                setSelectedSeats(num)
+              }
+            }}
+            placeholder='Select or enter number of seats'
+            editable
+            disabled={isLoading}
+          />
+        </ChipModalField>
 
-          <p className='mt-3 text-[var(--text-muted)] text-small'>
+        <ChipModalField type='custom' title=''>
+          <p className='px-2 text-[var(--text-muted)] text-small'>
             Your team will have {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} with a
             total of {(selectedSeats * seatCredits).toLocaleString()} inference credits per month.
           </p>
+        </ChipModalField>
 
-          {showCostBreakdown && currentSeats !== undefined && (
-            <div className='mt-4 rounded-md border border-[var(--border-1)] bg-[var(--surface-4)] px-3 py-2.5'>
+        {showCostBreakdown && currentSeats !== undefined && (
+          <ChipModalField type='custom' title=''>
+            <div className='rounded-md border border-[var(--border-1)] bg-[var(--surface-4)] px-3 py-2.5'>
               <div className='flex justify-between text-small'>
                 <span className='text-[var(--text-muted)]'>Current seats:</span>
                 <span className='text-[var(--text-primary)]'>{currentSeats}</span>
@@ -120,48 +117,45 @@ export function TeamSeats({
                 </span>
               </div>
             </div>
+          </ChipModalField>
+        )}
+
+        <ChipModalError>{error ? getErrorMessage(error) : undefined}</ChipModalError>
+      </ChipModalBody>
+
+      <ChipModalFooter>
+        <Chip variant='filled' flush onClick={() => onOpenChange(false)}>
+          Cancel
+        </Chip>
+
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <span>
+              <Chip
+                variant='primary'
+                flush
+                onClick={() => onConfirm(selectedSeats)}
+                disabled={
+                  isLoading ||
+                  selectedSeats < 1 ||
+                  (showCostBreakdown && selectedSeats === currentSeats) ||
+                  isCancelledAtPeriodEnd
+                }
+              >
+                {isLoading ? 'Updating...' : confirmButtonText}
+              </Chip>
+            </span>
+          </Tooltip.Trigger>
+          {isCancelledAtPeriodEnd && (
+            <Tooltip.Content>
+              <p>
+                To update seats, go to Subscription {'>'} Manage {'>'} Keep Subscription to
+                reactivate
+              </p>
+            </Tooltip.Content>
           )}
-
-          {error && (
-            <p className='mt-3 text-[var(--text-error)] text-small'>
-              {error instanceof Error && error.message ? error.message : String(error)}
-            </p>
-          )}
-        </ModalBody>
-
-        <ModalFooter>
-          <Button variant='default' onClick={() => onOpenChange(false)} disabled={isLoading}>
-            Cancel
-          </Button>
-
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <span>
-                <Button
-                  variant='primary'
-                  onClick={() => onConfirm(selectedSeats)}
-                  disabled={
-                    isLoading ||
-                    selectedSeats < 1 ||
-                    (showCostBreakdown && selectedSeats === currentSeats) ||
-                    isCancelledAtPeriodEnd
-                  }
-                >
-                  {isLoading ? 'Updating...' : confirmButtonText}
-                </Button>
-              </span>
-            </Tooltip.Trigger>
-            {isCancelledAtPeriodEnd && (
-              <Tooltip.Content>
-                <p>
-                  To update seats, go to Subscription {'>'} Manage {'>'} Keep Subscription to
-                  reactivate
-                </p>
-              </Tooltip.Content>
-            )}
-          </Tooltip.Root>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+        </Tooltip.Root>
+      </ChipModalFooter>
+    </ChipModal>
   )
 }

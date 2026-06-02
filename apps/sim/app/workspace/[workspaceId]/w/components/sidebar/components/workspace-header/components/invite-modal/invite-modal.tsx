@@ -5,6 +5,11 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import {
   Button,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   type FileInputOptions,
   Label,
   Modal,
@@ -656,68 +661,74 @@ export function InviteModal({
       </ModalContent>
 
       {/* Remove Member Confirmation Dialog */}
-      <Modal open={!!memberToRemove} onOpenChange={handleRemoveMemberCancel}>
-        <ModalContent size='sm'>
-          <ModalHeader>Remove Member</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to remove{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {memberToRemove?.email}
-              </span>{' '}
-              from this workspace? This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={handleRemoveMemberCancel}
-              disabled={isRemovingMember}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleRemoveMemberConfirm}
-              disabled={isRemovingMember}
-            >
-              {isRemovingMember ? 'Removing...' : 'Remove Member'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={!!memberToRemove}
+        onOpenChange={handleRemoveMemberCancel}
+        srTitle='Remove Member'
+      >
+        <ChipModalHeader showDivider={false}>Remove Member</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to remove{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{memberToRemove?.email}</span>{' '}
+            from this workspace? This action cannot be undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={handleRemoveMemberCancel}
+            disabled={isRemovingMember}
+          >
+            Cancel
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={handleRemoveMemberConfirm}
+            disabled={isRemovingMember}
+          >
+            Remove Member
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
 
-      {/* Remove Invitation Confirmation Dialog */}
-      <Modal open={!!invitationToRemove} onOpenChange={handleRemoveInvitationCancel}>
-        <ModalContent size='sm'>
-          <ModalHeader>Cancel Invitation</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to cancel the invitation for{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {invitationToRemove?.email}
-              </span>
-              ? This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={handleRemoveInvitationCancel}
-              disabled={isRemovingInvitation}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleRemoveInvitationConfirm}
-              disabled={isRemovingInvitation}
-            >
-              {isRemovingInvitation ? 'Cancelling...' : 'Cancel Invitation'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      {/* Cancel Invitation Confirmation Dialog */}
+      <ChipModal
+        open={!!invitationToRemove}
+        onOpenChange={handleRemoveInvitationCancel}
+        srTitle='Cancel Invitation'
+      >
+        <ChipModalHeader showDivider={false}>Cancel Invitation</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to cancel the invitation for{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {invitationToRemove?.email}
+            </span>
+            ? This action cannot be undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={handleRemoveInvitationCancel}
+            disabled={isRemovingInvitation}
+          >
+            Cancel
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={handleRemoveInvitationConfirm}
+            disabled={isRemovingInvitation}
+          >
+            Cancel Invitation
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </Modal>
   )
 }

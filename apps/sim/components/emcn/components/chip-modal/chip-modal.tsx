@@ -111,15 +111,30 @@ export interface ChipModalHeaderProps extends React.HTMLAttributes<HTMLDivElemen
   onClose?: () => void
   /** Accessible label for the close button. */
   closeAriaLabel?: string
+  /**
+   * Whether to render the divider line below the header title.
+   * Set to `false` for compact confirmations (destructive / disconnect flows)
+   * where the body is plain prose rather than labeled fields.
+   * @default true
+   */
+  showDivider?: boolean
 }
 
 /**
  * Header row with optional leading icon, title, and optional trailing close.
- * Renders an inset separator below the title to match the panel's rhythm.
+ * Renders an inset divider below the title to match the panel's rhythm.
  */
 const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
   (
-    { className, children, icon: Icon = null, onClose, closeAriaLabel = 'Close', ...props },
+    {
+      className,
+      children,
+      icon: Icon = null,
+      onClose,
+      closeAriaLabel = 'Close',
+      showDivider = true,
+      ...props
+    },
     ref
   ) => (
     <div ref={ref} className={cn('flex flex-col', className)} {...props}>
@@ -140,7 +155,7 @@ const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
           </Button>
         ) : null}
       </div>
-      <ChipModalSeparator className='mt-3' />
+      {showDivider && <ChipModalSeparator className='mt-3' />}
     </div>
   )
 )
@@ -358,7 +373,7 @@ const ChipModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HT
       <div
         ref={ref}
         className={cn(
-          'flex items-center justify-end bg-[var(--surface-3)] px-4 pt-2 pb-2',
+          'flex items-center justify-end gap-2 bg-[var(--surface-3)] px-4 pt-2 pb-2',
           className
         )}
         {...props}

@@ -5,16 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import {
-  Button,
-  Chip,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-} from '@/components/emcn'
+import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@/components/emcn'
 import { AgentSkillsIcon } from '@/components/icons'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
@@ -213,26 +204,24 @@ export function Skills() {
         initialValues={editingSkill ?? undefined}
       />
 
-      <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Skill</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{skillToDelete?.name}</span>?{' '}
-              This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setShowDeleteDialog(false)}>
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDeleteSkill}>
-              Delete
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal open={showDeleteDialog} onOpenChange={setShowDeleteDialog} srTitle='Delete Skill'>
+        <ChipModalHeader showDivider={false}>Delete Skill</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{skillToDelete?.name}</span>?{' '}
+            This action cannot be undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={() => setShowDeleteDialog(false)}>
+            Cancel
+          </Chip>
+          <Chip variant='destructive' flush onClick={handleDeleteSkill}>
+            Delete
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </div>
   )
 }

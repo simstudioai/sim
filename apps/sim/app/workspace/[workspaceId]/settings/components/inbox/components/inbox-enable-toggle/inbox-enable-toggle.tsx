@@ -4,14 +4,12 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import {
-  Button,
-  Input as EmcnInput,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
   Switch,
 } from '@/components/emcn'
 import { useInboxConfig, useToggleInbox } from '@/hooks/queries/inbox'
@@ -79,69 +77,71 @@ export function InboxEnableToggle() {
         />
       </div>
 
-      <Modal open={isEnableOpen} onOpenChange={setIsEnableOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Enable email inbox</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              An email address will be created for this workspace. Anyone in the allowed senders
-              list can email it to create tasks.
-            </ModalDescription>
-            <div className='mt-4 flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                Custom email prefix (optional)
-              </p>
-              <EmcnInput
-                value={enableUsername}
-                onChange={(e) => setEnableUsername(e.target.value)}
-                placeholder='e.g., acme'
-                className='h-9'
-              />
-              <p className='text-[var(--text-muted)] text-caption'>
-                Leave blank for an auto-generated address.
-              </p>
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setIsEnableOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant='primary' onClick={handleEnable} disabled={toggleInbox.isPending}>
-              {toggleInbox.isPending ? 'Enabling...' : 'Enable'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal open={isEnableOpen} onOpenChange={setIsEnableOpen} srTitle='Enable email inbox'>
+        <ChipModalHeader onClose={() => setIsEnableOpen(false)}>Enable email inbox</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            An email address will be created for this workspace. Anyone in the allowed senders list
+            can email it to create tasks.
+          </p>
+          <ChipModalField
+            type='input'
+            title='Email prefix'
+            value={enableUsername}
+            onChange={setEnableUsername}
+            placeholder='Optional — leave blank to auto-generate'
+          />
+          <p className='px-2 text-[var(--text-muted)] text-sm'>
+            Leave blank for an auto-generated address.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={() => setIsEnableOpen(false)}>
+            Cancel
+          </Chip>
+          <Chip variant='primary' flush onClick={handleEnable} disabled={toggleInbox.isPending}>
+            Enable
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
 
-      <Modal open={isDisableOpen} onOpenChange={setIsDisableOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Disable email inbox</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to disable the inbox
-              {config?.address && (
-                <>
-                  {' '}
-                  <span className='font-medium text-[var(--text-primary)]'>{config.address}</span>
-                </>
-              )}
-              ? Any emails sent to this address after disabling will not be delivered. This action
-              cannot be undone.
-            </ModalDescription>
-            <p className='mt-2 text-[var(--text-secondary)]'>
-              Your existing conversations and task history will be preserved.
-            </p>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setIsDisableOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDisable} disabled={toggleInbox.isPending}>
-              {toggleInbox.isPending ? 'Disabling...' : 'Disable inbox'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal open={isDisableOpen} onOpenChange={setIsDisableOpen} srTitle='Disable email inbox'>
+        <ChipModalHeader showDivider={false}>Disable email inbox</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to disable the inbox
+            {config?.address && (
+              <>
+                {' '}
+                <span className='font-medium text-[var(--text-primary)]'>{config.address}</span>
+              </>
+            )}
+            ? Any emails sent to this address after disabling will not be delivered. This action
+            cannot be undone.
+          </p>
+          <p className='mt-2 px-2 text-[var(--text-secondary)] text-sm'>
+            Your existing conversations and task history will be preserved.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            disabled={toggleInbox.isPending}
+            onClick={() => setIsDisableOpen(false)}
+          >
+            Cancel
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            disabled={toggleInbox.isPending}
+            onClick={handleDisable}
+          >
+            {toggleInbox.isPending ? 'Disabling...' : 'Disable inbox'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </>
   )
 }

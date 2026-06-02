@@ -385,117 +385,119 @@ export function RecentlyDeleted() {
   }
 
   return (
-    <div className='flex h-full flex-col gap-4.5'>
-      <div className='flex items-center gap-2'>
-        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-          <Search
-            className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-            strokeWidth={2}
-          />
-          <Input
-            placeholder='Search deleted items...'
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            disabled={isLoading}
-            className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-          />
-        </div>
-        <div className='w-[190px] shrink-0'>
-          <Combobox
-            size='sm'
-            align='end'
-            disabled={isLoading}
-            value={`${selectedSort.column}:${selectedSort.direction}`}
-            onChange={(value) => {
-              const option = SORT_OPTIONS.find(
-                (sortOption) => `${sortOption.column}:${sortOption.direction}` === value
-              )
-              if (option) {
-                setActiveSort({ column: option.column, direction: option.direction })
-              }
-            }}
-            options={SORT_OPTIONS.map((option) => ({
-              label: option.label,
-              value: `${option.column}:${option.direction}`,
-            }))}
-            className='h-[30px] rounded-lg border-[var(--border)] bg-transparent px-2.5 text-small dark:bg-[var(--surface-4)]'
-          />
-        </div>
-      </div>
-
-      <SModalTabs value={activeTab} onValueChange={(v) => setActiveTab(v as ResourceType)}>
-        <SModalTabsList activeValue={activeTab} className='border-[var(--border)] border-b'>
-          {TABS.map((tab) => (
-            <SModalTabsTrigger key={tab.id} value={tab.id}>
-              {tab.label}
-            </SModalTabsTrigger>
-          ))}
-        </SModalTabsList>
-      </SModalTabs>
-
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        {error ? (
-          <div className='flex h-full flex-col items-center justify-center gap-2'>
-            <p className='text-[var(--text-error)] text-xs leading-tight'>
-              {toError(error).message || 'Failed to load deleted items'}
-            </p>
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
+          <div className='flex items-center gap-2'>
+            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+              <Search
+                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+                strokeWidth={2}
+              />
+              <Input
+                placeholder='Search deleted items...'
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                disabled={isLoading}
+                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              />
+            </div>
+            <div className='w-[190px] shrink-0'>
+              <Combobox
+                size='sm'
+                align='end'
+                disabled={isLoading}
+                value={`${selectedSort.column}:${selectedSort.direction}`}
+                onChange={(value) => {
+                  const option = SORT_OPTIONS.find(
+                    (sortOption) => `${sortOption.column}:${sortOption.direction}` === value
+                  )
+                  if (option) {
+                    setActiveSort({ column: option.column, direction: option.direction })
+                  }
+                }}
+                options={SORT_OPTIONS.map((option) => ({
+                  label: option.label,
+                  value: `${option.column}:${option.direction}`,
+                }))}
+                className='h-[30px] rounded-lg border-[var(--border)] bg-transparent px-2.5 text-small dark:bg-[var(--surface-4)]'
+              />
+            </div>
           </div>
-        ) : isLoading ? null : filtered.length === 0 ? (
-          <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-            {showNoResults
-              ? `No items found matching \u201c${searchTerm}\u201d`
-              : 'No deleted items'}
-          </div>
-        ) : (
-          <div className='flex flex-col gap-2'>
-            {filtered.map((resource) => {
-              const isRestoring = restoringIds.has(resource.id)
-              const isRestored = restoredItems.has(resource.id)
 
-              return (
-                <div
-                  key={resource.id}
-                  className='flex items-center gap-3 rounded-md px-2 py-2 hover-hover:bg-[var(--bg-hover)]'
-                >
-                  <ResourceIcon resource={resource} />
+          <SModalTabs value={activeTab} onValueChange={(v) => setActiveTab(v as ResourceType)}>
+            <SModalTabsList activeValue={activeTab} className='border-[var(--border)] border-b'>
+              {TABS.map((tab) => (
+                <SModalTabsTrigger key={tab.id} value={tab.id}>
+                  {tab.label}
+                </SModalTabsTrigger>
+              ))}
+            </SModalTabsList>
+          </SModalTabs>
 
-                  <div className='flex min-w-0 flex-1 flex-col'>
-                    <span className='truncate font-medium text-[var(--text-primary)] text-small'>
-                      {resource.name}
-                    </span>
-                    <span className='text-[var(--text-tertiary)] text-caption'>
-                      {TYPE_LABEL[resource.type]}
-                      {' \u00b7 '}
-                      Deleted {formatDate(resource.deletedAt)}
-                    </span>
-                  </div>
+          {error ? (
+            <div className='flex flex-col items-center justify-center gap-2 py-16'>
+              <p className='text-[var(--text-error)] text-xs leading-tight'>
+                {toError(error).message || 'Failed to load deleted items'}
+              </p>
+            </div>
+          ) : isLoading ? null : filtered.length === 0 ? (
+            <div className='flex items-center justify-center py-16 text-[var(--text-muted)] text-sm'>
+              {showNoResults
+                ? `No items found matching \u201c${searchTerm}\u201d`
+                : 'No deleted items'}
+            </div>
+          ) : (
+            <div className='flex flex-col gap-2'>
+              {filtered.map((resource) => {
+                const isRestoring = restoringIds.has(resource.id)
+                const isRestored = restoredItems.has(resource.id)
 
-                  {isRestoring ? (
-                    <Button variant='primary' size='sm' disabled className='shrink-0'>
-                      Restoring...
-                    </Button>
-                  ) : isRestored ? (
-                    <div className='flex shrink-0 items-center gap-2'>
-                      <span className='text-[var(--text-tertiary)] text-small'>Restored</span>
-                      <Button variant='primary' size='sm' onClick={() => handleView(resource)}>
-                        View
-                      </Button>
+                return (
+                  <div
+                    key={resource.id}
+                    className='flex items-center gap-3 rounded-md px-2 py-2 hover-hover:bg-[var(--bg-hover)]'
+                  >
+                    <ResourceIcon resource={resource} />
+
+                    <div className='flex min-w-0 flex-1 flex-col'>
+                      <span className='truncate font-medium text-[var(--text-primary)] text-small'>
+                        {resource.name}
+                      </span>
+                      <span className='text-[var(--text-tertiary)] text-caption'>
+                        {TYPE_LABEL[resource.type]}
+                        {' \u00b7 '}
+                        Deleted {formatDate(resource.deletedAt)}
+                      </span>
                     </div>
-                  ) : (
-                    <Button
-                      variant='primary'
-                      size='sm'
-                      onClick={() => void handleRestore(resource)}
-                      className='shrink-0'
-                    >
-                      Restore
-                    </Button>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
+
+                    {isRestoring ? (
+                      <Button variant='primary' size='sm' disabled className='shrink-0'>
+                        Restoring...
+                      </Button>
+                    ) : isRestored ? (
+                      <div className='flex shrink-0 items-center gap-2'>
+                        <span className='text-[var(--text-tertiary)] text-small'>Restored</span>
+                        <Button variant='primary' size='sm' onClick={() => handleView(resource)}>
+                          View
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant='primary'
+                        size='sm'
+                        onClick={() => void handleRestore(resource)}
+                        className='shrink-0'
+                      >
+                        Restore
+                      </Button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

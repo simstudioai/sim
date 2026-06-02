@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   Combobox,
   type ComboboxOption,
   Input,
@@ -414,49 +419,52 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
       </Modal>
 
       {/* Delete Tag Confirmation Dialog */}
-      <Modal open={deleteTagDialogOpen} onOpenChange={setDeleteTagDialogOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Tag</ModalHeader>
-          <ModalBody>
-            <div className='space-y-2'>
-              <ModalDescription className='text-[var(--text-secondary)]'>
-                Are you sure you want to delete the "{selectedTag?.displayName}" tag?{' '}
-                <span className='text-[var(--text-error)]'>
-                  This will remove this tag from {selectedTagUsage?.documentCount || 0} document
-                  {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.
-                </span>{' '}
-                This action cannot be undone.
-              </ModalDescription>
-
-              {selectedTagUsage && selectedTagUsage.documentCount > 0 && (
-                <div className='flex flex-col gap-2'>
-                  <Label>Affected documents:</Label>
-                  <DocumentList
-                    documents={selectedTagUsage.documents}
-                    totalCount={selectedTagUsage.documentCount}
-                  />
-                </div>
-              )}
+      <ChipModal
+        open={deleteTagDialogOpen}
+        onOpenChange={setDeleteTagDialogOpen}
+        srTitle='Delete Tag'
+      >
+        <ChipModalHeader showDivider={false}>Delete Tag</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete the &ldquo;
+            <span className='text-[var(--text-primary)]'>{selectedTag?.displayName}</span>&rdquo;
+            tag?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will remove this tag from {selectedTagUsage?.documentCount || 0} document
+              {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.
+            </span>{' '}
+            This action cannot be undone.
+          </p>
+          {selectedTagUsage && selectedTagUsage.documentCount > 0 && (
+            <div className='flex flex-col gap-2 px-2'>
+              <Label>Affected documents:</Label>
+              <DocumentList
+                documents={selectedTagUsage.documents}
+                totalCount={selectedTagUsage.documentCount}
+              />
             </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              disabled={deleteTagMutation.isPending}
-              onClick={() => setDeleteTagDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={confirmDeleteTag}
-              disabled={deleteTagMutation.isPending}
-            >
-              {deleteTagMutation.isPending ? 'Deleting...' : 'Delete Tag'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          )}
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            disabled={deleteTagMutation.isPending}
+            onClick={() => setDeleteTagDialogOpen(false)}
+          >
+            Cancel
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={confirmDeleteTag}
+            disabled={deleteTagMutation.isPending}
+          >
+            Delete Tag
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
 
       {/* View Documents Dialog */}
       <Modal open={viewDocumentsDialogOpen} onOpenChange={setViewDocumentsDialogOpen}>

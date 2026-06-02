@@ -8,15 +8,14 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   Input,
   Label,
   Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Skeleton,
   TagInput,
   type TagItem,
@@ -363,6 +362,7 @@ export function ChatDeploy({
               onOutputSelect={(values) => updateField('selectedOutputBlocks', values)}
               placeholder='Select which block outputs to use'
               disabled={chatSubmitting}
+              className='w-full'
             />
             {errors.outputBlocks && (
               <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>
@@ -413,41 +413,45 @@ export function ChatDeploy({
         </div>
       </form>
 
-      <Modal open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Chat</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {existingChat?.title || 'this chat'}
-              </span>
-              ?{' '}
-              <span className='text-[var(--text-error)]'>
-                This will remove the chat at "{getEmailDomain()}/chat/{existingChat?.identifier}"
-                and make it unavailable to all users.
-              </span>{' '}
-              This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => setShowDeleteConfirmation(false)}
-              disabled={deleteChatMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleDelete}
-              disabled={deleteChatMutation.isPending}
-            >
-              {deleteChatMutation.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={showDeleteConfirmation}
+        onOpenChange={setShowDeleteConfirmation}
+        srTitle='Delete Chat'
+      >
+        <ChipModalHeader showDivider={false}>Delete Chat</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {existingChat?.title || 'this chat'}
+            </span>
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will remove the chat at "{getEmailDomain()}/chat/{existingChat?.identifier}" and
+              make it unavailable to all users.
+            </span>{' '}
+            This action cannot be undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={() => setShowDeleteConfirmation(false)}
+            disabled={deleteChatMutation.isPending}
+          >
+            Cancel
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={handleDelete}
+            disabled={deleteChatMutation.isPending}
+          >
+            Delete
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </>
   )
 }

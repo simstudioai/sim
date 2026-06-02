@@ -5,14 +5,12 @@ import { createLogger } from '@sim/logger'
 import { formatAbsoluteDate } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
 import {
-  Button,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   Combobox,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
 } from '@/components/emcn'
 import { Calendar } from '@/components/emcn/icons'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
@@ -448,39 +446,43 @@ export function ScheduledTasks() {
         schedule={activeTask ?? undefined}
       />
 
-      <Modal open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Scheduled Task</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {activeTask?.jobTitle || 'this task'}
-              </span>
-              ? This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => {
-                setIsDeleteDialogOpen(false)
-                setActiveTask(null)
-              }}
-              disabled={deleteSchedule.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleDelete}
-              disabled={deleteSchedule.isPending}
-            >
-              {deleteSchedule.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        srTitle='Delete Scheduled Task'
+      >
+        <ChipModalHeader showDivider={false}>Delete Scheduled Task</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {activeTask?.jobTitle || 'this task'}
+            </span>
+            ? This action cannot be undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={() => {
+              setIsDeleteDialogOpen(false)
+              setActiveTask(null)
+            }}
+            disabled={deleteSchedule.isPending}
+          >
+            Cancel
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={handleDelete}
+            disabled={deleteSchedule.isPending}
+          >
+            {deleteSchedule.isPending ? 'Deleting...' : 'Delete'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </>
   )
 }

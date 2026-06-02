@@ -5,14 +5,12 @@ import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import type { ComboboxOption } from '@/components/emcn'
 import {
-  Button,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   Combobox,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   toast,
   Upload,
 } from '@/components/emcn'
@@ -547,36 +545,39 @@ export function Tables() {
         />
       )}
 
-      <Modal open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Table</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
-              <span className='text-[var(--text-error)]'>
-                All {activeTable?.rowCount} rows will be removed.
-              </span>{' '}
-              You can restore it from Recently Deleted in Settings.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => {
-                setIsDeleteDialogOpen(false)
-                setActiveTable(null)
-              }}
-              disabled={deleteTable.isPending}
-            >
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDelete} disabled={deleteTable.isPending}>
-              {deleteTable.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        srTitle='Delete Table'
+      >
+        <ChipModalHeader showDivider={false}>Delete Table</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
+            <span className='text-[var(--text-error)]'>
+              All {activeTable?.rowCount} rows will be removed.
+            </span>{' '}
+            You can restore it from Recently Deleted in Settings.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={() => {
+              setIsDeleteDialogOpen(false)
+              setActiveTable(null)
+            }}
+            disabled={deleteTable.isPending}
+          >
+            Cancel
+          </Chip>
+          <Chip variant='destructive' flush onClick={handleDelete} disabled={deleteTable.isPending}>
+            {deleteTable.isPending ? 'Deleting...' : 'Delete'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </>
   )
 }

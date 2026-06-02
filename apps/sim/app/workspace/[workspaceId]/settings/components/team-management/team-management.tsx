@@ -380,118 +380,122 @@ export function TeamManagement() {
   }
 
   return (
-    <div className='flex h-full flex-col gap-5'>
-      <div>
-        <TeamSeatsOverview
-          subscriptionData={subscriptionData || null}
-          isLoadingSubscription={isLoadingSubscription}
-          totalSeats={totalSeats}
-          usedSeats={usedSeats}
-          isLoading={isLoading}
-          onAddSeatDialog={handleAddSeatDialog}
-        />
-      </div>
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-5 pt-6 pb-6'>
+          <div>
+            <TeamSeatsOverview
+              subscriptionData={subscriptionData || null}
+              isLoadingSubscription={isLoadingSubscription}
+              totalSeats={totalSeats}
+              usedSeats={usedSeats}
+              isLoading={isLoading}
+              onAddSeatDialog={handleAddSeatDialog}
+            />
+          </div>
 
-      {!isInvitationsDisabled && (
-        <div>
-          <MemberInvitationCard
-            inviteEmails={inviteEmails}
-            setInviteEmails={setInviteEmails}
-            isInviting={inviteMutation.isPending}
-            showWorkspaceInvite={showWorkspaceInvite}
-            setShowWorkspaceInvite={setShowWorkspaceInvite}
-            selectedWorkspaces={selectedWorkspaces}
-            userWorkspaces={adminWorkspaces}
-            onInviteMember={handleInviteMember}
-            onLoadUserWorkspaces={async () => {}}
-            onWorkspaceToggle={handleWorkspaceToggle}
-            inviteSuccess={inviteSuccess}
-            availableSeats={Math.max(0, totalSeats - usedSeats)}
-            maxSeats={totalSeats}
-            invitationError={inviteMutation.error}
-            isLoadingWorkspaces={isLoadingWorkspaces}
+          {!isInvitationsDisabled && (
+            <div>
+              <MemberInvitationCard
+                inviteEmails={inviteEmails}
+                setInviteEmails={setInviteEmails}
+                isInviting={inviteMutation.isPending}
+                showWorkspaceInvite={showWorkspaceInvite}
+                setShowWorkspaceInvite={setShowWorkspaceInvite}
+                selectedWorkspaces={selectedWorkspaces}
+                userWorkspaces={adminWorkspaces}
+                onInviteMember={handleInviteMember}
+                onLoadUserWorkspaces={async () => {}}
+                onWorkspaceToggle={handleWorkspaceToggle}
+                inviteSuccess={inviteSuccess}
+                availableSeats={Math.max(0, totalSeats - usedSeats)}
+                maxSeats={totalSeats}
+                invitationError={inviteMutation.error}
+                isLoadingWorkspaces={isLoadingWorkspaces}
+              />
+            </div>
+          )}
+
+          <OrganizationRoster
+            organizationId={displayOrganization.id}
+            roster={roster ?? null}
+            isLoadingRoster={isLoadingRoster}
+            currentUserEmail={session?.user?.email ?? ''}
+            currentUserId={session?.user?.id ?? ''}
+            isAdminOrOwner={adminOrOwner}
+            onRemoveMember={handleRemoveMember}
+            onTransferOwnership={handleOpenTransferDialog}
           />
+
+          <TransferOwnershipDialog
+            open={transferDialogOpen}
+            onOpenChange={handleTransferDialogOpenChange}
+            members={roster?.members ?? []}
+            isLoadingMembers={isLoadingRoster}
+            currentUserId={session?.user?.id ?? ''}
+            isSubmitting={transferOwnershipMutation.isPending}
+            error={transferOwnershipMutation.error}
+            portalError={transferPortalError}
+            hasPaidSubscription={Boolean(subscriptionData)}
+            isOpeningBillingPortal={openBillingPortal.isPending}
+            onConfirm={handleConfirmTransfer}
+            onOpenBillingPortal={handleOpenTransferBillingPortal}
+          />
+
+          <RemoveMemberDialog
+            open={removeMemberDialog.open}
+            memberName={removeMemberDialog.memberName}
+            shouldReduceSeats={removeMemberDialog.shouldReduceSeats}
+            canReduceSeats={canReduceSubscriptionSeats}
+            isSelfRemoval={removeMemberDialog.isSelfRemoval}
+            isExternalRemoval={removeMemberDialog.isExternalRemoval}
+            isSubmitting={removeMemberMutation.isPending}
+            error={removeMemberMutation.error}
+            onOpenChange={(open: boolean) => {
+              if (!open) setRemoveMemberDialog({ ...removeMemberDialog, open: false })
+            }}
+            onShouldReduceSeatsChange={(shouldReduce: boolean) =>
+              setRemoveMemberDialog({
+                ...removeMemberDialog,
+                shouldReduceSeats: shouldReduce,
+              })
+            }
+            onConfirmRemove={confirmRemoveMember}
+            onCancel={() =>
+              setRemoveMemberDialog({
+                open: false,
+                memberId: '',
+                memberName: '',
+                shouldReduceSeats: false,
+                isSelfRemoval: false,
+                isExternalRemoval: false,
+              })
+            }
+          />
+
+          {subscriptionData && !checkEnterprisePlan(subscriptionData) && (
+            <TeamSeats
+              open={isAddSeatDialogOpen}
+              onOpenChange={setIsAddSeatDialogOpen}
+              title='Add Team Seats'
+              description={`Each seat costs $${costPerSeat}/month and provides ${creditsPerSeat.toLocaleString()} monthly inference credits. Adjust the number of licensed seats for your team.`}
+              currentSeats={totalSeats}
+              initialSeats={newSeatCount}
+              isLoading={isUpdatingSeats}
+              error={updateSeatsMutation.error}
+              onConfirm={async (selectedSeats: number) => {
+                setNewSeatCount(selectedSeats)
+                await confirmAddSeats(selectedSeats)
+              }}
+              confirmButtonText='Update Seats'
+              showCostBreakdown={true}
+              isCancelledAtPeriodEnd={subscriptionData?.cancelAtPeriodEnd}
+              costPerSeatDollars={costPerSeat}
+              creditsPerSeat={creditsPerSeat}
+            />
+          )}
         </div>
-      )}
-
-      <OrganizationRoster
-        organizationId={displayOrganization.id}
-        roster={roster ?? null}
-        isLoadingRoster={isLoadingRoster}
-        currentUserEmail={session?.user?.email ?? ''}
-        currentUserId={session?.user?.id ?? ''}
-        isAdminOrOwner={adminOrOwner}
-        onRemoveMember={handleRemoveMember}
-        onTransferOwnership={handleOpenTransferDialog}
-      />
-
-      <TransferOwnershipDialog
-        open={transferDialogOpen}
-        onOpenChange={handleTransferDialogOpenChange}
-        members={roster?.members ?? []}
-        isLoadingMembers={isLoadingRoster}
-        currentUserId={session?.user?.id ?? ''}
-        isSubmitting={transferOwnershipMutation.isPending}
-        error={transferOwnershipMutation.error}
-        portalError={transferPortalError}
-        hasPaidSubscription={Boolean(subscriptionData)}
-        isOpeningBillingPortal={openBillingPortal.isPending}
-        onConfirm={handleConfirmTransfer}
-        onOpenBillingPortal={handleOpenTransferBillingPortal}
-      />
-
-      <RemoveMemberDialog
-        open={removeMemberDialog.open}
-        memberName={removeMemberDialog.memberName}
-        shouldReduceSeats={removeMemberDialog.shouldReduceSeats}
-        canReduceSeats={canReduceSubscriptionSeats}
-        isSelfRemoval={removeMemberDialog.isSelfRemoval}
-        isExternalRemoval={removeMemberDialog.isExternalRemoval}
-        isSubmitting={removeMemberMutation.isPending}
-        error={removeMemberMutation.error}
-        onOpenChange={(open: boolean) => {
-          if (!open) setRemoveMemberDialog({ ...removeMemberDialog, open: false })
-        }}
-        onShouldReduceSeatsChange={(shouldReduce: boolean) =>
-          setRemoveMemberDialog({
-            ...removeMemberDialog,
-            shouldReduceSeats: shouldReduce,
-          })
-        }
-        onConfirmRemove={confirmRemoveMember}
-        onCancel={() =>
-          setRemoveMemberDialog({
-            open: false,
-            memberId: '',
-            memberName: '',
-            shouldReduceSeats: false,
-            isSelfRemoval: false,
-            isExternalRemoval: false,
-          })
-        }
-      />
-
-      {subscriptionData && !checkEnterprisePlan(subscriptionData) && (
-        <TeamSeats
-          open={isAddSeatDialogOpen}
-          onOpenChange={setIsAddSeatDialogOpen}
-          title='Add Team Seats'
-          description={`Each seat costs $${costPerSeat}/month and provides ${creditsPerSeat.toLocaleString()} monthly inference credits. Adjust the number of licensed seats for your team.`}
-          currentSeats={totalSeats}
-          initialSeats={newSeatCount}
-          isLoading={isUpdatingSeats}
-          error={updateSeatsMutation.error}
-          onConfirm={async (selectedSeats: number) => {
-            setNewSeatCount(selectedSeats)
-            await confirmAddSeats(selectedSeats)
-          }}
-          confirmButtonText='Update Seats'
-          showCostBreakdown={true}
-          isCancelledAtPeriodEnd={subscriptionData?.cancelAtPeriodEnd}
-          costPerSeatDollars={costPerSeat}
-          creditsPerSeat={creditsPerSeat}
-        />
-      )}
+      </div>
     </div>
   )
 }

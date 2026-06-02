@@ -21,7 +21,7 @@ import { cn } from '@/lib/core/utils/cn'
  *
  * @remarks
  * Variants: `ghost` (transparent → `--surface-active` hover), `filled` (`--surface-active` → `--surface-6` hover),
- * `primary` (inverse surface), `destructive` (red surface with red border),
+ * `primary` (inverse surface), `destructive` (error-token surface, `--text-error`),
  * `border-shadow` (raised card-like surface with `--border-1` border and `--shadow-card`).
  * `active` renders ghost/filled in their selected state. `fullWidth` swaps `inline-flex` for block-level `flex`.
  * `flush` removes the default horizontal margin (`mx-0.5`) used by chip clusters — use when a single chip sits
@@ -34,11 +34,11 @@ const chipVariants = cva(
       variant: {
         ghost: 'hover-hover:bg-[var(--surface-active)]',
         filled:
-          'bg-[var(--surface-5)] hover-hover:bg-[var(--surface-active)] dark:bg-[var(--surface-4)]',
+          'border border-[var(--border-1)] bg-[var(--surface-5)] hover-hover:bg-[var(--surface-active)] dark:bg-[var(--surface-4)]',
         primary:
           'bg-[var(--text-primary)] text-[var(--text-inverse)] hover-hover:bg-[var(--text-body)] hover-hover:text-[var(--text-inverse)] dark:bg-white dark:text-[var(--bg)] dark:hover-hover:bg-[var(--text-secondary)] dark:hover-hover:text-[var(--bg)]',
         destructive:
-          'border border-[#E54C4C] bg-[#FF5454] text-white hover-hover:border-[#D63535] hover-hover:bg-[#EE3B3B]',
+          'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
         'border-shadow':
           'bg-[var(--surface-2)] shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-3)]',
       },
@@ -141,8 +141,9 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
 
 /**
  * 1px border applied to `filled` and `ghost` chip triggers to read as
- * interactive form controls rather than static pills. Omitted on `primary` and
- * `destructive` variants which already carry their own border styling.
+ * interactive form controls rather than static pills. Omitted on `primary`,
+ * `destructive`, and `border-shadow` variants which carry their own surface
+ * treatment.
  */
 export const TRIGGER_BORDER_CLASS = 'border border-[var(--border-1)]'
 

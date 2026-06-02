@@ -19,13 +19,12 @@ import {
   Badge,
   Button,
   Checkbox,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
@@ -240,59 +239,62 @@ export function ConnectorsSection({
         />
       )}
 
-      <Modal open={deleteTarget !== null} onOpenChange={closeDeleteModal}>
-        <ModalContent size='sm'>
-          <ModalHeader>Remove Connector</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)] text-small'>
-              This will disconnect the source and stop future syncs. Documents already synced will
-              remain in the knowledge base unless you choose to delete them.
-            </ModalDescription>
-            <div className='mt-3 flex items-center gap-2'>
-              <Checkbox
-                id={deleteDocumentsId}
-                checked={deleteDocuments}
-                onCheckedChange={(checked) => setDeleteDocuments(checked === true)}
-              />
-              <label
-                htmlFor={deleteDocumentsId}
-                className='cursor-pointer text-[var(--text-secondary)] text-small'
-              >
-                Also delete all synced documents
-              </label>
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={closeDeleteModal} disabled={isDeleting}>
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              disabled={isDeleting}
-              onClick={() => {
-                if (deleteTarget) {
-                  deleteConnector(
-                    { knowledgeBaseId, connectorId: deleteTarget, deleteDocuments },
-                    {
-                      onSuccess: () => {
-                        setError(null)
-                        closeDeleteModal()
-                      },
-                      onError: (err) => {
-                        logger.error('Delete connector failed', { error: err.message })
-                        setError(err.message)
-                        closeDeleteModal()
-                      },
-                    }
-                  )
-                }
-              }}
+      <ChipModal
+        open={deleteTarget !== null}
+        onOpenChange={closeDeleteModal}
+        srTitle='Remove Connector'
+      >
+        <ChipModalHeader showDivider={false}>Remove Connector</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            This will disconnect the source and stop future syncs. Documents already synced will
+            remain in the knowledge base unless you choose to delete them.
+          </p>
+          <div className='flex items-center gap-2 px-2'>
+            <Checkbox
+              id={deleteDocumentsId}
+              checked={deleteDocuments}
+              onCheckedChange={(checked) => setDeleteDocuments(checked === true)}
+            />
+            <label
+              htmlFor={deleteDocumentsId}
+              className='cursor-pointer text-[var(--text-secondary)] text-small'
             >
-              {isDeleting ? 'Removing...' : 'Remove'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+              Also delete all synced documents
+            </label>
+          </div>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={closeDeleteModal} disabled={isDeleting}>
+            Cancel
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            disabled={isDeleting}
+            onClick={() => {
+              if (deleteTarget) {
+                deleteConnector(
+                  { knowledgeBaseId, connectorId: deleteTarget, deleteDocuments },
+                  {
+                    onSuccess: () => {
+                      setError(null)
+                      closeDeleteModal()
+                    },
+                    onError: (err) => {
+                      logger.error('Delete connector failed', { error: err.message })
+                      setError(err.message)
+                      closeDeleteModal()
+                    },
+                  }
+                )
+              }
+            }}
+          >
+            {isDeleting ? 'Removing...' : 'Remove'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </div>
   )
 }

@@ -4,15 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import {
-  Button,
   ChevronDown,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   chipVariants,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
@@ -364,24 +362,26 @@ export function SettingsSidebar({
         </div>
       </div>
 
-      <Modal open={showDiscardDialog} onOpenChange={(open) => !open && handleCancelDiscard()}>
-        <ModalContent size='sm'>
-          <ModalHeader>Unsaved Changes</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              You have unsaved changes. Are you sure you want to discard them?
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={handleCancelDiscard}>
-              Keep Editing
-            </Button>
-            <Button variant='destructive' onClick={handleConfirmDiscard}>
-              Discard Changes
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={showDiscardDialog}
+        onOpenChange={(open) => !open && handleCancelDiscard()}
+        srTitle='Unsaved Changes'
+      >
+        <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            You have unsaved changes. Are you sure you want to discard them?
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={handleCancelDiscard}>
+            Keep Editing
+          </Chip>
+          <Chip variant='destructive' flush onClick={handleConfirmDiscard}>
+            Discard Changes
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </>
   )
 }

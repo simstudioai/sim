@@ -11,17 +11,16 @@ import { usePostHog } from 'posthog-js/react'
 import {
   Badge,
   Button,
+  Chip,
   ChipDatePicker,
   ChipDropdown,
   type ChipDropdownOption,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   Input,
   Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Tooltip,
   Trash,
 } from '@/components/emcn'
@@ -1197,108 +1196,121 @@ export function KnowledgeBase({
 
       <BaseTagsModal open={showTagsModal} onOpenChange={setShowTagsModal} knowledgeBaseId={id} />
 
-      <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Knowledge Base</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
-              <span className='text-[var(--text-error)]'>
-                The knowledge base and all {pagination.total} document
-                {pagination.total === 1 ? '' : 's'} within it will be removed.
-              </span>{' '}
-              You can restore it from Recently Deleted in Settings.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => setShowDeleteDialog(false)}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDeleteKnowledgeBase} disabled={isDeleting}>
-              {isDeleting ? 'Deleting...' : 'Delete Knowledge Base'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        srTitle='Delete Knowledge Base'
+      >
+        <ChipModalHeader showDivider={false}>Delete Knowledge Base</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
+            <span className='text-[var(--text-error)]'>
+              The knowledge base and all {pagination.total} document
+              {pagination.total === 1 ? '' : 's'} within it will be removed.
+            </span>{' '}
+            You can restore it from Recently Deleted in Settings.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={() => setShowDeleteDialog(false)}
+            disabled={isDeleting}
+          >
+            Cancel
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={handleDeleteKnowledgeBase}
+            disabled={isDeleting}
+          >
+            {isDeleting ? 'Deleting...' : 'Delete Knowledge Base'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
 
-      <Modal open={showDeleteDocumentModal} onOpenChange={setShowDeleteDocumentModal}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Document</ModalHeader>
-          <ModalBody>
-            {(() => {
-              const docToDelete = documents.find((doc) => doc.id === documentToDelete)
-              return (
-                <ModalDescription className='text-[var(--text-secondary)]'>
-                  Are you sure you want to delete{' '}
-                  <span className='font-medium text-[var(--text-primary)]'>
-                    {docToDelete?.filename ?? 'this document'}
+      <ChipModal
+        open={showDeleteDocumentModal}
+        onOpenChange={setShowDeleteDocumentModal}
+        srTitle='Delete Document'
+      >
+        <ChipModalHeader showDivider={false}>Delete Document</ChipModalHeader>
+        <ChipModalBody>
+          {(() => {
+            const docToDelete = documents.find((doc) => doc.id === documentToDelete)
+            return (
+              <p className='px-2 text-[var(--text-secondary)] text-sm'>
+                Are you sure you want to delete{' '}
+                <span className='font-medium text-[var(--text-primary)]'>
+                  {docToDelete?.filename ?? 'this document'}
+                </span>
+                ?{' '}
+                {docToDelete?.connectorId ? (
+                  <span className='text-[var(--text-error)]'>
+                    This document is synced from a connector. Deleting it will permanently exclude
+                    it from future syncs. To temporarily hide it from search, disable it instead.
                   </span>
-                  ?{' '}
-                  {docToDelete?.connectorId ? (
+                ) : (
+                  <>
                     <span className='text-[var(--text-error)]'>
-                      This document is synced from a connector. Deleting it will permanently exclude
-                      it from future syncs. To temporarily hide it from search, disable it instead.
-                    </span>
-                  ) : (
-                    <>
-                      <span className='text-[var(--text-error)]'>
-                        This will permanently delete the document.
-                      </span>{' '}
-                      This action cannot be undone.
-                    </>
-                  )}
-                </ModalDescription>
-              )
-            })()}
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => {
-                setShowDeleteDocumentModal(false)
-                setDocumentToDelete(null)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={confirmDeleteDocument}>
-              Delete Document
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+                      This will permanently delete the document.
+                    </span>{' '}
+                    This action cannot be undone.
+                  </>
+                )}
+              </p>
+            )
+          })()}
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={() => {
+              setShowDeleteDocumentModal(false)
+              setDocumentToDelete(null)
+            }}
+          >
+            Cancel
+          </Chip>
+          <Chip variant='destructive' flush onClick={confirmDeleteDocument}>
+            Delete Document
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
 
-      <Modal open={showBulkDeleteModal} onOpenChange={setShowBulkDeleteModal}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Documents</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete {selectedDocuments.size} document
-              {selectedDocuments.size === 1 ? '' : 's'}?{' '}
-              <span className='text-[var(--text-error)]'>
-                This will permanently delete the selected document
-                {selectedDocuments.size === 1 ? '' : 's'}.
-              </span>{' '}
-              This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setShowBulkDeleteModal(false)}>
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={confirmBulkDelete} disabled={isBulkOperating}>
-              {isBulkOperating
-                ? 'Deleting...'
-                : `Delete ${selectedDocuments.size} Document${selectedDocuments.size === 1 ? '' : 's'}`}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={showBulkDeleteModal}
+        onOpenChange={setShowBulkDeleteModal}
+        srTitle='Delete Documents'
+      >
+        <ChipModalHeader showDivider={false}>Delete Documents</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete {selectedDocuments.size} document
+            {selectedDocuments.size === 1 ? '' : 's'}?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will permanently delete the selected document
+              {selectedDocuments.size === 1 ? '' : 's'}.
+            </span>{' '}
+            This action cannot be undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={() => setShowBulkDeleteModal(false)}>
+            Cancel
+          </Chip>
+          <Chip variant='destructive' flush onClick={confirmBulkDelete} disabled={isBulkOperating}>
+            {isBulkOperating
+              ? 'Deleting...'
+              : `Delete ${selectedDocuments.size} Document${selectedDocuments.size === 1 ? '' : 's'}`}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
 
       <AddDocumentsModal
         open={showAddDocumentsModal}
@@ -1327,24 +1339,25 @@ export function KnowledgeBase({
         />
       )}
 
-      <Modal open={showConnectorsModal} onOpenChange={setShowConnectorsModal}>
-        <ModalContent size='md'>
-          <ModalHeader>Connected Sources</ModalHeader>
-          <ModalDescription className='sr-only'>
-            Manage connected data sources for this knowledge base
-          </ModalDescription>
-          <ModalBody>
-            <ConnectorsSection
-              workspaceId={workspaceId}
-              knowledgeBaseId={id}
-              connectors={connectors}
-              isLoading={isLoadingConnectors}
-              canEdit={userPermissions.canEdit}
-              className='mt-0'
-            />
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={showConnectorsModal}
+        onOpenChange={setShowConnectorsModal}
+        srTitle='Connected Sources'
+      >
+        <ChipModalHeader onClose={() => setShowConnectorsModal(false)}>
+          Connected Sources
+        </ChipModalHeader>
+        <ChipModalBody>
+          <ConnectorsSection
+            workspaceId={workspaceId}
+            knowledgeBaseId={id}
+            connectors={connectors}
+            isLoading={isLoadingConnectors}
+            canEdit={userPermissions.canEdit}
+            className='mt-0'
+          />
+        </ChipModalBody>
+      </ChipModal>
 
       <DocumentContextMenu
         isOpen={isContextMenuOpen}

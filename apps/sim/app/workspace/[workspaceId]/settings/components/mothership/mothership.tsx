@@ -68,83 +68,91 @@ export function Mothership() {
   const [end, setEnd] = useState(defaults.end)
 
   return (
-    <div className='flex h-full flex-col gap-5'>
-      {/* Environment selector */}
-      <div className='flex items-center gap-2'>
-        <Label className='text-[var(--text-secondary)] text-sm'>Environment</Label>
-        <div className='flex gap-1'>
-          {ENV_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              type='button'
-              onClick={() => setEnvironment(opt.id)}
-              className={cn(
-                'rounded-md px-3 py-1 font-medium text-sm transition-colors',
-                environment === opt.id
-                  ? 'bg-[var(--surface-hover)] text-[var(--text-primary)]'
-                  : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-6 pt-6 pb-6'>
+          {/* Environment selector */}
+          <div className='flex items-center gap-2'>
+            <Label className='text-[var(--text-secondary)] text-sm'>Environment</Label>
+            <div className='flex gap-1'>
+              {ENV_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type='button'
+                  onClick={() => setEnvironment(opt.id)}
+                  className={cn(
+                    'rounded-md px-3 py-1 font-medium text-sm transition-colors',
+                    environment === opt.id
+                      ? 'bg-[var(--surface-hover)] text-[var(--text-primary)]'
+                      : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tab bar */}
+          <div className='flex gap-1 border-[var(--border-secondary)] border-b pb-px'>
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type='button'
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'relative px-3 py-2 font-medium text-sm transition-colors',
+                  activeTab === tab.id
+                    ? 'text-[var(--text-primary)]'
+                    : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
+                )}
+              >
+                {tab.label}
+                {activeTab === tab.id && (
+                  <span className='absolute right-0 bottom-0 left-0 h-[2px] bg-[var(--text-primary)]' />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Time range (shared across tabs) */}
+          <div className='flex items-center gap-3'>
+            <div className='flex items-center gap-2'>
+              <Label className='text-[var(--text-secondary)] text-caption'>From</Label>
+              <EmcnInput
+                type='datetime-local'
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+                className='h-[30px] text-caption'
+              />
+            </div>
+            <div className='flex items-center gap-2'>
+              <Label className='text-[var(--text-secondary)] text-caption'>To</Label>
+              <EmcnInput
+                type='datetime-local'
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+                className='h-[30px] text-caption'
+              />
+            </div>
+          </div>
+
+          <Divider />
+
+          {activeTab === 'overview' && (
+            <OverviewTab environment={environment} start={toRFC3339(start)} end={toRFC3339(end)} />
+          )}
+          {activeTab === 'licenses' && <LicensesTab environment={environment} />}
+          {activeTab === 'enterprise' && (
+            <EnterpriseTab
+              environment={environment}
+              start={toRFC3339(start)}
+              end={toRFC3339(end)}
+            />
+          )}
+          {activeTab === 'traces' && <TracesTab environment={environment} />}
         </div>
       </div>
-
-      {/* Tab bar */}
-      <div className='flex gap-1 border-[var(--border-secondary)] border-b pb-px'>
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type='button'
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              'relative px-3 py-2 font-medium text-sm transition-colors',
-              activeTab === tab.id
-                ? 'text-[var(--text-primary)]'
-                : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
-            )}
-          >
-            {tab.label}
-            {activeTab === tab.id && (
-              <span className='absolute right-0 bottom-0 left-0 h-[2px] bg-[var(--text-primary)]' />
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Time range (shared across tabs) */}
-      <div className='flex items-center gap-3'>
-        <div className='flex items-center gap-2'>
-          <Label className='text-[var(--text-secondary)] text-caption'>From</Label>
-          <EmcnInput
-            type='datetime-local'
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            className='h-[30px] text-caption'
-          />
-        </div>
-        <div className='flex items-center gap-2'>
-          <Label className='text-[var(--text-secondary)] text-caption'>To</Label>
-          <EmcnInput
-            type='datetime-local'
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            className='h-[30px] text-caption'
-          />
-        </div>
-      </div>
-
-      <Divider />
-
-      {activeTab === 'overview' && (
-        <OverviewTab environment={environment} start={toRFC3339(start)} end={toRFC3339(end)} />
-      )}
-      {activeTab === 'licenses' && <LicensesTab environment={environment} />}
-      {activeTab === 'enterprise' && (
-        <EnterpriseTab environment={environment} start={toRFC3339(start)} end={toRFC3339(end)} />
-      )}
-      {activeTab === 'traces' && <TracesTab environment={environment} />}
     </div>
   )
 }

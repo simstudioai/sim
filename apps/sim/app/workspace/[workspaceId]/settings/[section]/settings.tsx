@@ -5,12 +5,10 @@ import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
-import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
-  allNavigationItems,
   isBillingEnabled,
   isCredentialSetsEnabled,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -118,22 +116,13 @@ export function SettingsPage({ section }: SettingsPageProps) {
             ? 'general'
             : section
 
-  const label =
-    allNavigationItems.find((item) => item.id === effectiveSection)?.label ?? effectiveSection
-
   useEffect(() => {
     if (sessionLoading) return
     captureEvent(posthog, 'settings_tab_viewed', { section: effectiveSection })
   }, [effectiveSection, sessionLoading, posthog])
 
   return (
-    <div
-      className={cn(
-        (effectiveSection === 'access-control' || effectiveSection === 'recently-deleted') &&
-          'flex h-full flex-col'
-      )}
-    >
-      <h2 className='mb-7 font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
+    <div className='flex h-full flex-col'>
       {effectiveSection === 'general' && <General />}
       {effectiveSection === 'secrets' && <Secrets />}
       {effectiveSection === 'credential-sets' && <CredentialSets />}

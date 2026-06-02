@@ -6,14 +6,12 @@ import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Badge,
-  Button,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   Combobox,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Trash,
 } from '@/components/emcn'
 import { SearchHighlight } from '@/components/ui/search-highlight'
@@ -73,24 +71,22 @@ function UnsavedChangesModal({
   onDiscard,
 }: UnsavedChangesModalProps) {
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size='sm'>
-        <ModalHeader>Unsaved Changes</ModalHeader>
-        <ModalBody>
-          <ModalDescription className='text-[var(--text-secondary)]'>
-            You have unsaved changes. Are you sure you want to discard them?
-          </ModalDescription>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' onClick={onKeepEditing}>
-            Keep Editing
-          </Button>
-          <Button variant='destructive' onClick={onDiscard}>
-            Discard Changes
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Unsaved Changes'>
+      <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+      <ChipModalBody>
+        <p className='px-2 text-[var(--text-secondary)] text-sm'>
+          You have unsaved changes. Are you sure you want to discard them?
+        </p>
+      </ChipModalBody>
+      <ChipModalFooter>
+        <Chip variant='filled' flush onClick={onKeepEditing}>
+          Keep Editing
+        </Chip>
+        <Chip variant='destructive' flush onClick={onDiscard}>
+          Discard Changes
+        </Chip>
+      </ChipModalFooter>
+    </ChipModal>
   )
 }
 
@@ -1173,49 +1169,50 @@ export function Document({
         isLoading={isBulkOperating}
       />
 
-      <Modal open={showDeleteDocumentDialog} onOpenChange={setShowDeleteDocumentDialog}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Document</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {effectiveDocumentName}
-              </span>
-              ?{' '}
+      <ChipModal
+        open={showDeleteDocumentDialog}
+        onOpenChange={setShowDeleteDocumentDialog}
+        srTitle='Delete Document'
+      >
+        <ChipModalHeader showDivider={false}>Delete Document</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{effectiveDocumentName}</span>?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will permanently delete the document and all {documentData?.chunkCount ?? 0}{' '}
+              chunk
+              {documentData?.chunkCount === 1 ? '' : 's'} within it.
+            </span>{' '}
+            {documentData?.connectorId ? (
               <span className='text-[var(--text-error)]'>
-                This will permanently delete the document and all {documentData?.chunkCount ?? 0}{' '}
-                chunk
-                {documentData?.chunkCount === 1 ? '' : 's'} within it.
-              </span>{' '}
-              {documentData?.connectorId ? (
-                <span className='text-[var(--text-error)]'>
-                  This document is synced from a connector. Deleting it will permanently exclude it
-                  from future syncs. To temporarily hide it from search, disable it instead.
-                </span>
-              ) : (
-                <>This action cannot be undone.</>
-              )}
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => setShowDeleteDocumentDialog(false)}
-              disabled={isDeletingDocument}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleDeleteDocument}
-              disabled={isDeletingDocument}
-            >
-              {isDeletingDocument ? 'Deleting...' : 'Delete Document'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+                This document is synced from a connector. Deleting it will permanently exclude it
+                from future syncs. To temporarily hide it from search, disable it instead.
+              </span>
+            ) : (
+              <>This action cannot be undone.</>
+            )}
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={() => setShowDeleteDocumentDialog(false)}
+            disabled={isDeletingDocument}
+          >
+            Cancel
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={handleDeleteDocument}
+            disabled={isDeletingDocument}
+          >
+            {isDeletingDocument ? 'Deleting...' : 'Delete Document'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
 
       <ChunkContextMenu
         isOpen={isContextMenuOpen}

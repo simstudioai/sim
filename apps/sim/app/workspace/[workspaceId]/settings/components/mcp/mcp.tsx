@@ -8,14 +8,14 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   Tooltip,
 } from '@/components/emcn'
+import { ArrowLeft } from '@/components/emcn/icons'
 import { Input } from '@/components/ui'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
@@ -27,6 +27,7 @@ import {
   type McpToolIssue,
 } from '@/lib/mcp/tool-validation'
 import type { McpTransport } from '@/lib/mcp/types'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 import {
   type McpServer,
@@ -116,12 +117,10 @@ function ServerListItem({
         </p>
       </div>
       <div className='flex flex-shrink-0 items-center gap-1'>
-        <Button variant='default' onClick={onViewDetails}>
-          Details
-        </Button>
-        <Button variant='ghost' onClick={onRemove} disabled={isDeleting}>
+        <Chip onClick={onViewDetails}>Details</Chip>
+        <Chip onClick={onRemove} disabled={isDeleting}>
           {isDeleting ? 'Deleting...' : 'Delete'}
-        </Button>
+        </Chip>
       </div>
     </div>
   )
@@ -375,62 +374,90 @@ export function MCP({ initialServerId }: MCPProps) {
     const { server, tools } = selectedServer
     const transportLabel = formatTransportLabel(server.transport || 'http')
 
+    const refreshLabel =
+      refreshingServerId === server.id
+        ? 'Refreshing...'
+        : refreshedServerId === server.id
+          ? refreshedWorkflowsUpdated
+            ? `Synced (${refreshedWorkflowsUpdated} workflow${refreshedWorkflowsUpdated === 1 ? '' : 's'})`
+            : 'Refreshed'
+          : 'Refresh Tools'
+
     return (
-      <div className='flex h-full flex-col gap-4.5'>
-        <div className='min-h-0 flex-1 overflow-y-auto'>
-          <div className='flex flex-col gap-4.5'>
-            <div className='flex flex-col gap-2'>
-              <span className='font-medium text-[var(--text-primary)] text-sm'>Server Name</span>
-              <p className='text-[var(--text-secondary)] text-base'>
-                {server.name || 'Unnamed Server'}
-              </p>
-            </div>
+      <div className='flex h-full flex-col bg-[var(--bg)]'>
+        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+          <Chip leftIcon={ArrowLeft} onClick={handleBackToList}>
+            MCP Tools
+          </Chip>
+          <div className='flex items-center'>
+            <Chip
+              onClick={() => handleRefreshServer(server.id)}
+              disabled={refreshingServerId === server.id || refreshedServerId === server.id}
+            >
+              {refreshLabel}
+            </Chip>
+            <Chip onClick={() => setEditingServerId(server.id)}>Edit</Chip>
+          </div>
+        </div>
 
-            <div className='flex flex-col gap-2'>
-              <span className='font-medium text-[var(--text-primary)] text-sm'>Transport</span>
-              <p className='text-[var(--text-secondary)] text-base'>{transportLabel}</p>
-            </div>
-
-            {server.url && (
-              <div className='flex flex-col gap-2'>
-                <span className='font-medium text-[var(--text-primary)] text-sm'>URL</span>
-                <p className='break-all text-[var(--text-secondary)] text-base'>{server.url}</p>
-              </div>
-            )}
-
-            {server.connectionStatus === 'error' && (
-              <div className='flex flex-col gap-2'>
-                <span className='font-medium text-[var(--text-primary)] text-sm'>Status</span>
-                <p className='text-[var(--text-error)] text-base'>
-                  {server.lastError || 'Unable to connect'}
-                </p>
-              </div>
-            )}
-
-            {server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
-              <div className='flex flex-col gap-2'>
-                <span className='font-medium text-[var(--text-primary)] text-sm'>
-                  Authentication
-                </span>
-                <div>
-                  <Button
-                    variant='primary'
-                    size='sm'
-                    disabled={connectingOauthServers.has(server.id)}
-                    onClick={async () => {
-                      await startOauthForServer(server.id)
-                    }}
-                  >
-                    {connectingOauthServers.has(server.id) ? 'Connecting…' : 'Connect with OAuth'}
-                  </Button>
+        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+          <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-4 pb-6'>
+            <SettingsSection label='Server'>
+              <div className='flex flex-col gap-4.5'>
+                <div className='flex flex-col gap-2'>
+                  <span className='font-medium text-[var(--text-primary)] text-sm'>
+                    Server Name
+                  </span>
+                  <p className='text-[var(--text-secondary)] text-base'>
+                    {server.name || 'Unnamed Server'}
+                  </p>
                 </div>
-              </div>
-            )}
 
-            <div className='flex flex-col gap-2'>
-              <span className='font-medium text-[var(--text-primary)] text-sm'>
-                Tools ({tools.length})
-              </span>
+                <div className='flex flex-col gap-2'>
+                  <span className='font-medium text-[var(--text-primary)] text-sm'>Transport</span>
+                  <p className='text-[var(--text-secondary)] text-base'>{transportLabel}</p>
+                </div>
+
+                {server.url && (
+                  <div className='flex flex-col gap-2'>
+                    <span className='font-medium text-[var(--text-primary)] text-sm'>URL</span>
+                    <p className='break-all text-[var(--text-secondary)] text-base'>{server.url}</p>
+                  </div>
+                )}
+
+                {server.connectionStatus === 'error' && (
+                  <div className='flex flex-col gap-2'>
+                    <span className='font-medium text-[var(--text-primary)] text-sm'>Status</span>
+                    <p className='text-[var(--text-error)] text-base'>
+                      {server.lastError || 'Unable to connect'}
+                    </p>
+                  </div>
+                )}
+
+                {server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
+                  <div className='flex flex-col gap-2'>
+                    <span className='font-medium text-[var(--text-primary)] text-sm'>
+                      Authentication
+                    </span>
+                    <div>
+                      <Chip
+                        variant='primary'
+                        disabled={connectingOauthServers.has(server.id)}
+                        onClick={async () => {
+                          await startOauthForServer(server.id)
+                        }}
+                      >
+                        {connectingOauthServers.has(server.id)
+                          ? 'Connecting…'
+                          : 'Connect with OAuth'}
+                      </Chip>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </SettingsSection>
+
+            <SettingsSection label={`Tools (${tools.length})`}>
               {tools.length === 0 ? (
                 <p className='text-[var(--text-muted)] text-sm'>No tools available</p>
               ) : (
@@ -551,31 +578,7 @@ export function MCP({ initialServerId }: MCPProps) {
                   })}
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-
-        <div className='mt-auto flex items-center justify-between'>
-          <Button onClick={handleBackToList} variant='default'>
-            Back
-          </Button>
-          <div className='flex items-center gap-2'>
-            <Button
-              onClick={() => handleRefreshServer(server.id)}
-              variant='default'
-              disabled={refreshingServerId === server.id || refreshedServerId === server.id}
-            >
-              {refreshingServerId === server.id
-                ? 'Refreshing...'
-                : refreshedServerId === server.id
-                  ? refreshedWorkflowsUpdated
-                    ? `Synced (${refreshedWorkflowsUpdated} workflow${refreshedWorkflowsUpdated === 1 ? '' : 's'})`
-                    : 'Refreshed'
-                  : 'Refresh Tools'}
-            </Button>
-            <Button onClick={() => setEditingServerId(server.id)} variant='default'>
-              Edit
-            </Button>
+            </SettingsSection>
           </div>
         </div>
 
@@ -607,64 +610,76 @@ export function MCP({ initialServerId }: MCPProps) {
 
   return (
     <>
-      <div className='flex h-full flex-col gap-4.5'>
-        <div className='flex items-center gap-2'>
-          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-            <Search
-              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-              strokeWidth={2}
-            />
-            <Input
-              placeholder='Search MCPs...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-            />
+      <div className='flex h-full flex-col bg-[var(--bg)]'>
+        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+          <div />
+          <div className='flex items-center'>
+            <Chip
+              leftIcon={Plus}
+              variant='primary'
+              onClick={() => setShowAddModal(true)}
+              disabled={serversLoading}
+            >
+              Add Server
+            </Chip>
           </div>
-          <Button onClick={() => setShowAddModal(true)} variant='primary' disabled={serversLoading}>
-            <Plus className='mr-1.5 size-[14px]' />
-            Add
-          </Button>
         </div>
 
-        <div className='min-h-0 flex-1 overflow-y-auto'>
-          {error ? (
-            <div className='flex h-full flex-col items-center justify-center gap-2'>
-              <p className='text-[var(--text-error)] text-xs leading-tight'>
-                {getErrorMessage(error, 'Failed to load MCP servers')}
-              </p>
+        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
+            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+              <Search
+                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+                strokeWidth={2}
+              />
+              <Input
+                placeholder='Search MCPs...'
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              />
             </div>
-          ) : serversLoading ? null : !hasServers ? (
-            <div className='flex h-full items-center justify-center'>
-              <p className='text-[var(--text-muted)] text-sm'>Click "Add" above to get started</p>
-            </div>
-          ) : (
-            <div className='flex flex-col gap-2'>
-              {filteredServers.map((server) => {
-                if (!server?.id) return null
-                const tools = toolsByServer[server.id] || []
-                const isLoadingTools = toolsLoading || toolsFetching
 
-                return (
-                  <ServerListItem
-                    key={server.id}
-                    server={server}
-                    tools={tools}
-                    isDeleting={deletingServers.has(server.id)}
-                    isLoadingTools={isLoadingTools}
-                    isRefreshing={refreshingServerId === server.id}
-                    onRemove={() => handleRemoveServer(server.id)}
-                    onViewDetails={() => handleViewDetails(server.id)}
-                  />
-                )
-              })}
-              {showNoResults && (
-                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                  No servers found matching "{searchTerm}"
-                </div>
-              )}
-            </div>
-          )}
+            {error ? (
+              <div className='flex flex-col items-center justify-center gap-2 py-8'>
+                <p className='text-[var(--text-error)] text-xs leading-tight'>
+                  {getErrorMessage(error, 'Failed to load MCP servers')}
+                </p>
+              </div>
+            ) : serversLoading ? null : !hasServers ? (
+              <div className='flex items-center justify-center py-8'>
+                <p className='text-[var(--text-muted)] text-sm'>
+                  Click &quot;Add Server&quot; above to get started
+                </p>
+              </div>
+            ) : (
+              <div className='flex flex-col gap-2'>
+                {filteredServers.map((server) => {
+                  if (!server?.id) return null
+                  const tools = toolsByServer[server.id] || []
+                  const isLoadingTools = toolsLoading || toolsFetching
+
+                  return (
+                    <ServerListItem
+                      key={server.id}
+                      server={server}
+                      tools={tools}
+                      isDeleting={deletingServers.has(server.id)}
+                      isLoadingTools={isLoadingTools}
+                      isRefreshing={refreshingServerId === server.id}
+                      onRemove={() => handleRemoveServer(server.id)}
+                      onViewDetails={() => handleViewDetails(server.id)}
+                    />
+                  )
+                })}
+                {showNoResults && (
+                  <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                    No servers found matching &quot;{searchTerm}&quot;
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -686,33 +701,32 @@ export function MCP({ initialServerId }: MCPProps) {
         allowedMcpDomains={allowedMcpDomains}
       />
 
-      <Modal
+      <ChipModal
         open={showDeleteDialog}
         onOpenChange={(open) => {
           if (!open) setServerToDeleteId(null)
         }}
+        srTitle='Delete MCP Server'
       >
-        <ModalContent size='sm'>
-          <ModalHeader>Delete MCP Server</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {servers.find((s) => s.id === serverToDeleteId)?.name || 'this server'}
-              </span>
-              ? This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setServerToDeleteId(null)}>
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={confirmDeleteServer}>
-              Delete
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+        <ChipModalHeader showDivider={false}>Delete MCP Server</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {servers.find((s) => s.id === serverToDeleteId)?.name || 'this server'}
+            </span>
+            ? This action cannot be undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={() => setServerToDeleteId(null)}>
+            Cancel
+          </Chip>
+          <Chip variant='destructive' flush onClick={confirmDeleteServer}>
+            Delete
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </>
   )
 }

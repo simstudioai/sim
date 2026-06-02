@@ -12,20 +12,20 @@ import {
   AvatarFallback,
   Badge,
   Button,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   Combobox,
   Input as EmcnInput,
   Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Textarea,
   Tooltip,
   Trash,
   toast,
 } from '@/components/emcn'
+import { ArrowLeft } from '@/components/emcn/icons'
 import { Input } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
@@ -250,14 +250,13 @@ function WorkspaceVariableRow({
         spellCheck='false'
         className='h-9'
       />
-      <Button
-        variant='default'
+      <Chip
         onClick={() => onViewDetails(envKey)}
         disabled={!hasCredential}
-        className={cn('ml-2 h-9', !hasCredential && 'opacity-40')}
+        className={cn('ml-2', !hasCredential && 'opacity-40')}
       >
         Details
-      </Button>
+      </Chip>
       {canEdit ? (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
@@ -1131,14 +1130,13 @@ export function SecretsManager() {
           )}
         />
         {isComplete && !isConflict && (
-          <Button
-            variant='default'
+          <Chip
             onClick={() => handleViewDetails(envVar.key, 'env_personal')}
             disabled={!hasCredential}
-            className={cn('ml-2 h-9', !hasCredential && 'opacity-40')}
+            className={cn('ml-2', !hasCredential && 'opacity-40')}
           >
             Details
-          </Button>
+          </Chip>
         )}
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
@@ -1180,13 +1178,34 @@ export function SecretsManager() {
 
   const isPendingNavigation = pendingNavigationUrlRef.current !== null
 
-  // Detail view (matches integrations detail page layout)
+  // Detail view
   if (selectedCredential) {
     return (
       <>
-        <div className='flex h-full flex-col gap-4.5'>
-          <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='flex flex-col gap-4.5'>
+        <div className='flex h-full flex-col bg-[var(--bg)]'>
+          {/* Fixed header bar */}
+          <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+            <div className='flex items-center'>
+              <Chip leftIcon={ArrowLeft} onClick={handleBackAttempt}>
+                Secrets
+              </Chip>
+            </div>
+            <div className='flex items-center'>
+              {isSelectedAdmin && (
+                <Chip
+                  variant='primary'
+                  onClick={handleSaveDetails}
+                  disabled={!isDetailsDirty || updateCredential.isPending}
+                >
+                  {updateCredential.isPending ? 'Saving...' : 'Save'}
+                </Chip>
+              )}
+            </div>
+          </div>
+
+          {/* Scrollable content */}
+          <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+            <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
               <div className='flex items-center gap-2.5 border-[var(--border)] border-b pb-3'>
                 <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-5)]'>
                   <Key className='size-[18px] text-[var(--text-tertiary)]' />
@@ -1328,14 +1347,12 @@ export function SecretsManager() {
                               disabled={member.role === 'admin' && adminMemberCount <= 1}
                               size='sm'
                             />
-                            <Button
-                              variant='ghost'
+                            <Chip
                               onClick={() => handleRemoveMember(member.userId)}
                               disabled={member.role === 'admin' && adminMemberCount <= 1}
-                              className='w-full justify-end'
                             >
                               Remove
-                            </Button>
+                            </Chip>
                           </>
                         ) : (
                           <Combobox
@@ -1383,14 +1400,12 @@ export function SecretsManager() {
                           placeholder='Role'
                           size='sm'
                         />
-                        <Button
-                          variant='ghost'
+                        <Chip
                           onClick={handleAddMember}
                           disabled={!memberUserId || upsertMember.isPending}
-                          className='w-full justify-end'
                         >
                           Add
-                        </Button>
+                        </Chip>
                       </div>
                     )}
                   </div>
@@ -1398,69 +1413,57 @@ export function SecretsManager() {
               </div>
             </div>
           </div>
-
-          <div className='mt-auto flex items-center justify-end border-[var(--border)] border-t pt-2.5'>
-            <div className='flex items-center gap-2'>
-              <Button onClick={handleBackAttempt} variant='default'>
-                Back
-              </Button>
-              {isSelectedAdmin && (
-                <Button
-                  variant='primary'
-                  onClick={handleSaveDetails}
-                  disabled={!isDetailsDirty || updateCredential.isPending}
-                >
-                  {updateCredential.isPending ? 'Saving...' : 'Save'}
-                </Button>
-              )}
-            </div>
-          </div>
         </div>
 
-        <Modal open={showDetailUnsavedChanges} onOpenChange={setShowDetailUnsavedChanges}>
-          <ModalContent size='sm'>
-            <ModalHeader>Unsaved Changes</ModalHeader>
-            <ModalBody>
-              <ModalDescription className='text-[var(--text-secondary)]'>
-                You have unsaved changes. Are you sure you want to discard them?
-              </ModalDescription>
-            </ModalBody>
-            <ModalFooter>
-              <Button variant='default' onClick={() => setShowDetailUnsavedChanges(false)}>
-                Keep Editing
-              </Button>
-              <Button variant='destructive' onClick={handleDiscardDetailChanges}>
-                Discard Changes
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+        <ChipModal
+          open={showDetailUnsavedChanges}
+          onOpenChange={setShowDetailUnsavedChanges}
+          srTitle='Unsaved Changes'
+        >
+          <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+          <ChipModalBody>
+            <p className='px-2 text-[var(--text-secondary)] text-sm'>
+              You have unsaved changes. Are you sure you want to discard them?
+            </p>
+          </ChipModalBody>
+          <ChipModalFooter>
+            <Chip variant='filled' flush onClick={() => setShowDetailUnsavedChanges(false)}>
+              Keep Editing
+            </Chip>
+            <Chip variant='destructive' flush onClick={handleDiscardDetailChanges}>
+              Discard Changes
+            </Chip>
+          </ChipModalFooter>
+        </ChipModal>
 
-        <Modal open={showUnsavedChanges} onOpenChange={setShowUnsavedChanges}>
-          <ModalContent size='sm'>
-            <ModalHeader>Unsaved Changes</ModalHeader>
-            <ModalBody>
-              <ModalDescription className='text-[var(--text-secondary)]'>
-                You have unsaved changes. Are you sure you want to discard them?
-              </ModalDescription>
-            </ModalBody>
-            <ModalFooter>
-              <Button variant='default' onClick={() => setShowUnsavedChanges(false)}>
-                Keep Editing
-              </Button>
-              <Button variant='destructive' onClick={handleDiscardAndNavigate}>
-                Discard Changes
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+        <ChipModal
+          open={showUnsavedChanges}
+          onOpenChange={setShowUnsavedChanges}
+          srTitle='Unsaved Changes'
+        >
+          <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+          <ChipModalBody>
+            <p className='px-2 text-[var(--text-secondary)] text-sm'>
+              You have unsaved changes. Are you sure you want to discard them?
+            </p>
+          </ChipModalBody>
+          <ChipModalFooter>
+            <Chip variant='filled' flush onClick={() => setShowUnsavedChanges(false)}>
+              Keep Editing
+            </Chip>
+            <Chip variant='destructive' flush onClick={handleDiscardAndNavigate}>
+              Discard Changes
+            </Chip>
+          </ChipModalFooter>
+        </ChipModal>
       </>
     )
   }
 
   return (
     <>
-      <div className='flex h-full flex-col gap-4'>
+      <div className='flex h-full flex-col bg-[var(--bg)]'>
+        {/* Hidden honeypot inputs to prevent browser autofill */}
         <div className='hidden'>
           <input
             type='text'
@@ -1484,48 +1487,66 @@ export function SecretsManager() {
             readOnly
           />
         </div>
-        <div className='flex items-center gap-2'>
-          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-            <Search
-              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-              strokeWidth={2}
-            />
-            <Input
-              placeholder='Search secrets...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              name='env_search_field'
-              autoComplete='off'
-              autoCapitalize='off'
-              spellCheck='false'
-              readOnly
-              onFocus={(e) => e.target.removeAttribute('readOnly')}
-              className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-            />
-          </div>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                onClick={handleSave}
-                disabled={
-                  isLoading || !hasChanges || hasConflicts || hasInvalidKeys || isListSaving
-                }
+
+        {/* Fixed header bar */}
+        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+          <div />
+          <div className='flex items-center'>
+            {hasConflicts || hasInvalidKeys ? (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <div className='inline-flex'>
+                    <Chip variant='primary' disabled>
+                      Save
+                    </Chip>
+                  </div>
+                </Tooltip.Trigger>
+                {hasConflicts ? (
+                  <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>
+                ) : (
+                  <Tooltip.Content>Fix invalid variable names before saving</Tooltip.Content>
+                )}
+              </Tooltip.Root>
+            ) : (
+              <Chip
                 variant='primary'
-                className={cn((hasConflicts || hasInvalidKeys) && 'cursor-not-allowed opacity-50')}
+                onClick={handleSave}
+                disabled={isLoading || !hasChanges || isListSaving}
               >
                 {isListSaving ? 'Saving...' : 'Save'}
-              </Button>
-            </Tooltip.Trigger>
-            {hasConflicts && <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>}
-            {hasInvalidKeys && !hasConflicts && (
-              <Tooltip.Content>Fix invalid variable names before saving</Tooltip.Content>
+              </Chip>
             )}
-          </Tooltip.Root>
+          </div>
         </div>
 
-        <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
-          <div className='flex flex-col gap-4'>
-            {isLoading ? null : (
+        {/* Scrollable content */}
+        <div
+          ref={scrollContainerRef}
+          className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'
+        >
+          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
+            {/* Search */}
+            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+              <Search
+                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+                strokeWidth={2}
+              />
+              <Input
+                placeholder='Search secrets...'
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                name='env_search_field'
+                autoComplete='off'
+                autoCapitalize='off'
+                spellCheck='false'
+                readOnly
+                onFocus={(e) => e.target.removeAttribute('readOnly')}
+                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              />
+            </div>
+
+            {/* Secrets grid */}
+            {!isLoading && (
               <div className={`${GRID_COLS} gap-y-2`}>
                 {(!searchTerm.trim() ||
                   filteredWorkspaceEntries.length > 0 ||
@@ -1615,27 +1636,30 @@ export function SecretsManager() {
         </div>
       </div>
 
-      <Modal open={showUnsavedChanges} onOpenChange={setShowUnsavedChanges}>
-        <ModalContent size='sm'>
-          <ModalHeader>Unsaved Changes</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              You have unsaved changes. Are you sure you want to discard them?
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setShowUnsavedChanges(false)}>
-              Keep Editing
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={isPendingNavigation ? handleDiscardAndNavigate : handleCancel}
-            >
-              Discard Changes
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={showUnsavedChanges}
+        onOpenChange={setShowUnsavedChanges}
+        srTitle='Unsaved Changes'
+      >
+        <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            You have unsaved changes. Are you sure you want to discard them?
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={() => setShowUnsavedChanges(false)}>
+            Keep Editing
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={isPendingNavigation ? handleDiscardAndNavigate : handleCancel}
+          >
+            Discard Changes
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </>
   )
 }

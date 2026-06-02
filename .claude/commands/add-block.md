@@ -798,6 +798,33 @@ Use `wandConfig` for fields that are hard to fill out manually, such as timestam
 
 All tool IDs referenced in `tools.access` and returned by `tools.config.tool` MUST use `snake_case` (e.g., `x_create_tweet`, `slack_send_message`). Never use camelCase or PascalCase.
 
+## BlockMeta (Required)
+
+Every block file must export a `{Service}BlockMeta` alongside the block — **minimum 7 templates**. Look at existing examples in `apps/sim/blocks/blocks/` (e.g. `browser_use.ts`, `google_sheets.ts`) for the pattern.
+
+```typescript
+import type { BlockMeta } from '@/blocks/types'
+
+export const {Service}BlockMeta = {
+  tags: ['tag1', 'tag2'],                  // IntegrationTag[]
+  templates: [
+    {
+      icon: {Service}Icon,
+      title: '{Service} <use-case>',        // 2–5 words
+      prompt: 'Build a workflow that...',   // specific use case, 1–3 sentences
+      modules: ['agent', 'workflows'],      // 'agent' | 'workflows' | 'tables' | 'files' | 'scheduled' | 'knowledge-base'
+      category: 'operations',              // 'operations' | 'marketing' | 'sales' | 'engineering' | 'productivity' | 'support' | 'popular'
+      tags: ['automation'],
+      alsoIntegrations: ['slack'],         // optional — other block IDs referenced in the prompt
+      featured: true,                      // optional
+    },
+    // ... at least 6 more
+  ],
+} as const satisfies BlockMeta
+```
+
+Derive templates from the service's real use cases. Each prompt should name a concrete trigger, transformation, and output — not a generic description of what the service does.
+
 ## Checklist Before Finishing
 
 - [ ] `integrationType` is set to the correct `IntegrationType` enum value
@@ -816,6 +843,7 @@ All tool IDs referenced in `tools.access` and returned by `tools.config.tool` MU
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`
 - [ ] Timestamps and complex inputs have `wandConfig` enabled
+- [ ] Exported `{Service}BlockMeta` with at least 7 templates
 
 ## Final Validation (Required)
 
@@ -829,3 +857,4 @@ After creating the block, you MUST validate it against every tool it references:
    - Type coercions in `tools.config.params` for any params that need conversion (Number(), Boolean(), JSON.parse())
 3. **Verify block outputs** cover the key fields returned by all tools
 4. **Verify conditions** — each subBlock should only show for the operations that actually use it
+5. **Verify `{Service}BlockMeta` is exported** with at least 7 templates, each having `icon`, `title`, `prompt`, `modules`, `category`, and `tags`

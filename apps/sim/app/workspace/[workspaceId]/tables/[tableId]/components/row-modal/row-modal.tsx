@@ -7,6 +7,11 @@ import { useParams } from 'next/navigation'
 import {
   Button,
   Checkbox,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   DatePicker,
   Input,
   Label,
@@ -155,34 +160,38 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
     const isSingleRow = deleteCount === 1
 
     return (
-      <Modal open={isOpen} onOpenChange={handleClose}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete {isSingleRow ? 'Row' : `${deleteCount} Rows`}</ModalHeader>
-          <ModalBody>
-            {error && (
-              <div className='rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3.5 py-3 text-[var(--status-error-text)] text-small'>
-                {error}
-              </div>
-            )}
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              {isSingleRow ? 'this row' : `these ${deleteCount} rows`}?{' '}
-              <span className='text-[var(--text-error)]'>
-                This will permanently remove all data in {isSingleRow ? 'this row' : 'these rows'}.
-              </span>{' '}
-              This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={handleClose} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDelete} disabled={isSubmitting}>
-              {isSubmitting ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={isOpen}
+        onOpenChange={handleClose}
+        srTitle={`Delete ${isSingleRow ? 'Row' : `${deleteCount} Rows`}`}
+      >
+        <ChipModalHeader showDivider={false}>
+          Delete {isSingleRow ? 'Row' : `${deleteCount} Rows`}
+        </ChipModalHeader>
+        <ChipModalBody>
+          {error && (
+            <div className='rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3.5 py-3 text-[var(--status-error-text)] text-small'>
+              {error}
+            </div>
+          )}
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete {isSingleRow ? 'this row' : `these ${deleteCount} rows`}
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will permanently remove all data in {isSingleRow ? 'this row' : 'these rows'}.
+            </span>{' '}
+            This action cannot be undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={handleClose} disabled={isSubmitting}>
+            Cancel
+          </Chip>
+          <Chip variant='destructive' flush onClick={handleDelete} disabled={isSubmitting}>
+            Delete
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     )
   }
 

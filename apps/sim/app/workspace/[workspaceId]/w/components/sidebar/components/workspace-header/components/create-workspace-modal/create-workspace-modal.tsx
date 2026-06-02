@@ -1,15 +1,14 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  Button,
-  Input,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
 } from '@/components/emcn'
 
 interface CreateWorkspaceModalProps {
@@ -29,7 +28,6 @@ export function CreateWorkspaceModal({
   isCreating,
 }: CreateWorkspaceModalProps) {
   const [name, setName] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) {
@@ -51,46 +49,35 @@ export function CreateWorkspaceModal({
   }
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent
-        size='sm'
-        onOpenAutoFocus={(e) => {
-          e.preventDefault()
-          inputRef.current?.focus()
-        }}
-      >
-        <ModalHeader>Create Workspace</ModalHeader>
-        <ModalBody>
-          <ModalDescription className='sr-only'>
-            Enter a name for the new workspace
-          </ModalDescription>
-          <Input
-            ref={inputRef}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder='Workspace name'
-            maxLength={100}
-            autoComplete='off'
-            autoCorrect='off'
-            autoCapitalize='off'
-            spellCheck={false}
-            disabled={isCreating}
-          />
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' onClick={() => onOpenChange(false)} disabled={isCreating}>
-            Cancel
-          </Button>
-          <Button
-            variant='primary'
-            onClick={() => void handleSubmit()}
-            disabled={!name.trim() || isCreating}
-          >
-            {isCreating ? 'Creating...' : 'Create'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Create Workspace'>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>Create Workspace</ChipModalHeader>
+      <ChipModalBody onKeyDown={handleKeyDown}>
+        <ChipModalField
+          type='input'
+          title='Name'
+          value={name}
+          onChange={setName}
+          placeholder='Workspace name'
+          maxLength={100}
+          autoComplete='off'
+          disabled={isCreating}
+          required
+        />
+        <ChipModalError>{undefined}</ChipModalError>
+      </ChipModalBody>
+      <ChipModalFooter>
+        <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isCreating}>
+          Cancel
+        </Chip>
+        <Chip
+          variant='primary'
+          flush
+          onClick={() => void handleSubmit()}
+          disabled={!name.trim() || isCreating}
+        >
+          {isCreating ? 'Creating...' : 'Create'}
+        </Chip>
+      </ChipModalFooter>
+    </ChipModal>
   )
 }

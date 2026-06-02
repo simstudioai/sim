@@ -7,13 +7,14 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
   Input as EmcnInput,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Tooltip,
 } from '@/components/emcn'
 import {
@@ -232,99 +233,100 @@ export function InboxSettingsTab() {
         </div>
       </div>
 
-      <Modal open={isAddSenderOpen} onOpenChange={setIsAddSenderOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Add allowed sender</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='sr-only'>
-              Add an email address to the allowed senders list
-            </ModalDescription>
-            <div className='flex flex-col gap-3'>
-              <div className='flex flex-col gap-1'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>Email address</p>
-                <EmcnInput
-                  value={newSenderEmail}
-                  onChange={(e) => {
-                    setNewSenderEmail(e.target.value)
-                    if (addSenderError) setAddSenderError(null)
-                  }}
-                  placeholder='user@example.com'
-                  className='h-9'
-                />
-              </div>
-              <div className='flex flex-col gap-1'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>Label (optional)</p>
-                <EmcnInput
-                  value={newSenderLabel}
-                  onChange={(e) => setNewSenderLabel(e.target.value)}
-                  placeholder='e.g., John from Marketing'
-                  className='h-9'
-                />
-              </div>
-              {addSenderError && (
-                <p className='text-[var(--text-error)] text-small leading-tight'>
-                  {addSenderError}
-                </p>
-              )}
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setIsAddSenderOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant='primary'
-              onClick={handleAddSender}
-              disabled={!newSenderEmail.trim() || addSender.isPending}
-            >
-              {addSender.isPending ? 'Adding...' : 'Add'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={isAddSenderOpen}
+        onOpenChange={setIsAddSenderOpen}
+        srTitle='Add allowed sender'
+      >
+        <ChipModalHeader onClose={() => setIsAddSenderOpen(false)}>
+          Add allowed sender
+        </ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField
+            type='email'
+            title='Email address'
+            value={newSenderEmail}
+            onChange={(v) => {
+              setNewSenderEmail(v)
+              if (addSenderError) setAddSenderError(null)
+            }}
+            required
+            placeholder='user@example.com'
+          />
+          <ChipModalField
+            type='input'
+            title='Label'
+            value={newSenderLabel}
+            onChange={setNewSenderLabel}
+            placeholder='e.g., John from Marketing'
+          />
+          <ChipModalError>{addSenderError}</ChipModalError>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={() => setIsAddSenderOpen(false)}>
+            Cancel
+          </Chip>
+          <Chip
+            variant='primary'
+            flush
+            onClick={handleAddSender}
+            disabled={!newSenderEmail.trim() || addSender.isPending}
+          >
+            Add
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
 
-      <Modal open={isEditAddressOpen} onOpenChange={setIsEditAddressOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Change email address</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Changing your email address will create a new inbox.{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                The old address will stop receiving emails immediately.
-              </span>
-            </ModalDescription>
-            <div className='mt-4 flex flex-col gap-1'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>New email prefix</p>
-              <EmcnInput
-                value={newUsername}
-                onChange={(e) => {
-                  setNewUsername(e.target.value)
-                  if (editAddressError) setEditAddressError(null)
-                }}
-                placeholder='e.g., new-acme'
-                className='h-9'
-              />
-              {editAddressError && (
-                <p className='text-[var(--text-error)] text-small leading-tight'>
-                  {editAddressError}
-                </p>
-              )}
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setIsEditAddressOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleEditAddress}
-              disabled={!newUsername.trim() || updateAddress.isPending}
-            >
-              {updateAddress.isPending ? 'Updating...' : 'Change address'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={isEditAddressOpen}
+        onOpenChange={setIsEditAddressOpen}
+        srTitle='Change email address'
+      >
+        <ChipModalHeader showDivider={false}>Change email address</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Changing your email address will create a new inbox.{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              The old address will stop receiving emails immediately.
+            </span>
+          </p>
+          <div className='mt-4 flex flex-col gap-1 px-2'>
+            <p className='font-medium text-[var(--text-secondary)] text-sm'>New email prefix</p>
+            <EmcnInput
+              value={newUsername}
+              onChange={(e) => {
+                setNewUsername(e.target.value)
+                if (editAddressError) setEditAddressError(null)
+              }}
+              placeholder='e.g., new-acme'
+              className='h-9'
+            />
+            {editAddressError && (
+              <p className='text-[var(--text-error)] text-small leading-tight'>
+                {editAddressError}
+              </p>
+            )}
+          </div>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            disabled={!newUsername.trim() || updateAddress.isPending}
+            onClick={() => setIsEditAddressOpen(false)}
+          >
+            Cancel
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={handleEditAddress}
+            disabled={!newUsername.trim() || updateAddress.isPending}
+          >
+            {updateAddress.isPending ? 'Updating...' : 'Change address'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </>
   )
 }

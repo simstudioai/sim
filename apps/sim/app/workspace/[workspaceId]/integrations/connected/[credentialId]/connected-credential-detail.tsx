@@ -23,12 +23,6 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Send,
   TagInput,
   Tooltip,
@@ -543,34 +537,35 @@ export function ConnectedCredentialDetail({
         </div>
       </div>
 
-      <Modal open={showDeleteConfirmDialog} onOpenChange={setShowDeleteConfirmDialog}>
-        <ModalContent size='sm'>
-          <ModalHeader>Disconnect Integration</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to disconnect{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {credential.displayName}
-              </span>
-              ? This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setShowDeleteConfirmDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleConfirmDelete}
-              disabled={disconnectOAuthService.isPending || deleteCredential.isPending}
-            >
-              {disconnectOAuthService.isPending || deleteCredential.isPending
-                ? 'Disconnecting...'
-                : 'Disconnect'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={showDeleteConfirmDialog}
+        onOpenChange={setShowDeleteConfirmDialog}
+        srTitle='Disconnect Integration'
+      >
+        <ChipModalHeader showDivider={false}>Disconnect Integration</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to disconnect{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{credential.displayName}</span>
+            ? This action cannot be undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={() => setShowDeleteConfirmDialog(false)}>
+            Cancel
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={handleConfirmDelete}
+            disabled={disconnectOAuthService.isPending || deleteCredential.isPending}
+          >
+            {disconnectOAuthService.isPending || deleteCredential.isPending
+              ? 'Disconnecting...'
+              : 'Disconnect'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
 
       <ChipModal
         open={isShareModalOpen}
@@ -605,24 +600,26 @@ export function ConnectedCredentialDetail({
         </ChipModalFooter>
       </ChipModal>
 
-      <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
-        <ModalContent size='sm'>
-          <ModalHeader>Unsaved Changes</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              You have unsaved changes. Are you sure you want to discard them?
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>
-              Keep Editing
-            </Button>
-            <Button variant='destructive' onClick={handleDiscardChanges}>
-              Discard Changes
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={showUnsavedChangesAlert}
+        onOpenChange={setShowUnsavedChangesAlert}
+        srTitle='Unsaved Changes'
+      >
+        <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            You have unsaved changes. Are you sure you want to discard them?
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={() => setShowUnsavedChangesAlert(false)}>
+            Keep Editing
+          </Chip>
+          <Chip variant='destructive' flush onClick={handleDiscardChanges}>
+            Discard Changes
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </div>
   )
 }

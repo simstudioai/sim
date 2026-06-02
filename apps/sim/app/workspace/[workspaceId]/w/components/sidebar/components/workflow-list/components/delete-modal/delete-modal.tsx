@@ -2,13 +2,12 @@
 
 import { useState } from 'react'
 import {
-  Button,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
 } from '@/components/emcn'
 
 interface DeleteModalProps {
@@ -253,45 +252,38 @@ export function DeleteModal({
   }
 
   return (
-    <Modal open={isOpen} onOpenChange={handleClose}>
-      <ModalContent size='sm'>
-        <ModalHeader>{title}</ModalHeader>
-        <ModalBody>
-          <ModalDescription className='text-[var(--text-secondary)]'>
-            {renderDescription()}{' '}
-            {restorableTypes.has(itemType)
-              ? 'You can restore it from Recently Deleted in Settings.'
-              : 'This action cannot be undone.'}
-          </ModalDescription>
-          {isWorkspace && workspaceName && (
-            <div className='mt-3'>
-              <label
-                htmlFor='workspace-delete-confirm'
-                className='mb-1.5 block text-[var(--text-secondary)] text-sm'
-              >
+    <ChipModal open={isOpen} onOpenChange={handleClose} srTitle={title}>
+      <ChipModalHeader showDivider={false}>{title}</ChipModalHeader>
+      <ChipModalBody>
+        <p className='px-2 text-[var(--text-secondary)] text-sm'>
+          {renderDescription()}{' '}
+          {restorableTypes.has(itemType)
+            ? 'You can restore it from Recently Deleted in Settings.'
+            : 'This action cannot be undone.'}
+        </p>
+        {isWorkspace && workspaceName && (
+          <ChipModalField
+            type='input'
+            title={
+              <>
                 Type <span className='font-medium text-[var(--text-primary)]'>{workspaceName}</span>{' '}
                 to confirm
-              </label>
-              <input
-                id='workspace-delete-confirm'
-                type='text'
-                value={confirmationText}
-                onChange={(e) => setConfirmationText(e.target.value)}
-                className='w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-[var(--text-primary)] text-sm placeholder:text-[var(--text-tertiary)] focus:border-[var(--border-1)] focus:outline-none'
-                placeholder={workspaceName}
-              />
-            </div>
-          )}
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' onClick={handleClose} disabled={isDeleting}>
-            Cancel
-          </Button>
-          <Button variant='destructive' onClick={onConfirm} disabled={isDeleting || !isConfirmed}>
-            {isDeleting ? 'Deleting...' : 'Delete'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+              </>
+            }
+            value={confirmationText}
+            onChange={setConfirmationText}
+            placeholder={workspaceName}
+          />
+        )}
+      </ChipModalBody>
+      <ChipModalFooter>
+        <Chip variant='filled' flush onClick={handleClose} disabled={isDeleting}>
+          Cancel
+        </Chip>
+        <Chip variant='destructive' flush onClick={onConfirm} disabled={isDeleting || !isConfirmed}>
+          {isDeleting ? 'Deleting...' : 'Delete'}
+        </Chip>
+      </ChipModalFooter>
+    </ChipModal>
   )
 }
