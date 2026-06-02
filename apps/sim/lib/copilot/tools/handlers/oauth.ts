@@ -69,11 +69,13 @@ export async function executeOAuthRequestAccess(
 }
 
 /**
- * Resolves a human-friendly provider name to a providerId and generates the
- * actual OAuth authorization URL via Better Auth's server-side API.
+ * Resolves a human-friendly provider name to a providerId and returns a
+ * browser-initiated authorize URL the user opens to connect the service.
  *
- * Steps: resolve provider → create credential draft → look up user session →
- * call auth.api.oAuth2LinkAccount → return the real authorization URL.
+ * Steps: resolve provider → create credential draft → return the Sim
+ * `/api/auth/oauth2/authorize` URL. That endpoint (not this server-side handler)
+ * calls Better Auth, so the signed `state` cookie is planted in the user's
+ * browser and the OAuth callback's state check passes.
  */
 async function generateOAuthLink(
   userId: string,
@@ -167,18 +169,15 @@ async function generateOAuthLink(
       },
     })
 
-  const { auth } = await import('@/lib/auth/auth')
-  const { headers: getHeaders } = await import('next/headers')
-  const reqHeaders = await getHeaders()
+  // Hand back a browser-initiated authorize URL rather than calling
+  // oAuth2LinkAccount here. Generating the link server-side would set Better
+  // Auth's signed `state` cookie on this server-to-server response instead of the
+  // user's browser, so the OAuth callback would fail with `state_mismatch`. The
+  // authorize endpoint runs the link inside the user's browser, planting the
+  // cookie correctly while keeping the callback's state check enabled.
+  const authorizeUrl = new URL(`${baseUrl}/api/auth/oauth2/authorize`)
+  authorizeUrl.searchParams.set('providerId', providerId)
+  authorizeUrl.searchParams.set('callbackURL', callbackURL)
 
-  const data = (await auth.api.oAuth2LinkAccount({
-    body: { providerId, callbackURL },
-    headers: reqHeaders,
-  })) as { url?: string; redirect?: boolean }
-
-  if (!data?.url) {
-    throw new Error('oAuth2LinkAccount did not return an authorization URL')
-  }
-
-  return { url: data.url, providerId, serviceName }
+  return { url: authorizeUrl.toString(), providerId, serviceName }
 }

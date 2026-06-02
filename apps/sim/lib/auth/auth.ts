@@ -687,12 +687,6 @@ export const auth = betterAuth({
         ...SSO_TRUSTED_PROVIDERS,
       ],
     },
-    // Mothership/headless OAuth links are generated server-side via auth.api.oAuth2LinkAccount,
-    // so better-auth's signed `state` cookie is set on the server-to-server response and never
-    // reaches the user's browser. With the database state strategy, the callback would then fail
-    // with state_security_mismatch (`?error=state_mismatch`). The DB verification record + PKCE
-    // still bind the flow, so skip the additional browser-cookie check.
-    skipStateCookieCheck: true,
   },
   socialProviders: {
     ...(!isGithubAuthDisabled && {

@@ -190,6 +190,18 @@ export const trelloCallbackContract = defineRouteContract({
   response: { mode: 'text' },
 })
 
+export const authorizeOAuth2QuerySchema = z.object({
+  providerId: z.string().min(1, 'providerId is required'),
+  callbackURL: z.string().min(1).optional(),
+})
+
+export const authorizeOAuth2Contract = defineRouteContract({
+  method: 'GET',
+  path: '/api/auth/oauth2/authorize',
+  query: authorizeOAuth2QuerySchema,
+  response: { mode: 'redirect' },
+})
+
 export type StoreTrelloTokenBody = ContractBody<typeof storeTrelloTokenContract>
 export type StoreTrelloTokenBodyInput = ContractBodyInput<typeof storeTrelloTokenContract>
 export type StoreTrelloTokenResponse = ContractJsonResponse<typeof storeTrelloTokenContract>
