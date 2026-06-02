@@ -438,3 +438,93 @@ describe('handleEditOperation nestedNodes merge', () => {
     expect(replacementBlock.data?.parentId).toBe('outer-loop')
   })
 })
+
+describe('forward-reference connections (pending resolution)', () => {
+  function makeMinimalWorkflow() {
+    return {
+      blocks: {
+        'start-1': {
+          id: 'start-1',
+          type: 'function',
+          name: 'Start',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: {},
+          outputs: {},
+          data: {},
+        },
+      },
+      edges: [] as any[],
+      loops: {},
+      parallels: {},
+    }
+  }
+
+  // Valid UUIDs so block_ids are not normalized/remapped on add.
+  const BLOCK_A = '11111111-1111-4111-8111-111111111111'
+  const BLOCK_B = '22222222-2222-4222-8222-222222222222'
+
+  it('defers a connection to a not-yet-created block and resolves it on a later apply', () => {
+    const workflow = makeMinimalWorkflow()
+
+    // First apply: add block A connecting to block B, which does not exist yet.
+    const first = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'add',
+        block_id: BLOCK_A,
+        params: {
+          type: 'function',
+          name: 'Block A',
+          inputs: { code: 'return 1' },
+          connections: { source: BLOCK_B },
+        },
+      },
+    ])
+
+    // No edge created yet; the connection is recorded as pending on block A.
+    expect(first.state.edges.some((e: any) => e.target === BLOCK_B)).toBe(false)
+    expect(first.state.blocks[BLOCK_A].data.pendingConnections.source).toEqual([
+      { target: BLOCK_B, targetHandle: 'target' },
+    ])
+
+    // Second apply (simulating a later edit_workflow call): add block B.
+    const second = applyOperationsToWorkflowState(first.state, [
+      {
+        operation_type: 'add',
+        block_id: BLOCK_B,
+        params: { type: 'function', name: 'Block B', inputs: { code: 'return 2' } },
+      },
+    ])
+
+    // The pending edge is now created and the pending record cleared.
+    const edge = second.state.edges.find((e: any) => e.source === BLOCK_A && e.target === BLOCK_B)
+    expect(edge).toBeDefined()
+    expect(second.state.blocks[BLOCK_A].data?.pendingConnections).toBeUndefined()
+  })
+
+  it('resolves a forward-reference connection within a single apply regardless of operation order', () => {
+    const workflow = makeMinimalWorkflow()
+
+    const { state } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'add',
+        block_id: BLOCK_A,
+        params: {
+          type: 'function',
+          name: 'Block A',
+          inputs: { code: 'return 1' },
+          connections: { source: BLOCK_B },
+        },
+      },
+      {
+        operation_type: 'add',
+        block_id: BLOCK_B,
+        params: { type: 'function', name: 'Block B', inputs: { code: 'return 2' } },
+      },
+    ])
+
+    const edge = state.edges.find((e: any) => e.source === BLOCK_A && e.target === BLOCK_B)
+    expect(edge).toBeDefined()
+    expect(state.blocks[BLOCK_A].data?.pendingConnections).toBeUndefined()
+  })
+})

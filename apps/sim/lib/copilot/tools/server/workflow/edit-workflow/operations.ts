@@ -659,6 +659,12 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
   if (params?.connections) {
     modifiedState.edges = modifiedState.edges.filter((edge: any) => edge.source !== block_id)
 
+    // Re-specifying connections fully replaces this block's outgoing edges, so
+    // drop any previously-recorded pending (forward-reference) connections too.
+    if (block.data?.pendingConnections) {
+      block.data.pendingConnections = undefined
+    }
+
     deferredConnections.push({
       blockId: block_id,
       connections: params.connections,
@@ -1013,6 +1019,13 @@ export function handleInsertIntoSubflowOperation(
   if (params.connections) {
     // Remove existing edges from this block first
     modifiedState.edges = modifiedState.edges.filter((edge: any) => edge.source !== block_id)
+
+    // Re-specifying connections fully replaces this block's outgoing edges, so
+    // drop any previously-recorded pending (forward-reference) connections too.
+    const connBlock = modifiedState.blocks[block_id]
+    if (connBlock?.data?.pendingConnections) {
+      connBlock.data.pendingConnections = undefined
+    }
 
     // Add to deferred connections list
     deferredConnections.push({
