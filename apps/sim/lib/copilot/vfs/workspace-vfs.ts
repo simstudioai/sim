@@ -229,9 +229,9 @@ function getStaticComponentFiles(): Map<string, string> {
             description: 'Condition expression (for loopType "while" or "doWhile")',
           },
         },
-        sourceHandles: ['loop-start-source', 'source'],
+        sourceHandles: ['loop-start-source', 'loop-end-source'],
         notes:
-          'Use "loop-start-source" to connect to blocks inside the loop. Use "source" for the edge that runs after the loop completes. Blocks inside the loop must have parentId set to the loop block ID.',
+          'Use "loop-start-source" to connect to blocks INSIDE the loop. Use "loop-end-source" for the edge that runs AFTER the loop completes. Do NOT use "source" for a loop block — it is rejected; the only valid source handles are "loop-start-source", "loop-end-source", and "error". Blocks inside the loop must have parentId set to the loop block ID.',
       },
       null,
       2
@@ -260,9 +260,9 @@ function getStaticComponentFiles(): Map<string, string> {
             description: 'Collection to distribute (for parallelType "collection")',
           },
         },
-        sourceHandles: ['parallel-start-source', 'source'],
+        sourceHandles: ['parallel-start-source', 'parallel-end-source'],
         notes:
-          'Use "parallel-start-source" to connect to blocks inside the parallel container. Use "source" for the edge after all branches complete. Blocks inside must have parentId set to the parallel block ID.',
+          'Use "parallel-start-source" to connect to blocks INSIDE the parallel container. Use "parallel-end-source" for the edge AFTER all branches complete. Do NOT use "source" for a parallel block — it is rejected; the only valid source handles are "parallel-start-source", "parallel-end-source", and "error". Blocks inside must have parentId set to the parallel block ID.',
       },
       null,
       2

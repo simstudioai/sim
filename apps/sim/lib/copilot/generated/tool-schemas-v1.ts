@@ -728,11 +728,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         ref1: {
           type: 'string',
-          description: 'Base side: a version number (e.g. "3"), "live", or "draft".',
+          description:
+            'Base side (string): a version number (e.g. "3"), "live" (active deployment), or "draft" (current editor state).',
         },
         ref2: {
           type: 'string',
-          description: 'Target side: a version number (e.g. "4"), "live", or "draft".',
+          description:
+            'Target side (string): a version number (e.g. "4"), "live" (active deployment), or "draft" (current editor state).',
         },
         workflowId: {
           type: 'string',
@@ -1514,7 +1516,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             syncIntervalMinutes: {
               type: 'number',
               description:
-                'Sync interval in minutes: 60 (hourly), 360 (6h), 1440 (daily), 10080 (weekly), 0 (manual only). Default: 1440',
+                'Sync interval in minutes. Accepted values: 60 (hourly), 360 (6h), 1440 (daily), 10080 (weekly), 0 (manual only). Default: 1440',
               default: 1440,
             },
             tagDefinitionId: {
@@ -1539,7 +1541,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             workspaceId: {
               type: 'string',
-              description: "Workspace ID (required for 'create', optional filter for 'list')",
+              description:
+                "Workspace ID. Required for 'create' when there is no workspace in context (otherwise the current workspace context is used); optional filter for 'list'.",
             },
           },
         },
@@ -1567,7 +1570,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           ],
         },
       },
-      required: ['operation', 'args'],
+      required: ['operation'],
     },
     resultSchema: {
       type: 'object',
@@ -1639,7 +1642,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         version: {
           type: 'string',
           description:
-            'The deployment version number to load (e.g. "5"), or "live" for the active deployment.',
+            'A string: a deployment version number (e.g. "5"), or "live" for the active deployment. (Unlike promote_to_live, which takes a numeric version, "live" is accepted here.)',
         },
         workflowId: {
           type: 'string',
@@ -1897,7 +1900,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         serverId: {
           type: 'string',
           description:
-            'The database ID of the MCP server. Required for edit and delete; omit for add and list.',
+            "The MCP server's id — the `id` field inside the VFS file agent/mcp-servers/{name}.json (the {name} filename is the display name, not the id). Required for edit and delete; omit for add and list.",
         },
       },
       required: ['operation'],
@@ -1930,7 +1933,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         skillId: {
           type: 'string',
           description:
-            'The ID of the skill. Must be the exact ID from the VFS or list. Required for edit and delete; omit for add and list.',
+            "The skill's id — the `id` field inside the VFS file agent/skills/{name}.json (the {name} filename is the display name, not the id). Required for edit and delete; omit for add and list.",
         },
       },
       required: ['operation'],
@@ -2115,7 +2118,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         version: {
           type: 'number',
-          description: 'The deployment version number to promote to live.',
+          description:
+            'The numeric deployment version number to promote to live (e.g. 5). "live" is not accepted here — pass the version number (use load_deployment to change the draft).',
         },
         workflowId: {
           type: 'string',
@@ -2169,7 +2173,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         executionId: {
           type: 'string',
           description:
-            "Required for 'overview'/'full' (and 'pattern'): the execution to read. For 'list', an optional exact-match filter.",
+            "Required for 'overview'/'full': the execution to read. For 'list', an optional exact-match filter.",
         },
         folderIds: {
           type: 'string',
@@ -2191,7 +2195,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         pattern: {
           type: 'string',
           description:
-            "Optional substring/regex to grep within the execution's trace spans (requires executionId). Returns matching spans with snippets instead of the full log.",
+            "Optional separate parameter (not a 'view' value): with view 'overview' or 'full', greps the execution's trace spans (requires executionId), returning matching spans with snippets instead of the full log.",
         },
         search: {
           type: 'string',
@@ -2689,7 +2693,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         toolTitle: {
           type: 'string',
           description:
-            'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "pricing changes" or "Slack webhook docs", not a full sentence like "Searching online for pricing changes".',
+            "Required short UI label fragment (e.g. 'Slack integrations'), not a full sentence.",
         },
       },
       required: ['query', 'toolTitle'],
@@ -2786,6 +2790,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             properties: {
               name: {
                 type: 'string',
+                description: 'Variable name.',
               },
               operation: {
                 type: 'string',
@@ -2793,13 +2798,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
               type: {
                 type: 'string',
+                description: 'Variable type. Required for add/edit; ignored for delete.',
                 enum: ['plain', 'number', 'boolean', 'array', 'object'],
               },
               value: {
                 type: 'string',
+                description: 'Variable value. Required for add/edit; ignored for delete.',
               },
             },
-            required: ['operation', 'name', 'type', 'value'],
+            required: ['operation', 'name'],
           },
         },
         workflowId: {
@@ -2939,7 +2946,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         correct_value: {
           type: 'string',
-          description: "The correct value to replace the wrong one (for 'correct' operation)",
+          description:
+            "The correct value to replace the wrong one (for 'correct' operation). Requires `key` (the memory to replace).",
         },
         key: {
           type: 'string',
@@ -3444,11 +3452,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               enum: ['search_replace', 'anchored'],
             },
           },
-        },
-        newName: {
-          type: 'string',
-          description:
-            'New file name for rename. Must be a plain workspace filename like "main.py".',
         },
       },
       required: ['operation', 'target', 'title'],
