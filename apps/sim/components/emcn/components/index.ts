@@ -136,6 +136,7 @@ export {
   PopoverTrigger,
   usePopoverContext,
 } from './popover/popover'
+export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
 export {
   SModal,
   SModalClose,

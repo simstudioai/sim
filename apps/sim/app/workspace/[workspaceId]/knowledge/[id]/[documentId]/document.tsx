@@ -14,6 +14,7 @@ import {
   Combobox,
   Trash,
 } from '@/components/emcn'
+import { Database } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { formatTokenCount } from '@/lib/tokenization'
@@ -33,6 +34,7 @@ import {
   Resource,
   ResourceHeader,
 } from '@/app/workspace/[workspaceId]/components'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import {
   ChunkContextMenu,
   ChunkEditor,
@@ -40,8 +42,10 @@ import {
   DocumentTagsModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import {
   useBulkChunkOperation,
@@ -295,6 +299,11 @@ export function Document({
   const isConnectorDocument = Boolean(documentData?.connectorId)
   const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
   const effectiveDocumentName = documentData?.filename || documentName || 'Document'
+  const ConnectorIcon = documentData?.connectorType
+    ? CONNECTOR_REGISTRY[documentData.connectorType]?.icon
+    : null
+  const DocumentIcon =
+    ConnectorIcon || getDocumentIcon(documentData?.mimeType ?? '', effectiveDocumentName)
   const isCompleted = documentData?.processingStatus === 'completed'
   const canEdit = userPermissions.canEdit === true
 
@@ -457,15 +466,24 @@ export function Document({
     () =>
       combinedError
         ? [
-            { label: 'Knowledge Base', onClick: handleNavToKB },
-            { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
+            { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
+            {
+              label: effectiveKnowledgeBaseName,
+              icon: Database,
+              onClick: handleNavToKBDetail,
+            },
             { label: 'Error' },
           ]
         : [
-            { label: 'Knowledge Base', onClick: handleNavToKB },
-            { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
+            { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
+            {
+              label: effectiveKnowledgeBaseName,
+              icon: Database,
+              onClick: handleNavToKBDetail,
+            },
             {
               label: effectiveDocumentName,
+              icon: DocumentIcon,
               editing: docRename.editingId
                 ? {
                     isEditing: true,
@@ -492,6 +510,7 @@ export function Document({
       handleNavToKBDetail,
       effectiveKnowledgeBaseName,
       effectiveDocumentName,
+      DocumentIcon,
       docRename.editingId,
       docRename.editValue,
       docRename.setEditValue,
@@ -882,39 +901,43 @@ export function Document({
       ]
     }
 
-    return displayChunks.map((chunk: ChunkData) => ({
-      id: chunk.id,
-      cells: {
-        content: {
-          content: (
-            <span
-              className='block min-w-0 truncate text-[var(--text-primary)] text-sm'
-              title={chunk.content}
-            >
-              <SearchHighlight
-                text={truncateContent(chunk.content, 150, searchQuery)}
-                searchQuery={searchQuery}
-              />
-            </span>
-          ),
+    return displayChunks.map((chunk: ChunkData) => {
+      const previewContent = truncateContent(chunk.content, 150, searchQuery)
+
+      return {
+        id: chunk.id,
+        cells: {
+          content: {
+            content: (
+              <FloatingOverflowText
+                label={chunk.content}
+                showWhen={previewContent !== chunk.content}
+                className='block truncate text-[var(--text-primary)] text-sm'
+              >
+                <SearchHighlight text={previewContent} searchQuery={searchQuery} />
+              </FloatingOverflowText>
+            ),
+          },
+          index: {
+            content: (
+              <span className='font-mono text-[var(--text-primary)] text-sm'>
+                {chunk.chunkIndex}
+              </span>
+            ),
+          },
+          tokens: {
+            label: formatTokenCount(chunk.tokenCount),
+          },
+          status: {
+            content: (
+              <Badge variant={chunk.enabled ? 'green' : 'gray'} size='sm'>
+                {chunk.enabled ? 'Enabled' : 'Disabled'}
+              </Badge>
+            ),
+          },
         },
-        index: {
-          content: (
-            <span className='font-mono text-[var(--text-primary)] text-sm'>{chunk.chunkIndex}</span>
-          ),
-        },
-        tokens: {
-          label: formatTokenCount(chunk.tokenCount),
-        },
-        status: {
-          content: (
-            <Badge variant={chunk.enabled ? 'green' : 'gray'} size='sm'>
-              {chunk.enabled ? 'Enabled' : 'Disabled'}
-            </Badge>
-          ),
-        },
-      },
-    }))
+      }
+    })
   }, [isCompleted, documentData?.processingStatus, displayChunks, searchQuery])
 
   const emptyMessage = combinedError ? 'Error loading document' : undefined
@@ -938,44 +961,54 @@ export function Document({
 
   const editorBreadcrumbBase = useMemo<BreadcrumbItem[]>(
     () => [
-      { label: 'Knowledge Base', onClick: handleNavToKB },
-      { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
-      { label: effectiveDocumentName, onClick: handleBackAttempt },
+      { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
+      {
+        label: effectiveKnowledgeBaseName,
+        icon: Database,
+        onClick: handleNavToKBDetail,
+      },
+      { label: effectiveDocumentName, icon: DocumentIcon, onClick: handleBackAttempt },
     ],
     [
       handleNavToKB,
       handleNavToKBDetail,
       effectiveKnowledgeBaseName,
       effectiveDocumentName,
+      DocumentIcon,
       handleBackAttempt,
     ]
   )
 
-  const newChunkBreadcrumbs = useMemo(
-    () => [...editorBreadcrumbBase, { label: 'New Chunk' }],
+  const newChunkBreadcrumbs = useMemo<BreadcrumbItem[]>(
+    () => [...editorBreadcrumbBase, { label: 'New Chunk', terminal: true }],
     [editorBreadcrumbBase]
   )
 
-  const editChunkBreadcrumbs = useMemo(
+  const editChunkBreadcrumbs = useMemo<BreadcrumbItem[]>(
     () => [
       ...editorBreadcrumbBase,
-      { label: selectedChunk ? `Chunk #${selectedChunk.chunkIndex}` : '' },
+      { label: selectedChunk ? `Chunk #${selectedChunk.chunkIndex}` : '', terminal: true },
     ],
     [editorBreadcrumbBase, selectedChunk?.chunkIndex]
   )
 
   const loadingBreadcrumbs = useMemo<BreadcrumbItem[]>(
     () => [
-      { label: 'Knowledge Base', onClick: handleNavToKB },
-      { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
-      { label: effectiveDocumentName, onClick: handleClearSelectedChunk },
-      { label: 'Loading...' },
+      { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
+      {
+        label: effectiveKnowledgeBaseName,
+        icon: Database,
+        onClick: handleNavToKBDetail,
+      },
+      { label: effectiveDocumentName, icon: DocumentIcon, onClick: handleClearSelectedChunk },
+      { label: 'Loading...', terminal: true },
     ],
     [
       handleNavToKB,
       handleNavToKBDetail,
       effectiveKnowledgeBaseName,
       effectiveDocumentName,
+      DocumentIcon,
       handleClearSelectedChunk,
     ]
   )

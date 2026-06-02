@@ -12,6 +12,7 @@ import {
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ArrowDown, ArrowUp, Button, Checkbox, Loader, Plus, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import type { BreadcrumbItem, CreateAction, HeaderAction } from './components/resource-header'
 import { ResourceHeader } from './components/resource-header'
 import type { FilterTag, SearchConfig, SortConfig } from './components/resource-options-bar'
@@ -478,7 +479,7 @@ const CellContent = memo(function CellContent({ icon, label, content, primary }:
       )}
     >
       {icon && <span className='flex-shrink-0 text-[var(--text-icon)]'>{icon}</span>}
-      <span className='truncate'>{label}</span>
+      <FloatingOverflowText label={label} className='block truncate' />
     </span>
   )
 })

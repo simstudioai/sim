@@ -45,6 +45,7 @@ import type {
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import { Resource } from '@/app/workspace/[workspaceId]/components'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import {
   ActionBar,
   AddConnectorModal,
@@ -795,10 +796,12 @@ export function KnowledgeBase({
   const breadcrumbs: BreadcrumbItem[] = [
     {
       label: 'Knowledge Base',
+      icon: Database,
       onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
     },
     {
       label: knowledgeBaseName,
+      icon: Database,
       editing: kbRename.editingId
         ? {
             isEditing: true,
@@ -1069,14 +1072,9 @@ export function KnowledgeBase({
                   <span className='flex-shrink-0 text-[var(--text-icon)]'>
                     <DocIcon className='size-[14px]' />
                   </span>
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <span className='min-w-0 truncate'>
-                        <SearchHighlight text={doc.filename} searchQuery={searchQuery} />
-                      </span>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>{doc.filename}</Tooltip.Content>
-                  </Tooltip.Root>
+                  <FloatingOverflowText label={doc.filename} className='block truncate'>
+                    <SearchHighlight text={doc.filename} searchQuery={searchQuery} />
+                  </FloatingOverflowText>
                 </span>
               ),
             },
