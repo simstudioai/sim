@@ -1,10 +1,10 @@
-import type { RunActorParams, RunActorResult } from '@/tools/apify/types'
+import type { RunTaskParams, RunTaskResult } from '@/tools/apify/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> = {
-  id: 'apify_run_actor_sync',
-  name: 'APIFY Run Actor (Sync)',
-  description: 'Run an APIFY actor synchronously and get results (max 5 minutes)',
+export const apifyRunTaskTool: ToolConfig<RunTaskParams, RunTaskResult> = {
+  id: 'apify_run_task',
+  name: 'APIFY Run Task',
+  description: 'Run a saved APIFY actor task synchronously and get dataset items (max 5 minutes)',
   version: '1.0.0',
 
   params: {
@@ -14,48 +14,56 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
       visibility: 'user-only',
       description: 'APIFY API token from console.apify.com/account#/integrations',
     },
-    actorId: {
+    taskId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Actor ID or username/actor-name. Examples: "apify/web-scraper", "janedoe/my-actor", "moJRLRc85AitArpNN"',
+        'Task ID or username/task-name. Examples: "janedoe/my-task", "moJRLRc85AitArpNN"',
     },
     input: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Actor input as JSON string. Example: {"startUrls": [{"url": "https://example.com"}], "maxPages": 10}',
+        'JSON string that overrides the task\'s saved input. Example: {"startUrls": [{"url": "https://example.com"}]}',
+    },
+    itemLimit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Max dataset items to return (1-250000). Example: 500',
     },
     memory: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Memory in megabytes allocated for the actor run (128-32768). Example: 1024 for 1GB, 2048 for 2GB',
+      description: 'Memory in megabytes allocated for the run (128-32768). Example: 1024 for 1GB',
     },
     timeout: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Timeout in seconds for the actor run. Example: 300 for 5 minutes, 3600 for 1 hour',
+      description: 'Timeout in seconds for the run. Example: 300 for 5 minutes',
     },
     build: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Actor build to run. Examples: "latest", "beta", "1.2.3", "build-tag-name"',
+      description: 'Actor build to run. Examples: "latest", "beta", "1.2.3"',
     },
   },
 
   request: {
     url: (params) => {
-      const encodedActorId = encodeURIComponent(params.actorId.trim())
-      const baseUrl = `https://api.apify.com/v2/acts/${encodedActorId}/run-sync-get-dataset-items`
+      const encodedTaskId = encodeURIComponent(params.taskId.trim())
+      const baseUrl = `https://api.apify.com/v2/actor-tasks/${encodedTaskId}/run-sync-get-dataset-items`
       const queryParams = new URLSearchParams()
 
+      if (params.itemLimit) {
+        const limit = Math.max(1, Math.min(params.itemLimit, 250000))
+        queryParams.set('limit', limit.toString())
+      }
       if (params.memory) {
         queryParams.set('memory', params.memory.toString())
       }
@@ -75,15 +83,14 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      let inputData = {}
       if (params.input) {
         try {
-          inputData = JSON.parse(params.input)
-        } catch (e) {
+          return JSON.parse(params.input)
+        } catch {
           throw new Error('Invalid JSON in input parameter')
         }
       }
-      return inputData
+      return {}
     },
   },
 
@@ -92,7 +99,7 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
       const errorText = await response.text()
       return {
         success: false,
-        output: { success: false, runId: '', status: 'ERROR', items: [] },
+        output: { success: false, status: 'ERROR', items: [] },
         error: `APIFY API error: ${errorText}`,
       }
     }
@@ -102,17 +109,15 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
       success: true,
       output: {
         success: true,
-        runId: 'sync-execution',
         status: 'SUCCEEDED',
-        items,
+        items: Array.isArray(items) ? items : [],
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the actor run succeeded' },
-    runId: { type: 'string', description: 'APIFY run ID' },
+    success: { type: 'boolean', description: 'Whether the task run succeeded' },
     status: { type: 'string', description: 'Run status (SUCCEEDED, FAILED, etc.)' },
-    items: { type: 'array', description: 'Dataset items (if completed)' },
+    items: { type: 'array', description: 'Dataset items produced by the run' },
   },
 }
