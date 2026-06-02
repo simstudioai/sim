@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
   Folder,
   Tooltip,
-  Trash2,
+  Trash,
 } from '@/components/emcn'
 import { Download } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -111,7 +111,7 @@ export function FilesActionBar({
                         disabled={isLoading}
                         className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
                       >
-                        <Trash2 className='size-[12px]' />
+                        <Trash className='size-[12px]' />
                       </Button>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top'>Delete</Tooltip.Content>

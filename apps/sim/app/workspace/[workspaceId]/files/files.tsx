@@ -20,7 +20,7 @@ import {
   FolderPlus,
   Loader,
   Pencil,
-  Trash2,
+  Trash,
   toast,
   Upload,
 } from '@/components/emcn'
@@ -1070,7 +1070,7 @@ export function Files() {
           ...(canEdit
             ? [
                 { label: 'Rename', icon: Pencil, onClick: handleStartHeaderRename },
-                { label: 'Delete', icon: Trash2, onClick: handleDeleteSelected },
+                { label: 'Delete', icon: Trash, onClick: handleDeleteSelected },
               ]
             : []),
         ],
@@ -1456,7 +1456,7 @@ export function Files() {
         ? [
             {
               label: 'Delete',
-              icon: Trash2,
+              icon: Trash,
               onClick: handleDeleteSelected,
             },
           ]
