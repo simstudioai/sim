@@ -197,8 +197,18 @@ export async function insertDispatch(input: {
  *
  *  Hits the `(table_id, status)` partial index on table_row_executions. */
 export async function countRunningCells(
-  tableId: string
+  tableId: string,
+  opts?: { includeUnclaimedPreStamps?: boolean }
 ): Promise<{ total: number; byRowId: Record<string, number> }> {
+  // Orphan pre-stamps (`pending` + null executionId) are normally excluded —
+  // when no dispatch is active they're dead placeholders that would stick the
+  // badge above zero forever. But DURING an active dispatch they're legitimate
+  // queued work the dispatcher is about to run, and the live SSE path counts
+  // them (`isExecInFlight` treats `pending` as in-flight). Including them here
+  // for the active case keeps the refetch consistent with the SSE deltas —
+  // otherwise the badge flickers 20→0 each time a window's pre-stamps land and
+  // the next refetch wipes them.
+  const excludeOrphanPreStamps = !opts?.includeUnclaimedPreStamps
   const rows = await db
     .select({
       rowId: tableRowExecutions.rowId,
@@ -209,9 +219,11 @@ export async function countRunningCells(
       and(
         eq(tableRowExecutions.tableId, tableId),
         inArray(tableRowExecutions.status, ['queued', 'running', 'pending']),
-        // Exclude orphan pre-stamps (`pending` + null executionId). De Morgan of
-        // NOT(pending AND null) — `status` is NOT NULL so `ne` is well-defined.
-        or(ne(tableRowExecutions.status, 'pending'), isNotNull(tableRowExecutions.executionId))
+        // De Morgan of NOT(pending AND null) — `status` is NOT NULL so `ne` is
+        // well-defined.
+        excludeOrphanPreStamps
+          ? or(ne(tableRowExecutions.status, 'pending'), isNotNull(tableRowExecutions.executionId))
+          : undefined
       )
     )
     .groupBy(tableRowExecutions.rowId)
@@ -261,9 +273,12 @@ export async function countActiveRunCells(
     return rowsAhead * groupCount
   }
 
-  // One round-trip per dispatch + the sidecar count, all in parallel.
+  // One round-trip per dispatch + the sidecar count, all in parallel. Include
+  // unclaimed pre-stamps in `byRowId`: a dispatch is active, so they're queued
+  // work, and counting them keeps the badge consistent with the live SSE path
+  // (which counts `pending`) instead of flickering 20→0 on each refetch.
   const [sidecar, perDispatch] = await Promise.all([
-    countRunningCells(tableId),
+    countRunningCells(tableId, { includeUnclaimedPreStamps: true }),
     Promise.all(active.map(countRowsAhead)),
   ])
   const total = perDispatch.reduce((sum, n) => sum + n, 0)
