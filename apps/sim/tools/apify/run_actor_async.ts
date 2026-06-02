@@ -1,6 +1,6 @@
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
-import type { RunActorParams, RunActorResult } from '@/tools/apify/types'
+import type { ApifyRun, RunActorParams, RunActorResult } from '@/tools/apify/types'
 import type { ToolConfig } from '@/tools/types'
 
 const POLL_INTERVAL_MS = 5000
@@ -70,11 +70,9 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
 
   request: {
     url: (params) => {
-      const encodedActorId = encodeURIComponent(params.actorId)
+      const encodedActorId = encodeURIComponent(params.actorId.trim())
       const baseUrl = `https://api.apify.com/v2/acts/${encodedActorId}/runs`
       const queryParams = new URLSearchParams()
-
-      queryParams.set('token', params.apiKey)
 
       if (params.waitForFinish !== undefined) {
         const waitTime = Math.max(0, Math.min(params.waitForFinish, 60))
@@ -90,7 +88,8 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
         queryParams.set('build', params.build)
       }
 
-      return `${baseUrl}?${queryParams.toString()}`
+      const query = queryParams.toString()
+      return query ? `${baseUrl}?${query}` : baseUrl
     },
     method: 'POST',
     headers: (params) => ({
@@ -121,9 +120,15 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
     }
 
     const data = await response.json()
+    const run = data.data as ApifyRun
     return {
       success: true,
-      output: data.data,
+      output: {
+        success: true,
+        runId: run.id,
+        status: run.status,
+        datasetId: run.defaultDatasetId,
+      },
     }
   },
 
@@ -132,8 +137,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       return result
     }
 
-    const runData = result.output as any
-    const runId = runData.id
+    const runId = result.output.runId
 
     let elapsedTime = 0
 
@@ -141,15 +145,11 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       await sleep(POLL_INTERVAL_MS)
       elapsedTime += POLL_INTERVAL_MS
 
-      const encodedActorId = encodeURIComponent(params.actorId)
-      const statusResponse = await fetch(
-        `https://api.apify.com/v2/acts/${encodedActorId}/runs/${runId}?token=${params.apiKey}`,
-        {
-          headers: {
-            Authorization: `Bearer ${params.apiKey}`,
-          },
-        }
-      )
+      const statusResponse = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, {
+        headers: {
+          Authorization: `Bearer ${params.apiKey}`,
+        },
+      })
 
       if (!statusResponse.ok) {
         return {
@@ -160,7 +160,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       }
 
       const statusData = await statusResponse.json()
-      const run = statusData.data
+      const run = statusData.data as ApifyRun
 
       if (
         run.status === 'SUCCEEDED' ||
@@ -168,10 +168,10 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
         run.status === 'ABORTED' ||
         run.status === 'TIMED-OUT'
       ) {
-        if (run.status === 'SUCCEEDED') {
+        if (run.status === 'SUCCEEDED' && run.defaultDatasetId) {
           const limit = Math.max(1, Math.min(params.itemLimit || 100, 250000))
           const itemsResponse = await fetch(
-            `https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?token=${params.apiKey}&limit=${limit}`,
+            `https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?limit=${limit}`,
             {
               headers: {
                 Authorization: `Bearer ${params.apiKey}`,
