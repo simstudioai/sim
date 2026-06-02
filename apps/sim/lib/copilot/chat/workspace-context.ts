@@ -13,6 +13,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, count, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
+import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
@@ -200,15 +201,21 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
         rootFiles.push(f)
       }
     }
-    const lines: string[] = []
+    const fileLine = (f: (typeof data.files)[0], indent: string) => {
+      const vfsPath = canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name })
+      return `${indent}- **${f.name}** (${f.id}) — ${f.type}, ${formatSize(f.size)} — \`${vfsPath}\``
+    }
+    const lines: string[] = [
+      'Read or edit a file by the exact VFS path shown in backticks below — copy it verbatim (it is already percent-encoded) and append `/content` to read the contents. Do not retype the display name or re-encode the path.',
+    ]
     for (const f of rootFiles) {
-      lines.push(`- **${f.name}** (${f.id}) — ${f.type}, ${formatSize(f.size)}`)
+      lines.push(fileLine(f, ''))
     }
     const sortedFolders = [...folderFiles.entries()].sort((a, b) => a[0].localeCompare(b[0]))
     for (const [folder, folderFileList] of sortedFolders) {
       lines.push(`- 📁 **${folder}/**`)
       for (const f of folderFileList) {
-        lines.push(`  - **${f.name}** (${f.id}) — ${f.type}, ${formatSize(f.size)}`)
+        lines.push(fileLine(f, '  '))
       }
     }
     sections.push(`## Files (${data.files.length})\n${lines.join('\n')}`)

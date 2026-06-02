@@ -374,7 +374,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         request: {
           description:
-            'Detailed deployment instructions. Include deployment type (api/chat) and ALL user-specified options: identifier, title, description, authType, password, allowedEmails, welcomeMessage, outputConfigs (block outputs to display).',
+            'Detailed deployment instructions. Include deployment type (api/chat/mcp) and ALL user-specified options: identifier, title, description, authType, password, allowedEmails, welcomeMessage, outputConfigs (block outputs to display).',
           type: 'string',
         },
       },
@@ -500,7 +500,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
               path: {
                 type: 'string',
-                description: "The output path (e.g. 'response', 'response.content')",
+                description:
+                  'The output path (e.g. `content` for an agent; structured fields are top-level paths). Call get_block_outputs for real paths.',
               },
             },
             required: ['blockId', 'path'],
@@ -1148,7 +1149,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         prompt: {
           type: 'string',
           description:
-            'Detailed text description of the image to generate, or editing instructions when used with editFileId.',
+            'Detailed text description of the image to generate, or editing instructions when editing the image(s) passed in `inputs.files`.',
         },
       },
       required: ['prompt'],
@@ -1707,7 +1708,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         operation: {
           type: 'string',
-          description: "The operation to perform: 'add', 'edit', 'list', or 'delete'",
+          description:
+            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_job uses create/update instead of add/edit.",
           enum: ['add', 'edit', 'delete', 'list'],
         },
         schema: {
@@ -1761,7 +1763,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         toolId: {
           type: 'string',
           description:
-            'The ID of the custom tool. Must be the exact toolId from the get_workflow_data custom tool response — do not guess or construct it. Required for edit and delete; omit for add and list.',
+            "The ID of the custom tool. Get it from the `list` operation or the `id` field inside the tool's VFS file (agent/custom-tools/{name}.json — the filename is the display name, not the id); get_workflow_data also returns it where that tool is available. Do not guess or construct it. Required for edit and delete; omit for add and list.",
         },
         toolIds: {
           type: 'array',
@@ -1786,7 +1788,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           properties: {
             cron: {
               type: 'string',
-              description: 'Cron expression for recurring jobs',
+              description:
+                "Cron expression for a recurring job (e.g. '0 9 * * *'). Set exactly one of cron or time: recurring -> cron; one-time -> time.",
             },
             jobId: {
               type: 'string',
@@ -1803,6 +1806,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'string',
               description:
                 "'persistent' (default) or 'until_complete'. Until_complete jobs stop when complete_job is called.",
+              enum: ['persistent', 'until_complete'],
             },
             maxRuns: {
               type: 'integer',
@@ -1815,6 +1819,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             status: {
               type: 'string',
               description: 'Job status: active, paused',
+              enum: ['active', 'paused'],
             },
             successCondition: {
               type: 'string',
@@ -1823,7 +1828,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             time: {
               type: 'string',
-              description: 'ISO 8601 datetime for one-time jobs or cron start time',
+              description:
+                "ISO 8601 datetime. One-time job -> set time and omit cron. May also anchor a recurring cron job's first-fire time.",
             },
             timezone: {
               type: 'string',
@@ -1837,7 +1843,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         operation: {
           type: 'string',
-          description: 'The operation to perform: create, list, get, update, delete',
+          description:
+            'The operation to perform: create, list, get, update, delete. These verbs are tool-specific — the custom-tool/MCP/skill managers use add/edit instead of create/update.',
           enum: ['create', 'list', 'get', 'update', 'delete'],
         },
       },
@@ -1883,7 +1890,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         operation: {
           type: 'string',
-          description: "The operation to perform: 'add', 'edit', 'list', or 'delete'",
+          description:
+            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_job uses create/update instead of add/edit.",
           enum: ['add', 'edit', 'delete', 'list'],
         },
         serverId: {
@@ -1915,7 +1923,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         operation: {
           type: 'string',
-          description: "The operation to perform: 'add', 'edit', 'list', or 'delete'",
+          description:
+            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_job uses create/update instead of add/edit.",
           enum: ['add', 'edit', 'delete', 'list'],
         },
         skillId: {
@@ -2046,7 +2055,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         providerName: {
           type: 'string',
           description:
-            "The name of the OAuth provider to connect (e.g., 'Slack', 'Gmail', 'Google Calendar', 'GitHub')",
+            "The OAuth provider to connect. Pass the integration's provider value (e.g. `google-email`, `slack`); the service display name or providerId resolves case-insensitively/fuzzily, so avoid bare base providers like `google`.",
         },
       },
       required: ['providerName'],
@@ -2060,7 +2069,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         providerName: {
           type: 'string',
           description:
-            "The name of the OAuth provider to connect (e.g., 'Slack', 'Gmail', 'Google Calendar')",
+            "The OAuth provider to connect. Pass the integration's provider value (e.g. `google-email`, `slack`); the service display name or providerId resolves case-insensitively/fuzzily, so avoid bare base providers like `google`.",
         },
       },
       required: ['providerName'],
@@ -2553,7 +2562,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'JSON object with key-value mappings where each key is an input field name',
         },
       },
-      required: ['workflow_input'],
     },
     resultSchema: undefined,
   },
@@ -2659,7 +2667,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'news',
             'tweet',
             'github',
-            'paper',
             'company',
             'research paper',
             'linkedin profile',

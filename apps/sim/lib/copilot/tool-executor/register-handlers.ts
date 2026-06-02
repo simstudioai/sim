@@ -3,7 +3,6 @@ import {
   CheckDeploymentStatus,
   CompleteJob,
   CreateFolder,
-  CreateJob,
   CreateWorkflow,
   CreateWorkspaceMcpServer,
   DeleteFolder,
@@ -74,7 +73,6 @@ import {
 import { executeFunctionExecute } from '../tools/handlers/function-execute'
 import {
   executeCompleteJob,
-  executeCreateJob,
   executeManageJob,
   executeUpdateJobHistory,
 } from '../tools/handlers/jobs'
@@ -171,7 +169,6 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [LoadDeployment.id]: h(executeLoadDeployment),
     [PromoteToLive.id]: h(executePromoteToLive),
 
-    [CreateJob.id]: h(executeCreateJob),
     [ManageJob.id]: h(executeManageJob),
     [CompleteJob.id]: h(executeCompleteJob),
     [UpdateJobHistory.id]: h(executeUpdateJobHistory),

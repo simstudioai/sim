@@ -551,7 +551,7 @@ Return ONLY the JSON array.`,
     conversationId: {
       type: 'string',
       description:
-        'Specific conversation ID to retrieve memories from (when memoryType is conversation_id)',
+        'Specific conversation ID to retrieve memories from (used when memoryType is conversation, sliding_window, or sliding_window_tokens)',
     },
     slidingWindowSize: {
       type: 'string',
