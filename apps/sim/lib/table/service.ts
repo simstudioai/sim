@@ -23,6 +23,7 @@ import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
+import { areGroupDepsSatisfied } from './deps'
 import { buildFilterClause, buildSortClause } from './sql'
 import { fireTableTrigger } from './trigger'
 import type {
@@ -1717,7 +1718,8 @@ function deriveExecClearsForDataPatch(
   dataPatch: RowData,
   schema: TableSchema,
   existingExecutions: RowExecutions,
-  callerPatch: Record<string, RowExecutionMetadata | null> | undefined
+  callerPatch: Record<string, RowExecutionMetadata | null> | undefined,
+  mergedData: RowData
 ): {
   executionsPatch: Record<string, RowExecutionMetadata | null> | undefined
   inFlightDownstreamGroups: string[]
@@ -1739,10 +1741,17 @@ function deriveExecClearsForDataPatch(
 
   // Left-to-right walk, propagating dirty columns forward.
   const groups = schema.workflowGroups ?? []
+  const afterRow = { data: mergedData } as TableRow
   for (const group of groups) {
     const deps = group.dependencies?.columns ?? []
     const depMatched = deps.some((d) => dirtied.has(d))
     if (!depMatched) continue
+
+    // A dep column changed, but if the group's deps are no longer satisfied
+    // after the patch — a checkbox was unchecked or a text dep cleared — there's
+    // nothing to recompute. Leave the prior result alone instead of re-arming or
+    // cancelling it; only checking a box / filling a dep drives downstream work.
+    if (!areGroupDepsSatisfied(group, afterRow)) continue
 
     const exec = existingExecutions[group.id]
     if (exec) {
@@ -1912,9 +1921,12 @@ async function writeExecutionsPatch(
             updatedAt: insertValues.updatedAt,
           },
           where: and(
-            // Reject if this group already shows authoritative `cancelled` for
-            // the same executionId — a stop click wrote it first.
-            sql`NOT (${tableRowExecutions.status} = 'cancelled' AND ${tableRowExecutions.executionId} IS NOT DISTINCT FROM ${guardExecutionId})`,
+            // Reject any guarded worker write when the cell is `cancelled` — a
+            // stop click wrote it authoritatively. SQL mirror of `isExecCancelled`
+            // (deps.ts). Status-only (not executionId-scoped): the cancel can
+            // only carry the pre-stamp's executionId (often null), so matching on
+            // id would let the worker's real-id claim resurrect a killed cell.
+            sql`${tableRowExecutions.status} <> 'cancelled'`,
             // Stale-worker: the cell's active run has moved on. Carve-outs
             // permit a fresh worker to take over when the row's executionId
             // is unset (dispatcher's pre-batch `pending` stamp).
@@ -2001,7 +2013,8 @@ export async function updateRow(
       data.data,
       table.schema,
       existingRow.executions,
-      data.executionsPatch
+      data.executionsPatch,
+      mergedData
     )
   const mergedExecutions = applyExecutionsPatch(existingRow.executions, effectiveExecutionsPatch)
 
@@ -2386,7 +2399,8 @@ export async function batchUpdateRows(
         update.data,
         table.schema,
         existing.executions,
-        update.executionsPatch
+        update.executionsPatch,
+        merged
       )
     const mergedExecutions = applyExecutionsPatch(existing.executions, effectiveExecutionsPatch)
 
