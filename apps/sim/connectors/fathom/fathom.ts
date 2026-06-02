@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
 import { FathomIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -104,6 +103,7 @@ interface FathomMeetingHeader {
   recordedByEmail?: string
   recordedByName?: string
   team?: string
+  sourceUrl?: string
   contentHash: string
 }
 
@@ -191,15 +191,16 @@ function buildHeader(meeting: FathomMeeting): FathomMeetingHeader {
     recordedByEmail: meeting.recorded_by?.email,
     recordedByName: meeting.recorded_by?.name,
     team: meeting.recorded_by?.team ?? undefined,
+    sourceUrl: buildSourceUrl(meeting),
     contentHash: buildContentHash(meeting),
   }
 }
 
 /**
  * Builds a metadata-based content hash. Fathom recordings are immutable once
- * processed, so the recording id plus its end/creation timestamps fully
- * identify a version. The stub hash is authoritative for change detection;
- * `getDocument` omits the hash so the engine reuses this value verbatim.
+ * processed, so the recording id plus its end/creation timestamps fully identify
+ * a version. The same value is cached in the header and returned by `getDocument`,
+ * so the stub and hydrated document hash identically.
  */
 function buildContentHash(meeting: FathomMeeting): string {
   return `fathom:${meeting.recording_id ?? ''}:${meeting.recording_end_time ?? ''}:${meeting.created_at ?? ''}`
@@ -491,21 +492,15 @@ export const fathomConnector: ConnectorConfig = {
       const content = formatMeetingContent(header, transcript, summary).trim()
       if (!content) return null
 
-      const hydrated: ExternalDocument = {
+      return {
         externalId,
         title: header?.title ?? 'Untitled Fathom Meeting',
         content,
         contentDeferred: false,
         mimeType: 'text/plain',
-        sourceUrl: undefined,
-        contentHash: header?.contentHash ?? '',
+        sourceUrl: header?.sourceUrl,
+        contentHash: header?.contentHash ?? `fathom:${externalId}`,
       }
-
-      if (header?.contentHash) {
-        return hydrated
-      }
-
-      return omit(hydrated, ['contentHash']) as ExternalDocument
     } catch (error) {
       logger.warn('Failed to get Fathom meeting', {
         externalId,
