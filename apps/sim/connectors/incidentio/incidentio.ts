@@ -378,6 +378,7 @@ export const incidentioConnector: ConnectorConfig = {
       options: [
         { label: 'All', id: '' },
         { label: 'Live (active)', id: 'live' },
+        { label: 'Paused', id: 'paused' },
         { label: 'Closed', id: 'closed' },
         { label: 'Triage', id: 'triage' },
         { label: 'Learning (post-incident)', id: 'learning' },

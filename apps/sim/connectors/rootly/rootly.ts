@@ -3,7 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { RootlyIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { joinTagArray, parseTagDate } from '@/connectors/utils'
+import { joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('RootlyConnector')
 
@@ -17,8 +17,9 @@ const MAX_TIMELINE_EVENTS = 200
  * JSON:API relationships to embed inline within each incident's `attributes`.
  * Rootly omits these unless requested via `include`, so both the list (stub) and
  * detail requests pass them to ensure tag metadata is identical on either path.
- * Scoped to exactly the relationships this connector reads (services, teams,
- * environments) to avoid fetching unused relationship payloads on every incident.
+ * Scoped to exactly the relationships this connector reads — `environments`,
+ * `services`, and `groups` (Rootly's API token for teams) — to avoid fetching
+ * unused relationship payloads on every incident.
  */
 const INCIDENT_INCLUDE = 'environments,services,groups'
 
@@ -388,9 +389,39 @@ export const rootlyConnector: ConnectorConfig = {
       type: 'short-input',
       required: false,
       mode: 'advanced',
-      placeholder: 'e.g. SEV0 (default: all)',
+      placeholder: 'e.g. sev0 (default: all)',
       description:
-        'Only sync incidents with this severity name. Leave blank to sync all severities.',
+        'Only sync incidents with this severity slug (e.g. sev0, sev1). Leave blank to sync all severities.',
+    },
+    {
+      id: 'services',
+      title: 'Filter by Services',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      multi: true,
+      placeholder: 'Service slugs (comma-separated, default: all)',
+      description: 'Only sync incidents affecting these service slugs.',
+    },
+    {
+      id: 'teams',
+      title: 'Filter by Teams',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      multi: true,
+      placeholder: 'Team slugs (comma-separated, default: all)',
+      description: 'Only sync incidents owned by these team slugs.',
+    },
+    {
+      id: 'environments',
+      title: 'Filter by Environments',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      multi: true,
+      placeholder: 'Environment slugs (comma-separated, default: all)',
+      description: 'Only sync incidents in these environment slugs.',
     },
     {
       id: 'maxIncidents',
@@ -411,6 +442,9 @@ export const rootlyConnector: ConnectorConfig = {
     const maxIncidents = parseMaxIncidents(sourceConfig)
     const status = typeof sourceConfig.status === 'string' ? sourceConfig.status.trim() : ''
     const severity = typeof sourceConfig.severity === 'string' ? sourceConfig.severity.trim() : ''
+    const services = parseMultiValue(sourceConfig.services)
+    const teams = parseMultiValue(sourceConfig.teams)
+    const environments = parseMultiValue(sourceConfig.environments)
     const pageNumber = cursor ? Number(cursor) : 1
     const startPage = Number.isFinite(pageNumber) && pageNumber > 0 ? pageNumber : 1
 
@@ -420,6 +454,9 @@ export const rootlyConnector: ConnectorConfig = {
     queryParams.set('include', INCIDENT_INCLUDE)
     if (status) queryParams.set('filter[status]', status)
     if (severity) queryParams.set('filter[severity]', severity)
+    if (services.length > 0) queryParams.set('filter[services]', services.join(','))
+    if (teams.length > 0) queryParams.set('filter[teams]', teams.join(','))
+    if (environments.length > 0) queryParams.set('filter[environments]', environments.join(','))
 
     if (lastSyncAt) {
       queryParams.set('filter[updated_at][gt]', lastSyncAt.toISOString())

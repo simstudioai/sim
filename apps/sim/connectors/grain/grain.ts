@@ -117,6 +117,8 @@ function isParticipantScope(value: unknown): value is ParticipantScope {
  * - `after_datetime` — derived from `lookbackDays`; recordings on/after the window start
  * - `participant_scope` — `internal` or `external`
  * - `title_search` — substring match against recording titles
+ * - `team` — recordings belonging to the given team UUID
+ * - `meeting_type` — recordings classified as the given meeting type UUID
  */
 function buildRecordingFilter(
   sourceConfig: Record<string, unknown>
@@ -135,6 +137,13 @@ function buildRecordingFilter(
   const titleSearch =
     typeof sourceConfig.titleSearch === 'string' ? sourceConfig.titleSearch.trim() : ''
   if (titleSearch) filter.title_search = titleSearch
+
+  const team = typeof sourceConfig.teamId === 'string' ? sourceConfig.teamId.trim() : ''
+  if (team) filter.team = team
+
+  const meetingType =
+    typeof sourceConfig.meetingTypeId === 'string' ? sourceConfig.meetingTypeId.trim() : ''
+  if (meetingType) filter.meeting_type = meetingType
 
   return Object.keys(filter).length > 0 ? filter : undefined
 }
@@ -362,6 +371,26 @@ export const grainConnector: ConnectorConfig = {
       mode: 'advanced',
       placeholder: 'e.g. weekly standup',
       description: 'Only sync recordings whose title matches this text. Leave blank to sync all.',
+    },
+    {
+      id: 'teamId',
+      title: 'Team ID',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+      description:
+        'Only sync recordings belonging to this team (Grain team UUID). Leave blank to sync all teams.',
+    },
+    {
+      id: 'meetingTypeId',
+      title: 'Meeting Type ID',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+      description:
+        'Only sync recordings of this meeting type (Grain meeting type UUID). Leave blank to sync all types.',
     },
   ],
 

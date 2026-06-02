@@ -125,12 +125,12 @@ function parseFolderId(sourceConfig: Record<string, unknown>): string | undefine
 }
 
 /**
- * Parses the optional `createdAfter` date filter from source config. Returns a
- * normalized ISO 8601 string when the value is a valid date; otherwise returns
- * undefined so the request is not scoped to an invalid date.
+ * Parses an optional ISO 8601 date filter from a named source-config field.
+ * Returns a normalized ISO 8601 string when the value is a valid date; otherwise
+ * returns undefined so the request is not scoped to an invalid date.
  */
-function parseCreatedAfter(sourceConfig: Record<string, unknown>): string | undefined {
-  const raw = sourceConfig.createdAfter
+function parseDateFilter(sourceConfig: Record<string, unknown>, key: string): string | undefined {
+  const raw = sourceConfig[key]
   if (typeof raw !== 'string') return undefined
   const trimmed = raw.trim()
   if (!trimmed) return undefined
@@ -262,6 +262,16 @@ export const granolaConnector: ConnectorConfig = {
       description:
         'Only sync notes created on or after this date (ISO 8601). Leave blank to sync notes regardless of creation date.',
     },
+    {
+      id: 'createdBefore',
+      title: 'Created Before',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. 2025-12-31 or 2025-12-31T23:59:59Z',
+      description:
+        'Only sync notes created on or before this date (ISO 8601). Leave blank to sync notes regardless of creation date.',
+    },
   ],
 
   listDocuments: async (
@@ -273,7 +283,8 @@ export const granolaConnector: ConnectorConfig = {
   ): Promise<ExternalDocumentList> => {
     const maxNotes = parseMaxNotes(sourceConfig)
     const folderId = parseFolderId(sourceConfig)
-    const createdAfter = parseCreatedAfter(sourceConfig)
+    const createdAfter = parseDateFilter(sourceConfig, 'createdAfter')
+    const createdBefore = parseDateFilter(sourceConfig, 'createdBefore')
 
     const url = new URL(`${GRANOLA_API_BASE}/notes`)
     url.searchParams.set('page_size', String(PAGE_SIZE))
@@ -281,12 +292,14 @@ export const granolaConnector: ConnectorConfig = {
     if (lastSyncAt) url.searchParams.set('updated_after', lastSyncAt.toISOString())
     if (folderId) url.searchParams.set('folder_id', folderId)
     if (createdAfter) url.searchParams.set('created_after', createdAfter)
+    if (createdBefore) url.searchParams.set('created_before', createdBefore)
 
     logger.info('Listing Granola notes', {
       hasCursor: Boolean(cursor),
       incremental: Boolean(lastSyncAt),
       scopedToFolder: Boolean(folderId),
       scopedByCreatedAfter: Boolean(createdAfter),
+      scopedByCreatedBefore: Boolean(createdBefore),
     })
 
     const response = await fetchWithRetry(url.toString(), {
@@ -429,6 +442,19 @@ export const granolaConnector: ConnectorConfig = {
         valid: false,
         error:
           'Created After must be a valid date (ISO 8601, e.g. 2025-01-01 or 2025-01-01T00:00:00Z)',
+      }
+    }
+
+    const createdBefore = sourceConfig.createdBefore
+    if (
+      typeof createdBefore === 'string' &&
+      createdBefore.trim() &&
+      Number.isNaN(new Date(createdBefore.trim()).getTime())
+    ) {
+      return {
+        valid: false,
+        error:
+          'Created Before must be a valid date (ISO 8601, e.g. 2025-12-31 or 2025-12-31T23:59:59Z)',
       }
     }
 

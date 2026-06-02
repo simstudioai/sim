@@ -367,6 +367,16 @@ export const gitlabConnector: ConnectorConfig = {
         'Only sync issues with all of these labels (comma-separated). Applies only when syncing issues.',
     },
     {
+      id: 'issueMilestone',
+      title: 'Issue Milestone',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. v1.0 (milestone title)',
+      description:
+        'Only sync issues assigned to this milestone (exact title). Applies only when syncing issues.',
+    },
+    {
       id: 'maxItems',
       title: 'Max Items',
       type: 'short-input',
@@ -465,6 +475,9 @@ export const gitlabConnector: ConnectorConfig = {
       const issueLabels =
         typeof sourceConfig.issueLabels === 'string' ? sourceConfig.issueLabels.trim() : ''
       if (issueLabels) params.set('labels', issueLabels)
+      const issueMilestone =
+        typeof sourceConfig.issueMilestone === 'string' ? sourceConfig.issueMilestone.trim() : ''
+      if (issueMilestone) params.set('milestone', issueMilestone)
 
       const url = `${apiBase}/projects/${encodedProject}/issues?${params.toString()}`
       logger.info('Listing GitLab issues', {

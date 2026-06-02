@@ -527,6 +527,16 @@ export const greenhouseConnector: ConnectorConfig = {
       description:
         'Sync only candidates created at or after this ISO 8601 timestamp. Leave empty to sync candidates regardless of creation date.',
     },
+    {
+      id: 'createdBefore',
+      title: 'Created Before',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. 2024-12-31T23:59:59Z',
+      description:
+        'Sync only candidates created before this ISO 8601 timestamp. Combine with Created After to backfill a bounded date range.',
+    },
   ],
 
   listDocuments: async (
@@ -543,6 +553,8 @@ export const greenhouseConnector: ConnectorConfig = {
     const jobId = typeof sourceConfig.jobId === 'string' ? sourceConfig.jobId.trim() : ''
     const createdAfter =
       typeof sourceConfig.createdAfter === 'string' ? sourceConfig.createdAfter.trim() : ''
+    const createdBefore =
+      typeof sourceConfig.createdBefore === 'string' ? sourceConfig.createdBefore.trim() : ''
 
     const queryParams = new URLSearchParams({
       per_page: String(CANDIDATES_PER_PAGE),
@@ -551,6 +563,7 @@ export const greenhouseConnector: ConnectorConfig = {
     if (updatedAfter) queryParams.set('updated_after', updatedAfter)
     if (jobId) queryParams.set('job_id', jobId)
     if (createdAfter) queryParams.set('created_after', createdAfter)
+    if (createdBefore) queryParams.set('created_before', createdBefore)
 
     const url = `${GREENHOUSE_API_BASE}/candidates?${queryParams.toString()}`
 
