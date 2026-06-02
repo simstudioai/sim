@@ -40,14 +40,3 @@ export const SCHEDULE_INFRA_RETRY_MAX_ATTEMPTS = envNumber(
     integer: true,
   }
 )
-
-/**
- * Minimum delay before a schedule retries after hitting a usage limit (402).
- * Usage limits only clear on billing-period rollover or upgrade, so over-limit
- * schedules back off to (at most) this cadence instead of re-running every tick.
- */
-export const SCHEDULE_USAGE_LIMIT_BACKOFF_MS = envNumber(
-  env.SCHEDULE_USAGE_LIMIT_BACKOFF_MS,
-  60 * 60_000,
-  { min: 1, integer: true }
-)

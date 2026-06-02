@@ -39,7 +39,6 @@ import {
   SCHEDULE_INFRA_RETRY_BASE_MS,
   SCHEDULE_INFRA_RETRY_MAX_ATTEMPTS,
   SCHEDULE_INFRA_RETRY_MAX_MS,
-  SCHEDULE_USAGE_LIMIT_BACKOFF_MS,
 } from '@/lib/workflows/schedules/execution-limits'
 import {
   type BlockState,
@@ -794,20 +793,16 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
 
           case 402: {
             /**
-             * Usage limits are a billing state, not a broken workflow, and only clear
-             * on billing-period rollover or upgrade. Back off to at most the usage-limit
-             * cadence (never faster than the schedule's own cadence) so an over-limit
-             * schedule stops re-running every tick, and count each hit toward the shared
-             * auto-disable threshold so an abandoned over-limit schedule eventually stops.
+             * Usage limits are a billing state, not a broken workflow, but they only
+             * clear on billing-period rollover or upgrade. Keep retrying at the normal
+             * cadence, but count each hit toward the shared auto-disable threshold so an
+             * abandoned over-limit schedule eventually stops instead of running forever.
              * A successful run resets failedCount, so transient overages self-heal.
              */
-            const cronNextRunAt = await calculateNextRunFromDeployment(payload, requestId)
-            const backoffRunAt = new Date(now.getTime() + SCHEDULE_USAGE_LIMIT_BACKOFF_MS)
             const nextRunAt =
-              cronNextRunAt && cronNextRunAt.getTime() > backoffRunAt.getTime()
-                ? cronNextRunAt
-                : backoffRunAt
-            logger.warn(`[${requestId}] Usage limit exceeded, backing off scheduled run`, {
+              (await calculateNextRunFromDeployment(payload, requestId)) ??
+              new Date(now.getTime() + 60 * 60 * 1000)
+            logger.warn(`[${requestId}] Usage limit exceeded, counting as failed run`, {
               scheduleId: payload.scheduleId,
               nextRunAt: nextRunAt.toISOString(),
             })

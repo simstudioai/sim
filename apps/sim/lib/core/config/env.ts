@@ -204,7 +204,6 @@ export const env = createEnv({
     SCHEDULE_INFRA_RETRY_BASE_MS:          z.string().optional().default('60000'),
     SCHEDULE_INFRA_RETRY_MAX_MS:           z.string().optional().default('300000'),
     SCHEDULE_INFRA_RETRY_MAX_ATTEMPTS:     z.string().optional().default('10'),
-    SCHEDULE_USAGE_LIMIT_BACKOFF_MS:       z.string().optional().default('3600000'), // Min gap between retries while over usage limit (default 1h)
 
     // Cloud Storage - AWS S3
     AWS_REGION:                            z.string().optional(),                  // AWS region for S3 buckets
