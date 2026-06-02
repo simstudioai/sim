@@ -484,7 +484,11 @@ export const docusignConnector: ConnectorConfig = {
     }
 
     const startPosition = cursor ? Number(cursor) : 0
-    const fromDate = new Date(Date.now() - lookbackDays * MS_PER_DAY)
+    const cachedFromDate = syncContext?.docusignFromDate as string | undefined
+    const fromDate = cachedFromDate
+      ? new Date(cachedFromDate)
+      : new Date(Date.now() - lookbackDays * MS_PER_DAY)
+    if (syncContext && !cachedFromDate) syncContext.docusignFromDate = fromDate.toISOString()
 
     const queryParams = new URLSearchParams({
       from_date: formatFromDate(fromDate),

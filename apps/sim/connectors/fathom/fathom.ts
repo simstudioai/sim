@@ -488,6 +488,13 @@ export const fathomConnector: ConnectorConfig = {
         })
       }
 
+      const hasTranscript = transcript.some((entry) => entry.text?.trim())
+      const hasSummary = Boolean(summary?.markdown_formatted?.trim())
+      if (!hasTranscript && !hasSummary) {
+        logger.info('No transcript or summary yet for Fathom meeting', { externalId })
+        return null
+      }
+
       const header = readCachedHeader(syncContext, externalId)
       const content = formatMeetingContent(header, transcript, summary).trim()
       if (!content) return null
