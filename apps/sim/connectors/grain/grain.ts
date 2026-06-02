@@ -94,6 +94,51 @@ interface GrainTranscriptSegment {
  */
 const RECORDING_INCLUDE = { participants: true } as const
 
+/** Number of milliseconds in a day, used to convert the lookback window to a timestamp. */
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+/**
+ * Valid values for the recordings list `participant_scope` filter (verified against the
+ * Grain Public API recordings list request body, which the in-repo Grain tools also use).
+ */
+const PARTICIPANT_SCOPES = ['internal', 'external'] as const
+type ParticipantScope = (typeof PARTICIPANT_SCOPES)[number]
+
+function isParticipantScope(value: unknown): value is ParticipantScope {
+  return typeof value === 'string' && PARTICIPANT_SCOPES.includes(value as ParticipantScope)
+}
+
+/**
+ * Builds the recordings list `filter` object from the connector's scoping config. Only
+ * documented Grain filter keys are emitted, and only when configured, so an empty config
+ * produces no `filter` (full sync). Returns undefined when no scoping is configured.
+ *
+ * Supported keys (verified against the in-repo Grain list_recordings tool / Public API):
+ * - `after_datetime` — derived from `lookbackDays`; recordings on/after the window start
+ * - `participant_scope` — `internal` or `external`
+ * - `title_search` — substring match against recording titles
+ */
+function buildRecordingFilter(
+  sourceConfig: Record<string, unknown>
+): Record<string, unknown> | undefined {
+  const filter: Record<string, unknown> = {}
+
+  const lookbackDays = sourceConfig.lookbackDays ? Number(sourceConfig.lookbackDays) : 0
+  if (Number.isFinite(lookbackDays) && lookbackDays > 0) {
+    filter.after_datetime = new Date(Date.now() - lookbackDays * MS_PER_DAY).toISOString()
+  }
+
+  if (isParticipantScope(sourceConfig.participantScope)) {
+    filter.participant_scope = sourceConfig.participantScope
+  }
+
+  const titleSearch =
+    typeof sourceConfig.titleSearch === 'string' ? sourceConfig.titleSearch.trim() : ''
+  if (titleSearch) filter.title_search = titleSearch
+
+  return Object.keys(filter).length > 0 ? filter : undefined
+}
+
 /**
  * Builds the auth + version headers shared by every Grain API request.
  */
@@ -284,6 +329,39 @@ export const grainConnector: ConnectorConfig = {
       type: 'short-input',
       required: false,
       placeholder: 'e.g. 200 (default: unlimited)',
+      description: 'Cap the total number of recordings synced. Leave blank to sync all.',
+    },
+    {
+      id: 'lookbackDays',
+      title: 'Lookback Window (days)',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. 90 (default: all time)',
+      description: 'Only sync recordings from the last N days. Leave blank to sync any age.',
+    },
+    {
+      id: 'participantScope',
+      title: 'Participant Scope',
+      type: 'dropdown',
+      required: false,
+      mode: 'advanced',
+      description:
+        'Limit to internal-only meetings or meetings that include an external participant. Leave as Any to sync both.',
+      options: [
+        { label: 'Any', id: '' },
+        { label: 'Internal only', id: 'internal' },
+        { label: 'External (has external participant)', id: 'external' },
+      ],
+    },
+    {
+      id: 'titleSearch',
+      title: 'Title Search',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. weekly standup',
+      description: 'Only sync recordings whose title matches this text. Leave blank to sync all.',
     },
   ],
 
@@ -298,7 +376,13 @@ export const grainConnector: ConnectorConfig = {
     const body: Record<string, unknown> = { include: RECORDING_INCLUDE }
     if (cursor) body.cursor = cursor
 
-    logger.info('Listing Grain recordings', { hasCursor: Boolean(cursor) })
+    const filter = buildRecordingFilter(sourceConfig)
+    if (filter) body.filter = filter
+
+    logger.info('Listing Grain recordings', {
+      hasCursor: Boolean(cursor),
+      hasFilter: Boolean(filter),
+    })
 
     const response = await fetchWithRetry(`${GRAIN_API_BASE}/recordings`, {
       method: 'POST',

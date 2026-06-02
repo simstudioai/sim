@@ -383,6 +383,16 @@ export const rootlyConnector: ConnectorConfig = {
       description: 'Only sync incidents with this status (e.g. resolved, mitigated, started).',
     },
     {
+      id: 'severity',
+      title: 'Filter by Severity',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. SEV0 (default: all)',
+      description:
+        'Only sync incidents with this severity name. Leave blank to sync all severities.',
+    },
+    {
       id: 'maxIncidents',
       title: 'Max Incidents',
       type: 'short-input',
@@ -400,6 +410,7 @@ export const rootlyConnector: ConnectorConfig = {
   ): Promise<ExternalDocumentList> => {
     const maxIncidents = parseMaxIncidents(sourceConfig)
     const status = typeof sourceConfig.status === 'string' ? sourceConfig.status.trim() : ''
+    const severity = typeof sourceConfig.severity === 'string' ? sourceConfig.severity.trim() : ''
     const pageNumber = cursor ? Number(cursor) : 1
     const startPage = Number.isFinite(pageNumber) && pageNumber > 0 ? pageNumber : 1
 
@@ -408,6 +419,7 @@ export const rootlyConnector: ConnectorConfig = {
     queryParams.set('page[size]', String(PAGE_SIZE))
     queryParams.set('include', INCIDENT_INCLUDE)
     if (status) queryParams.set('filter[status]', status)
+    if (severity) queryParams.set('filter[severity]', severity)
 
     // Incremental sync: Rootly supports filtering by update time and sorting by it,
     // so the engine only re-reads incidents changed since the last successful sync.

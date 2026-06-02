@@ -437,6 +437,16 @@ export const docusignConnector: ConnectorConfig = {
         'On initial sync only. Filters envelopes by when their status last changed (from_date).',
     },
     {
+      id: 'status',
+      title: 'Filter by Status',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. completed (or completed,sent)',
+      description:
+        'Only sync envelopes with these statuses (comma-separated: created, sent, delivered, completed, declined, voided). Leave blank to sync all.',
+    },
+    {
       id: 'maxEnvelopes',
       title: 'Max Envelopes',
       type: 'short-input',
@@ -474,6 +484,8 @@ export const docusignConnector: ConnectorConfig = {
       count: String(MAX_PAGE_SIZE),
       start_position: String(startPosition),
     })
+    const statusFilter = typeof sourceConfig.status === 'string' ? sourceConfig.status.trim() : ''
+    if (statusFilter) queryParams.set('status', statusFilter)
 
     const url = `${apiBase}/envelopes?${queryParams.toString()}`
 

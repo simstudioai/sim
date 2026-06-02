@@ -450,7 +450,18 @@ export const ashbyConnector: ConnectorConfig = {
       type: 'short-input',
       required: false,
       placeholder: 'e.g. 500 (default: unlimited)',
-      description: 'Cap the number of candidates synced. Leave empty to sync all candidates.',
+      description:
+        'Cap the number of candidates synced. Leave empty to sync ALL candidates in the organization.',
+    },
+    {
+      id: 'createdAfter',
+      title: 'Created After',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. 2025-01-01 or 2025-01-01T00:00:00Z',
+      description:
+        'Only sync candidates created on or after this date (ISO 8601). Leave blank to sync candidates regardless of creation date.',
     },
   ],
 
@@ -461,6 +472,12 @@ export const ashbyConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const maxCandidates = sourceConfig.maxCandidates ? Number(sourceConfig.maxCandidates) : 0
+    const createdAfterMs = (() => {
+      const raw = sourceConfig.createdAfter
+      if (typeof raw !== 'string' || !raw.trim()) return undefined
+      const ms = new Date(raw.trim()).getTime()
+      return Number.isNaN(ms) ? undefined : ms
+    })()
 
     const prevFetched = (syncContext?.totalCandidatesFetched as number) ?? 0
     if (maxCandidates > 0 && prevFetched >= maxCandidates) {
@@ -470,6 +487,7 @@ export const ashbyConnector: ConnectorConfig = {
 
     const body: UnknownRecord = { limit: CANDIDATES_PER_PAGE }
     if (cursor) body.cursor = cursor
+    if (createdAfterMs !== undefined) body.createdAfter = createdAfterMs
 
     logger.info('Listing Ashby candidates', {
       cursor: cursor ?? 'initial',

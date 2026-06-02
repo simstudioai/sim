@@ -344,6 +344,29 @@ export const gitlabConnector: ConnectorConfig = {
       ],
     },
     {
+      id: 'issueState',
+      title: 'Issue State',
+      type: 'dropdown',
+      required: false,
+      mode: 'advanced',
+      options: [
+        { label: 'All', id: 'all' },
+        { label: 'Open only', id: 'opened' },
+        { label: 'Closed only', id: 'closed' },
+      ],
+      description: 'Which issues to sync by state. Applies only when syncing issues.',
+    },
+    {
+      id: 'issueLabels',
+      title: 'Issue Labels',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. bug,docs (comma-separated)',
+      description:
+        'Only sync issues with all of these labels (comma-separated). Applies only when syncing issues.',
+    },
+    {
       id: 'maxItems',
       title: 'Max Items',
       type: 'short-input',
@@ -439,6 +462,12 @@ export const gitlabConnector: ConnectorConfig = {
         sort: 'desc',
       })
       if (lastSyncAt) params.set('updated_after', lastSyncAt.toISOString())
+      const issueState =
+        typeof sourceConfig.issueState === 'string' ? sourceConfig.issueState.trim() : ''
+      if (issueState && issueState !== 'all') params.set('state', issueState)
+      const issueLabels =
+        typeof sourceConfig.issueLabels === 'string' ? sourceConfig.issueLabels.trim() : ''
+      if (issueLabels) params.set('labels', issueLabels)
 
       const url = `${apiBase}/projects/${encodedProject}/issues?${params.toString()}`
       logger.info('Listing GitLab issues', {

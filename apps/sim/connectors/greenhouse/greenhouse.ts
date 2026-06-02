@@ -496,7 +496,28 @@ export const greenhouseConnector: ConnectorConfig = {
       type: 'short-input',
       required: false,
       placeholder: 'e.g. 500 (default: unlimited)',
-      description: 'Cap the number of candidates synced. Leave empty to sync all candidates.',
+      description:
+        'Cap the number of candidates synced. Leave empty to sync ALL candidates in the organization.',
+    },
+    {
+      id: 'jobId',
+      title: 'Job ID',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. 123456',
+      description:
+        'Sync only candidates who applied to this Greenhouse job. Leave empty to sync candidates across all jobs.',
+    },
+    {
+      id: 'createdAfter',
+      title: 'Created After',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'e.g. 2024-01-01T00:00:00Z',
+      description:
+        'Sync only candidates created at or after this ISO 8601 timestamp. Leave empty to sync candidates regardless of creation date.',
     },
   ],
 
@@ -510,12 +531,17 @@ export const greenhouseConnector: ConnectorConfig = {
     const maxCandidates = sourceConfig.maxCandidates ? Number(sourceConfig.maxCandidates) : 0
     const page = cursor ? Number(cursor) : 1
     const updatedAfter = computeUpdatedAfter(lastSyncAt)
+    const jobId = typeof sourceConfig.jobId === 'string' ? sourceConfig.jobId.trim() : ''
+    const createdAfter =
+      typeof sourceConfig.createdAfter === 'string' ? sourceConfig.createdAfter.trim() : ''
 
     const queryParams = new URLSearchParams({
       per_page: String(CANDIDATES_PER_PAGE),
       page: String(page),
     })
     if (updatedAfter) queryParams.set('updated_after', updatedAfter)
+    if (jobId) queryParams.set('job_id', jobId)
+    if (createdAfter) queryParams.set('created_after', createdAfter)
 
     const url = `${GREENHOUSE_API_BASE}/candidates?${queryParams.toString()}`
 

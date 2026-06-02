@@ -346,8 +346,9 @@ export const mondayConnector: ConnectorConfig = {
       title: 'Board IDs',
       type: 'short-input',
       required: false,
-      placeholder: 'e.g. 1234567890, 9876543210 (empty = all accessible boards)',
-      description: 'Comma-separated board IDs to sync. Leave empty to sync all accessible boards.',
+      placeholder: 'e.g. 1234567890, 9876543210 (empty = all active boards)',
+      description:
+        'Comma-separated board IDs to sync — find a board ID in its URL (.../boards/<id>). Leave empty to sync items from every active board you can access.',
     },
     {
       id: 'maxItems',
