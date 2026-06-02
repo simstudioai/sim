@@ -1986,6 +1986,7 @@ export const ManageCustomTool: ToolCatalogEntry = {
     required: ['operation'],
   },
   requiresConfirmation: true,
+  requiredPermission: 'write',
 }
 
 export const ManageJob: ToolCatalogEntry = {
