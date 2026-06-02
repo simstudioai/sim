@@ -13,7 +13,7 @@ import {
   generateBatchPresignedUploadUrls,
   hasCloudStorage,
 } from '@/lib/uploads/core/storage-service'
-import { insertFileMetadataMany } from '@/lib/uploads/server/metadata'
+import { recordKnowledgeBaseFileOwnershipMany } from '@/lib/uploads/server/metadata'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { createErrorResponse } from '@/app/api/files/utils'
@@ -151,12 +151,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     if (uploadType === 'knowledge-base' && knowledgeBaseWorkspaceId) {
       const ownerWorkspaceId = knowledgeBaseWorkspaceId
-      await insertFileMetadataMany(
+      await recordKnowledgeBaseFileOwnershipMany(
         presignedUrls.map((urlResponse, index) => ({
           key: urlResponse.key,
           userId: sessionUserId,
           workspaceId: ownerWorkspaceId,
-          context: 'knowledge-base',
           originalName: files[index].fileName,
           contentType: files[index].contentType,
           size: files[index].fileSize,

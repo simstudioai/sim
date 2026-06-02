@@ -1605,6 +1605,10 @@ export function useCollaborativeWorkflow() {
         return false
       }
 
+      const persistedUpdates = updates.filter(
+        (update) => !isSyntheticToolSubBlockId(update.subblockId)
+      )
+
       if (updates.length > 0) {
         updates.forEach((update) => {
           useSubBlockStore.getState().setValue(update.blockId, update.subblockId, update.value)
@@ -1613,9 +1617,6 @@ export function useCollaborativeWorkflow() {
             .syncDynamicHandleSubblockValue(update.blockId, update.subblockId, update.value)
         })
 
-        const persistedUpdates = updates.filter(
-          (update) => !isSyntheticToolSubBlockId(update.subblockId)
-        )
         if (persistedUpdates.length > 0) {
           const operationId = generateId()
           addToQueue({
@@ -1632,7 +1633,7 @@ export function useCollaborativeWorkflow() {
       }
 
       undoRedo.recordBatchUpdateSubblocks(
-        updates.map((update) => ({
+        persistedUpdates.map((update) => ({
           blockId: update.blockId,
           subBlockId: update.subblockId,
           before: update.expectedValue,
