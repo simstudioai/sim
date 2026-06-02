@@ -105,6 +105,7 @@ interface FathomMeetingHeader {
   team?: string
   sourceUrl?: string
   contentHash: string
+  metadata: FathomMeetingMetadata
 }
 
 /**
@@ -193,6 +194,7 @@ function buildHeader(meeting: FathomMeeting): FathomMeetingHeader {
     team: meeting.recorded_by?.team ?? undefined,
     sourceUrl: buildSourceUrl(meeting),
     contentHash: buildContentHash(meeting),
+    metadata: buildMetadata(meeting),
   }
 }
 
@@ -507,6 +509,7 @@ export const fathomConnector: ConnectorConfig = {
         mimeType: 'text/plain',
         sourceUrl: header?.sourceUrl,
         contentHash: header?.contentHash ?? `fathom:${externalId}`,
+        metadata: { ...(header?.metadata ?? { recordingId: externalId }) },
       }
     } catch (error) {
       logger.warn('Failed to get Fathom meeting', {
