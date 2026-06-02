@@ -525,10 +525,10 @@ function BreadcrumbLocationPopover({
           onPointerLeave={scheduleClose}
           onPointerMove={openPopover}
         >
-          <PopoverSection className='px-1.5 py-0.5 text-xs'>
+          <PopoverSection className='px-1.5 py-0.5 text-[var(--text-muted)] text-xs'>
             <span className='inline-flex items-center gap-1'>
-              <span className='text-[var(--text-body)]'>Path</span>
-              <span className='text-[var(--text-muted)] opacity-70'>/</span>
+              <span>Path</span>
+              <span className='opacity-70'>/</span>
             </span>
           </PopoverSection>
           <div className='flex flex-col gap-0.5'>
