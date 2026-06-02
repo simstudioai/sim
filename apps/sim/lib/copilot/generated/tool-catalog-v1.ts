@@ -11,12 +11,10 @@ export interface ToolCatalogEntry {
     | 'auth'
     | 'check_deployment_status'
     | 'complete_job'
-    | 'context_write'
     | 'crawl_website'
     | 'create_file'
     | 'create_file_folder'
     | 'create_folder'
-    | 'create_job'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
     | 'debug'
@@ -108,12 +106,10 @@ export interface ToolCatalogEntry {
     | 'auth'
     | 'check_deployment_status'
     | 'complete_job'
-    | 'context_write'
     | 'crawl_website'
     | 'create_file'
     | 'create_file_folder'
     | 'create_folder'
-    | 'create_job'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
     | 'debug'
@@ -281,24 +277,6 @@ export const CompleteJob: ToolCatalogEntry = {
   },
 }
 
-export const ContextWrite: ToolCatalogEntry = {
-  id: 'context_write',
-  name: 'context_write',
-  route: 'go',
-  mode: 'sync',
-  parameters: {
-    type: 'object',
-    properties: {
-      content: {
-        type: 'string',
-        description: 'Full content to write to the file (replaces existing content)',
-      },
-      file_path: { type: 'string', description: "Path of the file to write (e.g. 'SESSION.md')" },
-    },
-    required: ['file_path', 'content'],
-  },
-}
-
 export const CrawlWebsite: ToolCatalogEntry = {
   id: 'crawl_website',
   name: 'crawl_website',
@@ -430,60 +408,6 @@ export const CreateFolder: ToolCatalogEntry = {
     required: ['name'],
   },
   requiredPermission: 'write',
-}
-
-export const CreateJob: ToolCatalogEntry = {
-  id: 'create_job',
-  name: 'create_job',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      cron: {
-        type: 'string',
-        description:
-          "Cron expression for recurring jobs (e.g., '*/5 * * * *' for every 5 minutes, '0 9 * * *' for daily at 9 AM). Omit for one-time jobs.",
-      },
-      lifecycle: {
-        type: 'string',
-        description:
-          "'persistent' (default) or 'until_complete'. Until_complete jobs stop when complete_job is called after the success condition is met.",
-        enum: ['persistent', 'until_complete'],
-      },
-      maxRuns: {
-        type: 'integer',
-        description:
-          'Maximum number of executions before the job auto-completes. Safety limit to prevent runaway polling.',
-      },
-      prompt: {
-        type: 'string',
-        description:
-          'The prompt to execute when the job fires. This is sent to the Mothership as a user message.',
-      },
-      successCondition: {
-        type: 'string',
-        description:
-          "What must happen for the job to be considered complete. Used with until_complete lifecycle (e.g., 'John has replied to the partnership email').",
-      },
-      time: {
-        type: 'string',
-        description:
-          "ISO 8601 datetime for one-time execution or as the start time for a cron schedule (e.g., '2026-03-06T09:00:00'). Include timezone offset or use the timezone parameter.",
-      },
-      timezone: {
-        type: 'string',
-        description:
-          "IANA timezone for the schedule (e.g., 'America/New_York', 'Europe/London'). Defaults to UTC.",
-      },
-      title: {
-        type: 'string',
-        description:
-          "A short, descriptive title for the job (e.g., 'Email Poller', 'Daily Report'). Used as the display name.",
-      },
-    },
-    required: ['title', 'prompt'],
-  },
 }
 
 export const CreateWorkflow: ToolCatalogEntry = {
@@ -1119,10 +1043,10 @@ export const EditWorkflow: ToolCatalogEntry = {
             params: {
               type: 'object',
               description:
-                'Parameters for the operation. \nFor edit: {"inputs": {"temperature": 0.5}} NOT {"subBlocks": {"temperature": {"value": 0.5}}}\nFor add: {"type": "agent", "name": "My Agent", "inputs": {"model": "claude-sonnet-4-6"}}\nFor delete: {} (empty object)',
+                'Parameters for the operation (optional).\nFor edit: {"inputs": {"temperature": 0.5}} NOT {"subBlocks": {"temperature": {"value": 0.5}}}\nFor add: {"type": "agent", "name": "My Agent", "inputs": {"model": "<model-id from agent.json>"}}\nFor delete: omit params entirely (none needed)',
             },
           },
-          required: ['operation_type', 'block_id', 'params'],
+          required: ['operation_type', 'block_id'],
         },
       },
       workflowId: {
@@ -1162,7 +1086,7 @@ export const FunctionExecute: ToolCatalogEntry = {
       inputs: {
         type: 'object',
         description:
-          'Workspace resources to mount into the sandbox. Copy canonical VFS paths exactly from glob/read/grep output.',
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
         properties: {
           directories: {
             type: 'array',
@@ -1324,7 +1248,7 @@ export const GenerateImage: ToolCatalogEntry = {
       inputs: {
         type: 'object',
         description:
-          'Workspace resources to mount into the sandbox. Copy canonical VFS paths exactly from glob/read/grep output.',
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
         properties: {
           directories: {
             type: 'array',
@@ -2046,7 +1970,7 @@ export const ManageCustomTool: ToolCatalogEntry = {
       toolId: {
         type: 'string',
         description:
-          "The ID of the custom tool (required for edit). Must be the exact toolId from the get_workflow_data custom tool response - do not guess or construct it. DO NOT PROVIDE THE TOOL ID IF THE OPERATION IS 'ADD'.",
+          'The ID of the custom tool. Must be the exact toolId from the get_workflow_data custom tool response — do not guess or construct it. Required for edit and delete; omit for add and list.',
       },
       toolIds: {
         type: 'array',
@@ -2161,7 +2085,7 @@ export const ManageMcpTool: ToolCatalogEntry = {
       serverId: {
         type: 'string',
         description:
-          "Required for edit and delete. The database ID of the MCP server. DO NOT PROVIDE if operation is 'add' or 'list'.",
+          'The database ID of the MCP server. Required for edit and delete; omit for add and list.',
       },
     },
     required: ['operation'],
@@ -2199,7 +2123,7 @@ export const ManageSkill: ToolCatalogEntry = {
       skillId: {
         type: 'string',
         description:
-          "The ID of the skill (required for edit/delete). Must be the exact ID from the VFS or list. DO NOT PROVIDE if operation is 'add' or 'list'.",
+          'The ID of the skill. Must be the exact ID from the VFS or list. Required for edit and delete; omit for add and list.',
       },
     },
     required: ['operation'],
@@ -2549,7 +2473,7 @@ export const Read: ToolCatalogEntry = {
       path: {
         type: 'string',
         description:
-          "Path to the file to read (e.g. 'workflows/My Workflow/state.json' or 'workflows/Projects/Q1/My Workflow/state.json').",
+          "Path to the file to read (e.g. 'workflows/My%20Workflow/state.json' or 'workflows/Projects/Q1/My%20Workflow/state.json').",
       },
     },
     required: ['path'],
@@ -3183,7 +3107,7 @@ export const TouchPlan: ToolCatalogEntry = {
       workflowPath: {
         type: 'string',
         description:
-          'Required for scope "workflow". Canonical workflow VFS path, e.g. "workflows/My%20Workflow" or "workflows/Folder/My%20Workflow". Copy from glob/read output; do not use workflow IDs.',
+          'Required for scope "workflow". Canonical workflow VFS path, e.g. "workflows/My%20Workflow" or "workflows/Folder/My%20Workflow". Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it. Do not use workflow IDs.',
       },
     },
     required: ['name'],
@@ -3427,7 +3351,11 @@ export const UserTable: ToolCatalogEntry = {
             description:
               "Table name (required for 'create'). Also the optional display name for add_enrichment — defaults to the enrichment's registry name when omitted.",
           },
-          newName: { type: 'string', description: 'New column name (required for rename_column)' },
+          newName: {
+            type: 'string',
+            description:
+              'New name. Required for rename_column (new column name) and for rename (new table name).',
+          },
           newType: {
             type: 'string',
             description:
@@ -3573,6 +3501,7 @@ export const UserTable: ToolCatalogEntry = {
           'get',
           'get_schema',
           'delete',
+          'rename',
           'insert_row',
           'batch_insert_rows',
           'get_row',
@@ -3917,6 +3846,7 @@ export const UserTableOperation = {
   get: 'get',
   getSchema: 'get_schema',
   delete: 'delete',
+  rename: 'rename',
   insertRow: 'insert_row',
   batchInsertRows: 'batch_insert_rows',
   getRow: 'get_row',
@@ -3952,6 +3882,7 @@ export const UserTableOperationValues = [
   UserTableOperation.get,
   UserTableOperation.getSchema,
   UserTableOperation.delete,
+  UserTableOperation.rename,
   UserTableOperation.insertRow,
   UserTableOperation.batchInsertRows,
   UserTableOperation.getRow,
@@ -3998,12 +3929,10 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Auth.id]: Auth,
   [CheckDeploymentStatus.id]: CheckDeploymentStatus,
   [CompleteJob.id]: CompleteJob,
-  [ContextWrite.id]: ContextWrite,
   [CrawlWebsite.id]: CrawlWebsite,
   [CreateFile.id]: CreateFile,
   [CreateFileFolder.id]: CreateFileFolder,
   [CreateFolder.id]: CreateFolder,
-  [CreateJob.id]: CreateJob,
   [CreateWorkflow.id]: CreateWorkflow,
   [CreateWorkspaceMcpServer.id]: CreateWorkspaceMcpServer,
   [Debug.id]: Debug,
