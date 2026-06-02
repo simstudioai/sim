@@ -4,21 +4,15 @@ import type { ChangeEvent } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
-  Button,
-  Input,
-  Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTabs,
-  ModalTabsContent,
-  ModalTabsList,
-  ModalTabsTrigger,
-  Textarea,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
 } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/skill-import'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useCreateSkill, useUpdateSkill } from '@/hooks/queries/skills'
@@ -32,6 +26,10 @@ interface SkillModalProps {
 }
 
 const KEBAB_CASE_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/
+
+/** Matches ChipModalField's internal input/textarea chrome. */
+const TEXT_CHROME =
+  'w-full rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-medium font-sans text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]'
 
 interface FieldErrors {
   name?: string
@@ -146,134 +144,125 @@ export function SkillModal({
   )
 
   const isEditing = !!initialValues
-
-  const createForm = (
-    <div className='flex flex-col gap-[18px]'>
-      <div className='flex flex-col gap-1'>
-        <Label htmlFor='skill-name' className='font-medium text-[14px]'>
-          Name
-        </Label>
-        <Input
-          id='skill-name'
-          placeholder='my-skill-name'
-          value={name}
-          onChange={(e) => {
-            setName(e.target.value)
-            if (errors.name || errors.general)
-              setErrors((prev) => ({ ...prev, name: undefined, general: undefined }))
-          }}
-        />
-        {errors.name ? (
-          <p className='text-[13px] text-[var(--text-error)]'>{errors.name}</p>
-        ) : (
-          <span className='text-[11px] text-[var(--text-muted)]'>
-            Lowercase letters, numbers, and hyphens (e.g. my-skill)
-          </span>
-        )}
-      </div>
-
-      <div className='flex flex-col gap-1'>
-        <Label htmlFor='skill-description' className='font-medium text-[14px]'>
-          Description
-        </Label>
-        <Input
-          id='skill-description'
-          placeholder='What this skill does and when to use it...'
-          value={description}
-          onChange={(e) => {
-            setDescription(e.target.value)
-            if (errors.description || errors.general)
-              setErrors((prev) => ({ ...prev, description: undefined, general: undefined }))
-          }}
-          maxLength={1024}
-        />
-        {errors.description && (
-          <p className='text-[13px] text-[var(--text-error)]'>{errors.description}</p>
-        )}
-      </div>
-
-      <div className='flex flex-col gap-1'>
-        <Label htmlFor='skill-content' className='font-medium text-[14px]'>
-          Content
-        </Label>
-        <Textarea
-          id='skill-content'
-          placeholder='Skill instructions in markdown...'
-          value={content}
-          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
-            setContent(e.target.value)
-            if (errors.content || errors.general)
-              setErrors((prev) => ({ ...prev, content: undefined, general: undefined }))
-          }}
-          className='min-h-[200px] resize-y font-mono text-[14px]'
-        />
-        {errors.content && <p className='text-[13px] text-[var(--text-error)]'>{errors.content}</p>}
-      </div>
-
-      {errors.general && <p className='text-[13px] text-[var(--text-error)]'>{errors.general}</p>}
-    </div>
-  )
-
-  const footer = (
-    <ModalFooter className='items-center justify-between'>
-      {isEditing && onDelete ? (
-        <Button variant='destructive' onClick={() => onDelete(initialValues.id)}>
-          Delete
-        </Button>
-      ) : (
-        <div />
-      )}
-      <div className='flex gap-2'>
-        <Button variant='default' onClick={() => onOpenChange(false)}>
-          Cancel
-        </Button>
-        <Button variant='primary' onClick={handleSave} disabled={saving || !hasChanges}>
-          {saving ? 'Saving...' : isEditing ? 'Update' : 'Create'}
-        </Button>
-      </div>
-    </ModalFooter>
-  )
+  const showFooter = activeTab === 'create' || isEditing
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size='lg'>
-        {isEditing ? (
+    <ChipModal
+      open={open}
+      onOpenChange={onOpenChange}
+      srTitle={isEditing ? 'Edit Skill' : 'Add Skill'}
+      size='lg'
+    >
+      <ChipModalHeader onClose={() => onOpenChange(false)}>
+        {isEditing ? 'Edit Skill' : 'Add Skill'}
+      </ChipModalHeader>
+
+      <ChipModalBody>
+        {/* Tab switcher — only on create flow */}
+        {!isEditing && (
+          <div className='flex gap-1 px-2'>
+            <Chip
+              variant={activeTab === 'create' ? 'filled' : 'ghost'}
+              flush
+              onClick={() => setActiveTab('create')}
+            >
+              Create
+            </Chip>
+            <Chip
+              variant={activeTab === 'import' ? 'filled' : 'ghost'}
+              flush
+              onClick={() => setActiveTab('import')}
+            >
+              Import
+            </Chip>
+          </div>
+        )}
+
+        {activeTab === 'create' || isEditing ? (
           <>
-            <ModalHeader>Edit Skill</ModalHeader>
-            <ModalBody>
-              <ModalDescription className='sr-only'>
-                Edit an existing skill definition.
-              </ModalDescription>
-              {createForm}
-            </ModalBody>
-            {footer}
+            {/* Name — custom to support helper text below input */}
+            <ChipModalField type='custom' title='Name' required>
+              <div className='flex flex-col gap-[6px]'>
+                <input
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value)
+                    if (errors.name || errors.general)
+                      setErrors((prev) => ({ ...prev, name: undefined, general: undefined }))
+                  }}
+                  placeholder='my-skill-name'
+                  className={cn(TEXT_CHROME, 'h-[30px]')}
+                  aria-invalid={!!errors.name}
+                />
+                {errors.name ? (
+                  <p className='text-[12px] text-[var(--text-error)]'>{errors.name}</p>
+                ) : (
+                  <p className='text-[11px] text-[var(--text-muted)]'>
+                    Lowercase letters, numbers, and hyphens (e.g. my-skill)
+                  </p>
+                )}
+              </div>
+            </ChipModalField>
+
+            <ChipModalField
+              type='input'
+              title='Description'
+              value={description}
+              onChange={(value) => {
+                setDescription(value)
+                if (errors.description || errors.general)
+                  setErrors((prev) => ({ ...prev, description: undefined, general: undefined }))
+              }}
+              placeholder='What this skill does and when to use it...'
+              maxLength={1024}
+              required
+              error={errors.description}
+            />
+
+            {/* Content — custom to support monospace + resizable textarea */}
+            <ChipModalField type='custom' title='Content' required>
+              <div className='flex flex-col gap-[6px]'>
+                <textarea
+                  value={content}
+                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
+                    setContent(e.target.value)
+                    if (errors.content || errors.general)
+                      setErrors((prev) => ({ ...prev, content: undefined, general: undefined }))
+                  }}
+                  placeholder='Skill instructions in markdown...'
+                  className={cn(TEXT_CHROME, 'min-h-[200px] resize-y py-2')}
+                  aria-invalid={!!errors.content}
+                />
+                {errors.content && (
+                  <p className='text-[12px] text-[var(--text-error)]'>{errors.content}</p>
+                )}
+              </div>
+            </ChipModalField>
+
+            <ChipModalError>{errors.general}</ChipModalError>
           </>
         ) : (
-          <>
-            <ModalHeader>Add Skill</ModalHeader>
-            <ModalTabs
-              value={activeTab}
-              onValueChange={(v) => setActiveTab(v as TabValue)}
-              className='flex min-h-0 flex-1 flex-col'
-            >
-              <ModalTabsList activeValue={activeTab}>
-                <ModalTabsTrigger value='create'>Create</ModalTabsTrigger>
-                <ModalTabsTrigger value='import'>Import</ModalTabsTrigger>
-              </ModalTabsList>
-              <ModalBody>
-                <ModalDescription className='sr-only'>
-                  Create a new skill or import one from a file.
-                </ModalDescription>
-                <ModalTabsContent value='create'>{createForm}</ModalTabsContent>
-                <ModalTabsContent value='import'>
-                  <SkillImport onImport={handleImport} />
-                </ModalTabsContent>
-              </ModalBody>
-            </ModalTabs>
-            {activeTab === 'create' && footer}
-          </>
+          <SkillImport onImport={handleImport} />
         )}
-      </ModalContent>
-    </Modal>
+      </ChipModalBody>
+
+      {showFooter && (
+        <ChipModalFooter className={isEditing && onDelete ? 'justify-between' : undefined}>
+          {isEditing && onDelete && (
+            <Chip variant='destructive' flush onClick={() => onDelete(initialValues.id)}>
+              Delete
+            </Chip>
+          )}
+          <div className='flex gap-2'>
+            <Chip variant='filled' flush onClick={() => onOpenChange(false)}>
+              Cancel
+            </Chip>
+            <Chip variant='primary' flush onClick={handleSave} disabled={saving || !hasChanges}>
+              {saving ? 'Saving...' : isEditing ? 'Update' : 'Create'}
+            </Chip>
+          </div>
+        </ChipModalFooter>
+      )}
+    </ChipModal>
   )
 }

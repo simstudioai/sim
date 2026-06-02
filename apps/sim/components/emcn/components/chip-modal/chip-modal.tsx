@@ -60,6 +60,13 @@ function ChipModalSeparator({ className }: { className?: string }) {
 const CHIP_MODAL_TEXT_CHROME =
   'w-full rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-medium font-sans text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]'
 
+const CHIP_MODAL_WIDTHS = {
+  sm: 'w-full max-w-[440px]',
+  md: 'w-full max-w-[500px]',
+  lg: 'w-full max-w-[600px]',
+  xl: 'w-full max-w-[720px]',
+} as const
+
 export interface ChipModalProps {
   /** Controlled open state. */
   open: boolean
@@ -67,6 +74,12 @@ export interface ChipModalProps {
   onOpenChange: (open: boolean) => void
   /** Screen-reader title for the underlying dialog. */
   srTitle?: string
+  /**
+   * Panel width preset. Defaults to `'md'` (500px). Use `'lg'` for forms
+   * with more fields or wider content (e.g. textareas, code).
+   * @default 'md'
+   */
+  size?: keyof typeof CHIP_MODAL_WIDTHS
   /** Optional className forwarded to the outer panel ring. */
   className?: string
   children?: React.ReactNode
@@ -81,6 +94,7 @@ function ChipModal({
   open,
   onOpenChange,
   srTitle = 'Dialog',
+  size = 'md',
   className,
   children,
 }: ChipModalProps) {
@@ -90,6 +104,7 @@ function ChipModal({
         <div
           className={cn(
             'rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
+            CHIP_MODAL_WIDTHS[size],
             className
           )}
         >

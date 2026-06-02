@@ -3,7 +3,7 @@
 import type { ChangeEvent } from 'react'
 import { useCallback, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Button, Input, Label, Loader, Textarea } from '@/components/emcn'
+import { Chip, Loader } from '@/components/emcn'
 import { Upload } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { importSkillContract } from '@/lib/api/contracts'
@@ -26,6 +26,10 @@ interface SkillImportProps {
 type ImportState = 'idle' | 'loading' | 'error'
 
 const ACCEPTED_EXTENSIONS = ['.md', '.zip']
+
+/** Matches ChipModalField's internal input/textarea chrome. */
+const TEXT_CHROME =
+  'w-full rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-medium font-sans text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]'
 
 function isAcceptedFile(file: File): boolean {
   const name = file.name.toLowerCase()
@@ -116,7 +120,6 @@ export function SkillImport({ onImport }: SkillImportProps) {
       e.preventDefault()
       e.stopPropagation()
       setDragCounter(0)
-
       const file = e.dataTransfer.files?.[0]
       if (file) processFile(file)
     },
@@ -159,10 +162,10 @@ export function SkillImport({ onImport }: SkillImportProps) {
   }, [pasteContent, onImport])
 
   return (
-    <div className='flex flex-col gap-[18px]'>
+    <div className='flex flex-col gap-4'>
       {/* File drop zone */}
-      <div className='flex flex-col gap-1'>
-        <Label className='font-medium text-[14px]'>Upload File</Label>
+      <div className='flex flex-col gap-[9px]'>
+        <span className='pl-0.5 font-normal text-[var(--text-muted)] text-sm'>Upload File</span>
         <button
           type='button'
           onClick={() => fileInputRef.current?.click()}
@@ -172,9 +175,9 @@ export function SkillImport({ onImport }: SkillImportProps) {
           onDrop={handleDrop}
           disabled={fileState === 'loading'}
           className={cn(
-            'flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-[8px] border border-dashed px-4 py-8 transition-colors',
-            'border-[var(--border-1)] bg-[var(--surface-1)] hover:bg-[var(--surface-4)]',
-            isDragging && 'border-[var(--surface-7)] bg-[var(--surface-4)]',
+            'flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-6 transition-colors',
+            'border-[var(--border-1)] bg-[var(--surface-5)] hover-hover:bg-[var(--surface-active)] dark:bg-[var(--surface-4)]',
+            isDragging && 'border-[var(--text-muted)] bg-[var(--surface-active)]',
             fileState === 'loading' && 'pointer-events-none opacity-60'
           )}
         >
@@ -186,61 +189,60 @@ export function SkillImport({ onImport }: SkillImportProps) {
             className='hidden'
           />
           {fileState === 'loading' ? (
-            <Loader className='size-[20px] text-[var(--text-tertiary)]' animate />
+            <Loader className='size-[16px] text-[var(--text-tertiary)]' animate />
           ) : (
-            <Upload className='size-[20px] text-[var(--text-tertiary)]' />
+            <Upload className='size-[16px] text-[var(--text-tertiary)]' />
           )}
           <div className='flex flex-col gap-0.5 text-center'>
-            <span className='text-[14px] text-[var(--text-primary)]'>
+            <span className='text-[var(--text-primary)] text-sm'>
               {isDragging ? 'Drop file here' : 'Drop file here or click to browse'}
             </span>
-            <span className='text-[11px] text-[var(--text-tertiary)]'>
+            <span className='text-[11px] text-[var(--text-muted)]'>
               .md file with YAML frontmatter, or .zip containing a SKILL.md
             </span>
           </div>
         </button>
-        {fileError && <p className='text-[13px] text-[var(--text-error)]'>{fileError}</p>}
+        {fileError && <p className='text-[12px] text-[var(--text-error)]'>{fileError}</p>}
       </div>
 
-      <Divider />
+      <ImportDivider />
 
       {/* GitHub URL */}
-      <div className='flex flex-col gap-1'>
-        <Label htmlFor='skill-github-url' className='font-medium text-[14px]'>
+      <div className='flex flex-col gap-[9px]'>
+        <span className='pl-0.5 font-normal text-[var(--text-muted)] text-sm'>
           Import from GitHub
-        </Label>
+        </span>
         <div className='flex gap-2'>
-          <Input
-            id='skill-github-url'
+          <input
             placeholder='https://github.com/owner/repo/blob/main/SKILL.md'
             value={githubUrl}
             onChange={(e) => {
               setGithubUrl(e.target.value)
               if (githubError) setGithubError('')
             }}
-            className='flex-1'
             disabled={githubState === 'loading'}
+            className={cn(TEXT_CHROME, 'h-[30px] flex-1')}
           />
-          <Button
-            variant='default'
+          <Chip
+            variant='filled'
+            flush
             onClick={handleGithubImport}
             disabled={githubState === 'loading' || !githubUrl.trim()}
           >
             {githubState === 'loading' ? <Loader className='size-[14px]' animate /> : 'Fetch'}
-          </Button>
+          </Chip>
         </div>
-        {githubError && <p className='text-[13px] text-[var(--text-error)]'>{githubError}</p>}
+        {githubError && <p className='text-[12px] text-[var(--text-error)]'>{githubError}</p>}
       </div>
 
-      <Divider />
+      <ImportDivider />
 
       {/* Paste content */}
-      <div className='flex flex-col gap-1'>
-        <Label htmlFor='skill-paste' className='font-medium text-[14px]'>
+      <div className='flex flex-col gap-[9px]'>
+        <span className='pl-0.5 font-normal text-[var(--text-muted)] text-sm'>
           Paste SKILL.md Content
-        </Label>
-        <Textarea
-          id='skill-paste'
+        </span>
+        <textarea
           placeholder={
             '---\nname: my-skill\ndescription: What this skill does\n---\n\n# Instructions...'
           }
@@ -249,25 +251,25 @@ export function SkillImport({ onImport }: SkillImportProps) {
             setPasteContent(e.target.value)
             if (pasteError) setPasteError('')
           }}
-          className='min-h-[120px] resize-y font-mono text-[14px]'
+          className={cn(TEXT_CHROME, 'min-h-[120px] resize-y py-2 font-mono leading-relaxed')}
         />
-        {pasteError && <p className='text-[13px] text-[var(--text-error)]'>{pasteError}</p>}
+        {pasteError && <p className='text-[12px] text-[var(--text-error)]'>{pasteError}</p>}
         <div className='flex justify-end'>
-          <Button variant='default' onClick={handlePasteImport} disabled={!pasteContent.trim()}>
+          <Chip variant='primary' flush onClick={handlePasteImport} disabled={!pasteContent.trim()}>
             Import
-          </Button>
+          </Chip>
         </div>
       </div>
     </div>
   )
 }
 
-function Divider() {
+function ImportDivider() {
   return (
-    <div className='flex items-center gap-3'>
-      <div className='h-px flex-1 bg-[var(--border-1)]' />
-      <span className='text-[12px] text-[var(--text-tertiary)]'>or</span>
-      <div className='h-px flex-1 bg-[var(--border-1)]' />
+    <div className='flex items-center gap-3 px-1'>
+      <div className='h-px flex-1 bg-[var(--border)]' />
+      <span className='text-[11px] text-[var(--text-muted)]'>or</span>
+      <div className='h-px flex-1 bg-[var(--border)]' />
     </div>
   )
 }
