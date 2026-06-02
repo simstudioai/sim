@@ -44,6 +44,16 @@ export class McpOauthInsecureUrlErrorMock extends Error {
 }
 
 /**
+ * Returns the provider config back as the constructed instance, matching the
+ * original identity passthrough. Declared as a named function (not an arrow) so
+ * it stays constructable under vitest 4's `Reflect.construct` path while
+ * remaining assignable to `mockImplementation`.
+ */
+function buildSimMcpOauthProvider(value: object) {
+  return value
+}
+
+/**
  * Static mock module for `@/lib/mcp/oauth`.
  *
  * @example
@@ -70,5 +80,5 @@ export const mcpOauthMock = {
   withMcpOauthRefreshLock: mcpOauthMockFns.mockWithMcpOauthRefreshLock,
   McpOauthRedirectRequired: McpOauthRedirectRequiredMock,
   McpOauthInsecureUrlError: McpOauthInsecureUrlErrorMock,
-  SimMcpOauthProvider: vi.fn().mockImplementation((value) => value),
+  SimMcpOauthProvider: vi.fn().mockImplementation(buildSimMcpOauthProvider),
 }

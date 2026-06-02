@@ -520,7 +520,7 @@ export function WorkflowItem({
         disableDuplicate={!userPermissions.canEdit || isDuplicatingSelection}
         disableExport={!userPermissions.canEdit}
         disableColorChange={!userPermissions.canEdit || effectiveLocked}
-        showDelete={userPermissions.canAdmin}
+        showDelete={userPermissions.canEdit}
         disableDelete={!canDeleteSelection || effectiveLocked}
         onToggleLock={handleToggleLock}
         showLock={!isMixedSelection && selectedWorkflows.size <= 1}

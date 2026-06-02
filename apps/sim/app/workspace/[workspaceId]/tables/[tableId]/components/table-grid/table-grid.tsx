@@ -95,6 +95,10 @@ export interface SelectionSnapshot {
   /** Total running/queued workflow runs across ALL rows. Drives the page-header
    *  RunStatusControl ("N running, Stop all"). */
   totalRunning: number
+  /** Whether any dispatch is active (pending/dispatching). Keeps the RunStatusControl
+   *  + Stop-all visible during a run even when the per-row count momentarily reads 0
+   *  (e.g. the first window of an auto-fired/capped dispatch before cells stamp). */
+  hasActiveDispatch: boolean
   /** Whether the table has any workflow-output columns (drives the Run/Stop visibility). */
   hasWorkflowColumns: boolean
   /** Cells the Play / Refresh / Stop buttons act on. Null when the selection
@@ -333,6 +337,7 @@ export function TableGrid({
   // rows still inside a dispatch's scope — e.g. a cascade where 3 of 4 columns
   // finished would read "4 running" instead of "1".
   const totalRunning = Object.values(runningByRowId).reduce((sum, n) => sum + n, 0)
+  const hasActiveDispatch = (activeDispatches?.length ?? 0) > 0
 
   const tableRowCountRef = useRef(tableData?.rowCount ?? 0)
   tableRowCountRef.current = tableData?.rowCount ?? 0
@@ -3194,6 +3199,7 @@ export function TableGrid({
       sameStats &&
       prev.runningInActionBarSelection === runningInActionBarSelection &&
       prev.totalRunning === totalRunning &&
+      prev.hasActiveDispatch === hasActiveDispatch &&
       prev.hasWorkflowColumns === hasWorkflowColumns &&
       prev.actionBarRowIds.length === actionBarRowIds.length &&
       prev.actionBarRowIds.every((id, i) => id === actionBarRowIds[i])
@@ -3204,6 +3210,7 @@ export function TableGrid({
       actionBarRowIds,
       runningInActionBarSelection,
       totalRunning,
+      hasActiveDispatch,
       hasWorkflowColumns,
       selectedRunScope,
       selectionStats,
@@ -3215,6 +3222,7 @@ export function TableGrid({
     actionBarRowIds,
     runningInActionBarSelection,
     totalRunning,
+    hasActiveDispatch,
     hasWorkflowColumns,
     selectedRunScope,
     selectionStats,

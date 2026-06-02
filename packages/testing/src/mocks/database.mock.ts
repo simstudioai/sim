@@ -155,7 +155,7 @@ const set = vi.fn(() => ({ where }))
 const update = vi.fn(() => ({ set }))
 const del = vi.fn(() => ({ where }))
 const transaction: ReturnType<typeof vi.fn> = vi.fn(
-  async (cb: (tx: typeof dbChainMock.db) => unknown) => cb(dbChainMock.db)
+  async (cb: (tx: any) => unknown): Promise<unknown> => cb(dbChainMock.db)
 )
 
 export const dbChainMockFns = {

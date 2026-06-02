@@ -9,7 +9,7 @@ import type { StorageContext } from '@/lib/uploads/config'
 import { deleteFile, hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
-import { verifyFileAccess } from '@/app/api/files/authorization'
+import { verifyFileAccess, verifyKBFileWriteAccess } from '@/app/api/files/authorization'
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -64,13 +64,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       const storageContext: StorageContext = context || inferContextFromKey(key)
 
-      const hasAccess = await verifyFileAccess(
-        key,
-        userId,
-        undefined, // customConfig
-        storageContext, // context
-        !hasCloudStorage() // isLocal
-      )
+      // Deletes require write/admin on the owning workspace (owner-scoped files
+      // like copilot/regular uploads still authorize by ownership). KB deletes
+      // are binding-only and never use the transitional read fallback that file
+      // serving allows.
+      const hasAccess =
+        storageContext === 'knowledge-base'
+          ? await verifyKBFileWriteAccess(key, userId)
+          : await verifyFileAccess(
+              key,
+              userId,
+              undefined, // customConfig
+              storageContext, // context
+              !hasCloudStorage(), // isLocal
+              { requireWrite: true }
+            )
 
       if (!hasAccess) {
         logger.warn('Unauthorized file delete attempt', { userId, key, context: storageContext })
