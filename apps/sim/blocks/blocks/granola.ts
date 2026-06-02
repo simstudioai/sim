@@ -166,9 +166,11 @@ export const GranolaBlock: BlockConfig = {
     attendees: { type: 'json', description: 'Meeting attendees (name, email)' },
     folders: { type: 'json', description: 'Folders the note belongs to (id, name)' },
     calendarEventTitle: { type: 'string', description: 'Calendar event title' },
+    calendarOrganiser: { type: 'string', description: 'Calendar event organiser email' },
     calendarEventId: { type: 'string', description: 'Calendar event ID' },
-    startTime: { type: 'string', description: 'Calendar event start time' },
-    endTime: { type: 'string', description: 'Calendar event end time' },
+    scheduledStartTime: { type: 'string', description: 'Scheduled start time' },
+    scheduledEndTime: { type: 'string', description: 'Scheduled end time' },
+    invitees: { type: 'json', description: 'Calendar event invitee emails' },
     transcript: {
       type: 'json',
       description: 'Meeting transcript entries (speaker, text, startTime, endTime)',

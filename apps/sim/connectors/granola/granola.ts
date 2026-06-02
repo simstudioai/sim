@@ -44,12 +44,15 @@ interface GranolaFolderMembership {
 
 /**
  * Calendar event details attached to a note, when available.
+ * Field names match the Granola API's CalendarEvent schema.
  */
 interface GranolaCalendarEvent {
-  id?: string
-  title?: string | null
-  start_time?: string | null
-  end_time?: string | null
+  event_title?: string | null
+  organiser?: string | null
+  calendar_event_id?: string | null
+  scheduled_start_time?: string | null
+  scheduled_end_time?: string | null
+  invitees?: { email: string }[]
 }
 
 /**
@@ -305,8 +308,8 @@ export const granolaConnector: ConnectorConfig = {
 
       const attendees = collectAttendees(note)
       const folders = collectFolders(note)
-      const meeting = note.calendar_event?.title?.trim() || undefined
-      const meetingDate = note.calendar_event?.start_time?.trim() || undefined
+      const meeting = note.calendar_event?.event_title?.trim() || undefined
+      const meetingDate = note.calendar_event?.scheduled_start_time?.trim() || undefined
 
       return {
         externalId: note.id,

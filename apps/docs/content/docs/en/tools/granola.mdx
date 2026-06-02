@@ -80,9 +80,11 @@ Retrieves a specific meeting note from Granola by ID, including summary, attende
 |   ↳ `id` | string | Folder ID |
 |   ↳ `name` | string | Folder name |
 | `calendarEventTitle` | string | Calendar event title |
+| `calendarOrganiser` | string | Calendar event organiser email |
 | `calendarEventId` | string | Calendar event ID |
-| `startTime` | string | Calendar event start time |
-| `endTime` | string | Calendar event end time |
+| `scheduledStartTime` | string | Scheduled start time |
+| `scheduledEndTime` | string | Scheduled end time |
+| `invitees` | json | Calendar event invitee emails |
 | `transcript` | json | Meeting transcript entries \(only if requested\) |
 |   ↳ `speaker` | string | Speaker source \(microphone or speaker\) |
 |   ↳ `text` | string | Transcript text |

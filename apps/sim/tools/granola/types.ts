@@ -45,9 +45,11 @@ export interface GranolaGetNoteResponse extends ToolResponse {
     attendees: { name: string | null; email: string }[]
     folders: { id: string; name: string }[]
     calendarEventTitle: string | null
+    calendarOrganiser: string | null
     calendarEventId: string | null
-    startTime: string | null
-    endTime: string | null
+    scheduledStartTime: string | null
+    scheduledEndTime: string | null
+    invitees: string[]
     transcript: { speaker: string; text: string; startTime: string; endTime: string }[] | null
   }
 }
