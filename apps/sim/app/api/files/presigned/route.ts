@@ -11,7 +11,7 @@ import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
 import { generateExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { generatePresignedUploadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
-import { insertFileMetadata } from '@/lib/uploads/server/metadata'
+import { insertFileMetadata, recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import { validateAttachmentFileType, validateFileType } from '@/lib/uploads/utils/validation'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -278,11 +278,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         metadata: { workspaceId },
       })
 
-      await insertFileMetadata({
+      await recordKnowledgeBaseFileOwnership({
         key: presignedUrlResponse.key,
         userId: sessionUserId,
         workspaceId,
-        context: 'knowledge-base',
         originalName: fileName,
         contentType,
         size: fileSize,

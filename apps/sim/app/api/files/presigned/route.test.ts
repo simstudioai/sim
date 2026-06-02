@@ -93,6 +93,8 @@ vi.mock('@/lib/uploads/contexts/execution/utils', () => ({
 
 vi.mock('@/lib/uploads/server/metadata', () => ({
   insertFileMetadata: mockInsertFileMetadata,
+  recordKnowledgeBaseFileOwnership: (ownership: Record<string, unknown>) =>
+    mockInsertFileMetadata({ ...ownership, context: 'knowledge-base' }),
 }))
 
 vi.mock('@/lib/uploads/utils/file-utils', () => ({

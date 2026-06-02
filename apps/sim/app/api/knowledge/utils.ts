@@ -435,3 +435,72 @@ export async function checkChunkAccess(
     knowledgeBase: kbAccess.knowledgeBase!,
   }
 }
+
+/**
+ * Check if a user has write access to a chunk.
+ *
+ * Mirrors `checkChunkAccess` but requires write/admin on the knowledge base's
+ * workspace (or KB ownership for legacy KBs), matching the permission needed to
+ * create chunks. Used for chunk mutation (update and delete) so those operations
+ * require the same permission as creation rather than read.
+ */
+export async function checkChunkWriteAccess(
+  knowledgeBaseId: string,
+  documentId: string,
+  chunkId: string,
+  userId: string
+): Promise<ChunkAccessCheck> {
+  const kbAccess = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, userId)
+
+  if (!kbAccess.hasAccess) {
+    return {
+      hasAccess: false,
+      notFound: kbAccess.notFound,
+      reason: kbAccess.notFound ? 'Knowledge base not found' : 'Unauthorized knowledge base access',
+    }
+  }
+
+  const doc = await db
+    .select()
+    .from(document)
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .limit(1)
+
+  if (doc.length === 0) {
+    return { hasAccess: false, notFound: true, reason: 'Document not found' }
+  }
+
+  const docData = doc[0] as DocumentData
+
+  if (docData.processingStatus !== 'completed') {
+    return {
+      hasAccess: false,
+      reason: `Document is not ready for access (status: ${docData.processingStatus})`,
+    }
+  }
+
+  const chunk = await db
+    .select()
+    .from(embedding)
+    .where(and(eq(embedding.id, chunkId), eq(embedding.documentId, documentId)))
+    .limit(1)
+
+  if (chunk.length === 0) {
+    return { hasAccess: false, notFound: true, reason: 'Chunk not found' }
+  }
+
+  return {
+    hasAccess: true,
+    chunk: chunk[0] as EmbeddingData,
+    document: docData,
+    knowledgeBase: kbAccess.knowledgeBase!,
+  }
+}

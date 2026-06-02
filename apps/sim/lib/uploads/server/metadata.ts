@@ -267,3 +267,45 @@ export async function deleteFileMetadata(key: string): Promise<boolean> {
     .where(and(eq(workspaceFiles.key, key), isNull(workspaceFiles.deletedAt)))
   return true
 }
+
+/**
+ * Fields needed to record a trusted storage-key -> workspace ownership binding
+ * for a knowledge-base file. The `context` is always `'knowledge-base'`, so it is
+ * not part of this shape.
+ */
+export interface KnowledgeBaseFileOwnership {
+  key: string
+  userId: string
+  workspaceId: string
+  originalName: string
+  contentType: string
+  size: number
+}
+
+/**
+ * Record the ownership binding for a single knowledge-base upload. KB file
+ * authorization (`verifyKBFileAccess`) resolves the owning workspace from this
+ * binding, so every KB object must have exactly one. Single source of truth for
+ * the binding shape across the presigned, batch-presigned, and multipart upload
+ * paths — keep all callers routed through here so they cannot drift.
+ */
+export async function recordKnowledgeBaseFileOwnership(
+  ownership: KnowledgeBaseFileOwnership
+): Promise<void> {
+  await insertFileMetadata({ ...ownership, context: 'knowledge-base' })
+}
+
+/**
+ * Bulk variant of {@link recordKnowledgeBaseFileOwnership} for batch upload flows.
+ * Idempotent against the active-key unique index (ON CONFLICT DO NOTHING).
+ */
+export async function recordKnowledgeBaseFileOwnershipMany(
+  ownerships: KnowledgeBaseFileOwnership[]
+): Promise<void> {
+  if (ownerships.length === 0) {
+    return
+  }
+  await insertFileMetadataMany(
+    ownerships.map((ownership) => ({ ...ownership, context: 'knowledge-base' }))
+  )
+}

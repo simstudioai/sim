@@ -24,7 +24,7 @@ import {
   type UploadTokenPayload,
   verifyUploadToken,
 } from '@/lib/uploads/core/upload-token'
-import { insertFileMetadata } from '@/lib/uploads/server/metadata'
+import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
 import { QUOTA_EXEMPT_STORAGE_CONTEXTS, type StorageConfig } from '@/lib/uploads/shared/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -96,11 +96,10 @@ const recordKnowledgeBaseOwnership = async (
   if (payload.context !== 'knowledge-base' || !payload.workspaceId) {
     return
   }
-  await insertFileMetadata({
+  await recordKnowledgeBaseFileOwnership({
     key,
     userId: payload.userId,
     workspaceId: payload.workspaceId,
-    context: 'knowledge-base',
     originalName: payload.fileName ?? key.split('/').pop() ?? key,
     contentType: payload.contentType ?? 'application/octet-stream',
     size: typeof payload.fileSize === 'number' ? payload.fileSize : 0,
