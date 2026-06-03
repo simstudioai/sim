@@ -218,8 +218,10 @@ export const env = createEnv({
     S3_PROFILE_PICTURES_BUCKET_NAME:       z.string().optional(),                  // S3 bucket for profile pictures
     S3_OG_IMAGES_BUCKET_NAME:              z.string().optional(),                  // S3 bucket for OpenGraph images
     S3_WORKSPACE_LOGOS_BUCKET_NAME:        z.string().optional(),                  // S3 bucket for workspace logos
+    S3_ENDPOINT:                           z.string().optional(),                  // Custom endpoint for S3-compatible storage (Cloudflare R2, MinIO, Backblaze B2). Leave unset for AWS S3
+    S3_FORCE_PATH_STYLE:                   z.string().optional(),                  // Force path-style addressing (MinIO/Ceph RGW). Defaults to false (AWS S3, R2). Coerced via envBoolean at the consumption site
 
-    // Cloud Storage - Azure Blob 
+    // Cloud Storage - Azure Blob
     AZURE_ACCOUNT_NAME:                    z.string().optional(),                  // Azure storage account name
     AZURE_ACCOUNT_KEY:                     z.string().optional(),                  // Azure storage account key
     AZURE_CONNECTION_STRING:               z.string().optional(),                  // Azure storage connection string

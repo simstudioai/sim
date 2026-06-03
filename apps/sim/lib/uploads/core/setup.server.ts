@@ -3,7 +3,12 @@ import { mkdir } from 'fs/promises'
 import path, { join } from 'path'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
-import { getStorageProvider, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
+import {
+  getStorageProvider,
+  S3_CONFIG,
+  USE_BLOB_STORAGE,
+  USE_S3_STORAGE,
+} from '@/lib/uploads/config'
 
 const logger = createLogger('UploadsSetup')
 
@@ -78,6 +83,12 @@ if (typeof process !== 'undefined') {
       logger.warn('Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY for S3 storage')
     } else {
       logger.info('AWS S3 credentials found in environment variables')
+    }
+
+    if (env.S3_ENDPOINT) {
+      logger.info(
+        `Using S3-compatible endpoint: ${env.S3_ENDPOINT} (path-style: ${S3_CONFIG.forcePathStyle})`
+      )
     }
   } else {
     // Local storage mode

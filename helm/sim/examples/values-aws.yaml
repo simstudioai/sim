@@ -103,6 +103,9 @@ app:
     S3_PROFILE_PICTURES_BUCKET_NAME: "profile-pictures"  # User avatars
     S3_OG_IMAGES_BUCKET_NAME: "og-images"                 # OpenGraph preview images
     S3_WORKSPACE_LOGOS_BUCKET_NAME: "workspace-logos"     # Workspace logos
+    # For S3-compatible storage (Cloudflare R2, MinIO, Backblaze B2) instead of AWS S3:
+    #   S3_ENDPOINT: "https://<account>.r2.cloudflarestorage.com"  # custom endpoint; set AWS_REGION: "auto" for R2
+    #   S3_FORCE_PATH_STYLE: "true"                                 # required for MinIO/Ceph; omit for AWS S3 and R2
 
 # Realtime service
 realtime:
