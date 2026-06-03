@@ -13,6 +13,9 @@ export interface ImportTrayEntry {
   workspaceId: string
   /** Table name when known, otherwise the source file name. */
   title: string
+  /** Identifies this specific import run, so replayed SSE events from a prior import of the
+   *  same table can be ignored. Known from the kickoff result / the table's `importId`. */
+  importId?: string
   phase: ImportPhase
   rowsProcessed: number
   /** Estimated total rows for a determinate bar; absent until the first progress tick. */
@@ -59,6 +62,7 @@ export const useImportTrayStore = create<ImportTrayState>()(
             tableId: entry.tableId,
             workspaceId: entry.workspaceId,
             title: entry.title || prev?.title || 'table',
+            importId: entry.importId ?? prev?.importId,
             phase: entry.phase ?? prev?.phase ?? 'importing',
             rowsProcessed: entry.rowsProcessed ?? prev?.rowsProcessed ?? 0,
             total: entry.total ?? prev?.total,

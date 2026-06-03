@@ -37,6 +37,7 @@ export function useHydrateImportTray(workspaceId: string | undefined): void {
           tableId: table.id,
           workspaceId,
           title: table.name,
+          importId: table.importId ?? undefined,
           phase: 'importing',
           rowsProcessed: table.importRowsProcessed ?? 0,
           error: table.importError ?? undefined,

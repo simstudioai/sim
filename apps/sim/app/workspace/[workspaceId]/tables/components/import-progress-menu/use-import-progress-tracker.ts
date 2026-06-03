@@ -43,8 +43,15 @@ export function useImportProgressTracker(): void {
           if (event?.kind !== 'import') return
           const tray = useImportTrayStore.getState()
           const existing = tray.entries[tableId]
-          const title = existing?.title ?? 'table'
+          // The stream replays from the start, so the buffer can hold a *prior* import's events
+          // for this table. Once we know this run's importId, ignore anything that doesn't match;
+          // before we know it (brief optimistic window), don't trust a replayed terminal event.
+          const lockedId = existing?.importId
+          if (lockedId && event.importId !== lockedId) return
+          if (!lockedId && (event.status === 'ready' || event.status === 'failed')) return
 
+          const importId = lockedId ?? event.importId
+          const title = existing?.title ?? 'table'
           const rows = event.progress ?? existing?.rowsProcessed ?? 0
           if (event.status === 'ready') {
             toast.success(`Imported ${rows.toLocaleString()} rows into "${title}"`)
@@ -53,6 +60,7 @@ export function useImportProgressTracker(): void {
               tableId,
               workspaceId: existing?.workspaceId ?? '',
               title,
+              importId,
               phase: 'ready',
             })
             setTimeout(() => {
@@ -69,6 +77,7 @@ export function useImportProgressTracker(): void {
             tableId,
             workspaceId: existing?.workspaceId ?? '',
             title,
+            importId,
             phase: event.status,
             rowsProcessed: rows,
             total: event.total,

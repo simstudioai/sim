@@ -439,6 +439,7 @@ export function Tables() {
                     tableId: result.tableId,
                     workspaceId,
                     title: file.name,
+                    importId: result.importId,
                     phase: 'importing',
                     rowsProcessed: 0,
                   })

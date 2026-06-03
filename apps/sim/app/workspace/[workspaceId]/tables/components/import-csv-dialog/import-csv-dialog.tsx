@@ -346,6 +346,16 @@ export function ImportCsvDialog({
             }),
         },
         {
+          onSuccess: (data) => {
+            // Record the import id so the tracker can ignore replayed events from a prior import.
+            useImportTrayStore.getState().upsert({
+              tableId: table.id,
+              workspaceId,
+              title: table.name,
+              importId: data?.importId,
+              phase: 'importing',
+            })
+          },
           onError: (err) => {
             useImportTrayStore.getState().dismiss(table.id)
             toast.error(getErrorMessage(err, 'Failed to start import'))

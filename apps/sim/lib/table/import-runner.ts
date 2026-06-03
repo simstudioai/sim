@@ -78,10 +78,6 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // Stream the file rather than buffering it — a ~1M-row import must never be held in memory.
     const source = await downloadFileStream({ key: fileKey, context: 'workspace' })
 
-    // Delete only after the stream opens (a missing object rejects above) — otherwise a failed
-    // download would wipe the table with nothing to replace it with.
-    if (mode === 'replace') await deleteAllTableRows(tableId)
-
     // Append must continue after the existing rows; create/replace start empty. Read once up
     // front (the import is the table's sole writer) and assign contiguous positions from it.
     const basePosition = mode === 'append' ? await nextImportStartPosition(tableId) : 0
@@ -161,6 +157,11 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       })
       schema = targetSchema
       headerToColumn = validation.effectiveMap
+
+      // Replace deletes existing rows only after schema/mapping validation passes, so an
+      // invalid or empty file fails the import with the old rows still intact (a mid-stream
+      // insert failure after this point leaves a partial replace — replace is destructive).
+      if (mode === 'replace') await deleteAllTableRows(tableId)
     }
 
     const flush = async (rows: Record<string, unknown>[]) => {
