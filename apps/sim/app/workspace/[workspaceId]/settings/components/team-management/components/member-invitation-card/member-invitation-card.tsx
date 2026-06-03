@@ -28,8 +28,8 @@ interface MemberInvitationCardProps {
   onLoadUserWorkspaces: () => Promise<void>
   onWorkspaceToggle: (workspaceId: string, permission: string) => void
   inviteSuccess: boolean
+  seatLimited?: boolean
   availableSeats?: number
-  maxSeats?: number
   invitationError?: Error | null
   isLoadingWorkspaces?: boolean
 }
@@ -46,13 +46,13 @@ export function MemberInvitationCard({
   onLoadUserWorkspaces,
   onWorkspaceToggle,
   inviteSuccess,
+  seatLimited = false,
   availableSeats = 0,
-  maxSeats = 0,
   invitationError = null,
   isLoadingWorkspaces = false,
 }: MemberInvitationCardProps) {
   const selectedCount = selectedWorkspaces.length
-  const hasAvailableSeats = availableSeats > 0
+  const hasAvailableSeats = !seatLimited || availableSeats > 0
   const hasValidEmails = inviteEmails.some((e) => e.isValid)
 
   const handleAddEmail = (value: string) => {

@@ -12,6 +12,7 @@ import {
   ChipModalHeader,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -63,7 +64,10 @@ export function InviteModal({
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
   const usedSeats = organizationBillingData?.data?.usedSeats ?? 0
   const availableSeats = Math.max(0, totalSeats - usedSeats)
-  const hasSeatData = !!organizationId && totalSeats > 0
+  // Only Enterprise plans have a fixed seat cap that gates invites. Team/Pro
+  // seats are provisioned automatically when an invitee accepts.
+  const isEnterpriseOrg = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
+  const hasSeatData = !!organizationId && isEnterpriseOrg && totalSeats > 0
   const exceedsSeatCapacity = hasSeatData && userPerms.canAdmin && emails.length > availableSeats
   const seatLimitReason = exceedsSeatCapacity
     ? `Only ${availableSeats} internal seat${availableSeats === 1 ? '' : 's'} available. External workspace invites do not require seats.`

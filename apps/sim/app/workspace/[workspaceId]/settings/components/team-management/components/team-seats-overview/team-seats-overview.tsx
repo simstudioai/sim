@@ -18,8 +18,6 @@ interface TeamSeatsOverviewProps {
   isLoadingSubscription: boolean
   totalSeats: number
   usedSeats: number
-  isLoading: boolean
-  onAddSeatDialog: () => void
 }
 
 export function TeamSeatsOverview({
@@ -27,8 +25,6 @@ export function TeamSeatsOverview({
   isLoadingSubscription,
   totalSeats,
   usedSeats,
-  isLoading,
-  onAddSeatDialog,
 }: TeamSeatsOverviewProps) {
   const router = useRouter()
   const params = useParams<{ workspaceId: string }>()
@@ -47,7 +43,7 @@ export function TeamSeatsOverview({
               No active Team subscription
             </p>
             <p className='text-[var(--text-muted)] text-small'>
-              Purchase a Team plan to invite teammates and manage seats for this organization.
+              Purchase a Team plan to invite teammates to this organization.
             </p>
           </div>
           <Button
@@ -57,7 +53,7 @@ export function TeamSeatsOverview({
                 router.push(`/workspace/${workspaceId}/settings/subscription`)
               }
             }}
-            disabled={isLoading || !workspaceId}
+            disabled={!workspaceId}
           >
             Go to subscription settings
           </Button>
@@ -84,16 +80,6 @@ export function TeamSeatsOverview({
             {isOverLimit && (
               <Badge variant='amber' size='sm'>
                 Over limit
-              </Badge>
-            )}
-            {!isEnterprise && !isOverLimit && (
-              <Badge
-                variant='blue-secondary'
-                size='sm'
-                className='cursor-pointer'
-                onClick={onAddSeatDialog}
-              >
-                Add Seats
               </Badge>
             )}
           </div>
@@ -129,14 +115,11 @@ export function TeamSeatsOverview({
         </div>
 
         {isOverLimit && !isEnterprise && (
-          <div className='flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='pt-1'>
             <p className='text-[var(--text-muted)] text-small'>
-              You have more teammates than seats. New invites are paused until you add seats or
-              remove teammates.
+              You have more teammates than seats. Seats adjust automatically as teammates join or
+              leave.
             </p>
-            <Button variant='default' size='sm' onClick={onAddSeatDialog} disabled={isLoading}>
-              Add seats
-            </Button>
           </div>
         )}
 

@@ -8,7 +8,6 @@ import {
   Badge,
   Button,
   Combobox,
-  type ComboboxOption,
   Label,
   Modal,
   ModalBody,
@@ -441,12 +440,11 @@ export function Subscription() {
   })()
 
   const doUpgrade = useCallback(
-    async (targetPlan: TargetPlan, creditTier: number, seats?: number) => {
+    async (targetPlan: TargetPlan, creditTier: number) => {
       try {
         await handleUpgrade(targetPlan, {
           creditTier,
           annual: isAnnual,
-          ...(seats ? { seats } : {}),
         })
       } catch (error) {
         alert(getErrorMessage(error, 'Unknown error occurred'))
@@ -778,9 +776,9 @@ export function Subscription() {
             open={teamModalOpen}
             onOpenChange={setTeamModalOpen}
             isAnnual={isAnnual}
-            onConfirm={(creditTier, seats) => {
+            onConfirm={(creditTier) => {
               setTeamModalOpen(false)
-              doUpgrade('team', creditTier, seats)
+              doUpgrade('team', creditTier)
             }}
           />
 
@@ -1065,33 +1063,25 @@ interface TeamPlanModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   isAnnual: boolean
-  onConfirm: (creditTier: number, seats: number) => void
+  onConfirm: (creditTier: number) => void
 }
 
 function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModalProps) {
   const [selectedTier, setSelectedTier] = useState<number>(PRO_TIER.credits)
-  const [selectedSeats, setSelectedSeats] = useState(1)
 
-  // Reset selections each time the modal opens.
+  // Reset selection each time the modal opens.
   const prevOpenRef = useRef(open)
   if (prevOpenRef.current !== open) {
     prevOpenRef.current = open
     if (open) {
       setSelectedTier(PRO_TIER.credits)
-      setSelectedSeats(1)
     }
   }
 
   const tier = CREDIT_TIERS.find((t) => t.credits === selectedTier) ?? PRO_TIER
   const monthlyCostPerSeat = tier.dollars
-  const totalMonthly = monthlyCostPerSeat * selectedSeats
-  const annualTotal = Math.round(totalMonthly * 12 * (1 - ANNUAL_DISCOUNT_RATE))
-  const discountedMonthlyTotal = Math.round(annualTotal / 12)
-
-  const seatOptions: ComboboxOption[] = [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50].map((num) => ({
-    value: num.toString(),
-    label: `${num} ${num === 1 ? 'seat' : 'seats'}`,
-  }))
+  const annualPerSeat = Math.round(monthlyCostPerSeat * 12 * (1 - ANNUAL_DISCOUNT_RATE))
+  const discountedMonthlyPerSeat = Math.round(annualPerSeat / 12)
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
@@ -1099,7 +1089,8 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
         <ModalHeader>Get For Team</ModalHeader>
         <ModalBody>
           <ModalDescription className='text-[var(--text-secondary)]'>
-            Choose a plan and number of seats for your team. Credits are pooled across all members.
+            Choose a plan for your team. Your team starts with one seat — more are added
+            automatically as you invite members. Credits are pooled across all members.
           </ModalDescription>
 
           {/* Plan toggle */}
@@ -1141,39 +1132,23 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
             </div>
           </div>
 
-          {/* Seat selector */}
-          <div className='mt-4 flex flex-col gap-1'>
-            <Label className='text-small'>Seats</Label>
-            <Combobox
-              options={seatOptions}
-              value={selectedSeats > 0 ? selectedSeats.toString() : ''}
-              onChange={(value) => {
-                const num = Number.parseInt(value, 10)
-                if (!Number.isNaN(num) && num > 0) setSelectedSeats(num)
-              }}
-              placeholder='Select seats'
-              editable
-            />
-          </div>
-
           {/* Cost summary */}
           <div className='mt-4 rounded-md border border-[var(--border-1)] bg-[var(--surface-4)] px-3 py-2.5'>
             <div className='flex justify-between text-small'>
               <span className='text-[var(--text-muted)]'>
-                {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} &times; $
-                {monthlyCostPerSeat}/mo
+                Per seat &middot; ${monthlyCostPerSeat}/mo
               </span>
               <span className='font-medium text-[var(--text-primary)]'>
-                {isAnnual ? `$${discountedMonthlyTotal}/mo` : `$${totalMonthly}/mo`}
+                {isAnnual ? `$${discountedMonthlyPerSeat}/mo` : `$${monthlyCostPerSeat}/mo`}
               </span>
             </div>
             {isAnnual && (
               <div className='mt-1 flex justify-between text-caption'>
-                <span className='text-[var(--text-muted)]'>Annual total</span>
+                <span className='text-[var(--text-muted)]'>Annual total per seat</span>
                 <span className='text-[var(--text-secondary)]'>
-                  ${annualTotal}/yr
+                  ${annualPerSeat}/yr
                   <span className='ml-1 text-[var(--text-muted)] line-through'>
-                    ${totalMonthly * 12}
+                    ${monthlyCostPerSeat * 12}
                   </span>
                 </span>
               </div>
@@ -1184,11 +1159,7 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
           <Button variant='default' onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button
-            variant='primary'
-            onClick={() => onConfirm(selectedTier, selectedSeats)}
-            disabled={selectedSeats < 1}
-          >
+          <Button variant='primary' onClick={() => onConfirm(selectedTier)}>
             Get started
           </Button>
         </ModalFooter>

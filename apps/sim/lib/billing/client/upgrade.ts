@@ -23,7 +23,6 @@ const CONSTANTS = {
 interface UpgradeOptions {
   creditTier?: number
   annual?: boolean
-  seats?: number
 }
 
 export function useSubscriptionUpgrade() {
@@ -147,7 +146,7 @@ export function useSubscriptionUpgrade() {
           referenceId,
           successUrl,
           cancelUrl: currentUrl,
-          ...(targetPlan === 'team' && { seats: options?.seats ?? CONSTANTS.INITIAL_TEAM_SEATS }),
+          ...(targetPlan === 'team' && { seats: CONSTANTS.INITIAL_TEAM_SEATS }),
           ...(annual && { annual: true }),
         } as const
 
