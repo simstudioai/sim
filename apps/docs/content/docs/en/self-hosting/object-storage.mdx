@@ -216,7 +216,7 @@ Sim works with any S3-compatible store by pointing the S3 client at a custom end
   - Configure a **CORS policy** on the bucket that allows your Sim origin (`PUT`, `GET`, and the `Authorization` / `Content-Type` / `x-amz-*` headers). This applies to AWS S3 too — R2 and MinIO are no different.
 </Callout>
 
-<Tabs items={['Cloudflare R2', 'MinIO']}>
+<Tabs items={['Cloudflare R2', 'MinIO', 'RustFS']}>
   <Tab value="Cloudflare R2">
 
 R2 uses virtual-hosted style (the default) and the region `auto`:
@@ -248,6 +248,23 @@ S3_BUCKET_NAME=myorg-sim-workspace-files
 ```
 
 `http://` works server-side, but since the browser uploads directly to this endpoint, prefer a TLS endpoint your users can reach (a mixed-content `http://` target will be blocked on an `https://` Sim origin).
+
+  </Tab>
+  <Tab value="RustFS">
+
+RustFS is a Rust-based, S3-compatible store (a MinIO drop-in). Configure it exactly like MinIO — path-style, any region string, SigV4 access key/secret:
+
+```bash
+AWS_REGION=us-east-1
+S3_ENDPOINT=https://rustfs.example.com   # must be reachable from users' browsers
+S3_FORCE_PATH_STYLE=true
+AWS_ACCESS_KEY_ID=<rustfs-access-key>
+AWS_SECRET_ACCESS_KEY=<rustfs-secret-key>
+S3_BUCKET_NAME=myorg-sim-workspace-files
+# ...remaining S3_*_BUCKET_NAME vars, one bucket each
+```
+
+The same browser-reachability and CORS requirements apply.
 
   </Tab>
 </Tabs>
