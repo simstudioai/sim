@@ -41,6 +41,13 @@ const logger = createLogger('ImportCsvDialog')
 const MAX_SAMPLE_ROWS = 5
 const MAX_EXAMPLES_IN_ERROR = 3
 /**
+ * How many bytes of the file we read to build the preview + column mapping. We never parse the
+ * whole file in the browser: a large CSV would freeze the tab and a file past ~512 MB blows V8's
+ * max string length outright. The streaming importer reads the full file server-side and the DB
+ * row-count trigger enforces the table limit, so the client only needs the header + a few rows.
+ */
+const CSV_PREVIEW_BYTES = 512 * 1024
+/**
  * Sentinel value for the "Do not import" option in the mapping combobox. The
  * whitespace is intentional: valid column names must match `NAME_PATTERN`
  * (`/^[a-z_][a-z0-9_]*$/i`), so no real column can share this value.
@@ -101,7 +108,22 @@ interface ParsedCsv {
   file: File
   headers: string[]
   sampleRows: Record<string, unknown>[]
-  totalRows: number
+}
+
+/**
+ * Parses only the head of a CSV/TSV — enough for the column mapping and sample values, never the
+ * whole file (see {@link CSV_PREVIEW_BYTES}). When the file is larger than the preview window we
+ * drop the trailing partial line so the parser never sees a truncated final record.
+ */
+async function parseCsvPreview(file: File, delimiter: ',' | '\t') {
+  const sliced = file.size > CSV_PREVIEW_BYTES
+  const blob = sliced ? file.slice(0, CSV_PREVIEW_BYTES) : file
+  let bytes = new Uint8Array(await blob.arrayBuffer())
+  if (sliced) {
+    const lastNewline = bytes.lastIndexOf(0x0a)
+    if (lastNewline > 0) bytes = bytes.subarray(0, lastNewline + 1)
+  }
+  return parseCsvBuffer(bytes, delimiter)
 }
 
 export function ImportCsvDialog({
@@ -169,15 +191,13 @@ export function ImportCsvDialog({
     setParsing(true)
     setParseError(null)
     try {
-      const arrayBuffer = await file.arrayBuffer()
-      const delimiter = ext === 'tsv' ? '\t' : ','
-      const { headers, rows } = await parseCsvBuffer(new Uint8Array(arrayBuffer), delimiter)
+      const delimiter: ',' | '\t' = ext === 'tsv' ? '\t' : ','
+      const { headers, rows } = await parseCsvPreview(file, delimiter)
       const autoMapping = buildAutoMapping(headers, table.schema)
       setParsed({
         file,
         headers,
         sampleRows: rows.slice(0, MAX_SAMPLE_ROWS),
-        totalRows: rows.length,
       })
       setMapping(autoMapping)
     } catch (err) {
@@ -291,25 +311,13 @@ export function ImportCsvDialog({
     }
   }, [mapping, parsed?.headers, table.schema.columns, createHeaders])
 
-  const appendCapacityDeficit =
-    parsed && mode === 'append' && table.rowCount + parsed.totalRows > table.maxRows
-      ? table.rowCount + parsed.totalRows - table.maxRows
-      : 0
-
-  const replaceCapacityDeficit =
-    parsed && mode === 'replace' && parsed.totalRows > table.maxRows
-      ? parsed.totalRows - table.maxRows
-      : 0
-
   const canSubmit =
     parsed !== null &&
     !importMutation.isPending &&
     !importAsyncMutation.isPending &&
     missingRequired.length === 0 &&
     duplicateTargets.length === 0 &&
-    mappedCount + createCount > 0 &&
-    appendCapacityDeficit === 0 &&
-    replaceCapacityDeficit === 0
+    mappedCount + createCount > 0
 
   async function handleSubmit() {
     if (!parsed || !canSubmit) return
@@ -360,6 +368,9 @@ export function ImportCsvDialog({
             // Canceled mid-upload — the worker just started; cancel it instead of re-seeding.
             if (useImportTrayStore.getState().consumeCanceled(table.id)) {
               if (data?.importId) {
+                // Re-flag so hydration won't re-seed the still-`importing` server row while the
+                // server cancel is in flight.
+                useImportTrayStore.getState().cancel(table.id)
                 void cancelTableImport(workspaceId, table.id, data.importId).catch(() => {})
               }
               return
@@ -412,11 +423,7 @@ export function ImportCsvDialog({
     }
   }
 
-  const hasWarning =
-    missingRequired.length > 0 ||
-    duplicateTargets.length > 0 ||
-    appendCapacityDeficit > 0 ||
-    replaceCapacityDeficit > 0
+  const hasWarning = missingRequired.length > 0 || duplicateTargets.length > 0
 
   return (
     <Modal open={open} onOpenChange={handleOpenChange}>
@@ -475,7 +482,7 @@ export function ImportCsvDialog({
                     {parsed.file.name}
                   </span>
                   <span className='text-[var(--text-tertiary)] text-xs'>
-                    {parsed.totalRows.toLocaleString()} rows · {parsed.headers.length} columns
+                    {parsed.headers.length} columns
                   </span>
                 </div>
                 <Button variant='ghost' size='sm' onClick={resetState}>
@@ -572,20 +579,6 @@ export function ImportCsvDialog({
                   {duplicateTargets.length > 0 && (
                     <p className='text-[var(--text-error)] text-caption leading-tight'>
                       Multiple CSV columns target: {duplicateTargets.join(', ')} (pick one)
-                    </p>
-                  )}
-                  {appendCapacityDeficit > 0 && (
-                    <p className='text-[var(--text-error)] text-caption leading-tight'>
-                      Append would exceed the row limit ({table.maxRows.toLocaleString()}) by{' '}
-                      {appendCapacityDeficit.toLocaleString()} row(s). Remove rows or switch to
-                      Replace.
-                    </p>
-                  )}
-                  {replaceCapacityDeficit > 0 && (
-                    <p className='text-[var(--text-error)] text-caption leading-tight'>
-                      CSV has {parsed.totalRows.toLocaleString()} rows, which exceeds the table
-                      limit of {table.maxRows.toLocaleString()} by{' '}
-                      {replaceCapacityDeficit.toLocaleString()}.
                     </p>
                   )}
                 </div>
