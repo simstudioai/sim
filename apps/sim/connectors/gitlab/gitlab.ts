@@ -757,15 +757,13 @@ export const gitlabConnector: ConnectorConfig = {
       })
 
       if (!response.ok) {
-        if (response.status === 404) {
-          logger.warn(
-            'GitLab repository tree returned 404; skipping files (empty repo or no tree)',
-            {
-              host,
-              project: encodedProject,
-              ref,
-            }
-          )
+        if (response.status === 404 || response.status === 403) {
+          logger.warn('GitLab repository tree unavailable; skipping files', {
+            host,
+            project: encodedProject,
+            ref,
+            status: response.status,
+          })
           const adv = advance('repo')
           return { documents: [], nextCursor: adv.nextCursor, hasMore: adv.hasMore }
         }
