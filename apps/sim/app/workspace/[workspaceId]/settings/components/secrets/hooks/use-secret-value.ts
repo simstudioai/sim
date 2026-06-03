@@ -27,7 +27,9 @@ interface UseSecretValueParams {
  * - Asymmetric save model: workspace env merges per-key (PUT); personal env is
  *   replace-all (POST), so a personal save refetches the latest set first and
  *   rebuilds it with only this key changed, avoiding dropped keys from a stale
- *   cache.
+ *   cache. If that set can't be resolved (refetch failed and nothing is cached)
+ *   the save aborts, since a single-key replace-all would wipe the rest of the
+ *   store; a successfully-loaded empty set still saves (first personal key).
  * - Scope-aware edit permission: workspace requires the credential admin role;
  *   personal values live in the owner's own environment, so only the owner can
  *   edit. A personal key shadowed by a same-named workspace key is surfaced as
@@ -72,9 +74,15 @@ export function useSecretValue({ workspaceId, credential }: UseSecretValueParams
     try {
       if (isPersonal) {
         const { data: latest } = await refetchPersonal()
-        const source = latest ?? personalEnvData ?? {}
+        if (!latest) {
+          toast.error("Couldn't save value", {
+            description: 'Could not load your latest secrets. Please try again in a moment.',
+          })
+          logger.warn('Aborted personal secret save: latest environment unavailable')
+          return
+        }
         const merged: Record<string, string> = Object.fromEntries(
-          Object.entries(source).map(([key, entry]) => [key, entry.value])
+          Object.entries(latest).map(([key, entry]) => [key, entry.value])
         )
         merged[envKey] = draft
         await savePersonal.mutateAsync({ variables: merged })
