@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { executeTool as executeAppTool } from '@/tools'
-import { isKnownTool, isSimExecuted } from './router'
+import { isClientExecuted, isKnownTool, isSimExecuted } from './router'
 import type {
   ToolCallDescriptor,
   ToolExecutionContext,
@@ -35,12 +35,22 @@ export function hasHandler(toolId: string): boolean {
   return handlerRegistry.has(toolId)
 }
 
+export function clearHandlers(): void {
+  handlerRegistry.clear()
+}
+
 export async function executeTool(
   toolId: string,
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  const canUseRegisteredHandler = isKnownTool(toolId) && isSimExecuted(toolId)
+  // Client-routed tools (e.g. run_workflow) are normally executed in the browser and never
+  // reach this point in interactive mode. In headless mode (Mothership block, no browser) there
+  // is no client to delegate to, so fall back to the registered server-side handler when one
+  // exists — otherwise the call would route to executeAppTool and throw "Tool not found".
+  const canUseRegisteredHandler =
+    isKnownTool(toolId) &&
+    (isSimExecuted(toolId) || (isClientExecuted(toolId) && hasHandler(toolId)))
   if (!canUseRegisteredHandler) {
     const appParams = buildAppToolParams(toolId, params, context)
     return executeAppTool(toolId, appParams)
