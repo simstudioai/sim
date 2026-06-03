@@ -13,8 +13,8 @@ Sim stores every uploaded file — knowledge base documents, chat attachments, e
 | Backend | When to use |
 |---------|-------------|
 | **Local disk** | Single-node Docker, local development, evaluation |
-| **AWS S3** | Production, especially when running more than one app replica |
-| **Azure Blob** | Production on Azure |
+| **[AWS S3](https://aws.amazon.com/s3/)** | Production, especially when running more than one app replica |
+| **[Azure Blob](https://learn.microsoft.com/azure/storage/blobs/)** | Production on Azure |
 
 <Callout type="warning">
   Local disk writes to the container's `/uploads` directory. Files are lost when the container is recreated unless that path is on a persistent volume, and they are **not** shared across replicas. For any multi-replica or production deployment, use S3 or Azure Blob.
@@ -203,7 +203,7 @@ A full Helm example lives at `helm/sim/examples/values-azure.yaml`.
 
 ## Set up an S3-compatible provider (R2, MinIO, B2)
 
-Sim works with any S3-compatible store by pointing the S3 client at a custom endpoint. Configure it exactly like AWS S3 (buckets, access key, secret), then add `S3_ENDPOINT` — and `S3_FORCE_PATH_STYLE` where the provider requires path-style addressing.
+Sim works with any S3-compatible store by pointing the S3 client at a custom endpoint. Configure it exactly like AWS S3 (buckets, access key, secret), then add `S3_ENDPOINT` — and `S3_FORCE_PATH_STYLE` where the provider requires path-style addressing. Verified with [Cloudflare R2](https://developers.cloudflare.com/r2/), [MinIO](https://min.io/), [Backblaze B2](https://www.backblaze.com/cloud-storage), and [RustFS](https://rustfs.com/).
 
 <Callout type="info">
   `S3_ENDPOINT` is trusted operator configuration, so it is used as-is — `http://` and private hosts are accepted (no SSRF/HTTPS gate). Don't wire it to untrusted input.
@@ -219,7 +219,7 @@ Sim works with any S3-compatible store by pointing the S3 client at a custom end
 <Tabs items={['Cloudflare R2', 'MinIO', 'RustFS']}>
   <Tab value="Cloudflare R2">
 
-R2 uses virtual-hosted style (the default) and the region `auto`:
+[Cloudflare R2](https://developers.cloudflare.com/r2/api/s3/) uses virtual-hosted style (the default) and the region `auto`:
 
 ```bash
 AWS_REGION=auto
@@ -235,7 +235,7 @@ Leave `S3_FORCE_PATH_STYLE` unset — R2 supports the default virtual-hosted add
   </Tab>
   <Tab value="MinIO">
 
-MinIO (and Ceph RGW) need path-style addressing and accept any region string:
+[MinIO](https://min.io/docs/minio/linux/index.html) (and [Ceph RGW](https://docs.ceph.com/en/latest/radosgw/)) need path-style addressing and accept any region string:
 
 ```bash
 AWS_REGION=us-east-1
@@ -252,7 +252,7 @@ S3_BUCKET_NAME=myorg-sim-workspace-files
   </Tab>
   <Tab value="RustFS">
 
-RustFS is a Rust-based, S3-compatible store (a MinIO drop-in). Configure it exactly like MinIO — path-style, any region string, SigV4 access key/secret:
+[RustFS](https://rustfs.com/) is a Rust-based, S3-compatible store (a MinIO drop-in). Configure it exactly like MinIO — path-style, any region string, SigV4 access key/secret:
 
 ```bash
 AWS_REGION=us-east-1
