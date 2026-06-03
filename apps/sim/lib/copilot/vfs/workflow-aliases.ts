@@ -141,7 +141,11 @@ export function workspacePlanBackingPath(planRelativePath: string): string {
     throw new Error('Workspace plan alias must include a plan file path')
   }
   return canonicalWorkspaceFilePath({
-    folderPath: [WORKFLOW_PLANS_BACKING_FOLDER, WORKSPACE_PLANS_BACKING_FOLDER, ...segments.slice(0, -1)].join('/'),
+    folderPath: [
+      WORKFLOW_PLANS_BACKING_FOLDER,
+      WORKSPACE_PLANS_BACKING_FOLDER,
+      ...segments.slice(0, -1),
+    ].join('/'),
     name: segments[segments.length - 1],
   })
 }
@@ -209,7 +213,10 @@ function workflowAliasTargetForPath(workflow: WorkflowAliasWorkflow, rawPath: st
 
 export function resolveWorkspacePlanAliasPath(path: string): WorkflowAliasTarget | null {
   const normalizedPath = path.trim().replace(/^\/+|\/+$/g, '')
-  if (normalizedPath === WORKFLOW_PLANS_ALIAS_DIR || normalizedPath === `${WORKFLOW_PLANS_ALIAS_DIR}/.folder`) {
+  if (
+    normalizedPath === WORKFLOW_PLANS_ALIAS_DIR ||
+    normalizedPath === `${WORKFLOW_PLANS_ALIAS_DIR}/.folder`
+  ) {
     return {
       kind: 'plans_dir',
       scope: 'workspace',
@@ -222,7 +229,11 @@ export function resolveWorkspacePlanAliasPath(path: string): WorkflowAliasTarget
   const plansPrefix = `${WORKFLOW_PLANS_ALIAS_DIR}/`
   if (!normalizedPath.startsWith(plansPrefix)) return null
   const planRelativePath = normalizedPath.slice(plansPrefix.length)
-  if (!planRelativePath || planRelativePath === '.folder' || planRelativePath === WORKFLOW_ALIAS_LINKS_NAME) {
+  if (
+    !planRelativePath ||
+    planRelativePath === '.folder' ||
+    planRelativePath === WORKFLOW_ALIAS_LINKS_NAME
+  ) {
     return null
   }
   return {
@@ -264,7 +275,10 @@ export function isWorkflowAliasPath(path: string): boolean {
 
 export function isWorkspacePlanAliasPath(path: string): boolean {
   const normalizedPath = path.trim().replace(/^\/+|\/+$/g, '')
-  return normalizedPath === WORKFLOW_PLANS_ALIAS_DIR || normalizedPath.startsWith(`${WORKFLOW_PLANS_ALIAS_DIR}/`)
+  return (
+    normalizedPath === WORKFLOW_PLANS_ALIAS_DIR ||
+    normalizedPath.startsWith(`${WORKFLOW_PLANS_ALIAS_DIR}/`)
+  )
 }
 
 export function isPlanAliasPath(path: string): boolean {

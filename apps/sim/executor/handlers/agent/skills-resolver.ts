@@ -2,11 +2,8 @@ import { db } from '@sim/db'
 import { skill } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
+import { getBuiltinSkillById, getBuiltinSkillByName } from '@/lib/workflows/skills/builtin-skills'
 import type { SkillInput } from '@/executor/handlers/agent/types'
-import {
-  getBuiltinSkillById,
-  getBuiltinSkillByName,
-} from '@/lib/workflows/skills/builtin-skills'
 
 const logger = createLogger('SkillsResolver')
 

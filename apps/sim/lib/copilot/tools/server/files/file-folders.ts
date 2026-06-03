@@ -14,13 +14,13 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import {
   findWorkspaceFileFolderIdByPath,
   getWorkspaceFileFolder,
   listWorkspaceFileFolders,
   type WorkspaceFileFolderRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   performCreateWorkspaceFileFolder,
@@ -147,7 +147,10 @@ async function resolveOptionalFolderId(
   return folderId
 }
 
-async function resolveFileIdsFromPaths(workspaceId: string, paths: string[]): Promise<{
+async function resolveFileIdsFromPaths(
+  workspaceId: string,
+  paths: string[]
+): Promise<{
   fileIds: string[]
   failed: string[]
 }> {

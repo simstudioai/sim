@@ -6,7 +6,10 @@ import {
   DeleteFile,
   DeleteFileFolder,
   DownloadToWorkspaceFile,
+  Ffmpeg,
+  GenerateAudio,
   GenerateImage,
+  GenerateVideo,
   KnowledgeBase,
   ManageCredential,
   ManageCustomTool,
@@ -47,6 +50,9 @@ import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generat
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
 import { getJobLogsServerTool } from '@/lib/copilot/tools/server/jobs/get-job-logs'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
+import { ffmpegServerTool } from '@/lib/copilot/tools/server/media/ffmpeg'
+import { generateAudioServerTool } from '@/lib/copilot/tools/server/media/generate-audio'
+import { generateVideoServerTool } from '@/lib/copilot/tools/server/media/generate-video'
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
 import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
@@ -116,6 +122,9 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [DeleteFileFolder.id]: ['*'],
   [DownloadToWorkspaceFile.id]: ['*'],
   [GenerateImage.id]: ['generate'],
+  [GenerateVideo.id]: ['generate'],
+  [GenerateAudio.id]: ['generate'],
+  [Ffmpeg.id]: ['*'],
 }
 
 function isWritePermission(userPermission: string): boolean {
@@ -157,6 +166,9 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [deleteFileFolderServerTool.name]: deleteFileFolderServerTool,
   [downloadToWorkspaceFileServerTool.name]: downloadToWorkspaceFileServerTool,
   [generateImageServerTool.name]: generateImageServerTool,
+  [generateVideoServerTool.name]: generateVideoServerTool,
+  [generateAudioServerTool.name]: generateAudioServerTool,
+  [ffmpegServerTool.name]: ffmpegServerTool,
 }
 
 function getServerToolRegistry(): Record<string, BaseServerTool> {

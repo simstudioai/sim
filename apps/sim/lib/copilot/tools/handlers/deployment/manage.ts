@@ -463,7 +463,10 @@ function resolveLoadVersion(
     }
     if (/^\d+$/.test(t)) return { ok: true, version: Number.parseInt(t, 10) }
   }
-  return { ok: false, error: `Invalid version "${String(raw)}": expected a version number or "live"` }
+  return {
+    ok: false,
+    error: `Invalid version "${String(raw)}": expected a version number or "live"`,
+  }
 }
 
 export async function executeLoadDeployment(

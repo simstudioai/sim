@@ -1,19 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { z } from 'zod'
+import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
+import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import {
   collectLargeValueExecutionIds,
   collectLargeValueKeys,
 } from '@/lib/execution/payloads/large-execution-value'
-import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import { fetchLogDetail } from '@/lib/logs/fetch-log-detail'
-import { listLogs, type ListLogsParams } from '@/lib/logs/list-logs'
-import {
-  grepSpans,
-  type LogViewContext,
-  toFull,
-  toOverview,
-} from '@/lib/logs/log-views'
+import { type ListLogsParams, listLogs } from '@/lib/logs/list-logs'
+import { grepSpans, type LogViewContext, toFull, toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 
 const logger = createLogger('QueryLogsServerTool')

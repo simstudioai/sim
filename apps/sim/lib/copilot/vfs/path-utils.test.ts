@@ -45,9 +45,9 @@ describe('canonical resource VFS paths', () => {
 
   it('builds workflow dirs at root and nested in folders', () => {
     expect(canonicalWorkflowVfsDir({ name: 'My Flow' })).toBe('workflows/My%20Flow')
-    expect(canonicalWorkflowVfsDir({ name: 'My Flow', folderPath: 'My%20Folder/Sub%20Folder' })).toBe(
-      'workflows/My%20Folder/Sub%20Folder/My%20Flow'
-    )
+    expect(
+      canonicalWorkflowVfsDir({ name: 'My Flow', folderPath: 'My%20Folder/Sub%20Folder' })
+    ).toBe('workflows/My%20Folder/Sub%20Folder/My%20Flow')
   })
 
   it('builds table, knowledge base, and block pointers', () => {

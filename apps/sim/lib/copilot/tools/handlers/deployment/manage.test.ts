@@ -315,7 +315,9 @@ describe('executeCheckDeploymentStatus', () => {
 
   it('uses the shared redeployment freshness helper for deployed APIs', async () => {
     vi.mocked(db.select)
-      .mockReturnValueOnce(selectChain([{ isDeployed: true, deployedAt: new Date('2026-05-28') }]) as never)
+      .mockReturnValueOnce(
+        selectChain([{ isDeployed: true, deployedAt: new Date('2026-05-28') }]) as never
+      )
       .mockReturnValueOnce(selectChain([]) as never)
       .mockReturnValueOnce(selectChain([], true) as never)
     checkNeedsRedeploymentMock.mockResolvedValueOnce(true)

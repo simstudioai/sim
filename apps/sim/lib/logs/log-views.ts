@@ -147,7 +147,9 @@ async function materializeField(value: unknown, ctx: LogViewContext): Promise<un
         ...ctx,
         maxBytes: ctx.maxBytes ?? SINGLE_REF_MAX_BYTES,
       })
-      return materialized === undefined ? (value.preview ?? '[large value unavailable]') : materialized
+      return materialized === undefined
+        ? (value.preview ?? '[large value unavailable]')
+        : materialized
     } catch {
       return value.preview ?? '[large value unavailable]'
     }
@@ -279,7 +281,8 @@ async function grepField(
     } catch {
       materialized = undefined
     }
-    const text = materialized === undefined ? safeStringify(value.preview) : safeStringify(materialized)
+    const text =
+      materialized === undefined ? safeStringify(value.preview) : safeStringify(materialized)
     recordIfMatch(text, field, span, state)
     return
   }

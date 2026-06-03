@@ -128,7 +128,9 @@ describe('toFull', () => {
 
 describe('grepSpans', () => {
   it('matches inline output text and error text', async () => {
-    const spans = [span({ output: { msg: 'request timeout occurred' }, errorMessage: 'boom failure' })]
+    const spans = [
+      span({ output: { msg: 'request timeout occurred' }, errorMessage: 'boom failure' }),
+    ]
 
     const outMatch = await grepSpans(spans, 'timeout', ctx)
     expect(outMatch.matches.some((m) => m.field === 'output')).toBe(true)
@@ -140,12 +142,10 @@ describe('grepSpans', () => {
 
   it('streams a large-array manifest slice-by-slice with advancing offsets', async () => {
     // totalCount 500, batch 200 → starts 0, 200, 400 (3 slices). Needle in slice 3.
-    readLargeArrayManifestSliceMock.mockImplementation(
-      async (_m: unknown, start: number) => {
-        if (start === 400) return [{ v: 'found the needle here' }]
-        return [{ v: 'nothing' }]
-      }
-    )
+    readLargeArrayManifestSliceMock.mockImplementation(async (_m: unknown, start: number) => {
+      if (start === 400) return [{ v: 'found the needle here' }]
+      return [{ v: 'nothing' }]
+    })
     const spans = [span({ output: manifest(500) as any })]
 
     const result = await grepSpans(spans, 'needle', ctx)
@@ -156,9 +156,7 @@ describe('grepSpans', () => {
   })
 
   it('caps matches and marks truncated', async () => {
-    const spans = [
-      span({ id: 'a', name: 'needle one', output: { v: 'needle two' } }),
-    ]
+    const spans = [span({ id: 'a', name: 'needle one', output: { v: 'needle two' } })]
     const result = await grepSpans(spans, 'needle', ctx, { maxMatches: 1 })
     expect(result.matches).toHaveLength(1)
     expect(result.truncated).toBe(true)

@@ -5,7 +5,11 @@ import {
   Debug,
   Deploy,
   EditWorkflow,
+  Ffmpeg,
   FunctionExecute,
+  GenerateAudio,
+  GenerateImage,
+  GenerateVideo,
   GetPageContents,
   Glob,
   Grep,
@@ -14,6 +18,7 @@ import {
   KnowledgeBase,
   ManageMcpTool,
   ManageSkill,
+  Media,
   OpenResource,
   Read as ReadTool,
   Research,
@@ -190,6 +195,7 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   agent: 'Tools Agent',
   job: 'Job Agent',
   file: 'File Agent',
+  media: 'Media Agent',
 } as const
 
 interface ToolTitleMetadata {
@@ -230,5 +236,10 @@ export const TOOL_UI_METADATA: Record<string, ToolTitleMetadata> = {
   custom_tool: { title: 'Creating tool' },
   [Research.id]: { title: 'Research Agent' },
   [OpenResource.id]: { title: 'Opening resource' },
+  [Media.id]: { title: 'Media Agent' },
+  [GenerateImage.id]: { title: 'Generating image' },
+  [GenerateVideo.id]: { title: 'Generating video' },
+  [GenerateAudio.id]: { title: 'Generating audio' },
+  [Ffmpeg.id]: { title: 'Processing media' },
   context_compaction: { title: 'Compacted context' },
 }

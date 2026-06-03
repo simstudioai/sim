@@ -542,7 +542,12 @@ async function processWorkflowBlockFromDb(
     const tag = label ? `@${label} in Workflow` : `@${blockId} in Workflow`
     // Point at the workflow state; the block id tells the model which node to
     // look up inside state.json without inlining the full block definition.
-    return { type: 'workflow_block', tag, content: `Block id: ${blockId}`, path: `${dir}/state.json` }
+    return {
+      type: 'workflow_block',
+      tag,
+      content: `Block id: ${blockId}`,
+      path: `${dir}/state.json`,
+    }
   } catch (error) {
     logger.error('Error processing workflow_block context', { workflowId, blockId, error })
     return null
@@ -736,7 +741,12 @@ async function resolveFileFolderResource(
     const rawPath = await getWorkspaceFileFolderPath(workspaceId, folderId)
     if (!rawPath) return null
     const encoded = encodeVfsPathSegments(rawPath.split('/').filter(Boolean))
-    return { type: 'active_resource', tag: '@active_resource', content: '', path: `files/${encoded}` }
+    return {
+      type: 'active_resource',
+      tag: '@active_resource',
+      content: '',
+      path: `files/${encoded}`,
+    }
   } catch (error) {
     logger.error('Failed to resolve file folder resource', { folderId, error })
     return null

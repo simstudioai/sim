@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   buildWorkflowAliasWorkflowEntries,
   isWorkflowAliasBackingPath,
-  resolveWorkspacePlanAliasPath,
   resolveWorkflowAliasPath,
-  workspacePlanBackingPath,
+  resolveWorkspacePlanAliasPath,
   workflowChangelogBackingPath,
+  workspacePlanBackingPath,
 } from './workflow-aliases'
 
 describe('workflow aliases', () => {

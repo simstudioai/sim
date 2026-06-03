@@ -73,7 +73,6 @@ export async function runHeadlessCopilotLifecycle(
               ? RequestTraceV1SpanStatus.cancelled
               : RequestTraceV1SpanStatus.error
         )
-
       }
     }
   )

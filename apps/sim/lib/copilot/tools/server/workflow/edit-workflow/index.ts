@@ -32,7 +32,7 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 import { applyOperationsToWorkflowState } from './engine'
 import { formatWorkflowLintMessage, hasWorkflowLintIssues, lintEditedWorkflowState } from './lint'
-import { isDeferredSkippedItem, type EditWorkflowParams, type ValidationError } from './types'
+import { type EditWorkflowParams, isDeferredSkippedItem, type ValidationError } from './types'
 import { preValidateCredentialInputs, validateWorkflowSelectorIds } from './validation'
 
 async function getCurrentWorkflowStateFromDb(

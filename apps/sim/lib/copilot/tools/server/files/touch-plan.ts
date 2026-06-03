@@ -79,7 +79,10 @@ export const touchPlanServerTool: BaseServerTool<TouchPlanArgs, TouchPlanResult>
 
     const nested = params.args
     const nestedScope = nested?.scope as TouchPlanArgs['scope'] | undefined
-    const scope = params.scope || nestedScope || (params.workflowPath || nested?.workflowPath ? 'workflow' : 'workspace')
+    const scope =
+      params.scope ||
+      nestedScope ||
+      (params.workflowPath || nested?.workflowPath ? 'workflow' : 'workspace')
     const workflowPath = params.workflowPath || (nested?.workflowPath as string) || ''
     const name = params.name || (nested?.name as string) || ''
     if (!name) {
@@ -89,7 +92,10 @@ export const touchPlanServerTool: BaseServerTool<TouchPlanArgs, TouchPlanResult>
       return { success: false, message: 'touch_plan scope must be "workspace" or "workflow"' }
     }
     if (scope === 'workflow' && !workflowPath) {
-      return { success: false, message: 'touch_plan with workflow scope requires workflowPath and name' }
+      return {
+        success: false,
+        message: 'touch_plan with workflow scope requires workflowPath and name',
+      }
     }
 
     const planRelativePath = normalizePlanRelativePath(name)

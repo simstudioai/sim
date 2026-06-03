@@ -31,10 +31,13 @@ export interface ToolCatalogEntry {
     | 'download_to_workspace_file'
     | 'edit_content'
     | 'edit_workflow'
+    | 'ffmpeg'
     | 'file'
     | 'function_execute'
     | 'generate_api_key'
+    | 'generate_audio'
     | 'generate_image'
+    | 'generate_video'
     | 'get_block_outputs'
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
@@ -60,6 +63,7 @@ export interface ToolCatalogEntry {
     | 'manage_mcp_tool'
     | 'manage_skill'
     | 'materialize_file'
+    | 'media'
     | 'move_file'
     | 'move_file_folder'
     | 'move_folder'
@@ -126,10 +130,13 @@ export interface ToolCatalogEntry {
     | 'download_to_workspace_file'
     | 'edit_content'
     | 'edit_workflow'
+    | 'ffmpeg'
     | 'file'
     | 'function_execute'
     | 'generate_api_key'
+    | 'generate_audio'
     | 'generate_image'
+    | 'generate_video'
     | 'get_block_outputs'
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
@@ -155,6 +162,7 @@ export interface ToolCatalogEntry {
     | 'manage_mcp_tool'
     | 'manage_skill'
     | 'materialize_file'
+    | 'media'
     | 'move_file'
     | 'move_file_folder'
     | 'move_folder'
@@ -207,6 +215,7 @@ export interface ToolCatalogEntry {
     | 'file'
     | 'job'
     | 'knowledge'
+    | 'media'
     | 'research'
     | 'run'
     | 'superagent'
@@ -1063,6 +1072,173 @@ export const EditWorkflow: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
+export const Ffmpeg: ToolCatalogEntry = {
+  id: 'ffmpeg',
+  name: 'ffmpeg',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      aspectRatio: {
+        type: 'string',
+        description: 'Target aspect ratio for scale_pad, e.g. 9:16, 16:9, 1:1.',
+      },
+      end: { type: 'number', description: 'End time in seconds (trim).' },
+      format: {
+        type: 'string',
+        description: 'Target format/extension for convert (e.g. mp4, mp3, wav, gif).',
+      },
+      height: { type: 'number', description: 'Target height in pixels (scale_pad).' },
+      inputs: {
+        type: 'object',
+        description:
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+        properties: {
+          directories: {
+            type: 'array',
+            description:
+              'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          files: {
+            type: 'array',
+            description: 'Workspace files to mount into the sandbox.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          tables: {
+            type: 'array',
+            description: 'Workspace tables to mount as CSV files.',
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Canonical VFS table path when available.' },
+                sandboxPath: {
+                  type: 'string',
+                  description: 'Optional full sandbox path for the mounted CSV.',
+                },
+                tableId: { type: 'string', description: 'Workspace table ID.' },
+              },
+            },
+          },
+        },
+      },
+      loopToVideo: {
+        type: 'boolean',
+        description: 'For overlay_audio, loop or trim the audio to match the video length.',
+      },
+      musicVolume: {
+        type: 'number',
+        description: 'Volume multiplier for the background music track in mix_audio (e.g. 0.3).',
+      },
+      operation: {
+        type: 'string',
+        description: 'The FFmpeg operation to run.',
+        enum: [
+          'overlay_audio',
+          'mix_audio',
+          'concat',
+          'trim',
+          'scale_pad',
+          'overlay_image',
+          'add_text',
+          'fade',
+          'extract_audio',
+          'convert',
+          'thumbnail',
+          'probe',
+        ],
+      },
+      outputs: {
+        type: 'object',
+        description:
+          'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+        properties: {
+          files: {
+            type: 'array',
+            description: 'File outputs. Parent folders must already exist for create mode.',
+            items: {
+              type: 'object',
+              properties: {
+                format: {
+                  type: 'string',
+                  description: 'Optional serialization format for returned values.',
+                  enum: ['json', 'csv', 'txt', 'md', 'html'],
+                },
+                mimeType: {
+                  type: 'string',
+                  description: 'Optional MIME type override when inference is not enough.',
+                },
+                mode: {
+                  type: 'string',
+                  description: 'Create a new file or overwrite an existing file at path.',
+                  enum: ['create', 'overwrite'],
+                },
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                },
+              },
+              required: ['path', 'mode'],
+            },
+          },
+        },
+      },
+      position: {
+        type: 'string',
+        description: 'Placement for add_text / overlay_image.',
+        enum: ['top', 'center', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      },
+      start: { type: 'number', description: 'Start time in seconds (trim, thumbnail, fade).' },
+      text: { type: 'string', description: 'Text to burn in for add_text.' },
+      volume: {
+        type: 'number',
+        description: 'Volume multiplier for the primary track (mix_audio / overlay_audio).',
+      },
+      width: { type: 'number', description: 'Target width in pixels (scale_pad).' },
+    },
+    required: ['operation', 'inputs'],
+  },
+  requiredPermission: 'write',
+  capabilities: ['file_input', 'file_output'],
+}
+
 export const File: ToolCatalogEntry = {
   id: 'file',
   name: 'file',
@@ -1235,6 +1411,82 @@ export const GenerateApiKey: ToolCatalogEntry = {
   requiredPermission: 'admin',
 }
 
+export const GenerateAudio: ToolCatalogEntry = {
+  id: 'generate_audio',
+  name: 'generate_audio',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      duration: {
+        type: 'number',
+        description: 'Approximate duration in seconds for music/sfx where supported.',
+      },
+      model: {
+        type: 'string',
+        description:
+          'Optional model override for the selected type (e.g. fal-ai/elevenlabs/tts/eleven-v3 for speech).',
+      },
+      outputs: {
+        type: 'object',
+        description:
+          'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+        properties: {
+          files: {
+            type: 'array',
+            description: 'File outputs. Parent folders must already exist for create mode.',
+            items: {
+              type: 'object',
+              properties: {
+                format: {
+                  type: 'string',
+                  description: 'Optional serialization format for returned values.',
+                  enum: ['json', 'csv', 'txt', 'md', 'html'],
+                },
+                mimeType: {
+                  type: 'string',
+                  description: 'Optional MIME type override when inference is not enough.',
+                },
+                mode: {
+                  type: 'string',
+                  description: 'Create a new file or overwrite an existing file at path.',
+                  enum: ['create', 'overwrite'],
+                },
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                },
+              },
+              required: ['path', 'mode'],
+            },
+          },
+        },
+      },
+      prompt: {
+        type: 'string',
+        description:
+          'For speech: the text to speak (may include expressive tags). For music/sfx: a description of the audio to generate.',
+      },
+      type: {
+        type: 'string',
+        description: 'Kind of audio to generate. Defaults to speech.',
+        enum: ['speech', 'music', 'sfx'],
+      },
+      voice: { type: 'string', description: 'Optional voice name or id for speech.' },
+    },
+    required: ['prompt'],
+  },
+  requiredPermission: 'write',
+  capabilities: ['file_output', 'generated_media'],
+}
+
 export const GenerateImage: ToolCatalogEntry = {
   id: 'generate_image',
   name: 'generate_image',
@@ -1356,6 +1608,168 @@ export const GenerateImage: ToolCatalogEntry = {
         type: 'string',
         description:
           'Detailed text description of the image to generate, or editing instructions when editing the image(s) passed in `inputs.files`.',
+      },
+    },
+    required: ['prompt'],
+  },
+  requiredPermission: 'write',
+  capabilities: ['file_input', 'file_output', 'generated_media'],
+}
+
+export const GenerateVideo: ToolCatalogEntry = {
+  id: 'generate_video',
+  name: 'generate_video',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      aspectRatio: {
+        type: 'string',
+        description: 'Aspect ratio for the video (model-dependent).',
+        enum: ['16:9', '9:16', '1:1'],
+      },
+      duration: {
+        type: 'number',
+        description: 'Clip duration in seconds (model-dependent; e.g. 4, 6, 8).',
+      },
+      generateAudio: {
+        type: 'boolean',
+        description: 'Generate native audio when the model supports it (default true for Veo).',
+      },
+      inputs: {
+        type: 'object',
+        description:
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+        properties: {
+          directories: {
+            type: 'array',
+            description:
+              'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          files: {
+            type: 'array',
+            description: 'Workspace files to mount into the sandbox.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          tables: {
+            type: 'array',
+            description: 'Workspace tables to mount as CSV files.',
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Canonical VFS table path when available.' },
+                sandboxPath: {
+                  type: 'string',
+                  description: 'Optional full sandbox path for the mounted CSV.',
+                },
+                tableId: { type: 'string', description: 'Workspace table ID.' },
+              },
+            },
+          },
+        },
+      },
+      model: {
+        type: 'string',
+        description: 'Optional model override. Defaults to veo-3.1 (native audio, best quality).',
+        enum: [
+          'veo-3.1',
+          'veo-3.1-fast',
+          'sora-2',
+          'sora-2-pro',
+          'seedance-2.0',
+          'seedance-2.0-fast',
+          'kling-v3-pro',
+          'minimax-hailuo-2.3-pro',
+          'wan-2.2-a14b-turbo',
+          'ltx-2.3',
+        ],
+      },
+      outputs: {
+        type: 'object',
+        description:
+          'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+        properties: {
+          files: {
+            type: 'array',
+            description: 'File outputs. Parent folders must already exist for create mode.',
+            items: {
+              type: 'object',
+              properties: {
+                format: {
+                  type: 'string',
+                  description: 'Optional serialization format for returned values.',
+                  enum: ['json', 'csv', 'txt', 'md', 'html'],
+                },
+                mimeType: {
+                  type: 'string',
+                  description: 'Optional MIME type override when inference is not enough.',
+                },
+                mode: {
+                  type: 'string',
+                  description: 'Create a new file or overwrite an existing file at path.',
+                  enum: ['create', 'overwrite'],
+                },
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                },
+              },
+              required: ['path', 'mode'],
+            },
+          },
+        },
+      },
+      prompt: {
+        type: 'string',
+        description:
+          'Detailed description of the video to generate (scene, action, camera movement, style).',
+      },
+      promptOptimizer: {
+        type: 'boolean',
+        description: 'Enable prompt optimization for MiniMax models (default true).',
+      },
+      resolution: {
+        type: 'string',
+        description: 'Video resolution (model-dependent), e.g. 720p or 1080p.',
+        enum: ['720p', '1080p', '4k'],
       },
     },
     required: ['prompt'],
@@ -2186,6 +2600,16 @@ export const MaterializeFile: ToolCatalogEntry = {
     required: ['fileNames'],
   },
   requiredPermission: 'write',
+}
+
+export const Media: ToolCatalogEntry = {
+  id: 'media',
+  name: 'media',
+  route: 'subagent',
+  mode: 'async',
+  parameters: { type: 'object' },
+  subagentId: 'media',
+  internal: true,
 }
 
 export const MoveFile: ToolCatalogEntry = {
@@ -3705,6 +4129,38 @@ export const WorkspaceFile: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
+export const FfmpegOperation = {
+  overlayAudio: 'overlay_audio',
+  mixAudio: 'mix_audio',
+  concat: 'concat',
+  trim: 'trim',
+  scalePad: 'scale_pad',
+  overlayImage: 'overlay_image',
+  addText: 'add_text',
+  fade: 'fade',
+  extractAudio: 'extract_audio',
+  convert: 'convert',
+  thumbnail: 'thumbnail',
+  probe: 'probe',
+} as const
+
+export type FfmpegOperation = (typeof FfmpegOperation)[keyof typeof FfmpegOperation]
+
+export const FfmpegOperationValues = [
+  FfmpegOperation.overlayAudio,
+  FfmpegOperation.mixAudio,
+  FfmpegOperation.concat,
+  FfmpegOperation.trim,
+  FfmpegOperation.scalePad,
+  FfmpegOperation.overlayImage,
+  FfmpegOperation.addText,
+  FfmpegOperation.fade,
+  FfmpegOperation.extractAudio,
+  FfmpegOperation.convert,
+  FfmpegOperation.thumbnail,
+  FfmpegOperation.probe,
+] as const
+
 export const KnowledgeBaseOperation = {
   create: 'create',
   get: 'get',
@@ -3974,10 +4430,13 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [DownloadToWorkspaceFile.id]: DownloadToWorkspaceFile,
   [EditContent.id]: EditContent,
   [EditWorkflow.id]: EditWorkflow,
+  [Ffmpeg.id]: Ffmpeg,
   [File.id]: File,
   [FunctionExecute.id]: FunctionExecute,
   [GenerateApiKey.id]: GenerateApiKey,
+  [GenerateAudio.id]: GenerateAudio,
   [GenerateImage.id]: GenerateImage,
+  [GenerateVideo.id]: GenerateVideo,
   [GetBlockOutputs.id]: GetBlockOutputs,
   [GetBlockUpstreamReferences.id]: GetBlockUpstreamReferences,
   [GetDeployedWorkflowState.id]: GetDeployedWorkflowState,
@@ -4003,6 +4462,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ManageMcpTool.id]: ManageMcpTool,
   [ManageSkill.id]: ManageSkill,
   [MaterializeFile.id]: MaterializeFile,
+  [Media.id]: Media,
   [MoveFile.id]: MoveFile,
   [MoveFileFolder.id]: MoveFileFolder,
   [MoveFolder.id]: MoveFolder,

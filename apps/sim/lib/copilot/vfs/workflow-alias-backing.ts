@@ -61,7 +61,12 @@ export async function ensureWorkflowAliasBacking(args: {
     pathSegments: [WORKFLOW_PLANS_BACKING_FOLDER, WORKSPACE_PLANS_BACKING_FOLDER],
   })
 
-  if (!changelogFolderId || !plansRootFolderId || !workflowPlansFolderId || !workspacePlansFolderId) {
+  if (
+    !changelogFolderId ||
+    !plansRootFolderId ||
+    !workflowPlansFolderId ||
+    !workspacePlansFolderId
+  ) {
     throw new Error('Failed to provision workflow alias backing folders')
   }
 
@@ -150,7 +155,8 @@ export async function cleanupWorkflowAliasBacking(args: {
     .filter((file) => {
       if (file.deletedAt) return false
       const changelogMatch =
-        file.folderPath === WORKFLOW_CHANGELOG_BACKING_FOLDER && file.name === `${args.workflowId}.md`
+        file.folderPath === WORKFLOW_CHANGELOG_BACKING_FOLDER &&
+        file.name === `${args.workflowId}.md`
       const workflowPlanMatch =
         file.folderPath === `${WORKFLOW_PLANS_BACKING_FOLDER}/${args.workflowId}` ||
         Boolean(file.folderPath?.startsWith(`${WORKFLOW_PLANS_BACKING_FOLDER}/${args.workflowId}/`))

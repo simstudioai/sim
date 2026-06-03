@@ -10,7 +10,7 @@ export interface ToolRuntimeSchemaEntry {
 }
 
 export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
-  ['agent']: {
+  agent: {
     parameters: {
       properties: {
         request: {
@@ -23,7 +23,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['auth']: {
+  auth: {
     parameters: {
       properties: {
         request: {
@@ -36,7 +36,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['check_deployment_status']: {
+  check_deployment_status: {
     parameters: {
       type: 'object',
       properties: {
@@ -48,7 +48,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['complete_job']: {
+  complete_job: {
     parameters: {
       type: 'object',
       properties: {
@@ -61,7 +61,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['crawl_website']: {
+  crawl_website: {
     parameters: {
       type: 'object',
       properties: {
@@ -96,7 +96,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['create_file']: {
+  create_file: {
     parameters: {
       type: 'object',
       properties: {
@@ -162,7 +162,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  ['create_file_folder']: {
+  create_file_folder: {
     parameters: {
       type: 'object',
       properties: {
@@ -180,7 +180,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['create_folder']: {
+  create_folder: {
     parameters: {
       type: 'object',
       properties: {
@@ -201,7 +201,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['create_workflow']: {
+  create_workflow: {
     parameters: {
       type: 'object',
       properties: {
@@ -226,7 +226,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['create_workspace_mcp_server']: {
+  create_workspace_mcp_server: {
     parameters: {
       type: 'object',
       properties: {
@@ -259,7 +259,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['debug']: {
+  debug: {
     parameters: {
       properties: {
         context: {
@@ -278,7 +278,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['delete_file']: {
+  delete_file: {
     parameters: {
       type: 'object',
       properties: {
@@ -308,7 +308,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  ['delete_file_folder']: {
+  delete_file_folder: {
     parameters: {
       type: 'object',
       properties: {
@@ -324,7 +324,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['delete_folder']: {
+  delete_folder: {
     parameters: {
       type: 'object',
       properties: {
@@ -340,7 +340,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['delete_workflow']: {
+  delete_workflow: {
     parameters: {
       type: 'object',
       properties: {
@@ -356,7 +356,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['delete_workspace_mcp_server']: {
+  delete_workspace_mcp_server: {
     parameters: {
       type: 'object',
       properties: {
@@ -369,7 +369,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['deploy']: {
+  deploy: {
     parameters: {
       properties: {
         request: {
@@ -383,7 +383,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['deploy_api']: {
+  deploy_api: {
     parameters: {
       type: 'object',
       properties: {
@@ -457,7 +457,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       ],
     },
   },
-  ['deploy_chat']: {
+  deploy_chat: {
     parameters: {
       type: 'object',
       properties: {
@@ -606,7 +606,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       ],
     },
   },
-  ['deploy_mcp']: {
+  deploy_mcp: {
     parameters: {
       type: 'object',
       properties: {
@@ -722,7 +722,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['deploymentType', 'deploymentStatus'],
     },
   },
-  ['diff_workflows']: {
+  diff_workflows: {
     parameters: {
       type: 'object',
       properties: {
@@ -746,7 +746,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['download_to_workspace_file']: {
+  download_to_workspace_file: {
     parameters: {
       type: 'object',
       properties: {
@@ -795,7 +795,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['edit_content']: {
+  edit_content: {
     parameters: {
       type: 'object',
       properties: {
@@ -827,7 +827,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  ['edit_workflow']: {
+  edit_workflow: {
     parameters: {
       type: 'object',
       properties: {
@@ -866,13 +866,195 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['file']: {
+  ffmpeg: {
+    parameters: {
+      type: 'object',
+      properties: {
+        aspectRatio: {
+          type: 'string',
+          description: 'Target aspect ratio for scale_pad, e.g. 9:16, 16:9, 1:1.',
+        },
+        end: {
+          type: 'number',
+          description: 'End time in seconds (trim).',
+        },
+        format: {
+          type: 'string',
+          description: 'Target format/extension for convert (e.g. mp4, mp3, wav, gif).',
+        },
+        height: {
+          type: 'number',
+          description: 'Target height in pixels (scale_pad).',
+        },
+        inputs: {
+          type: 'object',
+          description:
+            'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+          properties: {
+            directories: {
+              type: 'array',
+              description:
+                'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                  },
+                },
+                required: ['path'],
+              },
+            },
+            files: {
+              type: 'array',
+              description: 'Workspace files to mount into the sandbox.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                  },
+                },
+                required: ['path'],
+              },
+            },
+            tables: {
+              type: 'array',
+              description: 'Workspace tables to mount as CSV files.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description: 'Canonical VFS table path when available.',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description: 'Optional full sandbox path for the mounted CSV.',
+                  },
+                  tableId: {
+                    type: 'string',
+                    description: 'Workspace table ID.',
+                  },
+                },
+              },
+            },
+          },
+        },
+        loopToVideo: {
+          type: 'boolean',
+          description: 'For overlay_audio, loop or trim the audio to match the video length.',
+        },
+        musicVolume: {
+          type: 'number',
+          description: 'Volume multiplier for the background music track in mix_audio (e.g. 0.3).',
+        },
+        operation: {
+          type: 'string',
+          description: 'The FFmpeg operation to run.',
+          enum: [
+            'overlay_audio',
+            'mix_audio',
+            'concat',
+            'trim',
+            'scale_pad',
+            'overlay_image',
+            'add_text',
+            'fade',
+            'extract_audio',
+            'convert',
+            'thumbnail',
+            'probe',
+          ],
+        },
+        outputs: {
+          type: 'object',
+          description:
+            'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+          properties: {
+            files: {
+              type: 'array',
+              description: 'File outputs. Parent folders must already exist for create mode.',
+              items: {
+                type: 'object',
+                properties: {
+                  format: {
+                    type: 'string',
+                    description: 'Optional serialization format for returned values.',
+                    enum: ['json', 'csv', 'txt', 'md', 'html'],
+                  },
+                  mimeType: {
+                    type: 'string',
+                    description: 'Optional MIME type override when inference is not enough.',
+                  },
+                  mode: {
+                    type: 'string',
+                    description: 'Create a new file or overwrite an existing file at path.',
+                    enum: ['create', 'overwrite'],
+                  },
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                  },
+                },
+                required: ['path', 'mode'],
+              },
+            },
+          },
+        },
+        position: {
+          type: 'string',
+          description: 'Placement for add_text / overlay_image.',
+          enum: ['top', 'center', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right'],
+        },
+        start: {
+          type: 'number',
+          description: 'Start time in seconds (trim, thumbnail, fade).',
+        },
+        text: {
+          type: 'string',
+          description: 'Text to burn in for add_text.',
+        },
+        volume: {
+          type: 'number',
+          description: 'Volume multiplier for the primary track (mix_audio / overlay_audio).',
+        },
+        width: {
+          type: 'number',
+          description: 'Target width in pixels (scale_pad).',
+        },
+      },
+      required: ['operation', 'inputs'],
+    },
+    resultSchema: undefined,
+  },
+  file: {
     parameters: {
       type: 'object',
     },
     resultSchema: undefined,
   },
-  ['function_execute']: {
+  function_execute: {
     parameters: {
       type: 'object',
       properties: {
@@ -1011,7 +1193,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['generate_api_key']: {
+  generate_api_key: {
     parameters: {
       type: 'object',
       properties: {
@@ -1029,7 +1211,80 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['generate_image']: {
+  generate_audio: {
+    parameters: {
+      type: 'object',
+      properties: {
+        duration: {
+          type: 'number',
+          description: 'Approximate duration in seconds for music/sfx where supported.',
+        },
+        model: {
+          type: 'string',
+          description:
+            'Optional model override for the selected type (e.g. fal-ai/elevenlabs/tts/eleven-v3 for speech).',
+        },
+        outputs: {
+          type: 'object',
+          description:
+            'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+          properties: {
+            files: {
+              type: 'array',
+              description: 'File outputs. Parent folders must already exist for create mode.',
+              items: {
+                type: 'object',
+                properties: {
+                  format: {
+                    type: 'string',
+                    description: 'Optional serialization format for returned values.',
+                    enum: ['json', 'csv', 'txt', 'md', 'html'],
+                  },
+                  mimeType: {
+                    type: 'string',
+                    description: 'Optional MIME type override when inference is not enough.',
+                  },
+                  mode: {
+                    type: 'string',
+                    description: 'Create a new file or overwrite an existing file at path.',
+                    enum: ['create', 'overwrite'],
+                  },
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                  },
+                },
+                required: ['path', 'mode'],
+              },
+            },
+          },
+        },
+        prompt: {
+          type: 'string',
+          description:
+            'For speech: the text to speak (may include expressive tags). For music/sfx: a description of the audio to generate.',
+        },
+        type: {
+          type: 'string',
+          description: 'Kind of audio to generate. Defaults to speech.',
+          enum: ['speech', 'music', 'sfx'],
+        },
+        voice: {
+          type: 'string',
+          description: 'Optional voice name or id for speech.',
+        },
+      },
+      required: ['prompt'],
+    },
+    resultSchema: undefined,
+  },
+  generate_image: {
     parameters: {
       type: 'object',
       properties: {
@@ -1158,7 +1413,169 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['get_block_outputs']: {
+  generate_video: {
+    parameters: {
+      type: 'object',
+      properties: {
+        aspectRatio: {
+          type: 'string',
+          description: 'Aspect ratio for the video (model-dependent).',
+          enum: ['16:9', '9:16', '1:1'],
+        },
+        duration: {
+          type: 'number',
+          description: 'Clip duration in seconds (model-dependent; e.g. 4, 6, 8).',
+        },
+        generateAudio: {
+          type: 'boolean',
+          description: 'Generate native audio when the model supports it (default true for Veo).',
+        },
+        inputs: {
+          type: 'object',
+          description:
+            'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+          properties: {
+            directories: {
+              type: 'array',
+              description:
+                'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                  },
+                },
+                required: ['path'],
+              },
+            },
+            files: {
+              type: 'array',
+              description: 'Workspace files to mount into the sandbox.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                  },
+                },
+                required: ['path'],
+              },
+            },
+            tables: {
+              type: 'array',
+              description: 'Workspace tables to mount as CSV files.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description: 'Canonical VFS table path when available.',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description: 'Optional full sandbox path for the mounted CSV.',
+                  },
+                  tableId: {
+                    type: 'string',
+                    description: 'Workspace table ID.',
+                  },
+                },
+              },
+            },
+          },
+        },
+        model: {
+          type: 'string',
+          description: 'Optional model override. Defaults to veo-3.1 (native audio, best quality).',
+          enum: [
+            'veo-3.1',
+            'veo-3.1-fast',
+            'sora-2',
+            'sora-2-pro',
+            'seedance-2.0',
+            'seedance-2.0-fast',
+            'kling-v3-pro',
+            'minimax-hailuo-2.3-pro',
+            'wan-2.2-a14b-turbo',
+            'ltx-2.3',
+          ],
+        },
+        outputs: {
+          type: 'object',
+          description:
+            'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+          properties: {
+            files: {
+              type: 'array',
+              description: 'File outputs. Parent folders must already exist for create mode.',
+              items: {
+                type: 'object',
+                properties: {
+                  format: {
+                    type: 'string',
+                    description: 'Optional serialization format for returned values.',
+                    enum: ['json', 'csv', 'txt', 'md', 'html'],
+                  },
+                  mimeType: {
+                    type: 'string',
+                    description: 'Optional MIME type override when inference is not enough.',
+                  },
+                  mode: {
+                    type: 'string',
+                    description: 'Create a new file or overwrite an existing file at path.',
+                    enum: ['create', 'overwrite'],
+                  },
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                  },
+                },
+                required: ['path', 'mode'],
+              },
+            },
+          },
+        },
+        prompt: {
+          type: 'string',
+          description:
+            'Detailed description of the video to generate (scene, action, camera movement, style).',
+        },
+        promptOptimizer: {
+          type: 'boolean',
+          description: 'Enable prompt optimization for MiniMax models (default true).',
+        },
+        resolution: {
+          type: 'string',
+          description: 'Video resolution (model-dependent), e.g. 720p or 1080p.',
+          enum: ['720p', '1080p', '4k'],
+        },
+      },
+      required: ['prompt'],
+    },
+    resultSchema: undefined,
+  },
+  get_block_outputs: {
     parameters: {
       type: 'object',
       properties: {
@@ -1179,7 +1596,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['get_block_upstream_references']: {
+  get_block_upstream_references: {
     parameters: {
       type: 'object',
       properties: {
@@ -1201,7 +1618,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['get_deployed_workflow_state']: {
+  get_deployed_workflow_state: {
     parameters: {
       type: 'object',
       properties: {
@@ -1214,7 +1631,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['get_deployment_log']: {
+  get_deployment_log: {
     parameters: {
       type: 'object',
       properties: {
@@ -1227,7 +1644,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['get_job_logs']: {
+  get_job_logs: {
     parameters: {
       type: 'object',
       properties: {
@@ -1252,7 +1669,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['get_page_contents']: {
+  get_page_contents: {
     parameters: {
       type: 'object',
       properties: {
@@ -1280,14 +1697,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['get_platform_actions']: {
+  get_platform_actions: {
     parameters: {
       type: 'object',
       properties: {},
     },
     resultSchema: undefined,
   },
-  ['get_workflow_data']: {
+  get_workflow_data: {
     parameters: {
       type: 'object',
       properties: {
@@ -1306,7 +1723,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['glob']: {
+  glob: {
     parameters: {
       type: 'object',
       properties: {
@@ -1325,7 +1742,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['grep']: {
+  grep: {
     parameters: {
       type: 'object',
       properties: {
@@ -1372,7 +1789,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['job']: {
+  job: {
     parameters: {
       properties: {
         request: {
@@ -1385,7 +1802,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['knowledge']: {
+  knowledge: {
     parameters: {
       properties: {
         request: {
@@ -1398,7 +1815,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['knowledge_base']: {
+  knowledge_base: {
     parameters: {
       type: 'object',
       properties: {
@@ -1591,7 +2008,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  ['list_file_folders']: {
+  list_file_folders: {
     parameters: {
       type: 'object',
       properties: {
@@ -1603,7 +2020,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['list_folders']: {
+  list_folders: {
     parameters: {
       type: 'object',
       properties: {
@@ -1615,14 +2032,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['list_user_workspaces']: {
+  list_user_workspaces: {
     parameters: {
       type: 'object',
       properties: {},
     },
     resultSchema: undefined,
   },
-  ['list_workspace_mcp_servers']: {
+  list_workspace_mcp_servers: {
     parameters: {
       type: 'object',
       properties: {
@@ -1635,7 +2052,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['load_deployment']: {
+  load_deployment: {
     parameters: {
       type: 'object',
       properties: {
@@ -1654,7 +2071,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['load_integration_tool']: {
+  load_integration_tool: {
     parameters: {
       properties: {
         tool_ids: {
@@ -1671,7 +2088,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['manage_credential']: {
+  manage_credential: {
     parameters: {
       type: 'object',
       properties: {
@@ -1700,7 +2117,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['manage_custom_tool']: {
+  manage_custom_tool: {
     parameters: {
       type: 'object',
       properties: {
@@ -1780,7 +2197,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['manage_job']: {
+  manage_job: {
     parameters: {
       type: 'object',
       properties: {
@@ -1855,7 +2272,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['manage_mcp_tool']: {
+  manage_mcp_tool: {
     parameters: {
       type: 'object',
       properties: {
@@ -1907,7 +2324,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['manage_skill']: {
+  manage_skill: {
     parameters: {
       type: 'object',
       properties: {
@@ -1940,7 +2357,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['materialize_file']: {
+  materialize_file: {
     parameters: {
       type: 'object',
       properties: {
@@ -1974,7 +2391,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['move_file']: {
+  media: {
+    parameters: {
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
+  move_file: {
     parameters: {
       type: 'object',
       properties: {
@@ -1995,7 +2418,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['move_file_folder']: {
+  move_file_folder: {
     parameters: {
       type: 'object',
       properties: {
@@ -2013,7 +2436,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['move_folder']: {
+  move_folder: {
     parameters: {
       type: 'object',
       properties: {
@@ -2031,7 +2454,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['move_workflow']: {
+  move_workflow: {
     parameters: {
       type: 'object',
       properties: {
@@ -2051,7 +2474,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['oauth_get_auth_link']: {
+  oauth_get_auth_link: {
     parameters: {
       type: 'object',
       properties: {
@@ -2065,7 +2488,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['oauth_request_access']: {
+  oauth_request_access: {
     parameters: {
       type: 'object',
       properties: {
@@ -2079,7 +2502,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['open_resource']: {
+  open_resource: {
     parameters: {
       type: 'object',
       properties: {
@@ -2112,7 +2535,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['promote_to_live']: {
+  promote_to_live: {
     parameters: {
       type: 'object',
       properties: {
@@ -2131,7 +2554,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['query_logs']: {
+  query_logs: {
     parameters: {
       type: 'object',
       properties: {
@@ -2242,7 +2665,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['read']: {
+  read: {
     parameters: {
       type: 'object',
       properties: {
@@ -2269,7 +2692,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['redeploy']: {
+  redeploy: {
     parameters: {
       type: 'object',
       properties: {
@@ -2337,7 +2760,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       ],
     },
   },
-  ['rename_file']: {
+  rename_file: {
     parameters: {
       type: 'object',
       properties: {
@@ -2373,7 +2796,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  ['rename_file_folder']: {
+  rename_file_folder: {
     parameters: {
       type: 'object',
       properties: {
@@ -2390,7 +2813,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['rename_workflow']: {
+  rename_workflow: {
     parameters: {
       type: 'object',
       properties: {
@@ -2407,7 +2830,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['research']: {
+  research: {
     parameters: {
       properties: {
         topic: {
@@ -2420,7 +2843,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['respond']: {
+  respond: {
     parameters: {
       additionalProperties: true,
       properties: {
@@ -2443,7 +2866,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['restore_resource']: {
+  restore_resource: {
     parameters: {
       type: 'object',
       properties: {
@@ -2461,7 +2884,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['run']: {
+  run: {
     parameters: {
       properties: {
         context: {
@@ -2478,7 +2901,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['run_block']: {
+  run_block: {
     parameters: {
       type: 'object',
       properties: {
@@ -2510,7 +2933,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['run_from_block']: {
+  run_from_block: {
     parameters: {
       type: 'object',
       properties: {
@@ -2542,7 +2965,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['run_workflow']: {
+  run_workflow: {
     parameters: {
       type: 'object',
       properties: {
@@ -2569,7 +2992,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['run_workflow_until_block']: {
+  run_workflow_until_block: {
     parameters: {
       type: 'object',
       properties: {
@@ -2601,7 +3024,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['scrape_page']: {
+  scrape_page: {
     parameters: {
       type: 'object',
       properties: {
@@ -2622,7 +3045,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['search_documentation']: {
+  search_documentation: {
     parameters: {
       type: 'object',
       properties: {
@@ -2639,7 +3062,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['search_library_docs']: {
+  search_library_docs: {
     parameters: {
       type: 'object',
       properties: {
@@ -2660,7 +3083,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['search_online']: {
+  search_online: {
     parameters: {
       type: 'object',
       properties: {
@@ -2700,7 +3123,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['search_patterns']: {
+  search_patterns: {
     parameters: {
       type: 'object',
       properties: {
@@ -2722,7 +3145,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['set_block_enabled']: {
+  set_block_enabled: {
     parameters: {
       type: 'object',
       properties: {
@@ -2744,7 +3167,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['set_environment_variables']: {
+  set_environment_variables: {
     parameters: {
       type: 'object',
       properties: {
@@ -2778,7 +3201,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['set_global_workflow_variables']: {
+  set_global_workflow_variables: {
     parameters: {
       type: 'object',
       properties: {
@@ -2819,7 +3242,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['superagent']: {
+  superagent: {
     parameters: {
       properties: {
         task: {
@@ -2833,7 +3256,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['table']: {
+  table: {
     parameters: {
       properties: {
         request: {
@@ -2846,7 +3269,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['touch_plan']: {
+  touch_plan: {
     parameters: {
       type: 'object',
       properties: {
@@ -2893,7 +3316,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  ['update_job_history']: {
+  update_job_history: {
     parameters: {
       type: 'object',
       properties: {
@@ -2911,7 +3334,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['update_workspace_mcp_server']: {
+  update_workspace_mcp_server: {
     parameters: {
       type: 'object',
       properties: {
@@ -2936,7 +3359,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['user_memory']: {
+  user_memory: {
     parameters: {
       type: 'object',
       properties: {
@@ -2985,7 +3408,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['user_table']: {
+  user_table: {
     parameters: {
       type: 'object',
       properties: {
@@ -3347,13 +3770,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  ['workflow']: {
+  workflow: {
     parameters: {
       type: 'object',
     },
     resultSchema: undefined,
   },
-  ['workspace_file']: {
+  workspace_file: {
     parameters: {
       type: 'object',
       properties: {

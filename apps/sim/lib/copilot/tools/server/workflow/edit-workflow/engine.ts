@@ -334,7 +334,7 @@ function resolvePendingConnections(modifiedState: any, skippedItems: SkippedItem
     }
 
     if (Object.keys(pending).length === 0) {
-      delete block.data.pendingConnections
+      block.data.pendingConnections = undefined
     }
   }
 }

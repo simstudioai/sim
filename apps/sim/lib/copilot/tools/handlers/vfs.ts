@@ -28,7 +28,9 @@ function hasModelAttachment(result: unknown): boolean {
     return false
   }
   const attachment = (result as { attachment?: { type?: string } }).attachment
-  return attachment?.type === 'image' || attachment?.type === 'file' || attachment?.type === 'document'
+  return (
+    attachment?.type === 'image' || attachment?.type === 'file' || attachment?.type === 'document'
+  )
 }
 
 export async function executeVfsGrep(

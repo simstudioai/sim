@@ -90,7 +90,11 @@ else:
     timeoutMs: RENDER_TIMEOUT_MS,
     sandboxKind: 'doc',
     sandboxFiles: [
-      { path: `/home/user/input.${ext}`, content: args.binary.toString('base64'), encoding: 'base64' },
+      {
+        path: `/home/user/input.${ext}`,
+        content: args.binary.toString('base64'),
+        encoding: 'base64',
+      },
     ],
   })
 

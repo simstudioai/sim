@@ -145,9 +145,7 @@ async function resolveWorkflowAliasFileTarget(args: {
   alias: WorkflowAliasTarget
 }): Promise<ResolvedCreateTarget & { existingFile?: WorkspaceFileRecord | null }> {
   if (args.alias.kind === 'plans_dir') {
-    throw new Error(
-      `Cannot write file content to plan alias directory: ${args.alias.aliasPath}`
-    )
+    throw new Error(`Cannot write file content to plan alias directory: ${args.alias.aliasPath}`)
   }
 
   if (args.userId && args.alias.scope === 'workflow') {

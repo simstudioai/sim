@@ -213,7 +213,9 @@ describe('resource writer workflow aliases', () => {
         buffer: Buffer.from('content'),
         inferredMimeType: 'text/markdown',
       })
-    ).rejects.toThrow('Reserved workflow alias backing paths must be accessed through their alias path')
+    ).rejects.toThrow(
+      'Reserved workflow alias backing paths must be accessed through their alias path'
+    )
 
     expect(mocks.uploadWorkspaceFile).not.toHaveBeenCalled()
   })
@@ -230,7 +232,9 @@ describe('resource writer workflow aliases', () => {
           mode: 'overwrite',
         },
       })
-    ).rejects.toThrow('Reserved workflow alias backing paths must be accessed through their alias path')
+    ).rejects.toThrow(
+      'Reserved workflow alias backing paths must be accessed through their alias path'
+    )
 
     expect(mocks.resolveWorkspaceFileReference).not.toHaveBeenCalled()
   })
