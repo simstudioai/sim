@@ -1,0 +1,289 @@
+---
+title: Object Storage
+description: Configure where Sim stores uploaded files — local disk, AWS S3, or Azure Blob
+---
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { FAQ } from '@/components/ui/faq'
+
+Sim stores every uploaded file — knowledge base documents, chat attachments, execution outputs, profile pictures, and more — in object storage. Three backends are supported:
+
+| Backend | When to use |
+|---------|-------------|
+| **Local disk** | Single-node Docker, local development, evaluation |
+| **[AWS S3](https://aws.amazon.com/s3/)** | Production, especially when running more than one app replica |
+| **[Azure Blob](https://learn.microsoft.com/azure/storage/blobs/)** | Production on Azure |
+
+<Callout type="warning">
+  Local disk writes to the container's `/uploads` directory. Files are lost when the container is recreated unless that path is on a persistent volume, and they are **not** shared across replicas. For any multi-replica or production deployment, use S3 or Azure Blob.
+</Callout>
+
+## How the backend is selected
+
+Sim picks the backend automatically from environment variables — there is no explicit "provider" flag. The logic, in order of precedence:
+
+1. **Azure Blob** — used if `AZURE_STORAGE_CONTAINER_NAME` is set **and** either (`AZURE_ACCOUNT_NAME` + `AZURE_ACCOUNT_KEY`) or `AZURE_CONNECTION_STRING` is set.
+2. **AWS S3** — used if `S3_BUCKET_NAME` **and** `AWS_REGION` are set (and Azure is not configured).
+3. **Local disk** — the fallback when neither is configured.
+
+If both Azure and S3 are configured, **Azure wins**. Set only the variables for the backend you intend to use.
+
+## Set up AWS S3
+
+<Steps>
+
+<Step>
+
+### Create the buckets
+
+Sim separates files into purpose-specific buckets. At minimum you need the general workspace bucket; the rest are created on demand based on which env vars you set. A bucket that isn't configured falls back to the general bucket where the code allows it, but the recommended setup is one bucket per purpose.
+
+```bash
+# Set your region once
+export AWS_REGION=us-east-1
+
+# Create buckets (names must be globally unique — prefix with your org)
+for name in workspace-files knowledge-base execution-files chat-files \
+            copilot-files profile-pictures og-images workspace-logos; do
+  aws s3api create-bucket \
+    --bucket "myorg-sim-$name" \
+    --region "$AWS_REGION" \
+    --create-bucket-configuration LocationConstraint="$AWS_REGION"
+done
+```
+
+<Callout type="info">
+  In `us-east-1`, omit the `--create-bucket-configuration` flag — that region rejects an explicit `LocationConstraint`.
+</Callout>
+
+Keep all buckets **private** (block public access). Sim serves files through short-lived presigned URLs, so the buckets never need public read access.
+
+</Step>
+
+<Step>
+
+### Grant access with an IAM policy
+
+Create an IAM policy scoped to your buckets and attach it to the user (or role) Sim runs as:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::myorg-sim-*",
+        "arn:aws:s3:::myorg-sim-*/*"
+      ]
+    }
+  ]
+}
+```
+
+You then have two ways to supply credentials:
+
+- **Static keys** — create an IAM user with this policy and set `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`.
+- **Instance/role credentials (recommended)** — attach the policy to the EC2 instance role, ECS task role, or EKS IRSA role. Leave `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` unset and Sim falls back to the default AWS credential chain automatically.
+
+</Step>
+
+<Step>
+
+### Configure environment variables
+
+Set the region, optionally the credentials, and the bucket names:
+
+```bash
+# Region + credentials
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=AKIA...          # omit when using an instance/IRSA role
+AWS_SECRET_ACCESS_KEY=...          # omit when using an instance/IRSA role
+
+# Buckets (per purpose)
+S3_BUCKET_NAME=myorg-sim-workspace-files
+S3_KB_BUCKET_NAME=myorg-sim-knowledge-base
+S3_EXECUTION_FILES_BUCKET_NAME=myorg-sim-execution-files
+S3_CHAT_BUCKET_NAME=myorg-sim-chat-files
+S3_COPILOT_BUCKET_NAME=myorg-sim-copilot-files
+S3_PROFILE_PICTURES_BUCKET_NAME=myorg-sim-profile-pictures
+S3_OG_IMAGES_BUCKET_NAME=myorg-sim-og-images
+S3_WORKSPACE_LOGOS_BUCKET_NAME=myorg-sim-workspace-logos
+```
+
+Only `AWS_REGION` and `S3_BUCKET_NAME` are strictly required to switch Sim into S3 mode. Add the others so each file type lands in its own bucket.
+
+</Step>
+
+</Steps>
+
+### S3 bucket reference
+
+| Variable | Stores | Required |
+|----------|--------|----------|
+| `AWS_REGION` | Region for all buckets | **Yes** (enables S3) |
+| `AWS_ACCESS_KEY_ID` | Access key | No (uses credential chain if unset) |
+| `AWS_SECRET_ACCESS_KEY` | Secret key | No (uses credential chain if unset) |
+| `S3_BUCKET_NAME` | General workspace files | **Yes** (enables S3) |
+| `S3_KB_BUCKET_NAME` | Knowledge base documents | Recommended |
+| `S3_EXECUTION_FILES_BUCKET_NAME` | Workflow execution files (default: `sim-execution-files`) | Recommended |
+| `S3_CHAT_BUCKET_NAME` | Deployed chat assets | Recommended |
+| `S3_COPILOT_BUCKET_NAME` | Copilot attachments | Recommended |
+| `S3_PROFILE_PICTURES_BUCKET_NAME` | User avatars | Recommended |
+| `S3_OG_IMAGES_BUCKET_NAME` | OpenGraph preview images (falls back to `S3_BUCKET_NAME`) | Optional |
+| `S3_WORKSPACE_LOGOS_BUCKET_NAME` | Workspace logos (falls back to `S3_BUCKET_NAME`) | Optional |
+| `S3_LOGS_BUCKET_NAME` | Stored logs | Optional |
+| `S3_ENDPOINT` | Custom endpoint for S3-compatible storage (R2, MinIO, B2) | Optional (AWS S3 if unset) |
+| `S3_FORCE_PATH_STYLE` | `true` for path-style addressing (MinIO/Ceph) | Optional (defaults `false`) |
+
+## Apply the configuration
+
+<Tabs items={['Docker Compose', 'Kubernetes (Helm)']}>
+  <Tab value="Docker Compose">
+
+Add the storage variables to the `.env` file used by `docker-compose.prod.yml`, then restart:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Because files now live in S3, you no longer depend on a local `/uploads` volume for durability.
+
+  </Tab>
+  <Tab value="Kubernetes (Helm)">
+
+Set the variables under `app.env` (non-secret, e.g. region and bucket names) and supply credentials through a secret. The chart ships a complete example at `helm/sim/examples/values-aws.yaml`:
+
+```yaml
+app:
+  env:
+    AWS_REGION: "us-east-1"
+    S3_BUCKET_NAME: "myorg-sim-workspace-files"
+    S3_KB_BUCKET_NAME: "myorg-sim-knowledge-base"
+    S3_EXECUTION_FILES_BUCKET_NAME: "myorg-sim-execution-files"
+    # ...remaining buckets
+```
+
+On EKS, prefer **IRSA**: attach the IAM policy to the service account's role and leave the access-key variables unset.
+
+  </Tab>
+</Tabs>
+
+## Set up Azure Blob
+
+Azure Blob uses one container per purpose, mirroring the S3 layout. Authenticate with either a connection string or an account name + key.
+
+```bash
+# Credentials — provide ONE of these forms
+AZURE_ACCOUNT_NAME=mystorageaccount
+AZURE_ACCOUNT_KEY=...
+# or
+AZURE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net
+
+# Containers (per purpose)
+AZURE_STORAGE_CONTAINER_NAME=workspace-files
+AZURE_STORAGE_KB_CONTAINER_NAME=knowledge-base
+AZURE_STORAGE_EXECUTION_FILES_CONTAINER_NAME=execution-files
+AZURE_STORAGE_CHAT_CONTAINER_NAME=chat-files
+AZURE_STORAGE_COPILOT_CONTAINER_NAME=copilot-files
+AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME=profile-pictures
+AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME=og-images
+AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME=workspace-logos
+```
+
+A full Helm example lives at `helm/sim/examples/values-azure.yaml`.
+
+## Set up an S3-compatible provider (R2, MinIO, B2)
+
+Sim works with any S3-compatible store by pointing the S3 client at a custom endpoint. Configure it exactly like AWS S3 (buckets, access key, secret), then add `S3_ENDPOINT` — and `S3_FORCE_PATH_STYLE` where the provider requires path-style addressing. Verified with [Cloudflare R2](https://developers.cloudflare.com/r2/), [MinIO](https://min.io/), [Backblaze B2](https://www.backblaze.com/cloud-storage), and [RustFS](https://rustfs.com/).
+
+<Callout type="info">
+  `S3_ENDPOINT` is trusted operator configuration, so it is used as-is — `http://` and private hosts are accepted (no SSRF/HTTPS gate). Don't wire it to untrusted input.
+</Callout>
+
+<Callout type="warning">
+  **The endpoint must be reachable from your users' browsers, and the bucket needs CORS.** Uploads use presigned `PUT` requests sent **directly from the browser** to `S3_ENDPOINT` (downloads are proxied back through the app, so they only need server-side reachability). This means:
+
+  - A purely internal endpoint (e.g. `https://minio.internal:9000` that only the app pods can resolve) will let the server start cleanly but **uploads will fail in the browser**. Use an endpoint your users can reach.
+  - Configure a **CORS policy** on the bucket that allows your Sim origin (`PUT`, `GET`, and the `Authorization` / `Content-Type` / `x-amz-*` headers). This applies to AWS S3 too — R2 and MinIO are no different.
+</Callout>
+
+<Tabs items={['Cloudflare R2', 'MinIO', 'RustFS']}>
+  <Tab value="Cloudflare R2">
+
+[Cloudflare R2](https://developers.cloudflare.com/r2/api/s3/) uses virtual-hosted style (the default) and the region `auto`:
+
+```bash
+AWS_REGION=auto
+S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+AWS_ACCESS_KEY_ID=<r2-access-key-id>
+AWS_SECRET_ACCESS_KEY=<r2-secret-access-key>
+S3_BUCKET_NAME=myorg-sim-workspace-files
+# ...remaining S3_*_BUCKET_NAME vars, one R2 bucket each
+```
+
+Leave `S3_FORCE_PATH_STYLE` unset — R2 supports the default virtual-hosted addressing.
+
+  </Tab>
+  <Tab value="MinIO">
+
+[MinIO](https://min.io/docs/minio/linux/index.html) (and [Ceph RGW](https://docs.ceph.com/en/latest/radosgw/)) need path-style addressing and accept any region string:
+
+```bash
+AWS_REGION=us-east-1
+S3_ENDPOINT=https://minio.example.com   # must be reachable from users' browsers, not app-pods-only
+S3_FORCE_PATH_STYLE=true
+AWS_ACCESS_KEY_ID=<minio-access-key>
+AWS_SECRET_ACCESS_KEY=<minio-secret-key>
+S3_BUCKET_NAME=myorg-sim-workspace-files
+# ...remaining S3_*_BUCKET_NAME vars, one bucket each
+```
+
+`http://` works server-side, but since the browser uploads directly to this endpoint, prefer a TLS endpoint your users can reach (a mixed-content `http://` target will be blocked on an `https://` Sim origin).
+
+  </Tab>
+  <Tab value="RustFS">
+
+[RustFS](https://rustfs.com/) is a Rust-based, S3-compatible store (a MinIO drop-in). Configure it exactly like MinIO — path-style, any region string, SigV4 access key/secret:
+
+```bash
+AWS_REGION=us-east-1
+S3_ENDPOINT=https://rustfs.example.com   # must be reachable from users' browsers
+S3_FORCE_PATH_STYLE=true
+AWS_ACCESS_KEY_ID=<rustfs-access-key>
+AWS_SECRET_ACCESS_KEY=<rustfs-secret-key>
+S3_BUCKET_NAME=myorg-sim-workspace-files
+# ...remaining S3_*_BUCKET_NAME vars, one bucket each
+```
+
+The same browser-reachability and CORS requirements apply.
+
+  </Tab>
+</Tabs>
+
+## Verify it works
+
+After restarting with the new configuration:
+
+1. Open the app and upload a document to a knowledge base (or set a profile picture).
+2. Confirm an object appears in the corresponding bucket/container.
+3. Reload the page — the file should still render (downloads stream back through the app at `/api/files/serve`).
+
+If uploads fail, check the app logs for credential or permission errors (see [Troubleshooting](/self-hosting/troubleshooting)).
+
+<FAQ items={[
+  { question: "What happens if I do not configure any storage variables?", answer: "Sim falls back to local disk, writing files to the /uploads directory inside the app container. This is fine for evaluation but not durable across container recreation and not shared across replicas — use S3 or Azure Blob for production." },
+  { question: "Do I have to create all eight S3 buckets?", answer: "No. Only AWS_REGION and S3_BUCKET_NAME are required to enable S3 mode. The purpose-specific buckets are recommended so each file type is isolated; og-images and workspace-logos fall back to the general bucket if their variables are unset." },
+  { question: "How do I avoid storing AWS keys in plaintext?", answer: "On EC2/ECS/EKS, attach the IAM policy to the instance role, task role, or IRSA service-account role and leave AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY unset. Sim resolves credentials through the default AWS SDK provider chain automatically." },
+  { question: "Can I use both S3 and Azure Blob at the same time?", answer: "No. Sim selects a single backend. If both are configured, Azure Blob takes precedence. Set only the variables for the backend you want." },
+  { question: "Are the buckets exposed publicly?", answer: "No, and they should not be. Keep them private with public access blocked. Sim serves files to users through short-lived presigned URLs, so the buckets never need public read permissions." },
+  { question: "Can I use MinIO or Cloudflare R2?", answer: "Yes. Configure it like AWS S3, then set S3_ENDPOINT to your provider's endpoint. For R2, set AWS_REGION=auto and leave S3_FORCE_PATH_STYLE unset. For MinIO/Ceph, set S3_FORCE_PATH_STYLE=true. See the S3-compatible provider section above." },
+]} />

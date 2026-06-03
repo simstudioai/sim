@@ -251,6 +251,10 @@ SSO provisioning creates internal organization members. External workspace membe
     answer: "Yes. Enabling SSO does not disable password-based login. Users can still sign in with their email and password if they have one. Forced SSO (requiring all users on the domain to use SSO) is not yet supported."
   },
   {
+    question: "A user already has an account with the same email — what happens when they sign in with SSO?",
+    answer: "Sim links the SSO identity to the existing account automatically, as long as your identity provider reports the email as verified (email_verified) or the provider is trusted. Most OIDC providers (Okta, Google Workspace, Auth0) assert email_verified, so linking just works. If sign-in fails with 'account not linked' — common with SAML providers that omit the claim — add the provider's ID to SSO_TRUSTED_PROVIDER_IDS on self-hosted and restart."
+  },
+  {
     question: "Who can configure SSO on Sim Cloud?",
     answer: "Organization owners and admins can configure SSO. You must be on the Enterprise plan."
   },
@@ -280,7 +284,24 @@ NEXT_PUBLIC_SSO_ENABLED=true
 # Required if you want users auto-added to your organization on first SSO sign-in
 ORGANIZATIONS_ENABLED=true
 NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
+
+# Optional: comma-separated SSO provider IDs to trust for automatic account linking
+# (links an SSO sign-in to an existing account with the same email). Needed when your
+# IdP does not assert email_verified — typically SAML providers, or OIDC providers that
+# omit the claim. Set it to the Provider ID you registered, then restart.
+# (If you also keep SSO_PROVIDER_ID in the app's environment, that provider is trusted
+# without listing it here.)
+SSO_TRUSTED_PROVIDER_IDS=custom-oidc,partner-saml
 ```
+
+<Callout type="info">
+  When someone signs in with SSO and an account with the same email already exists
+  (for example, they previously signed up with email/password), Sim links the SSO
+  identity to that account automatically as long as your IdP reports the email as
+  verified, or the provider is trusted. If you hit an `account not linked` error,
+  either confirm your IdP sends `email_verified`, or add the provider's ID to
+  `SSO_TRUSTED_PROVIDER_IDS` and restart.
+</Callout>
 
 You can register providers through the **Settings UI** (same as cloud) or by running the registration script directly against your database.
 
