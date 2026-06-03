@@ -37,6 +37,7 @@ import {
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
+  cancelTableImport,
   downloadTableExport,
   useCreateTable,
   useDeleteTable,
@@ -431,17 +432,24 @@ export function Tables() {
                 const result = await importCsvAsync.mutateAsync({
                   workspaceId,
                   file,
-                  onProgress: (percent) =>
+                  onProgress: (percent) => {
+                    if (useImportTrayStore.getState().isCanceled(pendingId)) return
                     useImportTrayStore.getState().upsert({
                       tableId: pendingId,
                       workspaceId,
                       title: file.name,
                       phase: 'importing',
                       percent,
-                    }),
+                    })
+                  },
                 })
                 useImportTrayStore.getState().dismiss(pendingId)
-                if (result?.tableId) {
+                if (result?.tableId && useImportTrayStore.getState().consumeCanceled(pendingId)) {
+                  // Canceled mid-upload — the worker just started; cancel it server-side.
+                  void cancelTableImport(workspaceId, result.tableId, result.importId).catch(
+                    () => {}
+                  )
+                } else if (result?.tableId) {
                   useImportTrayStore.getState().upsert({
                     tableId: result.tableId,
                     workspaceId,

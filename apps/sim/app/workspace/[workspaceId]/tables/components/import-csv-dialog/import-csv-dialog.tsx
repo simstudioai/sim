@@ -30,6 +30,7 @@ import { buildAutoMapping, parseCsvBuffer } from '@/lib/table/import'
 import type { TableDefinition } from '@/lib/table/types'
 import {
   type CsvImportMode,
+  cancelTableImport,
   useImportCsvIntoTable,
   useImportCsvIntoTableAsync,
 } from '@/hooks/queries/tables'
@@ -343,17 +344,26 @@ export function ImportCsvDialog({
           mode,
           mapping,
           createColumns,
-          onProgress: (percent) =>
+          onProgress: (percent) => {
+            if (useImportTrayStore.getState().isCanceled(table.id)) return
             useImportTrayStore.getState().upsert({
               tableId: table.id,
               workspaceId,
               title: table.name,
               phase: 'importing',
               percent,
-            }),
+            })
+          },
         },
         {
           onSuccess: (data) => {
+            // Canceled mid-upload — the worker just started; cancel it instead of re-seeding.
+            if (useImportTrayStore.getState().consumeCanceled(table.id)) {
+              if (data?.importId) {
+                void cancelTableImport(workspaceId, table.id, data.importId).catch(() => {})
+              }
+              return
+            }
             // Record the import id so the tracker can ignore replayed events from a prior import.
             useImportTrayStore.getState().upsert({
               tableId: table.id,

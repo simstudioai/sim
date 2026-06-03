@@ -246,16 +246,28 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     }
 
     await updateImportProgress(tableId, inserted, importId)
-    await markImportReady(tableId, importId)
-    void appendTableEvent({
-      kind: 'import',
-      tableId,
-      importId,
-      status: 'ready',
-      progress: inserted,
-      percent: 100,
-    })
-    logger.info(`[${requestId}] Import complete`, { tableId, fileName, mode, rows: inserted })
+    // Only announce success if we actually won the transition — a cancel/supersede that landed
+    // right at the end makes this a no-op, and we must not emit a false `ready`.
+    const becameReady = await markImportReady(tableId, importId)
+    if (becameReady) {
+      void appendTableEvent({
+        kind: 'import',
+        tableId,
+        importId,
+        status: 'ready',
+        progress: inserted,
+        percent: 100,
+      })
+      logger.info(`[${requestId}] Import complete`, { tableId, fileName, mode, rows: inserted })
+    } else {
+      logger.info(
+        `[${requestId}] Import finished but no longer owns the run (canceled/superseded)`,
+        {
+          tableId,
+          importId,
+        }
+      )
+    }
   } catch (err) {
     if (err instanceof ImportSupersededError) {
       // A newer import owns the table now — leave its status alone and just stop.

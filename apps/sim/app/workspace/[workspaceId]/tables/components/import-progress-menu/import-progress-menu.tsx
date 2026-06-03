@@ -39,6 +39,7 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
     useShallow((state) => selectWorkspaceImports(state, workspaceId))
   )
   const dismiss = useImportTrayStore((state) => state.dismiss)
+  const cancelEntry = useImportTrayStore((state) => state.cancel)
   const menuOpen = useImportTrayStore((state) => state.menuOpen)
   const setMenuOpen = useImportTrayStore((state) => state.setMenuOpen)
 
@@ -52,9 +53,11 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
   const done = imports.filter((e) => e.phase === 'ready').length
 
   const cancel = (entry: (typeof imports)[number]) => {
-    // Optimistically clear it; the server flips status → the SSE `canceled` event also dismisses.
-    dismiss(entry.tableId)
+    // Clear it + flag canceled so an in-flight upload's callbacks don't re-create it.
+    cancelEntry(entry.tableId)
     if (entry.importId) {
+      // Worker already running — cancel it server-side now. (Otherwise the kickoff handler cancels
+      // it once the importId is known; see the `consumeCanceled` branches.)
       void cancelTableImport(entry.workspaceId, entry.tableId, entry.importId).catch(() => {})
     }
   }

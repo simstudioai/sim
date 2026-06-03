@@ -35,6 +35,10 @@ export type ImportTrayUpsert = Pick<ImportTrayEntry, 'tableId' | 'workspaceId' |
 interface ImportTrayState {
   /** Active + recently-terminal imports, keyed by tableId. */
   entries: Record<string, ImportTrayEntry>
+  /** Tray ids canceled while still uploading (before an importId exists). The kickoff flow checks
+   *  this so its `onProgress`/`onSuccess` don't re-create a dismissed entry and cancels the worker
+   *  once the importId is known. */
+  canceledIds: Record<string, true>
   /** Whether the header import dropdown is open (controlled so the start toast can open it). */
   menuOpen: boolean
   /**
@@ -44,17 +48,27 @@ interface ImportTrayState {
   upsert: (entry: ImportTrayUpsert) => void
   /** Removes a single entry (the user dismissed a terminal card). */
   dismiss: (tableId: string) => void
+  /** Dismiss + flag the id canceled so an in-flight upload's callbacks don't re-create it. */
+  cancel: (tableId: string) => void
+  /** Whether an id is flagged canceled (read without clearing). */
+  isCanceled: (tableId: string) => boolean
+  /** Returns whether the id was canceled and clears the flag (one-shot, for the kickoff handler). */
+  consumeCanceled: (tableId: string) => boolean
   /** Drops all terminal (`ready` / `failed`) entries for a workspace. */
   clearTerminalFor: (workspaceId: string) => void
   setMenuOpen: (open: boolean) => void
   reset: () => void
 }
 
-const initialState = { entries: {} as Record<string, ImportTrayEntry>, menuOpen: false }
+const initialState = {
+  entries: {} as Record<string, ImportTrayEntry>,
+  canceledIds: {} as Record<string, true>,
+  menuOpen: false,
+}
 
 export const useImportTrayStore = create<ImportTrayState>()(
   devtools(
-    (set) => ({
+    (set, get) => ({
       ...initialState,
 
       upsert: (entry) =>
@@ -79,6 +93,25 @@ export const useImportTrayStore = create<ImportTrayState>()(
           const { [tableId]: _removed, ...rest } = state.entries
           return { entries: rest }
         }),
+
+      cancel: (tableId) =>
+        set((state) => {
+          const { [tableId]: _removed, ...rest } = state.entries
+          return { entries: rest, canceledIds: { ...state.canceledIds, [tableId]: true } }
+        }),
+
+      isCanceled: (tableId) => Boolean(get().canceledIds[tableId]),
+
+      consumeCanceled: (tableId) => {
+        const was = Boolean(get().canceledIds[tableId])
+        if (was) {
+          set((state) => {
+            const { [tableId]: _removed, ...rest } = state.canceledIds
+            return { canceledIds: rest }
+          })
+        }
+        return was
+      },
 
       clearTerminalFor: (workspaceId) =>
         set((state) => {

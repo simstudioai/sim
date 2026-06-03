@@ -1394,12 +1394,18 @@ function ownsActiveImport(tableId: string, importId: string) {
   )
 }
 
-/** Marks an import complete; rows become visible. No-op unless it's still this in-flight run. */
-export async function markImportReady(tableId: string, importId: string): Promise<void> {
-  await db
+/**
+ * Marks an import complete; rows become visible. No-op unless it's still this in-flight run.
+ * Returns whether it transitioned, so the worker only emits the `ready` event when it actually
+ * won (and not after a cancel / supersede).
+ */
+export async function markImportReady(tableId: string, importId: string): Promise<boolean> {
+  const updated = await db
     .update(userTableDefinitions)
     .set({ importStatus: 'ready', importError: null, updatedAt: new Date() })
     .where(ownsActiveImport(tableId, importId))
+    .returning({ id: userTableDefinitions.id })
+  return updated.length > 0
 }
 
 /**
