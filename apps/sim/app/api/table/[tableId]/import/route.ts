@@ -128,6 +128,14 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     if (table.archivedAt) {
       return NextResponse.json({ error: 'Cannot import into an archived table' }, { status: 400 })
     }
+    // Don't run a sync import on top of an in-flight background import — concurrent writers
+    // would insert at colliding row positions.
+    if (table.importStatus === 'importing') {
+      return NextResponse.json(
+        { error: 'An import is already in progress for this table' },
+        { status: 409 }
+      )
+    }
 
     let mapping: CsvHeaderMapping | undefined
     if (fields.mapping) {

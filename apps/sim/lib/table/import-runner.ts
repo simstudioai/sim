@@ -70,9 +70,11 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     if (!loaded) throw new Error(`Import target table ${tableId} not found`)
     const table = loaded
 
-    if (mode === 'replace') await deleteAllTableRows(tableId)
-
     const buffer = await downloadFile({ key: fileKey, context: 'workspace' })
+
+    // Delete only after the download succeeds — otherwise a failed download would wipe the
+    // table with nothing to replace it with.
+    if (mode === 'replace') await deleteAllTableRows(tableId)
 
     // Estimate total data rows by counting line breaks (minus the header) for a
     // determinate progress bar. It's an estimate — quoted newlines and blank lines

@@ -41,6 +41,11 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   if (table.workspaceId !== workspaceId) {
     return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
   }
+  // The fileKey is client-supplied — ensure it points at this workspace's storage prefix so a
+  // caller can't import another workspace's uploaded object.
+  if (!fileKey.startsWith(`workspace/${workspaceId}/`)) {
+    return NextResponse.json({ error: 'Invalid file key for workspace' }, { status: 400 })
+  }
   if (table.archivedAt) {
     return NextResponse.json({ error: 'Cannot import into an archived table' }, { status: 400 })
   }

@@ -40,6 +40,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (permission !== 'write' && permission !== 'admin') {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
   }
+  // The fileKey is client-supplied — ensure it points at this workspace's storage prefix so a
+  // caller can't import another workspace's uploaded object.
+  if (!fileKey.startsWith(`workspace/${workspaceId}/`)) {
+    return NextResponse.json({ error: 'Invalid file key for workspace' }, { status: 400 })
+  }
 
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (ext !== 'csv' && ext !== 'tsv') {
