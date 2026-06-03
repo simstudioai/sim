@@ -118,6 +118,7 @@ export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
       onFocus: (event) => {
         const target = event.currentTarget
         if (!canShowRef.current(target)) return
+        if (!isFocusVisible(target)) return
         const rect = target.getBoundingClientRect()
         lastPointerRef.current = null
         setState({
@@ -192,6 +193,19 @@ export function isTextClipped(element: HTMLElement): boolean {
 /** Clamps `value` to the inclusive `[min, max]` range. */
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
+}
+
+/**
+ * Whether an element currently matches `:focus-visible` (keyboard focus, not focus produced by a
+ * mouse click). Used to keep the tooltip from re-appearing/repositioning when the trigger is
+ * clicked. Falls back to `true` where the selector can't be queried.
+ */
+export function isFocusVisible(element: Element): boolean {
+  try {
+    return element.matches(':focus-visible')
+  } catch {
+    return true
+  }
 }
 
 /**
