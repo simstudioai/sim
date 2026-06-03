@@ -1,8 +1,9 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
   calculateCostSummary,
@@ -177,6 +178,8 @@ export class LoggingSession {
     } catch (error) {
       logger.error(`Failed to persist last started block for execution ${this.executionId}:`, {
         error: toError(error).message,
+        cause: describeError(error),
+        retryable: isRetryableInfrastructureError(error),
       })
     }
   }
@@ -193,6 +196,8 @@ export class LoggingSession {
     } catch (error) {
       logger.error(`Failed to persist last completed block for execution ${this.executionId}:`, {
         error: toError(error).message,
+        cause: describeError(error),
+        retryable: isRetryableInfrastructureError(error),
       })
     }
   }
@@ -411,6 +416,8 @@ export class LoggingSession {
         executionId: this.executionId,
         error: toError(error).message,
         stack: error instanceof Error ? error.stack : undefined,
+        cause: describeError(error),
+        retryable: isRetryableInfrastructureError(error),
       })
       throw error
     }
@@ -1057,7 +1064,11 @@ export class LoggingSession {
       this.completionAttemptFailed = true
       logger.error(
         `[${this.requestId || 'unknown'}] Cost-only fallback also failed for execution ${this.executionId}:`,
-        { error: toError(fallbackError).message }
+        {
+          error: toError(fallbackError).message,
+          cause: describeError(fallbackError),
+          retryable: isRetryableInfrastructureError(fallbackError),
+        }
       )
     }
   }
