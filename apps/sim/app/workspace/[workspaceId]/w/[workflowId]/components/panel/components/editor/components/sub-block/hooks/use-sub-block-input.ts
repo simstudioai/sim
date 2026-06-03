@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { checkTagTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { useEditorUndoRedo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-editor-undo-redo'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
@@ -176,6 +177,7 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
   })
 
   const emitTagSelection = useTagSelection(blockId, subBlockId)
+  const handleEditorUndoRedo = useEditorUndoRedo()
 
   // Local content enables immediate UI updates and streaming text display
   const [localContent, setLocalContent] = useState<string>('')
@@ -265,6 +267,7 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+      if (handleEditorUndoRedo(e)) return
       if (e.key === 'Escape') {
         setShowEnvVars(false)
         setShowTags(false)
@@ -458,6 +461,7 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
           })
         },
         onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+          if (handleEditorUndoRedo(e)) return
           if (e.key === 'Escape') {
             updateFieldState(fieldId, {
               showEnvVars: false,

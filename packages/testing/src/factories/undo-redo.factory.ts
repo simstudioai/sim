@@ -13,6 +13,7 @@ export type OperationType =
   | 'batch-move-blocks'
   | 'update-parent'
   | 'batch-update-parent'
+  | 'batch-update-subblocks'
 
 /**
  * Base operation interface.
@@ -107,6 +108,23 @@ export interface BatchUpdateParentOperation extends BaseOperation {
   }
 }
 
+/**
+ * Batch update subblocks operation data.
+ */
+export interface BatchUpdateSubblocksOperation extends BaseOperation {
+  type: 'batch-update-subblocks'
+  data: {
+    updates: Array<{ blockId: string; subBlockId: string; before: any; after: any }>
+    subflowUpdates?: Array<{
+      blockId: string
+      blockType: 'loop' | 'parallel'
+      fieldId: string
+      before: any
+      after: any
+    }>
+  }
+}
+
 export type Operation =
   | BatchAddBlocksOperation
   | BatchRemoveBlocksOperation
@@ -115,6 +133,7 @@ export type Operation =
   | BatchMoveBlocksOperation
   | UpdateParentOperation
   | BatchUpdateParentOperation
+  | BatchUpdateSubblocksOperation
 
 /**
  * Operation entry with forward and inverse operations.
@@ -400,6 +419,68 @@ export function createUpdateParentEntry(
         newParentId: oldParentId,
         oldPosition: newPosition,
         newPosition: oldPosition,
+      },
+    },
+  }
+}
+
+interface BatchUpdateSubblocksOptions extends OperationEntryOptions {
+  updates?: Array<{ blockId: string; subBlockId: string; before: any; after: any }>
+  subflowUpdates?: Array<{
+    blockId: string
+    blockType: 'loop' | 'parallel'
+    fieldId: string
+    before: any
+    after: any
+  }>
+}
+
+/**
+ * Creates a mock batch-update-subblocks operation entry for one or more field edits.
+ * Pass `updates: []` with `subflowUpdates` to model a loop/parallel config edit.
+ */
+export function createBatchUpdateSubblocksEntry(options: BatchUpdateSubblocksOptions = {}): any {
+  const {
+    id = shortId(8),
+    workflowId = 'wf-1',
+    userId = 'user-1',
+    createdAt = Date.now(),
+    updates = [{ blockId: 'block-1', subBlockId: 'field-1', before: '', after: 'value' }],
+    subflowUpdates = [],
+  } = options
+  const timestamp = Date.now()
+
+  return {
+    id,
+    createdAt,
+    operation: {
+      id: shortId(8),
+      type: 'batch-update-subblocks',
+      timestamp,
+      workflowId,
+      userId,
+      data: { updates, subflowUpdates },
+    },
+    inverse: {
+      id: shortId(8),
+      type: 'batch-update-subblocks',
+      timestamp,
+      workflowId,
+      userId,
+      data: {
+        updates: updates.map((u) => ({
+          blockId: u.blockId,
+          subBlockId: u.subBlockId,
+          before: u.after,
+          after: u.before,
+        })),
+        subflowUpdates: subflowUpdates.map((u) => ({
+          blockId: u.blockId,
+          blockType: u.blockType,
+          fieldId: u.fieldId,
+          before: u.after,
+          after: u.before,
+        })),
       },
     },
   }

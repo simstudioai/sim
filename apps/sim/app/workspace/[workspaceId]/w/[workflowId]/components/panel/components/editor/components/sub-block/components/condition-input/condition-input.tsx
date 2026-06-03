@@ -36,6 +36,7 @@ import {
   TagDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useEditorUndoRedo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-editor-undo-redo'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { restoreCursorAfterInsertion } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
@@ -142,6 +143,7 @@ export function ConditionInput({
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
 
   const emitTagSelection = useTagSelection(blockId, subBlockId)
+  const handleEditorUndoRedo = useEditorUndoRedo()
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
   const shouldHighlightEnvVar = useMemo(
@@ -1268,6 +1270,7 @@ export function ConditionInput({
                             }
                           }}
                           onKeyDown={(e) => {
+                            if (handleEditorUndoRedo(e)) return
                             if (e.key === 'Escape') {
                               setConditionalBlocks((blocks) =>
                                 blocks.map((b) =>

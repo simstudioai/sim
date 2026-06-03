@@ -5,6 +5,7 @@
  * - Basic push/undo/redo operations
  * - Stack capacity limits
  * - Move operation coalescing
+ * - Subblock-edit coalescing
  * - Recording suspension
  * - Stack pruning
  * - Multi-workflow/user isolation
@@ -14,6 +15,7 @@ import {
   createAddBlockEntry,
   createAddEdgeEntry,
   createBatchRemoveEdgesEntry,
+  createBatchUpdateSubblocksEntry,
   createBlock,
   createMockStorage,
   createMoveBlockEntry,
@@ -22,7 +24,7 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { runWithUndoRedoRecordingSuspended, useUndoRedoStore } from '@/stores/undo-redo/store'
-import type { UpdateParentOperation } from '@/stores/undo-redo/types'
+import type { BatchUpdateSubblocksOperation, UpdateParentOperation } from '@/stores/undo-redo/types'
 
 describe('useUndoRedoStore', () => {
   const workflowId = 'wf-test'
@@ -396,6 +398,322 @@ describe('useUndoRedoStore', () => {
 
       // Should result in no operations since it's a round-trip
       expect(getStackSizes(workflowId, userId).undoSize).toBe(0)
+    })
+  })
+
+  describe('subblock-edit coalescing', () => {
+    it('should coalesce consecutive edits to the same field', () => {
+      const { push, getStackSizes } = useUndoRedoStore.getState()
+
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [{ blockId: 'block-1', subBlockId: 'systemPrompt', before: '', after: 'H' }],
+        })
+      )
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [{ blockId: 'block-1', subBlockId: 'systemPrompt', before: 'H', after: 'Hi' }],
+        })
+      )
+
+      expect(getStackSizes(workflowId, userId).undoSize).toBe(1)
+    })
+
+    it('should keep the earliest before and latest after when coalescing', () => {
+      const { push, undo } = useUndoRedoStore.getState()
+
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [{ blockId: 'block-1', subBlockId: 'systemPrompt', before: '', after: 'H' }],
+        })
+      )
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [{ blockId: 'block-1', subBlockId: 'systemPrompt', before: 'H', after: 'Hi' }],
+        })
+      )
+
+      const entry = undo(workflowId, userId)
+      expect(entry).not.toBeNull()
+      const operation = entry?.operation as BatchUpdateSubblocksOperation
+      expect(operation.data.updates[0].before).toBe('')
+      expect(operation.data.updates[0].after).toBe('Hi')
+      const inverse = entry?.inverse as BatchUpdateSubblocksOperation
+      expect(inverse.data.updates[0].before).toBe('Hi')
+      expect(inverse.data.updates[0].after).toBe('')
+    })
+
+    it('should not coalesce edits to different fields', () => {
+      const { push, getStackSizes } = useUndoRedoStore.getState()
+
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [{ blockId: 'block-1', subBlockId: 'systemPrompt', before: '', after: 'a' }],
+        })
+      )
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [{ blockId: 'block-1', subBlockId: 'model', before: '', after: 'gpt' }],
+        })
+      )
+
+      expect(getStackSizes(workflowId, userId).undoSize).toBe(2)
+    })
+
+    it('should not coalesce edits to the same field on different blocks', () => {
+      const { push, getStackSizes } = useUndoRedoStore.getState()
+
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [{ blockId: 'block-1', subBlockId: 'systemPrompt', before: '', after: 'a' }],
+        })
+      )
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [{ blockId: 'block-2', subBlockId: 'systemPrompt', before: '', after: 'b' }],
+        })
+      )
+
+      expect(getStackSizes(workflowId, userId).undoSize).toBe(2)
+    })
+
+    it('should not coalesce edits made outside the time window', () => {
+      const { push, getStackSizes } = useUndoRedoStore.getState()
+
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          createdAt: 1000,
+          updates: [{ blockId: 'block-1', subBlockId: 'systemPrompt', before: '', after: 'H' }],
+        })
+      )
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          createdAt: 2000,
+          updates: [{ blockId: 'block-1', subBlockId: 'systemPrompt', before: 'H', after: 'Hi' }],
+        })
+      )
+
+      expect(getStackSizes(workflowId, userId).undoSize).toBe(2)
+    })
+
+    it('should drop the step when an edit returns the field to its original value', () => {
+      const { push, getStackSizes } = useUndoRedoStore.getState()
+
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [
+            { blockId: 'block-1', subBlockId: 'systemPrompt', before: 'hello', after: 'hello!' },
+          ],
+        })
+      )
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [
+            { blockId: 'block-1', subBlockId: 'systemPrompt', before: 'hello!', after: 'hello' },
+          ],
+        })
+      )
+
+      expect(getStackSizes(workflowId, userId).undoSize).toBe(0)
+    })
+
+    it('should not coalesce multi-field cascade edits', () => {
+      const { push, getStackSizes } = useUndoRedoStore.getState()
+
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [
+            { blockId: 'block-1', subBlockId: 'model', before: 'gpt', after: 'claude' },
+            { blockId: 'block-1', subBlockId: 'apiKey', before: 'sk-1', after: '' },
+          ],
+        })
+      )
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [{ blockId: 'block-1', subBlockId: 'model', before: 'claude', after: 'gemini' }],
+        })
+      )
+
+      expect(getStackSizes(workflowId, userId).undoSize).toBe(2)
+    })
+
+    it('should coalesce consecutive subflow (loop) config edits to the same field', () => {
+      const { push, undo, getStackSizes } = useUndoRedoStore.getState()
+
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [],
+          subflowUpdates: [
+            {
+              blockId: 'loop-1',
+              blockType: 'loop',
+              fieldId: 'subflowIterations',
+              before: 5,
+              after: 1,
+            },
+          ],
+        })
+      )
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [],
+          subflowUpdates: [
+            {
+              blockId: 'loop-1',
+              blockType: 'loop',
+              fieldId: 'subflowIterations',
+              before: 1,
+              after: 12,
+            },
+          ],
+        })
+      )
+
+      expect(getStackSizes(workflowId, userId).undoSize).toBe(1)
+      const entry = undo(workflowId, userId)
+      const operation = entry?.operation as BatchUpdateSubblocksOperation
+      expect(operation.data.subflowUpdates?.[0]).toMatchObject({ before: 5, after: 12 })
+    })
+
+    it('should not coalesce subflow edits to different fields', () => {
+      const { push, getStackSizes } = useUndoRedoStore.getState()
+
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [],
+          subflowUpdates: [
+            {
+              blockId: 'loop-1',
+              blockType: 'loop',
+              fieldId: 'subflowIterations',
+              before: 5,
+              after: 8,
+            },
+          ],
+        })
+      )
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [],
+          subflowUpdates: [
+            {
+              blockId: 'loop-1',
+              blockType: 'loop',
+              fieldId: 'subflowCondition',
+              before: '',
+              after: 'x>0',
+            },
+          ],
+        })
+      )
+
+      expect(getStackSizes(workflowId, userId).undoSize).toBe(2)
+    })
+
+    it('should not coalesce a subflow edit with a subblock edit', () => {
+      const { push, getStackSizes } = useUndoRedoStore.getState()
+
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [{ blockId: 'loop-1', subBlockId: 'subflowIterations', before: '', after: 'a' }],
+        })
+      )
+      push(
+        workflowId,
+        userId,
+        createBatchUpdateSubblocksEntry({
+          workflowId,
+          userId,
+          updates: [],
+          subflowUpdates: [
+            {
+              blockId: 'loop-1',
+              blockType: 'loop',
+              fieldId: 'subflowIterations',
+              before: 5,
+              after: 8,
+            },
+          ],
+        })
+      )
+
+      expect(getStackSizes(workflowId, userId).undoSize).toBe(2)
     })
   })
 

@@ -101,7 +101,7 @@ export function SelectorInput({
       allowSearch={allowSearch}
       onOptionChange={(value) => {
         if (!isPreview) {
-          collaborativeSetSubblockValue(blockId, subBlock.id, value)
+          collaborativeSetSubblockValue(blockId, subBlock.id, value, { recordUndo: true })
         }
       }}
       activeSearchTarget={activeSearchTarget}

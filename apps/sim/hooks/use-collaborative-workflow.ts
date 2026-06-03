@@ -19,6 +19,7 @@ import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
 import {
+  WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS,
   type WorkflowSearchSubflowFieldId,
   workflowSearchSubflowFieldMatchesExpected,
 } from '@/lib/workflows/search-replace/subflow-fields'
@@ -36,7 +37,7 @@ import {
   useOperationQueueStore,
 } from '@/stores/operation-queue/store'
 import { usePanelEditorStore } from '@/stores/panel'
-import { useCodeUndoRedoStore, useUndoRedoStore } from '@/stores/undo-redo'
+import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import {
@@ -57,6 +58,13 @@ import type {
 import { findAllDescendantNodes, isBlockProtected } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('CollaborativeWorkflow')
+
+interface SubblockUndoChange {
+  blockId: string
+  subBlockId: string
+  before: unknown
+  after: unknown
+}
 
 export function useCollaborativeWorkflow() {
   const queryClient = useQueryClient()
@@ -543,10 +551,6 @@ export function useCollaborativeWorkflow() {
       try {
         useSubBlockStore.getState().setValue(blockId, subblockId, value)
         useWorkflowStore.getState().syncDynamicHandleSubblockValue(blockId, subblockId, value)
-        const blockType = useWorkflowStore.getState().blocks?.[blockId]?.type
-        if (activeWorkflowId && blockType === 'function' && subblockId === 'code') {
-          useCodeUndoRedoStore.getState().clear(activeWorkflowId, blockId, subblockId)
-        }
       } catch (error) {
         logger.error('Error applying remote subblock update:', error)
       } finally {
@@ -1416,7 +1420,9 @@ export function useCollaborativeWorkflow() {
       useWorkflowStore.getState().batchAddEdges(newEdges, { skipValidation: true })
 
       if (!options?.skipUndoRedo) {
-        newEdges.forEach((edge) => undoRedo.recordAddEdge(edge.id))
+        newEdges.forEach((edge) => {
+          undoRedo.recordAddEdge(edge.id)
+        })
       }
 
       return true
@@ -1483,13 +1489,43 @@ export function useCollaborativeWorkflow() {
   )
 
   const collaborativeSetSubblockValue = useCallback(
-    (blockId: string, subblockId: string, value: any, options?: { _visited?: Set<string> }) => {
+    (
+      blockId: string,
+      subblockId: string,
+      value: any,
+      options?: {
+        /** Record this edit (and any dependent-field clears it triggers) as one undo step */
+        recordUndo?: boolean
+        /** Sibling fields in the same block to set within this edit's single undo step */
+        linkedUpdates?: Array<{ subblockId: string; value: unknown }>
+        /** Internal: cycle guard for the dependent-clear recursion */
+        _visited?: Set<string>
+        /** Internal: accumulates field changes so a cascade records as one undo step */
+        _undoCollector?: Map<string, SubblockUndoChange>
+      }
+    ) => {
       if (isApplyingRemoteChange.current) return
 
       if (isBaselineDiffView) {
         logger.debug('Skipping collaborative subblock update while viewing baseline diff')
         return
       }
+
+      // The outermost call owns the collector and commits once; nested cascade calls
+      // contribute their changes so an edit and its dependent clears record as one step.
+      const parentCollector = options?._undoCollector
+      const undoCollector =
+        parentCollector ?? (options?.recordUndo ? new Map<string, SubblockUndoChange>() : undefined)
+      const ownsRecordingSession = !parentCollector && undoCollector !== undefined
+
+      // Synthetic tool params are a UI projection of the canonical `tools` subblock,
+      // so they are never recorded directly.
+      const shouldRecord = undoCollector !== undefined && !isSyntheticToolSubBlockId(subblockId)
+
+      // Capture the previous value before the store mutation so undo can restore it
+      const previousValue = shouldRecord
+        ? useSubBlockStore.getState().getValue(blockId, subblockId)
+        : null
 
       // ALWAYS update local store first for immediate UI feedback
       useSubBlockStore.getState().setValue(blockId, subblockId, value)
@@ -1510,33 +1546,72 @@ export function useCollaborativeWorkflow() {
         })
       }
 
+      if (shouldRecord && undoCollector) {
+        const collectorKey = `${blockId}:${subblockId}`
+        const existing = undoCollector.get(collectorKey)
+        // Preserve the earliest "before" if the same field is touched twice in one cascade
+        undoCollector.set(collectorKey, {
+          blockId,
+          subBlockId: subblockId,
+          before: existing ? existing.before : previousValue,
+          after: value,
+        })
+      }
+
       // Handle dependent subblock clearing (recursive calls)
       try {
         const visited = options?._visited || new Set<string>()
-        if (visited.has(subblockId)) return
-        visited.add(subblockId)
-        const blockType = useWorkflowStore.getState().blocks?.[blockId]?.type
-        const blockConfig = blockType ? getBlock(blockType) : null
-        if (blockConfig?.subBlocks && Array.isArray(blockConfig.subBlocks)) {
-          const dependents = getSubBlocksDependingOnChange(blockConfig.subBlocks, subblockId)
-          for (const dep of dependents) {
-            if (!dep?.id || dep.id === subblockId) continue
-            const currentDepValue = useSubBlockStore.getState().getValue(blockId, dep.id)
-            if (
-              currentDepValue === '' ||
-              currentDepValue === null ||
-              currentDepValue === undefined
-            ) {
-              continue
+        if (!visited.has(subblockId)) {
+          visited.add(subblockId)
+          const blockType = useWorkflowStore.getState().blocks?.[blockId]?.type
+          const blockConfig = blockType ? getBlock(blockType) : null
+          if (blockConfig?.subBlocks && Array.isArray(blockConfig.subBlocks)) {
+            const dependents = getSubBlocksDependingOnChange(blockConfig.subBlocks, subblockId)
+            for (const dep of dependents) {
+              if (!dep?.id || dep.id === subblockId) continue
+              const currentDepValue = useSubBlockStore.getState().getValue(blockId, dep.id)
+              if (
+                currentDepValue === '' ||
+                currentDepValue === null ||
+                currentDepValue === undefined
+              ) {
+                continue
+              }
+              collaborativeSetSubblockValue(blockId, dep.id, '', {
+                _visited: visited,
+                _undoCollector: undoCollector,
+              })
             }
-            collaborativeSetSubblockValue(blockId, dep.id, '', { _visited: visited })
           }
         }
       } catch {
         // Best-effort; do not block on clearing
       }
+
+      // Apply linked sibling updates (e.g. clearing the API key when the model's
+      // provider changes) within this same edit so they share one undo step.
+      if (options?.linkedUpdates?.length) {
+        const visited = options?._visited || new Set<string>()
+        for (const linked of options.linkedUpdates) {
+          collaborativeSetSubblockValue(blockId, linked.subblockId, linked.value, {
+            _visited: visited,
+            _undoCollector: undoCollector,
+          })
+        }
+      }
+
+      // Commit the grouped changes as one undo step once the cascade completes,
+      // dropping any field whose value did not actually change.
+      if (ownsRecordingSession && undoCollector && undoCollector.size > 0) {
+        const changes = Array.from(undoCollector.values()).filter(
+          (change) => !isEqual(change.before, change.after)
+        )
+        if (changes.length > 0) {
+          undoRedo.recordBatchUpdateSubblocks(changes)
+        }
+      }
     },
-    [activeWorkflowId, addToQueue, session?.user?.id, isBaselineDiffView]
+    [activeWorkflowId, addToQueue, session?.user?.id, isBaselineDiffView, undoRedo]
   )
 
   const collaborativeBatchSetSubblockValues = useCallback(
@@ -1661,10 +1736,16 @@ export function useCollaborativeWorkflow() {
         return
       }
 
+      if (isSyntheticToolSubBlockId(subblockId)) {
+        useSubBlockStore.getState().setValue(blockId, subblockId, value)
+        return
+      }
+
+      // Capture the previous value before mutating the store so undo can restore it
+      const previousValue = useSubBlockStore.getState().getValue(blockId, subblockId)
+
       // Apply locally first (immediate UI feedback)
       useSubBlockStore.getState().setValue(blockId, subblockId, value)
-
-      if (isSyntheticToolSubBlockId(subblockId)) return
 
       // Use the operation queue but with immediate processing (no debouncing)
       const operationId = generateId()
@@ -1679,8 +1760,40 @@ export function useCollaborativeWorkflow() {
         workflowId: activeWorkflowId || '',
         userId: session?.user?.id || 'unknown',
       })
+
+      if (!isEqual(previousValue, value)) {
+        undoRedo.recordBatchUpdateSubblocks([
+          { blockId, subBlockId: subblockId, before: previousValue, after: value },
+        ])
+      }
     },
-    [isBaselineDiffView, addToQueue, activeWorkflowId, session?.user?.id]
+    [isBaselineDiffView, addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
+  )
+
+  const undoRedoRef = useRef(undoRedo)
+  undoRedoRef.current = undoRedo
+
+  /**
+   * Records a loop/parallel config value change as one undo step. The mode toggle
+   * (loopType/parallelType) is a structural reshape and is intentionally not recorded.
+   * Stable across renders (reads the latest recorder via ref) so callers need not list
+   * it in their dependency arrays.
+   */
+  const recordSubflowFieldUpdate = useCallback(
+    (
+      blockId: string,
+      blockType: 'loop' | 'parallel',
+      fieldId: WorkflowSearchSubflowFieldId,
+      before: unknown,
+      after: unknown
+    ) => {
+      if (isEqual(before, after)) return
+      undoRedoRef.current.recordBatchUpdateSubblocks(
+        [],
+        [{ blockId, blockType, fieldId, before, after }]
+      )
+    },
+    []
   )
 
   const collaborativeUpdateLoopType = useCallback(
@@ -1784,6 +1897,14 @@ export function useCollaborativeWorkflow() {
         .map((b) => b.id)
 
       const clampedCount = Math.max(1, count)
+      const previousCount = currentBlock.data?.count ?? 5
+      recordSubflowFieldUpdate(
+        nodeId,
+        iterationType,
+        WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations,
+        previousCount,
+        clampedCount
+      )
 
       if (iterationType === 'loop') {
         const currentLoopType = currentBlock.data?.loopType || 'for'
@@ -1856,10 +1977,31 @@ export function useCollaborativeWorkflow() {
           existingLoop?.doWhileCondition ?? currentBlock.data?.doWhileCondition ?? ''
 
         if (currentLoopType === 'forEach') {
+          recordSubflowFieldUpdate(
+            nodeId,
+            'loop',
+            WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items,
+            nextForEachItems,
+            collection
+          )
           nextForEachItems = collection
         } else if (currentLoopType === 'while') {
+          recordSubflowFieldUpdate(
+            nodeId,
+            'loop',
+            WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.condition,
+            nextWhileCondition,
+            collection
+          )
           nextWhileCondition = collection
         } else if (currentLoopType === 'doWhile') {
+          recordSubflowFieldUpdate(
+            nodeId,
+            'loop',
+            WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.condition,
+            nextDoWhileCondition,
+            collection
+          )
           nextDoWhileCondition = collection
         }
 
@@ -1887,6 +2029,13 @@ export function useCollaborativeWorkflow() {
         const currentCount = currentBlock.data?.count || 5
         const currentParallelType = currentBlock.data?.parallelType || 'count'
         const batchSize = currentBlock.data?.batchSize || 20
+        recordSubflowFieldUpdate(
+          nodeId,
+          'parallel',
+          WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items,
+          currentBlock.data?.collection ?? '',
+          collection
+        )
 
         const config = {
           id: nodeId,
@@ -1920,6 +2069,13 @@ export function useCollaborativeWorkflow() {
       const currentDistribution = currentBlock.data?.collection || ''
       const currentParallelType = currentBlock.data?.parallelType || 'count'
       const clampedBatchSize = Math.max(1, Math.min(20, batchSize))
+      recordSubflowFieldUpdate(
+        parallelId,
+        'parallel',
+        WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize,
+        currentBlock.data?.batchSize ?? 20,
+        clampedBatchSize
+      )
 
       const config = {
         id: parallelId,
@@ -2085,7 +2241,9 @@ export function useCollaborativeWorkflow() {
 
       if (blockIds.length === 0) return false
 
-      blockIds.forEach((id) => cancelOperationsForBlock(id))
+      blockIds.forEach((id) => {
+        cancelOperationsForBlock(id)
+      })
 
       const allBlocksToRemove = new Set<string>(blockIds)
       const findAllDescendants = (parentId: string) => {
@@ -2096,7 +2254,9 @@ export function useCollaborativeWorkflow() {
           }
         })
       }
-      blockIds.forEach((id) => findAllDescendants(id))
+      blockIds.forEach((id) => {
+        findAllDescendants(id)
+      })
 
       const currentEditedBlockId = usePanelEditorStore.getState().currentBlockId
       if (currentEditedBlockId && allBlocksToRemove.has(currentEditedBlockId)) {

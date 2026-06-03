@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { UNDO_REDO_OPERATIONS } from '@sim/realtime-protocol/constants'
+import { isEqual } from 'es-toolkit'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
@@ -10,6 +11,7 @@ import type {
   BatchRemoveBlocksOperation,
   BatchRemoveEdgesOperation,
   BatchUpdateParentOperation,
+  BatchUpdateSubblocksOperation,
   Operation,
   OperationEntry,
   UndoRedoState,
@@ -19,6 +21,93 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 const logger = createLogger('UndoRedoStore')
 const DEFAULT_CAPACITY = 100
 const MAX_STACKS = 5
+
+/**
+ * Consecutive single-field edits to the same field within this window are coalesced
+ * into one undo step, so a burst of keystrokes (or a slider drag) collapses into a
+ * single undoable action rather than one step per change.
+ */
+const SUBBLOCK_COALESCE_WINDOW_MS = 500
+
+type SingleFieldDescriptor =
+  | {
+      kind: 'subblock'
+      key: string
+      blockId: string
+      subBlockId: string
+      before: unknown
+      after: unknown
+    }
+  | {
+      kind: 'subflow'
+      key: string
+      blockId: string
+      blockType: 'loop' | 'parallel'
+      fieldId: string
+      before: unknown
+      after: unknown
+    }
+
+/**
+ * Describes a BATCH_UPDATE_SUBBLOCKS entry that touches exactly one field — either
+ * one subblock value or one subflow (loop/parallel) config value — so consecutive
+ * edits to the same field can coalesce. Returns null for multi-field cascades,
+ * which never coalesce.
+ */
+function describeSingleField(op: BatchUpdateSubblocksOperation): SingleFieldDescriptor | null {
+  const { updates } = op.data
+  const subflowUpdates = op.data.subflowUpdates ?? []
+  if (updates.length === 1 && subflowUpdates.length === 0) {
+    const u = updates[0]
+    return {
+      kind: 'subblock',
+      key: `sub:${u.blockId}:${u.subBlockId}`,
+      blockId: u.blockId,
+      subBlockId: u.subBlockId,
+      before: u.before,
+      after: u.after,
+    }
+  }
+  if (updates.length === 0 && subflowUpdates.length === 1) {
+    const u = subflowUpdates[0]
+    return {
+      kind: 'subflow',
+      key: `flow:${u.blockId}:${u.fieldId}`,
+      blockId: u.blockId,
+      blockType: u.blockType,
+      fieldId: u.fieldId,
+      before: u.before,
+      after: u.after,
+    }
+  }
+  return null
+}
+
+/** Builds the operation data for a single-field update (subblock or subflow). */
+function buildSingleFieldData(
+  descriptor: SingleFieldDescriptor,
+  before: unknown,
+  after: unknown
+): BatchUpdateSubblocksOperation['data'] {
+  if (descriptor.kind === 'subblock') {
+    return {
+      updates: [{ blockId: descriptor.blockId, subBlockId: descriptor.subBlockId, before, after }],
+      subflowUpdates: [],
+    }
+  }
+  return {
+    updates: [],
+    subflowUpdates: [
+      {
+        blockId: descriptor.blockId,
+        blockType: descriptor.blockType,
+        fieldId: descriptor.fieldId,
+        before,
+        after,
+      },
+    ],
+  }
+}
 
 let recordingSuspendDepth = 0
 
@@ -296,6 +385,64 @@ export const useUndoRedoStore = create<UndoRedoState>()(
               })
               return
             }
+          }
+        }
+
+        // Coalesce consecutive single-field edits to the same field (e.g. typing into
+        // one input, or a loop's iteration count) so a burst collapses into one step.
+        if (entry.operation.type === UNDO_REDO_OPERATIONS.BATCH_UPDATE_SUBBLOCKS) {
+          const incoming = entry.operation as BatchUpdateSubblocksOperation
+          const incomingField = describeSingleField(incoming)
+          const last = stack.undo[stack.undo.length - 1]
+          const lastField =
+            last && last.operation.type === UNDO_REDO_OPERATIONS.BATCH_UPDATE_SUBBLOCKS
+              ? describeSingleField(last.operation as BatchUpdateSubblocksOperation)
+              : null
+
+          if (
+            incomingField &&
+            lastField &&
+            lastField.key === incomingField.key &&
+            entry.createdAt - (last?.createdAt ?? 0) <= SUBBLOCK_COALESCE_WINDOW_MS
+          ) {
+            // Keep the earliest "before" and the latest "after"
+            const before = lastField.before
+            const after = incomingField.after
+
+            // Drop the step entirely if the field returned to its original value
+            if (isEqual(before, after)) {
+              currentStacks[key] = {
+                undo: stack.undo.slice(0, -1),
+                redo: [],
+                lastUpdated: Date.now(),
+              }
+              set({ stacks: currentStacks })
+              logger.debug('Dropped net no-op field edit after coalescing', { workflowId, userId })
+              return
+            }
+
+            const mergedEntry: OperationEntry = {
+              id: entry.id,
+              createdAt: entry.createdAt,
+              operation: { ...incoming, data: buildSingleFieldData(incomingField, before, after) },
+              inverse: {
+                ...(entry.inverse as BatchUpdateSubblocksOperation),
+                data: buildSingleFieldData(incomingField, after, before),
+              },
+            }
+
+            currentStacks[key] = {
+              undo: [...stack.undo.slice(0, -1), mergedEntry],
+              redo: [],
+              lastUpdated: Date.now(),
+            }
+            set({ stacks: currentStacks })
+            logger.debug('Coalesced consecutive field edits', {
+              workflowId,
+              userId,
+              field: incomingField.key,
+            })
+            return
           }
         }
 

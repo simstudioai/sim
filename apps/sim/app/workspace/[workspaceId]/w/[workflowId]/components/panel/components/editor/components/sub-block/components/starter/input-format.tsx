@@ -24,6 +24,7 @@ import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useEditorUndoRedo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-editor-undo-redo'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
@@ -127,6 +128,7 @@ export function FieldFormat({
     isPreview,
     disabled,
   })
+  const handleEditorUndoRedo = useEditorUndoRedo()
 
   const value = isPreview ? previewValue : storeValue
   const fields: Field[] = Array.isArray(value) && value.length > 0 ? value : [createDefaultField()]
@@ -443,6 +445,7 @@ export function FieldFormat({
             <Editor
               value={fieldValue}
               onValueChange={getEditorValueChangeHandler(field.id)}
+              onKeyDown={handleEditorUndoRedo}
               highlight={jsonHighlight}
               disabled={isReadOnly}
               {...getCodeEditorProps({ disabled: isReadOnly })}
@@ -478,6 +481,7 @@ export function FieldFormat({
             <Editor
               value={fieldValue}
               onValueChange={getEditorValueChangeHandler(field.id)}
+              onKeyDown={handleEditorUndoRedo}
               highlight={jsonHighlight}
               disabled={isReadOnly}
               {...getCodeEditorProps({ disabled: isReadOnly })}
@@ -515,6 +519,7 @@ export function FieldFormat({
             <Editor
               value={fieldValue}
               onValueChange={getEditorValueChangeHandler(field.id)}
+              onKeyDown={handleEditorUndoRedo}
               highlight={jsonHighlight}
               disabled={isReadOnly}
               {...getCodeEditorProps({ disabled: isReadOnly })}

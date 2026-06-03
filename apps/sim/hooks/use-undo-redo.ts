@@ -23,6 +23,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-operations'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import { useOperationQueue } from '@/stores/operation-queue/store'
+import { usePanelEditorStore } from '@/stores/panel'
 import {
   type BatchAddBlocksOperation,
   type BatchAddEdgesOperation,
@@ -37,6 +38,8 @@ import {
   captureLatestEdges,
   captureLatestSubBlockValues,
   createOperationEntry,
+  getRevealTarget,
+  type Operation,
   runWithUndoRedoRecordingSuspended,
   type UpdateParentOperation,
   useUndoRedoStore,
@@ -47,6 +50,18 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('UndoRedo')
+
+/**
+ * After an undo/redo is applied, selects the affected block and opens its editor
+ * panel so a reverted field change is never left off-screen. No-op for operations
+ * whose result is already visible on the canvas.
+ */
+function revealUndoRedoTarget(operation: Operation): void {
+  const target = getRevealTarget(operation)
+  if (!target) return
+  if (!useWorkflowStore.getState().blocks[target.blockId]) return
+  usePanelEditorStore.getState().setCurrentBlockId(target.blockId)
+}
 
 export function useUndoRedo() {
   const { data: session } = useSession()
@@ -1301,6 +1316,8 @@ export function useUndoRedo() {
         }
       }
 
+      revealUndoRedoTarget(entry.operation)
+
       logger.info('Undo operation', { type: entry.operation.type, workflowId: activeWorkflowId })
     })
   }, [activeWorkflowId, userId, addToQueue, applyBatchFieldUndoRedo])
@@ -1926,6 +1943,8 @@ export function useUndoRedo() {
           break
         }
       }
+
+      revealUndoRedoTarget(entry.operation)
 
       logger.info('Redo operation completed', {
         type: entry.operation.type,

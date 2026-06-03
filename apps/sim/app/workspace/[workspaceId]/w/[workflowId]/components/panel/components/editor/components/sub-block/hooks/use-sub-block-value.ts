@@ -109,8 +109,8 @@ export function useSubBlockValue<T = any>(
 
   // Emit the value to socket/DB and update local store
   const emitValue = useCallback(
-    (value: T) => {
-      collaborativeSetSubblockValue(blockId, subBlockId, value)
+    (value: T, linkedUpdates?: Array<{ subblockId: string; value: unknown }>) => {
+      collaborativeSetSubblockValue(blockId, subBlockId, value, { recordUndo: true, linkedUpdates })
       lastEmittedValueRef.current = value
     },
     [blockId, subBlockId, collaborativeSetSubblockValue]
@@ -161,7 +161,9 @@ export function useSubBlockValue<T = any>(
           return
         }
 
-        // Handle model changes for provider-based blocks - clear API key when provider changes (non-streaming)
+        // Handle model changes for provider-based blocks - clear API key when provider changes
+        // (non-streaming). The clear is grouped into the model edit's single undo step.
+        let linkedUpdates: Array<{ subblockId: string; value: unknown }> | undefined
         if (
           subBlockId === 'model' &&
           isProviderBasedBlock &&
@@ -174,13 +176,13 @@ export function useSubBlockValue<T = any>(
             const oldProvider = oldModelValue ? getProviderFromModel(oldModelValue) : null
             const newProvider = getProviderFromModel(newValue)
             if (oldProvider !== newProvider) {
-              collaborativeSetSubblockValue(blockId, 'apiKey', '')
+              linkedUpdates = [{ subblockId: 'apiKey', value: '' }]
             }
           }
         }
 
         // Emit immediately; the client queue coalesces same-key ops and the server debounces
-        emitValue(valueCopy as T)
+        emitValue(valueCopy as T, linkedUpdates)
 
         if (triggerWorkflowUpdate) {
           useWorkflowStore.getState().triggerUpdate()
@@ -198,7 +200,6 @@ export function useSubBlockValue<T = any>(
       isStreaming,
       emitValue,
       isBaselineView,
-      collaborativeSetSubblockValue,
       isProviderBasedBlock,
     ]
   )

@@ -35,6 +35,7 @@ import {
   TagDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useEditorUndoRedo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-editor-undo-redo'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import { restoreCursorAfterInsertion } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/utils'
@@ -46,9 +47,7 @@ import { normalizeName } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 import { createShouldHighlightEnvVar, useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
-import { useCodeUndoRedo } from '@/hooks/use-code-undo-redo'
 import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Code')
 
@@ -258,12 +257,8 @@ export const Code = memo(function Code({
   const emitTagSelection = useTagSelection(blockId, subBlockId)
   const [languageValue] = useSubBlockValue<string>(blockId, 'language')
   const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
-  const blockType = useWorkflowStore(
-    useCallback((state) => state.blocks?.[blockId]?.type, [blockId])
-  )
 
   const effectiveLanguage = (languageValue as 'javascript' | 'python' | 'json') || language
-  const isFunctionCode = blockType === 'function' && subBlockId === 'code'
 
   const trimmedCode = code.trim()
   const containsReferencePlaceholders =
@@ -344,14 +339,7 @@ export const Code = memo(function Code({
   const updatePromptValue = wandHook?.updatePromptValue || (() => {})
   const cancelGeneration = wandHook?.cancelGeneration || (() => {})
 
-  const { recordChange, recordReplace, flushPending, startSession, undo, redo } = useCodeUndoRedo({
-    blockId,
-    subBlockId,
-    value: code,
-    enabled: isFunctionCode,
-    isReadOnly: readOnly || disabled || isPreview,
-    isStreaming: isAiStreaming,
-  })
+  const handleEditorUndoRedo = useEditorUndoRedo()
 
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
     isStreaming: isAiStreaming,
@@ -404,10 +392,9 @@ export const Code = memo(function Code({
       setCode(generatedCode)
       if (!isPreview && !disabled) {
         setStoreValue(generatedCode)
-        recordReplace(generatedCode)
       }
     }
-  }, [disabled, isPreview, recordReplace, setStoreValue])
+  }, [disabled, isPreview, setStoreValue])
 
   useEffect(() => {
     if (!editorRef.current) return
@@ -550,7 +537,6 @@ export const Code = memo(function Code({
 
       setCode(newValue)
       setStoreValue(newValue)
-      recordChange(newValue)
       const newCursorPosition = dropPosition + 1
       setCursorPosition(newCursorPosition)
 
@@ -582,7 +568,6 @@ export const Code = memo(function Code({
     if (!isPreview && !readOnly) {
       setCode(newValue)
       emitTagSelection(newValue)
-      recordChange(newValue)
       restoreCursorAfterInsertion(textarea, newCursorPosition)
     } else {
       setTimeout(() => textarea?.focus(), 0)
@@ -602,7 +587,6 @@ export const Code = memo(function Code({
     if (!isPreview && !readOnly) {
       setCode(newValue)
       emitTagSelection(newValue)
-      recordChange(newValue)
       restoreCursorAfterInsertion(textarea, newCursorPosition)
     } else {
       setTimeout(() => textarea?.focus(), 0)
@@ -699,7 +683,6 @@ export const Code = memo(function Code({
       if (!isAiStreaming && !isPreview && !disabled && !readOnly) {
         setCode(newCode)
         setStoreValue(newCode)
-        recordChange(newCode)
 
         const textarea = editorRef.current?.querySelector('textarea')
         if (textarea) {
@@ -718,7 +701,7 @@ export const Code = memo(function Code({
         }
       }
     },
-    [isAiStreaming, isPreview, disabled, readOnly, recordChange, setStoreValue]
+    [isAiStreaming, isPreview, disabled, readOnly, setStoreValue]
   )
 
   const handleKeyDown = useCallback(
@@ -731,37 +714,17 @@ export const Code = memo(function Code({
         e.preventDefault()
         return
       }
-      if (!isFunctionCode) return
-      const isUndo = (e.key === 'z' || e.key === 'Z') && (e.metaKey || e.ctrlKey) && !e.shiftKey
-      const isRedo =
-        ((e.key === 'z' || e.key === 'Z') && (e.metaKey || e.ctrlKey) && e.shiftKey) ||
-        (e.key === 'y' && (e.metaKey || e.ctrlKey))
-      if (isUndo) {
-        e.preventDefault()
-        e.stopPropagation()
-        undo()
-        return
-      }
-      if (isRedo) {
-        e.preventDefault()
-        e.stopPropagation()
-        redo()
-      }
+      handleEditorUndoRedo(e)
     },
-    [isAiStreaming, isFunctionCode, redo, undo]
+    [isAiStreaming, handleEditorUndoRedo]
   )
 
   const handleEditorFocus = useCallback(() => {
-    startSession(codeRef.current)
     if (!isPreview && !disabled && !readOnly && codeRef.current.trim() === '') {
       setShowTags(true)
       setCursorPosition(0)
     }
-  }, [disabled, isPreview, readOnly, startSession])
-
-  const handleEditorBlur = useCallback(() => {
-    flushPending()
-  }, [flushPending])
+  }, [disabled, isPreview, readOnly])
 
   /**
    * Renders the line numbers, aligned with wrapped visual lines and highlighting the active line.
@@ -881,7 +844,6 @@ export const Code = memo(function Code({
             onValueChange={handleValueChange}
             onKeyDown={handleKeyDown}
             onFocus={handleEditorFocus}
-            onBlur={handleEditorBlur}
             highlight={highlightCode}
             {...getCodeEditorProps({ isStreaming: isAiStreaming, isPreview, disabled })}
           />

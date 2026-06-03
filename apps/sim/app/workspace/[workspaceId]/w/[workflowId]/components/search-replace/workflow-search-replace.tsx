@@ -44,6 +44,7 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { usePanelEditorSearchStore, usePanelEditorStore } from '@/stores/panel'
 import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
+import { runWithUndoRedoRecordingSuspended } from '@/stores/undo-redo'
 import { useWorkflowSearchReplaceStore } from '@/stores/workflow-search-replace/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -56,7 +57,8 @@ function getDefaultSearchPanelPosition() {
   if (typeof window === 'undefined') return { x: 100, y: 100 }
 
   const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
+    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0',
+    10
   )
   const x = window.innerWidth - 8 - panelWidth - 32 - SEARCH_PANEL_WIDTH
   const y = 40
@@ -67,13 +69,16 @@ function constrainSearchPanelPosition(position: { x: number; y: number }, height
   if (typeof window === 'undefined') return position
 
   const sidebarWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
+    getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0',
+    10
   )
   const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
+    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0',
+    10
   )
   const terminalHeight = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
+    getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0',
+    10
   )
 
   return {
@@ -511,9 +516,13 @@ export function WorkflowSearchReplace() {
         return
       }
 
-      for (const update of plan.subflowUpdates) {
-        applySubflowUpdate(update)
-      }
+      // The batch call above already recorded one undo step for this replacement;
+      // suppress recording while applying so the config methods don't double-record.
+      void runWithUndoRedoRecordingSuspended(() => {
+        for (const update of plan.subflowUpdates) {
+          applySubflowUpdate(update)
+        }
+      })
 
       const replacedCount = plan.updates.length + plan.subflowUpdates.length
       addNotification({

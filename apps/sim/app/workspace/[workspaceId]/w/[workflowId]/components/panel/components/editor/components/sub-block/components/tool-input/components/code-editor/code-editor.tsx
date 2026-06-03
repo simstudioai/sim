@@ -13,6 +13,7 @@ import {
 } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
+import { useEditorUndoRedo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-editor-undo-redo'
 import {
   createEnvVarPattern,
   createWorkflowVariablePattern,
@@ -54,6 +55,7 @@ export function CodeEditor({
   wandButtonDisabled = false,
 }: CodeEditorProps) {
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
+  const handleEditorUndoRedo = useEditorUndoRedo()
 
   const editorRef = useRef<HTMLDivElement>(null)
 
@@ -209,7 +211,10 @@ export function CodeEditor({
         <Editor
           value={value}
           onValueChange={onChange}
-          onKeyDown={onKeyDown}
+          onKeyDown={(e) => {
+            if (handleEditorUndoRedo(e)) return
+            onKeyDown?.(e)
+          }}
           highlight={(code) => customHighlight(code)}
           disabled={disabled}
           {...getCodeEditorProps({ disabled })}
