@@ -243,6 +243,31 @@ describe('handleUnifiedChatPost', () => {
     )
   })
 
+  it('accepts tagged skill contexts and forwards them to context resolution', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Hello',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          contexts: [{ kind: 'skill', skillId: 'sk-1', label: 'my-skill' }],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(processContextsServer).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'skill', skillId: 'sk-1', label: 'my-skill' }),
+      ]),
+      'user-1',
+      'Hello',
+      'ws-1',
+      expect.anything()
+    )
+  })
+
   it('persists cancelled partial responses from the server lifecycle', async () => {
     await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {

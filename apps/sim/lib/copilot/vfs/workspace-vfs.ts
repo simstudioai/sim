@@ -33,7 +33,12 @@ import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-read
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import type { DirEntry, GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
 import * as ops from '@/lib/copilot/vfs/operations'
-import { canonicalWorkspaceFilePath, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import {
+  buildVfsFolderPathMap,
+  canonicalWorkflowVfsDir,
+  canonicalWorkspaceFilePath,
+  encodeVfsPathSegments,
+} from '@/lib/copilot/vfs/path-utils'
 import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
 import {
   serializeApiKeys,
@@ -910,28 +915,7 @@ export class WorkspaceVFS {
   private buildFolderPaths(
     folders: Array<{ folderId: string; folderName: string; parentId: string | null }>
   ): Map<string, string> {
-    const folderMap = new Map<string, { name: string; parentId: string | null }>()
-    for (const f of folders) {
-      folderMap.set(f.folderId, { name: f.folderName, parentId: f.parentId })
-    }
-
-    const cache = new Map<string, string>()
-    const resolve = (id: string): string => {
-      if (cache.has(id)) return cache.get(id)!
-      const folder = folderMap.get(id)
-      if (!folder) return ''
-      const parentPath = folder.parentId ? resolve(folder.parentId) : ''
-      const path = parentPath
-        ? `${parentPath}/${sanitizeName(folder.name)}`
-        : sanitizeName(folder.name)
-      cache.set(id, path)
-      return path
-    }
-
-    for (const id of folderMap.keys()) {
-      resolve(id)
-    }
-    return cache
+    return buildVfsFolderPathMap(folders)
   }
 
   /**
@@ -979,11 +963,8 @@ export class WorkspaceVFS {
 
     await Promise.all(
       workflowRows.map(async (wf) => {
-        const safeName = sanitizeName(wf.name)
         const folderPath = wf.folderId ? folderPaths.get(wf.folderId) : null
-        const prefix = folderPath
-          ? `workflows/${folderPath}/${safeName}/`
-          : `workflows/${safeName}/`
+        const prefix = `${canonicalWorkflowVfsDir({ name: wf.name, folderPath })}/`
         const workflowPath = prefix.replace(/\/$/, '')
 
         this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf))

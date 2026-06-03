@@ -109,6 +109,7 @@ const ChatContextSchema = z.object({
     'folder',
     'filefolder',
     'integration',
+    'skill',
   ]),
   label: z.string(),
   chatId: z.string().optional(),
@@ -121,6 +122,7 @@ const ChatContextSchema = z.object({
   fileId: z.string().optional(),
   folderId: z.string().optional(),
   fileFolderId: z.string().optional(),
+  skillId: z.string().optional(),
 })
 
 const ChatMessageSchema = z.object({
@@ -163,7 +165,7 @@ type UnifiedChatBranch =
         userId: string
         userMessageId: string
         chatId?: string
-        contexts: Array<{ type: string; content: string }>
+        contexts: Array<{ type: string; content: string; tag?: string; path?: string }>
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         userTimezone?: string
@@ -198,7 +200,7 @@ type UnifiedChatBranch =
         userId: string
         userMessageId: string
         chatId?: string
-        contexts: Array<{ type: string; content: string }>
+        contexts: Array<{ type: string; content: string; tag?: string; path?: string }>
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         userTimezone?: string
@@ -234,10 +236,10 @@ async function resolveAgentContexts(params: {
   workspaceId?: string
   chatId?: string
   requestId: string
-}): Promise<Array<{ type: string; content: string }>> {
+}): Promise<Array<{ type: string; content: string; tag?: string; path?: string }>> {
   const { contexts, resourceAttachments, userId, message, workspaceId, chatId, requestId } = params
 
-  let agentContexts: Array<{ type: string; content: string }> = []
+  let agentContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
 
   if (Array.isArray(contexts) && contexts.length > 0) {
     try {

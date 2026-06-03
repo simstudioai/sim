@@ -3,6 +3,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  buildVfsFolderPathMap,
+  canonicalBlockVfsPath,
+  canonicalKnowledgeBaseVfsDir,
+  canonicalTableVfsPath,
+  canonicalWorkflowVfsDir,
   canonicalWorkspaceFilePath,
   decodeVfsPathSegments,
   encodeVfsPathSegments,
@@ -25,5 +30,29 @@ describe('VFS path utilities', () => {
         name: 'sales/east.csv',
       })
     ).toBe('files/Reports/Q4%20Report%20(Final)/sales%2Feast.csv')
+  })
+})
+
+describe('canonical resource VFS paths', () => {
+  it('builds nested + encoded folder path map', () => {
+    const map = buildVfsFolderPathMap([
+      { folderId: 'root', folderName: 'My Folder', parentId: null },
+      { folderId: 'child', folderName: 'Sub Folder', parentId: 'root' },
+    ])
+    expect(map.get('root')).toBe('My%20Folder')
+    expect(map.get('child')).toBe('My%20Folder/Sub%20Folder')
+  })
+
+  it('builds workflow dirs at root and nested in folders', () => {
+    expect(canonicalWorkflowVfsDir({ name: 'My Flow' })).toBe('workflows/My%20Flow')
+    expect(canonicalWorkflowVfsDir({ name: 'My Flow', folderPath: 'My%20Folder/Sub%20Folder' })).toBe(
+      'workflows/My%20Folder/Sub%20Folder/My%20Flow'
+    )
+  })
+
+  it('builds table, knowledge base, and block pointers', () => {
+    expect(canonicalTableVfsPath('Sales Data')).toBe('tables/Sales%20Data/meta.json')
+    expect(canonicalKnowledgeBaseVfsDir('Docs — KB')).toBe('knowledgebases/Docs%20%E2%80%94%20KB')
+    expect(canonicalBlockVfsPath('agent')).toBe('components/blocks/agent.json')
   })
 })

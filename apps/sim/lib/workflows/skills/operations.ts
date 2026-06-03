@@ -19,6 +19,19 @@ export async function listSkills(params: { workspaceId: string }) {
 }
 
 /**
+ * Fetch a single skill by id, scoped to a workspace. Returns null when the
+ * skill does not exist or belongs to a different workspace.
+ */
+export async function getSkillById(params: { skillId: string; workspaceId: string }) {
+  const rows = await db
+    .select()
+    .from(skill)
+    .where(and(eq(skill.id, params.skillId), eq(skill.workspaceId, params.workspaceId)))
+    .limit(1)
+  return rows[0] ?? null
+}
+
+/**
  * Delete a skill by ID within a workspace.
  * Returns true if the skill was found and deleted, false otherwise.
  */

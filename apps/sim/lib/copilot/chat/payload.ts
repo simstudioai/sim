@@ -25,7 +25,7 @@ interface BuildPayloadParams {
   mode: string
   model: string
   provider?: string
-  contexts?: Array<{ type: string; content: string }>
+  contexts?: Array<{ type: string; content: string; tag?: string; path?: string }>
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
   commands?: string[]
   chatId?: string
@@ -266,7 +266,7 @@ export async function buildCopilotRequestPayload(
   const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
 
   // Track uploaded files in the DB and build context tags instead of base64 inlining
-  const uploadContexts: Array<{ type: string; content: string }> = []
+  const uploadContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
   if (chatId && params.workspaceId && fileAttachments && fileAttachments.length > 0) {
     for (const f of fileAttachments) {
       const filename = (f.filename ?? f.name ?? 'file') as string
