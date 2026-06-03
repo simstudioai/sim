@@ -39,6 +39,8 @@ import {
   deleteWorkflowGroupContract,
   getTableContract,
   type InsertTableRowBodyInput,
+  importIntoTableAsyncContract,
+  importTableAsyncContract,
   listActiveDispatchesContract,
   listTableRowsContract,
   listTablesContract,
@@ -78,6 +80,7 @@ import {
   isExecInFlight,
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
+import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 
 const logger = createLogger('TableQueries')
 
@@ -1087,9 +1090,11 @@ export function useUploadCsvToTable() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, file }: UploadCsvParams) => {
+      // Text fields must precede the file part: the server parses the body as a
+      // stream and needs workspaceId before it reaches the (large) file.
       const formData = new FormData()
-      formData.append('file', file)
       formData.append('workspaceId', workspaceId)
+      formData.append('file', file)
 
       // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
       const response = await fetch('/api/table/import-csv', {
@@ -1114,7 +1119,101 @@ export function useUploadCsvToTable() {
   })
 }
 
+interface ImportCsvAsyncParams {
+  workspaceId: string
+  file: File
+  onProgress?: (percent: number) => void
+}
+
+/**
+ * Uploads a CSV/TSV straight to workspace storage (bypassing the server's request-body
+ * cap) and returns its storage key. Shared by the async-import kickoff hooks.
+ */
+async function uploadCsvToWorkspaceStorage(
+  file: File,
+  workspaceId: string,
+  onProgress?: (percent: number) => void
+): Promise<string> {
+  const upload = await runUploadStrategy({
+    file,
+    workspaceId,
+    context: 'workspace',
+    presignedEndpoint: `/api/workspaces/${workspaceId}/files/presigned`,
+    onProgress: onProgress ? (event) => onProgress(event.percent) : undefined,
+  })
+  return upload.key
+}
+
+/**
+ * Uploads a large CSV/TSV straight to storage, then kicks off a background import into a
+ * new table. Resolves with `{ tableId, importId }` immediately — load progress and the
+ * terminal state arrive over the table-events SSE stream (see `useTableEventStream`).
+ */
+export function useImportCsvAsync() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ workspaceId, file, onProgress }: ImportCsvAsyncParams) => {
+      const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
+      const response = await requestJson(importTableAsyncContract, {
+        body: { workspaceId, fileKey, fileName: file.name },
+      })
+      return response.data
+    },
+    onError: (error) => {
+      logger.error('Failed to start async CSV import:', error)
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    },
+  })
+}
+
 export type CsvImportMode = 'append' | 'replace'
+
+interface ImportCsvIntoTableAsyncParams {
+  workspaceId: string
+  tableId: string
+  file: File
+  mode: CsvImportMode
+  mapping?: CsvHeaderMapping
+  createColumns?: string[]
+  onProgress?: (percent: number) => void
+}
+
+/**
+ * Async append/replace import into an existing table for large files: uploads straight to
+ * storage (bypassing the server's request-body cap), then kicks off the background worker.
+ * Resolves immediately; progress + completion arrive over the table-events SSE stream.
+ */
+export function useImportCsvIntoTableAsync() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      tableId,
+      file,
+      mode,
+      mapping,
+      createColumns,
+      onProgress,
+    }: ImportCsvIntoTableAsyncParams) => {
+      const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
+      const response = await requestJson(importIntoTableAsyncContract, {
+        params: { tableId },
+        body: { workspaceId, fileKey, fileName: file.name, mode, mapping, createColumns },
+      })
+      return response.data
+    },
+    onError: (error) => {
+      logger.error('Failed to start async CSV import:', error)
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, variables) => {
+      invalidateRowCount(queryClient, variables.tableId)
+    },
+  })
+}
 
 interface ImportCsvIntoTableParams {
   workspaceId: string
@@ -1157,8 +1256,9 @@ export function useImportCsvIntoTable() {
       mapping,
       createColumns,
     }: ImportCsvIntoTableParams): Promise<ImportCsvIntoTableResponse> => {
+      // Text fields must precede the file part: the server parses the body as a
+      // stream and needs these fields before it reaches the (large) file.
       const formData = new FormData()
-      formData.append('file', file)
       formData.append('workspaceId', workspaceId)
       formData.append('mode', mode)
       if (mapping) {
@@ -1167,6 +1267,7 @@ export function useImportCsvIntoTable() {
       if (createColumns && createColumns.length > 0) {
         formData.append('createColumns', JSON.stringify(createColumns))
       }
+      formData.append('file', file)
 
       // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
       const response = await fetch(`/api/table/${tableId}/import`, {

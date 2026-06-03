@@ -94,6 +94,7 @@ export {
   PopoverTrigger,
   usePopoverContext,
 } from './popover/popover'
+export { ProgressItem, progressItemVariants } from './progress-item/progress-item'
 export {
   SModal,
   SModalClose,

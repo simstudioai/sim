@@ -3262,6 +3262,16 @@ export const userTableDefinitions = pgTable(
     maxRows: integer('max_rows').notNull().default(10000),
     rowCount: integer('row_count').notNull().default(0),
     archivedAt: timestamp('archived_at'),
+    /**
+     * Async-import state. NULL = a normal table (never imported in the background).
+     * `'importing'` hides rows until the load completes; `'ready'` reveals them;
+     * `'failed'` surfaces a partial import. See `apps/sim/lib/table/import-runner.ts`.
+     */
+    importStatus: text('import_status'),
+    importId: text('import_id'),
+    importError: text('import_error'),
+    importRowsProcessed: integer('import_rows_processed').notNull().default(0),
+    importStartedAt: timestamp('import_started_at'),
     createdBy: text('created_by')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),

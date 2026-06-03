@@ -25,9 +25,15 @@ import {
   toast,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES } from '@/lib/table/constants'
 import { buildAutoMapping, parseCsvBuffer } from '@/lib/table/import'
 import type { TableDefinition } from '@/lib/table/types'
-import { type CsvImportMode, useImportCsvIntoTable } from '@/hooks/queries/tables'
+import {
+  type CsvImportMode,
+  useImportCsvIntoTable,
+  useImportCsvIntoTableAsync,
+} from '@/hooks/queries/tables'
+import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
 const logger = createLogger('ImportCsvDialog')
 
@@ -114,6 +120,7 @@ export function ImportCsvDialog({
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const importMutation = useImportCsvIntoTable()
+  const importAsyncMutation = useImportCsvIntoTableAsync()
 
   function resetState() {
     setParsed(null)
@@ -296,6 +303,7 @@ export function ImportCsvDialog({
   const canSubmit =
     parsed !== null &&
     !importMutation.isPending &&
+    !importAsyncMutation.isPending &&
     missingRequired.length === 0 &&
     duplicateTargets.length === 0 &&
     mappedCount + createCount > 0 &&
@@ -305,6 +313,49 @@ export function ImportCsvDialog({
   async function handleSubmit() {
     if (!parsed || !canSubmit) return
     setSubmitError(null)
+    const createColumns = createHeaders.size > 0 ? [...createHeaders] : undefined
+
+    // Large files can't be POSTed through the server (request-body cap) — upload them
+    // straight to storage and import in the background instead. Seed the header tray and
+    // close the dialog immediately so the indicator is visible during the upload, then run
+    // the upload + kickoff in the background (don't block the dialog on it).
+    if (parsed.file.size >= CSV_ASYNC_IMPORT_THRESHOLD_BYTES) {
+      useImportTrayStore.getState().upsert({
+        tableId: table.id,
+        workspaceId,
+        title: table.name,
+        phase: 'importing',
+        rowsProcessed: 0,
+      })
+      onOpenChange(false)
+      importAsyncMutation.mutate(
+        {
+          workspaceId,
+          tableId: table.id,
+          file: parsed.file,
+          mode,
+          mapping,
+          createColumns,
+          onProgress: (percent) =>
+            useImportTrayStore.getState().upsert({
+              tableId: table.id,
+              workspaceId,
+              title: table.name,
+              phase: 'importing',
+              uploadPercent: percent,
+            }),
+        },
+        {
+          onError: (err) => {
+            useImportTrayStore.getState().dismiss(table.id)
+            toast.error(getErrorMessage(err, 'Failed to start import'))
+            logger.error('Async CSV import failed to start', err)
+          },
+        }
+      )
+      return
+    }
+
     try {
       const result = await importMutation.mutateAsync({
         workspaceId,
@@ -312,7 +363,7 @@ export function ImportCsvDialog({
         file: parsed.file,
         mode,
         mapping,
-        createColumns: createHeaders.size > 0 ? [...createHeaders] : undefined,
+        createColumns,
       })
       const data = result.data
       if (mode === 'append') {

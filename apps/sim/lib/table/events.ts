@@ -113,6 +113,21 @@ export type TableEvent =
        *  skip capped dispatches (see `resolveCellExec`). */
       limit?: { type: 'rows'; max: number }
     }
+  | {
+      /** Async large-import progress. The background import worker emits
+       *  `importing` ticks as batches commit, then a terminal `ready`/`failed`.
+       *  The client reveals the (hidden) rows on `ready` and shows a failure
+       *  badge on `failed`. See `apps/sim/lib/table/import-runner.ts`. */
+      kind: 'import'
+      tableId: string
+      importId: string
+      status: 'importing' | 'ready' | 'failed'
+      /** Rows committed so far (importing) or in total (ready). */
+      progress?: number
+      /** Estimated total rows (line-count of the source file), for a determinate bar. */
+      total?: number
+      error?: string
+    }
 
 export interface TableEventEntry {
   eventId: number

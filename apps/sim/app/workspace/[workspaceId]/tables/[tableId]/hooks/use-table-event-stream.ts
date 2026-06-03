@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
-import type { RowData, RowExecutionMetadata, RowExecutions } from '@/lib/table'
+import type { RowData, RowExecutionMetadata, RowExecutions, TableDefinition } from '@/lib/table'
 import { isExecInFlight } from '@/lib/table/deps'
 import type { TableEvent, TableEventEntry } from '@/lib/table/events'
 import { snapshotAndMutateRows, type TableRunState, tableKeys } from '@/hooks/queries/tables'
@@ -81,6 +81,17 @@ export function useTableEventStream({
       dispatchInvalidateTimer = setTimeout(() => {
         dispatchInvalidateTimer = null
         void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
+      }, DISPATCH_INVALIDATE_DEBOUNCE_MS)
+    }
+
+    // Live-fill: import progress ticks arrive every N rows; coalesce the row
+    // refetches into one per debounce window instead of refetching per tick.
+    let importInvalidateTimer: ReturnType<typeof setTimeout> | null = null
+    const scheduleRowsInvalidate = (): void => {
+      if (importInvalidateTimer !== null) clearTimeout(importInvalidateTimer)
+      importInvalidateTimer = setTimeout(() => {
+        importInvalidateTimer = null
+        void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
       }, DISPATCH_INVALIDATE_DEBOUNCE_MS)
     }
 
@@ -205,6 +216,32 @@ export function useTableEventStream({
       scheduleDispatchInvalidate()
     }
 
+    const applyImport = (event: Extract<TableEvent, { kind: 'import' }>): void => {
+      const { status, progress, error } = event
+      queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), (prev) =>
+        prev
+          ? {
+              ...prev,
+              importStatus: status,
+              importRowsProcessed: progress ?? prev.importRowsProcessed,
+              importError: error ?? null,
+            }
+          : prev
+      )
+      // The header tray + completion toast are owned by `useImportProgressTracker` (mounted on
+      // every page). Here we only keep the detail cache + grid in sync.
+      // Live-fill: rows are real as each batch commits. Coalesce the per-tick row
+      // refetches via a debounce; on the terminal event refetch rows + the
+      // definition immediately (the worker may have rewritten the schema).
+      if (status === 'ready' || status === 'failed') {
+        if (importInvalidateTimer !== null) clearTimeout(importInvalidateTimer)
+        void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+        void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
+      } else {
+        scheduleRowsInvalidate()
+      }
+    }
+
     const handlePrune = (payload: PrunedEvent): void => {
       logger.info('Table event buffer pruned — full refetch', { tableId, ...payload })
       void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
@@ -253,6 +290,7 @@ export function useTableEventStream({
           savePointer(tableId, lastEventId)
           if (entry.event?.kind === 'cell') applyCell(entry.event)
           else if (entry.event?.kind === 'dispatch') applyDispatch(entry.event)
+          else if (entry.event?.kind === 'import') applyImport(entry.event)
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })
         }
@@ -286,6 +324,7 @@ export function useTableEventStream({
       cancelled = true
       if (reconnectTimer !== null) clearTimeout(reconnectTimer)
       if (dispatchInvalidateTimer !== null) clearTimeout(dispatchInvalidateTimer)
+      if (importInvalidateTimer !== null) clearTimeout(importInvalidateTimer)
       eventSource?.close()
       eventSource = null
     }

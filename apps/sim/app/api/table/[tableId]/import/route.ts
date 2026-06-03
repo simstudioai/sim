@@ -1,3 +1,4 @@
+import type { Readable } from 'node:stream'
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -13,12 +14,8 @@ import {
 } from '@/lib/api/contracts/tables'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { isMultipartError, readMultipart } from '@/lib/core/utils/multipart'
 import { generateRequestId } from '@/lib/core/utils/request'
-import {
-  isPayloadSizeLimitError,
-  readFileToBufferWithLimit,
-  readFormDataWithLimit,
-} from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   addTableColumnsWithTx,
@@ -29,18 +26,26 @@ import {
   type CsvHeaderMapping,
   CsvImportValidationError,
   coerceRowsForTable,
+  createCsvParser,
   inferColumnType,
-  parseCsvBuffer,
   replaceTableRowsWithTx,
   sanitizeName,
   type TableDefinition,
   type TableSchema,
   validateMapping,
 } from '@/lib/table'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import {
+  accessError,
+  checkAccess,
+  csvProxyBodyCapResponse,
+  multipartErrorResponse,
+} from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSVExisting')
-const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 300
 
 interface RouteParams {
   params: Promise<{ tableId: string }>
@@ -49,6 +54,7 @@ interface RouteParams {
 export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
   const { tableId } = tableIdParamsSchema.parse(await params)
+  let fileStream: Readable | undefined
 
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -56,29 +62,37 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const formData = await readFormDataWithLimit(request, {
-      maxBytes: CSV_MAX_FILE_SIZE_BYTES + MAX_MULTIPART_OVERHEAD_BYTES,
-      label: 'CSV import body',
-    })
-    const formValidation = csvImportFormSchema.safeParse({
-      file: formData.get('file'),
-      workspaceId: formData.get('workspaceId'),
-    })
-    const rawMode = formData.get('mode') ?? 'append'
-    const rawMapping = formData.get('mapping')
-    const rawCreateColumns = formData.get('createColumns')
+    const oversize = csvProxyBodyCapResponse(request)
+    if (oversize) return oversize
 
-    if (!formValidation.success) {
-      const message = getValidationErrorMessage(formValidation.error)
-      const isSizeLimit = message.includes('File exceeds maximum allowed size')
-      return NextResponse.json(
-        { error: isSizeLimit ? 'CSV import file exceeds maximum size' : message },
-        { status: isSizeLimit ? 413 : 400 }
-      )
+    let parsed: Awaited<ReturnType<typeof readMultipart>>
+    try {
+      parsed = await readMultipart(request, {
+        maxFileBytes: CSV_MAX_FILE_SIZE_BYTES,
+        requiredFieldsBeforeFile: ['workspaceId'],
+        signal: request.signal,
+      })
+    } catch (err) {
+      if (isMultipartError(err)) return multipartErrorResponse(err)
+      throw err
     }
 
-    const { file, workspaceId } = formValidation.data
+    const { fields, file } = parsed
+    if (!file) {
+      return NextResponse.json({ error: 'CSV file is required' }, { status: 400 })
+    }
+    fileStream = file.stream
 
+    const workspaceIdResult = csvImportFormSchema.shape.workspaceId.safeParse(fields.workspaceId)
+    if (!workspaceIdResult.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(workspaceIdResult.error) },
+        { status: 400 }
+      )
+    }
+    const workspaceId = workspaceIdResult.data
+
+    const rawMode = fields.mode ?? 'append'
     const modeValidation = csvImportModeSchema.safeParse(rawMode)
     if (!modeValidation.success) {
       return NextResponse.json(
@@ -88,7 +102,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     }
     const mode = modeValidation.data
 
-    const ext = file.name.split('.').pop()?.toLowerCase()
+    const ext = file.filename.split('.').pop()?.toLowerCase()
     const extensionValidation = csvExtensionSchema.safeParse(ext)
     if (!extensionValidation.success) {
       return NextResponse.json(
@@ -114,8 +128,8 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     }
 
     let mapping: CsvHeaderMapping | undefined
-    if (rawMapping) {
-      const mappingValidation = csvImportMappingSchema.safeParse(rawMapping)
+    if (fields.mapping) {
+      const mappingValidation = csvImportMappingSchema.safeParse(fields.mapping)
       if (!mappingValidation.success) {
         return NextResponse.json(
           { error: getValidationErrorMessage(mappingValidation.error) },
@@ -126,8 +140,8 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     }
 
     let createColumns: string[] | undefined
-    if (rawCreateColumns) {
-      const createColumnsValidation = csvImportCreateColumnsSchema.safeParse(rawCreateColumns)
+    if (fields.createColumns) {
+      const createColumnsValidation = csvImportCreateColumnsSchema.safeParse(fields.createColumns)
       if (!createColumnsValidation.success) {
         return NextResponse.json(
           { error: getValidationErrorMessage(createColumnsValidation.error) },
@@ -137,12 +151,19 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       createColumns = createColumnsValidation.data
     }
 
-    const buffer = await readFileToBufferWithLimit(file, {
-      maxBytes: CSV_MAX_FILE_SIZE_BYTES,
-      label: 'CSV import file',
-    })
     const delimiter = extensionValidation.data === 'tsv' ? '\t' : ','
-    const { headers, rows } = await parseCsvBuffer(buffer, delimiter)
+    const parser = createCsvParser(delimiter)
+    // `.pipe` doesn't forward source errors; forward them so the iterator throws.
+    file.stream.on('error', (streamErr) => parser.destroy(streamErr))
+    file.stream.pipe(parser)
+    const rows: Record<string, unknown>[] = []
+    for await (const record of parser as AsyncIterable<Record<string, unknown>>) {
+      rows.push(record)
+    }
+    if (rows.length === 0) {
+      return NextResponse.json({ error: 'CSV file has no data rows' }, { status: 400 })
+    }
+    const headers = Object.keys(rows[0])
 
     let effectiveMapping = mapping ?? buildAutoMapping(headers, table.schema)
     let prospectiveTable: TableDefinition = table
@@ -256,7 +277,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
         logger.info(`[${requestId}] Append CSV imported`, {
           tableId: table.id,
-          fileName: file.name,
+          fileName: file.filename,
           mode,
           inserted,
           createdColumns: additions.length,
@@ -273,7 +294,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
             mappedColumns: validation.mappedHeaders,
             skippedHeaders: validation.skippedHeaders,
             unmappedColumns: validation.unmappedColumns,
-            sourceFile: file.name,
+            sourceFile: file.filename,
           },
         })
       } catch (err) {
@@ -318,7 +339,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
       logger.info(`[${requestId}] Replace CSV imported`, {
         tableId: table.id,
-        fileName: file.name,
+        fileName: file.filename,
         mode,
         deleted: result.deletedCount,
         inserted: result.insertedCount,
@@ -336,7 +357,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
           mappedColumns: validation.mappedHeaders,
           skippedHeaders: validation.skippedHeaders,
           unmappedColumns: validation.unmappedColumns,
-          sourceFile: file.name,
+          sourceFile: file.filename,
         },
       })
     } catch (err) {
@@ -355,22 +376,21 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       throw err
     }
   } catch (error) {
+    if (isMultipartError(error)) return multipartErrorResponse(error)
+
     const message = toError(error).message
     logger.error(`[${requestId}] CSV import into existing table failed:`, error)
 
-    const isSizeLimitError =
-      isPayloadSizeLimitError(error) || message.includes('CSV import file exceeds maximum size')
     const isClientError =
       message.includes('CSV file has no') ||
       message.includes('already exists') ||
-      message.includes('Invalid column name') ||
-      isSizeLimitError
+      message.includes('Invalid column name')
 
     return NextResponse.json(
       { error: isClientError ? message : 'Failed to import CSV' },
-      {
-        status: isSizeLimitError ? 413 : isClientError ? 400 : 500,
-      }
+      { status: isClientError ? 400 : 500 }
     )
+  } finally {
+    fileStream?.destroy()
   }
 })
