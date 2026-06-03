@@ -216,6 +216,10 @@ app:
     # Set to "true" AFTER running the SSO registration script
     SSO_ENABLED: ""                                       # Enable SSO authentication ("true" to enable)
     NEXT_PUBLIC_SSO_ENABLED: ""                           # Show SSO login button in UI ("true" to enable)
+    # SSO_TRUSTED_PROVIDER_IDS: comma-separated SSO provider IDs to trust for automatic account linking when a
+    # user signs in via SSO and an account with the same email already exists. Only needed for IdPs that do NOT
+    # assert email_verified (trustEmailVerified already handles those that do). Resolved at startup — restart after editing.
+    SSO_TRUSTED_PROVIDER_IDS: ""
 
     # Enterprise Feature Overrides (self-hosted)
     CREDENTIAL_SETS_ENABLED: ""                           # Enable credential sets (email polling) on self-hosted ("true" to enable)
@@ -260,6 +264,8 @@ app:
     S3_PROFILE_PICTURES_BUCKET_NAME: ""                   # S3 bucket for user profile pictures
     S3_OG_IMAGES_BUCKET_NAME: ""                          # S3 bucket for OpenGraph preview images
     S3_WORKSPACE_LOGOS_BUCKET_NAME: ""                    # S3 bucket for workspace logos
+    S3_ENDPOINT: ""                                       # Custom endpoint for S3-compatible storage (Cloudflare R2, MinIO, Backblaze B2). Leave empty for AWS S3
+    S3_FORCE_PATH_STYLE: ""                               # Set to "true" for path-style addressing (MinIO/Ceph RGW). Leave empty for AWS S3 and R2
 
     # Azure Blob Storage Configuration (optional - for file storage)
     # If configured, files will be stored in Azure Blob instead of local storage

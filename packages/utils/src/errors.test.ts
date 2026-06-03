@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { getPostgresErrorCode, toError } from './errors.js'
+import { describeError, getPostgresErrorCode, toError } from './errors.js'
 
 describe('toError', () => {
   it('returns the same Error when given an Error', () => {
@@ -74,5 +74,56 @@ describe('getPostgresErrorCode', () => {
     // Create circular reference
     ;(err1 as { cause?: unknown }).cause = err2
     expect(getPostgresErrorCode(err1)).toBeUndefined()
+  })
+})
+
+describe('describeError', () => {
+  it('reports name and message for a plain error, omitting causeChain', () => {
+    const described = describeError(new Error('boom'))
+    expect(described).toEqual({ name: 'Error', message: 'boom' })
+    expect(described.causeChain).toBeUndefined()
+  })
+
+  it('surfaces the deepest cause for a wrapped driver error', () => {
+    const driver = Object.assign(new Error('read ECONNRESET'), {
+      code: 'ECONNRESET',
+      errno: 'ECONNRESET',
+      syscall: 'read',
+    })
+    const wrapped = new Error('Failed query: select ...', { cause: driver })
+    const described = describeError(wrapped)
+    expect(described.message).toBe('read ECONNRESET')
+    expect(described.code).toBe('ECONNRESET')
+    expect(described.errno).toBe('ECONNRESET')
+    expect(described.syscall).toBe('read')
+    expect(described.causeChain).toEqual([
+      'Error: Failed query: select ...',
+      'Error: read ECONNRESET',
+    ])
+  })
+
+  it('always returns the cause for unclassified errors (AbortError)', () => {
+    const aborted = Object.assign(new Error('The operation was aborted'), { name: 'AbortError' })
+    expect(describeError(aborted)).toEqual({
+      name: 'AbortError',
+      message: 'The operation was aborted',
+    })
+  })
+
+  it('falls back to a populated description for non-Error input without throwing', () => {
+    expect(describeError('just a string')).toEqual({ name: 'Error', message: 'just a string' })
+    expect(() => describeError({ weird: true })).not.toThrow()
+  })
+
+  it('stops at depth 10 and does not loop on a cyclic cause', () => {
+    const a = new Error('a')
+    const b = new Error('b')
+    ;(a as { cause?: unknown }).cause = b
+    ;(b as { cause?: unknown }).cause = a
+    let described: ReturnType<typeof describeError> | undefined
+    expect(() => {
+      described = describeError(a)
+    }).not.toThrow()
+    expect(described?.causeChain?.length).toBeLessThanOrEqual(10)
   })
 })

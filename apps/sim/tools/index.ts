@@ -19,6 +19,7 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { isUserFile } from '@/lib/core/utils/user-file'
+import { isSameOrigin } from '@/lib/core/utils/validation'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -1364,17 +1365,7 @@ function isErrorResponse(
  * the platform's own workflow execution endpoints via absolute URL.
  */
 function isSelfOriginUrl(url: string): boolean {
-  try {
-    const targetOrigin = new URL(url).origin
-    const publicOrigin = new URL(getBaseUrl()).origin
-    if (targetOrigin === publicOrigin) return true
-
-    const internalOrigin = new URL(getInternalApiBaseUrl()).origin
-    if (targetOrigin === internalOrigin) return true
-  } catch {
-    return false
-  }
-  return false
+  return isSameOrigin(url, getBaseUrl()) || isSameOrigin(url, getInternalApiBaseUrl())
 }
 
 /**
