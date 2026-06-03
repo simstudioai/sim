@@ -20,6 +20,7 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: 'linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)',
+  iconColor: '#56C0A7',
   icon: TextractIcon,
   subBlocks: [
     {

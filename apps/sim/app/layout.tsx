@@ -73,8 +73,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   return;
                 }
 
-                // Sidebar width
-                var defaultSidebarWidth = '248px';
+                // Sidebar width. Mirror clampSidebarWidth() in stores/sidebar/store.ts:
+                // the upper bound can never fall below the 248px minimum, so a narrow
+                // window yields a width >= MIN instead of a sub-minimum sliver.
+                var defaultSidebarWidth = 248;
                 try {
                   var stored = localStorage.getItem('sidebar-state');
                   if (stored) {
@@ -87,21 +89,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       document.documentElement.setAttribute('data-sidebar-collapsed', '');
                     } else {
                       var width = state && state.sidebarWidth;
-                      var maxSidebarWidth = window.innerWidth * 0.3;
-
-                      if (width >= 248 && width <= maxSidebarWidth) {
-                        document.documentElement.style.setProperty('--sidebar-width', width + 'px');
-                      } else if (width > maxSidebarWidth) {
-                        document.documentElement.style.setProperty('--sidebar-width', maxSidebarWidth + 'px');
-                      } else {
-                        document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth);
-                      }
+                      var maxSidebarWidth = Math.max(248, window.innerWidth * 0.3);
+                      var finalWidth =
+                        typeof width === 'number' && isFinite(width)
+                          ? Math.min(Math.max(width, 248), maxSidebarWidth)
+                          : defaultSidebarWidth;
+                      document.documentElement.style.setProperty('--sidebar-width', finalWidth + 'px');
                     }
                   } else {
-                    document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth);
+                    document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth + 'px');
                   }
                 } catch (e) {
-                  document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth);
+                  document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth + 'px');
                 }
 
                 // Panel width and active tab

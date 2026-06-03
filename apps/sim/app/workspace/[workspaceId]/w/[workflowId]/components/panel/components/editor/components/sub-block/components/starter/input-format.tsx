@@ -16,9 +16,9 @@ import {
   getCodeEditorProps,
   highlight,
   Input,
+  Label,
   languages,
 } from '@/components/emcn'
-import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -132,7 +132,7 @@ export function FieldFormat({
   const fields: Field[] = Array.isArray(value) && value.length > 0 ? value : [createDefaultField()]
   const isReadOnly = isPreview || disabled
 
-  const renderFieldLabel = (label: string) => <Label className='text-small'>{label}</Label>
+  const renderFieldLabel = (label: string) => <Label>{label}</Label>
 
   /**
    * Adds a new field to the list

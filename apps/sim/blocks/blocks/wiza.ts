@@ -14,6 +14,7 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#9284BC',
+  iconColor: '#9284BC',
   icon: WizaIcon,
   subBlocks: [
     {

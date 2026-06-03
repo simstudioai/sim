@@ -12,6 +12,7 @@ export const AlgoliaBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Search,
   bgColor: '#003DFF',
+  iconColor: '#003DFF',
   icon: AlgoliaIcon,
   authMode: AuthMode.ApiKey,
 

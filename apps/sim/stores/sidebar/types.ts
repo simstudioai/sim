@@ -11,5 +11,11 @@ export interface SidebarState {
   setSidebarWidth: (width: number) => void
   /** Toggles sidebar between collapsed and expanded states */
   toggleCollapsed: () => void
+  /**
+   * Re-applies the `--sidebar-width` CSS variable from current state, clamped to
+   * the viewport. Self-heals cases where the variable was left at its `0px`
+   * default (e.g. soft navigation) or grew wider than a now-smaller window.
+   */
+  syncWidth: () => void
   setHasHydrated: (hasHydrated: boolean) => void
 }

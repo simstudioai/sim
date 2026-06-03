@@ -11,6 +11,7 @@ export const AmplitudeBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   bgColor: '#1B1F3B',
+  iconColor: '#1F77E0',
   icon: AmplitudeIcon,
   authMode: AuthMode.ApiKey,
 

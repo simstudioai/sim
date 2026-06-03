@@ -218,8 +218,14 @@ interface ChipModalFieldBaseProps {
    * @default false
    */
   required?: boolean
-  /** Inline error message rendered below the control. */
+  /** Inline error message rendered below the control. Takes precedence over `hint`. */
   error?: React.ReactNode
+  /**
+   * Helper text rendered below the control when there is no active `error`.
+   * Use for format hints, constraints, or contextual guidance.
+   * @example hint='Lowercase letters, numbers, and hyphens (e.g. my-skill)'
+   */
+  hint?: React.ReactNode
   /** Disables the underlying control. */
   disabled?: boolean
   /**
@@ -260,6 +266,12 @@ interface ChipModalTextareaFieldProps extends ChipModalFieldBaseProps {
   rows?: number
   /** Min visible height in pixels. */
   minHeight?: number
+  /**
+   * Whether the textarea is user-resizable. Defaults to `false`.
+   * Enable for long-form content (e.g. markdown instructions) where
+   * the user benefits from controlling height.
+   */
+  resizable?: boolean
 }
 
 interface ChipModalDropdownFieldProps extends ChipModalFieldBaseProps {
@@ -320,7 +332,8 @@ export type ChipModalFieldProps =
 function ChipModalField(props: ChipModalFieldProps) {
   const id = React.useId()
   const errorId = `${id}-error`
-  const { title, required, error, flush = false, className } = props
+  const hintId = `${id}-hint`
+  const { title, required, error, hint, flush = false, className } = props
   const associatesLabel =
     props.type === 'input' ||
     props.type === 'email' ||
@@ -340,12 +353,16 @@ function ChipModalField(props: ChipModalFieldProps) {
           </span>
         )}
       </Label>
-      {renderChipModalControl(props, id, errorId)}
-      {error && props.type !== 'emails' && (
+      {renderChipModalControl(props, id, errorId, hintId)}
+      {error && props.type !== 'emails' ? (
         <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>
           {error}
         </p>
-      )}
+      ) : hint ? (
+        <p id={hintId} className='text-[var(--text-muted)] text-caption'>
+          {hint}
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -360,12 +377,13 @@ ChipModalField.displayName = 'ChipModalField'
 function renderChipModalControl(
   props: ChipModalFieldProps,
   id: string,
-  errorId: string
+  errorId: string,
+  hintId: string
 ): React.ReactNode {
   const aria = {
     'aria-required': props.required || undefined,
     'aria-invalid': Boolean(props.error) || undefined,
-    'aria-describedby': props.error ? errorId : undefined,
+    'aria-describedby': props.error ? errorId : props.hint ? hintId : undefined,
   } as const
 
   switch (props.type) {
@@ -396,7 +414,11 @@ function renderChipModalControl(
           rows={props.rows}
           disabled={props.disabled}
           style={props.minHeight ? { minHeight: props.minHeight } : undefined}
-          className={cn(CHIP_MODAL_TEXT_CHROME, 'resize-none py-2')}
+          className={cn(
+            CHIP_MODAL_TEXT_CHROME,
+            'py-2',
+            props.resizable ? 'resize-y' : 'resize-none'
+          )}
           {...aria}
         />
       )
@@ -410,6 +432,7 @@ function renderChipModalControl(
           align={props.align}
           disabled={props.disabled}
           fullWidth
+          {...aria}
         />
       )
     case 'emails':
@@ -535,22 +558,36 @@ function ChipModalEmailsControl({
   )
 }
 
+export interface ChipModalFooterProps extends React.HTMLAttributes<HTMLDivElement> {
+  /**
+   * Optional leading slot rendered on the left side of the footer — use for
+   * a destructive secondary action (e.g. a Delete button in an edit flow).
+   * When provided, the footer switches to `justify-between` automatically.
+   */
+  leading?: React.ReactNode
+}
+
 /**
- * Footer row. Renders the leading inset separator and a right-aligned
- * tinted action bar.
+ * Footer row. Renders the leading inset separator and a tinted action bar.
+ * Pass `leading` to left-dock a secondary action (e.g. Delete in edit mode);
+ * primary actions always go in `children` and are right-aligned.
  */
-const ChipModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
+const ChipModalFooter = React.forwardRef<HTMLDivElement, ChipModalFooterProps>(
+  ({ className, leading, children, ...props }, ref) => (
     <div className='flex flex-col'>
       <ChipModalSeparator />
       <div
         ref={ref}
         className={cn(
-          'flex items-center justify-end gap-2 bg-[var(--surface-3)] px-4 pt-2 pb-2',
+          'flex items-center gap-2 bg-[var(--surface-3)] px-4 pt-2 pb-2',
+          leading ? 'justify-between' : 'justify-end',
           className
         )}
         {...props}
-      />
+      >
+        {leading && <div>{leading}</div>}
+        <div className='flex gap-2'>{children}</div>
+      </div>
     </div>
   )
 )

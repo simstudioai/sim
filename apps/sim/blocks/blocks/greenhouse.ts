@@ -13,6 +13,7 @@ export const GreenhouseBlock: BlockConfig<GreenhouseResponse> = {
   category: 'tools',
   integrationType: IntegrationType.HR,
   bgColor: '#469776',
+  iconColor: '#469776',
   icon: GreenhouseIcon,
   authMode: AuthMode.ApiKey,
 

@@ -12,6 +12,7 @@ export const PolymarketBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   bgColor: '#4C82FB',
+  iconColor: '#4C82FB',
   icon: PolymarketIcon,
   subBlocks: [
     {

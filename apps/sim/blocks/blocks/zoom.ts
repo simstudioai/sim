@@ -16,6 +16,7 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#2D8CFF',
+  iconColor: '#2D8CFF',
   icon: ZoomIcon,
   triggers: {
     enabled: true,

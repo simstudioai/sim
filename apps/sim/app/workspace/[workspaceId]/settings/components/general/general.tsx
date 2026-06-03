@@ -256,16 +256,17 @@ export function General() {
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       {/* Fixed header bar */}
       <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-        <div />
+        <div className='flex items-center'>
+          {isHosted && (
+            <Chip onClick={() => window.open('/?home', '_blank', 'noopener,noreferrer')}>
+              Home Page
+            </Chip>
+          )}
+        </div>
         {!isAuthDisabled && (
           <div className='flex items-center gap-1'>
             <Chip onClick={handleSignOut}>Sign out</Chip>
             <Chip onClick={() => setShowResetPasswordModal(true)}>Reset password</Chip>
-            {isHosted && (
-              <Chip onClick={() => window.open('/?home', '_blank', 'noopener,noreferrer')}>
-                Home Page
-              </Chip>
-            )}
           </div>
         )}
       </div>

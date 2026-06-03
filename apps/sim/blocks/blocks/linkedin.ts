@@ -15,6 +15,7 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#0072B1',
+  iconColor: '#0072B1',
   icon: LinkedInIcon,
   subBlocks: [
     // Operation selection

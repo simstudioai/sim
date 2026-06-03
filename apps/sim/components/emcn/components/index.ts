@@ -157,6 +157,7 @@ export {
   SModalTabsTrigger,
   SModalTrigger,
 } from './s-modal/s-modal'
+export { SearchInput, type SearchInputProps } from './search-input/search-input'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'
 export { Skeleton } from './skeleton/skeleton'
@@ -189,8 +190,8 @@ export {
   type FloatingTooltipState,
   isFocusVisible,
   isTextClipped,
+  Tooltip,
   useFloatingTooltip,
   useIsOverflowing,
-} from './tooltip/floating-tooltip'
-export { Tooltip } from './tooltip/tooltip'
+} from './tooltip/tooltip'
 export { Wizard } from './wizard/wizard'

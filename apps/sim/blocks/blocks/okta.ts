@@ -13,6 +13,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: '#191919',
+  iconColor: '#007DC1',
   icon: OktaIcon,
 
   subBlocks: [

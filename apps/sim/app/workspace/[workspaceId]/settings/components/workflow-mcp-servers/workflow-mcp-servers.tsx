@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Check, Clipboard, Plus, Search, Server } from 'lucide-react'
+import { Check, Clipboard, Plus, Server } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -22,6 +22,7 @@ import {
   type ComboboxOption,
   Input as EmcnInput,
   Label,
+  SearchInput,
   SModalTabs,
   SModalTabsBody,
   SModalTabsContent,
@@ -30,7 +31,6 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
-import { Input } from '@/components/ui'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components'
@@ -409,7 +409,8 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
 
                     {tools.length === 0 ? (
                       <p className='text-[var(--text-muted)] text-sm'>
-                        No workflows added yet. Click "Add" to add a deployed workflow.
+                        No workflows added yet. Click &quot;Add Workflow&quot; to add a deployed
+                        workflow.
                       </p>
                     ) : (
                       <div className='flex flex-col gap-2'>
@@ -1026,18 +1027,11 @@ export function WorkflowMcpServers() {
 
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
           <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-              <Search
-                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <Input
-                placeholder='Search servers...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
+            <SearchInput
+              placeholder='Search servers...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
 
             <div className='min-h-0 flex-1'>
               {error ? (
@@ -1049,7 +1043,7 @@ export function WorkflowMcpServers() {
               ) : isLoading ? null : !hasServers ? (
                 <div className='flex h-full items-center justify-center'>
                   <p className='text-[var(--text-muted)] text-sm'>
-                    Click "Add" above to get started
+                    Click &quot;Add Server&quot; above to get started
                   </p>
                 </div>
               ) : (

@@ -14,6 +14,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Observability,
   bgColor: '#6C72C8',
+  iconColor: '#6C72C8',
   icon: RootlyIcon,
   subBlocks: [
     {

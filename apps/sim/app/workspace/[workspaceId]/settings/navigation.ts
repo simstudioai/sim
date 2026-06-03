@@ -25,7 +25,6 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 export type SettingsSection =
   | 'general'
   | 'secrets'
-  | 'template-profile'
   | 'credential-sets'
   | 'access-control'
   | 'audit-logs'
@@ -95,7 +94,6 @@ export const sectionConfig: { key: NavigationSection; title: string }[] = [
 
 export const allNavigationItems: NavigationItem[] = [
   { id: 'general', label: 'General', icon: Settings, section: 'account' },
-  // { id: 'template-profile', label: 'Template Profile', icon: User, section: 'account' },
   {
     id: 'access-control',
     label: 'Access Control',
@@ -133,7 +131,7 @@ export const allNavigationItems: NavigationItem[] = [
   { id: 'secrets', label: 'Secrets', icon: Key, section: 'account' },
   { id: 'custom-tools', label: 'Custom Tools', icon: Wrench, section: 'tools' },
   { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },
-  { id: 'apikeys', label: 'Sim Keys', icon: TerminalWindow, section: 'system' },
+  { id: 'apikeys', label: 'Sim API Keys', icon: TerminalWindow, section: 'system' },
   { id: 'workflow-mcp-servers', label: 'MCP Servers', icon: Server, section: 'system' },
   {
     id: 'byok',

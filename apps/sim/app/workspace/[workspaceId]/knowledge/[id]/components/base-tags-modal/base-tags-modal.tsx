@@ -461,7 +461,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
             onClick={confirmDeleteTag}
             disabled={deleteTagMutation.isPending}
           >
-            Delete Tag
+            {deleteTagMutation.isPending ? 'Deleting...' : 'Delete Tag'}
           </Chip>
         </ChipModalFooter>
       </ChipModal>

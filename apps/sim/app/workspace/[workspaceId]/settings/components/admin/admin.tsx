@@ -11,6 +11,7 @@ import {
   type ComboboxOptionGroup,
   Input as EmcnInput,
   Label,
+  SearchInput,
   Switch,
 } from '@/components/emcn'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
@@ -439,11 +440,12 @@ export function Admin() {
           <div className='flex flex-col gap-3'>
             <p className='font-medium text-[var(--text-primary)] text-sm'>User Management</p>
             <div className='flex gap-2'>
-              <EmcnInput
+              <SearchInput
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder='Search by email or paste a user ID...'
+                className='min-w-0 flex-1'
               />
               <Button variant='primary' onClick={handleSearch} disabled={usersLoading}>
                 {usersLoading ? 'Searching...' : 'Search'}

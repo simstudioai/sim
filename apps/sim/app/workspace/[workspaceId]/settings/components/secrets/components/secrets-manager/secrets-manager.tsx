@@ -4,10 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
-import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Button, Chip, Input as EmcnInput, Tooltip, Trash, toast } from '@/components/emcn'
-import { Input } from '@/components/ui'
+import {
+  Button,
+  Chip,
+  Input as EmcnInput,
+  SearchInput,
+  Tooltip,
+  Trash,
+  toast,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
   clearPendingCredentialCreateRequest,
@@ -984,24 +990,17 @@ export function SecretsManager() {
         >
           <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
             {/* Search */}
-            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-              <Search
-                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <Input
-                placeholder='Search secrets...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                name='env_search_field'
-                autoComplete='off'
-                autoCapitalize='off'
-                spellCheck='false'
-                readOnly
-                onFocus={(e) => e.target.removeAttribute('readOnly')}
-                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
+            <SearchInput
+              placeholder='Search secrets...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              name='env_search_field'
+              autoComplete='off'
+              autoCapitalize='off'
+              spellCheck='false'
+              readOnly
+              onFocus={(e) => e.target.removeAttribute('readOnly')}
+            />
 
             {/* Secrets grid */}
             {!isLoading && (

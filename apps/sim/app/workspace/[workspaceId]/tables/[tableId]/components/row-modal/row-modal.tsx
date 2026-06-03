@@ -188,7 +188,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
             Cancel
           </Chip>
           <Chip variant='destructive' flush onClick={handleDelete} disabled={isSubmitting}>
-            Delete
+            {isSubmitting ? 'Deleting...' : 'Delete'}
           </Chip>
         </ChipModalFooter>
       </ChipModal>

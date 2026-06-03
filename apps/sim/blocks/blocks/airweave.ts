@@ -14,6 +14,7 @@ export const AirweaveBlock: BlockConfig<AirweaveSearchResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Search,
   bgColor: '#6366F1',
+  iconColor: '#6366F1',
   icon: AirweaveIcon,
   subBlocks: [
     {
