@@ -679,6 +679,37 @@ function resolveCodeVariables(
  * This handles the common case where print() or console.log() adds a trailing \n
  * that users don't expect to see in the output
  */
+/**
+ * Heuristic: did the sandbox die from an infrastructure failure (OOM kill,
+ * timeout, lost connection) rather than a normal code error? Python/JS code
+ * exceptions surface via execution.error; an OOM kill instead makes runCode
+ * throw, often with an empty or cryptic message.
+ */
+function isLikelySandboxKill(error: any): boolean {
+  const msg = `${error?.name ?? ''} ${error?.message ?? ''} ${error?.code ?? ''}`
+    .toLowerCase()
+    .trim()
+  if (!msg) return true
+  return [
+    'out of memory',
+    'oom',
+    'killed',
+    'sigkill',
+    'code 137',
+    'signal 9',
+    'terminated',
+    'econnreset',
+    'epipe',
+    'socket hang up',
+    'connection closed',
+    'connection reset',
+    'websocket',
+    'timed out',
+    'timeout',
+    'deadline',
+  ].some((s) => msg.includes(s))
+}
+
 function cleanStdout(stdout: string): string {
   if (stdout.endsWith('\n')) {
     return stdout.slice(0, -1)
@@ -1831,6 +1862,24 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         },
         { status: error.statusCode }
       )
+    }
+
+    if (isLikelySandboxKill(error)) {
+      const underlying = (error?.message || String(error)).slice(0, 300)
+      logger.warn(`[${requestId}] Sandbox terminated before completion (likely OOM or timeout)`, {
+        executionTime,
+        underlying,
+      })
+      const killResponse = {
+        success: false,
+        error:
+          'The sandbox was terminated before finishing — most likely it ran out of memory or hit the time limit while processing large or combined inputs. Mount and process fewer/smaller files at once (e.g. one file at a time), or stream and aggregate incrementally instead of loading everything into memory. ' +
+          `(underlying: ${underlying || 'no detail; sandbox died'})`,
+        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+      }
+      return routeContext
+        ? functionJsonResponse(killResponse, routeContext, { status: 500 })
+        : NextResponse.json(killResponse, { status: 500 })
     }
 
     logger.error(`[${requestId}] Function execution failed`, {

@@ -94,16 +94,24 @@ async function resolveInputFiles(
       }
       const record = findWorkspaceFileRecord(allFiles, alias?.backingPath ?? filePath)
       if (!record) {
-        logger.warn('Input file not found', { fileRef })
-        continue
+        if (filePath.startsWith('uploads/')) {
+          throw new Error(
+            `Cannot mount "${filePath}": uploads/ files are not mountable into the sandbox. Use materialize_file to save it to a files/... path first, then mount that canonical path.`
+          )
+        }
+        throw new Error(
+          `Input file not found: "${filePath}". Pass the exact canonical VFS path copied from glob/read (e.g. "files/Reports/data.csv").`
+        )
       }
       if (record.size > MAX_FILE_SIZE) {
-        logger.warn('Input file exceeds size limit', { fileId: record.id, size: record.size })
-        continue
+        throw new Error(
+          `Input file "${filePath}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
+        )
       }
       if (totalSize + record.size > MAX_TOTAL_SIZE) {
-        logger.warn('Total input size limit reached')
-        break
+        throw new Error(
+          `Mounting "${filePath}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller files.`
+        )
       }
       const buffer = await fetchWorkspaceFileBuffer(record)
       totalSize += buffer.length
@@ -249,8 +257,9 @@ async function resolveInputFiles(
       if (!tableId) continue
       const table = await resolveTableRef(tableId, tablePathLookup)
       if (!table || table.workspaceId !== workspaceId) {
-        logger.warn('Input table not found', { tableId })
-        continue
+        throw new Error(
+          `Input table not found: "${tableId}". Pass the table id (tbl_...) from tables/{name}/meta.json, or a tables/{name}/meta.json path.`
+        )
       }
       const rows = await queryRows(table, {}, 'copilot-fn-exec')
 

@@ -921,7 +921,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   sandboxPath: {
                     type: 'string',
                     description:
-                      'Optional full sandbox path override. Omit to mount at /home/user/{path}.',
+                      'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
                   },
                 },
                 required: ['path'],
@@ -1078,7 +1078,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   sandboxPath: {
                     type: 'string',
                     description:
-                      'Optional full sandbox path override. Omit to mount at /home/user/{path}.',
+                      'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
                   },
                 },
                 required: ['path'],
