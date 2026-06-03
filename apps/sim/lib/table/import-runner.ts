@@ -1,4 +1,4 @@
-import { Readable } from 'node:stream'
+import { Transform } from 'node:stream'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -26,7 +26,7 @@ import {
   setTableSchemaForImport,
   updateImportProgress,
 } from '@/lib/table/service'
-import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
 import { normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportRunner')
@@ -70,38 +70,31 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     if (!loaded) throw new Error(`Import target table ${tableId} not found`)
     const table = loaded
 
-    const buffer = await downloadFile({ key: fileKey, context: 'workspace' })
+    // Total byte size for the progress estimate — a cheap HEAD, no download. May be null on
+    // the local dev provider, in which case the bar stays indeterminate (rows still show).
+    const totalBytes = (await headObject(fileKey, 'workspace'))?.size ?? 0
 
-    // Delete only after the download succeeds — otherwise a failed download would wipe the
-    // table with nothing to replace it with.
+    // Stream the file rather than buffering it — a ~1M-row import must never be held in memory.
+    const source = await downloadFileStream({ key: fileKey, context: 'workspace' })
+
+    // Delete only after the stream opens (a missing object rejects above) — otherwise a failed
+    // download would wipe the table with nothing to replace it with.
     if (mode === 'replace') await deleteAllTableRows(tableId)
 
-    // Estimate total data rows by counting line breaks (minus the header) for a
-    // determinate progress bar. It's an estimate — quoted newlines and blank lines
-    // make it imprecise — so the client caps the bar below 100% until the terminal
-    // `ready` event lands. Cheap: one O(bytes) pass over the already-buffered file.
-    let newlineCount = 0
-    for (let i = 0; i < buffer.length; i++) {
-      if (buffer[i] === 0x0a) newlineCount++
-    }
-    const estimatedTotal = Math.max(0, newlineCount - 1)
-
-    // Publish the estimated total up front so the client shows a determinate bar at 0%
-    // immediately, instead of "0 rows and counting" until the first batch lands.
-    void appendTableEvent({
-      kind: 'import',
-      tableId,
-      importId,
-      status: 'importing',
-      progress: 0,
-      total: estimatedTotal,
+    // Count bytes as they flow so the row total can be extrapolated from byte progress.
+    let bytesRead = 0
+    const byteCounter = new Transform({
+      transform(chunk: Buffer, _enc, cb) {
+        bytesRead += chunk.length
+        cb(null, chunk)
+      },
     })
 
     const parser = createCsvParser(delimiter)
     // `.pipe` doesn't forward source errors; forward so the iterator throws.
-    const source = Readable.from(buffer)
     source.on('error', (err) => parser.destroy(err))
-    source.pipe(parser)
+    byteCounter.on('error', (err) => parser.destroy(err))
+    source.pipe(byteCounter).pipe(parser)
 
     let schema: TableSchema | null = null
     let headerToColumn: Map<string, string> | null = null
@@ -173,9 +166,19 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         { ...table, schema },
         requestId
       )
-      if (inserted - lastReported >= PROGRESS_INTERVAL_ROWS) {
+      // Emit after the first batch lands, then every interval, so the bar appears early.
+      if (
+        inserted - lastReported >= PROGRESS_INTERVAL_ROWS ||
+        (lastReported === 0 && inserted > 0)
+      ) {
         lastReported = inserted
         await updateImportProgress(tableId, inserted)
+        // Extrapolate the total from rows-per-byte observed so far; self-refines as it runs.
+        // `Math.max(inserted, …)` keeps it monotonic; omit when the byte size is unknown.
+        const estimatedTotal =
+          totalBytes > 0 && bytesRead > 0
+            ? Math.max(inserted, Math.round((inserted / bytesRead) * totalBytes))
+            : undefined
         void appendTableEvent({
           kind: 'import',
           tableId,
