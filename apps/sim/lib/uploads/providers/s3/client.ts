@@ -399,7 +399,10 @@ export async function getS3MultipartPartUrls(
  * keys containing spaces or reserved characters still yield a valid URL.
  */
 function buildObjectFallbackUrl(bucket: string, region: string, key: string): string {
-  const encodedKey = key.split('/').map(encodeURIComponent).join('/')
+  const encodedKey = key
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/')
   if (S3_CONFIG.endpoint) {
     const base = S3_CONFIG.endpoint.replace(/\/+$/, '')
     if (S3_CONFIG.forcePathStyle) {
