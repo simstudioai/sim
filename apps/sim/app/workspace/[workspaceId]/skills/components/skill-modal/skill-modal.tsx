@@ -144,6 +144,7 @@ export function SkillModal({
   )
 
   const isEditing = !!initialValues
+  const readOnly = !!initialValues?.readOnly
   const showFooter = activeTab === 'create' || isEditing
 
   return (
@@ -249,7 +250,12 @@ export function SkillModal({
       {showFooter && (
         <ChipModalFooter className={isEditing && onDelete ? 'justify-between' : undefined}>
           {isEditing && onDelete && (
-            <Chip variant='destructive' flush onClick={() => onDelete(initialValues.id)}>
+            <Chip
+              variant='destructive'
+              flush
+              onClick={() => onDelete(initialValues.id)}
+              disabled={readOnly}
+            >
               Delete
             </Chip>
           )}
@@ -257,7 +263,12 @@ export function SkillModal({
             <Chip variant='filled' flush onClick={() => onOpenChange(false)}>
               Cancel
             </Chip>
-            <Chip variant='primary' flush onClick={handleSave} disabled={saving || !hasChanges}>
+            <Chip
+              variant='primary'
+              flush
+              onClick={handleSave}
+              disabled={readOnly || saving || !hasChanges}
+            >
               {saving ? 'Saving...' : isEditing ? 'Update' : 'Create'}
             </Chip>
           </div>

@@ -4,25 +4,60 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { and, desc, eq, ne } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  type BuiltinSkill,
+  BUILTIN_SKILLS,
+  getBuiltinSkillById,
+  isBuiltinSkillId,
+} from '@/lib/workflows/skills/builtin-skills'
 
 const logger = createLogger('SkillsOperations')
 
+/** Stable epoch timestamp for built-in (template) skills, which have no DB row. */
+const BUILTIN_SKILL_TIMESTAMP = new Date(0)
+
+/** Shape a built-in skill as a `skill` table row so it can ride alongside DB skills. */
+function builtinSkillRow(workspaceId: string, builtin: BuiltinSkill): typeof skill.$inferSelect {
+  return {
+    id: builtin.id,
+    workspaceId,
+    userId: null,
+    name: builtin.name,
+    description: builtin.description,
+    content: builtin.content,
+    createdAt: BUILTIN_SKILL_TIMESTAMP,
+    updatedAt: BUILTIN_SKILL_TIMESTAMP,
+  }
+}
+
 /**
- * List all skills for a workspace, ordered by createdAt desc.
+ * List all skills for a workspace, ordered by createdAt desc. Built-in template
+ * skills are prepended (they live in code, not the DB) so they appear wherever
+ * real skills do. A workspace skill that shares a built-in's name overrides it.
  */
 export async function listSkills(params: { workspaceId: string }) {
-  return db
+  const dbRows = await db
     .select()
     .from(skill)
     .where(eq(skill.workspaceId, params.workspaceId))
     .orderBy(desc(skill.createdAt))
+
+  const dbNames = new Set(dbRows.map((r) => r.name.toLowerCase()))
+  const builtins = BUILTIN_SKILLS.filter((b) => !dbNames.has(b.name.toLowerCase())).map((b) =>
+    builtinSkillRow(params.workspaceId, b)
+  )
+  return [...builtins, ...dbRows]
 }
 
 /**
- * Fetch a single skill by id, scoped to a workspace. Returns null when the
- * skill does not exist or belongs to a different workspace.
+ * Fetch a single skill by id, scoped to a workspace. Built-in template skills
+ * resolve from code; otherwise returns the DB row, or null when the skill does
+ * not exist or belongs to a different workspace.
  */
 export async function getSkillById(params: { skillId: string; workspaceId: string }) {
+  const builtin = getBuiltinSkillById(params.skillId)
+  if (builtin) return builtinSkillRow(params.workspaceId, builtin)
+
   const rows = await db
     .select()
     .from(skill)
@@ -39,6 +74,9 @@ export async function deleteSkill(params: {
   skillId: string
   workspaceId: string
 }): Promise<boolean> {
+  // Built-in template skills have no DB row and cannot be deleted.
+  if (isBuiltinSkillId(params.skillId)) return false
+
   const existing = await db
     .select({ id: skill.id })
     .from(skill)
@@ -71,6 +109,11 @@ export async function upsertSkills(params: {
   requestId?: string
 }) {
   const { skills, workspaceId, userId, requestId = generateRequestId() } = params
+
+  // Built-in template skills are read-only and must never be written to the DB.
+  if (skills.some((s) => s.id && isBuiltinSkillId(s.id))) {
+    throw new Error('Built-in skills are read-only and cannot be modified')
+  }
 
   return await db.transaction(async (tx) => {
     for (const s of skills) {

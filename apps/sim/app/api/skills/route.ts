@@ -11,6 +11,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
 import { deleteSkill, listSkills, upsertSkills } from '@/lib/workflows/skills/operations'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -47,8 +48,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const result = await listSkills({ workspaceId })
+    const data = result.map((s) => ({ ...s, readOnly: isBuiltinSkillId(s.id) }))
 
-    return NextResponse.json({ data: result }, { status: 200 })
+    return NextResponse.json({ data }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching skills:`, error)
     return NextResponse.json({ error: 'Failed to fetch skills' }, { status: 500 })
