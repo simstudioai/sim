@@ -27,7 +27,7 @@ import {
   setTableSchemaForImport,
   updateImportProgress,
 } from '@/lib/table/service'
-import { downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
+import { deleteFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
 import { normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportRunner')
@@ -251,5 +251,11 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     logger.error(`[${requestId}] Import failed for table ${tableId}:`, err)
     await markImportFailed(tableId, message).catch(() => {})
     void appendTableEvent({ kind: 'import', tableId, importId, status: 'failed', error: message })
+  } finally {
+    // The uploaded source file is single-use (a fresh upload per import) — delete it once the
+    // import is terminal so the workspace bucket doesn't accumulate. Best-effort.
+    await deleteFile({ key: fileKey, context: 'workspace' }).catch((err) => {
+      logger.warn(`[${requestId}] Failed to delete imported file`, { fileKey, err })
+    })
   }
 }
