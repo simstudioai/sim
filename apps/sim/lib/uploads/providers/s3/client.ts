@@ -54,6 +54,8 @@ export function getS3Client(): S3Client {
 
   _s3Client = new S3Client({
     region,
+    endpoint: S3_CONFIG.endpoint,
+    forcePathStyle: S3_CONFIG.forcePathStyle,
     credentials:
       env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
         ? {
@@ -387,6 +389,19 @@ export async function getS3MultipartPartUrls(
 }
 
 /**
+ * Build a fallback object URL for when the SDK omits `Location` on multipart
+ * completion. Honors a custom `S3_CONFIG.endpoint` (R2/MinIO) with path-style
+ * addressing; otherwise falls back to the AWS virtual-hosted-style host.
+ */
+function buildObjectFallbackUrl(bucket: string, region: string, key: string): string {
+  if (S3_CONFIG.endpoint) {
+    const base = S3_CONFIG.endpoint.replace(/\/+$/, '')
+    return `${base}/${bucket}/${key}`
+  }
+  return `https://${bucket}.s3.${region}.amazonaws.com/${key}`
+}
+
+/**
  * Complete multipart upload for S3
  */
 export async function completeS3MultipartUpload(
@@ -408,8 +423,7 @@ export async function completeS3MultipartUpload(
   })
 
   const response = await s3Client.send(command)
-  const location =
-    response.Location || `https://${config.bucket}.s3.${config.region}.amazonaws.com/${key}`
+  const location = response.Location || buildObjectFallbackUrl(config.bucket, config.region, key)
   const path = `/api/files/serve/${encodeURIComponent(key)}`
 
   return {
