@@ -12,7 +12,6 @@
 import { createLogger } from '@sim/logger'
 import { isExecCancelled } from '@/lib/table/deps'
 import { appendTableEvent } from '@/lib/table/events'
-import { retryTransient } from '@/lib/table/retry-transient'
 import type { RowData, RowExecutionMetadata, RowExecutions, WorkflowGroup } from '@/lib/table/types'
 
 const logger = createLogger('WorkflowCellWrite')
@@ -47,14 +46,12 @@ export async function writeWorkflowGroupState(
   const requestId = ctx.requestId ?? `wfgrp-${executionId}`
   const { getTableById, getRowById, updateRow } = await import('@/lib/table/service')
 
-  const table = await retryTransient('cell-write getTableById', () => getTableById(tableId))
+  const table = await getTableById(tableId)
   if (!table) {
     logger.warn(`Table ${tableId} vanished before group state write`)
     return 'wrote'
   }
-  const row = await retryTransient('cell-write getRowById', () =>
-    getRowById(tableId, rowId, workspaceId)
-  )
+  const row = await getRowById(tableId, rowId, workspaceId)
   if (!row) {
     logger.warn(`Row ${rowId} vanished before group state write`)
     return 'wrote'
@@ -102,22 +99,17 @@ export async function writeWorkflowGroupState(
   // task writes (running/completed/error) get the SQL guard so an in-flight
   // partial can't clobber a stop click or a newer run that already committed.
   const cancellationGuard = bypassStaleWorker ? undefined : { groupId, executionId }
-  // The executionId/cancellation guard makes this write idempotent — a retry
-  // after a dropped connection re-applies the same terminal state, so retrying
-  // is safe and is what stops a transient blip from stranding the cell.
-  const result = await retryTransient('cell-write updateRow', () =>
-    updateRow(
-      {
-        tableId,
-        rowId,
-        data: payload.dataPatch ?? {},
-        workspaceId,
-        executionsPatch: { [groupId]: payload.executionState },
-        cancellationGuard,
-      },
-      table,
-      requestId
-    )
+  const result = await updateRow(
+    {
+      tableId,
+      rowId,
+      data: payload.dataPatch ?? {},
+      workspaceId,
+      executionsPatch: { [groupId]: payload.executionState },
+      cancellationGuard,
+    },
+    table,
+    requestId
   )
   if (result === null) {
     logger.info(

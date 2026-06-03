@@ -40,11 +40,6 @@ export async function withCascadeLock<T>(
   fn: () => Promise<T>
 ): Promise<{ status: 'acquired'; result: T } | { status: 'contended' }> {
   const key = cascadeLockKey(tableId, rowId)
-  // NOT wrapped in retryTransient: acquireLock is a non-idempotent `SET NX`, so
-  // a retry after a timed-out-but-applied first SET would see the key already
-  // present and return false — a false `contended` that skips the cascade. A
-  // transient Redis blip here just fails the run before pickup (no stranded
-  // cell); the dispatcher/re-drive recovers it.
   const acquired = await acquireLock(key, ownerId, LOCK_TTL_SECONDS)
   if (!acquired) return { status: 'contended' }
 
