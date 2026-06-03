@@ -19,6 +19,7 @@ import {
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
+  chipVariants,
   Input,
   Loader,
   Tooltip,
@@ -932,15 +933,13 @@ export function KnowledgeBase({
           const def = CONNECTOR_REGISTRY[connector.connectorType]
           const ConnectorIcon = def?.icon
           return (
-            <Button
+            <button
               key={connector.id}
               type='button'
-              variant='ghost'
-              size='sm'
               onClick={() => setShowConnectorsModal(true)}
-              className='h-7 max-w-[180px] shrink-0 justify-start gap-1.5 rounded-lg border border-[var(--border-muted)] bg-[var(--surface-2)] px-2 text-[var(--text-secondary)] text-caption hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
+              className={cn(chipVariants({ variant: 'filled', flush: true }), 'max-w-[180px]')}
             >
-              <span className='relative flex size-4 flex-shrink-0 items-center justify-center'>
+              <span className='relative flex size-[14px] flex-shrink-0 items-center justify-center'>
                 {connector.status === 'syncing' ? (
                   <Loader className='size-[14px]' animate />
                 ) : (
@@ -959,8 +958,10 @@ export function KnowledgeBase({
                   />
                 )}
               </span>
-              <span className='truncate'>{def?.name || connector.connectorType}</span>
-            </Button>
+              <span className='truncate text-[var(--text-body)]'>
+                {def?.name || connector.connectorType}
+              </span>
+            </button>
           )
         })}
       </>
