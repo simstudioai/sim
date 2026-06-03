@@ -2,8 +2,13 @@ import { existsSync } from 'fs'
 import { mkdir } from 'fs/promises'
 import path, { join } from 'path'
 import { createLogger } from '@sim/logger'
-import { env, isTruthy } from '@/lib/core/config/env'
-import { getStorageProvider, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
+import { env } from '@/lib/core/config/env'
+import {
+  getStorageProvider,
+  S3_CONFIG,
+  USE_BLOB_STORAGE,
+  USE_S3_STORAGE,
+} from '@/lib/uploads/config'
 
 const logger = createLogger('UploadsSetup')
 
@@ -82,7 +87,7 @@ if (typeof process !== 'undefined') {
 
     if (env.S3_ENDPOINT) {
       logger.info(
-        `Using S3-compatible endpoint: ${env.S3_ENDPOINT} (path-style: ${isTruthy(env.S3_FORCE_PATH_STYLE)})`
+        `Using S3-compatible endpoint: ${env.S3_ENDPOINT} (path-style: ${S3_CONFIG.forcePathStyle})`
       )
     }
   } else {

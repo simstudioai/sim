@@ -390,13 +390,20 @@ export async function getS3MultipartPartUrls(
 
 /**
  * Build a fallback object URL for when the SDK omits `Location` on multipart
- * completion. Honors a custom `S3_CONFIG.endpoint` (R2/MinIO) with path-style
- * addressing; otherwise falls back to the AWS virtual-hosted-style host.
+ * completion. For a custom `S3_CONFIG.endpoint` it matches the configured
+ * addressing mode — path-style for MinIO/Ceph (`forcePathStyle`), virtual-hosted
+ * (bucket as a subdomain) for R2 and friends. Falls back to the AWS
+ * virtual-hosted host when no custom endpoint is set.
  */
 function buildObjectFallbackUrl(bucket: string, region: string, key: string): string {
   if (S3_CONFIG.endpoint) {
     const base = S3_CONFIG.endpoint.replace(/\/+$/, '')
-    return `${base}/${bucket}/${key}`
+    if (S3_CONFIG.forcePathStyle) {
+      return `${base}/${bucket}/${key}`
+    }
+    const url = new URL(base)
+    url.hostname = `${bucket}.${url.hostname}`
+    return `${url.origin}/${key}`
   }
   return `https://${bucket}.s3.${region}.amazonaws.com/${key}`
 }
