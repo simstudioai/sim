@@ -9,8 +9,10 @@ export {
 } from './command-items'
 export {
   BlocksGroup,
+  ConnectedAccountsGroup,
   DocsGroup,
   FilesGroup,
+  IntegrationsGroup,
   KnowledgeBasesGroup,
   PagesGroup,
   TablesGroup,

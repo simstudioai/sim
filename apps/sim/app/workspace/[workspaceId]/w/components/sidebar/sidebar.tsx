@@ -58,6 +58,10 @@ import {
   WorkflowList,
   WorkspaceHeader,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
+import {
+  buildConnectedAccountSearchItems,
+  buildIntegrationSearchItems,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/integration-search-items'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
@@ -81,6 +85,7 @@ import {
   groupWorkflowsByFolder,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -1010,6 +1015,26 @@ export const Sidebar = memo(function Sidebar() {
   }, [])
 
   const isOnSettingsPage = pathname?.startsWith(`/workspace/${workspaceId}/settings`) ?? false
+  const isOnIntegrationsPage =
+    pathname?.startsWith(`/workspace/${workspaceId}/integrations`) ?? false
+
+  const { data: fetchedCredentials = [] } = useWorkspaceCredentials({
+    workspaceId,
+    enabled: isOnIntegrationsPage && !permissionConfig.hideIntegrationsTab,
+  })
+
+  const searchModalIntegrations = useMemo(
+    () => (permissionConfig.hideIntegrationsTab ? [] : buildIntegrationSearchItems(workspaceId)),
+    [workspaceId, permissionConfig.hideIntegrationsTab]
+  )
+
+  const searchModalConnectedAccounts = useMemo(
+    () =>
+      permissionConfig.hideIntegrationsTab
+        ? []
+        : buildConnectedAccountSearchItems(fetchedCredentials, workspaceId),
+    [fetchedCredentials, workspaceId, permissionConfig.hideIntegrationsTab]
+  )
 
   const isLoading = workflowsLoading || sessionLoading
   const initialScrollDoneRef = useRef(false)
@@ -1746,7 +1771,10 @@ export const Sidebar = memo(function Sidebar() {
         tables={searchModalTables}
         files={searchModalFiles}
         knowledgeBases={searchModalKnowledgeBases}
+        integrations={searchModalIntegrations}
+        connectedAccounts={searchModalConnectedAccounts}
         isOnWorkflowPage={!!workflowId}
+        isOnIntegrationsPage={isOnIntegrationsPage}
       />
 
       <HelpModal
