@@ -13,7 +13,9 @@ import {
   generateBatchPresignedUploadUrls,
   hasCloudStorage,
 } from '@/lib/uploads/core/storage-service'
+import { recordKnowledgeBaseFileOwnershipMany } from '@/lib/uploads/server/metadata'
 import { validateFileType } from '@/lib/uploads/utils/validation'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { createErrorResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('BatchPresignedUploadAPI')
@@ -60,6 +62,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const uploadType = uploadTypeResult.data as StorageContext
 
+    const sessionUserId = session.user.id
+
+    let knowledgeBaseWorkspaceId: string | null = null
     if (uploadType === 'knowledge-base') {
       for (const file of files) {
         const fileValidationError = validateFileType(file.fileName, file.contentType)
@@ -74,9 +79,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
       }
-    }
 
-    const sessionUserId = session.user.id
+      knowledgeBaseWorkspaceId = request.nextUrl.searchParams.get('workspaceId')
+      if (!knowledgeBaseWorkspaceId?.trim()) {
+        return NextResponse.json(
+          { error: 'workspaceId query parameter is required for knowledge-base uploads' },
+          { status: 400 }
+        )
+      }
+
+      const permission = await getUserEntityPermissions(
+        sessionUserId,
+        'workspace',
+        knowledgeBaseWorkspaceId
+      )
+      if (permission !== 'write' && permission !== 'admin') {
+        return NextResponse.json(
+          { error: 'Write or Admin access required for knowledge-base uploads' },
+          { status: 403 }
+        )
+      }
+    }
 
     if (uploadType === 'copilot' && !sessionUserId?.trim()) {
       return NextResponse.json(
@@ -125,6 +148,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     logger.info(
       `Generated ${files.length} presigned URLs in ${duration}ms (avg ${Math.round(duration / files.length)}ms per file)`
     )
+
+    if (uploadType === 'knowledge-base' && knowledgeBaseWorkspaceId) {
+      const ownerWorkspaceId = knowledgeBaseWorkspaceId
+      await recordKnowledgeBaseFileOwnershipMany(
+        presignedUrls.map((urlResponse, index) => ({
+          key: urlResponse.key,
+          userId: sessionUserId,
+          workspaceId: ownerWorkspaceId,
+          originalName: files[index].fileName,
+          contentType: files[index].contentType,
+          size: files[index].fileSize,
+        }))
+      )
+    }
 
     const storagePrefix = USE_BLOB_STORAGE ? 'blob' : 's3'
 

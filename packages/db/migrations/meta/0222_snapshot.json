@@ -1,5 +1,5 @@
 {
-  "id": "a78822a0-bc75-4ea5-885a-302dd6e23416",
+  "id": "144f86f6-fb28-4f26-b87e-e8edc7fa7374",
   "prevId": "3660eb7f-6a5c-4409-abc0-cc9a404cfdf6",
   "version": "7",
   "dialect": "postgresql",
@@ -4710,6 +4710,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "storage_key": {
+          "name": "storage_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "file_size": {
           "name": "file_size",
           "type": "integer",
@@ -5013,6 +5019,22 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "doc_storage_key_idx": {
+          "name": "doc_storage_key_idx",
+          "columns": [
+            {
+              "expression": "storage_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"document\".\"storage_key\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -12740,37 +12762,6 @@
         },
         "archived_at": {
           "name": "archived_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "import_status": {
-          "name": "import_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "import_id": {
-          "name": "import_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "import_error": {
-          "name": "import_error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "import_rows_processed": {
-          "name": "import_rows_processed",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "import_started_at": {
-          "name": "import_started_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false

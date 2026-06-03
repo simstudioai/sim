@@ -990,7 +990,7 @@ export async function executeDeleteWorkflow(
         const { workflow: workflowRecord } = await ensureWorkflowAccess(
           workflowId,
           context.userId,
-          'admin'
+          'write'
         )
         assertWorkflowMutationNotAborted(context)
 
@@ -1025,7 +1025,7 @@ export async function executeDeleteFolder(
     }
 
     const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'admin')
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
     const folders = await listFolders(workspaceId)
     const deleted: string[] = []

@@ -1607,6 +1607,10 @@ export const document = pgTable(
     // File information
     filename: text('filename').notNull(),
     fileUrl: text('file_url').notNull(),
+    // Canonical storage key derived from fileUrl at write time (e.g. 'kb/<...>'),
+    // or null for external/data: ingestion URLs. KB file authorization matches on
+    // this exact key rather than re-parsing the URL at read time.
+    storageKey: text('storage_key'),
     fileSize: integer('file_size').notNull(), // Size in bytes
     mimeType: text('mime_type').notNull(), // e.g., 'application/pdf', 'text/plain'
 
@@ -1677,6 +1681,10 @@ export const document = pgTable(
       .where(sql`${table.deletedAt} IS NULL`),
     // Sync engine: load all active docs for a connector
     connectorIdIdx: index('doc_connector_id_idx').on(table.connectorId),
+    // KB file-access liveness: exact lookup by canonical storage key
+    storageKeyIdx: index('doc_storage_key_idx')
+      .on(table.storageKey)
+      .where(sql`${table.storageKey} IS NOT NULL`),
     archivedAtPartialIdx: index('doc_archived_at_partial_idx')
       .on(table.archivedAt)
       .where(sql`${table.archivedAt} IS NOT NULL`),
@@ -3414,77 +3422,6 @@ export const tableRunDispatches = pgTable(
     watchdogIdx: index('table_run_dispatches_watchdog_idx').on(table.status, table.requestedAt),
   })
 )
-
-export const oauthApplication = pgTable(
-  'oauth_application',
-  {
-    id: text('id').primaryKey(),
-    name: text('name').notNull(),
-    icon: text('icon'),
-    metadata: text('metadata'),
-    clientId: text('client_id').notNull().unique(),
-    clientSecret: text('client_secret'),
-    redirectURLs: text('redirect_urls').notNull(),
-    type: text('type').notNull(),
-    disabled: boolean('disabled').default(false),
-    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
-  },
-  (table) => ({
-    clientIdIdx: index('oauth_application_client_id_idx').on(table.clientId),
-  })
-)
-
-export const oauthAccessToken = pgTable(
-  'oauth_access_token',
-  {
-    id: text('id').primaryKey(),
-    accessToken: text('access_token').notNull().unique(),
-    refreshToken: text('refresh_token').notNull().unique(),
-    accessTokenExpiresAt: timestamp('access_token_expires_at').notNull(),
-    refreshTokenExpiresAt: timestamp('refresh_token_expires_at').notNull(),
-    clientId: text('client_id')
-      .notNull()
-      .references(() => oauthApplication.clientId, { onDelete: 'cascade' }),
-    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
-    scopes: text('scopes').notNull(),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
-  },
-  (table) => ({
-    accessTokenIdx: index('oauth_access_token_access_token_idx').on(table.accessToken),
-    refreshTokenIdx: index('oauth_access_token_refresh_token_idx').on(table.refreshToken),
-  })
-)
-
-export const oauthConsent = pgTable(
-  'oauth_consent',
-  {
-    id: text('id').primaryKey(),
-    clientId: text('client_id')
-      .notNull()
-      .references(() => oauthApplication.clientId, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    scopes: text('scopes').notNull(),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
-    consentGiven: boolean('consent_given').notNull(),
-  },
-  (table) => ({
-    userClientIdx: index('oauth_consent_user_client_idx').on(table.userId, table.clientId),
-  })
-)
-
-export const jwks = pgTable('jwks', {
-  id: text('id').primaryKey(),
-  publicKey: text('public_key').notNull(),
-  privateKey: text('private_key').notNull(),
-  createdAt: timestamp('created_at').notNull(),
-  expiresAt: timestamp('expires_at'),
-})
 
 export const mothershipInboxAllowedSender = pgTable(
   'mothership_inbox_allowed_sender',

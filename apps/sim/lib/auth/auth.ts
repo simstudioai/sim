@@ -17,8 +17,6 @@ import {
   customSession,
   emailOTP,
   genericOAuth,
-  jwt,
-  oidcProvider,
   oneTimeToken,
   organization,
 } from 'better-auth/plugins'
@@ -32,12 +30,6 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
-import {
-  evictCachedMetadata,
-  isMetadataUrl,
-  resolveClientMetadata,
-  upsertCimdClient,
-} from '@/lib/auth/cimd'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import {
@@ -197,8 +189,6 @@ export const auth = betterAuth({
     getBaseUrl(),
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
     ...additionalTrustedOrigins,
-    'https://claude.ai',
-    'https://claude.com',
   ].filter(Boolean),
   database: drizzleAdapter(db, {
     provider: 'pg',
@@ -854,25 +844,19 @@ export const auth = betterAuth({
         }
       }
 
-      if (ctx.path === '/oauth2/authorize' || ctx.path === '/oauth2/token') {
-        const clientId = (ctx.query?.client_id ?? ctx.body?.client_id) as string | undefined
-        if (clientId && isMetadataUrl(clientId)) {
-          try {
-            const { metadata, fromCache } = await resolveClientMetadata(clientId)
-            if (!fromCache) {
-              try {
-                await upsertCimdClient(metadata)
-              } catch (upsertErr) {
-                evictCachedMetadata(clientId)
-                throw upsertErr
-              }
-            }
-          } catch (err) {
-            logger.warn('CIMD resolution failed', {
-              clientId,
-              error: toError(err).message,
-            })
-          }
+      if (ctx.path === '/sign-up/email' && ctx.body?.email) {
+        const signupEmail = ctx.body.email.toLowerCase()
+        const [existingUser] = await db
+          .select({ id: schema.user.id })
+          .from(schema.user)
+          .where(eq(schema.user.email, signupEmail))
+          .limit(1)
+
+        if (existingUser) {
+          throw new APIError('UNPROCESSABLE_ENTITY', {
+            message: 'User already exists',
+            code: 'USER_ALREADY_EXISTS',
+          })
         }
       }
 
@@ -891,24 +875,6 @@ export const auth = betterAuth({
         ]
       : []),
     admin(),
-    jwt({
-      jwks: {
-        keyPairConfig: { alg: 'RS256' },
-      },
-      disableSettingJwtHeader: true,
-    }),
-    oidcProvider({
-      loginPage: '/login',
-      consentPage: '/oauth/consent',
-      requirePKCE: true,
-      allowPlainCodeChallengeMethod: false,
-      allowDynamicClientRegistration: true,
-      useJWTPlugin: true,
-      scopes: ['openid', 'profile', 'email', 'offline_access', 'mcp:tools'],
-      metadata: {
-        client_id_metadata_document_supported: true,
-      } as Record<string, unknown>,
-    }),
     oneTimeToken({
       expiresIn: 24 * 60, // 24 hours in minutes (better-auth's expiresIn unit)
     }),

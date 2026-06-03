@@ -1,9 +1,16 @@
 import { db } from '@sim/db'
-import { document, knowledgeBase, knowledgeConnector, permissions, workspace } from '@sim/db/schema'
+import {
+  document,
+  knowledgeBase,
+  knowledgeConnector,
+  permissions,
+  workspace,
+  workspaceFiles,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, count, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, count, eq, exists, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type {
   ChunkingConfig,
@@ -333,6 +340,44 @@ export async function updateKnowledgeBase(
         .update(knowledgeBase)
         .set(updateData)
         .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+
+      // When a KB changes workspace, re-point the ownership bindings for its
+      // stored files so file authorization (which resolves the owning workspace
+      // from the trusted binding, not from document.fileUrl) follows the KB to
+      // its new workspace. Only bindings the KB's *current* workspace already
+      // owns are moved: this scopes the update to this KB's own files and
+      // prevents a document referencing another tenant's key (e.g. one planted
+      // while the KB had no workspace) from hijacking that key's binding on
+      // move. A null current workspace owns no bindings, so nothing is moved.
+      if (updates.workspaceId !== undefined) {
+        const currentWorkspaceId = currentKb.workspaceId ?? null
+        const targetWorkspaceId = updates.workspaceId ?? null
+
+        if (currentWorkspaceId && targetWorkspaceId !== currentWorkspaceId) {
+          await tx
+            .update(workspaceFiles)
+            .set({ workspaceId: targetWorkspaceId })
+            .where(
+              and(
+                eq(workspaceFiles.context, 'knowledge-base'),
+                eq(workspaceFiles.workspaceId, currentWorkspaceId),
+                isNull(workspaceFiles.deletedAt),
+                exists(
+                  tx
+                    .select({ one: sql`1` })
+                    .from(document)
+                    .where(
+                      and(
+                        eq(document.knowledgeBaseId, knowledgeBaseId),
+                        isNotNull(document.storageKey),
+                        eq(document.storageKey, workspaceFiles.key)
+                      )
+                    )
+                )
+              )
+            )
+        }
+      }
     })
   } catch (error: unknown) {
     if (getPostgresErrorCode(error) === '23505' && updates.name !== undefined) {

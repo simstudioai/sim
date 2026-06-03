@@ -517,6 +517,24 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           </>
         )}
 
+        {/* AI-generated content disclaimer (integration-specific) */}
+        {landingContent?.aiDisclaimer && (
+          <>
+            <section aria-labelledby='ai-disclaimer-heading' className='px-6 py-10'>
+              <h2
+                id='ai-disclaimer-heading'
+                className='mb-4 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+              >
+                AI-generated content
+              </h2>
+              <p className='max-w-[700px] text-[15px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
+                {landingContent.aiDisclaimer}
+              </p>
+            </section>
+            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+          </>
+        )}
+
         {/* How to automate */}
         <section aria-labelledby='how-it-works-heading' className='px-6 py-10'>
           <h2

@@ -592,6 +592,104 @@ describe('hasWorkflowChanged', () => {
     })
   })
 
+  describe('Block-based tool params (synthetic projection)', () => {
+    const knowledgeTool = (kbId: string) => ({
+      type: 'knowledge',
+      toolId: 'knowledge_search',
+      operation: 'search',
+      params: { knowledgeBaseSelector: kbId },
+      usageControl: 'auto',
+    })
+
+    it.concurrent('ignores synthetic tool subblocks present only in the current state', () => {
+      const current = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              tools: { value: [knowledgeTool('kb-123')] },
+              'tools-tool-0-knowledgeBaseSelector': { value: 'kb-123' },
+            },
+          }),
+        },
+      })
+      const deployed = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: { tools: { value: [knowledgeTool('kb-123')] } },
+          }),
+        },
+      })
+      expect(hasWorkflowChanged(current, deployed)).toBe(false)
+    })
+
+    it.concurrent('detects an actual change to a tool param value', () => {
+      const current = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              tools: { value: [knowledgeTool('kb-999')] },
+              'tools-tool-0-knowledgeBaseSelector': { value: 'kb-999' },
+            },
+          }),
+        },
+      })
+      const deployed = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: { tools: { value: [knowledgeTool('kb-123')] } },
+          }),
+        },
+      })
+      expect(hasWorkflowChanged(current, deployed)).toBe(true)
+    })
+
+    it.concurrent('treats a cleared tool param as a change (deselect symptom)', () => {
+      const current = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: { tools: { value: [knowledgeTool('')] } },
+          }),
+        },
+      })
+      const deployed = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: { tools: { value: [knowledgeTool('kb-123')] } },
+          }),
+        },
+      })
+      expect(hasWorkflowChanged(current, deployed)).toBe(true)
+    })
+
+    it.concurrent('ignores synthetic subblocks for object-typed tool params', () => {
+      const fileTool = {
+        type: 'someservice',
+        toolId: 'someservice_upload',
+        operation: 'upload',
+        params: { file: '{"name":"a.pdf"}' },
+        usageControl: 'auto',
+      }
+      const current = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              tools: { value: [fileTool] },
+              'tools-tool-0-file': { value: { name: 'a.pdf' } },
+            },
+          }),
+        },
+      })
+      const deployed = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: { tools: { value: [fileTool] } },
+          }),
+        },
+      })
+      expect(hasWorkflowChanged(current, deployed)).toBe(false)
+    })
+  })
+
   describe('InputFormat SubBlock Special Handling', () => {
     it.concurrent('should ignore collapsed field but detect value changes in inputFormat', () => {
       // Only collapsed changes - should NOT detect as change

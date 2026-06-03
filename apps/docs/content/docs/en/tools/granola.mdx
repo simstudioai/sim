@@ -30,6 +30,7 @@ Lists meeting notes from Granola with optional date filters and pagination.
 | `createdBefore` | string | No | Return notes created before this date \(ISO 8601\) |
 | `createdAfter` | string | No | Return notes created after this date \(ISO 8601\) |
 | `updatedAfter` | string | No | Return notes updated after this date \(ISO 8601\) |
+| `folderId` | string | No | Return notes in this folder and its child folders \(e.g., fol_4y6LduVdwSKC27\) |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `pageSize` | number | No | Number of notes per page \(1-30, default 10\) |
 
@@ -69,6 +70,7 @@ Retrieves a specific meeting note from Granola by ID, including summary, attende
 | `ownerEmail` | string | Note owner email |
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last update timestamp |
+| `webUrl` | string | URL to view the note in Granola |
 | `summaryText` | string | Plain text summary of the meeting |
 | `summaryMarkdown` | string | Markdown-formatted summary of the meeting |
 | `attendees` | json | Meeting attendees |

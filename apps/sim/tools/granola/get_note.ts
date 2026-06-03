@@ -59,6 +59,7 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
         ownerEmail: data.owner?.email ?? '',
         createdAt: data.created_at ?? '',
         updatedAt: data.updated_at ?? '',
+        webUrl: data.web_url ?? null,
         summaryText: data.summary_text ?? '',
         summaryMarkdown: data.summary_markdown ?? null,
         attendees: (data.attendees ?? []).map((a: { name: string | null; email: string }) => ({
@@ -101,6 +102,7 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
     ownerEmail: { type: 'string', description: 'Note owner email' },
     createdAt: { type: 'string', description: 'Creation timestamp' },
     updatedAt: { type: 'string', description: 'Last update timestamp' },
+    webUrl: { type: 'string', description: 'URL to view the note in Granola', optional: true },
     summaryText: { type: 'string', description: 'Plain text summary of the meeting' },
     summaryMarkdown: {
       type: 'string',

@@ -27,10 +27,12 @@ import {
   CsvImportValidationError,
   coerceRowsForTable,
   createCsvParser,
+  dispatchAfterBatchInsert,
   inferColumnType,
   replaceTableRowsWithTx,
   sanitizeName,
   type TableDefinition,
+  type TableRow,
   type TableSchema,
   validateMapping,
 } from '@/lib/table'
@@ -249,13 +251,13 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       }
 
       try {
-        const inserted = await db.transaction(async (trx) => {
+        const txResult = await db.transaction(async (trx) => {
           let working = table
           if (additions.length > 0) {
             working = await addTableColumnsWithTx(trx, table, additions, requestId)
           }
 
-          let total = 0
+          const allInserted: TableRow[] = []
           for (let i = 0; i < coerced.length; i += CSV_MAX_BATCH_SIZE) {
             const batch = coerced.slice(i, i + CSV_MAX_BATCH_SIZE)
             const batchRequestId = generateId().slice(0, 8)
@@ -270,10 +272,15 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
               working,
               batchRequestId
             )
-            total += result.length
+            allInserted.push(...result)
           }
-          return total
+          return { inserted: allInserted, working }
         })
+        const { inserted: insertedRows, working: finalTable } = txResult
+        const inserted = insertedRows.length
+        // Fire trigger + scheduler AFTER the tx commits — both read through the
+        // global db connection and would otherwise see no rows.
+        dispatchAfterBatchInsert(finalTable, insertedRows, requestId)
 
         logger.info(`[${requestId}] Append CSV imported`, {
           tableId: table.id,

@@ -6,7 +6,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteChunk, updateChunk } from '@/lib/knowledge/chunks/service'
-import { checkChunkAccess } from '@/app/api/knowledge/utils'
+import { checkChunkAccess, checkChunkWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('ChunkByIdAPI')
 
@@ -75,7 +75,7 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const accessCheck = await checkChunkAccess(
+      const accessCheck = await checkChunkWriteAccess(
         knowledgeBaseId,
         documentId,
         chunkId,
@@ -147,7 +147,7 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const accessCheck = await checkChunkAccess(
+      const accessCheck = await checkChunkWriteAccess(
         knowledgeBaseId,
         documentId,
         chunkId,

@@ -379,6 +379,36 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  /**
+   * A table-workflow run was dispatched from the grid.
+   * `source` distinguishes the gesture: a single row's gutter Play (`row`),
+   * a multi-row selection across every workflow column (`rows`), or a single
+   * workflow column header / column-scoped selection (`column`).
+   */
+  table_workflow_run: {
+    table_id: string
+    workspace_id: string
+    source: 'row' | 'rows' | 'column'
+    run_mode: 'all' | 'incomplete'
+    group_count: number
+    /** Number of explicitly targeted rows; `null` when the run targets all rows in scope. */
+    row_count: number | null
+    has_limit: boolean
+  }
+
+  /**
+   * Running table workflows were cancelled.
+   * `scope` is `all` (every running row), `row` (one row's gutter Stop), or
+   * `rows` (a multi-row selection).
+   */
+  table_workflow_stopped: {
+    table_id: string
+    workspace_id: string
+    scope: 'all' | 'row' | 'rows'
+    /** Number of rows targeted; `null` for the `all` scope. */
+    row_count: number | null
+  }
+
   custom_tool_saved: {
     tool_id: string
     workspace_id: string
