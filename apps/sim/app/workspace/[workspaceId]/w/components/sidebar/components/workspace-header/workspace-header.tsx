@@ -355,7 +355,7 @@ function WorkspaceHeaderImpl({
             if (open && showSearch) {
               requestAnimationFrame(() => searchInputRef.current?.focus())
             }
-            if (!open) {
+            if (!open && showSearch) {
               setWorkspaceSearch('')
               setHighlightedIndex(0)
             }
@@ -479,8 +479,8 @@ function WorkspaceHeaderImpl({
                     return (
                       <div
                         key={workspace.id}
-                        data-workspace-row-idx={idx}
-                        onMouseEnter={() => setHighlightedIndex(idx)}
+                        data-workspace-row-idx={showSearch ? idx : undefined}
+                        onMouseEnter={showSearch ? () => setHighlightedIndex(idx) : undefined}
                       >
                         {editingWorkspaceId === workspace.id ? (
                           <div
