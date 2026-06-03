@@ -25,6 +25,7 @@ import type {
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
+// import { listIntegrations } from '@/blocks/integration-matcher'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
@@ -142,6 +143,16 @@ export function useAvailableResources(
           isOpen: existingKeys.has(`knowledgebase:${kb.id}`),
         })),
       },
+      // {
+      //   type: 'integration' as const,
+      //   items: listIntegrations().map((integration) => ({
+      //     id: integration.blockType,
+      //     name: integration.name,
+      //     iconComponent: integration.icon,
+      //     bgColor: integration.bgColor,
+      //     isOpen: existingKeys.has(`integration:${integration.blockType}`),
+      //   })),
+      // },
       {
         type: 'task' as const,
         items: tasks.map((t) => ({
