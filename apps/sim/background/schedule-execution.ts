@@ -16,6 +16,7 @@ import { and, eq, isNull, type SQL, sql } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import {
+  describeError,
   describeRetryableInfrastructureError,
   isRetryableInfrastructureError,
 } from '@/lib/core/errors/retryable-infrastructure'
@@ -156,7 +157,7 @@ async function applyScheduleUpdate(
 
     return updatedRows.length > 0
   } catch (error) {
-    logger.error(`[${requestId}] ${context}`, error)
+    logger.error(`[${requestId}] ${context}`, error, { cause: describeError(error) })
     throw error
   }
 }
@@ -530,7 +531,13 @@ async function runWorkflowExecution({
       }
     }
 
-    logger.error(`[${requestId}] Early failure in scheduled workflow ${payload.workflowId}`, error)
+    logger.error(
+      `[${requestId}] Early failure in scheduled workflow ${payload.workflowId}`,
+      error,
+      {
+        cause: describeError(error),
+      }
+    )
 
     if (wasExecutionFinalizedByCore(error, executionId)) {
       throw error
@@ -950,7 +957,9 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
           return
         }
 
-        logger.error(`[${requestId}] Error processing schedule ${payload.scheduleId}`, error)
+        logger.error(`[${requestId}] Error processing schedule ${payload.scheduleId}`, error, {
+          cause: describeError(error),
+        })
         await releaseClaim(
           now,
           `Failed to release schedule ${payload.scheduleId} after unhandled error`
