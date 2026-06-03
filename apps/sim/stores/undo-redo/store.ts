@@ -4,6 +4,7 @@ import { isEqual } from 'es-toolkit'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import { undoRedoStorage } from '@/stores/undo-redo/storage'
 import type {
   BatchAddBlocksOperation,
   BatchAddEdgesOperation,
@@ -134,41 +135,6 @@ export async function runWithUndoRedoRecordingSuspended<T>(
 
 function getStackKey(workflowId: string, userId: string): string {
   return `${workflowId}:${userId}`
-}
-
-/**
- * Custom storage adapter for Zustand's persist middleware.
- * We need this wrapper to gracefully handle 'QuotaExceededError' when localStorage is full,
- * Without this, the default storage engine would throw and crash the application.
- * and to properly handle SSR/Node.js environments.
- */
-const safeStorageAdapter = {
-  getItem: (name: string): string | null => {
-    if (typeof localStorage === 'undefined') return null
-    try {
-      return localStorage.getItem(name)
-    } catch (e) {
-      logger.warn('Failed to read from localStorage', e)
-      return null
-    }
-  },
-  setItem: (name: string, value: string): void => {
-    if (typeof localStorage === 'undefined') return
-    try {
-      localStorage.setItem(name, value)
-    } catch (e) {
-      // Log warning but don't crash - this handles QuotaExceededError
-      logger.warn('Failed to save to localStorage', e)
-    }
-  },
-  removeItem: (name: string): void => {
-    if (typeof localStorage === 'undefined') return
-    try {
-      localStorage.removeItem(name)
-    } catch (e) {
-      logger.warn('Failed to remove from localStorage', e)
-    }
-  },
 }
 
 function isOperationApplicable(
@@ -648,7 +614,7 @@ export const useUndoRedoStore = create<UndoRedoState>()(
     }),
     {
       name: 'workflow-undo-redo',
-      storage: createJSONStorage(() => safeStorageAdapter),
+      storage: createJSONStorage(() => undoRedoStorage),
       partialize: (state) => ({
         stacks: state.stacks,
         capacity: state.capacity,
