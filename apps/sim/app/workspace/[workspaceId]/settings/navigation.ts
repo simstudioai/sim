@@ -25,7 +25,6 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 export type SettingsSection =
   | 'general'
   | 'secrets'
-  | 'template-profile'
   | 'credential-sets'
   | 'access-control'
   | 'audit-logs'
@@ -95,7 +94,6 @@ export const sectionConfig: { key: NavigationSection; title: string }[] = [
 
 export const allNavigationItems: NavigationItem[] = [
   { id: 'general', label: 'General', icon: Settings, section: 'account' },
-  // { id: 'template-profile', label: 'Template Profile', icon: User, section: 'account' },
   {
     id: 'access-control',
     label: 'Access Control',

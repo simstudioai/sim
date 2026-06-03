@@ -10,7 +10,6 @@ import { SettingsPage } from './settings'
 const SECTION_TITLES: Record<string, string> = {
   general: 'General',
   secrets: 'Secrets',
-  'template-profile': 'Template Profile',
   'access-control': 'Access Control',
   'audit-logs': 'Audit Logs',
   apikeys: 'Sim Keys',

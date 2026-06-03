@@ -103,9 +103,6 @@ export function SettingsSidebar({
         return false
       }
 
-      if (item.id === 'template-profile') {
-        return false
-      }
       if (item.id === 'secrets' && permissionConfig.hideSecretsTab) {
         return false
       }
