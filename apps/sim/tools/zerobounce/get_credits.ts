@@ -28,14 +28,20 @@ export const getCreditsTool: ToolConfig<ZeroBounceGetCreditsParams, ZeroBounceGe
     },
 
     transformResponse: async (response: Response) => {
-      if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      // ZeroBounce returns HTTP 200 with an `{ error }` envelope on auth failure,
+      // so detect API-level errors from the body, not just the HTTP status.
+      const errorMessage =
+        typeof data === 'object' && data !== null && typeof data.error === 'string'
+          ? data.error
+          : ''
+      if (!response.ok || errorMessage.length > 0) {
         return {
           success: false,
-          error: `ZeroBounce API error: ${response.status} ${response.statusText}`,
+          error: errorMessage || `ZeroBounce API error: ${response.status} ${response.statusText}`,
           output: { credits: 0 },
         }
       }
-      const data = await response.json()
       const credits = Number(data.Credits ?? 0)
       return {
         success: true,

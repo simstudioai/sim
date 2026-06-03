@@ -54,7 +54,7 @@ export const verifyEmailTool: ToolConfig<
         output: { email: '', status: '', deliverable: false },
       }
     }
-    const data = await response.json()
+    const data = await response.json().catch(() => ({}))
     if (data.error) {
       return {
         success: false,
