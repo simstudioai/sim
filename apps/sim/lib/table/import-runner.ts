@@ -23,6 +23,7 @@ import {
   getTableById,
   markImportFailed,
   markImportReady,
+  nextImportStartPosition,
   setTableSchemaForImport,
   updateImportProgress,
 } from '@/lib/table/service'
@@ -80,6 +81,10 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // Delete only after the stream opens (a missing object rejects above) — otherwise a failed
     // download would wipe the table with nothing to replace it with.
     if (mode === 'replace') await deleteAllTableRows(tableId)
+
+    // Append must continue after the existing rows; create/replace start empty. Read once up
+    // front (the import is the table's sole writer) and assign contiguous positions from it.
+    const basePosition = mode === 'append' ? await nextImportStartPosition(tableId) : 0
 
     // Count bytes as they flow so the row total can be extrapolated from byte progress.
     let bytesRead = 0
@@ -162,7 +167,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       if (rows.length === 0 || !schema || !headerToColumn) return
       const coerced = coerceRowsForTable(rows, schema, headerToColumn)
       inserted += await bulkInsertImportBatch(
-        { tableId, workspaceId, userId, rows: coerced, startPosition: inserted },
+        { tableId, workspaceId, userId, rows: coerced, startPosition: basePosition + inserted },
         { ...table, schema },
         requestId
       )

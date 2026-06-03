@@ -14,12 +14,14 @@ import { useImportTrayStore } from '@/stores/table/import-tray/store'
  * Reconcile rules (the query is staler — 30s — than the SSE feed, so it never clobbers live
  * progress):
  * - seed entries for `importing` tables that aren't tracked yet;
- * - self-heal: clear a tray entry the server now reports `ready` (the import finished while we
- *   weren't subscribed and the SSE `ready` was missed).
+ * - self-heal a tracked `importing` entry when the server reports a terminal state we missed
+ *   over SSE: `ready` → clear the spinner; `failed` → flip it to the failure card.
  *
- * It deliberately only acts on these two definitive server states. Entries whose table isn't in
- * the list yet (a just-kicked-off import the list hasn't refetched, or a client-optimistic entry
- * during upload) are left alone so the indicator doesn't flicker out from under an active import.
+ * Terminal reconciliation only touches entries we're *already* tracking as importing — a `failed`
+ * table that isn't in the tray is never re-created, so a dismissed failure stays dismissed across
+ * refreshes. Entries whose table isn't in the list yet (a just-kicked-off import the list hasn't
+ * refetched, or a client-optimistic entry during upload) are left alone so the indicator doesn't
+ * flicker out from under an active import.
  */
 export function useHydrateImportTray(workspaceId: string | undefined): void {
   const { data: tables } = useTablesList(workspaceId)
@@ -39,9 +41,20 @@ export function useHydrateImportTray(workspaceId: string | undefined): void {
           rowsProcessed: table.importRowsProcessed ?? 0,
           error: table.importError ?? undefined,
         })
-      } else if (table.importStatus === 'ready' && tray.entries[table.id]?.phase === 'importing') {
-        // Finished while we weren't watching and we missed the SSE `ready`.
-        tray.dismiss(table.id)
+      } else if (tray.entries[table.id]?.phase === 'importing') {
+        // A tracked import finished while we weren't watching (missed SSE terminal event).
+        // `ready` → clear the spinner; `failed` → surface the failure instead of spinning forever.
+        if (table.importStatus === 'ready') {
+          tray.dismiss(table.id)
+        } else if (table.importStatus === 'failed') {
+          tray.upsert({
+            tableId: table.id,
+            workspaceId,
+            title: table.name,
+            phase: 'failed',
+            error: table.importError ?? undefined,
+          })
+        }
       }
     }
   }, [workspaceId, tables])

@@ -176,6 +176,21 @@ async function nextAutoPosition(trx: DbTransaction, tableId: string): Promise<nu
   return maxPos + 1
 }
 
+/**
+ * Starting `position` for an append import — `max(position) + 1`, or 0 when empty. Read once,
+ * unlocked, before streaming: the import worker is the table's sole writer, so it can assign
+ * contiguous positions from this offset without per-batch `nextAutoPosition` scans.
+ */
+export async function nextImportStartPosition(tableId: string): Promise<number> {
+  const [{ maxPos }] = await db
+    .select({
+      maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
+    })
+    .from(userTableRows)
+    .where(eq(userTableRows.tableId, tableId))
+  return maxPos + 1
+}
+
 const TIMEOUT_CAP_MS = 10 * 60_000
 
 /**
