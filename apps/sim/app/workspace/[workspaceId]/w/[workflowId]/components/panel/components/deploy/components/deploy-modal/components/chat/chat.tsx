@@ -448,7 +448,7 @@ export function ChatDeploy({
             onClick={handleDelete}
             disabled={deleteChatMutation.isPending}
           >
-            Delete
+            {deleteChatMutation.isPending ? 'Deleting...' : 'Delete'}
           </Chip>
         </ChipModalFooter>
       </ChipModal>

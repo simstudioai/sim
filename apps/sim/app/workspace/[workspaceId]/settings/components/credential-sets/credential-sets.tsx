@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Plus, Search } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import {
   Avatar,
   AvatarFallback,
@@ -18,12 +18,12 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   type FileInputOptions,
+  SearchInput,
   TagInput,
   type TagItem,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
 import { GmailIcon, OutlookIcon } from '@/components/icons'
-import { Input as BaseInput } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { getProviderDisplayName, type PollingProvider } from '@/lib/credential-sets/providers'
@@ -599,18 +599,11 @@ export function CredentialSets() {
 
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
           <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-              <Search
-                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <BaseInput
-                placeholder='Search polling groups...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
+            <SearchInput
+              placeholder='Search polling groups...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
 
             <div className='relative'>
               {hasNoContent && !canManageCredentialSets ? (
@@ -794,7 +787,7 @@ export function CredentialSets() {
             onClick={handleCreateCredentialSet}
             disabled={!newSetName.trim() || createCredentialSet.isPending}
           >
-            Create
+            {createCredentialSet.isPending ? 'Creating...' : 'Create'}
           </Chip>
         </ChipModalFooter>
       </ChipModal>

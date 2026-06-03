@@ -1335,7 +1335,7 @@ export const NotificationSettings = memo(function NotificationSettings({
             onClick={handleDelete}
             disabled={deleteNotification.isPending}
           >
-            Delete
+            {deleteNotification.isPending ? 'Deleting...' : 'Delete'}
           </Chip>
         </ChipModalFooter>
       </ChipModal>

@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { formatRelativeTime } from '@sim/utils/formatting'
-import { ChevronDown, Paperclip, Search } from 'lucide-react'
+import { ChevronDown, Paperclip } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Badge,
@@ -12,8 +12,8 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
+  SearchInput,
 } from '@/components/emcn'
-import { Input } from '@/components/ui'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
 
@@ -76,18 +76,12 @@ export function InboxTaskList() {
   return (
     <div className='flex flex-col gap-3'>
       <div className='flex items-center gap-2'>
-        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-          <Search
-            className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-            strokeWidth={2}
-          />
-          <Input
-            placeholder='Search tasks...'
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-          />
-        </div>
+        <SearchInput
+          placeholder='Search tasks...'
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className='min-w-0 flex-1'
+        />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

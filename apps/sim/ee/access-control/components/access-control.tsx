@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ChevronDown, Plus, Search } from 'lucide-react'
+import { ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Avatar,
@@ -11,7 +11,12 @@ import {
   Button,
   Checkbox,
   Chip,
-  Input,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
   Label,
   Modal,
   ModalBody,
@@ -23,11 +28,11 @@ import {
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
+  SearchInput,
   Skeleton,
   Switch,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
-import { Input as BaseInput } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
@@ -135,35 +140,31 @@ function AddMembersModal({
   }
 
   return (
-    <Modal
+    <ChipModal
       open={open}
       onOpenChange={(o) => {
         if (!o) setSearchTerm('')
         onOpenChange(o)
       }}
+      size='sm'
+      srTitle='Add Members'
     >
-      <ModalContent size='sm'>
-        <ModalHeader>Add Members</ModalHeader>
-        <ModalBody className='!pb-4'>
-          <ModalDescription className='sr-only'>
-            Search and select workspace members to add to this permission group
-          </ModalDescription>
-          {availableMembers.length === 0 ? (
-            <p className='text-[var(--text-muted)] text-sm'>
-              All workspace members are already in this group.
-            </p>
-          ) : (
+      <ChipModalHeader onClose={() => onOpenChange(false)}>Add Members</ChipModalHeader>
+      <ChipModalBody>
+        {availableMembers.length === 0 ? (
+          <p className='px-2 text-[var(--text-muted)] text-sm'>
+            All workspace members are already in this group.
+          </p>
+        ) : (
+          <ChipModalField type='custom' title='Members'>
             <div className='flex flex-col gap-3'>
               <div className='flex items-center gap-2'>
-                <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                  <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                  <BaseInput
-                    placeholder='Search members...'
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                  />
-                </div>
+                <SearchInput
+                  placeholder='Search members...'
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className='min-w-0 flex-1'
+                />
                 <Button variant='default' onClick={handleToggleAll}>
                   {allFilteredSelected ? 'Deselect All' : 'Select All'}
                 </Button>
@@ -214,53 +215,31 @@ function AddMembersModal({
                 )}
               </div>
             </div>
-          )}
-          {errorMessage && (
-            <p className='mt-3 text-[var(--text-destructive)] text-xs'>{errorMessage}</p>
-          )}
-        </ModalBody>
-        <ModalFooter>
-          <Button
-            variant='default'
-            onClick={() => {
-              setSearchTerm('')
-              onOpenChange(false)
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant='primary'
-            onClick={onAddMembers}
-            disabled={selectedMemberIds.size === 0 || isAdding}
-          >
-            {isAdding ? 'Adding...' : 'Add Members'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
-  )
-}
-
-function AccessControlSkeleton() {
-  return (
-    <div className='flex h-full flex-col gap-4.5'>
-      <div className='flex flex-col gap-2'>
-        <Skeleton className='h-[14px] w-[100px]' />
-        {[0, 1, 2].map((i) => (
-          <div key={i} className='flex items-center justify-between'>
-            <div className='flex items-center gap-3'>
-              <Skeleton className='size-9 rounded-md' />
-              <div className='flex flex-col gap-1'>
-                <Skeleton className='h-[14px] w-[120px]' />
-                <Skeleton className='h-[12px] w-[80px]' />
-              </div>
-            </div>
-            <Skeleton className='h-[32px] w-[60px] rounded-md' />
-          </div>
-        ))}
-      </div>
-    </div>
+          </ChipModalField>
+        )}
+        <ChipModalError>{errorMessage}</ChipModalError>
+      </ChipModalBody>
+      <ChipModalFooter>
+        <Chip
+          variant='filled'
+          flush
+          onClick={() => {
+            setSearchTerm('')
+            onOpenChange(false)
+          }}
+        >
+          Cancel
+        </Chip>
+        <Chip
+          variant='primary'
+          flush
+          onClick={onAddMembers}
+          disabled={selectedMemberIds.size === 0 || isAdding}
+        >
+          {isAdding ? 'Adding...' : 'Add Members'}
+        </Chip>
+      </ChipModalFooter>
+    </ChipModal>
   )
 }
 
@@ -309,15 +288,12 @@ function ModelCheckboxGrid({
   return (
     <div className='flex flex-col gap-2'>
       <div className='flex items-center gap-2'>
-        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-          <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-          <BaseInput
-            placeholder='Search models...'
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-          />
-        </div>
+        <SearchInput
+          placeholder='Search models...'
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className='min-w-0 flex-1'
+        />
         <Button
           variant='default'
           className='h-8'
@@ -1012,7 +988,7 @@ export function AccessControl() {
 
   if (!canManage) {
     return (
-      <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
+      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
         Only workspace admins on Enterprise plans can manage Access Control settings.
       </div>
     )
@@ -1169,15 +1145,12 @@ export function AccessControl() {
                 </ModalDescription>
                 <ModalTabsContent value='providers'>
                   <div className='flex items-center gap-2 pb-3'>
-                    <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                      <BaseInput
-                        placeholder='Search providers...'
-                        value={providerSearchTerm}
-                        onChange={(e) => setProviderSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                      />
-                    </div>
+                    <SearchInput
+                      placeholder='Search providers...'
+                      value={providerSearchTerm}
+                      onChange={(e) => setProviderSearchTerm(e.target.value)}
+                      className='min-w-0 flex-1'
+                    />
                     <Button
                       variant='default'
                       className='h-8'
@@ -1219,15 +1192,12 @@ export function AccessControl() {
 
                 <ModalTabsContent value='blocks'>
                   <div className='flex items-center gap-2 pb-3'>
-                    <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                      <BaseInput
-                        placeholder='Search blocks...'
-                        value={integrationSearchTerm}
-                        onChange={(e) => setIntegrationSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                      />
-                    </div>
+                    <SearchInput
+                      placeholder='Search blocks...'
+                      value={integrationSearchTerm}
+                      onChange={(e) => setIntegrationSearchTerm(e.target.value)}
+                      className='min-w-0 flex-1'
+                    />
                     <Button
                       variant='default'
                       className='h-8'
@@ -1329,15 +1299,12 @@ export function AccessControl() {
 
                 <ModalTabsContent value='platform'>
                   <div className='flex items-center gap-2 pb-3'>
-                    <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                      <BaseInput
-                        placeholder='Search features...'
-                        value={platformSearchTerm}
-                        onChange={(e) => setPlatformSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                      />
-                    </div>
+                    <SearchInput
+                      placeholder='Search features...'
+                      value={platformSearchTerm}
+                      onChange={(e) => setPlatformSearchTerm(e.target.value)}
+                      className='min-w-0 flex-1'
+                    />
                     <Button
                       variant='default'
                       className='h-8'
@@ -1427,41 +1394,46 @@ export function AccessControl() {
           </ModalContent>
         </Modal>
 
-        <Modal open={showUnsavedChanges} onOpenChange={setShowUnsavedChanges}>
-          <ModalContent size='sm'>
-            <ModalHeader>Unsaved Changes</ModalHeader>
-            <ModalBody>
-              <ModalDescription className='text-[var(--text-secondary)]'>
-                You have unsaved changes. Do you want to save them before closing?
-              </ModalDescription>
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                variant='destructive'
-                onClick={() => {
-                  setShowUnsavedChanges(false)
-                  setShowConfigModal(false)
-                  setEditingConfig(null)
-                  setProviderSearchTerm('')
-                  setIntegrationSearchTerm('')
-                  setPlatformSearchTerm('')
-                }}
-              >
-                Discard Changes
-              </Button>
-              <Button
-                variant='primary'
-                onClick={() => {
-                  setShowUnsavedChanges(false)
-                  handleSaveConfig()
-                }}
-                disabled={updatePermissionGroup.isPending}
-              >
-                {updatePermissionGroup.isPending ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+        <ChipModal
+          open={showUnsavedChanges}
+          onOpenChange={setShowUnsavedChanges}
+          size='sm'
+          srTitle='Unsaved Changes'
+        >
+          <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+          <ChipModalBody>
+            <p className='px-2 text-[var(--text-secondary)] text-sm'>
+              You have unsaved changes. Do you want to save them before closing?
+            </p>
+          </ChipModalBody>
+          <ChipModalFooter>
+            <Chip
+              variant='destructive'
+              flush
+              onClick={() => {
+                setShowUnsavedChanges(false)
+                setShowConfigModal(false)
+                setEditingConfig(null)
+                setProviderSearchTerm('')
+                setIntegrationSearchTerm('')
+                setPlatformSearchTerm('')
+              }}
+            >
+              Discard Changes
+            </Chip>
+            <Chip
+              variant='primary'
+              flush
+              onClick={() => {
+                setShowUnsavedChanges(false)
+                handleSaveConfig()
+              }}
+              disabled={updatePermissionGroup.isPending}
+            >
+              {updatePermissionGroup.isPending ? 'Saving...' : 'Save Changes'}
+            </Chip>
+          </ChipModalFooter>
+        </ChipModal>
 
         <AddMembersModal
           open={showAddMembersModal}
@@ -1494,18 +1466,11 @@ export function AccessControl() {
 
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
           <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
-              <Search
-                className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <BaseInput
-                placeholder='Search permission groups...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
+            <SearchInput
+              placeholder='Search permission groups...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
 
             {filteredGroups.length === 0 && searchTerm.trim() ? (
               <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
@@ -1552,88 +1517,91 @@ export function AccessControl() {
         </div>
       </div>
 
-      <Modal open={showCreateModal} onOpenChange={handleCloseCreateModal}>
-        <ModalContent size='sm'>
-          <ModalHeader>Create Permission Group</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='sr-only'>
-              Enter a name and optional description to create a new permission group
-            </ModalDescription>
-            <div className='flex flex-col gap-3'>
-              <div className='flex flex-col gap-1'>
-                <Label>Name</Label>
-                <Input
-                  value={newGroupName}
-                  onChange={(e) => {
-                    setNewGroupName(e.target.value)
-                    if (createError) setCreateError(null)
-                  }}
-                  placeholder='e.g., Marketing Team'
-                />
-              </div>
-              <div className='flex flex-col gap-1'>
-                <Label>Description (optional)</Label>
-                <Input
-                  value={newGroupDescription}
-                  onChange={(e) => setNewGroupDescription(e.target.value)}
-                  placeholder='e.g., Limited access for marketing users'
-                />
-              </div>
-              <div className='flex items-center gap-2'>
-                <Checkbox
-                  id='auto-add-members'
-                  checked={newGroupAutoAdd}
-                  onCheckedChange={(checked) => setNewGroupAutoAdd(checked === true)}
-                />
-                <Label htmlFor='auto-add-members' className='cursor-pointer font-normal'>
-                  Auto-add new workspace members
-                </Label>
-              </div>
-              {createError && <p className='text-[var(--text-error)] text-small'>{createError}</p>}
+      <ChipModal
+        open={showCreateModal}
+        onOpenChange={handleCloseCreateModal}
+        size='sm'
+        srTitle='Create Permission Group'
+      >
+        <ChipModalHeader onClose={handleCloseCreateModal}>Create Permission Group</ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField
+            type='input'
+            title='Name'
+            value={newGroupName}
+            onChange={(value) => {
+              setNewGroupName(value)
+              if (createError) setCreateError(null)
+            }}
+            placeholder='e.g., Marketing Team'
+          />
+          <ChipModalField
+            type='input'
+            title='Description (optional)'
+            value={newGroupDescription}
+            onChange={(value) => setNewGroupDescription(value)}
+            placeholder='e.g., Limited access for marketing users'
+          />
+          <ChipModalField type='custom' title='Membership'>
+            <div className='flex items-center gap-2'>
+              <Checkbox
+                id='auto-add-members'
+                checked={newGroupAutoAdd}
+                onCheckedChange={(checked) => setNewGroupAutoAdd(checked === true)}
+              />
+              <Label htmlFor='auto-add-members' className='cursor-pointer font-normal'>
+                Auto-add new workspace members
+              </Label>
             </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={handleCloseCreateModal}>
-              Cancel
-            </Button>
-            <Button
-              variant='primary'
-              onClick={handleCreatePermissionGroup}
-              disabled={!newGroupName.trim() || createPermissionGroup.isPending}
-            >
-              {createPermissionGroup.isPending ? 'Creating...' : 'Create'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          </ChipModalField>
+          <ChipModalError>{createError}</ChipModalError>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={handleCloseCreateModal}>
+            Cancel
+          </Chip>
+          <Chip
+            variant='primary'
+            flush
+            onClick={handleCreatePermissionGroup}
+            disabled={!newGroupName.trim() || createPermissionGroup.isPending}
+          >
+            {createPermissionGroup.isPending ? 'Creating...' : 'Create'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
 
-      <Modal open={!!deletingGroup} onOpenChange={() => setDeletingGroup(null)}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Permission Group</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{deletingGroup?.name}</span>?
-              <span className='text-[var(--text-error)]'>
-                All members will be removed from this group.
-              </span>{' '}
-              This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setDeletingGroup(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={confirmDelete}
-              disabled={deletePermissionGroup.isPending}
-            >
-              {deletePermissionGroup.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={!!deletingGroup}
+        onOpenChange={() => setDeletingGroup(null)}
+        size='sm'
+        srTitle='Delete Permission Group'
+      >
+        <ChipModalHeader showDivider={false}>Delete Permission Group</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{deletingGroup?.name}</span>?{' '}
+            <span className='text-[var(--text-error)]'>
+              All members will be removed from this group.
+            </span>{' '}
+            This action cannot be undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={() => setDeletingGroup(null)}>
+            Cancel
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={confirmDelete}
+            disabled={deletePermissionGroup.isPending}
+          >
+            {deletePermissionGroup.isPending ? 'Deleting...' : 'Delete'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </>
   )
 }

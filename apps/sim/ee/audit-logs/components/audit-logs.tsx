@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
-import { ChevronDown, RefreshCw, Search } from 'lucide-react'
-import { Badge, Button, Combobox, type ComboboxOption } from '@/components/emcn'
-import { Input } from '@/components/ui'
+import { ChevronDown, RefreshCw } from 'lucide-react'
+import { Badge, Button, Combobox, type ComboboxOption, SearchInput } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
@@ -293,18 +292,12 @@ export function AuditLogs() {
         <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
           {/* Search + filter bar */}
           <div className='flex items-center gap-2'>
-            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-              <Search
-                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <Input
-                placeholder='Search audit logs...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
+            <SearchInput
+              className='min-w-0 flex-1'
+              placeholder='Search audit logs...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
             <div className='w-[160px]'>
               <Combobox
                 options={RESOURCE_TYPE_OPTIONS}

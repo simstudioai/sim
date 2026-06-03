@@ -3,12 +3,16 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { ChevronDown, Plus, Search } from 'lucide-react'
+import { ChevronDown, Plus } from 'lucide-react'
 import {
   Badge,
   Button,
   Callout,
   Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   Combobox,
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +27,7 @@ import {
   ModalFooter,
   ModalHeader,
   MoreHorizontal,
+  SearchInput,
   Switch,
   Table,
   TableBody,
@@ -40,7 +45,6 @@ import {
   S3Icon,
   SnowflakeIcon,
 } from '@/components/icons'
-import { Input as BaseInput } from '@/components/ui'
 import type { CreateDataDrainBody, DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
@@ -176,20 +180,11 @@ export function DataDrainsSettings() {
             Retention to satisfy long-term compliance archives.
           </Callout>
 
-          <div className='flex items-center gap-2'>
-            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-              <Search
-                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <BaseInput
-                placeholder='Search data drains...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
-          </div>
+          <SearchInput
+            placeholder='Search data drains...'
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
 
           <div>
             {drainsError ? (
@@ -257,6 +252,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
   const deleteMutation = useDeleteDataDrain()
   const runMutation = useRunDataDrainNow()
   const testMutation = useTestDataDrain()
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   async function handleToggleEnabled() {
     try {
@@ -289,9 +285,13 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
     }
   }
 
-  async function handleDelete() {
-    if (!window.confirm(`Delete drain "${drain.name}"? This cannot be undone.`)) return
+  function handleDelete() {
+    setShowDeleteConfirm(true)
+  }
+
+  async function handleConfirmDelete() {
     try {
+      setShowDeleteConfirm(false)
       await deleteMutation.mutateAsync({ organizationId, drainId: drain.id })
       toast.success('Drain deleted')
     } catch (error) {
@@ -356,6 +356,38 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           </TableCell>
         </TableRow>
       )}
+      <ChipModal
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        srTitle='Delete Drain'
+      >
+        <ChipModalHeader showDivider={false}>Delete Drain</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{drain.name}</span>? This
+            action cannot be undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={() => setShowDeleteConfirm(false)}
+            disabled={deleteMutation.isPending}
+          >
+            Cancel
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={handleConfirmDelete}
+            disabled={deleteMutation.isPending}
+          >
+            {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </>
   )
 }

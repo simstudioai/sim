@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Badge, CollapsibleCard, Input } from '@/components/emcn'
-import { Label } from '@/components/ui/label'
+import { Badge, CollapsibleCard, Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -254,7 +253,7 @@ function InputMappingField({
       onToggleCollapse={onToggleCollapse}
     >
       <div className='flex flex-col gap-1.5'>
-        <Label className='text-small'>Value</Label>
+        <Label>Value</Label>
         <div className='relative'>
           <Input
             ref={(el) => {

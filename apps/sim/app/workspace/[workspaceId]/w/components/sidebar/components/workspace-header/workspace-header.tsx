@@ -767,7 +767,7 @@ function WorkspaceHeaderImpl({
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to leave{' '}
-            <span className='font-base text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
+            <span className='font-medium text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
             will lose access to all workflows and data in this workspace. This action cannot be
             undone.
           </p>

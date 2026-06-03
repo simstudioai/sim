@@ -131,7 +131,7 @@ export const allNavigationItems: NavigationItem[] = [
   { id: 'secrets', label: 'Secrets', icon: Key, section: 'account' },
   { id: 'custom-tools', label: 'Custom Tools', icon: Wrench, section: 'tools' },
   { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },
-  { id: 'apikeys', label: 'Sim Keys', icon: TerminalWindow, section: 'system' },
+  { id: 'apikeys', label: 'Sim API Keys', icon: TerminalWindow, section: 'system' },
   { id: 'workflow-mcp-servers', label: 'MCP Servers', icon: Server, section: 'system' },
   {
     id: 'byok',

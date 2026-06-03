@@ -4,7 +4,6 @@ import { generateId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
-import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/core/utils/cn'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -139,10 +138,11 @@ function TableCell({
       )}
     >
       <div className='relative w-full'>
-        <Input
+        <input
           ref={(el) => {
             if (el) inputRefs.current.set(cellKey, el)
           }}
+          type='text'
           value={cellValue}
           placeholder={column}
           onChange={handlers.onChange}
@@ -153,7 +153,10 @@ function TableCell({
           onFocus={handlers.onFocus}
           disabled={isPreview || disabled}
           autoComplete='off'
-          className='w-full border-0 bg-transparent px-2.5 py-2 font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
+          autoCorrect='off'
+          autoCapitalize='off'
+          spellCheck='false'
+          className='w-full bg-transparent px-2.5 py-2 font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50'
         />
         <div
           ref={(el) => {

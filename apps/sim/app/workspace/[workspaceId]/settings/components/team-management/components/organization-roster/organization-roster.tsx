@@ -2,14 +2,14 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ChevronDown, ChevronRight, Search } from 'lucide-react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
   Badge,
   Button,
-  Input,
+  SearchInput,
   Skeleton,
   Table,
   TableBody,
@@ -469,15 +469,11 @@ export function OrganizationRoster({
 
   return (
     <div className='flex flex-col gap-3'>
-      <div className='relative'>
-        <Search className='-translate-y-1/2 absolute top-1/2 left-3 size-4 text-[var(--text-muted)]' />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder='Search by name, email, or workspace'
-          className='pl-9'
-        />
-      </div>
+      <SearchInput
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder='Search by name, email, or workspace'
+      />
 
       {showEmpty ? (
         <div className='rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-3.5 py-6 text-center'>

@@ -12,6 +12,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Input,
+  Label,
   Modal,
   ModalBody,
   ModalContent,
@@ -29,7 +30,6 @@ import {
   PopoverScrollArea,
   PopoverSection,
 } from '@/components/emcn'
-import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import {
   checkEnvVarTrigger,
@@ -852,9 +852,7 @@ try {
               <ModalTabsContent value='schema'>
                 <div className='mb-1 flex min-h-6 items-center justify-between gap-2'>
                   <div className='flex min-w-0 items-center gap-2'>
-                    <Label htmlFor='json-schema' className='font-medium text-small'>
-                      JSON Schema
-                    </Label>
+                    <Label htmlFor='json-schema'>JSON Schema</Label>
                     {schemaError && (
                       <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
                         <AlertCircle className='size-3 flex-shrink-0' />
@@ -944,9 +942,7 @@ try {
               <ModalTabsContent value='code'>
                 <div className='mb-1 flex min-h-6 items-center justify-between gap-2'>
                   <div className='flex min-w-0 items-center gap-2'>
-                    <Label htmlFor='function-code' className='font-medium text-small'>
-                      Code
-                    </Label>
+                    <Label htmlFor='function-code'>Code</Label>
                     {codeError && !codeGeneration.isStreaming && (
                       <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
                         <AlertCircle className='size-3 flex-shrink-0' />
