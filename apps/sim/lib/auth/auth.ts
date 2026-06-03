@@ -844,7 +844,7 @@ export const auth = betterAuth({
         }
       }
 
-      if (ctx.path.startsWith('/sign-up/email') && ctx.body?.email) {
+      if (ctx.path === '/sign-up/email' && ctx.body?.email) {
         const signupEmail = ctx.body.email.toLowerCase()
         const [existingUser] = await db
           .select({ id: schema.user.id })
