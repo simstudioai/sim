@@ -90,6 +90,7 @@ import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import {
+  useCreateTask,
   useDeleteTask,
   useDeleteTasks,
   useMarkTaskRead,
@@ -593,6 +594,7 @@ export const Sidebar = memo(function Sidebar() {
     }
   }, [activeNavItemHref])
 
+  const createTaskMutation = useCreateTask(workspaceId)
   const deleteTaskMutation = useDeleteTask(workspaceId)
   const deleteTasksMutation = useDeleteTasks(workspaceId)
   const markTaskReadMutation = useMarkTaskRead(workspaceId)
@@ -611,6 +613,7 @@ export const Sidebar = memo(function Sidebar() {
     preventDismiss: preventTaskDismiss,
   } = useContextMenu()
 
+  const isCreatingTaskRef = useRef(false)
   const contextMenuSelectionRef = useRef<{ taskIds: string[]; names: string[] }>({
     taskIds: [],
     names: [],
@@ -1140,10 +1143,19 @@ export const Sidebar = memo(function Sidebar() {
     onSelect: handleCreateWorkflow,
   }
 
-  const handleNewTask = useCallback(() => {
-    useMothershipDraftsStore.getState().clearDraft(`${workspaceId}:new`)
-    navigateToPage(`/workspace/${workspaceId}/home`)
-  }, [navigateToPage, workspaceId])
+  const handleNewTask = useCallback(async () => {
+    if (!workspaceId || isCreatingTaskRef.current) return
+    isCreatingTaskRef.current = true
+    try {
+      const { id } = await createTaskMutation.mutateAsync()
+      useMothershipDraftsStore.getState().clearDraft(`${workspaceId}:new`)
+      navigateToPage(`/workspace/${workspaceId}/task/${id}`)
+    } catch {
+      navigateToPage(`/workspace/${workspaceId}/home`)
+    } finally {
+      isCreatingTaskRef.current = false
+    }
+  }, [workspaceId, navigateToPage])
 
   const tasksPrimaryAction = {
     label: 'New task',
@@ -1368,6 +1380,7 @@ export const Sidebar = memo(function Sidebar() {
                                   variant='quiet'
                                   className='h-[18px] w-[18px] rounded-sm p-0'
                                   onClick={handleNewTask}
+                                  disabled={createTaskMutation.isPending}
                                 >
                                   <Plus className='h-[16px] w-[16px]' />
                                 </Button>
@@ -1394,6 +1407,8 @@ export const Sidebar = memo(function Sidebar() {
                               <Loader className='h-[14px] w-[14px]' animate />
                               Loading...
                             </DropdownMenuItem>
+                          ) : tasks.length === 0 ? (
+                            <DropdownMenuItem disabled>No tasks yet</DropdownMenuItem>
                           ) : (
                             tasks.map((task) => (
                               <CollapsedTaskFlyoutItem
@@ -1421,6 +1436,11 @@ export const Sidebar = memo(function Sidebar() {
                             <SidebarItemSkeleton />
                           ) : (
                             <>
+                              {tasks.length === 0 ? (
+                                <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>
+                                  No tasks yet
+                                </div>
+                              ) : null}
                               {/* `selectTaskOnly` populates `selectedTasks` on every click, so
                                   a single entry just means "last clicked" — already conveyed by
                                   `isCurrentRoute`. Highlight from selection only for explicit
