@@ -15,7 +15,8 @@ vi.mock('@sim/db', () => {
     chain.from = () => chain
     chain.innerJoin = () => chain
     chain.where = () => chain
-    chain.groupBy = () => Promise.resolve(selectRows.value)
+    chain.groupBy = () => chain
+    chain.orderBy = () => Promise.resolve(selectRows.value)
     return chain
   }
   return { db: { select: () => makeChain() } }

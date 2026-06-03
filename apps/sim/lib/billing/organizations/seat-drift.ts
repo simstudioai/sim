@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { member, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { count, eq, inArray } from 'drizzle-orm'
+import { and, count, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
@@ -29,6 +29,12 @@ export interface SeatDriftSweepResult {
  * This only catches drift where the DB seat count is wrong. The opposite case —
  * the DB committed but the Stripe sync dead-lettered — is surfaced via the
  * dead-letter report, since the seat counts already match here.
+ *
+ * Candidates are sampled in random order so that, when more than
+ * `MAX_RECONCILES_PER_RUN` orgs drift, a subset that keeps failing can't starve
+ * the rest — each run reconciles a different random slice until all converge.
+ * Subscriptions without a Stripe id are excluded since their drift is not
+ * resolvable here (reconcile can't push to Stripe).
  */
 export async function reconcileTeamSeatDrift(): Promise<SeatDriftSweepResult> {
   if (!isBillingEnabled) {
@@ -44,8 +50,14 @@ export async function reconcileTeamSeatDrift(): Promise<SeatDriftSweepResult> {
     })
     .from(subscription)
     .innerJoin(member, eq(member.organizationId, subscription.referenceId))
-    .where(inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES))
+    .where(
+      and(
+        inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES),
+        isNotNull(subscription.stripeSubscriptionId)
+      )
+    )
     .groupBy(subscription.referenceId, subscription.plan, subscription.seats)
+    .orderBy(sql`random()`)
 
   const drifted = rows.filter((row) => isTeam(row.plan) && (row.seats ?? 1) !== row.memberCount)
   const batch = drifted.slice(0, MAX_RECONCILES_PER_RUN)
