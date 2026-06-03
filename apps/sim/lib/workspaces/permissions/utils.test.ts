@@ -240,7 +240,8 @@ describe('Permission Utils', () => {
           image: null,
           permissionType: 'admin' as PermissionType,
           workspaceOrganizationId: 'org-1',
-          organizationMemberId: 'member-1',
+          workspaceOwnerId: 'internal-user',
+          userOrganizationId: 'org-1',
         },
         {
           userId: 'external-user',
@@ -249,7 +250,8 @@ describe('Permission Utils', () => {
           image: null,
           permissionType: 'write' as PermissionType,
           workspaceOrganizationId: 'org-1',
-          organizationMemberId: null,
+          workspaceOwnerId: 'internal-user',
+          userOrganizationId: 'org-2',
         },
       ]
 
@@ -261,6 +263,41 @@ describe('Permission Utils', () => {
       expect(result.map((u) => ({ email: u.email, isExternal: u.isExternal }))).toEqual([
         { email: 'internal@example.com', isExternal: false },
         { email: 'external@example.com', isExternal: true },
+      ])
+    })
+
+    it('marks a non-owner member of another org as external on a personal workspace', async () => {
+      const mockUsersResults = [
+        {
+          userId: 'owner-user',
+          email: 'owner@example.com',
+          name: 'Owner',
+          image: null,
+          permissionType: 'admin' as PermissionType,
+          workspaceOrganizationId: null,
+          workspaceOwnerId: 'owner-user',
+          userOrganizationId: null,
+        },
+        {
+          userId: 'guest-user',
+          email: 'guest@example.com',
+          name: 'Guest',
+          image: null,
+          permissionType: 'write' as PermissionType,
+          workspaceOrganizationId: null,
+          workspaceOwnerId: 'owner-user',
+          userOrganizationId: 'org-guest',
+        },
+      ]
+
+      const usersChain = createMockChain(mockUsersResults)
+      mockDb.select.mockReturnValue(usersChain)
+
+      const result = await getUsersWithPermissions('workspace-personal')
+
+      expect(result.map((u) => ({ email: u.email, isExternal: u.isExternal }))).toEqual([
+        { email: 'owner@example.com', isExternal: false },
+        { email: 'guest@example.com', isExternal: true },
       ])
     })
 

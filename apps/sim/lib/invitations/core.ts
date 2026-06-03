@@ -16,9 +16,16 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, lte } from 'drizzle-orm'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { ensureUserInOrganization } from '@/lib/billing/organizations/membership'
+import {
+  ensureUserInOrganization,
+  getUserOrganization,
+} from '@/lib/billing/organizations/membership'
+import { ensureTeamOrganizationForAcceptance } from '@/lib/billing/organizations/provision-seat'
+import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { applyWorkspaceAutoAddGroup } from '@/lib/permission-groups/auto-add'
+import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InvitationCore')
 
@@ -206,6 +213,7 @@ export type AcceptInvitationFailure =
   | { kind: 'invalid-token' }
   | { kind: 'already-in-organization' }
   | { kind: 'no-seats-available' }
+  | { kind: 'upgrade-required' }
   | { kind: 'server-error'; message?: string }
 
 export type AcceptInvitationSuccess = {
@@ -225,6 +233,23 @@ export interface AcceptInvitationInput {
   userEmail: string
   invitationId: string
   token: string | null
+}
+
+/**
+ * An invitee who already belongs to a different organization cannot join a
+ * second one. A workspace invite (with grants) falls back to external access;
+ * anything else is rejected. Returns `true` when the caller should downgrade to
+ * external membership, `false` when the invite was rejected as cross-org.
+ */
+async function downgradeOrRejectCrossOrgInvite(inv: InvitationWithGrants): Promise<boolean> {
+  if (inv.kind === 'workspace' && inv.grants.length > 0) {
+    return true
+  }
+  await db
+    .update(invitation)
+    .set({ status: 'rejected', updatedAt: new Date() })
+    .where(eq(invitation.id, inv.id))
+  return false
 }
 
 export async function acceptInvitation(
@@ -258,36 +283,110 @@ export async function acceptInvitation(
 
   let membershipAlreadyExists = false
   let acceptedMembershipIntent = inv.membershipIntent
-  let shouldJoinOrganization = Boolean(inv.organizationId && inv.membershipIntent !== 'external')
+  let shouldJoinOrganization = inv.membershipIntent !== 'external'
 
-  if (shouldJoinOrganization && inv.organizationId) {
-    const membershipResult = await ensureUserInOrganization({
-      userId: input.userId,
-      organizationId: inv.organizationId,
-      role: (inv.role || 'member') as 'admin' | 'member' | 'owner',
-      acceptingInvitationId: inv.id,
-    })
+  const primaryGrant = inv.grants[0]
+  let billingOwnerUserId = inv.inviterId
+  let workspaceOrganizationId = inv.organizationId
+  if (primaryGrant) {
+    const grantWorkspace = await getWorkspaceWithOwner(primaryGrant.workspaceId)
+    if (grantWorkspace) {
+      billingOwnerUserId = grantWorkspace.billedAccountUserId
+      workspaceOrganizationId = grantWorkspace.organizationId ?? inv.organizationId
+    }
+  }
 
-    if (!membershipResult.success) {
-      if (membershipResult.existingOrgId) {
-        if (inv.kind === 'workspace' && inv.grants.length > 0) {
-          acceptedMembershipIntent = 'external'
-          shouldJoinOrganization = false
-        } else {
-          await db
-            .update(invitation)
-            .set({ status: 'rejected', updatedAt: new Date() })
-            .where(eq(invitation.id, inv.id))
-          return { success: false, kind: 'already-in-organization' }
-        }
-      } else if (membershipResult.failureCode === 'no-seats-available') {
-        return { success: false, kind: 'no-seats-available' }
-      } else {
-        return { success: false, kind: 'server-error', message: membershipResult.error }
+  const existingMembership = await getUserOrganization(input.userId)
+  const inviteeAlreadyInDifferentOrg =
+    !!existingMembership &&
+    (workspaceOrganizationId ? existingMembership.organizationId !== workspaceOrganizationId : true)
+
+  if (shouldJoinOrganization && inviteeAlreadyInDifferentOrg) {
+    if (await downgradeOrRejectCrossOrgInvite(inv)) {
+      acceptedMembershipIntent = 'external'
+      shouldJoinOrganization = false
+    } else {
+      return { success: false, kind: 'already-in-organization' }
+    }
+  }
+
+  let targetOrganizationId = workspaceOrganizationId
+
+  if (shouldJoinOrganization) {
+    const alreadyMemberOfTarget =
+      !!existingMembership &&
+      !!workspaceOrganizationId &&
+      existingMembership.organizationId === workspaceOrganizationId
+
+    let fixedSeats = false
+
+    if (isBillingEnabled && !alreadyMemberOfTarget) {
+      const orgResult = await ensureTeamOrganizationForAcceptance({
+        billingOwnerUserId,
+        workspaceOrganizationId,
+      })
+      if (!orgResult.success) {
+        return { success: false, kind: orgResult.failureCode }
       }
+      targetOrganizationId = orgResult.organizationId
+      fixedSeats = orgResult.fixedSeats
     }
 
-    membershipAlreadyExists = membershipResult.alreadyMember
+    // Team plans manage seats by reconciling to the member count after the
+    // join (and charging async), so the synchronous seat-cap validation is
+    // skipped. Enterprise keeps its fixed-seat validation, and when billing is
+    // disabled we leave validation in place unchanged.
+    const billingManagesSeats = isBillingEnabled && !fixedSeats
+
+    if (targetOrganizationId) {
+      const membershipResult = await ensureUserInOrganization({
+        userId: input.userId,
+        organizationId: targetOrganizationId,
+        role: (inv.role || 'member') as 'admin' | 'member' | 'owner',
+        acceptingInvitationId: inv.id,
+        skipSeatValidation: billingManagesSeats,
+      })
+
+      if (!membershipResult.success) {
+        if (membershipResult.existingOrgId) {
+          if (await downgradeOrRejectCrossOrgInvite(inv)) {
+            acceptedMembershipIntent = 'external'
+            shouldJoinOrganization = false
+          } else {
+            return { success: false, kind: 'already-in-organization' }
+          }
+        } else if (membershipResult.failureCode === 'no-seats-available') {
+          return { success: false, kind: 'no-seats-available' }
+        } else {
+          return { success: false, kind: 'server-error', message: membershipResult.error }
+        }
+      } else {
+        membershipAlreadyExists = membershipResult.alreadyMember
+
+        // Grow the paid seat count to match the new member and push the charge
+        // to Stripe asynchronously (Team plans only; Enterprise seats are
+        // fixed). Best-effort: the member is already in, and a transient
+        // failure self-heals on the next join/removal reconcile, matching the
+        // removal path's seat accounting.
+        if (billingManagesSeats && !membershipResult.alreadyMember) {
+          try {
+            await reconcileOrganizationSeats({
+              organizationId: targetOrganizationId,
+              reason: 'member-accepted-invite',
+            })
+          } catch (seatError) {
+            logger.error('Failed to reconcile organization seats after invite acceptance', {
+              userId: input.userId,
+              organizationId: targetOrganizationId,
+              invitationId: inv.id,
+              error: seatError,
+            })
+          }
+        }
+      }
+    } else {
+      shouldJoinOrganization = false
+    }
   }
 
   const acceptedWorkspaceIds: string[] = []
@@ -345,13 +444,13 @@ export async function acceptInvitation(
     }
   })
 
-  if (shouldJoinOrganization && inv.organizationId) {
+  if (shouldJoinOrganization && targetOrganizationId) {
     try {
-      await setActiveOrganizationForCurrentSession(inv.organizationId)
+      await setActiveOrganizationForCurrentSession(targetOrganizationId)
     } catch (activeOrgError) {
       logger.error('Failed to activate organization after accepting invitation', {
         userId: input.userId,
-        organizationId: inv.organizationId,
+        organizationId: targetOrganizationId,
         invitationId: inv.id,
         error: activeOrgError,
       })
@@ -383,13 +482,13 @@ export async function acceptInvitation(
     }
   }
 
-  if (shouldJoinOrganization && inv.organizationId && !membershipAlreadyExists) {
+  if (shouldJoinOrganization && targetOrganizationId && !membershipAlreadyExists) {
     try {
       await syncUsageLimitsFromSubscription(input.userId)
     } catch (syncError) {
       logger.error('Failed to sync usage limits after joining org', {
         userId: input.userId,
-        organizationId: inv.organizationId,
+        organizationId: targetOrganizationId,
         invitationId: inv.id,
         error: syncError,
       })

@@ -206,6 +206,7 @@ export async function ensureOrganizationForTeamSubscription(
       await attachOwnedWorkspacesToOrganization({
         ownerUserId: userId,
         organizationId: membership.organizationId,
+        externalMemberPolicy: 'keep-external',
       })
 
       return { ...subscription, referenceId: membership.organizationId }
@@ -239,6 +240,7 @@ export async function ensureOrganizationForTeamSubscription(
   await attachOwnedWorkspacesToOrganization({
     ownerUserId: userId,
     organizationId: orgId,
+    externalMemberPolicy: 'keep-external',
   })
 
   logger.info('Created organization and updated subscription referenceId', {

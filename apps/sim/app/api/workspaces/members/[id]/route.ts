@@ -1,13 +1,15 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissionGroupMember, permissions, workspace } from '@sim/db/schema'
+import { member, permissionGroupMember, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { removeWorkspaceMemberContract } from '@/lib/api/contracts/invitations'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
+import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -34,6 +36,7 @@ export const DELETE = withRouteHandler(
         .select({
           ownerId: workspace.ownerId,
           billedAccountUserId: workspace.billedAccountUserId,
+          organizationId: workspace.organizationId,
         })
         .from(workspace)
         .where(eq(workspace.id, workspaceId))
@@ -111,6 +114,8 @@ export const DELETE = withRouteHandler(
         }
       }
 
+      const organizationId = workspaceRow[0].organizationId
+
       const ownershipTransferred = await db.transaction(async (tx) => {
         let didTransferOwnership = false
 
@@ -184,6 +189,79 @@ export const DELETE = withRouteHandler(
         return didTransferOwnership
       })
 
+      /**
+       * Seats are tied to organization membership (one per member), so a
+       * single-workspace removal only drops a seat when it leaves the member
+       * with no access to any of the org's workspaces — at which point their
+       * org membership is removed too. Members still in other org workspaces
+       * keep their membership and seat.
+       */
+      let organizationRemoval = false
+      let seatReduction: Awaited<ReturnType<typeof reconcileOrganizationSeats>> | null = null
+
+      if (organizationId && userId !== workspaceRow[0].billedAccountUserId) {
+        const [orgMembership] = await db
+          .select({ id: member.id })
+          .from(member)
+          .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
+          .limit(1)
+
+        if (orgMembership) {
+          const orgWorkspaceIds = (
+            await db
+              .select({ id: workspace.id })
+              .from(workspace)
+              .where(eq(workspace.organizationId, organizationId))
+          ).map((row) => row.id)
+
+          const remainingAccess = orgWorkspaceIds.length
+            ? await db
+                .select({ id: permissions.id })
+                .from(permissions)
+                .where(
+                  and(
+                    eq(permissions.userId, userId),
+                    eq(permissions.entityType, 'workspace'),
+                    inArray(permissions.entityId, orgWorkspaceIds)
+                  )
+                )
+                .limit(1)
+            : []
+
+          if (remainingAccess.length === 0) {
+            const removal = await removeUserFromOrganization({
+              userId,
+              organizationId,
+              memberId: orgMembership.id,
+            })
+
+            if (removal.success) {
+              organizationRemoval = true
+              try {
+                seatReduction = await reconcileOrganizationSeats({
+                  organizationId,
+                  reason: 'member-removed',
+                })
+              } catch (seatError) {
+                logger.error('Failed to reduce seats after workspace member removal', {
+                  organizationId,
+                  workspaceId,
+                  removedUserId: userId,
+                  error: seatError,
+                })
+              }
+            } else {
+              logger.error('Failed to remove org membership after last workspace removal', {
+                organizationId,
+                workspaceId,
+                removedUserId: userId,
+                error: removal.error,
+              })
+            }
+          }
+        }
+      }
+
       captureServerEvent(
         session.user.id,
         'workspace_member_removed',
@@ -199,12 +277,20 @@ export const DELETE = withRouteHandler(
         action: AuditAction.MEMBER_REMOVED,
         resourceType: AuditResourceType.WORKSPACE,
         resourceId: workspaceId,
-        description: isSelf ? 'Left the workspace' : `Removed member ${userId} from the workspace`,
+        description: isSelf
+          ? organizationRemoval
+            ? 'Left the organization'
+            : 'Left the workspace'
+          : organizationRemoval
+            ? `Removed member ${userId} from the organization`
+            : `Removed member ${userId} from the workspace`,
         metadata: {
           removedUserId: userId,
           removedUserRole: userPermission?.permissionType ?? 'owner',
           selfRemoval: isSelf,
           ownershipTransferred,
+          organizationRemoval,
+          seatReduction,
         },
         request: req,
       })

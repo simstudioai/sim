@@ -36,10 +36,6 @@ export const organizationMemberQuerySchema = z
   })
   .passthrough()
 
-export const removeOrganizationMemberQuerySchema = z.object({
-  shouldReduceSeats: booleanQueryParamSchema,
-})
-
 export const workspaceGrantSchema = z.object({
   workspaceId: z.string().min(1),
   permission: workspacePermissionSchema,
@@ -172,10 +168,6 @@ export const updateOrganizationWhitelabelBodySchema = z.object({
 export const transferOwnershipBodySchema = z.object({
   newOwnerUserId: z.string().min(1),
   alsoLeave: z.boolean().optional().default(false),
-})
-
-export const updateSeatsBodySchema = z.object({
-  seats: z.number().int().min(1, 'Minimum 1 seat required').max(50, 'Maximum 50 seats allowed'),
 })
 
 export const rosterWorkspaceAccessSchema = z.object({
@@ -328,7 +320,8 @@ export const inviteOrganizationMembersContract = defineRouteContract({
                 maxSeats: z.number(),
                 availableSeats: z.number(),
               })
-              .passthrough(),
+              .passthrough()
+              .optional(),
           })
           .passthrough()
           .optional(),
@@ -362,7 +355,6 @@ export const removeOrganizationMemberContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/organizations/[id]/members/[memberId]',
   params: organizationMemberParamsSchema,
-  query: removeOrganizationMemberQuerySchema,
   response: {
     mode: 'json',
     schema: successResponseSchema.extend({
@@ -387,27 +379,6 @@ export const transferOwnershipContract = defineRouteContract({
         details: z.record(z.string(), z.unknown()).optional(),
       })
       .passthrough(),
-  },
-})
-
-export const updateSeatsContract = defineRouteContract({
-  method: 'PUT',
-  path: '/api/organizations/[id]/seats',
-  params: organizationParamsSchema,
-  body: updateSeatsBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema.extend({
-      data: z
-        .object({
-          seats: z.number(),
-          previousSeats: z.number().optional(),
-          stripeSubscriptionId: z.string(),
-          stripeStatus: z.string().optional(),
-        })
-        .passthrough()
-        .optional(),
-    }),
   },
 })
 

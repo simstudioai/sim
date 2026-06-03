@@ -22,6 +22,7 @@ import {
   type TagItem,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { PermissionsTable } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal/components/permissions-table'
@@ -103,7 +104,10 @@ export function InviteModal({
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
   const usedSeats = organizationBillingData?.data?.usedSeats ?? 0
   const availableSeats = Math.max(0, totalSeats - usedSeats)
-  const hasSeatData = !!organizationId && totalSeats > 0
+  // Only Enterprise plans have a fixed seat cap that gates invites. Team/Pro
+  // seats are provisioned automatically when an invitee accepts.
+  const isEnterpriseOrg = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
+  const hasSeatData = !!organizationId && isEnterpriseOrg && totalSeats > 0
   const exceedsSeatCapacity =
     hasSeatData && userPerms.canAdmin && validEmails.length > availableSeats
   const seatLimitReason = exceedsSeatCapacity

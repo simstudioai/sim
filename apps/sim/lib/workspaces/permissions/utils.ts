@@ -252,6 +252,12 @@ export async function hasAdminPermission(userId: string, workspaceId: string): P
 /**
  * Retrieves a list of users with their associated permissions for a given workspace.
  *
+ * A member is `isExternal` when they hold workspace access but belong to a
+ * different organization than the workspace (or to any organization when the
+ * workspace is personal/grandfathered and has none). The workspace owner is
+ * never external. This mirrors the accept-time `external` membership intent so
+ * the UI tag matches how the member actually joined.
+ *
  * @param workspaceId - The ID of the workspace to retrieve user permissions for.
  * @returns A promise that resolves to an array of user objects, each containing user details and their permission type.
  */
@@ -273,15 +279,13 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
       image: user.image,
       permissionType: permissions.permissionType,
       workspaceOrganizationId: workspace.organizationId,
-      organizationMemberId: member.id,
+      workspaceOwnerId: workspace.ownerId,
+      userOrganizationId: member.organizationId,
     })
     .from(permissions)
     .innerJoin(user, eq(permissions.userId, user.id))
     .innerJoin(workspace, eq(permissions.entityId, workspace.id))
-    .leftJoin(
-      member,
-      and(eq(member.userId, user.id), eq(member.organizationId, workspace.organizationId))
-    )
+    .leftJoin(member, eq(member.userId, user.id))
     .where(
       and(
         eq(permissions.entityType, 'workspace'),
@@ -297,7 +301,8 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
     name: row.name,
     image: row.image ?? null,
     permissionType: row.permissionType,
-    isExternal: Boolean(row.workspaceOrganizationId && !row.organizationMemberId),
+    isExternal:
+      row.userId !== row.workspaceOwnerId && row.userOrganizationId !== row.workspaceOrganizationId,
   }))
 }
 
