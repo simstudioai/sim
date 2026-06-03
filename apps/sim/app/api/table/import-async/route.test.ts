@@ -5,11 +5,22 @@ import { hybridAuthMockFns, permissionsMock, permissionsMockFns } from '@sim/tes
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreateTable, mockGetLimits, mockRunTableImport, mockRunDetached } = vi.hoisted(() => ({
+const {
+  mockCreateTable,
+  mockGetLimits,
+  mockListTables,
+  mockRunTableImport,
+  mockRunDetached,
+  MockTableConflictError,
+} = vi.hoisted(() => ({
   mockCreateTable: vi.fn(),
   mockGetLimits: vi.fn(),
+  mockListTables: vi.fn(),
   mockRunTableImport: vi.fn(),
   mockRunDetached: vi.fn(),
+  MockTableConflictError: class extends Error {
+    readonly code = 'TABLE_EXISTS' as const
+  },
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -20,8 +31,10 @@ vi.mock('@sim/utils/id', () => ({
 vi.mock('@/lib/table', () => ({
   createTable: mockCreateTable,
   getWorkspaceTableLimits: mockGetLimits,
+  listTables: mockListTables,
   sanitizeName: (name: string) => name.replace(/[^a-zA-Z0-9_]/g, '_'),
   TABLE_LIMITS: { MAX_TABLE_NAME_LENGTH: 128 },
+  TableConflictError: MockTableConflictError,
 }))
 vi.mock('@/lib/table/import-runner', () => ({ runTableImport: mockRunTableImport }))
 vi.mock('@/lib/core/utils/background', () => ({
@@ -45,7 +58,7 @@ function makeRequest(body: unknown): NextRequest {
 
 const validBody = {
   workspaceId: 'workspace-1',
-  fileKey: 'workspace/123-data.csv',
+  fileKey: 'workspace/workspace-1/123-data.csv',
   fileName: 'data.csv',
 }
 
@@ -59,6 +72,7 @@ describe('POST /api/table/import-async', () => {
     })
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
     mockGetLimits.mockResolvedValue({ maxRowsPerTable: 1_000_000, maxTables: 50 })
+    mockListTables.mockResolvedValue([])
     mockCreateTable.mockResolvedValue({ id: 'tbl_async', name: 'data' })
     mockRunTableImport.mockResolvedValue(undefined)
   })

@@ -63,7 +63,7 @@ function makeRequest(body: unknown, tableId = 'tbl_1') {
 
 const validBody = {
   workspaceId: 'workspace-1',
-  fileKey: 'workspace/123-data.csv',
+  fileKey: 'workspace/workspace-1/123-data.csv',
   fileName: 'data.csv',
   mode: 'append',
 }
