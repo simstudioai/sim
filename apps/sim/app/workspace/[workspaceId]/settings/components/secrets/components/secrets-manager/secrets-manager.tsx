@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { Button, Chip, SearchInput, Tooltip, Trash, toast } from '@/components/emcn'
+import { Chip, SearchInput, Tooltip, Trash, toast } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
   clearPendingCredentialCreateRequest,
@@ -212,6 +212,7 @@ function WorkspaceVariableRow({
         className='h-9'
       />
       <Chip
+        variant='primary'
         onClick={() => onViewDetails(envKey)}
         disabled={!hasCredential}
         className={cn('ml-2', !hasCredential && 'opacity-40')}
@@ -221,9 +222,7 @@ function WorkspaceVariableRow({
       {canEdit ? (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button variant='ghost' onClick={() => onDelete(envKey)} className='size-9'>
-              <Trash />
-            </Button>
+            <Chip leftIcon={Trash} onClick={() => onDelete(envKey)} aria-label='Delete secret' />
           </Tooltip.Trigger>
           <Tooltip.Content>Delete secret</Tooltip.Content>
         </Tooltip.Root>
@@ -280,17 +279,15 @@ function NewWorkspaceVariableRow({
       />
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Button
-            variant='ghost'
+          <Chip
+            leftIcon={Trash}
             onClick={() => {
               onUpdate(index, 'key', '')
               onUpdate(index, 'value', '')
             }}
             disabled={!hasContent}
-            className={cn('size-9', !hasContent && 'opacity-30')}
-          >
-            <Trash />
-          </Button>
+            aria-label='Delete secret'
+          />
         </Tooltip.Trigger>
         {hasContent && <Tooltip.Content>Delete secret</Tooltip.Content>}
       </Tooltip.Root>
@@ -891,14 +888,12 @@ export function SecretsManager() {
         />
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button
-              variant='ghost'
+            <Chip
+              leftIcon={Trash}
               onClick={() => removeEnvVar(originalIndex)}
               disabled={!hasContent}
-              className={cn('size-9', !hasContent && 'opacity-30')}
-            >
-              <Trash />
-            </Button>
+              aria-label='Delete secret'
+            />
           </Tooltip.Trigger>
           {hasContent && <Tooltip.Content>Delete secret</Tooltip.Content>}
         </Tooltip.Root>
@@ -993,7 +988,7 @@ export function SecretsManager() {
           ref={scrollContainerRef}
           className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'
         >
-          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
+          <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-4 pb-6'>
             {/* Search */}
             <SearchInput
               placeholder='Search secrets...'
@@ -1009,77 +1004,68 @@ export function SecretsManager() {
 
             {/* Secrets grid */}
             {!isLoading && (
-              <div className={`${GRID_COLS} gap-y-2`}>
+              <div className='flex flex-col gap-7'>
                 {(!searchTerm.trim() ||
                   filteredWorkspaceEntries.length > 0 ||
                   filteredNewWorkspaceRows.length > 0) && (
-                  <>
-                    <div
-                      className={cn(
-                        COL_SPAN_ALL,
-                        'font-medium text-[var(--text-secondary)] text-small'
-                      )}
-                    >
-                      Workspace
+                  <section className='flex flex-col'>
+                    <span className='pl-0.5 text-[var(--text-muted)] text-small'>Workspace</span>
+                    <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
+                    <div className={`${GRID_COLS} gap-y-2`}>
+                      {(searchTerm.trim()
+                        ? filteredWorkspaceEntries
+                        : Object.entries(workspaceVars)
+                      ).map(([key, value]) => {
+                        const cred = workspaceEnvKeyToCredential.get(key)
+                        const canEditRow = cred?.role === 'admin'
+                        return (
+                          <WorkspaceVariableRow
+                            key={key}
+                            envKey={key}
+                            value={value}
+                            renamingKey={renamingKey}
+                            pendingKeyValue={pendingKeyValue}
+                            hasCredential={Boolean(cred)}
+                            canEdit={canEditRow}
+                            canRename={canCreateWorkspaceSecret && canEditRow}
+                            onRenameStart={setRenamingKey}
+                            onPendingKeyChange={setPendingKeyValue}
+                            onRenameEnd={handleWorkspaceKeyRename}
+                            onValueChange={handleWorkspaceValueChange}
+                            onDelete={handleDeleteWorkspaceVar}
+                            onViewDetails={handleViewDetails}
+                          />
+                        )
+                      })}
+                      {canCreateWorkspaceSecret &&
+                        (searchTerm.trim()
+                          ? filteredNewWorkspaceRows
+                          : newWorkspaceRows.map((row, index) => ({ row, originalIndex: index }))
+                        ).map(({ row, originalIndex }) => (
+                          <NewWorkspaceVariableRow
+                            key={row.id || originalIndex}
+                            envVar={row}
+                            index={originalIndex}
+                            onUpdate={updateNewWorkspaceRow}
+                            onPaste={handleWorkspacePaste}
+                          />
+                        ))}
                     </div>
-                    {(searchTerm.trim()
-                      ? filteredWorkspaceEntries
-                      : Object.entries(workspaceVars)
-                    ).map(([key, value]) => {
-                      const cred = workspaceEnvKeyToCredential.get(key)
-                      const canEditRow = cred?.role === 'admin'
-                      return (
-                        <WorkspaceVariableRow
-                          key={key}
-                          envKey={key}
-                          value={value}
-                          renamingKey={renamingKey}
-                          pendingKeyValue={pendingKeyValue}
-                          hasCredential={Boolean(cred)}
-                          canEdit={canEditRow}
-                          canRename={canCreateWorkspaceSecret && canEditRow}
-                          onRenameStart={setRenamingKey}
-                          onPendingKeyChange={setPendingKeyValue}
-                          onRenameEnd={handleWorkspaceKeyRename}
-                          onValueChange={handleWorkspaceValueChange}
-                          onDelete={handleDeleteWorkspaceVar}
-                          onViewDetails={handleViewDetails}
-                        />
-                      )
-                    })}
-                    {canCreateWorkspaceSecret &&
-                      (searchTerm.trim()
-                        ? filteredNewWorkspaceRows
-                        : newWorkspaceRows.map((row, index) => ({ row, originalIndex: index }))
-                      ).map(({ row, originalIndex }) => (
-                        <NewWorkspaceVariableRow
-                          key={row.id || originalIndex}
-                          envVar={row}
-                          index={originalIndex}
-                          onUpdate={updateNewWorkspaceRow}
-                          onPaste={handleWorkspacePaste}
-                        />
-                      ))}
-                    <div className={cn(COL_SPAN_ALL, 'h-[8px]')} />
-                  </>
+                  </section>
                 )}
 
                 {(!searchTerm.trim() || filteredEnvVars.length > 0) && (
-                  <>
-                    <div
-                      className={cn(
-                        COL_SPAN_ALL,
-                        'font-medium text-[var(--text-secondary)] text-small'
-                      )}
-                    >
-                      Personal
+                  <section className='flex flex-col'>
+                    <span className='pl-0.5 text-[var(--text-muted)] text-small'>Personal</span>
+                    <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
+                    <div className={`${GRID_COLS} gap-y-2`}>
+                      {filteredEnvVars.map(({ envVar, originalIndex }) => (
+                        <div key={envVar.id || originalIndex} className='contents'>
+                          {renderEnvVarRow(envVar, originalIndex)}
+                        </div>
+                      ))}
                     </div>
-                    {filteredEnvVars.map(({ envVar, originalIndex }) => (
-                      <div key={envVar.id || originalIndex} className='contents'>
-                        {renderEnvVarRow(envVar, originalIndex)}
-                      </div>
-                    ))}
-                  </>
+                  </section>
                 )}
                 {searchTerm.trim() &&
                   filteredEnvVars.length === 0 &&
@@ -1088,12 +1074,7 @@ export function SecretsManager() {
                   (envVars.length > 0 ||
                     Object.keys(workspaceVars).length > 0 ||
                     newWorkspaceRows.length > 0) && (
-                    <div
-                      className={cn(
-                        COL_SPAN_ALL,
-                        'py-4 text-center text-[var(--text-muted)] text-small'
-                      )}
-                    >
+                    <div className='py-4 text-center text-[var(--text-muted)] text-small'>
                       No secrets found matching &ldquo;{searchTerm}&rdquo;
                     </div>
                   )}
