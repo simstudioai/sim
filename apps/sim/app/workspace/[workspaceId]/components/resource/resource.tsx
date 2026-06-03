@@ -333,7 +333,7 @@ export const ResourceTable = memo(function ResourceTable({
                   return (
                     <th
                       key={col.id}
-                      className='h-10 px-6 py-1.5 text-left align-middle text-[var(--text-muted)] text-caption'
+                      className='h-10 px-6 py-1.5 text-left align-middle font-base text-[var(--text-muted)] text-caption'
                     >
                       {col.header}
                     </th>
