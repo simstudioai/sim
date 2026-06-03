@@ -12,6 +12,7 @@ const {
   mockPutObjectCommand,
   mockGetObjectCommand,
   mockDeleteObjectCommand,
+  mockCompleteMultipartUploadCommand,
   mockGetSignedUrl,
   mockEnv,
   mockS3Config,
@@ -51,6 +52,7 @@ const {
     mockPutObjectCommand: vi.fn().mockImplementation(class {}),
     mockGetObjectCommand: vi.fn().mockImplementation(class {}),
     mockDeleteObjectCommand: vi.fn().mockImplementation(class {}),
+    mockCompleteMultipartUploadCommand: vi.fn().mockImplementation(class {}),
     mockGetSignedUrl: vi.fn(),
     mockEnv,
   }
@@ -61,6 +63,7 @@ vi.mock('@aws-sdk/client-s3', () => ({
   PutObjectCommand: mockPutObjectCommand,
   GetObjectCommand: mockGetObjectCommand,
   DeleteObjectCommand: mockDeleteObjectCommand,
+  CompleteMultipartUploadCommand: mockCompleteMultipartUploadCommand,
 }))
 
 vi.mock('@aws-sdk/s3-request-presigner', () => ({
@@ -92,6 +95,7 @@ vi.mock('@/lib/uploads/config', () => ({
 }))
 
 import {
+  completeS3MultipartUpload,
   deleteFromS3,
   downloadFromS3,
   getPresignedUrl,
@@ -396,6 +400,72 @@ describe('S3 Client', () => {
           secretAccessKey: 'test-secret-key',
         },
       })
+    })
+  })
+
+  describe('completeS3MultipartUpload fallback location', () => {
+    const parts = [{ ETag: 'etag-1', PartNumber: 1 }]
+
+    it('uses the SDK-provided Location when present', async () => {
+      mockSend.mockResolvedValueOnce({ Location: 'https://provided.example.com/object' })
+
+      const result = await completeS3MultipartUpload('kb/uuid-file.txt', 'upload-1', parts)
+
+      expect(result.location).toBe('https://provided.example.com/object')
+      expect(result.key).toBe('kb/uuid-file.txt')
+      expect(result.path).toBe('/api/files/serve/kb%2Fuuid-file.txt')
+    })
+
+    it('falls back to an AWS virtual-hosted URL when Location is absent', async () => {
+      mockSend.mockResolvedValueOnce({})
+
+      const result = await completeS3MultipartUpload('kb/uuid-file.txt', 'upload-1', parts)
+
+      expect(result.location).toBe(
+        'https://test-kb-bucket.s3.test-region.amazonaws.com/kb/uuid-file.txt'
+      )
+    })
+
+    it('builds a path-style fallback URL for a custom endpoint with forcePathStyle', async () => {
+      mockS3Config.endpoint = 'https://minio.example.com'
+      mockS3Config.forcePathStyle = true
+      mockSend.mockResolvedValueOnce({})
+
+      const result = await completeS3MultipartUpload('kb/uuid-file.txt', 'upload-1', parts)
+
+      expect(result.location).toBe('https://minio.example.com/test-kb-bucket/kb/uuid-file.txt')
+    })
+
+    it('builds a virtual-hosted fallback URL for a custom endpoint without forcePathStyle', async () => {
+      mockS3Config.endpoint = 'https://account.r2.cloudflarestorage.com'
+      mockS3Config.forcePathStyle = false
+      mockSend.mockResolvedValueOnce({})
+
+      const result = await completeS3MultipartUpload('kb/uuid-file.txt', 'upload-1', parts)
+
+      expect(result.location).toBe(
+        'https://test-kb-bucket.account.r2.cloudflarestorage.com/kb/uuid-file.txt'
+      )
+    })
+
+    it('strips a trailing slash from the custom endpoint before appending the key', async () => {
+      mockS3Config.endpoint = 'https://minio.example.com/'
+      mockS3Config.forcePathStyle = true
+      mockSend.mockResolvedValueOnce({})
+
+      const result = await completeS3MultipartUpload('kb/uuid-file.txt', 'upload-1', parts)
+
+      expect(result.location).toBe('https://minio.example.com/test-kb-bucket/kb/uuid-file.txt')
+    })
+
+    it('percent-encodes special characters per path segment, preserving slashes', async () => {
+      mockSend.mockResolvedValueOnce({})
+
+      const result = await completeS3MultipartUpload('kb/uuid-my file.txt', 'upload-1', parts)
+
+      expect(result.location).toBe(
+        'https://test-kb-bucket.s3.test-region.amazonaws.com/kb/uuid-my%20file.txt'
+      )
     })
   })
 })
