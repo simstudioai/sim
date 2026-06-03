@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { GitLabIcon } from '@/components/icons'
+import { isSameOrigin } from '@/lib/core/utils/validation'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
@@ -741,6 +742,9 @@ export const gitlabConnector: ConnectorConfig = {
         per_page: String(PAGE_SIZE),
         pagination: 'keyset',
       })
+      if (state.fileNextUrl && !isSameOrigin(state.fileNextUrl, apiBase)) {
+        throw new Error('GitLab pagination cursor points to an unexpected host')
+      }
       const url =
         state.fileNextUrl ??
         `${apiBase}/projects/${encodedProject}/repository/tree?${treeParams.toString()}`
