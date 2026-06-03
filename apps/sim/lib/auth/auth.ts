@@ -71,6 +71,7 @@ import {
   isRegistrationDisabled,
   isSignupEmailValidationEnabled,
   isSignupMxValidationEnabled,
+  isSsoEnabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
@@ -172,7 +173,7 @@ const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
  * Resolved once at startup; `trustEmailVerified` on the SSO plugin handles IdPs
  * that assert `email_verified` live, so this is only needed for IdPs that omit it.
  */
-const additionalTrustedSsoProviders = env.SSO_ENABLED
+const additionalTrustedSsoProviders = isSsoEnabled
   ? [env.SSO_PROVIDER_ID, ...(env.SSO_TRUSTED_PROVIDER_IDS?.split(',') ?? [])]
       .map((id) => id?.trim())
       .filter((id): id is string => Boolean(id))
