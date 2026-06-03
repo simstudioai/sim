@@ -96,7 +96,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
 
         <DetailSection title='Value'>
           <SecretValueField
-            variant='chip'
+            className='h-[30px]'
             value={valueField.value}
             onChange={valueField.setValue}
             canEdit={valueField.canEdit}

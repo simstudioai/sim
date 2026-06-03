@@ -11,9 +11,7 @@ import {
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
-  Input,
   Send,
-  Textarea,
   toast,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
@@ -265,29 +263,34 @@ export function ConnectedCredentialDetail({
         </DetailSection>
 
         <DetailSection title='Display Name'>
-          <Input
-            id='credential-display-name'
-            variant='chip'
-            value={form.displayNameDraft}
-            onChange={(event) => form.setDisplayNameDraft(event.target.value)}
-            autoComplete='off'
-            data-lpignore='true'
-            disabled={!isAdmin}
-          />
+          <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
+            <input
+              id='credential-display-name'
+              value={form.displayNameDraft}
+              onChange={(event) => form.setDisplayNameDraft(event.target.value)}
+              autoComplete='off'
+              data-lpignore='true'
+              disabled={!isAdmin}
+              className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
+            />
+          </div>
         </DetailSection>
 
         <DetailSection title='Description'>
-          <Textarea
-            id='credential-description'
-            rows={4}
-            value={form.descriptionDraft}
-            onChange={(event) => form.setDescriptionDraft(event.target.value)}
-            placeholder='Add a description...'
-            maxLength={500}
-            autoComplete='off'
-            data-lpignore='true'
-            disabled={!isAdmin}
-          />
+          <div className='flex items-start gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-2 dark:bg-[var(--surface-4)]'>
+            <textarea
+              id='credential-description'
+              rows={4}
+              value={form.descriptionDraft}
+              onChange={(event) => form.setDescriptionDraft(event.target.value)}
+              placeholder='Add a description...'
+              maxLength={500}
+              autoComplete='off'
+              data-lpignore='true'
+              disabled={!isAdmin}
+              className='w-full resize-none bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
+            />
+          </div>
         </DetailSection>
 
         <CredentialMembersSection credentialId={credential.id} isAdmin={isAdmin} />

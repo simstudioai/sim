@@ -2,12 +2,12 @@
 
 import type { ComponentProps, CSSProperties } from 'react'
 import { useState } from 'react'
-import { Input as EmcnInput } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 
 const BULLET = '\u2022'
 
 type SecretValueFieldProps = Omit<
-  ComponentProps<typeof EmcnInput>,
+  ComponentProps<'input'>,
   'type' | 'value' | 'onChange' | 'readOnly'
 > & {
   value: string
@@ -30,8 +30,10 @@ type SecretValueFieldProps = Omit<
  * and keeps the field read-only (masked) for viewers who can't edit. Shared by
  * the secrets list and the secret detail page so masking never diverges.
  *
- * Values arrive already decrypted from the environment API for callers who are
- * authorized to see them; this component only governs on-screen visibility.
+ * Rendered as a native input inside a chip-style wrapper (matching
+ * {@link CopyableValueField}); the caller's `className` sizes/positions the
+ * wrapper (e.g. `h-9`, `col-span-2`). Values arrive already decrypted for
+ * authorized callers; this component only governs on-screen visibility.
  */
 export function SecretValueField({
   value,
@@ -42,6 +44,7 @@ export function SecretValueField({
   onFocus,
   onBlur,
   style,
+  className,
   ...props
 }: SecretValueFieldProps) {
   const [focused, setFocused] = useState(false)
@@ -54,32 +57,40 @@ export function SecretValueField({
     : style
 
   return (
-    <EmcnInput
-      {...props}
-      type='text'
-      value={displayValue}
-      // Start read-only so password managers don't autofill; lifted on focus for
-      // editors. React leaves the unchanged prop alone after the imperative
-      // removeAttribute, so editing stays enabled until blur.
-      readOnly
-      style={mergedStyle}
-      onChange={(event) => {
-        if (editable) onChange?.(event.target.value)
-      }}
-      onFocus={(event) => {
-        if (editable) event.currentTarget.removeAttribute('readOnly')
-        event.currentTarget.scrollLeft = 0
-        setFocused(true)
-        onFocus?.(event)
-      }}
-      onBlur={(event) => {
-        setFocused(false)
-        onBlur?.(event)
-      }}
-      autoComplete='off'
-      autoCorrect='off'
-      autoCapitalize='off'
-      spellCheck='false'
-    />
+    <div
+      className={cn(
+        'flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]',
+        className
+      )}
+    >
+      <input
+        {...props}
+        type='text'
+        value={displayValue}
+        // Start read-only so password managers don't autofill; lifted on focus for
+        // editors. React leaves the unchanged prop alone after the imperative
+        // removeAttribute, so editing stays enabled until blur.
+        readOnly
+        style={mergedStyle}
+        onChange={(event) => {
+          if (editable) onChange?.(event.target.value)
+        }}
+        onFocus={(event) => {
+          if (editable) event.currentTarget.removeAttribute('readOnly')
+          event.currentTarget.scrollLeft = 0
+          setFocused(true)
+          onFocus?.(event)
+        }}
+        onBlur={(event) => {
+          setFocused(false)
+          onBlur?.(event)
+        }}
+        autoComplete='off'
+        autoCorrect='off'
+        autoCapitalize='off'
+        spellCheck='false'
+        className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
+      />
+    </div>
   )
 }

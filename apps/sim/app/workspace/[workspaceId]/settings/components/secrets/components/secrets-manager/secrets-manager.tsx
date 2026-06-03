@@ -5,15 +5,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import {
-  Button,
-  Chip,
-  Input as EmcnInput,
-  SearchInput,
-  Tooltip,
-  Trash,
-  toast,
-} from '@/components/emcn'
+import { Button, Chip, SearchInput, Tooltip, Trash, toast } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
   clearPendingCredentialCreateRequest,
@@ -44,6 +36,10 @@ const logger = createLogger('SecretsManager')
 
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto_auto] items-center'
 const COL_SPAN_ALL = 'col-span-5'
+const CHIP_FIELD =
+  'flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'
+const CHIP_FIELD_INPUT =
+  'h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
 
 const generateRowId = (() => {
   let counter = 0
@@ -188,23 +184,25 @@ function WorkspaceVariableRow({
 }: WorkspaceVariableRowProps) {
   return (
     <div className='contents'>
-      <EmcnInput
-        value={renamingKey === envKey ? pendingKeyValue : envKey}
-        onChange={(e) => {
-          if (renamingKey !== envKey) onRenameStart(envKey)
-          onPendingKeyChange(e.target.value)
-        }}
-        onBlur={() => onRenameEnd(envKey, value)}
-        name={`workspace_env_key_${envKey}_${generateShortId()}`}
-        autoComplete='off'
-        autoCapitalize='off'
-        spellCheck='false'
-        readOnly
-        onFocus={(e) => {
-          if (canRename) e.target.removeAttribute('readOnly')
-        }}
-        className={cn('h-9', !canRename && 'cursor-not-allowed opacity-50')}
-      />
+      <div className={cn(CHIP_FIELD, 'h-9', !canRename && 'cursor-not-allowed opacity-50')}>
+        <input
+          value={renamingKey === envKey ? pendingKeyValue : envKey}
+          onChange={(e) => {
+            if (renamingKey !== envKey) onRenameStart(envKey)
+            onPendingKeyChange(e.target.value)
+          }}
+          onBlur={() => onRenameEnd(envKey, value)}
+          name={`workspace_env_key_${envKey}_${generateShortId()}`}
+          autoComplete='off'
+          autoCapitalize='off'
+          spellCheck='false'
+          readOnly
+          onFocus={(e) => {
+            if (canRename) e.target.removeAttribute('readOnly')
+          }}
+          className={CHIP_FIELD_INPUT}
+        />
+      </div>
       <div />
       <SecretValueField
         value={value}
@@ -254,20 +252,22 @@ function NewWorkspaceVariableRow({
 
   return (
     <div className='contents'>
-      <EmcnInput
-        data-input-type='key'
-        value={envVar.key}
-        onChange={(e) => onUpdate(index, 'key', e.target.value)}
-        onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
-        placeholder='API_KEY'
-        name={`new_workspace_key_${envVar.id || index}_${generateShortId()}`}
-        autoComplete='off'
-        autoCapitalize='off'
-        spellCheck='false'
-        readOnly
-        onFocus={(e) => e.target.removeAttribute('readOnly')}
-        className={cn('h-9', keyError && 'border-[var(--text-error)]')}
-      />
+      <div className={cn(CHIP_FIELD, 'h-9', keyError && 'border-[var(--text-error)]')}>
+        <input
+          data-input-type='key'
+          value={envVar.key}
+          onChange={(e) => onUpdate(index, 'key', e.target.value)}
+          onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
+          placeholder='API_KEY'
+          name={`new_workspace_key_${envVar.id || index}_${generateShortId()}`}
+          autoComplete='off'
+          autoCapitalize='off'
+          spellCheck='false'
+          readOnly
+          onFocus={(e) => e.target.removeAttribute('readOnly')}
+          className={CHIP_FIELD_INPUT}
+        />
+      </div>
       <div />
       <SecretValueField
         data-input-type='value'
@@ -854,24 +854,29 @@ export function SecretsManager() {
 
     return (
       <div className='contents'>
-        <EmcnInput
-          data-input-type='key'
-          value={envVar.key}
-          onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
-          onPaste={(e) => handlePaste(e, originalIndex)}
-          placeholder='API_KEY'
-          name={`env_variable_name_${envVar.id || originalIndex}_${generateShortId()}`}
-          autoComplete='off'
-          autoCapitalize='off'
-          spellCheck='false'
-          readOnly
-          onFocus={(e) => e.target.removeAttribute('readOnly')}
+        <div
           className={cn(
+            CHIP_FIELD,
             'h-9',
             isConflicted && 'border-[var(--text-error)]',
             keyError && 'border-[var(--text-error)]'
           )}
-        />
+        >
+          <input
+            data-input-type='key'
+            value={envVar.key}
+            onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
+            onPaste={(e) => handlePaste(e, originalIndex)}
+            placeholder='API_KEY'
+            name={`env_variable_name_${envVar.id || originalIndex}_${generateShortId()}`}
+            autoComplete='off'
+            autoCapitalize='off'
+            spellCheck='false'
+            readOnly
+            onFocus={(e) => e.target.removeAttribute('readOnly')}
+            className={CHIP_FIELD_INPUT}
+          />
+        </div>
         <div />
         <SecretValueField
           data-input-type='value'
