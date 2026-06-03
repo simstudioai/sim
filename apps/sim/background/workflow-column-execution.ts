@@ -739,8 +739,6 @@ async function runWorkflowAndWriteTerminal(
           executionId,
           cause: describeError(err),
           retryable: isRetryableCellError(err),
-          aborted: abortSignal.aborted,
-          timedOut: timeoutController.isTimedOut(),
         }
       )
       terminalWritten = true
