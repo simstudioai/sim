@@ -8,6 +8,10 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { type AudioType, generateFalAudio } from '@/lib/media/falai-audio'
+import {
+  fetchWorkspaceFileBuffer,
+  resolveWorkspaceFileReference,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('GenerateAudioTool')
 
@@ -19,6 +23,8 @@ interface GenerateAudioArgs {
   model?: string
   voice?: string
   duration?: number
+  /** Optional reference voice sample (workspace audio file) for zero-shot voice cloning. */
+  inputs?: { files?: Array<{ path: string }> }
   outputs?: {
     files?: Array<{ path: string; mode?: 'create' | 'overwrite'; mimeType?: string }>
   }
@@ -70,11 +76,25 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
       }
     }
 
+    // Voice cloning: a reference sample clones that voice into the generated speech.
+    let voiceSampleDataUri: string | undefined
+    const samplePath = params.inputs?.files?.[0]?.path
+    if (samplePath) {
+      const sample = await resolveWorkspaceFileReference(workspaceId, samplePath)
+      if (!sample) {
+        return { success: false, message: `Voice sample not found: ${samplePath}` }
+      }
+      const sampleBuffer = await fetchWorkspaceFileBuffer(sample)
+      const sampleMime = sample.type || 'audio/mpeg'
+      voiceSampleDataUri = `data:${sampleMime};base64,${sampleBuffer.toString('base64')}`
+    }
+
     try {
       logger.info('Generating audio', {
         type,
         model: params.model,
         promptLength: params.prompt.length,
+        voiceClone: Boolean(voiceSampleDataUri),
       })
 
       const result = await generateFalAudio({
@@ -83,6 +103,7 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
         model: params.model,
         voice: params.voice,
         duration: params.duration,
+        voiceSampleDataUri,
       })
 
       const outputFile = params.outputs?.files?.[0]

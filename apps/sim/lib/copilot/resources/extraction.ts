@@ -4,8 +4,11 @@ import {
   DeleteWorkflow,
   DownloadToWorkspaceFile,
   EditWorkflow,
+  Ffmpeg,
   FunctionExecute,
+  GenerateAudio,
   GenerateImage,
+  GenerateVideo,
   Knowledge,
   KnowledgeBase,
   UserTable,
@@ -27,6 +30,9 @@ const RESOURCE_TOOL_NAMES: Set<string> = new Set([
   KnowledgeBase.id,
   Knowledge.id,
   GenerateImage.id,
+  GenerateVideo.id,
+  GenerateAudio.id,
+  Ffmpeg.id,
 ])
 
 export function isResourceToolName(toolName: string): boolean {
@@ -141,7 +147,11 @@ export function extractResourcesFromToolResult(
     }
 
     case DownloadToWorkspaceFile.id:
-    case GenerateImage.id: {
+    case GenerateImage.id:
+    case GenerateVideo.id:
+    case GenerateAudio.id:
+    case Ffmpeg.id: {
+      // ffmpeg's probe op writes no file (no fileId) → no resource/auto-open.
       if (result.fileId) {
         return [
           {

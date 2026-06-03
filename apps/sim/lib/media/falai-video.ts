@@ -93,7 +93,10 @@ const VIDEO_MODELS: Record<string, FalVideoModelConfig> = {
   },
 }
 
-export const DEFAULT_VIDEO_MODEL = 'veo-3.1'
+// Default to the Fast tier: same Veo 3.1 family with native audio, but the
+// cheapest tier on fal (~$0.10-0.15/s vs ~$0.40/s Standard, and cheaper than
+// Seedance ~$0.24-0.30/s). Agent can override to veo-3.1 (4K/cinematic) etc.
+export const DEFAULT_VIDEO_MODEL = 'veo-3.1-fast'
 
 export interface GenerateFalVideoParams {
   prompt: string

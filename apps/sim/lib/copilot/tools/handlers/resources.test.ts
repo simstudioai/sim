@@ -47,6 +47,7 @@ describe('executeOpenResource', () => {
     getWorkspaceFileMock.mockResolvedValue({
       id: 'wf_qL_cfff-FskMsXtOdm599',
       name: 'MAC_Brand_Guidelines_May_2021 (1).docx',
+      folderPath: null,
     })
 
     const result = await executeOpenResource(
@@ -65,6 +66,7 @@ describe('executeOpenResource', () => {
           type: 'file',
           id: 'wf_qL_cfff-FskMsXtOdm599',
           title: 'MAC_Brand_Guidelines_May_2021 (1).docx',
+          path: 'files/MAC_Brand_Guidelines_May_2021%20(1).docx',
         },
       ],
     })
@@ -74,6 +76,7 @@ describe('executeOpenResource', () => {
     resolveWorkspaceFileReferenceMock.mockResolvedValue({
       id: 'wf_qL_cfff-FskMsXtOdm599',
       name: 'MAC_Brand_Guidelines_May_2021 (1).docx',
+      folderPath: 'Docs',
     })
 
     const result = await executeOpenResource(
@@ -95,6 +98,7 @@ describe('executeOpenResource', () => {
           type: 'file',
           id: 'wf_qL_cfff-FskMsXtOdm599',
           title: 'MAC_Brand_Guidelines_May_2021 (1).docx',
+          path: 'files/Docs/MAC_Brand_Guidelines_May_2021%20(1).docx',
         },
       ],
     })
@@ -104,6 +108,7 @@ describe('executeOpenResource', () => {
     resolveWorkspaceFileReferenceMock.mockResolvedValue({
       id: 'wf_plan_file',
       name: 'implementation.md',
+      folderPath: 'system/workflows/My Workflow/.plans',
     })
 
     const result = await executeOpenResource(
@@ -124,6 +129,7 @@ describe('executeOpenResource', () => {
           type: 'file',
           id: 'wf_plan_file',
           title: 'implementation.md',
+          path: 'files/system/workflows/My%20Workflow/.plans/implementation.md',
         },
       ],
     })
@@ -133,6 +139,7 @@ describe('executeOpenResource', () => {
     resolveWorkspaceFileReferenceMock.mockResolvedValue({
       id: 'wf_root_plan',
       name: 'root.md',
+      folderPath: 'system/.plans',
     })
 
     const result = await executeOpenResource(
@@ -150,6 +157,7 @@ describe('executeOpenResource', () => {
           type: 'file',
           id: 'wf_root_plan',
           title: 'root.md',
+          path: 'files/system/.plans/root.md',
         },
       ],
     })

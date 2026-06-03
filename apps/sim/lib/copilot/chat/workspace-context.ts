@@ -76,18 +76,6 @@ export interface WorkspaceMdData {
   }>
 }
 
-// `folderPath` is already per-segment percent-encoded: it comes from
-// buildVfsFolderPathMap / resolveFolderPath, the same maps that build the keys
-// the VFS materializer stores. Build the advertised path with
-// canonicalWorkflowVfsDir — the exact helper the materializer and @-mention
-// pointers use — so the WORKSPACE.md state path can never drift from the stored
-// VFS key. The workflow NAME is the raw display string, so the helper encodes it
-// once. Re-encoding the folder segment here is what produced double-encoded
-// paths like `The%2520Elder` for a folder named `The Elder`.
-function buildWorkflowStatePath(workflowName: string, folderPath?: string | null): string {
-  return `${canonicalWorkflowVfsDir({ name: workflowName, folderPath })}/state.json`
-}
-
 /**
  * Pure formatting: build WORKSPACE.md content from pre-fetched data.
  * No DB access — callers are responsible for providing the data.
@@ -125,25 +113,21 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
 
     const formatWf = (wf: (typeof data.workflows)[0], indent: string) => {
       const parts = [`${indent}- **${wf.name}** (${wf.id})`]
+      const workflowDir = canonicalWorkflowVfsDir({ name: wf.name, folderPath: wf.folderPath })
+      parts.push(`${indent}  VFS dir: \`${workflowDir}\``)
+      parts.push(`${indent}  VFS state path: \`${workflowDir}/state.json\``)
       if (wf.description) parts.push(`${indent}  ${wf.description}`)
       const flags: string[] = []
       if (wf.isDeployed) flags.push('deployed')
       if (wf.lastRunAt) flags.push(`last run: ${wf.lastRunAt.toISOString().split('T')[0]}`)
       if (flags.length > 0) parts[0] += ` — ${flags.join(', ')}`
-      if (wf.folderPath) {
-        parts.push(
-          `${indent}  VFS state path: \`${buildWorkflowStatePath(wf.name, wf.folderPath)}\``
-        )
-      }
       return parts.join('\n')
     }
 
     const lines: string[] = []
-    if (data.workflows.some((workflow) => workflow.folderPath)) {
-      lines.push(
-        'Use the canonical VFS state path shown under nested workflows. Do not infer nested workflow paths from the leaf workflow name alone.'
-      )
-    }
+    lines.push(
+      'Use the canonical VFS dir/state path shown under each workflow. Paths are percent-encoded per segment; copy them verbatim and do not infer paths from display names.'
+    )
     for (const wf of rootWorkflows) {
       lines.push(formatWf(wf, ''))
     }

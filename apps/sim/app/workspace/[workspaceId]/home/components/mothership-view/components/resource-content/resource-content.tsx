@@ -15,6 +15,7 @@ import {
 } from '@/components/emcn/icons'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
+import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import {
   cancelRunToolExecution,
   markRunToolManuallyStopped,
@@ -162,6 +163,7 @@ export const ResourceContent = memo(function ResourceContent({
           key={resource.id}
           workspaceId={workspaceId}
           fileId={resource.id}
+          filePath={resource.path}
           previewMode={previewMode}
           streamingContent={pendingOrStreamingFilePreviewText}
           streamingMode='replace'
@@ -218,7 +220,9 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
     case 'workflow':
       return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />
     case 'file':
-      return <EmbeddedFileActions workspaceId={workspaceId} fileId={resource.id} />
+      return (
+        <EmbeddedFileActions workspaceId={workspaceId} fileId={resource.id} filePath={resource.path} />
+      )
     case 'knowledgebase':
       return (
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
@@ -426,12 +430,22 @@ const fileLogger = createLogger('EmbeddedFileActions')
 interface EmbeddedFileActionsProps {
   workspaceId: string
   fileId: string
+  filePath?: string
 }
 
-function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) {
+function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActionsProps) {
   const router = useRouter()
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
+  const file = useMemo(
+    () =>
+      files.find(
+        (f) =>
+          f.id === fileId ||
+          (filePath &&
+            canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === filePath)
+      ),
+    [files, fileId, filePath]
+  )
 
   const handleDownload = async () => {
     if (!file) return
@@ -443,7 +457,7 @@ function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) 
   }
 
   const handleOpenInFiles = () => {
-    router.push(`/workspace/${workspaceId}/files/${encodeURIComponent(fileId)}`)
+    router.push(`/workspace/${workspaceId}/files/${encodeURIComponent(file?.id ?? fileId)}`)
   }
 
   return (
@@ -521,6 +535,7 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
 interface EmbeddedFileProps {
   workspaceId: string
   fileId: string
+  filePath?: string
   previewMode?: PreviewMode
   streamingContent?: string
   streamingMode?: 'append' | 'replace'
@@ -531,6 +546,7 @@ interface EmbeddedFileProps {
 function EmbeddedFile({
   workspaceId,
   fileId,
+  filePath,
   previewMode,
   streamingContent,
   streamingMode,
@@ -539,7 +555,16 @@ function EmbeddedFile({
 }: EmbeddedFileProps) {
   const { canEdit } = useUserPermissionsContext()
   const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
+  const file = useMemo(
+    () =>
+      files.find(
+        (f) =>
+          f.id === fileId ||
+          (filePath &&
+            canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === filePath)
+      ),
+    [files, fileId, filePath]
+  )
 
   if (isLoading || (isFetching && !file)) return LOADING_SKELETON
 

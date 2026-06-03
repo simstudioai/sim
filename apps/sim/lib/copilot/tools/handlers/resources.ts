@@ -7,6 +7,7 @@ import {
   getWorkspaceFile,
   resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import type { OpenResourceItem, OpenResourceParams, ValidOpenResourceParams } from './param-types'
 
@@ -32,6 +33,12 @@ async function resolveResource(
     if (!record) return { error: `No workspace file found for "${fileRef}".` }
     resourceId = record.id
     title = record.name
+    return {
+      type: resourceType,
+      id: resourceId,
+      title,
+      path: canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name }),
+    }
   }
   if (resourceType === 'workflow') {
     if (!item.id) return { error: 'workflow resources require `id`.' }

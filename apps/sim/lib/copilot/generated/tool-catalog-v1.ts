@@ -1423,6 +1423,69 @@ export const GenerateAudio: ToolCatalogEntry = {
         type: 'number',
         description: 'Approximate duration in seconds for music/sfx where supported.',
       },
+      inputs: {
+        type: 'object',
+        description:
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+        properties: {
+          directories: {
+            type: 'array',
+            description:
+              'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          files: {
+            type: 'array',
+            description: 'Workspace files to mount into the sandbox.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          tables: {
+            type: 'array',
+            description: 'Workspace tables to mount as CSV files.',
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Canonical VFS table path when available.' },
+                sandboxPath: {
+                  type: 'string',
+                  description: 'Optional full sandbox path for the mounted CSV.',
+                },
+                tableId: { type: 'string', description: 'Workspace table ID.' },
+              },
+            },
+          },
+        },
+      },
       model: {
         type: 'string',
         description:
@@ -1484,7 +1547,7 @@ export const GenerateAudio: ToolCatalogEntry = {
     required: ['prompt'],
   },
   requiredPermission: 'write',
-  capabilities: ['file_output', 'generated_media'],
+  capabilities: ['file_input', 'file_output', 'generated_media'],
 }
 
 export const GenerateImage: ToolCatalogEntry = {
@@ -1702,7 +1765,8 @@ export const GenerateVideo: ToolCatalogEntry = {
       },
       model: {
         type: 'string',
-        description: 'Optional model override. Defaults to veo-3.1 (native audio, best quality).',
+        description:
+          'Optional model override. Defaults to veo-3.1-fast (native audio, cheapest Veo tier). Use veo-3.1 for 4K/cinematic; seedance-2.0 for longer narrative.',
         enum: [
           'veo-3.1',
           'veo-3.1-fast',

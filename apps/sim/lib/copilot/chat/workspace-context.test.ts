@@ -64,13 +64,14 @@ describe('buildWorkspaceMd - workflow VFS state paths', () => {
     expect(md).toContain(expected)
   })
 
-  it('does not advertise a VFS state path for root-level workflows', () => {
+  it('advertises canonical encoded VFS paths for root-level workflows', () => {
     const md = buildWorkspaceMd(
       baseData({
         workflows: [{ id: 'wf-1', name: 'Root Flow', isDeployed: false, folderPath: null }],
       })
     )
 
-    expect(md).not.toContain('VFS state path')
+    expect(md).toContain('VFS dir: `workflows/Root%20Flow`')
+    expect(md).toContain('VFS state path: `workflows/Root%20Flow/state.json`')
   })
 })

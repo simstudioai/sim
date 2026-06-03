@@ -71,7 +71,7 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
       }
 
       logger.info('Generating video', {
-        model: params.model || 'veo-3.1',
+        model: params.model || 'veo-3.1-fast',
         promptLength: params.prompt.length,
         imageToVideo: Boolean(imageDataUri),
       })
