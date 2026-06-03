@@ -1,3 +1,5 @@
+import { toError } from '@sim/utils/errors'
+
 const RETRYABLE_DB_ERROR_CODES = new Set([
   '08000',
   '08001',
@@ -75,4 +77,48 @@ export function describeRetryableInfrastructureError(
 
 export function isRetryableInfrastructureError(error: unknown): boolean {
   return Boolean(describeRetryableInfrastructureError(error))
+}
+
+export interface DescribedError {
+  name: string
+  message: string
+  code?: string
+  errno?: string
+  syscall?: string
+  /** `"Name: message"` per link in the `.cause` chain, outermost first. Present only when the chain has more than one link. */
+  causeChain?: string[]
+}
+
+/**
+ * Always-on diagnostic view of an error and its `.cause` chain.
+ *
+ * Unlike {@link describeRetryableInfrastructureError} — which returns
+ * `undefined` for errors outside its retryable allowlist — this returns the
+ * underlying cause for ANY error, including `AbortError` and otherwise
+ * unclassified causes. Reports the fields of the DEEPEST `.cause` link, because
+ * a wrapped driver error (e.g. Drizzle's `"Failed query: ..."` wrapping an
+ * `ECONNRESET`) carries the real reason there, not on the outer wrapper.
+ *
+ * `@sim/logger` does not serialize the non-enumerable `Error.prototype.cause`,
+ * so callers must pass the result as an explicit structured log field rather
+ * than relying on the logger to expand a raw error.
+ */
+export function describeError(error: unknown): DescribedError {
+  const chain = getErrorChain(error)
+  if (chain.length === 0) {
+    const normalized = toError(error)
+    return { name: normalized.name, message: normalized.message }
+  }
+  const deepest = chain[chain.length - 1]
+  const code = typeof deepest.code === 'string' ? deepest.code : undefined
+  const errno = typeof deepest.errno === 'string' ? deepest.errno : undefined
+  const syscall = typeof deepest.syscall === 'string' ? deepest.syscall : undefined
+  return {
+    name: deepest.name,
+    message: deepest.message,
+    ...(code ? { code } : {}),
+    ...(errno ? { errno } : {}),
+    ...(syscall ? { syscall } : {}),
+    ...(chain.length > 1 ? { causeChain: chain.map((e) => `${e.name}: ${e.message}`) } : {}),
+  }
 }

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { acquireLock, extendLock, releaseLock } from '@/lib/core/config/redis'
+import { retryTransient } from '@/lib/table/retry-transient'
 
 const logger = createLogger('TableCascadeLock')
 
@@ -40,7 +41,11 @@ export async function withCascadeLock<T>(
   fn: () => Promise<T>
 ): Promise<{ status: 'acquired'; result: T } | { status: 'contended' }> {
   const key = cascadeLockKey(tableId, rowId)
-  const acquired = await acquireLock(key, ownerId, LOCK_TTL_SECONDS)
+  // A timed-out/dropped Redis command here throws before the cell is picked up;
+  // retry so a transient Redis blip doesn't fail the run outright.
+  const acquired = await retryTransient('cascade acquireLock', () =>
+    acquireLock(key, ownerId, LOCK_TTL_SECONDS)
+  )
   if (!acquired) return { status: 'contended' }
 
   const heartbeat = setInterval(() => {

@@ -7,12 +7,14 @@ import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
+import { describeError } from '@/lib/core/errors/retryable-infrastructure'
 import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
 import { isExecCancelled } from '@/lib/table/deps'
 import { appendTableEvent } from '@/lib/table/events'
+import { isRetryableCellError, retryTransient } from '@/lib/table/retry-transient'
 import type {
   RowData,
   RowExecutionMetadata,
@@ -67,9 +69,15 @@ export async function executeWorkflowGroupCellJob(
     // marked, so stop re-driving this row.
     if (outcome.result === 'blocked') break
     if (signal?.aborted) break
-    const freshTable = await getTableById(tableId)
+    const freshTable = await retryTransient('cascade getTableById', () => getTableById(tableId), {
+      signal,
+    })
     if (!freshTable) break
-    const freshRow = await getRowById(tableId, rowId, workspaceId)
+    const freshRow = await retryTransient(
+      'cascade getRowById',
+      () => getRowById(tableId, rowId, workspaceId),
+      { signal }
+    )
     if (!freshRow) break
     const next = pickNextEligibleGroupForRow(freshTable, freshRow)
     if (!next) break
@@ -113,7 +121,9 @@ export async function runRowCascadeLoop(
   while (true) {
     if (signal?.aborted) break
 
-    const freshTable = await getTableById(tableId)
+    const freshTable = await retryTransient('cascade getTableById', () => getTableById(tableId), {
+      signal,
+    })
     if (!freshTable) {
       logger.warn(`Table ${tableId} vanished mid-cascade`)
       break
@@ -142,7 +152,11 @@ export async function runRowCascadeLoop(
     // would re-pick the still-pending queued marker and spin.
     if (result === 'blocked') return 'blocked'
 
-    const freshRow = await getRowById(tableId, rowId, workspaceId)
+    const freshRow = await retryTransient(
+      'cascade getRowById',
+      () => getRowById(tableId, rowId, workspaceId),
+      { signal }
+    )
     if (!freshRow) break
     const next = pickNextEligibleGroupForRow(freshTable, freshRow, currentGroupId)
     if (!next) break
@@ -597,8 +611,8 @@ async function runWorkflowAndWriteTerminal(
           })
           .catch((err) => {
             logger.warn(
-              `Per-block partial write failed (table=${tableId} row=${rowId} group=${groupId}):`,
-              err
+              `Per-block partial write failed (table=${tableId} row=${rowId} group=${groupId})`,
+              { cause: describeError(err), retryable: isRetryableCellError(err) }
             )
           })
       }
@@ -720,7 +734,14 @@ async function runWorkflowAndWriteTerminal(
       const message = toError(err).message
       logger.error(
         `Workflow group cell execution failed (table=${tableId} row=${rowId} group=${groupId})`,
-        { error: message, executionId }
+        {
+          error: message,
+          executionId,
+          cause: describeError(err),
+          retryable: isRetryableCellError(err),
+          aborted: abortSignal.aborted,
+          timedOut: timeoutController.isTimedOut(),
+        }
       )
       terminalWritten = true
       await writeChain.catch(() => {})
@@ -735,7 +756,11 @@ async function runWorkflowAndWriteTerminal(
           blockErrors,
         })
       } catch (writeErr) {
-        logger.error('Also failed to write error state', { error: toError(writeErr).message })
+        logger.error('Also failed to write error state', {
+          error: toError(writeErr).message,
+          cause: describeError(writeErr),
+          retryable: isRetryableCellError(writeErr),
+        })
       }
       return 'error'
     }
