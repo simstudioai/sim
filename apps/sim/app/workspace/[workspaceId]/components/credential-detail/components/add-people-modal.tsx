@@ -80,8 +80,11 @@ export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleMo
   const handleAddPeople = useCallback(async () => {
     if (emailsToAdd.length === 0 || isAdding) return
     const targets = emailsToAdd
-      .map((email) => ({ email, userId: workspaceUserIdByEmail.get(email) }))
-      .filter((target): target is { email: string; userId: string } => Boolean(target.userId))
+      .map((email) => {
+        const result = resolveAddEmail(email, { workspaceUserIdByEmail, existingMemberEmails })
+        return 'userId' in result ? { email, userId: result.userId } : null
+      })
+      .filter((target): target is { email: string; userId: string } => target !== null)
     if (targets.length === 0) return
 
     setIsAdding(true)
@@ -115,6 +118,7 @@ export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleMo
     emailsToAdd,
     isAdding,
     workspaceUserIdByEmail,
+    existingMemberEmails,
     roleToAdd,
     upsertMember,
     handleClose,

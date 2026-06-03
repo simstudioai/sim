@@ -8,17 +8,20 @@ export interface ResolveAddEmailContext {
 export type ResolveAddEmailResult = { userId: string } | { error: string }
 
 /**
- * Decide whether a (format-valid, lowercased) email can be added to a
- * credential: it must belong to a workspace member and not already have access.
- * Returns the resolved `userId` on success, or a user-facing `error` message.
+ * Decide whether a format-valid email can be added to a credential: it must
+ * belong to a workspace member and not already have access. Matching is
+ * case-insensitive (the context map/set are keyed by lowercased email) while
+ * error messages echo the email as the user typed it. Returns the resolved
+ * `userId` on success, or a user-facing `error` message.
  */
 export function resolveAddEmail(
   email: string,
   { workspaceUserIdByEmail, existingMemberEmails }: ResolveAddEmailContext
 ): ResolveAddEmailResult {
-  const userId = workspaceUserIdByEmail.get(email)
+  const normalized = email.toLowerCase()
+  const userId = workspaceUserIdByEmail.get(normalized)
   if (!userId) return { error: `${email} isn't a member of this workspace` }
-  if (existingMemberEmails.has(email)) return { error: `${email} already has access` }
+  if (existingMemberEmails.has(normalized)) return { error: `${email} already has access` }
   return { userId }
 }
 

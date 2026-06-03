@@ -29,9 +29,11 @@ describe('resolveAddEmail', () => {
     })
   })
 
-  it('matches against the lowercased keys/sets the caller supplies', () => {
-    expect(resolveAddEmail('ada@sim.dev', ctx)).toEqual({ userId: 'user-ada' })
-    expect('ADA@sim.dev'.toLowerCase()).toBe('ada@sim.dev')
+  it('matches case-insensitively while echoing the original email in errors', () => {
+    expect(resolveAddEmail('ADA@Sim.dev', ctx)).toEqual({ userId: 'user-ada' })
+    expect(resolveAddEmail('Grace@SIM.dev', ctx)).toEqual({
+      error: 'Grace@SIM.dev already has access',
+    })
   })
 })
 

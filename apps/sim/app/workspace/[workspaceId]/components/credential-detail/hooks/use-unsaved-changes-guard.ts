@@ -22,6 +22,10 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
 
   useEffect(() => {
     if (!isDirty) return
+    // Seed a same-URL history entry so the first browser Back pops this guard
+    // entry (no route change) and fires popstate, instead of leaving the page
+    // before the confirmation can show.
+    window.history.pushState(null, '', window.location.href)
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault()
     }
