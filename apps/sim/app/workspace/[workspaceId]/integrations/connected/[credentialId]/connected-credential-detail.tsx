@@ -34,6 +34,7 @@ import { INTEGRATIONS } from '@/lib/integrations'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   useCreateCredentialDraft,
   useDeleteWorkspaceCredential,
@@ -109,6 +110,8 @@ export function ConnectedCredentialDetail({
   const upsertMember = useUpsertWorkspaceCredentialMember()
   const removeMember = useRemoveWorkspaceCredentialMember()
 
+  const { workspacePermissions } = useWorkspacePermissionsContext()
+
   const credential = useMemo<WorkspaceCredential | null>(
     () => credentials.find((c) => c.id === credentialId) ?? null,
     [credentials, credentialId]
@@ -156,8 +159,9 @@ export function ConnectedCredentialDetail({
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
-  const [inviteRole, setInviteRole] = useState<WorkspaceCredentialRole>('member')
-  const [inviteEmails, setInviteEmails] = useState<string[]>([])
+  const [roleToAdd, setRoleToAdd] = useState<WorkspaceCredentialRole>('member')
+  const [emailsToAdd, setEmailsToAdd] = useState<string[]>([])
+  const [isAdding, setIsAdding] = useState(false)
 
   // Sync drafts when credential loads or changes.
   useEffect(() => {
@@ -199,22 +203,98 @@ export function ConnectedCredentialDetail({
     router.push(integrationsHref)
   }, [router, integrationsHref])
 
-  const resetInviteModalState = useCallback(() => {
-    setInviteEmails([])
-    setInviteRole('member')
+  const resetShareModalState = useCallback(() => {
+    setEmailsToAdd([])
+    setRoleToAdd('member')
   }, [])
+
+  const workspaceUserIdByEmail = useMemo(
+    () =>
+      new Map(
+        (workspacePermissions?.users ?? []).map((user) => [user.email.toLowerCase(), user.userId])
+      ),
+    [workspacePermissions?.users]
+  )
+
+  const credentialMemberEmails = useMemo(
+    () =>
+      new Set(
+        activeMembers.map((member) => (member.userEmail ?? '').toLowerCase()).filter(Boolean)
+      ),
+    [activeMembers]
+  )
+
+  /**
+   * A person can only be added if they already belong to the workspace, and not
+   * if they already have access to this credential — both cases are surfaced
+   * inline by the emails field.
+   */
+  const validateAddEmail = useCallback(
+    (email: string): string | null => {
+      if (!workspaceUserIdByEmail.has(email)) return `${email} isn't a member of this workspace`
+      if (credentialMemberEmails.has(email)) return `${email} already has access`
+      return null
+    },
+    [workspaceUserIdByEmail, credentialMemberEmails]
+  )
 
   const handleShareModalOpenChange = useCallback(
     (open: boolean) => {
       setIsShareModalOpen(open)
-      if (!open) resetInviteModalState()
+      if (!open) resetShareModalState()
     },
-    [resetInviteModalState]
+    [resetShareModalState]
   )
 
-  const handleSendInvites = useCallback(() => {
-    handleShareModalOpenChange(false)
-  }, [handleShareModalOpenChange])
+  const handleAddPeople = useCallback(async () => {
+    if (!credential || emailsToAdd.length === 0 || isAdding) return
+    const targets = emailsToAdd
+      .map((email) => ({ email, userId: workspaceUserIdByEmail.get(email) }))
+      .filter((target): target is { email: string; userId: string } => Boolean(target.userId))
+    if (targets.length === 0) return
+
+    setIsAdding(true)
+    try {
+      const results = await Promise.allSettled(
+        targets.map((target) =>
+          upsertMember.mutateAsync({
+            credentialId: credential.id,
+            userId: target.userId,
+            role: roleToAdd,
+          })
+        )
+      )
+
+      const failures = targets.filter((_, index) => results[index].status === 'rejected')
+      if (failures.length === 0) {
+        handleShareModalOpenChange(false)
+        return
+      }
+
+      // Keep only the people we couldn't add so the user can retry just those.
+      setEmailsToAdd(failures.map((target) => target.email))
+      const firstError = results.find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected'
+      )
+      logger.error('Failed to add some credential members', firstError?.reason)
+      toast.error(
+        failures.length === targets.length
+          ? "Couldn't add people"
+          : `Couldn't add ${failures.length} of ${targets.length} people`,
+        { description: getErrorMessage(firstError?.reason, 'Please try again in a moment.') }
+      )
+    } finally {
+      setIsAdding(false)
+    }
+  }, [
+    credential,
+    emailsToAdd,
+    isAdding,
+    workspaceUserIdByEmail,
+    roleToAdd,
+    upsertMember,
+    handleShareModalOpenChange,
+  ])
 
   const handleSaveDetails = async () => {
     if (!credential || !isAdmin || !isDetailsDirty || updateCredential.isPending) return
@@ -578,32 +658,39 @@ export function ConnectedCredentialDetail({
       <ChipModal
         open={isShareModalOpen}
         onOpenChange={handleShareModalOpenChange}
-        srTitle='Invite teammates'
+        srTitle='Add people'
       >
         <ChipModalHeader onClose={() => handleShareModalOpenChange(false)}>
-          Invite teammates
+          Add people
         </ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
             type='emails'
             title='Emails'
-            value={inviteEmails}
-            onChange={setInviteEmails}
+            value={emailsToAdd}
+            onChange={setEmailsToAdd}
+            validate={validateAddEmail}
             placeholder='Enter emails'
+            disabled={isAdding}
           />
           <ChipModalField
             type='dropdown'
-            title='Invite as'
+            title='Role'
             options={ROLE_OPTIONS}
-            value={inviteRole}
+            value={roleToAdd}
             placeholder='Select role'
             align='start'
-            onChange={(role) => setInviteRole(role as WorkspaceCredentialRole)}
+            onChange={(role) => setRoleToAdd(role as WorkspaceCredentialRole)}
+            disabled={isAdding}
           />
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='primary' onClick={handleSendInvites} disabled={inviteEmails.length === 0}>
-            Send invites
+          <Chip
+            variant='primary'
+            onClick={handleAddPeople}
+            disabled={emailsToAdd.length === 0 || isAdding}
+          >
+            {isAdding ? 'Adding...' : 'Add'}
           </Chip>
         </ChipModalFooter>
       </ChipModal>
