@@ -214,6 +214,8 @@ describe('executeWebhookJob fault vs error handling', () => {
     mockWasExecutionFinalizedByCore.mockReturnValue(false)
 
     await expect(executeWebhookJob(payload)).rejects.toThrow('Workflow state not found')
+    // waitForPostExecution must run on every path so the finalized-by-core signal is always reliable.
+    expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalled()
     // Pipeline/infra errors are recorded here before re-throwing to fault the trigger.dev run.
     expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalled()
   })
