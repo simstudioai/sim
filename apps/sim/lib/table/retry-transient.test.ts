@@ -27,6 +27,14 @@ describe('isRetryableCellError', () => {
     expect(isRetryableCellError(new Error('Connection is closed'))).toBe(true)
   })
 
+  it('matches a Redis timeout wrapped in a cause chain', () => {
+    expect(isRetryableCellError(new Error('outer wrapper', { cause: redisTimeout() }))).toBe(true)
+  })
+
+  it('does not retry Redis connection-state programming errors', () => {
+    expect(isRetryableCellError(new Error('Connection is in subscriber mode'))).toBe(false)
+  })
+
   it('does not retry application/logic errors', () => {
     expect(isRetryableCellError(new Error('row not found'))).toBe(false)
   })
@@ -79,5 +87,20 @@ describe('retryTransient', () => {
     )
     expect(fn).toHaveBeenCalledTimes(1)
     expect(mockSleep).not.toHaveBeenCalled()
+  })
+
+  it('stops retrying if the signal aborts during backoff sleep', async () => {
+    const controller = new AbortController()
+    // Cancellation fires mid-backoff, after the first failure but before the
+    // next attempt would run.
+    mockSleep.mockImplementationOnce(async () => {
+      controller.abort()
+    })
+    const fn = vi.fn().mockRejectedValue(connError())
+    await expect(retryTransient('t', fn, { signal: controller.signal })).rejects.toThrow(
+      'Failed query'
+    )
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(mockSleep).toHaveBeenCalledTimes(1)
   })
 })

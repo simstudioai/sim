@@ -11,16 +11,26 @@ const logger = createLogger('TableRetryTransient')
  *  connection drop without risking duplicate side effects. */
 const DEFAULT_MAX_ATTEMPTS = 4
 
+/** Redis-side equivalents of a dropped socket. Excludes connection-STATE
+ *  programming errors (e.g. "Connection is in subscriber mode"), which are
+ *  misconfigurations that would just fail identically on every retry. */
+const RETRYABLE_REDIS_MESSAGE = /Command timed out|Connection is closed|Stream isn't writeable/i
+
 /**
  * ioredis surfaces command timeouts and severed connections as plain `Error`s
  * with no `code`/`errno`, so the SQLSTATE/errno-based
  * {@link isRetryableInfrastructureError} classifier misses them. Match those by
- * message instead — these are the Redis-side equivalents of a dropped socket.
+ * message instead, walking the `.cause` chain (depth-bounded) so a wrapped
+ * Redis failure is still recognized — mirroring how the infra classifier walks
+ * causes.
  */
 function isRetryableRedisError(error: unknown): boolean {
-  return /Command timed out|Connection is closed|Stream isn't writeable|Connection is in subscriber mode/i.test(
-    getErrorMessage(error)
-  )
+  let current: unknown = error
+  for (let depth = 0; depth < 10 && current instanceof Error; depth++) {
+    if (RETRYABLE_REDIS_MESSAGE.test(current.message)) return true
+    current = current.cause
+  }
+  return false
 }
 
 /**
@@ -68,6 +78,10 @@ export async function retryTransient<T>(
         { error: getErrorMessage(error) }
       )
       await sleep(waitMs)
+      // Re-check after backoff: if cancellation fired during the sleep, don't
+      // run another attempt (and don't return a success from work that started
+      // after the task was already cancelled).
+      if (options.signal?.aborted) throw error
     }
   }
 }
