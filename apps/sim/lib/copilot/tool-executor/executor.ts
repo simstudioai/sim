@@ -35,6 +35,10 @@ export function hasHandler(toolId: string): boolean {
   return handlerRegistry.has(toolId)
 }
 
+export function clearHandlers(): void {
+  handlerRegistry.clear()
+}
+
 export async function executeTool(
   toolId: string,
   params: Record<string, unknown>,

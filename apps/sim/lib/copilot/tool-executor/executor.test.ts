@@ -25,11 +25,12 @@ vi.mock('@/tools', () => ({
   executeTool: executeAppTool,
 }))
 
-import { executeTool, registerHandler } from './executor'
+import { clearHandlers, executeTool, registerHandler } from './executor'
 
 describe('copilot tool executor fallback', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clearHandlers()
   })
 
   it('falls back to app tool executor for dynamic sim tools', async () => {
