@@ -13,7 +13,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, count, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { canonicalWorkflowVfsDir, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
@@ -76,21 +76,16 @@ export interface WorkspaceMdData {
   }>
 }
 
-function normalizeFolderPathForVfs(folderPath?: string | null): string | null {
-  if (!folderPath) return null
-  const segments = folderPath
-    .split('/')
-    .map((segment) => normalizeVfsSegment(segment))
-    .filter(Boolean)
-  return segments.length > 0 ? segments.join('/') : null
-}
-
+// `folderPath` is already per-segment percent-encoded: it comes from
+// buildVfsFolderPathMap / resolveFolderPath, the same maps that build the keys
+// the VFS materializer stores. Build the advertised path with
+// canonicalWorkflowVfsDir — the exact helper the materializer and @-mention
+// pointers use — so the WORKSPACE.md state path can never drift from the stored
+// VFS key. The workflow NAME is the raw display string, so the helper encodes it
+// once. Re-encoding the folder segment here is what produced double-encoded
+// paths like `The%2520Elder` for a folder named `The Elder`.
 function buildWorkflowStatePath(workflowName: string, folderPath?: string | null): string {
-  const normalizedFolderPath = normalizeFolderPathForVfs(folderPath)
-  const normalizedWorkflowName = normalizeVfsSegment(workflowName)
-  return normalizedFolderPath
-    ? `workflows/${normalizedFolderPath}/${normalizedWorkflowName}/state.json`
-    : `workflows/${normalizedWorkflowName}/state.json`
+  return `${canonicalWorkflowVfsDir({ name: workflowName, folderPath })}/state.json`
 }
 
 /**
