@@ -470,4 +470,4 @@ if (!('_mcpConnectionManager' in _g)) {
   _g._mcpConnectionManager = isTest ? null : new McpConnectionManager()
 }
 
-export const mcpConnectionManager: McpConnectionManager | null = _g._mcpConnectionManager
+export const mcpConnectionManager: McpConnectionManager | null = _g._mcpConnectionManager ?? null
