@@ -71,6 +71,7 @@ import {
   isRegistrationDisabled,
   isSignupEmailValidationEnabled,
   isSignupMxValidationEnabled,
+  isSsoEnabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
@@ -163,6 +164,20 @@ function isSignupEmailBlocked(email: string | undefined | null): boolean {
 const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
   logger.warn('Ignoring invalid entry in TRUSTED_ORIGINS', { value })
 )
+
+/**
+ * SSO provider IDs to trust for automatic account linking when an SSO sign-in
+ * matches an existing account's email. Includes `SSO_PROVIDER_ID` when it is set
+ * in the app environment, plus any IDs from `SSO_TRUSTED_PROVIDER_IDS`. Empty when
+ * SSO is disabled, so `trustedProviders` is unchanged for non-SSO deployments.
+ * Resolved once at startup; `trustEmailVerified` on the SSO plugin handles IdPs
+ * that assert `email_verified` live, so this is only needed for IdPs that omit it.
+ */
+const additionalTrustedSsoProviders = isSsoEnabled
+  ? [env.SSO_PROVIDER_ID, ...(env.SSO_TRUSTED_PROVIDER_IDS?.split(',') ?? [])]
+      .map((id) => id?.trim())
+      .filter((id): id is string => Boolean(id))
+  : []
 
 if (env.NODE_ENV === 'production') {
   const baseUrl = getBaseUrl()
@@ -685,6 +700,7 @@ export const auth = betterAuth({
         'calcom',
         'docusign',
         ...SSO_TRUSTED_PROVIDERS,
+        ...additionalTrustedSsoProviders,
       ],
     },
   },
@@ -2916,6 +2932,12 @@ export const auth = betterAuth({
     ...(env.SSO_ENABLED
       ? [
           sso({
+            /**
+             * Honor the IdP's verified-email claim. Without this the SSO plugin
+             * forces `emailVerified: false`, blocking automatic linking of an SSO
+             * login to an existing same-email account (Better Auth "account not linked").
+             */
+            trustEmailVerified: true,
             organizationProvisioning: {
               disabled: false,
               defaultRole: 'member',
