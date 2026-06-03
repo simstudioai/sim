@@ -1,7 +1,7 @@
 import { forwardRef, type HTMLAttributes } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { AlertTriangle } from 'lucide-react'
-import { Check, Loader, X } from '@/components/emcn/icons'
+import { Check, Loader, Square, X } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 const progressItemVariants = cva('flex items-start gap-2.5 px-3 py-3 text-[12px]', {
@@ -95,7 +95,7 @@ const ProgressItem = forwardRef<HTMLDivElement, ProgressItemProps>(function Prog
           title={trailingLabel}
           className='-mr-1 shrink-0 rounded-[4px] p-1 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-primary)]'
         >
-          <X className='size-[14px]' />
+          {onCancel ? <Square className='size-[12px]' /> : <X className='size-[14px]' />}
         </button>
       )}
     </div>
