@@ -33,6 +33,9 @@ export function useHydrateImportTray(workspaceId: string | undefined): void {
     for (const table of tables) {
       if (table.importStatus === 'importing') {
         if (tray.entries[table.id]) continue
+        // Canceled mid-upload: the server row stays `importing` until the in-flight server cancel
+        // lands. Don't re-seed an entry the user already dismissed — it would flicker back.
+        if (tray.isCanceled(table.id)) continue
         tray.upsert({
           tableId: table.id,
           workspaceId,
@@ -56,6 +59,12 @@ export function useHydrateImportTray(workspaceId: string | undefined): void {
             error: table.importError ?? undefined,
           })
         }
+      }
+
+      // Once the server import reaches a terminal state, drop any lingering cancel flag so it can
+      // never suppress a future re-import of the same table.
+      if (table.importStatus !== 'importing' && tray.isCanceled(table.id)) {
+        tray.consumeCanceled(table.id)
       }
     }
   }, [workspaceId, tables])

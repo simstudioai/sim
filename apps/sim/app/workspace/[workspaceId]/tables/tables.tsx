@@ -445,7 +445,10 @@ export function Tables() {
                 })
                 useImportTrayStore.getState().dismiss(pendingId)
                 if (result?.tableId && useImportTrayStore.getState().consumeCanceled(pendingId)) {
-                  // Canceled mid-upload — the worker just started; cancel it server-side.
+                  // Canceled mid-upload — the worker just started. Flag the real table id so
+                  // hydration won't re-seed it from the still-`importing` server row while the
+                  // server cancel is in flight, then cancel it server-side.
+                  useImportTrayStore.getState().cancel(result.tableId)
                   void cancelTableImport(workspaceId, result.tableId, result.importId).catch(
                     () => {}
                   )
