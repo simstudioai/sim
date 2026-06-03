@@ -6,6 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockLimit,
   mockUpdateSet,
+  mockActivateWorkflowVersion,
+  mockDeployWorkflow,
+  mockValidateWorkflowSchedules,
+  mockValidateTriggerWebhookConfigForDeploy,
+  mockValidateWorkflowState,
   mockSaveWorkflowToNormalizedTables,
   mockRecordAudit,
   mockCaptureServerEvent,
@@ -14,6 +19,11 @@ const {
 } = vi.hoisted(() => ({
   mockLimit: vi.fn(),
   mockUpdateSet: vi.fn(),
+  mockActivateWorkflowVersion: vi.fn(),
+  mockDeployWorkflow: vi.fn(),
+  mockValidateWorkflowSchedules: vi.fn(),
+  mockValidateTriggerWebhookConfigForDeploy: vi.fn(),
+  mockValidateWorkflowState: vi.fn(),
   mockSaveWorkflowToNormalizedTables: vi.fn(),
   mockRecordAudit: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
@@ -59,7 +69,11 @@ vi.mock('@sim/db', () => ({
 }))
 
 vi.mock('@sim/audit', () => ({
-  AuditAction: { WORKFLOW_DEPLOYMENT_REVERTED: 'WORKFLOW_DEPLOYMENT_REVERTED' },
+  AuditAction: {
+    WORKFLOW_DEPLOYED: 'WORKFLOW_DEPLOYED',
+    WORKFLOW_DEPLOYMENT_ACTIVATED: 'WORKFLOW_DEPLOYMENT_ACTIVATED',
+    WORKFLOW_DEPLOYMENT_REVERTED: 'WORKFLOW_DEPLOYMENT_REVERTED',
+  },
   AuditResourceType: { WORKFLOW: 'WORKFLOW' },
   recordAudit: mockRecordAudit,
 }))
@@ -78,9 +92,9 @@ vi.mock('@/lib/posthog/server', () => ({
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
-  activateWorkflowVersion: vi.fn(),
+  activateWorkflowVersion: mockActivateWorkflowVersion,
   activateWorkflowVersionById: vi.fn(),
-  deployWorkflow: vi.fn(),
+  deployWorkflow: mockDeployWorkflow,
   loadWorkflowDeploymentSnapshot: vi.fn(),
   saveWorkflowToNormalizedTables: mockSaveWorkflowToNormalizedTables,
   undeployWorkflow: vi.fn(),
@@ -95,15 +109,122 @@ vi.mock('@/lib/webhooks/deploy', () => ({
   cleanupWebhooksForWorkflow: vi.fn(),
   restorePreviousVersionWebhooks: vi.fn(),
   saveTriggerWebhooksForDeploy: vi.fn(),
+  validateTriggerWebhookConfigForDeploy: mockValidateTriggerWebhookConfigForDeploy,
 }))
 
 vi.mock('@/lib/workflows/schedules', () => ({
   cleanupDeploymentVersion: vi.fn(),
   createSchedulesForDeploy: vi.fn(),
-  validateWorkflowSchedules: vi.fn(),
+  validateWorkflowSchedules: mockValidateWorkflowSchedules,
 }))
 
-import { performRevertToVersion } from '@/lib/workflows/orchestration/deploy'
+vi.mock('@/lib/workflows/sanitization/validation', () => ({
+  validateWorkflowState: mockValidateWorkflowState,
+}))
+
+import {
+  performActivateVersion,
+  performFullDeploy,
+  performRevertToVersion,
+} from '@/lib/workflows/orchestration/deploy'
+
+const VALID_WORKFLOW_STATE = {
+  blocks: {},
+  edges: [],
+  loops: {},
+  parallels: {},
+}
+
+describe('performFullDeploy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
+    mockLimit.mockResolvedValue([
+      {
+        id: 'workflow-1',
+        name: 'Workflow',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockValidateWorkflowState.mockReturnValue({ valid: true, errors: [], warnings: [] })
+    mockValidateWorkflowSchedules.mockReturnValue({ isValid: true })
+    mockValidateTriggerWebhookConfigForDeploy.mockResolvedValue({ success: true })
+  })
+
+  it('rejects structurally invalid workflows before schedule or webhook deployment checks', async () => {
+    mockValidateWorkflowState.mockReturnValue({
+      valid: false,
+      errors: ["Edge references non-existent source block 'missing-source'"],
+      warnings: [],
+    })
+    mockDeployWorkflow.mockImplementation(async ({ validateWorkflowState }) => {
+      return validateWorkflowState({
+        ...VALID_WORKFLOW_STATE,
+        edges: [{ id: 'edge-1', source: 'missing-source', target: 'missing-target' }],
+      })
+    })
+
+    const result = await performFullDeploy({
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      workflowName: 'Workflow',
+    })
+
+    expect(result).toEqual({
+      success: false,
+      error:
+        "Invalid workflow structure: Edge references non-existent source block 'missing-source'",
+      errorCode: 'validation',
+    })
+    expect(mockValidateWorkflowSchedules).not.toHaveBeenCalled()
+    expect(mockValidateTriggerWebhookConfigForDeploy).not.toHaveBeenCalled()
+  })
+})
+
+describe('performActivateVersion', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
+    mockValidateWorkflowState.mockReturnValue({ valid: true, errors: [], warnings: [] })
+    mockValidateWorkflowSchedules.mockReturnValue({ isValid: true })
+    mockValidateTriggerWebhookConfigForDeploy.mockResolvedValue({ success: true })
+  })
+
+  it('rejects invalid deployment snapshots before activation', async () => {
+    mockLimit.mockResolvedValue([
+      {
+        id: 'deployment-version-1',
+        state: {
+          ...VALID_WORKFLOW_STATE,
+          edges: [{ id: 'edge-1', source: 'missing-source', target: 'missing-target' }],
+        },
+        isActive: false,
+      },
+    ])
+    mockValidateWorkflowState.mockReturnValue({
+      valid: false,
+      errors: ["Edge references non-existent source block 'missing-source'"],
+      warnings: [],
+    })
+
+    const result = await performActivateVersion({
+      workflowId: 'workflow-1',
+      version: 2,
+      userId: 'user-1',
+      workflow: { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    })
+
+    expect(result).toEqual({
+      success: false,
+      error:
+        "Invalid workflow structure: Edge references non-existent source block 'missing-source'",
+      errorCode: 'validation',
+    })
+    expect(mockActivateWorkflowVersion).not.toHaveBeenCalled()
+    expect(mockValidateWorkflowSchedules).not.toHaveBeenCalled()
+    expect(mockValidateTriggerWebhookConfigForDeploy).not.toHaveBeenCalled()
+  })
+})
 
 describe('performRevertToVersion', () => {
   beforeEach(() => {

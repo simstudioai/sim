@@ -21,8 +21,9 @@ import {
   saveWorkflowToNormalizedTables,
   undeployWorkflow,
 } from '@/lib/workflows/persistence/utils'
+import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { validateWorkflowSchedules } from '@/lib/workflows/schedules'
-import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployOrchestration')
 
@@ -77,6 +78,46 @@ export interface PerformFullDeployResult {
   warnings?: string[]
 }
 
+async function validateWorkflowForDeployment(workflowState: WorkflowState): Promise<
+  | {
+      success: true
+    }
+  | {
+      success: false
+      error: string
+      errorCode: 'validation'
+    }
+> {
+  const structureValidation = validateWorkflowState(workflowState)
+  if (!structureValidation.valid) {
+    return {
+      success: false,
+      error: `Invalid workflow structure: ${structureValidation.errors.join('; ')}`,
+      errorCode: 'validation',
+    }
+  }
+
+  const scheduleValidation = validateWorkflowSchedules(workflowState.blocks)
+  if (!scheduleValidation.isValid) {
+    return {
+      success: false,
+      error: `Invalid schedule configuration: ${scheduleValidation.error}`,
+      errorCode: 'validation',
+    }
+  }
+
+  const triggerValidation = await validateTriggerWebhookConfigForDeploy(workflowState.blocks)
+  if (!triggerValidation.success) {
+    return {
+      success: false,
+      error: triggerValidation.error?.message || 'Invalid trigger configuration',
+      errorCode: 'validation',
+    }
+  }
+
+  return { success: true }
+}
+
 /**
  * Performs a full workflow deployment: creates a deployment version, queues
  * external side effects transactionally, processes that outbox event after
@@ -108,23 +149,7 @@ export async function performFullDeploy(
     deployedBy: actorId,
     workflowName: workflowName || workflowRecord.name || undefined,
     validateWorkflowState: async (workflowState) => {
-      const scheduleValidation = validateWorkflowSchedules(workflowState.blocks)
-      if (!scheduleValidation.isValid) {
-        return {
-          success: false,
-          error: `Invalid schedule configuration: ${scheduleValidation.error}`,
-          errorCode: 'validation',
-        }
-      }
-      const triggerValidation = await validateTriggerWebhookConfigForDeploy(workflowState.blocks)
-      if (!triggerValidation.success) {
-        return {
-          success: false,
-          error: triggerValidation.error?.message || 'Invalid trigger configuration',
-          errorCode: 'validation',
-        }
-      }
-      return { success: true }
+      return validateWorkflowForDeployment(workflowState)
     },
     onDeployTransaction: async (tx, result) => {
       outboxEventId = await enqueueWorkflowDeploymentSideEffects(tx, {
@@ -349,25 +374,8 @@ export async function performActivateVersion(
     return { success: false, error: 'Invalid deployed state structure', errorCode: 'validation' }
   }
 
-  const scheduleValidation = validateWorkflowSchedules(blocks as Record<string, BlockState>)
-  if (!scheduleValidation.isValid) {
-    return {
-      success: false,
-      error: `Invalid schedule configuration: ${scheduleValidation.error}`,
-      errorCode: 'validation',
-    }
-  }
-
-  const triggerValidation = await validateTriggerWebhookConfigForDeploy(
-    blocks as Record<string, BlockState>
-  )
-  if (!triggerValidation.success) {
-    return {
-      success: false,
-      error: triggerValidation.error?.message || 'Invalid trigger configuration',
-      errorCode: 'validation',
-    }
-  }
+  const validation = await validateWorkflowForDeployment(versionRow.state as WorkflowState)
+  if (!validation.success) return validation
 
   let outboxEventId: string | undefined
   const result = await activateWorkflowVersion({
