@@ -1,9 +1,22 @@
 'use client'
 
-import { type ComponentType, useEffect, useMemo, useState } from 'react'
+import {
+  type ComponentType,
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { useParams } from 'next/navigation'
-import { ArrowRight, ChevronDown, Expandable, ExpandableContent } from '@/components/emcn'
-import { Table } from '@/components/emcn/icons'
+import {
+  ArrowRight,
+  ChevronDown,
+  chipVariants,
+  Expandable,
+  ExpandableContent,
+} from '@/components/emcn'
+import { Shuffle, Table } from '@/components/emcn/icons'
 import {
   GithubIcon,
   GmailIcon,
@@ -22,10 +35,11 @@ import {
   resolveOAuthServiceForSlug,
 } from '@/lib/integrations'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { getBareIconStyle } from '@/blocks/icon-color'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthConnections } from '@/hooks/queries/oauth/oauth-connections'
 
-type Icon = ComponentType<{ className?: string }>
+type Icon = ComponentType<{ className?: string; style?: CSSProperties }>
 
 type Action =
   | { kind: 'prompt'; id: string; label: string; prompt: string; icon: Icon }
@@ -196,6 +210,41 @@ function toIntegrationAction(service: ServiceInfo, slug: string): Action {
 }
 
 /**
+ * Builds a fresh randomized set of suggested actions. Because it samples via
+ * {@link sample}, each call yields a new ordering — this powers both the initial
+ * personalization effect and the shuffle control. Users with connected services
+ * get integration suggestions for services they have not yet connected; everyone
+ * else falls back to sampling the table and integration prompt pools so the set
+ * still changes on shuffle.
+ */
+function computeActions(
+  services: readonly ServiceInfo[],
+  connectedProviders: ReadonlySet<string>
+): Action[] {
+  const candidates = services.flatMap((s) => {
+    if (connectedProviders.has(s.providerId)) return []
+    const slug = SLUG_BY_LOWER_NAME.get(s.name.toLowerCase())
+    return slug ? [{ service: s, slug }] : []
+  })
+  const integrations = sample(candidates, 2).map(({ service, slug }) =>
+    toIntegrationAction(service, slug)
+  )
+
+  const integrationPool = INTEGRATION_PROMPTS.filter(
+    (p) => !p.providerId || !connectedProviders.has(p.providerId)
+  )
+  const promptCount = 4 - integrations.length
+  const [tablePick] = sample(TABLE_PROMPTS, 1)
+  const integrationPicks = sample(
+    integrationPool.length > 0 ? integrationPool : INTEGRATION_PROMPTS,
+    promptCount - 1
+  )
+  const prompts = sample([tablePick, ...integrationPicks].map(toPromptAction), promptCount)
+
+  return [...integrations, ...prompts]
+}
+
+/**
  * Initial actions rendered on first paint, before OAuth/credentials queries resolve.
  * For users with no connections this is also the final result, so the section never
  * flashes. Users with existing connections briefly see this before the effect below
@@ -259,27 +308,12 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
 
   useEffect(() => {
     if (services.length === 0 || connectedProviders.size === 0) return
-
-    const candidates = services.flatMap((s) => {
-      if (connectedProviders.has(s.providerId)) return []
-      const slug = SLUG_BY_LOWER_NAME.get(s.name.toLowerCase())
-      return slug ? [{ service: s, slug }] : []
-    })
-    const integrations = sample(candidates, 2).map(({ service, slug }) =>
-      toIntegrationAction(service, slug)
-    )
-
-    const integrationPool = INTEGRATION_PROMPTS.filter(
-      (p) => !p.providerId || !connectedProviders.has(p.providerId)
-    )
-    const [tablePick] = sample(TABLE_PROMPTS, 1)
-    const [integrationPick] = sample(
-      integrationPool.length > 0 ? integrationPool : INTEGRATION_PROMPTS,
-      1
-    )
-
-    setActions([...integrations, toPromptAction(tablePick), toPromptAction(integrationPick)])
+    setActions(computeActions(services, connectedProviders))
   }, [connectedProviders, services])
+
+  const handleShuffle = useCallback(() => {
+    setActions(computeActions(services, connectedProviders))
+  }, [services, connectedProviders])
 
   const handleSelect = (action: Action) => {
     if (action.kind === 'prompt') {
@@ -292,23 +326,40 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
 
   return (
     <div className='mx-auto mt-7 w-full max-w-[48rem]'>
-      <button
-        type='button'
-        onClick={() => {
-          setAnimationsEnabled(true)
-          setExpanded((prev) => !prev)
-        }}
-        aria-expanded={expanded}
-        className='flex items-center gap-2'
-      >
-        <span className='text-[var(--text-muted)] text-small'>Suggested actions</span>
-        <ChevronDown
+      <div className='flex items-center justify-between'>
+        <button
+          type='button'
+          onClick={() => {
+            setAnimationsEnabled(true)
+            setExpanded((prev) => !prev)
+          }}
+          aria-expanded={expanded}
+          className='flex items-center gap-2'
+        >
+          <span className='text-[var(--text-muted)] text-small'>Suggested actions</span>
+          <ChevronDown
+            className={cn(
+              'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
+              !expanded && '-rotate-90'
+            )}
+          />
+        </button>
+        <button
+          type='button'
+          onClick={handleShuffle}
+          aria-label='Shuffle suggested actions'
+          aria-hidden={!expanded}
+          tabIndex={expanded ? undefined : -1}
           className={cn(
-            'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
-            !expanded && '-rotate-90'
+            chipVariants({ variant: 'ghost', flush: true }),
+            '-mr-2 gap-1.5 transition-opacity duration-150 ease-out motion-reduce:transition-none',
+            expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
           )}
-        />
-      </button>
+        >
+          <span className='-mt-px text-[var(--text-muted)] text-small'>Shuffle</span>
+          <Shuffle className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+        </button>
+      </div>
       <Expandable expanded={expanded}>
         <ExpandableContent className={cn('mt-2', !animationsEnabled && '!animate-none')}>
           <div className='flex flex-col'>
@@ -324,7 +375,10 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
                     i > 0 && 'border-t'
                   )}
                 >
-                  <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                  <Icon
+                    className='size-[16px] flex-shrink-0 text-[var(--text-icon)]'
+                    style={getBareIconStyle(Icon)}
+                  />
                   <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
                     {action.label}
                   </span>

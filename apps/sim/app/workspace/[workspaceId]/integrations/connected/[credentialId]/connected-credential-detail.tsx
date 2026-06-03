@@ -24,7 +24,6 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Send,
-  TagInput,
   Tooltip,
   toast,
 } from '@/components/emcn'
@@ -51,7 +50,6 @@ import {
   useDisconnectOAuthService,
   useOAuthConnections,
 } from '@/hooks/queries/oauth/oauth-connections'
-import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
 const logger = createLogger('ConnectedCredentialDetail')
@@ -104,7 +102,6 @@ export function ConnectedCredentialDetail({
   const { data: oauthConnections = [] } = useOAuthConnections()
   const connectOAuthService = useConnectOAuthService()
   const disconnectOAuthService = useDisconnectOAuthService()
-  const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId || null)
 
   const createDraft = useCreateCredentialDraft()
   const updateCredential = useUpdateWorkspaceCredential()
@@ -160,6 +157,7 @@ export function ConnectedCredentialDetail({
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   const [inviteRole, setInviteRole] = useState<WorkspaceCredentialRole>('member')
+  const [inviteEmails, setInviteEmails] = useState<string[]>([])
 
   // Sync drafts when credential loads or changes.
   useEffect(() => {
@@ -175,13 +173,6 @@ export function ConnectedCredentialDetail({
 
   const activeMembers = useMemo(() => members.filter((m) => m.status === 'active'), [members])
   const adminMemberCount = activeMembers.filter((m) => m.role === 'admin').length
-
-  const workspaceUserOptions = useMemo(() => {
-    const activeMemberUserIds = new Set(activeMembers.map((m) => m.userId))
-    return (workspacePermissions?.users || [])
-      .filter((u) => !activeMemberUserIds.has(u.userId))
-      .map((u) => ({ value: u.userId, label: u.name || u.email }))
-  }, [workspacePermissions?.users, activeMembers])
 
   // Browser-level guard against discarding unsaved changes.
   useEffect(() => {
@@ -207,6 +198,23 @@ export function ConnectedCredentialDetail({
     setShowUnsavedChangesAlert(false)
     router.push(integrationsHref)
   }, [router, integrationsHref])
+
+  const resetInviteModalState = useCallback(() => {
+    setInviteEmails([])
+    setInviteRole('member')
+  }, [])
+
+  const handleShareModalOpenChange = useCallback(
+    (open: boolean) => {
+      setIsShareModalOpen(open)
+      if (!open) resetInviteModalState()
+    },
+    [resetInviteModalState]
+  )
+
+  const handleSendInvites = useCallback(() => {
+    handleShareModalOpenChange(false)
+  }, [handleShareModalOpenChange])
 
   const handleSaveDetails = async () => {
     if (!credential || !isAdmin || !isDetailsDirty || updateCredential.isPending) return
@@ -569,22 +577,20 @@ export function ConnectedCredentialDetail({
 
       <ChipModal
         open={isShareModalOpen}
-        onOpenChange={setIsShareModalOpen}
-        srTitle='Invite team members'
+        onOpenChange={handleShareModalOpenChange}
+        srTitle='Invite teammates'
       >
-        <ChipModalHeader onClose={() => setIsShareModalOpen(false)}>
-          Invite team members
+        <ChipModalHeader onClose={() => handleShareModalOpenChange(false)}>
+          Invite teammates
         </ChipModalHeader>
         <ChipModalBody>
-          <ChipModalField type='custom' title='Emails'>
-            <TagInput
-              items={[]}
-              onAdd={() => false}
-              onRemove={() => {}}
-              placeholder='Enter emails'
-              variant='block'
-            />
-          </ChipModalField>
+          <ChipModalField
+            type='emails'
+            title='Emails'
+            value={inviteEmails}
+            onChange={setInviteEmails}
+            placeholder='Enter emails'
+          />
           <ChipModalField
             type='dropdown'
             title='Invite as'
@@ -596,7 +602,9 @@ export function ConnectedCredentialDetail({
           />
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='primary'>Send invites</Chip>
+          <Chip variant='primary' onClick={handleSendInvites} disabled={inviteEmails.length === 0}>
+            Send invites
+          </Chip>
         </ChipModalFooter>
       </ChipModal>
 

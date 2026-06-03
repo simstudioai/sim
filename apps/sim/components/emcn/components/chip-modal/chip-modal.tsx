@@ -43,7 +43,9 @@ import { Button } from '@/components/emcn/components/button/button'
 import { ChipDropdown } from '@/components/emcn/components/chip-dropdown/chip-dropdown'
 import { Label } from '@/components/emcn/components/label/label'
 import { Modal, ModalContent } from '@/components/emcn/components/modal/modal'
+import { TagInput, type TagItem } from '@/components/emcn/components/tag-input/tag-input'
 import { cn } from '@/lib/core/utils/cn'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
 /** Shared inset separator used by the header and footer edges. */
 function ChipModalSeparator({ className }: { className?: string }) {
@@ -59,6 +61,15 @@ function ChipModalSeparator({ className }: { className?: string }) {
  */
 const CHIP_MODAL_TEXT_CHROME =
   'w-full rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-medium font-sans text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]'
+
+/**
+ * Canonical class string for field-level inline errors rendered inside a
+ * {@link ChipModalField}. Horizontal alignment comes from the field wrapper's
+ * `px-2`; vertical spacing from its `gap-[9px]` flex layout — no extra margin
+ * or padding needed here. Standalone submit errors ({@link ChipModalError})
+ * sit outside any field and therefore manage their own `mt-1 px-2`.
+ */
+const CHIP_MODAL_FIELD_ERROR_CLASS = 'text-[var(--text-error)] text-caption'
 
 const CHIP_MODAL_WIDTHS = {
   sm: 'w-full max-w-[440px]',
@@ -260,6 +271,29 @@ interface ChipModalDropdownFieldProps extends ChipModalFieldBaseProps {
   align?: 'start' | 'center' | 'end'
 }
 
+export interface ChipModalEmailsFieldProps extends ChipModalFieldBaseProps {
+  type: 'emails'
+  /** Current list of valid email addresses. */
+  value: string[]
+  /** Called with the next list when valid items are added or removed. */
+  onChange: (next: string[]) => void
+  /**
+   * Optional domain-level validator. Runs AFTER the field's internal format
+   * check passes. Return an error message to reject the email (added as an
+   * invalid chip and surfaced in the inline banner); return `null` to accept.
+   */
+  validate?: (email: string) => string | null
+  /**
+   * External error (e.g. server-side submit failure). Takes precedence over
+   * the field's internal validation banner while present.
+   */
+  error?: React.ReactNode
+  /** Auto-focus the input when the field mounts. */
+  autoFocus?: boolean
+  /** Placeholder shown when no chips exist. Defaults to `'Enter emails'`. */
+  placeholder?: string
+}
+
 interface ChipModalCustomFieldProps extends ChipModalFieldBaseProps {
   type: 'custom'
   children: React.ReactNode
@@ -270,6 +304,7 @@ export type ChipModalFieldProps =
   | ChipModalEmailFieldProps
   | ChipModalTextareaFieldProps
   | ChipModalDropdownFieldProps
+  | ChipModalEmailsFieldProps
   | ChipModalCustomFieldProps
 
 /**
@@ -278,14 +313,19 @@ export type ChipModalFieldProps =
  * never pass `variant`, `className`, or `id` to the underlying control.
  *
  * Use `type='custom'` to wrap arbitrary JSX (e.g. an `InfoCard` for a
- * static permission list, or a `TagInput` for email entry).
+ * static permission list). For a multi-email chip-list input, prefer
+ * `type='emails'` over a `type='custom'` `TagInput` wrapper — it internalizes
+ * chip rendering, dedupe, format validation, paste, and Backspace handling.
  */
 function ChipModalField(props: ChipModalFieldProps) {
   const id = React.useId()
   const errorId = `${id}-error`
   const { title, required, error, flush = false, className } = props
   const associatesLabel =
-    props.type === 'input' || props.type === 'email' || props.type === 'textarea'
+    props.type === 'input' ||
+    props.type === 'email' ||
+    props.type === 'textarea' ||
+    props.type === 'emails'
 
   return (
     <div className={cn('flex flex-col gap-[9px]', flush ? 'px-0' : 'px-2', className)}>
@@ -301,8 +341,8 @@ function ChipModalField(props: ChipModalFieldProps) {
         )}
       </Label>
       {renderChipModalControl(props, id, errorId)}
-      {error && (
-        <p id={errorId} className='text-[12px] text-[var(--text-error)]'>
+      {error && props.type !== 'emails' && (
+        <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>
           {error}
         </p>
       )}
@@ -372,9 +412,127 @@ function renderChipModalControl(
           fullWidth
         />
       )
+    case 'emails':
+      return <ChipModalEmailsControl {...props} id={id} errorId={errorId} />
     case 'custom':
       return props.children
   }
+}
+
+/**
+ * Derives the post-first-chip placeholder from the initial placeholder so
+ * consumers don't have to spell both. Tries an `'Enter <noun>s'` →
+ * `'Add <noun>'` singularize; falls back to a generic `'Add another'`.
+ */
+function derivePlaceholderWithTags(placeholder: string): string {
+  const match = placeholder.match(/^Enter\s+(.+?)s?$/i)
+  if (match) return `Add ${match[1]}`
+  return 'Add another'
+}
+
+/**
+ * Internal renderer for {@link ChipModalField} `type='emails'`. Owns the
+ * chip lifecycle (valid + invalid items, dedupe, inline error banner) and
+ * lifts only the valid email list up to the consumer via `onChange`.
+ */
+function ChipModalEmailsControl({
+  value,
+  onChange,
+  validate,
+  error,
+  autoFocus,
+  placeholder = 'Enter emails',
+  disabled,
+  id,
+  errorId,
+}: ChipModalEmailsFieldProps & { id: string; errorId: string }) {
+  const [items, setItems] = React.useState<TagItem[]>([])
+  const [internalError, setInternalError] = React.useState<string | null>(null)
+
+  /**
+   * Reconcile internal `items` with the consumer's `value` when the latter
+   * changes externally (programmatic clear, partial-failure reseed, etc.).
+   * When our own `onChange` is the source of the update, the valid items in
+   * `items` already match `value` and this is a no-op.
+   */
+  React.useEffect(() => {
+    setItems((prev) => {
+      const prevValid = prev.filter((item) => item.isValid).map((item) => item.value)
+      if (prevValid.length === value.length && prevValid.every((v, idx) => v === value[idx])) {
+        return prev
+      }
+      return value.map((v) => ({ value: v, isValid: true }))
+    })
+  }, [value])
+
+  const handleAdd = React.useCallback(
+    (raw: string): boolean => {
+      const email = raw.trim().toLowerCase()
+      if (!email) return false
+      if (items.some((item) => item.value === email)) return false
+
+      if (!quickValidateEmail(email).isValid) {
+        setItems((prev) => [...prev, { value: email, isValid: false }])
+        setInternalError(null)
+        return false
+      }
+
+      const reason = validate?.(email)
+      if (reason) {
+        setItems((prev) => [...prev, { value: email, isValid: false }])
+        setInternalError(reason)
+        return false
+      }
+
+      const next = [...items, { value: email, isValid: true }]
+      setItems(next)
+      onChange(next.filter((item) => item.isValid).map((item) => item.value))
+      setInternalError(null)
+      return true
+    },
+    [items, validate, onChange]
+  )
+
+  const handleRemove = React.useCallback(
+    (_removed: string, index: number) => {
+      const wasValid = items[index]?.isValid ?? false
+      const next = items.filter((_, i) => i !== index)
+      setItems(next)
+      if (wasValid) {
+        onChange(next.filter((item) => item.isValid).map((item) => item.value))
+      }
+      setInternalError(null)
+    },
+    [items, onChange]
+  )
+
+  const handleInputChange = React.useCallback(() => {
+    setInternalError(null)
+  }, [])
+
+  const banner = error ?? internalError
+
+  return (
+    <>
+      <TagInput
+        variant='block'
+        items={items}
+        onAdd={handleAdd}
+        onRemove={handleRemove}
+        onInputChange={handleInputChange}
+        placeholder={placeholder}
+        placeholderWithTags={derivePlaceholderWithTags(placeholder)}
+        disabled={disabled}
+        autoFocus={autoFocus}
+        id={id}
+      />
+      {banner && (
+        <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>
+          {banner}
+        </p>
+      )}
+    </>
+  )
 }
 
 /**

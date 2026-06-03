@@ -47,7 +47,7 @@ export function TeamSeatsOverview({
               No active Team subscription
             </p>
             <p className='text-[var(--text-muted)] text-small'>
-              Purchase a Team plan to invite members and manage seats for this organization.
+              Purchase a Team plan to invite teammates and manage seats for this organization.
             </p>
           </div>
           <Button
@@ -131,8 +131,8 @@ export function TeamSeatsOverview({
         {isOverLimit && !isEnterprise && (
           <div className='flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between'>
             <p className='text-[var(--text-muted)] text-small'>
-              You have more members than seats. New invites are paused until you add seats or remove
-              members.
+              You have more teammates than seats. New invites are paused until you add seats or
+              remove teammates.
             </p>
             <Button variant='default' size='sm' onClick={onAddSeatDialog} disabled={isLoading}>
               Add seats
@@ -144,7 +144,7 @@ export function TeamSeatsOverview({
           <div className='pt-1 text-center'>
             <p className='text-[var(--text-muted)] text-small'>
               {isOverLimit
-                ? 'You have more members than seats. Contact support to adjust your enterprise seat count.'
+                ? 'You have more teammates than seats. Contact support to adjust your enterprise seat count.'
                 : 'Contact support for enterprise usage limit changes'}
             </p>
           </div>

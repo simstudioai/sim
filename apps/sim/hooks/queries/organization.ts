@@ -416,7 +416,7 @@ export function useInviteMember() {
       })
 
       if (result.success === false) {
-        throw new Error(result.error || result.message || 'Failed to invite member')
+        throw new Error(result.error || result.message || 'Failed to invite teammate')
       }
 
       return result

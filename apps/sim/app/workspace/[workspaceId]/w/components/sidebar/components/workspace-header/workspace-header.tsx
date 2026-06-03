@@ -21,6 +21,7 @@ import {
 } from '@/components/emcn'
 import { PanelLeft } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
@@ -157,7 +158,7 @@ function WorkspaceHeaderImpl({
   useEffect(() => {
     const handleOpenInvite = () => {
       if (isInvitationsDisabled) {
-        navigateToSettings({ section: 'subscription' })
+        if (isBillingEnabled) navigateToSettings({ section: 'subscription' })
         return
       }
       setIsInviteModalOpen(true)
@@ -421,7 +422,7 @@ function WorkspaceHeaderImpl({
             ) : (
               <>
                 {showSearch && (
-                  <div className='mb-1.5 flex h-[28px] items-center gap-1.5 rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2'>
+                  <div className='flex h-[28px] items-center gap-1.5 rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2'>
                     <Search
                       className='size-[11px] flex-shrink-0 text-[var(--text-muted)]'
                       strokeWidth={2}
@@ -458,10 +459,7 @@ function WorkspaceHeaderImpl({
                 )}
                 <div
                   ref={workspaceListRef}
-                  className={cn(
-                    '-mx-1.5 flex max-h-[106px] flex-col gap-0.5 overflow-y-auto px-1.5 py-1.5',
-                    showSearch ? 'mt-0' : '-mt-1.5'
-                  )}
+                  className='-mx-1.5 flex max-h-[106px] flex-col gap-0.5 overflow-y-auto px-1.5 py-1.5'
                 >
                   {filteredWorkspaces.length === 0 && workspaceSearch && (
                     <div className='px-2 py-[5px] text-[var(--text-muted)] text-caption'>
@@ -632,7 +630,7 @@ function WorkspaceHeaderImpl({
                       e.stopPropagation()
                       setIsWorkspaceMenuOpen(false)
                       if (!canCreateWorkspace) {
-                        navigateToSettings({ section: 'subscription' })
+                        if (isBillingEnabled) navigateToSettings({ section: 'subscription' })
                         return
                       }
                       setIsCreateModalOpen(true)
@@ -653,7 +651,7 @@ function WorkspaceHeaderImpl({
                   onClick={() => {
                     setIsWorkspaceMenuOpen(false)
                     if (isInvitationsDisabled) {
-                      navigateToSettings({ section: 'subscription' })
+                      if (isBillingEnabled) navigateToSettings({ section: 'subscription' })
                       return
                     }
                     setIsInviteModalOpen(true)
@@ -663,7 +661,7 @@ function WorkspaceHeaderImpl({
                   flush
                   className='w-full select-none'
                 >
-                  Invite members
+                  Invite teammates
                 </Chip>
               </>
             )}

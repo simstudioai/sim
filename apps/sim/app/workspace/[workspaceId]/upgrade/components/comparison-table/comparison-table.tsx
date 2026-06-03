@@ -1,6 +1,7 @@
 'use client'
 
 import { chipVariants } from '@/components/emcn'
+import { SlackIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { BillingPeriodToggle } from '@/app/workspace/[workspaceId]/upgrade/components/billing-period-toggle/billing-period-toggle'
 import {
@@ -9,6 +10,9 @@ import {
   PLAN_COLUMNS,
   type PlanName,
 } from '@/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data'
+
+/** Maps a cell-icon identifier to its brand icon component. */
+const CELL_ICONS = { slack: SlackIcon } as const
 
 /**
  * Props for {@link ComparisonTable}.
@@ -76,6 +80,14 @@ function Cell({ value }: { value: CellValue }) {
   if (value === false) {
     return (
       <span className='flex select-none justify-center text-[var(--text-muted)] text-base'>—</span>
+    )
+  }
+  if (typeof value === 'object') {
+    const Icon = CELL_ICONS[value.icon]
+    return (
+      <span className='flex justify-center'>
+        <Icon className='size-[14px] flex-shrink-0' />
+      </span>
     )
   }
   return (

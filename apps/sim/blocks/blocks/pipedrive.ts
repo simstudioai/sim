@@ -15,6 +15,7 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#2E6936',
+  iconColor: '#26A65B',
   icon: PipedriveIcon,
   subBlocks: [
     {

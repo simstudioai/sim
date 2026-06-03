@@ -1,9 +1,15 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Chip } from '@/components/emcn'
+import {
+  getUpgradeCardCta,
+  type PlanCardCta,
+  type PlanTier,
+  type UpgradeCardId,
+} from '@/lib/billing/client'
 import { ANNUAL_DISCOUNT_RATE } from '@/lib/billing/constants'
 import {
   getDisplayPlanName,
@@ -12,6 +18,7 @@ import {
 } from '@/lib/billing/plan-helpers'
 import { UsageHeader } from '@/app/workspace/[workspaceId]/settings/components/usage-header/usage-header'
 import { UsageLimit } from '@/app/workspace/[workspaceId]/settings/components/usage-limit'
+import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   BillingPeriodToggle,
   BillingUsageNotificationsToggle,
@@ -73,11 +80,72 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
     [handleBack, state]
   )
 
-  if (state.isLoading) return null
+  // Enterprise manages billing out-of-band, and self-hosted deployments with
+  // billing disabled have no plans to surface — redirect to home in both cases.
+  useEffect(() => {
+    if (!isBillingEnabled) {
+      router.replace(`/workspace/${workspaceId}/home`)
+      return
+    }
+    if (!state.isLoading && state.subscription.isEnterprise) {
+      router.replace(`/workspace/${workspaceId}/home`)
+    }
+  }, [state.isLoading, state.subscription.isEnterprise, router, workspaceId])
+
+  if (!isBillingEnabled || state.isLoading || state.subscription.isEnterprise) return null
+
+  // Enterprise is redirected above, so the current plan is only ever free/pro/max here.
+  const planTier: PlanTier = state.subscription.isFree ? 'free' : state.isOnMaxTier ? 'max' : 'pro'
+
+  /**
+   * Resolve a card's CTA from the canonical matrix, then bind it to the matching
+   * handler. A same-tier "Manage plan" card flips to an interval switch when the
+   * billing-period toggle differs from the active subscription interval.
+   */
+  const resolveCta = (card: UpgradeCardId): PlanCardCta & { onClick: () => void } => {
+    const cta = getUpgradeCardCta(planTier, card)
+
+    if (cta.intent === 'manage' && state.wantsIntervalSwitch) {
+      return {
+        ...cta,
+        label: `Switch to ${state.isAnnual ? 'Annual' : 'Monthly'}`,
+        onClick: () =>
+          state
+            .handleSwitchInterval(state.isAnnual ? 'year' : 'month')
+            .catch((e) => alert(getErrorMessage(e, 'Failed to switch interval'))),
+      }
+    }
+
+    const onClick = (): void => {
+      switch (cta.intent) {
+        case 'manage':
+          state.setManagePlanModalOpen(true)
+          return
+        case 'sales':
+          window.open(TYPEFORM_ENTERPRISE_URL, '_blank')
+          return
+        case 'downgrade':
+          void state.onUpgradeToOtherTier()
+          return
+        case 'upgrade':
+          if (card === 'max') {
+            if (state.subscription.isPaid) void state.upgradeOrSwitchToMax()
+            else state.doUpgrade('pro', state.maxTier.credits)
+          } else {
+            state.doUpgrade('pro', state.proTier.credits)
+          }
+      }
+    }
+
+    return { ...cta, onClick }
+  }
+
+  const proCta = resolveCta('pro')
+  const maxCta = resolveCta('max')
+  const enterpriseCta = resolveCta('enterprise')
 
   const proBanner = state.isOnPro ? 'Your plan' : undefined
   const maxBanner = state.isOnMax ? 'Your plan' : undefined
-  const entBanner = state.subscription.isEnterprise ? 'Your plan' : undefined
 
   const discountPct = Math.round(ANNUAL_DISCOUNT_RATE * 100)
   const proPrice = state.isAnnual
@@ -177,15 +245,16 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
     </div>
   )
 
-  const billingDetailsCreditBalance = isPaidWithUsage ? (
-    <CreditBalance
-      balance={state.creditBalance}
-      canPurchase={state.hasUsablePaidAccess && state.permissions.canEditUsageLimit}
-      entityType={state.subscription.isOrgScoped ? 'organization' : 'user'}
-      isLoading={state.isLoading}
-      onPurchaseComplete={state.refetchSubscription}
-    />
-  ) : undefined
+  const billingDetailsCreditBalance =
+    isPaidWithUsage && !state.subscription.isEnterprise ? (
+      <CreditBalance
+        balance={state.creditBalance}
+        canPurchase={state.hasUsablePaidAccess && state.permissions.canEditUsageLimit}
+        entityType={state.subscription.isOrgScoped ? 'organization' : 'user'}
+        isLoading={state.isLoading}
+        onPurchaseComplete={state.refetchSubscription}
+      />
+    ) : undefined
 
   const billingDetailsNotifications = isPaidWithUsage ? (
     <BillingUsageNotificationsToggle />
@@ -222,24 +291,9 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                   credits={PRO_PLAN_CREDITS.credits}
                   refresh={PRO_PLAN_CREDITS.refresh}
                   features={PRO_PLAN_FEATURES}
-                  buttonText={
-                    state.isOnPro
-                      ? 'Manage plan'
-                      : state.isOnProTier && state.wantsIntervalSwitch
-                        ? `Switch to ${state.isAnnual ? 'Annual' : 'Monthly'}`
-                        : 'Get started'
-                  }
-                  onButtonClick={
-                    state.isOnPro
-                      ? () => state.setManagePlanModalOpen(true)
-                      : state.isOnProTier && state.wantsIntervalSwitch
-                        ? () =>
-                            state
-                              .handleSwitchInterval(state.isAnnual ? 'year' : 'month')
-                              .catch((e) => alert(getErrorMessage(e, 'Failed to switch interval')))
-                        : () => state.doUpgrade('pro', state.proTier.credits)
-                  }
-                  highlighted
+                  buttonText={proCta.label}
+                  onButtonClick={proCta.onClick}
+                  highlighted={proCta.variant === 'primary'}
                   bannerText={proBanner}
                 />
 
@@ -252,28 +306,9 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                   credits={MAX_PLAN_CREDITS.credits}
                   refresh={MAX_PLAN_CREDITS.refresh}
                   features={MAX_PLAN_FEATURES}
-                  buttonText={
-                    state.isOnMax
-                      ? 'Manage plan'
-                      : state.isOnMaxTier && state.wantsIntervalSwitch
-                        ? `Switch to ${state.isAnnual ? 'Annual' : 'Monthly'}`
-                        : state.subscription.isFree
-                          ? 'Get started'
-                          : 'Upgrade'
-                  }
-                  onButtonClick={
-                    state.isOnMax
-                      ? () => state.setManagePlanModalOpen(true)
-                      : state.isOnMaxTier && state.wantsIntervalSwitch
-                        ? () =>
-                            state
-                              .handleSwitchInterval(state.isAnnual ? 'year' : 'month')
-                              .catch((e) => alert(getErrorMessage(e, 'Failed to switch interval')))
-                        : state.subscription.isPaid
-                          ? () => state.upgradeOrSwitchToMax()
-                          : () => state.doUpgrade('pro', state.maxTier.credits)
-                  }
-                  highlighted={state.isOnMax}
+                  buttonText={maxCta.label}
+                  onButtonClick={maxCta.onClick}
+                  highlighted={maxCta.variant === 'primary'}
                   bannerText={maxBanner}
                 />
 
@@ -284,10 +319,9 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                   credits={ENTERPRISE_PLAN_CREDITS.credits}
                   refresh={ENTERPRISE_PLAN_CREDITS.refresh}
                   features={ENTERPRISE_PLAN_FEATURES}
-                  buttonText='Talk to sales'
-                  onButtonClick={() => window.open(TYPEFORM_ENTERPRISE_URL, '_blank')}
-                  highlighted={state.subscription.isEnterprise}
-                  bannerText={entBanner}
+                  buttonText={enterpriseCta.label}
+                  onButtonClick={enterpriseCta.onClick}
+                  highlighted={enterpriseCta.variant === 'primary'}
                 />
               </div>
 

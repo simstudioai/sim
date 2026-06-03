@@ -11,6 +11,7 @@ import { getDocumentIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import type { ChatContextKind, ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
+import { getBareIconStyle } from '@/blocks/icon-color'
 import { registry as blockRegistry } from '@/blocks/registry'
 
 interface RenderIconArgs {
@@ -52,7 +53,7 @@ function renderIntegrationTile({ context, className }: RenderIconArgs): ReactNod
   const block = blockRegistry[context.blockType]
   if (!block) return null
   const Icon = block.icon
-  return <Icon className={className} />
+  return <Icon className={className} style={getBareIconStyle(Icon)} />
 }
 
 /**

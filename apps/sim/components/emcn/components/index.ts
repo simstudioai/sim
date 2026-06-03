@@ -33,6 +33,7 @@ export {
   ChipModal,
   ChipModalBody,
   type ChipModalDropdownOption,
+  type ChipModalEmailsFieldProps,
   ChipModalError,
   type ChipModalErrorProps,
   ChipModalField,
@@ -173,11 +174,9 @@ export {
 } from './table/table'
 export {
   type FileInputOptions,
-  Tag,
   TagInput,
   type TagItem,
   tagInputVariants,
-  tagVariants,
 } from './tag-input/tag-input'
 export { Textarea } from './textarea/textarea'
 export { TimePicker, timePickerVariants } from './time-picker/time-picker'

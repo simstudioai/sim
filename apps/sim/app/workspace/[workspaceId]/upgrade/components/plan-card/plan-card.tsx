@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, ChipTag, Credit, chipVariants, RefreshCw } from '@/components/emcn'
+import { Check, ChipTag, Credit, chipVariants, Info, RefreshCw } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
 /**
@@ -115,6 +115,7 @@ export function UpgradePlanCard({
             <div className='flex items-center gap-1.5'>
               <Credit className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
               <span className='text-[var(--text-body)] text-sm'>{credits}</span>
+              <Info>1 workflow run = 1 credit. Inference usage consumes credits separately.</Info>
             </div>
             {refresh && (
               <div className='flex items-center gap-1.5'>
