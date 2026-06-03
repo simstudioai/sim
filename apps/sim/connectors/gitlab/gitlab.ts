@@ -1067,18 +1067,21 @@ export const gitlabConnector: ConnectorConfig = {
 
       const userRef = typeof sourceConfig.ref === 'string' ? sourceConfig.ref.trim() : ''
       if (userRef && activePhases(choice).includes('repo')) {
-        const branchResponse = await fetchWithRetry(
-          `${apiBase}/projects/${encodedProject}/repository/branches/${encodeURIComponent(userRef)}`,
+        const refResponse = await fetchWithRetry(
+          `${apiBase}/projects/${encodedProject}/repository/commits/${encodeURIComponent(userRef)}`,
           { method: 'GET', headers: authHeaders(accessToken) },
           VALIDATE_RETRY_OPTIONS
         )
-        if (branchResponse.status === 404) {
-          return { valid: false, error: `Branch "${userRef}" not found in project "${project}"` }
-        }
-        if (!branchResponse.ok) {
+        if (refResponse.status === 404) {
           return {
             valid: false,
-            error: `Cannot verify branch "${userRef}": ${branchResponse.status}`,
+            error: `Branch, tag, or commit "${userRef}" not found in project "${project}"`,
+          }
+        }
+        if (!refResponse.ok) {
+          return {
+            valid: false,
+            error: `Cannot verify ref "${userRef}": ${refResponse.status}`,
           }
         }
       }
