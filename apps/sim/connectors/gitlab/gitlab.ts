@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { GitLabIcon } from '@/components/icons'
+import { isSameOrigin } from '@/lib/core/utils/validation'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
@@ -101,21 +102,6 @@ function parseNextLink(linkHeader: string | null): string | undefined {
     if (urlMatch) return urlMatch[1]
   }
   return undefined
-}
-
-/**
- * Returns true when `candidate` resolves to the same origin as `base`. Used to
- * pin a persisted pagination cursor to the configured GitLab host before
- * following it with an `Authorization` header, so a tampered or corrupted
- * `fileNextUrl` cannot exfiltrate the access token to an attacker-controlled
- * host. Returns false on any unparseable URL.
- */
-function isSameOrigin(candidate: string, base: string): boolean {
-  try {
-    return new URL(candidate).origin === new URL(base).origin
-  } catch {
-    return false
-  }
 }
 
 /**

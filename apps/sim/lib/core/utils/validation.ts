@@ -1,17 +1,18 @@
 import { getBaseUrl } from './urls'
 
 /**
- * Checks if a URL is same-origin with the application's base URL.
- * Used to prevent open redirect vulnerabilities.
+ * Checks if a URL is same-origin with a base URL. Defaults to the application's
+ * base URL, used to prevent open redirect vulnerabilities; pass an explicit
+ * `base` to pin a URL to another trusted origin (e.g. a configured API host)
+ * before following it with credentials.
  *
  * @param url - The URL to validate
+ * @param base - The origin to compare against (defaults to the app base URL)
  * @returns True if the URL is same-origin, false otherwise (secure default)
  */
-export function isSameOrigin(url: string): boolean {
+export function isSameOrigin(url: string, base: string = getBaseUrl()): boolean {
   try {
-    const targetUrl = new URL(url)
-    const appUrl = new URL(getBaseUrl())
-    return targetUrl.origin === appUrl.origin
+    return new URL(url).origin === new URL(base).origin
   } catch {
     return false
   }
