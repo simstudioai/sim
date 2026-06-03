@@ -87,20 +87,18 @@ function matchesExtension(filePath: string, extSet: Set<string> | null): boolean
 }
 
 /**
- * Extracts the `page_token` of the `rel="next"` link from a keyset-pagination
- * `Link` response header. Returns undefined when there is no next page.
+ * Extracts the full `rel="next"` URL from a keyset-pagination `Link` response
+ * header. GitLab's guidance is to follow this link verbatim rather than rebuild
+ * the URL, so the connector stores and re-fetches it as-is — this is robust to
+ * whichever continuation parameter the endpoint uses (`page_token`, `cursor`,
+ * `id_after`, …). Returns undefined when there is no next page.
  */
-function parseNextPageToken(linkHeader: string | null): string | undefined {
+function parseNextLink(linkHeader: string | null): string | undefined {
   if (!linkHeader) return undefined
   for (const part of linkHeader.split(',')) {
     if (!/rel="?next"?/i.test(part)) continue
     const urlMatch = part.match(/<([^>]+)>/)
-    if (!urlMatch) continue
-    try {
-      return new URL(urlMatch[1]).searchParams.get('page_token') ?? undefined
-    } catch {
-      return undefined
-    }
+    if (urlMatch) return urlMatch[1]
   }
   return undefined
 }
@@ -477,7 +475,8 @@ async function fetchProject(
 interface CursorState {
   phase: SyncPhase
   issuePage: number
-  fileToken?: string
+  /** Full `rel="next"` URL for the repository-tree keyset page to fetch next. */
+  fileNextUrl?: string
 }
 
 function encodeCursor(state: CursorState): string {
@@ -490,7 +489,7 @@ function decodeCursor(cursor: string | undefined, initialPhase: SyncPhase): Curs
     const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as Partial<{
       phase: SyncPhase
       issuePage: number
-      fileToken: string
+      fileNextUrl: string
     }>
     const phase: SyncPhase =
       parsed.phase === 'repo' || parsed.phase === 'issues' || parsed.phase === 'wiki'
@@ -499,7 +498,7 @@ function decodeCursor(cursor: string | undefined, initialPhase: SyncPhase): Curs
     return {
       phase,
       issuePage: Number(parsed.issuePage) > 0 ? Number(parsed.issuePage) : 1,
-      fileToken: typeof parsed.fileToken === 'string' ? parsed.fileToken : undefined,
+      fileNextUrl: typeof parsed.fileNextUrl === 'string' ? parsed.fileNextUrl : undefined,
     }
   } catch {
     return { phase: initialPhase, issuePage: 1 }
@@ -736,14 +735,14 @@ export const gitlabConnector: ConnectorConfig = {
         per_page: String(PAGE_SIZE),
         pagination: 'keyset',
       })
-      if (state.fileToken) treeParams.set('page_token', state.fileToken)
-
-      const url = `${apiBase}/projects/${encodedProject}/repository/tree?${treeParams.toString()}`
+      const url =
+        state.fileNextUrl ??
+        `${apiBase}/projects/${encodedProject}/repository/tree?${treeParams.toString()}`
       logger.info('Listing GitLab repository files', {
         host,
         project: encodedProject,
         ref,
-        hasToken: Boolean(state.fileToken),
+        continued: Boolean(state.fileNextUrl),
       })
 
       const response = await fetchWithRetry(url, {
@@ -753,6 +752,14 @@ export const gitlabConnector: ConnectorConfig = {
 
       if (!response.ok) {
         if (response.status === 404) {
+          logger.warn(
+            'GitLab repository tree not found; skipping files (empty repo or bad branch)',
+            {
+              host,
+              project: encodedProject,
+              ref,
+            }
+          )
           const adv = advance('repo')
           return { documents: [], nextCursor: adv.nextCursor, hasMore: adv.hasMore }
         }
@@ -780,11 +787,11 @@ export const gitlabConnector: ConnectorConfig = {
       )
       if (hitLimit) return { documents: capped, hasMore: false }
 
-      const nextToken = parseNextPageToken(response.headers.get('link'))
-      if (nextToken) {
+      const nextLink = parseNextLink(response.headers.get('link'))
+      if (nextLink) {
         return {
           documents: capped,
-          nextCursor: encodeCursor({ phase: 'repo', issuePage: 1, fileToken: nextToken }),
+          nextCursor: encodeCursor({ phase: 'repo', issuePage: 1, fileNextUrl: nextLink }),
           hasMore: true,
         }
       }
@@ -802,6 +809,15 @@ export const gitlabConnector: ConnectorConfig = {
       })
 
       if (!response.ok) {
+        if (response.status === 403 || response.status === 404) {
+          logger.warn('GitLab wiki unavailable; skipping wiki phase', {
+            host,
+            project: encodedProject,
+            status: response.status,
+          })
+          const adv = advance('wiki')
+          return { documents: [], nextCursor: adv.nextCursor, hasMore: adv.hasMore }
+        }
         const errorText = await response.text().catch(() => '')
         logger.error('Failed to list GitLab wiki pages', {
           status: response.status,
