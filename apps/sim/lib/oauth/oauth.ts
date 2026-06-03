@@ -703,7 +703,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'chat:write',
           'chat:write.public',
           'im:write',
-          'im:history',
           'im:read',
           'users:read',
           // TODO: Add 'users:read.email' once Slack app review is approved
@@ -712,6 +711,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'canvases:read',
           'canvases:write',
           'reactions:write',
+          'reactions:read',
         ],
       },
     },
