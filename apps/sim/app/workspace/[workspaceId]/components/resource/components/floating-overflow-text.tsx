@@ -2,13 +2,13 @@
 
 import type React from 'react'
 import { memo } from 'react'
-import { cn } from '@/lib/core/utils/cn'
 import {
   FloatingTooltip,
   isTextClipped,
   useFloatingTooltip,
   useIsOverflowing,
-} from '@/app/workspace/[workspaceId]/components/resource/components/floating-tooltip'
+} from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 
 interface FloatingOverflowTextProps {
   /** Full text shown in the tooltip and used as the default visible content. */

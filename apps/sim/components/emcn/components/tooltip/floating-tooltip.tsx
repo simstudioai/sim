@@ -214,26 +214,45 @@ export function isFocusVisible(element: Element): boolean {
  */
 export const FloatingTooltip = memo(function FloatingTooltip({
   label,
+  children,
   state,
+  className,
+  role,
+  id,
 }: {
-  label: string
+  /** Text shown when no `children` are provided (the overflow-tooltip case). */
+  label?: string
+  /** Arbitrary tooltip content; overrides `label` when provided (general tooltips). */
+  children?: React.ReactNode
   state: FloatingTooltipState
+  className?: string
+  /** Set to `"tooltip"` for described/general tooltips; omit for decorative overflow tooltips. */
+  role?: 'tooltip'
+  /** Element id, used to wire `aria-describedby` on the trigger for general tooltips. */
+  id?: string
 }) {
   if (typeof document === 'undefined' || !state.visible) return null
 
   return createPortal(
     <div
-      aria-hidden='true'
+      id={id}
+      role={role}
+      aria-hidden={role ? undefined : 'true'}
       className={cn(
         'pointer-events-none fixed top-0 left-0 z-[var(--z-tooltip)] w-fit max-w-[min(16rem,calc(100vw-2rem))] rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-[var(--text-body)] text-xs opacity-100 shadow-sm transition-[opacity,filter,transform] duration-150 ease-out',
-        'motion-reduce:transition-none'
+        'motion-reduce:transition-none',
+        className
       )}
       style={{
         transform: `${getTooltipTranslate(state)} skew(${state.skew}deg) scale(${state.scaleX}, ${state.scaleY})`,
         transformOrigin: state.alignX === 'left' ? '12px 12px' : 'calc(100% - 12px) 12px',
       }}
     >
-      <span className='block whitespace-normal break-words text-left leading-[18px]'>{label}</span>
+      {children ?? (
+        <span className='block whitespace-normal break-words text-left leading-[18px]'>
+          {label}
+        </span>
+      )}
     </div>,
     document.body
   )

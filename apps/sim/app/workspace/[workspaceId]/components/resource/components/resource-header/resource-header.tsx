@@ -9,6 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  FloatingTooltip,
   Plus,
   POPOVER_ANIMATION_CLASSES,
   Popover,
@@ -16,15 +17,12 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverSection,
+  useFloatingTooltip,
+  useIsOverflowing,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
-import {
-  FloatingTooltip,
-  useFloatingTooltip,
-  useIsOverflowing,
-} from '@/app/workspace/[workspaceId]/components/resource/components/floating-tooltip'
 
 const HEADER_PLUS_ICON = <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
 
