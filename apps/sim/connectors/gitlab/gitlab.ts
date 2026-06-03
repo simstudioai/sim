@@ -271,7 +271,8 @@ function buildFileSourceUrl(
 ): string {
   const encodedPath = path.split('/').map(encodeURIComponent).join('/')
   if (projectPath) {
-    return `https://${host}/${projectPath}/-/blob/${encodeURIComponent(ref)}/${encodedPath}`
+    const encodedRef = ref.split('/').map(encodeURIComponent).join('/')
+    return `https://${host}/${projectPath}/-/blob/${encodedRef}/${encodedPath}`
   }
   return `${apiBase}/projects/${encodedProject}/repository/files/${encodeURIComponent(path)}/raw?ref=${encodeURIComponent(ref)}`
 }
