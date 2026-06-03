@@ -1,6 +1,6 @@
 import { GoogleContactsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleContactsResponse } from '@/tools/google_contacts/types'
@@ -15,8 +15,7 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_contacts',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['google-workspace', 'customer-support', 'enrichment'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleContactsIcon,
   subBlocks: [
     {
@@ -274,3 +273,78 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
     metadata: { type: 'json', description: 'Contact or contacts metadata' },
   },
 }
+
+export const GoogleContactsBlockMeta = {
+  tags: ['google-workspace', 'customer-support', 'enrichment'],
+  templates: [
+    {
+      icon: GoogleContactsIcon,
+      title: 'Google Contacts CRM sync',
+      prompt:
+        'Build a scheduled workflow that mirrors Google Contacts into HubSpot, adding new contacts and updating fields, and writing a sync log for hygiene tracking.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'sync'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: GoogleContactsIcon,
+      title: 'Google Contacts duplicate cleaner',
+      prompt:
+        'Create a scheduled workflow that scans Google Contacts for duplicates, merges them deterministically, and writes a cleanup report for review.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation'],
+    },
+    {
+      icon: GoogleContactsIcon,
+      title: 'Google Contacts enricher',
+      prompt:
+        'Build a workflow that watches new Google Contacts entries, enriches each with company and title via Apollo, and writes the enriched contact back to Google Contacts.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['apollo'],
+    },
+    {
+      icon: GoogleContactsIcon,
+      title: 'Google Contacts + Calendar grouper',
+      prompt:
+        'Create a workflow that groups Google Contacts into labels based on meeting frequency in Google Calendar, so frequent collaborators are easy to find when composing emails.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation'],
+      alsoIntegrations: ['google_calendar'],
+    },
+    {
+      icon: GoogleContactsIcon,
+      title: 'Google Contacts birthday reminder',
+      prompt:
+        'Build a scheduled workflow that runs daily, surfaces upcoming birthdays from Google Contacts, and emails the user a reminder with personalized message suggestions.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: GoogleContactsIcon,
+      title: 'Google Contacts deal-mapper',
+      prompt:
+        'Create a workflow that maps Google Contacts to active Salesforce opportunities by email domain, tagging contacts as deal-relevant for fast follow-ups.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: GoogleContactsIcon,
+      title: 'Google Contacts new-hire onboarder',
+      prompt:
+        'Build a workflow that on a new hire in Workday adds the new employee to relevant Google Contacts groups based on department and team.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation'],
+      alsoIntegrations: ['workday'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -1,5 +1,5 @@
 import { SimilarwebIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const SimilarwebBlock: BlockConfig = {
@@ -11,7 +11,6 @@ export const SimilarwebBlock: BlockConfig = {
   docsLink: 'https://developers.similarweb.com/docs/similarweb-web-traffic-api',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['marketing', 'data-analytics', 'seo'],
   bgColor: '#000922',
   icon: SimilarwebIcon,
   authMode: AuthMode.ApiKey,
@@ -200,3 +199,75 @@ Return ONLY the date string in YYYY-MM format - no explanations, no quotes, no e
     averageVisitDuration: { type: 'json', description: 'Desktop visit duration data over time' },
   },
 }
+
+export const SimilarwebBlockMeta = {
+  tags: ['marketing', 'data-analytics', 'seo'],
+  templates: [
+    {
+      icon: SimilarwebIcon,
+      title: 'Similarweb traffic intelligence',
+      prompt:
+        'Build a scheduled workflow that pulls Similarweb traffic data for tracked competitor domains monthly, writes traffic, sources, and engagement to a tables-based scoreboard, and flags step changes in Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SimilarwebIcon,
+      title: 'Similarweb account intel sync',
+      prompt:
+        'Create a workflow that watches my CRM for new accounts, pulls Similarweb data on each account domain, writes traffic and tech-stack signals back to the account record for sales context.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'research'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: SimilarwebIcon,
+      title: 'Similarweb category benchmarking',
+      prompt:
+        'Create a scheduled workflow that pulls Similarweb category data for my industry, writes the leaderboard, average session duration, and bounce rate to a benchmarking table for the marketing review.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis'],
+    },
+    {
+      icon: SimilarwebIcon,
+      title: 'Similarweb funnel-source analyzer',
+      prompt:
+        'Build a scheduled workflow that pulls Similarweb traffic-source data for my domain and competitors, surfaces shifting acquisition channels, and writes the analysis to a marketing table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis'],
+    },
+    {
+      icon: SimilarwebIcon,
+      title: 'Similarweb keyword-overlap finder',
+      prompt:
+        'Create a workflow that runs Similarweb keyword analysis between my domain and tracked competitors, identifies high-value overlap and gaps, and writes an SEO opportunity table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: SimilarwebIcon,
+      title: 'Similarweb engagement scorecard',
+      prompt:
+        'Build a scheduled workflow that pulls Similarweb bounce rate, pages per visit, and average visit duration for my domain and key competitors, writes the engagement metrics to a table, and posts a Slack scorecard highlighting where my site under- or over-performs the set.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SimilarwebIcon,
+      title: 'Similarweb prospect prioritizer',
+      prompt:
+        "Create a workflow that reads a list of target company domains from a table, pulls each domain's Similarweb website overview and monthly visits, scores them by traffic size and growth, and writes a prioritized outbound list for the sales team.",
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'analysis'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { MicrosoftSharepointIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SharepointResponse } from '@/tools/sharepoint/types'
@@ -20,8 +20,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
   docsLink: 'https://docs.sim.ai/tools/sharepoint',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['microsoft-365', 'content-management', 'document-processing'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MicrosoftSharepointIcon,
   subBlocks: [
     {
@@ -1050,3 +1049,79 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     error: { type: 'string', description: 'Error message' },
   },
 }
+
+export const SharepointBlockMeta = {
+  tags: ['microsoft-365', 'content-management', 'document-processing'],
+  templates: [
+    {
+      icon: MicrosoftSharepointIcon,
+      title: 'SharePoint policy publisher',
+      prompt:
+        'Build a workflow that turns a Google Docs policy update into a published SharePoint page, posts the change diff to the policies team in Microsoft Teams, and writes the version history.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'sync'],
+      alsoIntegrations: ['google_docs', 'microsoft_teams'],
+    },
+    {
+      icon: MicrosoftSharepointIcon,
+      title: 'SharePoint stale-page sweeper',
+      prompt:
+        'Create a scheduled workflow that lists SharePoint pages not updated in 180 days, opens an owner-review thread in Teams, and archives pages once the owner approves.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'team'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+    {
+      icon: MicrosoftSharepointIcon,
+      title: 'SharePoint knowledge agent',
+      prompt:
+        'Build an agent that indexes SharePoint sites into a knowledge base, answers internal questions with cited links, and deploys as a Teams chat endpoint.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['enterprise', 'research'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+    {
+      icon: MicrosoftSharepointIcon,
+      title: 'SharePoint external-share audit',
+      prompt:
+        'Create a scheduled workflow that audits SharePoint external sharing, flags items above the sensitivity threshold, and posts a security report to Teams compliance channel.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+    {
+      icon: MicrosoftSharepointIcon,
+      title: 'SharePoint onboarding hub',
+      prompt:
+        'Build a workflow triggered by a new hire in Workday that creates a personalized SharePoint onboarding hub with role-relevant docs and shares it with the hire and their manager.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: MicrosoftSharepointIcon,
+      title: 'SharePoint search-relevance auditor',
+      prompt:
+        'Create a scheduled workflow that runs benchmark queries against SharePoint search weekly, scores the top result relevance, and writes a quality report to Teams.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'analysis'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+    {
+      icon: MicrosoftSharepointIcon,
+      title: 'SharePoint to Confluence migrator',
+      prompt:
+        'Build a workflow that imports SharePoint pages into Confluence under matching spaces, preserves attachments, and writes a mapping table so links can be redirected.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'sync'],
+      alsoIntegrations: ['confluence'],
+    },
+  ],
+} as const satisfies BlockMeta

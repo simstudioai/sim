@@ -73,11 +73,6 @@ export const AuditAction = {
   FOLDER_DUPLICATED: 'folder.duplicated',
   FOLDER_RESTORED: 'folder.restored',
 
-  // Forms
-  FORM_CREATED: 'form.created',
-  FORM_UPDATED: 'form.updated',
-  FORM_DELETED: 'form.deleted',
-
   // Invitations
   INVITATION_ACCEPTED: 'invitation.accepted',
   INVITATION_REJECTED: 'invitation.rejected',
@@ -161,11 +156,6 @@ export const AuditAction = {
   TABLE_DELETED: 'table.deleted',
   TABLE_RESTORED: 'table.restored',
 
-  // Templates
-  TEMPLATE_CREATED: 'template.created',
-  TEMPLATE_UPDATED: 'template.updated',
-  TEMPLATE_DELETED: 'template.deleted',
-
   // Webhooks
   WEBHOOK_CREATED: 'webhook.created',
   WEBHOOK_DELETED: 'webhook.deleted',
@@ -209,7 +199,6 @@ export const AuditResourceType = {
   ENVIRONMENT: 'environment',
   FILE: 'file',
   FOLDER: 'folder',
-  FORM: 'form',
   KNOWLEDGE_BASE: 'knowledge_base',
   MCP_SERVER: 'mcp_server',
   NOTIFICATION: 'notification',
@@ -220,7 +209,6 @@ export const AuditResourceType = {
   SCHEDULE: 'schedule',
   SKILL: 'skill',
   TABLE: 'table',
-  TEMPLATE: 'template',
   WEBHOOK: 'webhook',
   WORKFLOW: 'workflow',
   WORKSPACE: 'workspace',

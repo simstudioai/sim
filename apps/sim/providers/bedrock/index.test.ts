@@ -6,9 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mockSend = vi.fn()
 
 vi.mock('@aws-sdk/client-bedrock-runtime', () => ({
-  BedrockRuntimeClient: vi.fn().mockImplementation(() => {
-    return { send: mockSend }
-  }),
+  BedrockRuntimeClient: vi.fn().mockImplementation(
+    class {
+      send = mockSend
+    }
+  ),
   ConverseCommand: vi.fn(),
   ConverseStreamCommand: vi.fn(),
 }))

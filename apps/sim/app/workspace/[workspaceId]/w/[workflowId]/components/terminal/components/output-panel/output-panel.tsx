@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   ArrowDown,
-  ArrowDownToLine,
   ArrowUp,
   Check,
   Clipboard,
@@ -27,9 +26,11 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
-import { OutputContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components/output-context-menu'
-import { StructuredOutput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components/structured-output'
+import { Download } from '@/components/emcn/icons'
+import {
+  OutputContextMenu,
+  StructuredOutput,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components'
 import { ToggleButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/toggle-button'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
@@ -269,7 +270,11 @@ export const OutputPanel = React.memo(function OutputPanel({
     return () => document.removeEventListener('selectionchange', handleSelectionChange)
   }, [isOutputMenuOpen])
 
-  const structuredSearchQuery = isOutputSearchActive ? outputSearchQuery : undefined
+  // Memoize the search query for structured output to avoid re-renders
+  const structuredSearchQuery = useMemo(
+    () => (isOutputSearchActive ? outputSearchQuery : undefined),
+    [isOutputSearchActive, outputSearchQuery]
+  )
 
   const outputDataStringified = useMemo(() => {
     if (
@@ -301,14 +306,8 @@ export const OutputPanel = React.memo(function OutputPanel({
 
         {/* Header */}
         <div
-          role='group'
-          aria-label='Output panel header'
           className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-2.5'
           onClick={handleHeaderClick}
-          onKeyDown={(event) => {
-            if (event.target !== event.currentTarget) return
-            handleKeyboardActivation(event, handleHeaderClick)
-          }}
         >
           <div className='flex items-center'>
             <Button
@@ -346,7 +345,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     aria-label='Close search'
                     className='!p-1.5 -m-1.5'
                   >
-                    <X className='size-3.5' />
+                    <X className='h-3.5 w-3.5' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -362,7 +361,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     aria-label='Search in output'
                     className='!p-1.5 -m-1.5'
                   >
-                    <Search className='size-3.5' />
+                    <Search className='h-3.5 w-3.5' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -380,7 +379,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       aria-label='Component Playground'
                       className='!p-1.5 -m-1.5'
                     >
-                      <Palette className='size-3.5' />
+                      <Palette className='h-3.5 w-3.5' />
                     </Button>
                   </Link>
                 </Tooltip.Trigger>
@@ -403,9 +402,9 @@ export const OutputPanel = React.memo(function OutputPanel({
                     )}
                   >
                     {isTraining ? (
-                      <Pause className='size-3.5' />
+                      <Pause className='h-3.5 w-3.5' />
                     ) : (
-                      <Database className='size-3.5' />
+                      <Database className='h-3.5 w-3.5' />
                     )}
                   </Button>
                 </Tooltip.Trigger>
@@ -424,9 +423,9 @@ export const OutputPanel = React.memo(function OutputPanel({
                   className='!p-1.5 -m-1.5'
                 >
                   {showCopySuccess ? (
-                    <Check className='size-3.5' />
+                    <Check className='h-3.5 w-3.5' />
                   ) : (
-                    <Clipboard className='size-3.5' />
+                    <Clipboard className='h-3.5 w-3.5' />
                   )}
                 </Button>
               </Tooltip.Trigger>
@@ -441,14 +440,14 @@ export const OutputPanel = React.memo(function OutputPanel({
                     <Button
                       variant='ghost'
                       onClick={handleExportConsole}
-                      aria-label='Download console CSV'
+                      aria-label='Export console CSV'
                       className='!p-1.5 -m-1.5'
                     >
-                      <ArrowDownToLine className='size-3.5' />
+                      <Download className='h-3.5 w-3.5' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
-                    <span>Download CSV</span>
+                    <span>Export CSV</span>
                   </Tooltip.Content>
                 </Tooltip.Root>
                 <Tooltip.Root>
@@ -459,7 +458,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       aria-label='Clear console'
                       className='!p-1.5 -m-1.5'
                     >
-                      <Trash2 className='size-3.5' />
+                      <Trash2 className='h-3.5 w-3.5' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
@@ -476,7 +475,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   aria-label='Terminal options'
                   className='!p-1.5 -m-1.5'
                 >
-                  <MoreHorizontal className='size-3.5' />
+                  <MoreHorizontal className='h-3.5 w-3.5' />
                 </Button>
               </PopoverTrigger>
               <PopoverContent
@@ -514,7 +513,6 @@ export const OutputPanel = React.memo(function OutputPanel({
         {/* Search Overlay */}
         {isOutputSearchActive && (
           <div
-            role='presentation'
             className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--bg)] px-1.5 shadow-sm'
             onClick={(e) => e.stopPropagation()}
             data-toolbar-root
@@ -543,7 +541,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               className='!p-1.5 -m-1.5'
               disabled={matchCount === 0}
             >
-              <ArrowUp className='size-3.5' />
+              <ArrowUp className='h-3.5 w-3.5' />
             </Button>
             <Button
               variant='ghost'
@@ -552,7 +550,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               className='!p-1.5 -m-1.5'
               disabled={matchCount === 0}
             >
-              <ArrowDown className='size-3.5' />
+              <ArrowDown className='h-3.5 w-3.5' />
             </Button>
             <Button
               variant='ghost'
@@ -560,7 +558,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               aria-label='Close search'
               className='!p-1.5 -m-1.5'
             >
-              <X className='size-3.5' />
+              <X className='h-3.5 w-3.5' />
             </Button>
           </div>
         )}

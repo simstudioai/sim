@@ -8,10 +8,20 @@ import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
+import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OneDriveFilesAPI')
+
+/**
+ * Microsoft Graph paginates drive item collections via the `@odata.nextLink`
+ * absolute URL in the response body. Request the largest page (`$top` caps at
+ * 999) and drain following nextLink, bounded by a page cap.
+ * See https://learn.microsoft.com/en-us/graph/paging
+ */
+const ONEDRIVE_FILES_PAGE_SIZE = 999
+const MAX_ONEDRIVE_FILES_PAGES = 20
 
 /**
  * Get files (not folders) from Microsoft OneDrive
@@ -71,7 +81,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         '$select',
         'id,name,file,webUrl,size,createdDateTime,lastModifiedDateTime,createdBy,thumbnails'
       )
-      searchParams_new.append('$top', '50')
+      searchParams_new.append('$top', String(ONEDRIVE_FILES_PAGE_SIZE))
       url = `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(query)}')?${searchParams_new.toString()}`
     } else {
       const searchParams_new = new URLSearchParams()
@@ -79,34 +89,53 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         '$select',
         'id,name,file,folder,webUrl,size,createdDateTime,lastModifiedDateTime,createdBy,thumbnails'
       )
-      searchParams_new.append('$top', '50')
+      searchParams_new.append('$top', String(ONEDRIVE_FILES_PAGE_SIZE))
       url = `https://graph.microsoft.com/v1.0/me/drive/root/children?${searchParams_new.toString()}`
     }
 
     logger.info(`[${requestId}] Fetching files from Microsoft Graph`, { url })
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    })
+    const rawItems: MicrosoftGraphDriveItem[] = []
+    let nextUrl: string | undefined = url
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
-      logger.error(`[${requestId}] Microsoft Graph API error`, {
-        status: response.status,
-        error: errorData.error?.message || 'Failed to fetch files from OneDrive',
+    for (let page = 0; page < MAX_ONEDRIVE_FILES_PAGES && nextUrl; page++) {
+      const response = await fetch(nextUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       })
-      return NextResponse.json(
-        { error: errorData.error?.message || 'Failed to fetch files from OneDrive' },
-        { status: response.status }
-      )
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: { message: 'Unknown error' } }))
+        logger.error(`[${requestId}] Microsoft Graph API error`, {
+          status: response.status,
+          error: errorData.error?.message || 'Failed to fetch files from OneDrive',
+        })
+        return NextResponse.json(
+          { error: errorData.error?.message || 'Failed to fetch files from OneDrive' },
+          { status: response.status }
+        )
+      }
+
+      const data = await response.json()
+      rawItems.push(...((data.value as MicrosoftGraphDriveItem[]) || []))
+
+      const nextLink = getGraphNextPageUrl(data)
+      nextUrl = nextLink ? assertGraphNextPageUrl(nextLink) : undefined
+
+      if (nextUrl && page === MAX_ONEDRIVE_FILES_PAGES - 1) {
+        logger.warn(`[${requestId}] OneDrive files hit pagination cap; list may be incomplete`, {
+          pages: MAX_ONEDRIVE_FILES_PAGES,
+          collected: rawItems.length,
+        })
+      }
     }
 
-    const data = await response.json()
-    logger.info(`[${requestId}] Received ${data.value?.length || 0} items from Microsoft Graph`)
+    logger.info(`[${requestId}] Received ${rawItems.length} items from Microsoft Graph`)
 
-    const files = (data.value || [])
+    const files = rawItems
       .filter((item: MicrosoftGraphDriveItem) => !!item.file && !item.folder)
       .map((file: MicrosoftGraphDriveItem) => ({
         id: file.id,
@@ -129,7 +158,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }))
 
     logger.info(`[${requestId}] Returning ${files.length} files`, {
-      totalItems: data.value?.length || 0,
+      totalItems: rawItems.length,
     })
 
     return NextResponse.json({ files }, { status: 200 })

@@ -1,5 +1,5 @@
 import { IdentityCenterIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { IdentityCenterBaseResponse } from '@/tools/identity_center/types'
 
@@ -9,10 +9,9 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
   description: 'Manage temporary elevated access in AWS IAM Identity Center',
   longDescription:
     'Provision and revoke temporary access to AWS accounts via IAM Identity Center (SSO). Assign permission sets to users or groups, look up users by email, and list accounts and permission sets for access request workflows.',
-  docsLink: 'https://docs.sim.ai/tools/identity-center',
+  docsLink: 'https://docs.sim.ai/tools/identity_center',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['cloud', 'identity'],
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
   icon: IdentityCenterIcon,
   authMode: AuthMode.ApiKey,
@@ -436,3 +435,78 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
     count: { type: 'number', description: 'Number of items returned' },
   },
 }
+
+export const IdentityCenterBlockMeta = {
+  tags: ['cloud', 'identity'],
+  templates: [
+    {
+      icon: IdentityCenterIcon,
+      title: 'Identity Center access-review',
+      prompt:
+        'Build a scheduled quarterly workflow that surfaces AWS Identity Center permission sets and group memberships, requires owner attestation, and writes the audit log.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: IdentityCenterIcon,
+      title: 'Identity Center new-hire onboarder',
+      prompt:
+        'Create a workflow that on a Workday new-hire event provisions AWS Identity Center permission sets based on role, and writes the assignment to a tracking table.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: IdentityCenterIcon,
+      title: 'Identity Center offboarder',
+      prompt:
+        'Build a workflow that on a Workday termination revokes the user’s AWS Identity Center assignments and writes the action log to the security audit table.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: IdentityCenterIcon,
+      title: 'Identity Center session monitor',
+      prompt:
+        'Create a workflow that watches AWS Identity Center sign-in events for unusual patterns and pings the security Slack channel on anomalies.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: IdentityCenterIcon,
+      title: 'Identity Center permission-set drift',
+      prompt:
+        'Build a scheduled workflow that diffs AWS Identity Center permission sets against the Terraform source of truth, alerts on drift, and writes the report.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: IdentityCenterIcon,
+      title: 'Identity Center MFA enrollment chaser',
+      prompt:
+        'Create a scheduled workflow that finds AWS Identity Center users without MFA enrolled, sends targeted reminders, and writes enrollment progress to a security dashboard.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: IdentityCenterIcon,
+      title: 'Identity Center compliance reporter',
+      prompt:
+        'Build a scheduled workflow that produces an AWS Identity Center compliance report — group memberships, MFA adoption, access reviews — and writes the file for auditors.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+  ],
+} as const satisfies BlockMeta

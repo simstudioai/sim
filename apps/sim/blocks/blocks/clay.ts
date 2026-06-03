@@ -1,5 +1,5 @@
 import { ClayIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { ClayPopulateResponse } from '@/tools/clay/types'
 
 export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
@@ -11,8 +11,7 @@ export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
   docsLink: 'https://docs.sim.ai/tools/clay',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'sales-engagement', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: ClayIcon,
   subBlocks: [
     {
@@ -69,3 +68,77 @@ Plain Text: Best for populating a table in free-form style.
     },
   },
 }
+
+export const ClayBlockMeta = {
+  tags: ['enrichment', 'sales-engagement', 'data-analytics'],
+  templates: [
+    {
+      icon: ClayIcon,
+      title: 'Clay lead-list builder',
+      prompt:
+        'Build a workflow that runs a Clay search for an ICP, enriches each prospect with role and intent signals, and writes the enriched list to a tables-based outreach queue.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: ClayIcon,
+      title: 'Clay CRM enricher',
+      prompt:
+        'Create a workflow that watches new HubSpot contacts, runs them through a Clay enrichment table, and writes role, seniority, and tech-stack signals back to HubSpot.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: ClayIcon,
+      title: 'Clay intent-signal alerter',
+      prompt:
+        'Build a workflow that watches Clay intent signals — hiring, funding, tech changes — and posts a Slack alert to the AE owning the matching CRM account.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ClayIcon,
+      title: 'Clay outbound personalizer',
+      prompt:
+        'Create a workflow that takes a Clay enrichment row, drafts a personalized first-touch email using the prospect’s role and company signals, and queues it for review.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: ClayIcon,
+      title: 'Clay TAM expander',
+      prompt:
+        'Build a workflow that takes a seed account list, runs Clay lookalike search, and writes the expanded TAM into a Salesforce account list for outreach.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: ClayIcon,
+      title: 'Clay ICP validator',
+      prompt:
+        'Create a workflow that validates inbound leads against the ICP using Clay enrichment fields, scores fit, and routes high-fit leads to sales while parking the rest for nurture.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: ClayIcon,
+      title: 'Clay enrichment pusher',
+      prompt:
+        'Build a scheduled workflow that reads new rows from a leads table and pushes each record to a Clay table via the populate webhook, so Clay runs its enrichment waterfall and the data flows back into my outbound stack automatically.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation', 'enrichment'],
+    },
+  ],
+} as const satisfies BlockMeta

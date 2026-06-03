@@ -1,13 +1,14 @@
 import {
   Button,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
   Input,
   Label,
-  Modal,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTitle,
 } from '@/components/emcn'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -122,86 +123,66 @@ export function NoOrganizationView({
           </div>
         </div>
 
-        <Modal open={createOrgDialogOpen} onOpenChange={setCreateOrgDialogOpen}>
-          <ModalContent size='md'>
-            <ModalHeader>
-              <ModalTitle>Create Team Organization</ModalTitle>
-              <ModalDescription>
-                Create a new team organization to manage members and billing.
-              </ModalDescription>
-            </ModalHeader>
-
-            <div className='flex flex-col gap-4.5'>
-              {/* Hidden decoy field to prevent browser autofill */}
-              <input
-                type='text'
-                name='fakeusernameremembered'
-                autoComplete='username'
-                style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
-                tabIndex={-1}
-                readOnly
-              />
-              <div>
-                <Label htmlFor='org-name-field' className='font-medium text-small'>
-                  Organization Name
-                </Label>
-                <Input
-                  id='org-name-field'
-                  placeholder='Enter organization name'
-                  value={orgName}
-                  onChange={onOrgNameChange}
-                  disabled={isCreatingOrg}
-                  className='mt-1'
-                  name='org_name_field'
-                  autoComplete='off'
-                  autoCorrect='off'
-                  autoCapitalize='off'
-                  data-lpignore='true'
-                  data-form-type='other'
-                />
-              </div>
-
-              <div>
-                <Label htmlFor='org-slug-field' className='font-medium text-small'>
-                  Organization Slug
-                </Label>
-                <Input
-                  id='org-slug-field'
-                  placeholder='organization-slug'
-                  value={orgSlug}
-                  onChange={(e) => setOrgSlug(e.target.value)}
-                  disabled={isCreatingOrg}
-                  className='mt-1'
-                  name='org_slug_field'
-                  autoComplete='off'
-                  autoCorrect='off'
-                  autoCapitalize='off'
-                  data-lpignore='true'
-                  data-form-type='other'
-                />
-              </div>
-            </div>
-
-            {error && <p className='text-[var(--text-error)] text-small leading-tight'>{error}</p>}
-
-            <ModalFooter>
-              <Button
-                variant='active'
-                onClick={() => setCreateOrgDialogOpen(false)}
-                disabled={isCreatingOrg}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant='primary'
-                onClick={onCreateOrganization}
-                disabled={isCreatingOrg || !orgName.trim()}
-              >
-                {isCreatingOrg ? 'Creating...' : 'Create Organization'}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+        <ChipModal
+          open={createOrgDialogOpen}
+          onOpenChange={setCreateOrgDialogOpen}
+          srTitle='Create Team Organization'
+        >
+          <ChipModalHeader onClose={() => setCreateOrgDialogOpen(false)}>
+            Create Team Organization
+          </ChipModalHeader>
+          <ChipModalBody>
+            {/* Hidden decoy field to prevent browser autofill */}
+            <input
+              type='text'
+              name='fakeusernameremembered'
+              autoComplete='username'
+              style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+              tabIndex={-1}
+              readOnly
+            />
+            <ChipModalField
+              type='input'
+              title='Organization Name'
+              value={orgName}
+              onChange={(value) =>
+                onOrgNameChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+              }
+              placeholder='Enter organization name'
+              disabled={isCreatingOrg}
+              autoComplete='off'
+              required
+            />
+            <ChipModalField
+              type='input'
+              title='Organization Slug'
+              value={orgSlug}
+              onChange={setOrgSlug}
+              placeholder='organization-slug'
+              disabled={isCreatingOrg}
+              autoComplete='off'
+            />
+            <ChipModalError>{error}</ChipModalError>
+          </ChipModalBody>
+          <ChipModalFooter>
+            <Chip
+              variant='filled'
+              flush
+              onClick={() => setCreateOrgDialogOpen(false)}
+              disabled={isCreatingOrg}
+            >
+              Cancel
+            </Chip>
+            <Chip
+              variant='primary'
+              flush
+              onClick={onCreateOrganization}
+              disabled={isCreatingOrg || !orgName.trim()}
+            >
+              {isCreatingOrg ? 'Creating...' : 'Create Organization'}
+            </Chip>
+          </ChipModalFooter>
+        </ChipModal>
       </div>
     )
   }

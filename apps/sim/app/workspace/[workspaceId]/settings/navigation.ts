@@ -1,7 +1,6 @@
 import {
   Card,
   ClipboardList,
-  Connections,
   Database,
   HexSimple,
   Key,
@@ -20,12 +19,11 @@ import {
   Users,
   Wrench,
 } from '@/components/emcn'
-import { AgentSkillsIcon, McpIcon } from '@/components/icons'
+import { McpIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 
 export type SettingsSection =
   | 'general'
-  | 'integrations'
   | 'secrets'
   | 'template-profile'
   | 'credential-sets'
@@ -40,7 +38,6 @@ export type SettingsSection =
   | 'copilot'
   | 'mcp'
   | 'custom-tools'
-  | 'skills'
   | 'workflow-mcp-servers'
   | 'inbox'
   | 'admin'
@@ -133,10 +130,8 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresTeam: true,
   },
-  { id: 'integrations', label: 'Integrations', icon: Connections, section: 'account' },
   { id: 'secrets', label: 'Secrets', icon: Key, section: 'account' },
   { id: 'custom-tools', label: 'Custom Tools', icon: Wrench, section: 'tools' },
-  { id: 'skills', label: 'Skills', icon: AgentSkillsIcon, section: 'tools' },
   { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },
   { id: 'apikeys', label: 'Sim Keys', icon: TerminalWindow, section: 'system' },
   { id: 'workflow-mcp-servers', label: 'MCP Servers', icon: Server, section: 'system' },

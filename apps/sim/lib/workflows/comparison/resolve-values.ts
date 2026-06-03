@@ -6,7 +6,7 @@ import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks
 import { CREDENTIAL_SET, isUuid } from '@/executor/constants'
 import { fetchCredentialSetById } from '@/hooks/queries/credential-sets'
 import { fetchOAuthCredentialDetail } from '@/hooks/queries/oauth/oauth-credentials'
-import { getSelectorDefinition } from '@/hooks/selectors/registry'
+import { getSelectorDefinition, loadAllSelectorOptions } from '@/hooks/selectors/registry'
 import { resolveSelectorForSubBlock } from '@/hooks/selectors/resolution'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -107,7 +107,7 @@ async function resolveSelectorValue(
       }
     }
 
-    const options = await definition.fetchList({
+    const options = await loadAllSelectorOptions(definition, {
       key: selectorKey,
       context: selectorContext,
     })

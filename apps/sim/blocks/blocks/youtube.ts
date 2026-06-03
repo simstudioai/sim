@@ -1,5 +1,5 @@
-import { YouTubeIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import { ElevenLabsIcon, YouTubeIcon } from '@/components/icons'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { YouTubeResponse } from '@/tools/youtube/types'
 
@@ -13,7 +13,6 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
   docsLink: 'https://docs.sim.ai/tools/youtube',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['google-workspace', 'marketing', 'content-management'],
   bgColor: '#FF0000',
   icon: YouTubeIcon,
   subBlocks: [
@@ -549,3 +548,85 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     assignable: { type: 'boolean', description: 'Whether category can be assigned' },
   },
 }
+
+export const YouTubeBlockMeta = {
+  tags: ['google-workspace', 'marketing', 'content-management'],
+  templates: [
+    {
+      icon: YouTubeIcon,
+      title: 'Content repurposer',
+      prompt:
+        'Build a workflow that takes a YouTube video URL, pulls the video details and description, researches the topic on the web for additional context, and generates a Twitter thread, LinkedIn post, and blog summary optimized for each platform.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content', 'automation'],
+    },
+    {
+      icon: ElevenLabsIcon,
+      title: 'YouTube transcript narrator',
+      prompt:
+        'Build a workflow that takes a YouTube URL, pulls the transcript, summarizes it with an agent, narrates the summary with ElevenLabs, and saves the audio file for distribution.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['content', 'automation'],
+      alsoIntegrations: ['elevenlabs'],
+    },
+    {
+      icon: YouTubeIcon,
+      title: 'YouTube channel performance digest',
+      prompt:
+        'Create a scheduled weekly workflow that pulls YouTube channel metrics — views, watch time, top videos, subscriber delta — writes a digest file, and emails it to the content team.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: YouTubeIcon,
+      title: 'YouTube comment moderation',
+      prompt:
+        'Build a workflow that watches YouTube comments on new uploads, classifies as helpful, question, or spam, replies to questions using a knowledge base, and pins highlights from positive engagers.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'community'],
+    },
+    {
+      icon: YouTubeIcon,
+      title: 'YouTube transcript-to-blog',
+      prompt:
+        'Create a workflow that watches a YouTube channel for new uploads, pulls the transcript, generates a long-form blog post with proper SEO structure, and stages it as a WordPress draft.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+      alsoIntegrations: ['wordpress'],
+    },
+    {
+      icon: YouTubeIcon,
+      title: 'YouTube competitor watcher',
+      prompt:
+        'Build a scheduled workflow that monitors competitor YouTube channels, flags videos that exceed average performance, and writes outline of their format to a content-research table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: YouTubeIcon,
+      title: 'YouTube playlist curator',
+      prompt:
+        'Create a workflow that watches a tables-based curation list, finds matching YouTube videos via search, adds them to a chosen playlist, and pings the editorial team for the final cut.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+    {
+      icon: YouTubeIcon,
+      title: 'YouTube live-stream archiver',
+      prompt:
+        'Build a workflow that runs after each YouTube live stream, captures the recording, transcribes it, summarizes highlights, and saves a recap to a Notion page for the marketing team.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+      alsoIntegrations: ['notion'],
+    },
+  ],
+} as const satisfies BlockMeta

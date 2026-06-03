@@ -330,3 +330,45 @@ describe('DAGExecutor run-from-block snapshot metadata', () => {
     expect(capturedContext?.blockStates.has('unreachable__obranch-0')).toBe(false)
   })
 })
+
+describe('DAGExecutor createExecutionContext useDraftState', () => {
+  function buildMetadataUseDraftState(opts: {
+    metadataUseDraftState?: boolean
+    isDeployedContext?: boolean
+  }): boolean | undefined {
+    const executor = new DAGExecutor({
+      workflow: { version: '1', blocks: [], connections: [] },
+      contextExtensions: {
+        workspaceId: 'ws-1',
+        isDeployedContext: opts.isDeployedContext,
+        metadata:
+          opts.metadataUseDraftState === undefined
+            ? undefined
+            : ({ useDraftState: opts.metadataUseDraftState } as ExecutionContext['metadata']),
+      },
+    })
+    const { context } = (
+      executor as unknown as {
+        createExecutionContext: (workflowId: string) => { context: ExecutionContext }
+      }
+    ).createExecutionContext('wf-1')
+    return context.metadata.useDraftState
+  }
+
+  it('honors explicit useDraftState=true even when isDeployedContext is true (table dispatcher)', () => {
+    expect(
+      buildMetadataUseDraftState({ metadataUseDraftState: true, isDeployedContext: true })
+    ).toBe(true)
+  })
+
+  it('honors explicit useDraftState=false even when isDeployedContext is false', () => {
+    expect(
+      buildMetadataUseDraftState({ metadataUseDraftState: false, isDeployedContext: false })
+    ).toBe(false)
+  })
+
+  it('falls back to the isDeployedContext heuristic when useDraftState is not provided', () => {
+    expect(buildMetadataUseDraftState({ isDeployedContext: true })).toBe(false)
+    expect(buildMetadataUseDraftState({ isDeployedContext: false })).toBe(true)
+  })
+})

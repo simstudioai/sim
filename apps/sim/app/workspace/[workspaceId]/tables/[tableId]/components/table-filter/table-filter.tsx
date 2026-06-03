@@ -12,7 +12,7 @@ import {
 } from '@/components/emcn'
 import { ChevronDown, Plus } from '@/components/emcn/icons'
 import type { Filter, FilterRule } from '@/lib/table'
-import { COMPARISON_OPERATORS } from '@/lib/table/query-builder/constants'
+import { COMPARISON_OPERATORS, VALUELESS_OPERATORS } from '@/lib/table/query-builder/constants'
 import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'
 
 const OPERATOR_LABELS = Object.fromEntries(
@@ -71,7 +71,9 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
   }, [])
 
   const handleApply = useCallback(() => {
-    const validRules = rulesRef.current.filter((r) => r.column && r.value)
+    const validRules = rulesRef.current.filter(
+      (r) => r.column && (r.value || VALUELESS_OPERATORS.has(r.operator))
+    )
     onApply(filterRulesToFilter(validRules))
   }, [onApply])
 
@@ -197,16 +199,20 @@ const FilterRuleRow = memo(function FilterRuleRow({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <input
-        type='text'
-        value={rule.value}
-        onChange={(e) => onUpdate(rule.id, 'value', e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') onApply()
-        }}
-        placeholder='Enter a value'
-        className='h-[28px] flex-1 rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none placeholder:text-[var(--text-subtle)] hover-hover:border-[var(--border-1)] focus:border-[var(--border-1)]'
-      />
+      {VALUELESS_OPERATORS.has(rule.operator) ? (
+        <div className='h-[28px] flex-1' />
+      ) : (
+        <input
+          type='text'
+          value={rule.value}
+          onChange={(e) => onUpdate(rule.id, 'value', e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onApply()
+          }}
+          placeholder='Enter a value'
+          className='h-[28px] flex-1 rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none placeholder:text-[var(--text-subtle)] hover-hover:border-[var(--border-1)] focus:border-[var(--border-1)]'
+        />
+      )}
 
       <button
         onClick={() => onRemove(rule.id)}

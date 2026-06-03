@@ -15,6 +15,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { isEqual } from 'es-toolkit'
 import type { Edge } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
+import { toast } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
@@ -22,13 +23,13 @@ import {
   type WorkflowSearchSubflowFieldId,
   workflowSearchSubflowFieldMatchesExpected,
 } from '@/lib/workflows/search-replace/subflow-fields'
+import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { getSubBlocksDependingOnChange } from '@/blocks/utils'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { invalidateDeploymentQueries } from '@/hooks/queries/deployments'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
-import { useNotificationStore } from '@/stores/notifications'
 import {
   registerEmitFunctions,
   useOperationQueue,
@@ -1013,11 +1014,7 @@ export function useCollaborativeWorkflow() {
       if (block) {
         if (isBlockProtected(id, blocks)) {
           logger.error('Cannot rename locked block')
-          useNotificationStore.getState().addNotification({
-            level: 'info',
-            message: 'Cannot rename locked blocks',
-            workflowId: activeWorkflowId || undefined,
-          })
+          toast({ message: 'Cannot rename locked blocks' })
           return { success: false, error: 'Block is locked' }
         }
       }
@@ -1027,21 +1024,13 @@ export function useCollaborativeWorkflow() {
 
       if (!normalizedNewName) {
         logger.error('Cannot rename block to empty name')
-        useNotificationStore.getState().addNotification({
-          level: 'error',
-          message: 'Block name cannot be empty',
-          workflowId: activeWorkflowId || undefined,
-        })
+        toast.error('Block name cannot be empty')
         return { success: false, error: 'Block name cannot be empty' }
       }
 
       if ((RESERVED_BLOCK_NAMES as readonly string[]).includes(normalizedNewName)) {
         logger.error(`Cannot rename block to reserved name: "${trimmedName}"`)
-        useNotificationStore.getState().addNotification({
-          level: 'error',
-          message: `"${trimmedName}" is a reserved name and cannot be used`,
-          workflowId: activeWorkflowId || undefined,
-        })
+        toast.error(`"${trimmedName}" is a reserved name and cannot be used`)
         return { success: false, error: `"${trimmedName}" is a reserved name` }
       }
 
@@ -1053,11 +1042,7 @@ export function useCollaborativeWorkflow() {
       if (conflictingBlock) {
         const conflictName = conflictingBlock[1].name
         logger.error(`Cannot rename block to "${trimmedName}" - conflicts with "${conflictName}"`)
-        useNotificationStore.getState().addNotification({
-          level: 'error',
-          message: `Block name "${trimmedName}" already exists`,
-          workflowId: activeWorkflowId || undefined,
-        })
+        toast.error(`Block name "${trimmedName}" already exists`)
         return { success: false, error: `Block name "${trimmedName}" already exists` }
       }
 
@@ -1494,7 +1479,7 @@ export function useCollaborativeWorkflow() {
       useSubBlockStore.getState().setValue(blockId, subblockId, value)
       useWorkflowStore.getState().syncDynamicHandleSubblockValue(blockId, subblockId, value)
 
-      if (activeWorkflowId) {
+      if (activeWorkflowId && !isSyntheticToolSubBlockId(subblockId)) {
         const operationId = generateId()
 
         addToQueue({
@@ -1604,6 +1589,10 @@ export function useCollaborativeWorkflow() {
         return false
       }
 
+      const persistedUpdates = updates.filter(
+        (update) => !isSyntheticToolSubBlockId(update.subblockId)
+      )
+
       if (updates.length > 0) {
         updates.forEach((update) => {
           useSubBlockStore.getState().setValue(update.blockId, update.subblockId, update.value)
@@ -1612,21 +1601,23 @@ export function useCollaborativeWorkflow() {
             .syncDynamicHandleSubblockValue(update.blockId, update.subblockId, update.value)
         })
 
-        const operationId = generateId()
-        addToQueue({
-          id: operationId,
-          operation: {
-            operation: SUBBLOCK_OPERATIONS.BATCH_UPDATE,
-            target: OPERATION_TARGETS.SUBBLOCK,
-            payload: { updates },
-          },
-          workflowId: activeWorkflowId,
-          userId: session?.user?.id || 'unknown',
-        })
+        if (persistedUpdates.length > 0) {
+          const operationId = generateId()
+          addToQueue({
+            id: operationId,
+            operation: {
+              operation: SUBBLOCK_OPERATIONS.BATCH_UPDATE,
+              target: OPERATION_TARGETS.SUBBLOCK,
+              payload: { updates: persistedUpdates },
+            },
+            workflowId: activeWorkflowId,
+            userId: session?.user?.id || 'unknown',
+          })
+        }
       }
 
       undoRedo.recordBatchUpdateSubblocks(
-        updates.map((update) => ({
+        persistedUpdates.map((update) => ({
           blockId: update.blockId,
           subBlockId: update.subblockId,
           before: update.expectedValue,
@@ -1656,6 +1647,8 @@ export function useCollaborativeWorkflow() {
 
       // Apply locally first (immediate UI feedback)
       useSubBlockStore.getState().setValue(blockId, subblockId, value)
+
+      if (isSyntheticToolSubBlockId(subblockId)) return
 
       // Use the operation queue but with immediate processing (no debouncing)
       const operationId = generateId()

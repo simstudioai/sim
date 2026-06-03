@@ -1,6 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { RDSIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { RdsIntrospectResponse, RdsResponse } from '@/tools/rds/types'
 
@@ -13,7 +13,6 @@ export const RDSBlock: BlockConfig<RdsResponse | RdsIntrospectResponse> = {
   docsLink: 'https://docs.sim.ai/tools/rds',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['cloud', 'data-warehouse'],
   bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',
   icon: RDSIcon,
   subBlocks: [
@@ -485,3 +484,77 @@ Return ONLY the JSON object.`,
     },
   },
 }
+
+export const RDSBlockMeta = {
+  tags: ['cloud', 'data-warehouse'],
+  templates: [
+    {
+      icon: RDSIcon,
+      title: 'RDS slow-query digest',
+      prompt:
+        'Build a scheduled workflow that pulls Performance Insights from AWS RDS, identifies the top slow queries each day, and posts a digest to engineering Slack with EXPLAIN suggestions.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RDSIcon,
+      title: 'RDS snapshot policy auditor',
+      prompt:
+        'Create a scheduled weekly workflow that audits RDS automated snapshot retention against compliance policy, flags non-compliant instances, and writes findings to a security table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'devops'],
+    },
+    {
+      icon: RDSIcon,
+      title: 'RDS failover drill orchestrator',
+      prompt:
+        'Build a scheduled workflow that triggers an RDS Multi-AZ failover drill quarterly, monitors recovery time, and writes the drill report to an SRE file.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise'],
+    },
+    {
+      icon: RDSIcon,
+      title: 'RDS storage runaway alert',
+      prompt:
+        'Create a workflow that watches RDS storage growth, projects when an instance will run out, opens a PagerDuty incident when the projection is under 14 days, and writes the timeline to a tracking table.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: RDSIcon,
+      title: 'RDS parameter drift detector',
+      prompt:
+        'Build a scheduled workflow that diffs current RDS parameter groups against the source-of-truth in Terraform, alerts on drift, and writes the drift report to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RDSIcon,
+      title: 'RDS cost optimizer',
+      prompt:
+        'Create a scheduled monthly workflow that pulls RDS utilization data, identifies right-sizing opportunities, and writes a cost-savings report to the finance Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'devops'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RDSIcon,
+      title: 'RDS + BigQuery analytics mirror',
+      prompt:
+        'Build a scheduled workflow that mirrors RDS analytical tables into BigQuery for downstream BI, captures the schema drift, and writes a sync log.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['analysis', 'sync'],
+      alsoIntegrations: ['google_bigquery'],
+    },
+  ],
+} as const satisfies BlockMeta

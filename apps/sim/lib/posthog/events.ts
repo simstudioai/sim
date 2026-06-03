@@ -353,12 +353,6 @@ export interface PostHogEventMap {
     has_workflow_yaml: boolean
   }
 
-  /** `template_modules` is a space-separated list of module tags, e.g. `"agent tables knowledge-base"`. */
-  template_used: {
-    template_title: string
-    template_modules: string
-  }
-
   settings_tab_viewed: {
     section: string
   }
@@ -377,6 +371,36 @@ export interface PostHogEventMap {
   table_deleted: {
     table_id: string
     workspace_id: string
+  }
+
+  /**
+   * A table-workflow run was dispatched from the grid.
+   * `source` distinguishes the gesture: a single row's gutter Play (`row`),
+   * a multi-row selection across every workflow column (`rows`), or a single
+   * workflow column header / column-scoped selection (`column`).
+   */
+  table_workflow_run: {
+    table_id: string
+    workspace_id: string
+    source: 'row' | 'rows' | 'column'
+    run_mode: 'all' | 'incomplete'
+    group_count: number
+    /** Number of explicitly targeted rows; `null` when the run targets all rows in scope. */
+    row_count: number | null
+    has_limit: boolean
+  }
+
+  /**
+   * Running table workflows were cancelled.
+   * `scope` is `all` (every running row), `row` (one row's gutter Stop), or
+   * `rows` (a multi-row selection).
+   */
+  table_workflow_stopped: {
+    table_id: string
+    workspace_id: string
+    scope: 'all' | 'row' | 'rows'
+    /** Number of rows targeted; `null` for the `all` scope. */
+    row_count: number | null
   }
 
   custom_tool_saved: {
@@ -458,19 +482,6 @@ export interface PostHogEventMap {
     user_message_id: string
   }
 
-  tour_started: {
-    tour_type: 'nav' | 'workflow'
-  }
-
-  tour_completed: {
-    tour_type: 'nav' | 'workflow'
-  }
-
-  tour_skipped: {
-    tour_type: 'nav' | 'workflow'
-    step_index: number
-  }
-
   docs_opened: {
     source: 'help_menu' | 'editor_button' | 'toolbar_context_menu'
     block_type?: string
@@ -490,6 +501,8 @@ export interface PostHogEventMap {
       | 'knowledge_base'
       | 'page'
       | 'docs'
+      | 'connected_account'
+      | 'integration'
     query_length: number
     workspace_id: string
   }

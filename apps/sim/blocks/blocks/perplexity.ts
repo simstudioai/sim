@@ -1,5 +1,5 @@
 import { PerplexityIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { PerplexityChatResponse, PerplexitySearchResponse } from '@/tools/perplexity/types'
 
 type PerplexityResponse = PerplexityChatResponse | PerplexitySearchResponse
@@ -14,7 +14,6 @@ export const PerplexityBlock: BlockConfig<PerplexityResponse> = {
   docsLink: 'https://docs.sim.ai/tools/perplexity',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['llm', 'web-scraping', 'agentic'],
   bgColor: '#20808D', // Perplexity turquoise color
   icon: PerplexityIcon,
   subBlocks: [
@@ -260,3 +259,78 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
     results: { type: 'json', description: 'Search results array' },
   },
 }
+
+export const PerplexityBlockMeta = {
+  tags: ['llm', 'web-scraping', 'agentic'],
+  templates: [
+    {
+      icon: PerplexityIcon,
+      title: 'Perplexity research briefer',
+      prompt:
+        'Build an agent that takes a topic or company name, runs deep web research via Perplexity with citations, and saves a structured brief file with sources, key findings, and open questions.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'content'],
+    },
+    {
+      icon: PerplexityIcon,
+      title: 'Daily news brief via Perplexity',
+      prompt:
+        'Create a scheduled daily workflow that queries Perplexity for the latest news on topics I follow, summarizes each thread with citations, and posts the digest to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: PerplexityIcon,
+      title: 'Multi-source research agent',
+      prompt:
+        'Create an agent that triangulates a topic across Perplexity, Exa, and Tavily, deduplicates findings, and produces a consensus brief with confidence scores per claim.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'enterprise'],
+      alsoIntegrations: ['exa', 'tavily'],
+    },
+    {
+      icon: PerplexityIcon,
+      title: 'Perplexity sales account refresh',
+      prompt:
+        'Create a scheduled workflow that walks accounts in my CRM, runs Perplexity research on each for new funding, headcount changes, or product launches, and writes the digest back to the account record.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: PerplexityIcon,
+      title: 'Perplexity + DSPy structured-output evaluator',
+      prompt:
+        'Build a workflow that runs DSPy programs against a Perplexity-backed retrieval layer, evaluates outputs with Hugging Face and Mistral parsers, and writes regression scores to a tracking table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+      alsoIntegrations: ['dspy', 'huggingface', 'mistral_parse'],
+    },
+    {
+      icon: PerplexityIcon,
+      title: 'Perplexity + Hugging Face semantic dedup',
+      prompt:
+        'Build a workflow that runs Perplexity research, embeds findings with a Hugging Face encoder, deduplicates near-identical claims, and writes a clean research file.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['research'],
+      alsoIntegrations: ['huggingface'],
+    },
+    {
+      icon: PerplexityIcon,
+      title: 'Perplexity competitor-watch monitor',
+      prompt:
+        'Build a scheduled workflow that asks Perplexity for any new launches, pricing changes, or announcements from a list of competitors, summarizes what changed since last run, and posts a cited digest to a Slack channel for the product team.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['research', 'monitoring', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -1,5 +1,5 @@
 import { RedisIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type {
   RedisCommandResponse,
@@ -82,7 +82,6 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
   docsLink: 'https://docs.sim.ai/tools/redis',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['cloud', 'data-warehouse'],
   bgColor: '#FF4438',
   authMode: AuthMode.ApiKey,
   icon: RedisIcon,
@@ -320,3 +319,77 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
     },
   },
 }
+
+export const RedisBlockMeta = {
+  tags: ['cloud', 'data-warehouse'],
+  templates: [
+    {
+      icon: RedisIcon,
+      title: 'Redis cache primer on deploy',
+      prompt:
+        'Build a workflow triggered by a Vercel production deploy that warms a list of hot Redis keys by replaying the top queries, so first-request latency stays low after every deploy.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops'],
+      alsoIntegrations: ['vercel'],
+    },
+    {
+      icon: RedisIcon,
+      title: 'Redis stale-key sweeper',
+      prompt:
+        'Create a scheduled workflow that scans Redis for keys that should have expired but did not, deletes them, and posts a metrics summary to the SRE Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RedisIcon,
+      title: 'Redis rate-limit auditor',
+      prompt:
+        'Build a workflow that pulls Redis rate-limit counters daily, identifies abuse patterns by tenant, and writes the worst offenders into a security review table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring'],
+    },
+    {
+      icon: RedisIcon,
+      title: 'Redis queue depth alerter',
+      prompt:
+        'Create a workflow that monitors Redis queue depth every minute, calls PagerDuty when the queue grows above a critical threshold, and writes the incident timeline to a table.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: RedisIcon,
+      title: 'Redis session insights',
+      prompt:
+        'Build a scheduled workflow that pulls Redis session statistics — active sessions, average TTL, eviction rate — and posts a daily ops digest with anomalies highlighted.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RedisIcon,
+      title: 'Redis cluster failover drill',
+      prompt:
+        'Create a scheduled workflow that runs a chaos-style failover drill on a Redis cluster monthly, captures recovery metrics, and writes the drill results to an SRE audit file.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise'],
+    },
+    {
+      icon: RedisIcon,
+      title: 'Redis + Upstash multi-cloud cache',
+      prompt:
+        'Create a workflow that keeps a Redis cluster and an Upstash Redis instance in sync for multi-cloud workloads, captures lag, and pings on-call when drift exceeds threshold.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'sync'],
+      alsoIntegrations: ['upstash'],
+    },
+  ],
+} as const satisfies BlockMeta

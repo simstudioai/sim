@@ -6,8 +6,10 @@ import { generateId } from '@sim/utils/id'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { chipVariants } from '@/components/emcn'
 import { Lock } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { cn } from '@/lib/core/utils/cn'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -50,7 +52,6 @@ const logger = createLogger('FolderItem')
 
 interface FolderItemProps {
   folder: FolderTreeNode
-  level: number
   dragDisabled?: boolean
   hoverHandlers?: {
     onDragEnter?: (e: React.DragEvent<HTMLElement>) => void
@@ -63,7 +64,6 @@ interface FolderItemProps {
 
 export function FolderItem({
   folder,
-  level,
   dragDisabled = false,
   hoverHandlers,
   onFolderClick,
@@ -489,13 +489,8 @@ export function FolderItem({
         data-item-id={folder.id}
         aria-expanded={isExpanded}
         aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
-        className={clsx(
-          'group mx-0.5 flex h-[30px] cursor-pointer items-center gap-2 rounded-lg px-2 text-sm',
-          !isSelected &&
-            !isContextMenuOpen &&
-            !isAnyDragActive &&
-            'hover-hover:bg-[var(--surface-hover)]',
-          (isSelected || isContextMenuOpen) && 'bg-[var(--surface-active)]',
+        className={cn(
+          chipVariants({ active: isSelected || isContextMenuOpen, fullWidth: true }),
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         onClick={handleFolderSelect}
@@ -508,7 +503,7 @@ export function FolderItem({
       >
         <ChevronRight
           className={clsx(
-            'h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)] transition-transform duration-100',
+            'size-[16px] flex-shrink-0 text-[var(--text-icon)] transition-transform duration-100',
             isExpanded && 'rotate-90'
           )}
           aria-hidden='true'
@@ -531,7 +526,7 @@ export function FolderItem({
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleRenameKeyDown}
             onBlur={handleInputBlur}
-            className='min-w-0 flex-1 border-0 bg-transparent p-0 font-base text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
             maxLength={50}
             disabled={isRenaming}
             onClick={(e) => {
@@ -547,7 +542,7 @@ export function FolderItem({
           <div className='flex min-w-0 flex-1 items-center gap-2'>
             <div className='flex min-w-0 flex-1 items-center gap-1'>
               <span
-                className='min-w-0 truncate font-base text-[var(--text-body)]'
+                className='min-w-0 truncate text-[var(--text-body)]'
                 onDoubleClick={handleDoubleClick}
               >
                 {folder.name}
@@ -612,7 +607,7 @@ export function FolderItem({
           !userPermissions.canEdit || isDuplicatingSelection || !hasExportableContent
         }
         disableExport={!userPermissions.canEdit || isExporting || !hasExportableContent}
-        showDelete={userPermissions.canAdmin}
+        showDelete={userPermissions.canEdit}
         disableDelete={effectiveLocked || !canDeleteSelection}
         onToggleLock={handleToggleLock}
         showLock={!isMixedSelection && selectedFolders.size <= 1}

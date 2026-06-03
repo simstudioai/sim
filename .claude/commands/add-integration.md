@@ -221,6 +221,28 @@ export const {Service}Block: BlockConfig = {
 - **Inputs section:** Must list canonical param IDs (e.g., `fileId`), NOT raw subblock IDs (e.g., `fileSelector`, `manualFileId`)
 - **Params function:** Must use canonical param IDs, NOT raw subblock IDs (raw IDs are deleted after canonical transformation)
 
+### BlockMeta (Required)
+
+Export a `{Service}BlockMeta` in the same file as the block — **minimum 7 templates**. See `add-block.md` → "BlockMeta (Required)" for valid `modules` and `category` values and the full pattern.
+
+```typescript
+export const {Service}BlockMeta = {
+  tags: ['tag1', 'tag2'],
+  templates: [
+    {
+      icon: {Service}Icon,
+      title: '{Service} <use-case>',
+      prompt: 'Build a workflow that...',  // concrete trigger → transformation → output
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation'],
+      alsoIntegrations: ['slack'],        // when the prompt references another service
+    },
+    // ... at least 6 more
+  ],
+} as const satisfies BlockMeta
+```
+
 ## Step 4: Add Icon
 
 ### File Location
@@ -424,6 +446,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Registered block in `blocks/registry.ts`
 - [ ] If triggers: set `triggers.enabled` and `triggers.available`
 - [ ] If triggers: spread trigger subBlocks with `getTrigger()`
+- [ ] Exported `{Service}BlockMeta` with at least 7 templates
 
 ### OAuth Scopes (if OAuth service)
 - [ ] Defined scopes in `lib/oauth/oauth.ts` under `OAUTH_PROVIDERS`
@@ -454,6 +477,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Verified block subBlocks cover all required tool params with correct conditions
 - [ ] Verified block outputs match what the tools actually return
 - [ ] Verified `tools.config.params` correctly maps and coerces all param types
+- [ ] `{Service}BlockMeta` exported with at least 7 templates, each having `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
 
 ## Example Command
 

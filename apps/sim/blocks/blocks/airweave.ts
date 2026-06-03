@@ -1,5 +1,5 @@
 import { AirweaveIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { AirweaveSearchResponse } from '@/tools/airweave/types'
 
@@ -13,7 +13,6 @@ export const AirweaveBlock: BlockConfig<AirweaveSearchResponse> = {
   docsLink: 'https://docs.sim.ai/tools/airweave',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['vector-search', 'knowledge-base'],
   bgColor: '#6366F1',
   icon: AirweaveIcon,
   subBlocks: [
@@ -102,3 +101,74 @@ export const AirweaveBlock: BlockConfig<AirweaveSearchResponse> = {
     completion: { type: 'string', description: 'AI-generated answer (when enabled)' },
   },
 }
+
+export const AirweaveBlockMeta = {
+  tags: ['vector-search', 'knowledge-base'],
+  templates: [
+    {
+      icon: AirweaveIcon,
+      title: 'Airweave knowledge connector',
+      prompt:
+        'Build a workflow that uses Airweave to keep a knowledge base in sync with multiple sources — Notion, Confluence, Drive — chunking and embedding new content as it changes.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['sync', 'enterprise'],
+    },
+    {
+      icon: AirweaveIcon,
+      title: 'Airweave + agent answer endpoint',
+      prompt:
+        'Create an agent that uses an Airweave-managed retrieval layer, answers user questions with sourced citations, and deploys as a chat endpoint for internal teams.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'enterprise'],
+    },
+    {
+      icon: AirweaveIcon,
+      title: 'Airweave connector audit',
+      prompt:
+        'Build a scheduled workflow that audits Airweave connector health, identifies stale sources, and posts a Slack report to the platform owner.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['monitoring', 'sync'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AirweaveIcon,
+      title: 'Airweave reindex orchestrator',
+      prompt:
+        'Create a workflow that triggers an Airweave reindex when a critical source changes, monitors the job, and writes the run history to a control table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+    },
+    {
+      icon: AirweaveIcon,
+      title: 'Airweave duplicate detector',
+      prompt:
+        'Build a workflow that scans Airweave-managed knowledge for near-duplicate chunks, writes merge candidates to a cleanup queue, and applies merges on approval.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+    },
+    {
+      icon: AirweaveIcon,
+      title: 'Airweave + Slack Q&A',
+      prompt:
+        'Create a Slack bot that uses an Airweave-managed retrieval layer to answer questions in support channels with sourced citations and confidence scores.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'community'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AirweaveIcon,
+      title: 'Airweave cost dashboard',
+      prompt:
+        'Build a scheduled weekly workflow that aggregates Airweave usage and embedding costs per tenant, calculates unit economics, and writes a finance-ready report.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'reporting'],
+    },
+  ],
+} as const satisfies BlockMeta

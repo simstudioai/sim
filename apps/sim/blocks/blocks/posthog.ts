@@ -1,5 +1,5 @@
 import { PosthogIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { PostHogResponse } from '@/tools/posthog/types'
 
@@ -13,8 +13,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
   docsLink: 'https://docs.sim.ai/tools/posthog',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['data-analytics', 'monitoring'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: PosthogIcon,
   subBlocks: [
     {
@@ -1326,3 +1325,79 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     error: { type: 'string', description: 'Error message if operation failed' },
   },
 }
+
+export const PostHogBlockMeta = {
+  tags: ['data-analytics', 'monitoring'],
+  templates: [
+    {
+      icon: PosthogIcon,
+      title: 'PostHog insight digest',
+      prompt:
+        'Create a scheduled daily workflow that pulls key PostHog insights — DAU, top events, funnels — and posts a digest to Slack with week-over-week deltas and emoji indicators.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['product', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: PosthogIcon,
+      title: 'PostHog feature flag flip notifier',
+      prompt:
+        'Build a workflow that watches PostHog feature flags, detects status changes, and posts a Slack notification with the old and new state plus the engineer who flipped it.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: PosthogIcon,
+      title: 'PostHog session replay triage',
+      prompt:
+        'Create a scheduled workflow that lists PostHog session recordings with rage clicks or dead clicks, scores each for severity, and creates a Linear ticket for the worst sessions.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['product', 'engineering'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: PosthogIcon,
+      title: 'PostHog event taxonomy enforcer',
+      prompt:
+        'Build a workflow that scans PostHog events daily, flags any new event names that violate the naming convention, and opens a Linear ticket for the engineer to clean up tracking debt.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: PosthogIcon,
+      title: 'PostHog cohort enrichment',
+      prompt:
+        'Create a workflow that pulls a PostHog cohort, enriches each user with HubSpot lifecycle stage and Stripe LTV, and writes the enriched cohort to a tables-based targeting view.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['product', 'crm', 'sync'],
+      alsoIntegrations: ['hubspot', 'stripe'],
+    },
+    {
+      icon: PosthogIcon,
+      title: 'PostHog + Profound user-journey enricher',
+      prompt:
+        'Build a scheduled weekly workflow that joins PostHog user journeys with Profound AI brand signal to identify how AI-driven discovery converts, and writes a report.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis'],
+      alsoIntegrations: ['profound'],
+    },
+    {
+      icon: PosthogIcon,
+      title: 'PostHog survey response analyzer',
+      prompt:
+        'Create a scheduled workflow that lists active PostHog surveys, pulls their responses with a query, runs sentiment and theme analysis across the open-text answers, and posts a summary of top themes and NPS movement to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['product', 'analysis', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

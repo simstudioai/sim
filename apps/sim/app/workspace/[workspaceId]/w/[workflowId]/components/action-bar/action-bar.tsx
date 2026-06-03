@@ -1,7 +1,7 @@
 import { memo, useCallback } from 'react'
 import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Lock, LogOut, Unlock } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { Button, Copy, PlayOutline, Tooltip, Trash2 } from '@/components/emcn'
+import { Button, Duplicate, PlayOutline, Tooltip, Trash2, toast } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -9,21 +9,20 @@ import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowI
 import { validateTriggerPaste } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore, useIsCurrentWorkflowExecuting } from '@/stores/execution'
-import { useNotificationStore } from '@/stores/notifications'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const DEFAULT_DUPLICATE_OFFSET = { x: 50, y: 50 }
 
 const ACTION_BUTTON_STYLES = [
-  'h-[23px] w-[23px] rounded-lg p-0',
+  'size-[23px] rounded-lg p-0',
   'border border-[var(--border)] bg-[var(--surface-5)]',
   'text-[var(--text-secondary)]',
   'hover-hover:border-transparent hover-hover:bg-[var(--brand-secondary)] hover-hover:!text-[var(--text-inverse)]',
   'dark:border-transparent dark:bg-[var(--surface-7)] dark:hover-hover:bg-[var(--brand-secondary)]',
 ].join(' ')
 
-const ICON_SIZE = 'h-[11px] w-[11px]'
+const ICON_SIZE = 'size-[11px]'
 
 /**
  * Props for the ActionBar component
@@ -52,13 +51,11 @@ export const ActionBar = memo(
       collaborativeBatchToggleBlockHandles,
       collaborativeBatchToggleLocked,
     } = useCollaborativeWorkflow()
-    const setPendingSelection = useWorkflowRegistry((state) => state.setPendingSelection)
+    const { setPendingSelection } = useWorkflowRegistry()
     const { handleRunFromBlock } = useWorkflowExecution()
 
-    const addNotification = useNotificationStore((s) => s.addNotification)
-
     const handleDuplicateBlock = useCallback(() => {
-      const { copyBlocks, preparePasteData, activeWorkflowId } = useWorkflowRegistry.getState()
+      const { copyBlocks, preparePasteData } = useWorkflowRegistry.getState()
       const existingBlocks = useWorkflowStore.getState().blocks
       copyBlocks([blockId])
 
@@ -68,11 +65,7 @@ export const ActionBar = memo(
       const blocks = Object.values(pasteData.blocks)
       const validation = validateTriggerPaste(blocks, existingBlocks, 'duplicate')
       if (!validation.isValid) {
-        addNotification({
-          level: 'error',
-          message: validation.message!,
-          workflowId: activeWorkflowId || undefined,
-        })
+        toast.error(validation.message!)
         return
       }
 
@@ -84,7 +77,7 @@ export const ActionBar = memo(
         pasteData.parallels,
         pasteData.subBlockValues
       )
-    }, [blockId, addNotification, collaborativeBatchAddBlocks, setPendingSelection])
+    }, [blockId, collaborativeBatchAddBlocks, setPendingSelection])
 
     const {
       isEnabled,
@@ -95,28 +88,23 @@ export const ActionBar = memo(
       isParentLocked,
       isParentDisabled,
     } = useWorkflowStore(
-      useShallow(
-        useCallback(
-          (state) => {
-            const block = state.blocks[blockId]
-            const parentId = block?.data?.parentId
-            const parentBlock = parentId ? state.blocks[parentId] : undefined
-            return {
-              isEnabled: block?.enabled ?? true,
-              horizontalHandles: block?.horizontalHandles ?? false,
-              parentId,
-              parentType: parentBlock?.type,
-              isLocked: block?.locked ?? false,
-              isParentLocked: parentBlock?.locked ?? false,
-              isParentDisabled: parentBlock ? !parentBlock.enabled : false,
-            }
-          },
-          [blockId]
-        )
-      )
+      useShallow((state) => {
+        const block = state.blocks[blockId]
+        const parentId = block?.data?.parentId
+        const parentBlock = parentId ? state.blocks[parentId] : undefined
+        return {
+          isEnabled: block?.enabled ?? true,
+          horizontalHandles: block?.horizontalHandles ?? false,
+          parentId,
+          parentType: parentBlock?.type,
+          isLocked: block?.locked ?? false,
+          isParentLocked: parentBlock?.locked ?? false,
+          isParentDisabled: parentBlock ? !parentBlock.enabled : false,
+        }
+      })
     )
 
-    const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+    const { activeWorkflowId } = useWorkflowRegistry()
     const isExecuting = useIsCurrentWorkflowExecuting()
     const getLastExecutionSnapshot = useExecutionStore((s) => s.getLastExecutionSnapshot)
     const userPermissions = useUserPermissionsContext()
@@ -278,7 +266,7 @@ export const ActionBar = memo(
                 className={ACTION_BUTTON_STYLES}
                 disabled={disabled || isLocked || isParentLocked}
               >
-                <Copy className={ICON_SIZE} />
+                <Duplicate className={ICON_SIZE} />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>

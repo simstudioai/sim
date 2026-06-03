@@ -320,6 +320,7 @@ export const microsoftSelectors = {
           query: search,
           driveId: context.driveId,
           workflowId: context.workflowId,
+          fileType: 'excel',
         },
         signal,
       })
@@ -347,6 +348,7 @@ export const microsoftSelectors = {
           credentialId,
           query: search,
           workflowId: context.workflowId,
+          fileType: 'word',
         },
         signal,
       })

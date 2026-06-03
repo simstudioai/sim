@@ -1,5 +1,5 @@
 import { ExaAIIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ExaResponse } from '@/tools/exa/types'
 
@@ -13,7 +13,6 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
   docsLink: 'https://docs.sim.ai/tools/exa',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['web-scraping', 'enrichment'],
   bgColor: '#1F40ED',
   icon: ExaAIIcon,
   subBlocks: [
@@ -444,3 +443,74 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     research: { type: 'json', description: 'Research findings' },
   },
 }
+
+export const ExaBlockMeta = {
+  tags: ['web-scraping', 'enrichment'],
+  templates: [
+    {
+      icon: ExaAIIcon,
+      title: 'Exa company intel agent',
+      prompt:
+        'Build an agent that takes a company name, uses Exa neural search to find recent product updates, funding news, and competitor mentions, and writes a one-page intel brief.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: ExaAIIcon,
+      title: 'Exa knowledge crawler',
+      prompt:
+        'Build a workflow that uses Exa to find authoritative URLs on a topic, scrapes each one, chunks the content, and upserts it into a knowledge base so the agent can answer with citations.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'sync'],
+    },
+    {
+      icon: ExaAIIcon,
+      title: 'Exa neural research agent',
+      prompt:
+        'Build an agent that uses Exa neural search to find authoritative sources on a topic, scrapes them, and produces a structured research brief with citations.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['research'],
+    },
+    {
+      icon: ExaAIIcon,
+      title: 'Exa similar-page finder',
+      prompt:
+        'Create a workflow that takes a URL, runs Exa similar-page search to find related authoritative sources, and writes the discovery list to a research table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: ExaAIIcon,
+      title: 'Exa daily research digest',
+      prompt:
+        'Build a scheduled workflow that runs Exa searches on tracked topics each morning, summarizes top hits with citations, and emails the user a research digest.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: ExaAIIcon,
+      title: 'Exa investment research helper',
+      prompt:
+        'Create an agent that uses Exa to deep-research a ticker, finds recent material developments, summarizes with citations, and writes the brief to a finance research file.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'research'],
+    },
+    {
+      icon: ExaAIIcon,
+      title: 'Exa competitor news monitor',
+      prompt:
+        'Build a scheduled daily workflow that runs Exa search for fresh news about my competitors, gets the page contents and finds similar coverage, summarizes the notable moves with citations, and posts a digest to the team Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

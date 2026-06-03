@@ -1,5 +1,5 @@
 import { useParams, useRouter } from 'next/navigation'
-import { Badge, Button, Skeleton } from '@/components/emcn'
+import { Badge, Button } from '@/components/emcn'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -18,29 +18,6 @@ interface TeamSeatsOverviewProps {
   isLoadingSubscription: boolean
   totalSeats: number
   usedSeats: number
-  isLoading: boolean
-  onAddSeatDialog: () => void
-}
-
-function TeamSeatsSkeleton() {
-  return (
-    <div className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
-      <div className='flex flex-col gap-2 px-3.5 py-3'>
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <Skeleton className='h-5 w-16 rounded-sm' />
-            <Skeleton className='h-4 w-20 rounded-sm' />
-          </div>
-          <div className='flex items-center gap-1 text-small'>
-            <Skeleton className='h-4 w-8 rounded-sm' />
-            <span className='text-[var(--text-muted)]'>/</span>
-            <Skeleton className='h-4 w-8 rounded-sm' />
-          </div>
-        </div>
-        <Skeleton className='h-[6px] w-full rounded-full' />
-      </div>
-    </div>
-  )
 }
 
 export function TeamSeatsOverview({
@@ -48,15 +25,13 @@ export function TeamSeatsOverview({
   isLoadingSubscription,
   totalSeats,
   usedSeats,
-  isLoading,
-  onAddSeatDialog,
 }: TeamSeatsOverviewProps) {
   const router = useRouter()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
 
   if (isLoadingSubscription) {
-    return <TeamSeatsSkeleton />
+    return null
   }
 
   if (!subscriptionData) {
@@ -68,7 +43,7 @@ export function TeamSeatsOverview({
               No active Team subscription
             </p>
             <p className='text-[var(--text-muted)] text-small'>
-              Purchase a Team plan to invite members and manage seats for this organization.
+              Purchase a Team plan to invite teammates to this organization.
             </p>
           </div>
           <Button
@@ -78,7 +53,7 @@ export function TeamSeatsOverview({
                 router.push(`/workspace/${workspaceId}/settings/subscription`)
               }
             }}
-            disabled={isLoading || !workspaceId}
+            disabled={!workspaceId}
           >
             Go to subscription settings
           </Button>
@@ -93,7 +68,7 @@ export function TeamSeatsOverview({
   const pillCount = Math.max(totalSeats, usedSeats)
 
   if (isSeatDataPending) {
-    return <TeamSeatsSkeleton />
+    return null
   }
 
   return (
@@ -105,16 +80,6 @@ export function TeamSeatsOverview({
             {isOverLimit && (
               <Badge variant='amber' size='sm'>
                 Over limit
-              </Badge>
-            )}
-            {!isEnterprise && !isOverLimit && (
-              <Badge
-                variant='blue-secondary'
-                size='sm'
-                className='cursor-pointer'
-                onClick={onAddSeatDialog}
-              >
-                Add Seats
               </Badge>
             )}
           </div>
@@ -150,14 +115,11 @@ export function TeamSeatsOverview({
         </div>
 
         {isOverLimit && !isEnterprise && (
-          <div className='flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='pt-1'>
             <p className='text-[var(--text-muted)] text-small'>
-              You have more members than seats. New invites are paused until you add seats or remove
-              members.
+              You have more teammates than seats. Seats adjust automatically as teammates join or
+              leave.
             </p>
-            <Button variant='default' size='sm' onClick={onAddSeatDialog} disabled={isLoading}>
-              Add seats
-            </Button>
           </div>
         )}
 
@@ -165,7 +127,7 @@ export function TeamSeatsOverview({
           <div className='pt-1 text-center'>
             <p className='text-[var(--text-muted)] text-small'>
               {isOverLimit
-                ? 'You have more members than seats. Contact support to adjust your enterprise seat count.'
+                ? 'You have more teammates than seats. Contact support to adjust your enterprise seat count.'
                 : 'Contact support for enterprise usage limit changes'}
             </p>
           </div>

@@ -28,6 +28,7 @@ const VALID_RESOURCE_TYPES = new Set<ResourceType>([
   'knowledgebase',
   'folder',
   'log',
+  'integration',
 ])
 const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow', 'Knowledge Base', 'Folder', 'Log'])
 

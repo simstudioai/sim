@@ -1,6 +1,6 @@
 import { toError } from '@sim/utils/errors'
 import { LangsmithIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { LangsmithResponse } from '@/tools/langsmith/types'
 
 export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
@@ -11,8 +11,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
     'Send run data to LangSmith to trace executions, attach metadata, and monitor workflow performance.',
   docsLink: 'https://docs.sim.ai/tools/langsmith',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['monitoring', 'llm', 'data-analytics'],
+  integrationType: IntegrationType.Observability,
   bgColor: '#181C1E',
   icon: LangsmithIcon,
   authMode: AuthMode.ApiKey,
@@ -297,3 +296,75 @@ Common patch fields: outputs, end_time, status, error`,
     messages: { type: 'array', description: 'Per-run response messages' },
   },
 }
+
+export const LangsmithBlockMeta = {
+  tags: ['monitoring', 'llm', 'data-analytics'],
+  templates: [
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith regression alerter',
+      prompt:
+        'Build a scheduled workflow that runs LangSmith evals on tracked prompt chains, compares scores against baseline, and pings ML team in Slack on regressions.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith trace explorer',
+      prompt:
+        'Create a workflow that pulls LangSmith traces for a chosen agent, clusters by failure pattern, and writes a triage table the ML team can iterate against.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+    },
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith eval-set curator',
+      prompt:
+        'Build a workflow that collects user-reported agent failures, transforms each into a LangSmith eval case with expected output, and grows the eval set for nightly regression runs.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+    },
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith cost optimizer',
+      prompt:
+        'Create a scheduled weekly workflow that aggregates LangSmith trace costs by prompt chain, identifies the most expensive, and writes a cost-by-feature report file.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'analysis'],
+    },
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith prompt-version watcher',
+      prompt:
+        'Build a workflow that watches LangSmith prompt-version changes, runs eval suites before promotion, and posts a Slack approval request with the pre/post metrics.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith production replay',
+      prompt:
+        'Create a workflow that replays a sample of production LangSmith traces nightly against the candidate prompt version, captures diffs, and writes a regression review file.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+    },
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith quality dashboard',
+      prompt:
+        'Build a scheduled daily workflow that aggregates LangSmith quality metrics by agent, writes a dashboard table, and pages on-call if any agent falls below the SLO line.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty'],
+    },
+  ],
+} as const satisfies BlockMeta

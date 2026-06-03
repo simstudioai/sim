@@ -1,6 +1,6 @@
 import { FirefliesIcon } from '@/components/icons'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { FirefliesResponse } from '@/tools/fireflies/types'
@@ -18,7 +18,6 @@ export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
   docsLink: 'https://docs.sim.ai/tools/fireflies',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['meeting', 'speech-to-text', 'note-taking'],
   icon: FirefliesIcon,
   bgColor: '#100730',
   subBlocks: [
@@ -620,7 +619,6 @@ export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
   description: 'Interact with Fireflies.ai meeting transcripts and recordings',
   hideFromToolbar: false,
   integrationType: IntegrationType.Productivity,
-  tags: ['meeting', 'speech-to-text', 'note-taking'],
   subBlocks: firefliesV2SubBlocks,
   tools: {
     ...FirefliesBlock.tools,
@@ -660,3 +658,82 @@ export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
   },
   inputs: firefliesV2Inputs,
 }
+
+export const FirefliesBlockMeta = {
+  tags: ['meeting', 'speech-to-text', 'note-taking'],
+  templates: [
+    {
+      icon: FirefliesIcon,
+      title: 'Fireflies meeting recap to Slack',
+      prompt:
+        'Build a workflow that runs when a Fireflies recording finishes, pulls the transcript, summarizes decisions and action items, and posts the recap to the linked Slack channel.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: FirefliesIcon,
+      title: 'Fireflies CRM updater',
+      prompt:
+        'Create a workflow that runs after a Fireflies sales call, summarizes objections and next steps, and updates the linked Salesforce or HubSpot opportunity.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce', 'hubspot'],
+    },
+    {
+      icon: FirefliesIcon,
+      title: 'Fireflies action-item ticket creator',
+      prompt:
+        'Build a workflow that extracts action items from a Fireflies meeting transcript, creates Linear or Asana tasks for each with owners and due dates, and posts a summary to Slack.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'automation'],
+      alsoIntegrations: ['linear', 'asana'],
+    },
+    {
+      icon: FirefliesIcon,
+      title: 'Fireflies customer-quote miner',
+      prompt:
+        'Create a workflow that processes Fireflies transcripts for customer interview calls, extracts notable quotes and themes, and writes them to a marketing research table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: FirefliesIcon,
+      title: 'Fireflies talk-ratio coach',
+      prompt:
+        'Build a scheduled weekly workflow that pulls Fireflies sales-call analytics per rep — talk ratio, longest monologue, question rate — and posts a coaching digest to managers.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: FirefliesIcon,
+      title: 'Fireflies + Notion meeting notes',
+      prompt:
+        'Create a workflow that watches Fireflies recordings, generates a polished meeting-notes page in Notion under the right team space, and links the recording.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'content'],
+      alsoIntegrations: ['notion'],
+    },
+    {
+      icon: FirefliesIcon,
+      title: 'Fireflies competitor-mention tracker',
+      prompt:
+        'Build a workflow that scans Fireflies sales transcripts for competitor mentions, logs the context and outcome to a competitive-intel table, and posts notable patterns to Slack weekly.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta
+
+export const FirefliesV2BlockMeta = {
+  tags: ['meeting', 'speech-to-text', 'note-taking'],
+} as const satisfies BlockMeta

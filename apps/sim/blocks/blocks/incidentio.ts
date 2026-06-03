@@ -1,5 +1,5 @@
 import { IncidentioIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { IncidentioResponse } from '@/tools/incidentio/types'
 
@@ -12,9 +12,8 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
     'Integrate incident.io into the workflow. Manage incidents, actions, follow-ups, workflows, schedules, escalations, custom fields, and more.',
   docsLink: 'https://docs.sim.ai/tools/incidentio',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['incident-management', 'monitoring'],
-  bgColor: '#E0E0E0',
+  integrationType: IntegrationType.Observability,
+  bgColor: '#FFFFFF',
   icon: IncidentioIcon,
   subBlocks: [
     {
@@ -1225,3 +1224,77 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
     pagination_meta: { type: 'json', description: 'Pagination metadata' },
   },
 }
+
+export const IncidentioBlockMeta = {
+  tags: ['incident-management', 'monitoring'],
+  templates: [
+    {
+      icon: IncidentioIcon,
+      title: 'incident.io commander',
+      prompt:
+        'Build a workflow triggered when an incident.io incident is declared that opens a Slack war-room, invites responders from the on-call schedule, pulls related PagerDuty alerts, and pins the runbook.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['slack', 'pagerduty'],
+    },
+    {
+      icon: IncidentioIcon,
+      title: 'incident.io postmortem starter',
+      prompt:
+        'Create a workflow that runs when an incident.io incident is resolved that pulls the Slack thread, related Sentry errors, and deploy timeline, then drafts a postmortem doc in Google Docs.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['sentry', 'google_docs'],
+    },
+    {
+      icon: IncidentioIcon,
+      title: 'incident.io action-item tracker',
+      prompt:
+        'Build a workflow that watches incident.io for new follow-up actions, creates Linear tickets for each, and writes a tracking table that surfaces overdue actions on a weekly digest.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: IncidentioIcon,
+      title: 'incident.io weekly digest',
+      prompt:
+        'Create a scheduled weekly workflow that summarizes incident.io activity — declared incidents, MTTR, top affected services, action-item completion rate — and posts to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: IncidentioIcon,
+      title: 'incident.io customer comms drafter',
+      prompt:
+        'Build a workflow that during a high-severity incident.io incident drafts customer status-page copy and a tailored email update, holds for approval, and dispatches once approved.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: IncidentioIcon,
+      title: 'incident.io SLO impact mapper',
+      prompt:
+        'Create a workflow that on each incident.io incident maps impacted services to active SLOs, calculates SLO burn, and writes the impact analysis back to the incident timeline.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'analysis'],
+    },
+    {
+      icon: IncidentioIcon,
+      title: 'incident.io noise filter',
+      prompt:
+        'Build a workflow that pulls incident.io declared incidents, classifies a subset as low-impact noise, auto-resolves them after auditing, and writes a noise-rate metric to a table.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+    },
+  ],
+} as const satisfies BlockMeta

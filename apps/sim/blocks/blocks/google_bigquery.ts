@@ -1,6 +1,6 @@
 import { GoogleBigQueryIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const GoogleBigQueryBlock: BlockConfig = {
@@ -12,8 +12,7 @@ export const GoogleBigQueryBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/google_bigquery',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['data-warehouse', 'google-workspace', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleBigQueryIcon,
   authMode: AuthMode.OAuth,
   subBlocks: [
@@ -286,3 +285,78 @@ Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
     nextPageToken: { type: 'string', description: 'Token for next page of results' },
   },
 }
+
+export const GoogleBigQueryBlockMeta = {
+  tags: ['data-warehouse', 'google-workspace', 'data-analytics'],
+  templates: [
+    {
+      icon: GoogleBigQueryIcon,
+      title: 'BigQuery scheduled report runner',
+      prompt:
+        'Build a scheduled workflow that runs a saved BigQuery query daily, writes the result rows to a Sim table, and posts a Slack summary of the top movers.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['analysis', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleBigQueryIcon,
+      title: 'BigQuery customer 360 builder',
+      prompt:
+        'Create a scheduled workflow that joins BigQuery sources — Stripe, product events, support tickets — into a single per-customer profile table refreshed daily.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'sync'],
+    },
+    {
+      icon: GoogleBigQueryIcon,
+      title: 'BigQuery cost-tracking alerts',
+      prompt:
+        'Build a scheduled daily workflow that pulls BigQuery slot and storage usage, projects month-end spend, and posts a Slack alert when projection exceeds budget.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleBigQueryIcon,
+      title: 'BigQuery anomaly notifier',
+      prompt:
+        'Create a workflow that runs BigQuery anomaly-detection queries on key metrics hourly, writes any anomalies to a tracking table, and pages the on-call data team on severe deltas.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['monitoring', 'analysis'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: GoogleBigQueryIcon,
+      title: 'BigQuery + Sheets exec dashboard',
+      prompt:
+        'Build a scheduled workflow that pulls a BigQuery executive dashboard query weekly, writes the result into a chosen Google Sheet, and notifies leadership the new snapshot is ready.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['reporting', 'enterprise'],
+      alsoIntegrations: ['google_sheets', 'gmail'],
+    },
+    {
+      icon: GoogleBigQueryIcon,
+      title: 'BigQuery schema drift detector',
+      prompt:
+        'Create a scheduled workflow that snapshots BigQuery dataset schemas, diffs against the prior snapshot, and opens a Linear ticket on unexpected schema changes.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: GoogleBigQueryIcon,
+      title: 'BigQuery NL analytics agent',
+      prompt:
+        "Build a Slack agent that lists BigQuery datasets and tables to understand the schema, translates a teammate's natural-language question into a safe BigQuery SQL query, runs it, and replies with the result table plus the query used.",
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['analysis', 'engineering'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

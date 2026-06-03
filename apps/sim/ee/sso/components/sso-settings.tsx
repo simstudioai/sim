@@ -11,7 +11,6 @@ import {
   ExpandableContent,
   FormField,
   Input,
-  Skeleton,
   Switch,
   Textarea,
   toast,
@@ -400,16 +399,24 @@ export function SSO() {
   }
 
   if (isLoadingProviders) {
-    return <SsoSkeleton />
+    return null
   }
 
   if (existingProvider && !isEditing) {
     const providerCallbackUrl = `${getBaseUrl()}/api/auth/${existingProvider.providerType === 'saml' ? 'sso/saml2/callback' : 'sso/callback'}/${existingProvider.providerId}`
 
     return (
-      <div className='flex h-full flex-col gap-4.5'>
-        <div className='min-h-0 flex-1 overflow-y-auto'>
-          <div className='flex flex-col gap-4.5'>
+      <div className='flex h-full flex-col bg-[var(--bg)]'>
+        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+          <div />
+          <div className='flex items-center'>
+            <Button onClick={handleEdit} variant='primary'>
+              Edit
+            </Button>
+          </div>
+        </div>
+        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
             <FormField label='Provider ID'>
               <p className='text-[var(--text-primary)] text-small'>{existingProvider.providerId}</p>
             </FormField>
@@ -453,18 +460,16 @@ export function SSO() {
             </FormField>
           </div>
         </div>
-
-        <div className='mt-auto flex items-center justify-end'>
-          <Button onClick={handleEdit} variant='primary'>
-            Edit
-          </Button>
-        </div>
       </div>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} autoComplete='off' className='flex h-full flex-col gap-4.5'>
+    <form
+      onSubmit={handleSubmit}
+      autoComplete='off'
+      className='flex h-full flex-col bg-[var(--bg)]'
+    >
       {/* Off-screen inputs to prevent browser password manager autofill */}
       <input
         type='text'
@@ -492,8 +497,47 @@ export function SSO() {
       />
       <input type='text' name='hidden' className='hidden' autoComplete='false' />
 
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        <div className='flex flex-col gap-4.5'>
+      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+        <div />
+        <div className='flex items-center gap-1'>
+          {isEditing && (
+            <Button
+              type='button'
+              variant='default'
+              onClick={() => {
+                setIsEditing(false)
+                setFormData(DEFAULT_FORM_DATA)
+                setErrors(DEFAULT_ERRORS)
+                setShowErrors(false)
+                setShowAdvanced(false)
+              }}
+            >
+              Cancel
+            </Button>
+          )}
+          <Button
+            type='submit'
+            variant='primary'
+            disabled={
+              configureSSOMutation.isPending ||
+              hasAnyErrors(errors) ||
+              !isFormValid() ||
+              (isEditing && !hasChanges())
+            }
+          >
+            {configureSSOMutation.isPending
+              ? isEditing
+                ? 'Updating...'
+                : 'Saving...'
+              : isEditing
+                ? 'Update'
+                : 'Save'}
+          </Button>
+        </div>
+      </div>
+
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
           {/* Provider Type */}
           <FormField label='Provider Type'>
             <Combobox
@@ -837,62 +881,6 @@ export function SSO() {
           </FormField>
         </div>
       </div>
-
-      <div className='mt-auto flex items-center justify-end gap-2'>
-        {isEditing && (
-          <Button
-            type='button'
-            variant='default'
-            onClick={() => {
-              setIsEditing(false)
-              setFormData(DEFAULT_FORM_DATA)
-              setErrors(DEFAULT_ERRORS)
-              setShowErrors(false)
-              setShowAdvanced(false)
-            }}
-          >
-            Cancel
-          </Button>
-        )}
-        <Button
-          type='submit'
-          variant='primary'
-          disabled={
-            configureSSOMutation.isPending ||
-            hasAnyErrors(errors) ||
-            !isFormValid() ||
-            (isEditing && !hasChanges())
-          }
-        >
-          {configureSSOMutation.isPending
-            ? isEditing
-              ? 'Updating...'
-              : 'Saving...'
-            : isEditing
-              ? 'Update'
-              : 'Save'}
-        </Button>
-      </div>
     </form>
-  )
-}
-
-function SsoSkeleton() {
-  return (
-    <div className='flex h-full flex-col gap-4.5'>
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        <div className='flex flex-col gap-4.5'>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className='flex flex-col gap-2'>
-              <Skeleton className='h-[13px] w-[80px]' />
-              <Skeleton className='h-9 w-full' />
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className='mt-auto flex items-center justify-end'>
-        <Skeleton className='h-9 w-[60px]' />
-      </div>
-    </div>
   )
 }

@@ -1,5 +1,5 @@
 import { EmailBisonIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { EmailBisonResponse } from '@/tools/emailbison/types'
 import { getTrigger } from '@/triggers'
@@ -42,7 +42,6 @@ export const EmailBisonBlock: BlockConfig<EmailBisonResponse> = {
   docsLink: 'https://docs.sim.ai/tools/emailbison',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['sales-engagement', 'email-marketing', 'automation'],
   bgColor: '#FB7A22',
   icon: EmailBisonIcon,
   authMode: AuthMode.ApiKey,
@@ -625,3 +624,76 @@ function toBooleanParam(value: unknown): boolean | undefined {
 function emptyToUndefined(value: unknown): unknown {
   return value === '' ? undefined : value
 }
+
+export const EmailBisonBlockMeta = {
+  tags: ['sales-engagement', 'email-marketing', 'automation'],
+  templates: [
+    {
+      icon: EmailBisonIcon,
+      title: 'Email Bison campaign launcher',
+      prompt:
+        'Build a workflow that takes a target persona and offer, drafts a multi-step Email Bison campaign with personalized variables, creates the campaign and attaches the matching leads, and launches it once a human approves.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation', 'communication'],
+    },
+    {
+      icon: EmailBisonIcon,
+      title: 'Email Bison reply triage',
+      prompt:
+        'Create a workflow that pulls new Email Bison replies on a schedule, classifies each as interested, not interested, objection, or out-of-office, applies the matching tag to the lead, and pings the rep in Slack for hot replies.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: EmailBisonIcon,
+      title: 'Email Bison + Apollo lead feeder',
+      prompt:
+        'Build a workflow that runs an Apollo search for an ICP, enriches each prospect, creates the lead in Email Bison with personalization variables, and attaches the leads to the matching active campaign.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'automation'],
+      alsoIntegrations: ['apollo'],
+    },
+    {
+      icon: EmailBisonIcon,
+      title: 'Email Bison tag automator',
+      prompt:
+        'Create a workflow that reads Email Bison replies and activity, and applies tags to leads based on engagement signals — opened, clicked, replied positively, bounced — so segmentation stays current for follow-up campaigns.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation', 'analysis'],
+    },
+    {
+      icon: EmailBisonIcon,
+      title: 'Email Bison weekly outbound digest',
+      prompt:
+        'Build a scheduled weekly workflow that pulls Email Bison campaign performance — sends, opens, replies, positive reply rate — generates a digest with the top campaigns and bottom performers, and posts it to a Slack sales channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'reporting', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: EmailBisonIcon,
+      title: 'Email Bison + HubSpot sync',
+      prompt:
+        'Create a workflow that mirrors Email Bison lead status and reply outcomes into the matching HubSpot contact, logs each campaign step as an engagement, and creates a HubSpot task for sales when a lead replies positively.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'sync'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: EmailBisonIcon,
+      title: 'Email Bison bounce cleanup',
+      prompt:
+        'Build a scheduled workflow that finds Email Bison leads with hard bounces, tags them for suppression, updates the lead in Email Bison, and writes a cleanup report so deliverability stays healthy.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation', 'analysis'],
+    },
+  ],
+} as const satisfies BlockMeta

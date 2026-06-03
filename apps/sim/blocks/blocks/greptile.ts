@@ -1,5 +1,5 @@
 import { GreptileIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GreptileResponse } from '@/tools/greptile/types'
 
@@ -12,9 +12,8 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
     'Query and search codebases using natural language with Greptile. Get AI-generated answers about your code, find relevant files, and understand complex codebases.',
   docsLink: 'https://docs.sim.ai/tools/greptile',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['version-control', 'knowledge-base'],
-  bgColor: '#e5e5e5',
+  integrationType: IntegrationType.DevOps,
+  bgColor: '#5DE195',
   icon: GreptileIcon,
   subBlocks: [
     {
@@ -89,7 +88,7 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
     //   type: 'switch',
     //   condition: { field: 'operation', value: 'greptile_search' },
     // },
-    // Index operation inputs
+    // Index & Status shared inputs
     {
       id: 'remote',
       title: 'Git Remote',
@@ -99,14 +98,14 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
         { label: 'GitLab', id: 'gitlab' },
       ],
       value: () => 'github',
-      condition: { field: 'operation', value: 'greptile_index_repo' },
+      condition: { field: 'operation', value: ['greptile_index_repo', 'greptile_status'] },
     },
     {
       id: 'repository',
       title: 'Repository',
       type: 'short-input',
       placeholder: 'owner/repo',
-      condition: { field: 'operation', value: 'greptile_index_repo' },
+      condition: { field: 'operation', value: ['greptile_index_repo', 'greptile_status'] },
       required: true,
     },
     {
@@ -114,9 +113,10 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
       title: 'Branch',
       type: 'short-input',
       placeholder: 'main',
-      condition: { field: 'operation', value: 'greptile_index_repo' },
+      condition: { field: 'operation', value: ['greptile_index_repo', 'greptile_status'] },
       required: true,
     },
+    // Index-only inputs
     {
       id: 'reload',
       title: 'Force Re-index',
@@ -128,34 +128,6 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
       title: 'Email Notification',
       type: 'switch',
       condition: { field: 'operation', value: 'greptile_index_repo' },
-    },
-    // Status operation inputs
-    {
-      id: 'remote',
-      title: 'Git Remote',
-      type: 'dropdown',
-      options: [
-        { label: 'GitHub', id: 'github' },
-        { label: 'GitLab', id: 'gitlab' },
-      ],
-      value: () => 'github',
-      condition: { field: 'operation', value: 'greptile_status' },
-    },
-    {
-      id: 'repository',
-      title: 'Repository',
-      type: 'short-input',
-      placeholder: 'owner/repo',
-      condition: { field: 'operation', value: 'greptile_status' },
-      required: true,
-    },
-    {
-      id: 'branch',
-      title: 'Branch',
-      type: 'short-input',
-      placeholder: 'main',
-      condition: { field: 'operation', value: 'greptile_status' },
-      required: true,
     },
     // API Keys (common)
     {
@@ -223,3 +195,7 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
     sha: { type: 'string', description: 'Git commit SHA' },
   },
 }
+
+export const GreptileBlockMeta = {
+  tags: ['version-control', 'knowledge-base'],
+} as const satisfies BlockMeta

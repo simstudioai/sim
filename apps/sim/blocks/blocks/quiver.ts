@@ -1,5 +1,5 @@
 import { QuiverIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { QuiverSvgResponse } from '@/tools/quiver/types'
@@ -12,9 +12,8 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
     'Generate SVG images from text prompts or vectorize raster images into SVGs using QuiverAI. Supports reference images, style instructions, and multiple output generation.',
   docsLink: 'https://docs.sim.ai/tools/quiver',
   category: 'tools',
-  integrationType: IntegrationType.Design,
-  tags: ['image-generation'],
-  bgColor: '#000000',
+  integrationType: IntegrationType.AI,
+  bgColor: '#FFFFFF',
   icon: QuiverIcon,
   authMode: AuthMode.ApiKey,
   subBlocks: [
@@ -237,3 +236,36 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
     },
   },
 }
+
+export const QuiverBlockMeta = {
+  tags: ['image-generation'],
+  templates: [
+    {
+      icon: QuiverIcon,
+      title: 'Quiver SVG icon generator',
+      prompt:
+        'Build a workflow that takes a product name and brand color as inputs, generates a matching SVG icon with Quiver, and saves it to the files store.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['design', 'automation'],
+    },
+    {
+      icon: QuiverIcon,
+      title: 'Quiver diagram creator',
+      prompt:
+        'Create a workflow that reads structured data from a table and uses Quiver to generate a clean SVG diagram visualizing the data, then attaches it to a Slack message.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['design', 'reporting'],
+    },
+    {
+      icon: QuiverIcon,
+      title: 'Quiver image vectorizer',
+      prompt:
+        'Build a workflow that accepts a raster image upload, vectorizes it to SVG with Quiver, and returns the clean SVG for use in presentations or exports.',
+      modules: ['files', 'workflows'],
+      category: 'operations',
+      tags: ['design', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

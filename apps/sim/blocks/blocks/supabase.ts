@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SupabaseIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SupabaseResponse } from '@/tools/supabase/types'
 
@@ -17,7 +17,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   docsLink: 'https://docs.sim.ai/tools/supabase',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['cloud', 'data-warehouse', 'vector-search'],
   bgColor: '#1C1C1C',
   icon: SupabaseIcon,
   subBlocks: [
@@ -1223,3 +1222,78 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     },
   },
 }
+
+export const SupabaseBlockMeta = {
+  tags: ['cloud', 'data-warehouse', 'vector-search'],
+  templates: [
+    {
+      icon: SupabaseIcon,
+      title: 'Supabase user provisioning',
+      prompt:
+        'Build a workflow that listens for Stripe new-customer events, provisions a Supabase user with the correct role and metadata, and emails the welcome login link.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation'],
+      alsoIntegrations: ['stripe', 'gmail'],
+    },
+    {
+      icon: SupabaseIcon,
+      title: 'Supabase nightly export to S3',
+      prompt:
+        'Create a scheduled workflow that runs each night, exports key Supabase tables to compressed JSON in S3 with date partitions, and writes the manifest to an audit table.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'sync'],
+      alsoIntegrations: ['s3'],
+    },
+    {
+      icon: SupabaseIcon,
+      title: 'Supabase row-level audit log',
+      prompt:
+        'Build a workflow that listens for Supabase database changes on sensitive tables, captures the before/after diff into an audit log table, and pings Slack on unusual write patterns.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SupabaseIcon,
+      title: 'Supabase realtime to Slack',
+      prompt:
+        'Create a workflow that subscribes to Supabase realtime channels for high-priority rows — new orders, fraud flags — and posts a Slack alert with context within seconds of the row landing.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['monitoring', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SupabaseIcon,
+      title: 'Supabase storage cleanup',
+      prompt:
+        'Build a scheduled workflow that finds Supabase storage objects older than the retention policy or unreferenced in the database, deletes them, and writes a cleanup report.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'automation'],
+    },
+    {
+      icon: SupabaseIcon,
+      title: 'Supabase analytics digest',
+      prompt:
+        'Create a scheduled daily workflow that queries Supabase for new signups, active users, and key feature usage, and posts a digest to Slack with week-over-week trend.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['product', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SupabaseIcon,
+      title: 'Supabase + Algolia search sync',
+      prompt:
+        'Build a workflow that mirrors Supabase tables into an Algolia index, propagates inserts/updates/deletes in realtime, and writes sync lag to a tables-based monitor.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'sync'],
+      alsoIntegrations: ['algolia'],
+    },
+  ],
+} as const satisfies BlockMeta

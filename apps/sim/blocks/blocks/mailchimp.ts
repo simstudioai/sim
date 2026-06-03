@@ -1,5 +1,6 @@
+import { Mail } from '@/components/emcn/icons'
 import { MailchimpIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const MailchimpBlock: BlockConfig = {
@@ -12,7 +13,6 @@ export const MailchimpBlock: BlockConfig = {
   authMode: AuthMode.ApiKey,
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['email-marketing', 'marketing', 'automation'],
   bgColor: '#FFE01B',
   icon: MailchimpIcon,
   subBlocks: [
@@ -1460,3 +1460,76 @@ Return ONLY the JSON array - no explanations or markdown.`,
     output: { type: 'json', description: 'Operation result data' },
   },
 }
+
+export const MailchimpBlockMeta = {
+  tags: ['email-marketing', 'marketing', 'automation'],
+  templates: [
+    {
+      icon: Mail,
+      title: 'Newsletter curator',
+      prompt:
+        'Create a scheduled weekly workflow that scrapes my favorite industry news sites and blogs, picks the top stories relevant to my audience, writes summaries for each, and drafts a ready-to-send newsletter in Mailchimp.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content', 'communication'],
+    },
+    {
+      icon: MailchimpIcon,
+      title: 'Mailchimp re-engagement campaign',
+      prompt:
+        'Build a workflow that finds Mailchimp members who have not opened or clicked in 90 days, drafts a re-engagement campaign with a personalized subject line per segment, and schedules it to send to those members only.',
+      modules: ['agent', 'scheduled', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation', 'communication'],
+    },
+    {
+      icon: MailchimpIcon,
+      title: 'Mailchimp + SendGrid hybrid sender',
+      prompt:
+        'Create a workflow that uses Mailchimp for marketing audience management and segmentation but sends the actual campaign through SendGrid for deliverability, syncing send results, opens, and clicks back to the Mailchimp audience as merge fields.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'sync', 'enterprise'],
+      alsoIntegrations: ['sendgrid'],
+    },
+    {
+      icon: MailchimpIcon,
+      title: 'Mailchimp campaign performance digest',
+      prompt:
+        'Build a scheduled workflow that pulls the previous week of Mailchimp campaign reports, compares open and click rates against my benchmarks, and posts a Slack digest with the winners, losers, and one-line takeaways.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'reporting', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: MailchimpIcon,
+      title: 'Mailchimp + Loops audience sync',
+      prompt:
+        'Create a workflow that keeps a Mailchimp audience and a Loops mailing list in sync: new Mailchimp subscribers create Loops contacts on the matching list, unsubscribes propagate both ways, and merge fields map cleanly to Loops contact properties.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'sync', 'automation'],
+      alsoIntegrations: ['loops'],
+    },
+    {
+      icon: MailchimpIcon,
+      title: 'Mailchimp event-driven blast',
+      prompt:
+        'Build a workflow that listens for a launch trigger from my tables, populates a Mailchimp campaign template with the launch details, schedules it to the right segment, and logs the campaign ID and recipient count back to the table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation', 'communication'],
+    },
+    {
+      icon: MailchimpIcon,
+      title: 'Mailchimp segment builder from HubSpot',
+      prompt:
+        'Create a workflow that reads HubSpot lifecycle stage and ICP fields, upserts each contact into Mailchimp with the matching tags and merge fields, and recomputes named segments daily so marketing can target by CRM state.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'crm', 'sync'],
+      alsoIntegrations: ['hubspot'],
+    },
+  ],
+} as const satisfies BlockMeta

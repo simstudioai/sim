@@ -5,7 +5,6 @@ import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 import { ArrowUp, Table } from 'lucide-react'
 import { Blimp, Checkbox, ChevronDown } from '@/components/emcn'
 import { TypeBoolean, TypeNumber, TypeText } from '@/components/emcn/icons'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
 import { EASE_OUT } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
@@ -215,10 +214,10 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                       onClick={() => setToolsExpanded((p) => !p)}
                       className='flex cursor-pointer items-center gap-2'
                     >
-                      <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
-                        <Blimp className='size-[16px]' style={{ color: C.TEXT_ICON }} />
+                      <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+                        <Blimp className='h-[16px] w-[16px]' style={{ color: C.TEXT_ICON }} />
                       </div>
-                      <span className='font-base text-sm' style={{ color: C.TEXT_BODY }}>
+                      <span className='text-sm' style={{ color: C.TEXT_BODY }}>
                         Mothership
                       </span>
                       <ChevronDown
@@ -241,7 +240,10 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                         <div className='flex flex-col gap-1.5 pt-0.5'>
                           <ToolCallRow
                             icon={
-                              <Table className='size-[15px]' style={{ color: C.TEXT_TERTIARY }} />
+                              <Table
+                                className='h-[15px] w-[15px]'
+                                style={{ color: C.TEXT_TERTIARY }}
+                              />
                             }
                             title='Read Customer Leads'
                           />
@@ -308,15 +310,9 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
           transition={{ duration: 0.4, delay: 0.1, ease: EASE_OUT }}
         >
           <div
-            role='group'
-            aria-label='Preview message input'
             className='cursor-text rounded-[20px] border px-2.5 py-2'
             style={{ borderColor: C.BORDER, backgroundColor: C.SURFACE }}
             onClick={() => textareaRef.current?.focus()}
-            onKeyDown={(event) => {
-              if (event.target !== event.currentTarget) return
-              handleKeyboardActivation(event, () => textareaRef.current?.focus())
-            }}
           >
             <textarea
               ref={textareaRef}
@@ -329,7 +325,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
               placeholder={animatedPlaceholder}
               rows={1}
               readOnly={autoType}
-              className='m-0 box-border min-h-[24px] w-full resize-none overflow-y-auto border-0 bg-transparent p-1 font-body text-[15px] leading-[24px] tracking-[-0.015em] outline-none placeholder:font-[380] placeholder:text-[#787878] focus-visible:ring-0'
+              className='m-0 box-border min-h-[24px] w-full resize-none overflow-y-auto border-0 bg-transparent px-1 py-1 font-body text-[15px] leading-[24px] tracking-[-0.015em] outline-none placeholder:font-[380] placeholder:text-[#787878] focus-visible:ring-0'
               style={{
                 color: C.TEXT_PRIMARY,
                 caretColor: autoType ? 'transparent' : C.TEXT_PRIMARY,
@@ -342,7 +338,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                 onClick={handleSubmit}
                 disabled={isEmpty}
                 aria-label='Submit message'
-                className='flex size-[28px] items-center justify-center rounded-full border-0 p-0 transition-colors'
+                className='flex h-[28px] w-[28px] items-center justify-center rounded-full border-0 p-0 transition-colors'
                 style={{
                   background: isEmpty ? '#808080' : '#e0e0e0',
                   cursor: isEmpty ? 'not-allowed' : 'pointer',
@@ -365,8 +361,8 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
 function ToolCallRow({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
     <div className='flex items-center gap-[8px] pl-[24px]'>
-      <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>{icon}</div>
-      <span className='font-base text-[13px]' style={{ color: C.TEXT_SECONDARY }}>
+      <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>{icon}</div>
+      <span className='text-[13px]' style={{ color: C.TEXT_SECONDARY }}>
         {title}
       </span>
     </div>
@@ -414,7 +410,7 @@ function MiniTablePanel() {
   return (
     <div className='flex h-full w-full flex-col bg-[var(--landing-bg)]'>
       <div className='flex items-center gap-2 border-[#2c2c2c] border-b px-3 py-2'>
-        <Table className='size-[14px]' style={{ color: C.TEXT_ICON }} />
+        <Table className='h-[14px] w-[14px]' style={{ color: C.TEXT_ICON }} />
         <span className='font-medium text-sm' style={{ color: C.TEXT_PRIMARY }}>
           Customer Leads
         </span>
@@ -436,7 +432,7 @@ function MiniTablePanel() {
                     className='border-[#2c2c2c] border-r border-b bg-[#1e1e1e] p-0 text-left'
                   >
                     <div className='flex items-center gap-1 px-2 py-1.5'>
-                      <Icon className='size-3 shrink-0' style={{ color: C.TEXT_ICON }} />
+                      <Icon className='h-3 w-3 shrink-0' style={{ color: C.TEXT_ICON }} />
                       <span className='font-medium text-[11px]' style={{ color: C.TEXT_PRIMARY }}>
                         {col.label}
                       </span>

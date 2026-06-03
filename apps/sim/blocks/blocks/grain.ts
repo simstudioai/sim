@@ -1,5 +1,5 @@
 import { GrainIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 import { grainTriggerOptions } from '@/triggers/grain/utils'
@@ -14,7 +14,6 @@ export const GrainBlock: BlockConfig = {
     'Integrate Grain into your workflow. Access meeting recordings, transcripts, highlights, and AI-generated summaries. Can also trigger workflows based on Grain webhook events.',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['meeting', 'note-taking'],
   docsLink: 'https://docs.sim.ai/tools/grain',
   icon: GrainIcon,
   bgColor: '#F6FAF9',
@@ -462,3 +461,77 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
     ],
   },
 }
+
+export const GrainBlockMeta = {
+  tags: ['meeting', 'note-taking'],
+  templates: [
+    {
+      icon: GrainIcon,
+      title: 'Grain highlight to CRM',
+      prompt:
+        'Build a workflow that watches Grain meeting highlights, extracts customer quotes, and writes them to the linked Salesforce opportunity for deal context.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: GrainIcon,
+      title: 'Grain customer-quote miner',
+      prompt:
+        'Create a workflow that processes Grain customer interview recordings, extracts notable quotes and themes, and writes them to a marketing research table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: GrainIcon,
+      title: 'Grain action-item ticket creator',
+      prompt:
+        'Build a workflow that extracts action items from Grain meeting transcripts, creates Linear tasks for each with owners and due dates, and pings the team in Slack.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'automation'],
+      alsoIntegrations: ['linear', 'slack'],
+    },
+    {
+      icon: GrainIcon,
+      title: 'Grain weekly call digest',
+      prompt:
+        'Create a scheduled weekly workflow that summarizes Grain meeting insights — common objections, decisions made, blockers — and posts a digest to the team Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GrainIcon,
+      title: 'Grain coaching dashboard',
+      prompt:
+        'Build a scheduled weekly workflow that analyzes Grain sales calls per rep, calculates talk ratio, objection handling, and next-step clarity, and writes coaching notes to a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'analysis'],
+    },
+    {
+      icon: GrainIcon,
+      title: 'Grain + Notion knowledge sync',
+      prompt:
+        'Create a workflow that processes Grain meeting recordings, extracts decisions and learnings, and writes them as Notion pages tagged by topic for the team knowledge base.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'content'],
+      alsoIntegrations: ['notion'],
+    },
+    {
+      icon: GrainIcon,
+      title: 'Grain competitor mentions tracker',
+      prompt:
+        'Build a workflow that scans Grain sales transcripts for competitor mentions, logs the context and outcome to a competitive-intel table, and surfaces patterns weekly.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

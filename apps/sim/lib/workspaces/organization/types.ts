@@ -147,12 +147,8 @@ interface OrganizationStore extends OrganizationState {
 
   // Team management
   inviteMember: (email: string, workspaceInvitations?: WorkspaceInvitation[]) => Promise<void>
-  removeMember: (memberId: string, shouldReduceSeats?: boolean) => Promise<void>
+  removeMember: (memberId: string) => Promise<void>
   cancelInvitation: (invitationId: string) => Promise<void>
-
-  // Seat management
-  addSeats: (newSeatCount: number) => Promise<void>
-  reduceSeats: (newSeatCount: number) => Promise<void>
 
   transferSubscriptionToOrganization: (orgId: string) => Promise<void>
 

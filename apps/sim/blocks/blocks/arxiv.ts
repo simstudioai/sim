@@ -1,5 +1,5 @@
 import { ArxivIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { ArxivResponse } from '@/tools/arxiv/types'
 
@@ -12,8 +12,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
   docsLink: 'https://docs.sim.ai/tools/arxiv',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['document-processing', 'knowledge-base'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: ArxivIcon,
   subBlocks: [
     {
@@ -154,3 +153,76 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
     authorPapers: { type: 'json', description: 'Author papers list' },
   },
 }
+
+export const ArxivBlockMeta = {
+  tags: ['document-processing', 'knowledge-base'],
+  templates: [
+    {
+      icon: ArxivIcon,
+      title: 'ArXiv paper alerter',
+      prompt:
+        'Build a scheduled workflow that queries ArXiv for new papers on tracked topics, summarizes abstracts with an agent, and emails the digest to the research team.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: ArxivIcon,
+      title: 'ArXiv literature review builder',
+      prompt:
+        'Create a workflow that takes a research topic, queries ArXiv for the most cited recent papers, summarizes each, and writes a literature review file.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'content'],
+    },
+    {
+      icon: ArxivIcon,
+      title: 'ArXiv knowledge-base feeder',
+      prompt:
+        'Build a workflow that watches ArXiv for new papers in a topic, fetches PDFs, parses with Mistral Parser, and upserts the chunks into a research knowledge base.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['research', 'sync'],
+      alsoIntegrations: ['mistral_parse'],
+    },
+    {
+      icon: ArxivIcon,
+      title: 'ArXiv top-author tracker',
+      prompt:
+        'Create a scheduled workflow that monitors ArXiv for new papers by tracked authors and posts a Slack alert when a watched author publishes new work.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ArxivIcon,
+      title: 'ArXiv weekly digest',
+      prompt:
+        'Build a scheduled weekly workflow that gathers the top ArXiv papers per tracked category, clusters them by theme, and writes a digest file.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'reporting'],
+    },
+    {
+      icon: ArxivIcon,
+      title: 'ArXiv citation grapher',
+      prompt:
+        'Create a workflow that for a chosen ArXiv paper builds a citation graph in Neo4j and exposes a visualization for the research team.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['research', 'analysis'],
+      alsoIntegrations: ['neo4j'],
+    },
+    {
+      icon: ArxivIcon,
+      title: 'ArXiv survey-paper generator',
+      prompt:
+        'Build a workflow that takes a topic, finds the most influential ArXiv papers, summarizes themes, and writes a survey-style file as a starting point for research.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'content'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -1,5 +1,5 @@
 import { CrowdStrikeIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { parseOptionalJsonInput, parseOptionalNumberInput } from '@/blocks/utils'
 import type { CrowdStrikeResponse } from '@/tools/crowdstrike/types'
@@ -13,7 +13,6 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
   docsLink: 'https://docs.sim.ai/tools/crowdstrike',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['identity', 'monitoring'],
   bgColor: '#E01F3D',
   icon: CrowdStrikeIcon,
   authMode: AuthMode.ApiKey,
@@ -210,3 +209,75 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
     count: { type: 'number', description: 'Number of records returned by the selected operation' },
   },
 }
+
+export const CrowdStrikeBlockMeta = {
+  tags: ['identity', 'monitoring'],
+  templates: [
+    {
+      icon: CrowdStrikeIcon,
+      title: 'CrowdStrike detection-to-incident',
+      prompt:
+        'Build a workflow that on a CrowdStrike Falcon detection event opens a PagerDuty incident, posts the detection summary to Slack, and creates a Linear ticket for the engineer.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty', 'slack'],
+    },
+    {
+      icon: CrowdStrikeIcon,
+      title: 'CrowdStrike weekly threat digest',
+      prompt:
+        'Create a scheduled weekly workflow that aggregates CrowdStrike detections, classifies by severity, and writes a digest file for security leadership.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'reporting'],
+    },
+    {
+      icon: CrowdStrikeIcon,
+      title: 'CrowdStrike + Okta correlation',
+      prompt:
+        'Build a workflow that correlates CrowdStrike endpoint detections with Okta login events to identify compromised users and writes the findings to a security table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'analysis'],
+      alsoIntegrations: ['okta'],
+    },
+    {
+      icon: CrowdStrikeIcon,
+      title: 'CrowdStrike asset inventory',
+      prompt:
+        'Create a scheduled workflow that pulls CrowdStrike sensor coverage per device, identifies endpoints missing the sensor, and writes the gap list to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+    },
+    {
+      icon: CrowdStrikeIcon,
+      title: 'CrowdStrike IOC enricher',
+      prompt:
+        'Build a workflow that for each CrowdStrike detection enriches IOCs with threat intel from external feeds and writes the enriched detection to a SOC investigation table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'analysis'],
+    },
+    {
+      icon: CrowdStrikeIcon,
+      title: 'CrowdStrike incident retro',
+      prompt:
+        'Create a workflow that after a major CrowdStrike incident closes generates a retrospective doc with the timeline, MITRE techniques, and remediation actions.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'reporting'],
+      alsoIntegrations: ['google_docs'],
+    },
+    {
+      icon: CrowdStrikeIcon,
+      title: 'CrowdStrike noisy-alert tuner',
+      prompt:
+        'Build a scheduled workflow that analyzes CrowdStrike noisy detections, suggests tuning rules with rationale, and writes the recommendations to a SOC review queue.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'analysis'],
+    },
+  ],
+} as const satisfies BlockMeta

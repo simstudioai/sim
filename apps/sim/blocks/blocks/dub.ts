@@ -1,5 +1,5 @@
 import { DubIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { DubResponse } from '@/tools/dub/types'
 
@@ -12,8 +12,7 @@ export const DubBlock: BlockConfig<DubResponse> = {
     'Create, manage, and track short links with Dub. Supports custom domains, UTM parameters, link analytics, and more.',
   docsLink: 'https://docs.sim.ai/tools/dub',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['link-management', 'marketing', 'data-analytics'],
+  integrationType: IntegrationType.DevOps,
   bgColor: '#181C1E',
   icon: DubIcon,
   subBlocks: [
@@ -491,3 +490,76 @@ export const DubBlock: BlockConfig<DubResponse> = {
     },
   },
 }
+
+export const DubBlockMeta = {
+  tags: ['link-management', 'marketing', 'data-analytics'],
+  templates: [
+    {
+      icon: DubIcon,
+      title: 'Dub short link factory',
+      prompt:
+        'Build a workflow that takes a destination URL and campaign metadata, creates a tracked short link in Dub with UTM parameters and a custom slug, stores the link in a table, and returns it to the caller for use in outreach and marketing.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['marketing', 'devops', 'automation'],
+    },
+    {
+      icon: DubIcon,
+      title: 'Campaign link batcher',
+      prompt:
+        'Create a workflow that reads a table of campaign destinations, upserts a Dub short link for each row with consistent UTM tags, writes the resulting short URL back into the table, and posts a Slack confirmation summarizing how many links were created or refreshed.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['marketing', 'automation', 'devops'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DubIcon,
+      title: 'Dub analytics digest',
+      prompt:
+        'Build a scheduled weekly workflow that pulls Dub link analytics — clicks, leads, sales, and top referrers — for active campaigns, writes a narrative summary highlighting winners and decliners, and delivers the digest to Slack with deep links into the Dub dashboard.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['marketing', 'reporting', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DubIcon,
+      title: 'Short link hygiene auditor',
+      prompt:
+        'Create a scheduled monthly workflow that lists all Dub links, checks each destination for 4xx and 5xx responses, flags broken links in a table, and emails the marketing team a remediation list so dead campaign links never go live.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['marketing', 'monitoring', 'devops'],
+    },
+    {
+      icon: DubIcon,
+      title: 'Outbound link personalizer',
+      prompt:
+        'Build a workflow that reads a leads table, generates a per-lead Dub short link with the lead identifier in UTM and metadata, attaches the personalized link to the outreach email body, and tracks delivery in the table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['sales', 'marketing', 'automation'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: DubIcon,
+      title: 'Release announcement linker',
+      prompt:
+        'Create a workflow triggered by a GitHub release that creates a Dub short link for the release notes URL, posts the short link to the marketing Slack channel, and stores the mapping of release tag to short link in a tracking table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['marketing', 'devops', 'automation'],
+      alsoIntegrations: ['github', 'slack'],
+    },
+    {
+      icon: DubIcon,
+      title: 'Top-converting links report',
+      prompt:
+        'Build a scheduled monthly workflow that pulls Dub analytics grouped by link, ranks top performers by leads and sales, identifies underperformers, writes a narrative report file with recommendations, and shares it with marketing leadership.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['marketing', 'analysis', 'reporting'],
+    },
+  ],
+} as const satisfies BlockMeta

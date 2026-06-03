@@ -1,6 +1,6 @@
 import { WebflowIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { WebflowResponse } from '@/tools/webflow/types'
 import { getTrigger } from '@/triggers'
@@ -14,10 +14,9 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
     'Integrates Webflow CMS into the workflow. Can create, get, list, update, or delete items in Webflow CMS collections. Manage your Webflow content programmatically. Can be used in trigger mode to trigger workflows when collection items change or forms are submitted.',
   docsLink: 'https://docs.sim.ai/tools/webflow',
   category: 'tools',
-  integrationType: IntegrationType.Design,
-  tags: ['content-management', 'seo'],
+  integrationType: IntegrationType.Marketing,
   triggerAllowed: true,
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: WebflowIcon,
   subBlocks: [
     {
@@ -257,3 +256,77 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
     ],
   },
 }
+
+export const WebflowBlockMeta = {
+  tags: ['content-management', 'seo'],
+  templates: [
+    {
+      icon: WebflowIcon,
+      title: 'Webflow lead capture pipeline',
+      prompt:
+        'Create a workflow that monitors new Webflow form submissions, enriches each lead with company and contact data using Apollo and web search, adds them to a tracking table with a lead score, and sends a Slack notification to the sales team for high-potential leads.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'automation'],
+      alsoIntegrations: ['apollo', 'slack'],
+    },
+    {
+      icon: WebflowIcon,
+      title: 'Webflow CMS publisher',
+      prompt:
+        'Create a workflow that reads a draft articles table, generates an SEO-optimized post, publishes it as a Webflow CMS item, and writes the live URL back to the row.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+    {
+      icon: WebflowIcon,
+      title: 'Webflow form-to-CRM',
+      prompt:
+        'Build a workflow that watches Webflow form submissions, enriches each with Apollo company data, and pushes qualifying leads into HubSpot with the right owner and source.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['apollo', 'hubspot'],
+    },
+    {
+      icon: WebflowIcon,
+      title: 'Webflow content auditor',
+      prompt:
+        'Create a scheduled monthly workflow that audits Webflow CMS items for missing meta descriptions, broken links, or stale dates, and writes a remediation backlog.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+    },
+    {
+      icon: WebflowIcon,
+      title: 'Webflow site backup',
+      prompt:
+        'Build a scheduled workflow that exports a Webflow site’s CMS items and assets to S3 nightly with versioning, and writes the backup manifest to a tracking table.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'sync'],
+      alsoIntegrations: ['s3'],
+    },
+    {
+      icon: WebflowIcon,
+      title: 'Webflow ecommerce inventory sync',
+      prompt:
+        'Create a workflow that mirrors Shopify product inventory and pricing into a Webflow store, ensures both stay in sync, and posts conflict alerts to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ecommerce', 'sync'],
+      alsoIntegrations: ['shopify', 'slack'],
+    },
+    {
+      icon: WebflowIcon,
+      title: 'Webflow + Hubspot lead-magnet',
+      prompt:
+        'Build a workflow that triggers on a Webflow form submission for a lead magnet, sends the asset via Loops, and writes the engagement to the matching HubSpot contact.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'crm'],
+      alsoIntegrations: ['loops', 'hubspot'],
+    },
+  ],
+} as const satisfies BlockMeta

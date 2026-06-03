@@ -755,7 +755,6 @@ console.log(data);`
           }}
           placeholder='Add tags'
           placeholderWithTags='Add another'
-          tagVariant='secondary'
           triggerKeys={['Enter', ',']}
         />
       </div>

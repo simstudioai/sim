@@ -1,5 +1,5 @@
 import { SESIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
@@ -12,7 +12,6 @@ export const SESBlock: BlockConfig<ToolResponse> = {
   docsLink: 'https://docs.sim.ai/tools/ses',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['cloud', 'marketing'],
   authMode: AuthMode.ApiKey,
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
   icon: SESIcon,
@@ -497,3 +496,75 @@ export const SESBlock: BlockConfig<ToolResponse> = {
     },
   },
 }
+
+export const SESBlockMeta = {
+  tags: ['cloud', 'marketing'],
+  templates: [
+    {
+      icon: SESIcon,
+      title: 'SES bulk announcement',
+      prompt:
+        'Create a workflow that takes a recipient list from a table and an SES email template, sends the announcement using SES bulk send with per-recipient template data, and writes the per-recipient send status back to the table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation', 'communication'],
+    },
+    {
+      icon: SESIcon,
+      title: 'SES verified-identity audit',
+      prompt:
+        'Build a scheduled workflow that lists AWS SES verified identities, checks the account sending quota and reputation, and posts a Slack report when any identity is unverified or the account approaches the daily quota.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring', 'infrastructure'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SESIcon,
+      title: 'SES templated nurture',
+      prompt:
+        'Create a workflow that walks each contact in a tables-based nurture sequence through staged SES templated sends with delays between steps, branches on open or click, and stops the sequence when the contact replies.',
+      modules: ['tables', 'scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation'],
+    },
+    {
+      icon: SESIcon,
+      title: 'SES + Mailgun multi-region sender',
+      prompt:
+        'Build a workflow that routes transactional emails through SES in primary regions and through Mailgun for regions where SES is not provisioned, normalizing template variables and writing one unified send log to a table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'infrastructure', 'automation'],
+      alsoIntegrations: ['mailgun'],
+    },
+    {
+      icon: SESIcon,
+      title: 'SES + AgentMail customer concierge',
+      prompt:
+        'Create a workflow that sends outbound customer messages through AWS SES but provisions a per-customer AgentMail inbox to receive replies, threads conversations across both, and tags AgentMail threads with the customer ID.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication', 'automation'],
+      alsoIntegrations: ['agentmail'],
+    },
+    {
+      icon: SESIcon,
+      title: 'SES domain reputation monitor',
+      prompt:
+        'Build a scheduled daily workflow that pulls SES account sending statistics and per-identity reputation indicators, logs them to a tracking table for trend lines, and flags any identity whose complaint or bounce rate is trending up.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring', 'analysis'],
+    },
+    {
+      icon: SESIcon,
+      title: 'SES template library sync',
+      prompt:
+        'Build a workflow that reads my approved email templates from a table, creates or updates each one in AWS SES with create template, lists existing SES templates to detect drift, and deletes templates that have been removed from the table so the SES library stays in sync.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['marketing', 'automation', 'content'],
+    },
+  ],
+} as const satisfies BlockMeta

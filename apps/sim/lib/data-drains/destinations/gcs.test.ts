@@ -7,7 +7,11 @@ const { mockGetAccessToken, JWTCtor } = vi.hoisted(() => {
   const mockGetAccessToken = vi.fn(async () => ({ token: 'fake-access-token' }))
   return {
     mockGetAccessToken,
-    JWTCtor: vi.fn(() => ({ getAccessToken: mockGetAccessToken })),
+    JWTCtor: vi.fn().mockImplementation(
+      class {
+        getAccessToken = mockGetAccessToken
+      }
+    ),
   }
 })
 

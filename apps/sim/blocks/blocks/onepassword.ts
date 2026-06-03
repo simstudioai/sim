@@ -1,5 +1,5 @@
 import { OnePasswordIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 
 export const OnePasswordBlock: BlockConfig = {
   type: 'onepassword',
@@ -10,8 +10,7 @@ export const OnePasswordBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/onepassword',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['secrets-management', 'identity'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: OnePasswordIcon,
   authMode: AuthMode.ApiKey,
 
@@ -268,3 +267,77 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     },
   },
 }
+
+export const OnePasswordBlockMeta = {
+  tags: ['secrets-management', 'identity'],
+  templates: [
+    {
+      icon: OnePasswordIcon,
+      title: '1Password vault audit',
+      prompt:
+        'Build a scheduled monthly workflow that scans 1Password vaults for weak or reused passwords, expired items, and unused secrets, and writes a remediation queue.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+    },
+    {
+      icon: OnePasswordIcon,
+      title: '1Password offboarding sweep',
+      prompt:
+        'Create a workflow that on a Workday termination revokes 1Password access for the departing employee, rotates shared secrets they had access to, and writes the action log.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: OnePasswordIcon,
+      title: '1Password access-review automator',
+      prompt:
+        'Build a scheduled quarterly workflow that surfaces 1Password sharing per vault, requires owner re-attestation in Slack, and writes the audit log to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: OnePasswordIcon,
+      title: '1Password secret rotation watcher',
+      prompt:
+        'Create a scheduled workflow that finds 1Password items older than the rotation policy, opens a Linear ticket per item to rotate, and writes the rotation status back.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: OnePasswordIcon,
+      title: '1Password onboarding kit',
+      prompt:
+        'Build a workflow that when a new hire is provisioned shares the right 1Password vaults based on their role and team, and writes the access record to the onboarding table.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: OnePasswordIcon,
+      title: '1Password Slack secret-share guard',
+      prompt:
+        'Create a workflow that monitors Slack for accidental secret sharing, redacts the message, and posts a polite reminder to use 1Password Secret Sharing instead.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: OnePasswordIcon,
+      title: '1Password compliance reporter',
+      prompt:
+        'Build a scheduled workflow that produces a 1Password compliance report — vault sharing, item ages, MFA adoption — and writes the report file for auditors.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+  ],
+} as const satisfies BlockMeta

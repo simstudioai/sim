@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
+import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotByokValidate')

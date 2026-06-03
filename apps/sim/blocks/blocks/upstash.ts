@@ -1,5 +1,5 @@
 import { UpstashIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type {
   UpstashRedisCommandResponse,
@@ -47,7 +47,6 @@ export const UpstashBlock: BlockConfig<UpstashResponse> = {
   docsLink: 'https://docs.sim.ai/tools/upstash',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['cloud', 'data-warehouse'],
   bgColor: '#181C1E',
   authMode: AuthMode.ApiKey,
   icon: UpstashIcon,
@@ -348,3 +347,76 @@ export const UpstashBlock: BlockConfig<UpstashResponse> = {
     },
   },
 }
+
+export const UpstashBlockMeta = {
+  tags: ['cloud', 'data-warehouse'],
+  templates: [
+    {
+      icon: UpstashIcon,
+      title: 'Upstash key TTL hygiene',
+      prompt:
+        'Build a scheduled workflow that pulls Upstash Redis keys without TTLs, flags those that should expire, and either sets a TTL or routes to engineering for review.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+    },
+    {
+      icon: UpstashIcon,
+      title: 'Upstash consumption monitor',
+      prompt:
+        'Create a scheduled daily workflow that aggregates Upstash request and bandwidth usage, projects month-end cost, and posts a Slack alert when projections exceed budget.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: UpstashIcon,
+      title: 'Upstash event-stream bridge',
+      prompt:
+        'Build a workflow that subscribes to an Upstash Kafka topic, transforms each event into structured rows, and writes them into a downstream Sim table for further automation.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'sync'],
+    },
+    {
+      icon: UpstashIcon,
+      title: 'Upstash + Vercel cache invalidator',
+      prompt:
+        'Create a workflow triggered by a Vercel production deploy that flushes targeted Upstash cache keys for changed routes, so users never see stale responses post-deploy.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+      alsoIntegrations: ['vercel'],
+    },
+    {
+      icon: UpstashIcon,
+      title: 'Upstash backup verifier',
+      prompt:
+        'Build a scheduled workflow that verifies Upstash backups by spot-restoring sample keys, comparing values, and writing the verification report to an SRE audit table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise'],
+    },
+    {
+      icon: UpstashIcon,
+      title: 'Upstash multi-region failover',
+      prompt:
+        'Create a workflow that monitors Upstash regional latency, automatically points production traffic to a healthy region on detected degradation, and pages PagerDuty.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: UpstashIcon,
+      title: 'Upstash + DynamoDB hybrid store',
+      prompt:
+        'Create a workflow that uses Upstash for hot keys and DynamoDB for cold storage, transparently promotes/demotes records based on access frequency.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+      alsoIntegrations: ['dynamodb'],
+    },
+  ],
+} as const satisfies BlockMeta

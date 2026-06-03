@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { anthropicProvider } from '@/providers/anthropic'
 import { azureAnthropicProvider } from '@/providers/azure-anthropic'
 import { azureOpenAIProvider } from '@/providers/azure-openai'
+import { basetenProvider } from '@/providers/baseten'
 import { bedrockProvider } from '@/providers/bedrock'
 import { cerebrasProvider } from '@/providers/cerebras'
 import { deepseekProvider } from '@/providers/deepseek'
@@ -12,8 +13,10 @@ import { groqProvider } from '@/providers/groq'
 import { litellmProvider } from '@/providers/litellm'
 import { mistralProvider } from '@/providers/mistral'
 import { ollamaProvider } from '@/providers/ollama'
+import { ollamaCloudProvider } from '@/providers/ollama-cloud'
 import { openaiProvider } from '@/providers/openai'
 import { openRouterProvider } from '@/providers/openrouter'
+import { togetherProvider } from '@/providers/together'
 import type { ProviderConfig, ProviderId } from '@/providers/types'
 import { vertexProvider } from '@/providers/vertex'
 import { vllmProvider } from '@/providers/vllm'
@@ -37,7 +40,10 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   'azure-openai': azureOpenAIProvider,
   openrouter: openRouterProvider,
   fireworks: fireworksProvider,
+  together: togetherProvider,
+  baseten: basetenProvider,
   ollama: ollamaProvider,
+  'ollama-cloud': ollamaCloudProvider,
   bedrock: bedrockProvider,
 }
 

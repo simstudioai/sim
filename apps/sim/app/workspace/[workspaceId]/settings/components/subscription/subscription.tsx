@@ -8,7 +8,6 @@ import {
   Badge,
   Button,
   Combobox,
-  type ComboboxOption,
   Label,
   Modal,
   ModalBody,
@@ -16,7 +15,6 @@ import {
   ModalDescription,
   ModalFooter,
   ModalHeader,
-  Skeleton,
   Switch,
   Tooltip,
 } from '@/components/emcn'
@@ -102,60 +100,6 @@ interface WorkspaceAdmin {
   permissionType: string
 }
 
-function SubscriptionSkeleton() {
-  return (
-    <div className='flex h-full flex-col gap-5'>
-      <div className='flex flex-col gap-3'>
-        <div className='flex items-center justify-between'>
-          <div className='flex flex-col gap-1'>
-            <div className='flex h-[18px] items-center'>
-              <Skeleton className='h-[12px] w-[40px] rounded-sm' />
-            </div>
-            <div className='flex h-[21px] items-center gap-1'>
-              <Skeleton className='h-[14px] w-[50px] rounded-sm' />
-              <span className='font-medium text-[var(--text-primary)] text-base'>/</span>
-              <Skeleton className='h-[14px] w-[50px] rounded-sm' />
-            </div>
-          </div>
-          <div className='flex flex-col items-end gap-2'>
-            <div className='flex w-[100px] items-center gap-1'>
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className='h-[6px] flex-1 rounded-xs' />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className='flex flex-col gap-2.5'>
-        <div className='grid grid-cols-2 gap-2.5'>
-          {[0, 1].map((i) => (
-            <article
-              key={i}
-              className='flex flex-1 flex-col overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'
-            >
-              <div className='flex items-center justify-between gap-2 px-3.5 py-2.5'>
-                <Skeleton className='h-[14px] w-[32px] rounded-sm' />
-                <Skeleton className='h-[14px] w-[50px] rounded-sm' />
-              </div>
-              <div className='flex flex-1 flex-col gap-4.5 rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-4'>
-                <ul className='flex flex-1 flex-col gap-3.5'>
-                  {[...Array(5)].map((_, j) => (
-                    <li key={j} className='flex items-center gap-2'>
-                      <Skeleton className='size-[12px] flex-shrink-0 rounded-sm' />
-                      <Skeleton className='h-[12px] w-[120px] rounded-sm' />
-                    </li>
-                  ))}
-                </ul>
-                <Skeleton className='h-[28px] w-full rounded-[5px]' />
-              </div>
-            </article>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 const formatPlanName = getDisplayPlanName
 
 interface CreditPlanCardProps {
@@ -225,8 +169,8 @@ function CreditPlanCard({
 
       {features && features.length > 0 && (
         <ul className='flex flex-col gap-2.5 border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3'>
-          {features.map((feature) => (
-            <li key={feature.text} className='flex items-center gap-2'>
+          {features.map((feature, idx) => (
+            <li key={idx} className='flex items-center gap-2'>
               <feature.icon className='size-[13px] flex-shrink-0 text-[var(--text-muted)]' />
               <span className='text-[var(--text-secondary)] text-caption'>{feature.text}</span>
             </li>
@@ -242,7 +186,7 @@ function CreditPlanCard({
         </div>
       )}
 
-      <div className='flex min-h-[60px] items-center border-[var(--border-1)] border-t bg-[var(--surface-4)] p-3.5'>
+      <div className='flex min-h-[60px] items-center border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3.5'>
         {isCurrentPlan ? (
           <Button onClick={onManagePlan} className='h-[32px] w-full' variant='default'>
             {isCancelledAtPeriodEnd ? 'Restore Subscription' : 'Manage plan'}
@@ -496,12 +440,11 @@ export function Subscription() {
   })()
 
   const doUpgrade = useCallback(
-    async (targetPlan: TargetPlan, creditTier: number, seats?: number) => {
+    async (targetPlan: TargetPlan, creditTier: number) => {
       try {
         await handleUpgrade(targetPlan, {
           creditTier,
           annual: isAnnual,
-          ...(seats ? { seats } : {}),
         })
       } catch (error) {
         alert(getErrorMessage(error, 'Unknown error occurred'))
@@ -574,538 +517,544 @@ export function Subscription() {
   const proDailyRefresh = Math.round(PRO_TIER.dollars * DAILY_REFRESH_RATE * CREDIT_MULTIPLIER)
   const maxDailyRefresh = Math.round(MAX_TIER.dollars * DAILY_REFRESH_RATE * CREDIT_MULTIPLIER)
 
-  if (isLoading) return <SubscriptionSkeleton />
+  if (isLoading) return null
 
   const showUpgradePlans = permissions.showUpgradePlans
   const hasEnterprise = visiblePlans.includes('enterprise')
   const showTeamCard = visiblePlans.includes('pro') || visiblePlans.includes('team')
 
   return (
-    <div className='flex h-full flex-col gap-5'>
-      {/* Current Plan & Usage Overview */}
-      {permissions.canViewUsageInfo ? (
-        <UsageHeader
-          title={formatPlanName(subscription.plan)}
-          showBadge={showBadge}
-          badgeText={badgeConfig.text}
-          badgeVariant={badgeConfig.variant}
-          onBadgeClick={permissions.showTeamMemberView ? undefined : handleBadgeClick}
-          seatsText={
-            permissions.canManageTeam || subscription.isEnterprise
-              ? `${subscription.seats} Seats`
-              : undefined
-          }
-          onDemandState={onDemandState}
-          onToggleOnDemand={
-            onDemandState === 'enable'
-              ? handleToggleOnDemand
-              : onDemandState === 'disable' && canDisableOnDemand
-                ? handleToggleOnDemand
-                : undefined
-          }
-          current={
-            subscription.isOrgScoped && organizationBillingData?.data?.totalCurrentUsage != null
-              ? organizationBillingData.data.totalCurrentUsage
-              : usage.current
-          }
-          limit={
-            subscription.isOrgScoped
-              ? (organizationBillingData?.data?.totalUsageLimit ?? usage.limit)
-              : !subscription.isFree &&
-                  (permissions.canEditUsageLimit || permissions.showTeamMemberView)
-                ? usage.current
-                : usage.limit
-          }
-          isBlocked={isBlocked}
-          progressValue={Math.min(usage.percentUsed, 100)}
-          rightContent={
-            !subscription.isFree &&
-            (permissions.canEditUsageLimit || permissions.showTeamMemberView) ? (
-              <UsageLimit
-                ref={usageLimitRef}
-                currentLimit={
-                  subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
-                    ? organizationBillingData.data.totalUsageLimit
-                    : usageLimitData.currentLimit || usage.limit
-                }
-                currentUsage={usage.current}
-                canEdit={permissions.canEditUsageLimit}
-                minimumLimit={
-                  subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
-                    ? organizationBillingData.data.minimumBillingAmount
-                    : usageLimitData.minimumLimit
-                }
-                context={shouldUseOrganizationBillingContext ? 'organization' : 'user'}
-                organizationId={
-                  shouldUseOrganizationBillingContext
-                    ? (billingOrganizationId ?? undefined)
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-5 pt-6 pb-6'>
+          {/* Current Plan & Usage Overview */}
+          {permissions.canViewUsageInfo ? (
+            <UsageHeader
+              title={formatPlanName(subscription.plan)}
+              showBadge={showBadge}
+              badgeText={badgeConfig.text}
+              badgeVariant={badgeConfig.variant}
+              onBadgeClick={permissions.showTeamMemberView ? undefined : handleBadgeClick}
+              seatsText={
+                permissions.canManageTeam || subscription.isEnterprise
+                  ? `${subscription.seats} Seats`
+                  : undefined
+              }
+              onDemandState={onDemandState}
+              onToggleOnDemand={
+                onDemandState === 'enable'
+                  ? handleToggleOnDemand
+                  : onDemandState === 'disable' && canDisableOnDemand
+                    ? handleToggleOnDemand
                     : undefined
-                }
-                onLimitUpdated={() => logger.info('Usage limit updated')}
-              />
-            ) : undefined
-          }
-        />
-      ) : (
-        <div className='flex items-center'>
-          <span className='font-medium text-[var(--text-primary)] text-base'>
-            {formatPlanName(subscription.plan)}
-          </span>
-        </div>
-      )}
-
-      {/* Upgrade Plans */}
-      {showUpgradePlans && (
-        <div className='flex flex-col gap-3'>
-          {/* Billing toggle */}
-          <div className='flex items-center justify-start'>
-            <div className='flex rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] p-0.5'>
-              <button
-                type='button'
-                className={cn(
-                  'rounded-sm px-2.5 py-1 font-medium text-caption transition-colors',
-                  !isAnnual
-                    ? 'bg-[var(--surface-3)] text-[var(--text-primary)]'
-                    : 'text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
-                )}
-                onClick={() => setIsAnnual(false)}
-              >
-                Monthly
-              </button>
-              <button
-                type='button'
-                className={cn(
-                  'flex items-center gap-1 rounded-sm px-2.5 py-1 font-medium text-caption transition-colors',
-                  isAnnual
-                    ? 'bg-[var(--surface-3)] text-[var(--text-primary)]'
-                    : 'text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
-                )}
-                onClick={() => setIsAnnual(true)}
-              >
-                Annual
-                <span className='rounded-[3px] bg-[var(--success)] px-1 py-[1px] font-semibold text-micro text-white'>
-                  -15%
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {/* Pro + Max cards -- hide the lower tier if user is on the higher one */}
-          {(() => {
-            const currentCredits = getPlanTierCredits(subscription.plan)
-            const hasPaidPlan = isPro(subscription.plan) || isTeam(subscription.plan)
-            const isLegacyTeam = subscription.plan === 'team'
-            const isOnKnownTier =
-              currentCredits === PRO_TIER.credits || currentCredits === MAX_TIER.credits
-            const isOnProTier =
-              hasPaidPlan &&
-              !isLegacyTeam &&
-              (currentCredits === PRO_TIER.credits || (!isOnKnownTier && !subscription.isTeam))
-            const isOnMaxTier =
-              hasPaidPlan &&
-              (currentCredits === MAX_TIER.credits ||
-                isLegacyTeam ||
-                (!isOnKnownTier && subscription.isTeam))
-            const wantsIntervalSwitch =
-              hasPaidPlan && !isLegacyPlan && isAnnual !== (currentInterval === 'year')
-            const isOnPro = isOnProTier && !wantsIntervalSwitch
-            const isOnMax = isOnMaxTier && !wantsIntervalSwitch
-            const showProCard = !isOnMaxTier
-
-            return (
-              <div className='grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-2.5'>
-                {showProCard && (
-                  <CreditPlanCard
-                    name='Pro'
-                    credits={PRO_TIER.credits}
-                    dollars={PRO_TIER.dollars}
-                    dailyRefresh={proDailyRefresh}
-                    isAnnual={isAnnual}
-                    buttonText={
-                      isOnPro
-                        ? 'Manage plan'
-                        : isOnProTier && wantsIntervalSwitch
-                          ? `Switch to ${isAnnual ? 'Annual' : 'Monthly'}`
-                          : 'Get started'
+              }
+              current={
+                subscription.isOrgScoped && organizationBillingData?.data?.totalCurrentUsage != null
+                  ? organizationBillingData.data.totalCurrentUsage
+                  : usage.current
+              }
+              limit={
+                subscription.isOrgScoped
+                  ? (organizationBillingData?.data?.totalUsageLimit ?? usage.limit)
+                  : !subscription.isFree &&
+                      (permissions.canEditUsageLimit || permissions.showTeamMemberView)
+                    ? usage.current
+                    : usage.limit
+              }
+              isBlocked={isBlocked}
+              progressValue={Math.min(usage.percentUsed, 100)}
+              rightContent={
+                !subscription.isFree &&
+                (permissions.canEditUsageLimit || permissions.showTeamMemberView) ? (
+                  <UsageLimit
+                    ref={usageLimitRef}
+                    currentLimit={
+                      subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
+                        ? organizationBillingData.data.totalUsageLimit
+                        : usageLimitData.currentLimit || usage.limit
                     }
-                    onButtonClick={
-                      isOnPro
-                        ? () => setManagePlanModalOpen(true)
-                        : isOnProTier && wantsIntervalSwitch
-                          ? () =>
-                              handleSwitchInterval(isAnnual ? 'year' : 'month')
-                                .then(() => setManagePlanModalOpen(false))
-                                .catch((e) =>
+                    currentUsage={usage.current}
+                    canEdit={permissions.canEditUsageLimit}
+                    minimumLimit={
+                      subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
+                        ? organizationBillingData.data.minimumBillingAmount
+                        : usageLimitData.minimumLimit
+                    }
+                    context={shouldUseOrganizationBillingContext ? 'organization' : 'user'}
+                    organizationId={
+                      shouldUseOrganizationBillingContext
+                        ? (billingOrganizationId ?? undefined)
+                        : undefined
+                    }
+                    onLimitUpdated={() => logger.info('Usage limit updated')}
+                  />
+                ) : undefined
+              }
+            />
+          ) : (
+            <div className='flex items-center'>
+              <span className='font-medium text-[var(--text-primary)] text-base'>
+                {formatPlanName(subscription.plan)}
+              </span>
+            </div>
+          )}
+
+          {/* Upgrade Plans */}
+          {showUpgradePlans && (
+            <div className='flex flex-col gap-3'>
+              {/* Billing toggle */}
+              <div className='flex items-center justify-start'>
+                <div className='flex rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] p-0.5'>
+                  <button
+                    type='button'
+                    className={cn(
+                      'rounded-sm px-2.5 py-1 font-medium text-caption transition-colors',
+                      !isAnnual
+                        ? 'bg-[var(--surface-3)] text-[var(--text-primary)]'
+                        : 'text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
+                    )}
+                    onClick={() => setIsAnnual(false)}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    type='button'
+                    className={cn(
+                      'flex items-center gap-1 rounded-sm px-2.5 py-1 font-medium text-caption transition-colors',
+                      isAnnual
+                        ? 'bg-[var(--surface-3)] text-[var(--text-primary)]'
+                        : 'text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
+                    )}
+                    onClick={() => setIsAnnual(true)}
+                  >
+                    Annual
+                    <span className='rounded-[3px] bg-[var(--success)] px-1 py-[1px] font-semibold text-micro text-white'>
+                      -15%
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Pro + Max cards -- hide the lower tier if user is on the higher one */}
+              {(() => {
+                const currentCredits = getPlanTierCredits(subscription.plan)
+                const hasPaidPlan = isPro(subscription.plan) || isTeam(subscription.plan)
+                const isLegacyTeam = subscription.plan === 'team'
+                const isOnKnownTier =
+                  currentCredits === PRO_TIER.credits || currentCredits === MAX_TIER.credits
+                const isOnProTier =
+                  hasPaidPlan &&
+                  !isLegacyTeam &&
+                  (currentCredits === PRO_TIER.credits || (!isOnKnownTier && !subscription.isTeam))
+                const isOnMaxTier =
+                  hasPaidPlan &&
+                  (currentCredits === MAX_TIER.credits ||
+                    isLegacyTeam ||
+                    (!isOnKnownTier && subscription.isTeam))
+                const wantsIntervalSwitch =
+                  hasPaidPlan && !isLegacyPlan && isAnnual !== (currentInterval === 'year')
+                const isOnPro = isOnProTier && !wantsIntervalSwitch
+                const isOnMax = isOnMaxTier && !wantsIntervalSwitch
+                const showProCard = !isOnMaxTier
+
+                return (
+                  <div className='grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-2.5'>
+                    {showProCard && (
+                      <CreditPlanCard
+                        name='Pro'
+                        credits={PRO_TIER.credits}
+                        dollars={PRO_TIER.dollars}
+                        dailyRefresh={proDailyRefresh}
+                        isAnnual={isAnnual}
+                        buttonText={
+                          isOnPro
+                            ? 'Manage plan'
+                            : isOnProTier && wantsIntervalSwitch
+                              ? `Switch to ${isAnnual ? 'Annual' : 'Monthly'}`
+                              : 'Get started'
+                        }
+                        onButtonClick={
+                          isOnPro
+                            ? () => setManagePlanModalOpen(true)
+                            : isOnProTier && wantsIntervalSwitch
+                              ? () =>
+                                  handleSwitchInterval(isAnnual ? 'year' : 'month')
+                                    .then(() => setManagePlanModalOpen(false))
+                                    .catch((e) =>
+                                      alert(getErrorMessage(e, 'Failed to switch interval'))
+                                    )
+                              : () => doUpgrade('pro', PRO_TIER.credits)
+                        }
+                        isCurrentPlan={isOnPro}
+                        onManagePlan={() => setManagePlanModalOpen(true)}
+                        isTeamPlan={subscription.isTeam}
+                        isCancelledAtPeriodEnd={isCancelledAtPeriodEnd}
+                        features={PRO_PLAN_FEATURES}
+                        isLegacyPlan={isLegacyPlan && isOnProTier}
+                      />
+                    )}
+                    <CreditPlanCard
+                      name='Max'
+                      credits={MAX_TIER.credits}
+                      dollars={MAX_TIER.dollars}
+                      dailyRefresh={maxDailyRefresh}
+                      isAnnual={isAnnual}
+                      buttonText={
+                        isOnMax
+                          ? 'Manage plan'
+                          : isOnMaxTier && wantsIntervalSwitch
+                            ? `Switch to ${isAnnual ? 'Annual' : 'Monthly'}`
+                            : subscription.isTeam
+                              ? 'Upgrade Team'
+                              : subscription.isFree
+                                ? 'Get started'
+                                : 'Upgrade'
+                      }
+                      onButtonClick={
+                        isOnMax
+                          ? () => setManagePlanModalOpen(true)
+                          : isOnMaxTier && wantsIntervalSwitch
+                            ? () =>
+                                handleSwitchInterval(isAnnual ? 'year' : 'month').catch((e) =>
                                   alert(getErrorMessage(e, 'Failed to switch interval'))
                                 )
-                          : () => doUpgrade('pro', PRO_TIER.credits)
-                    }
-                    isCurrentPlan={isOnPro}
-                    onManagePlan={() => setManagePlanModalOpen(true)}
-                    isTeamPlan={subscription.isTeam}
-                    isCancelledAtPeriodEnd={isCancelledAtPeriodEnd}
-                    features={PRO_PLAN_FEATURES}
-                    isLegacyPlan={isLegacyPlan && isOnProTier}
-                  />
-                )}
-                <CreditPlanCard
-                  name='Max'
-                  credits={MAX_TIER.credits}
-                  dollars={MAX_TIER.dollars}
-                  dailyRefresh={maxDailyRefresh}
-                  isAnnual={isAnnual}
-                  buttonText={
-                    isOnMax
-                      ? 'Manage plan'
-                      : isOnMaxTier && wantsIntervalSwitch
-                        ? `Switch to ${isAnnual ? 'Annual' : 'Monthly'}`
-                        : subscription.isTeam
-                          ? 'Upgrade Team'
-                          : subscription.isFree
-                            ? 'Get started'
-                            : 'Upgrade'
-                  }
-                  onButtonClick={
-                    isOnMax
-                      ? () => setManagePlanModalOpen(true)
-                      : isOnMaxTier && wantsIntervalSwitch
-                        ? () =>
-                            handleSwitchInterval(isAnnual ? 'year' : 'month').catch((e) =>
-                              alert(getErrorMessage(e, 'Failed to switch interval'))
-                            )
-                        : subscription.isPaid
-                          ? async () => {
-                              const planType = subscription.isTeam ? 'team' : 'pro'
-                              try {
-                                await requestJson(billingSwitchPlanContract, {
-                                  body: {
-                                    targetPlanName: `${planType}_${MAX_TIER.credits}`,
-                                    interval: isAnnual ? 'year' : 'month',
-                                  },
-                                })
-                                await refetchSubscription()
-                              } catch (e) {
-                                alert(getErrorMessage(e, 'Failed to upgrade'))
-                              }
-                            }
-                          : () => doUpgrade('pro', MAX_TIER.credits)
-                  }
-                  isCurrentPlan={isOnMax}
-                  onManagePlan={() => setManagePlanModalOpen(true)}
-                  isTeamPlan={subscription.isTeam}
-                  isCancelledAtPeriodEnd={isCancelledAtPeriodEnd}
-                  features={MAX_PLAN_FEATURES}
-                  isLegacyPlan={isLegacyPlan && isOnMaxTier}
+                            : subscription.isPaid
+                              ? async () => {
+                                  const planType = subscription.isTeam ? 'team' : 'pro'
+                                  try {
+                                    await requestJson(billingSwitchPlanContract, {
+                                      body: {
+                                        targetPlanName: `${planType}_${MAX_TIER.credits}`,
+                                        interval: isAnnual ? 'year' : 'month',
+                                      },
+                                    })
+                                    await refetchSubscription()
+                                  } catch (e) {
+                                    alert(getErrorMessage(e, 'Failed to upgrade'))
+                                  }
+                                }
+                              : () => doUpgrade('pro', MAX_TIER.credits)
+                      }
+                      isCurrentPlan={isOnMax}
+                      onManagePlan={() => setManagePlanModalOpen(true)}
+                      isTeamPlan={subscription.isTeam}
+                      isCancelledAtPeriodEnd={isCancelledAtPeriodEnd}
+                      features={MAX_PLAN_FEATURES}
+                      isLegacyPlan={isLegacyPlan && isOnMaxTier}
+                    />
+                    {hasEnterprise && (
+                      <PlanCard
+                        name='Enterprise'
+                        price=''
+                        features={ENTERPRISE_PLAN_FEATURES}
+                        buttonText='Contact'
+                        onButtonClick={() =>
+                          window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')
+                        }
+                      />
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* Get For Team -- horizontal card */}
+              {showTeamCard && (
+                <PlanCard
+                  name='Get For Team'
+                  price=''
+                  features={TEAM_INLINE_FEATURES}
+                  buttonText='Get started'
+                  onButtonClick={() => setTeamModalOpen(true)}
+                  inlineButton
                 />
-                {hasEnterprise && (
-                  <PlanCard
-                    name='Enterprise'
-                    price=''
-                    features={ENTERPRISE_PLAN_FEATURES}
-                    buttonText='Contact'
-                    onButtonClick={() => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')}
+              )}
+            </div>
+          )}
+
+          {/* Team plan selection modal */}
+          <TeamPlanModal
+            open={teamModalOpen}
+            onOpenChange={setTeamModalOpen}
+            isAnnual={isAnnual}
+            onConfirm={(creditTier) => {
+              setTeamModalOpen(false)
+              doUpgrade('team', creditTier)
+            }}
+          />
+
+          {/* Manage current plan modal */}
+          <ManagePlanModal
+            open={managePlanModalOpen}
+            onOpenChange={setManagePlanModalOpen}
+            currentPlanCredits={getPlanTierCredits(subscription.plan)}
+            currentPlanDollars={getPlanTierDollars(subscription.plan)}
+            currentInterval={currentInterval}
+            isTeamPlan={subscription.isTeam}
+            onSwitchInterval={async (interval) => {
+              await handleSwitchInterval(interval)
+              setManagePlanModalOpen(false)
+            }}
+            onUpgradeToOtherTier={async () => {
+              const isOnMax =
+                getPlanTierCredits(subscription.plan) === MAX_TIER.credits ||
+                subscription.plan === 'team'
+              const targetTier = isOnMax ? PRO_TIER : MAX_TIER
+              const planType = subscription.isTeam ? 'team' : 'pro'
+              const targetPlanName = `${planType}_${targetTier.credits}`
+              try {
+                await requestJson(billingSwitchPlanContract, {
+                  body: { targetPlanName },
+                })
+                await refetchSubscription()
+                setManagePlanModalOpen(false)
+              } catch (e) {
+                alert(getErrorMessage(e, 'Failed to switch plan'))
+              }
+            }}
+            onUpgradeToCurrentTier={async () => {
+              const isOnMax =
+                getPlanTierCredits(subscription.plan) === MAX_TIER.credits ||
+                subscription.plan === 'team'
+              const currentTier = isOnMax ? MAX_TIER : PRO_TIER
+              const planType = subscription.isTeam ? 'team' : 'pro'
+              const targetPlanName = `${planType}_${currentTier.credits}`
+              try {
+                await requestJson(billingSwitchPlanContract, {
+                  body: { targetPlanName },
+                })
+                await refetchSubscription()
+                setManagePlanModalOpen(false)
+              } catch (e) {
+                alert(getErrorMessage(e, 'Failed to migrate plan'))
+              }
+            }}
+            onGetForTeam={() => {
+              setManagePlanModalOpen(false)
+              if (subscription.isTeam) {
+                window.location.href = `/workspace/${workspaceId}/settings/organization`
+              } else {
+                setTeamModalOpen(true)
+              }
+            }}
+            isCancelledAtPeriodEnd={isCancelledAtPeriodEnd}
+            isLegacyPlan={isLegacyPlan}
+            onCancel={async () => {
+              setManagePlanModalOpen(false)
+              if (!betterAuthSubscription.cancel) return
+              try {
+                const isOrgSub = subscription.isOrgScoped
+                const referenceId = isOrgSub
+                  ? (() => {
+                      if (!billingOrganizationId) {
+                        throw new Error(
+                          'Organization billing context is unavailable. Please refresh and try again.'
+                        )
+                      }
+                      return billingOrganizationId
+                    })()
+                  : session?.user?.id || ''
+                const returnUrl = getBaseUrl() + window.location.pathname
+                await betterAuthSubscription.cancel({ returnUrl, referenceId })
+              } catch (e) {
+                logger.error('Failed to cancel subscription', { error: e })
+                alert(getErrorMessage(e, 'Failed to cancel subscription'))
+              }
+            }}
+            onRestore={async () => {
+              if (!betterAuthSubscription.restore) return
+              try {
+                const isOrgSub = subscription.isOrgScoped
+                const referenceId = isOrgSub
+                  ? (() => {
+                      if (!billingOrganizationId) {
+                        throw new Error(
+                          'Organization billing context is unavailable. Please refresh and try again.'
+                        )
+                      }
+                      return billingOrganizationId
+                    })()
+                  : session?.user?.id || ''
+                await betterAuthSubscription.restore({ referenceId })
+                await refetchSubscription()
+                setManagePlanModalOpen(false)
+              } catch (e) {
+                logger.error('Failed to restore subscription', { error: e })
+                alert(getErrorMessage(e, 'Failed to restore subscription'))
+              }
+            }}
+          />
+
+          {/* Billing details section */}
+          {(subscription.isPaid || (!isLoading && isTeamAdmin)) && (
+            <div className='flex flex-col gap-4'>
+              {subscription.isPaid && permissions.canViewUsageInfo && (
+                <div>
+                  <CreditBalance
+                    balance={subscriptionData?.data?.creditBalance ?? 0}
+                    canPurchase={hasUsablePaidAccess && permissions.canEditUsageLimit}
+                    entityType={subscription.isOrgScoped ? 'organization' : 'user'}
+                    isLoading={isLoading}
+                    onPurchaseComplete={() => refetchSubscription()}
                   />
+                </div>
+              )}
+
+              {subscription.isPaid &&
+                subscriptionData?.data?.periodEnd &&
+                !permissions.showTeamMemberView &&
+                !permissions.isEnterpriseMember && (
+                  <div className='flex items-center justify-between gap-4'>
+                    <Label>{isCancelledAtPeriodEnd ? 'Access Until' : 'Next Billing Date'}</Label>
+                    <span className='text-[var(--text-secondary)] text-small'>
+                      {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
+                    </span>
+                  </div>
                 )}
-              </div>
-            )
-          })()}
 
-          {/* Get For Team -- horizontal card */}
-          {showTeamCard && (
-            <PlanCard
-              name='Get For Team'
-              price=''
-              features={TEAM_INLINE_FEATURES}
-              buttonText='Get started'
-              onButtonClick={() => setTeamModalOpen(true)}
-              inlineButton
-            />
-          )}
-        </div>
-      )}
+              {subscription.isPaid && permissions.canViewUsageInfo && (
+                <div>
+                  <BillingUsageNotificationsToggle />
+                </div>
+              )}
 
-      {/* Team plan selection modal */}
-      <TeamPlanModal
-        open={teamModalOpen}
-        onOpenChange={setTeamModalOpen}
-        isAnnual={isAnnual}
-        onConfirm={(creditTier, seats) => {
-          setTeamModalOpen(false)
-          doUpgrade('team', creditTier, seats)
-        }}
-      />
-
-      {/* Manage current plan modal */}
-      <ManagePlanModal
-        open={managePlanModalOpen}
-        onOpenChange={setManagePlanModalOpen}
-        currentPlanCredits={getPlanTierCredits(subscription.plan)}
-        currentPlanDollars={getPlanTierDollars(subscription.plan)}
-        currentInterval={currentInterval}
-        isTeamPlan={subscription.isTeam}
-        onSwitchInterval={async (interval) => {
-          await handleSwitchInterval(interval)
-          setManagePlanModalOpen(false)
-        }}
-        onUpgradeToOtherTier={async () => {
-          const isOnMax =
-            getPlanTierCredits(subscription.plan) === MAX_TIER.credits ||
-            subscription.plan === 'team'
-          const targetTier = isOnMax ? PRO_TIER : MAX_TIER
-          const planType = subscription.isTeam ? 'team' : 'pro'
-          const targetPlanName = `${planType}_${targetTier.credits}`
-          try {
-            await requestJson(billingSwitchPlanContract, {
-              body: { targetPlanName },
-            })
-            await refetchSubscription()
-            setManagePlanModalOpen(false)
-          } catch (e) {
-            alert(getErrorMessage(e, 'Failed to switch plan'))
-          }
-        }}
-        onUpgradeToCurrentTier={async () => {
-          const isOnMax =
-            getPlanTierCredits(subscription.plan) === MAX_TIER.credits ||
-            subscription.plan === 'team'
-          const currentTier = isOnMax ? MAX_TIER : PRO_TIER
-          const planType = subscription.isTeam ? 'team' : 'pro'
-          const targetPlanName = `${planType}_${currentTier.credits}`
-          try {
-            await requestJson(billingSwitchPlanContract, {
-              body: { targetPlanName },
-            })
-            await refetchSubscription()
-            setManagePlanModalOpen(false)
-          } catch (e) {
-            alert(getErrorMessage(e, 'Failed to migrate plan'))
-          }
-        }}
-        onGetForTeam={() => {
-          setManagePlanModalOpen(false)
-          if (subscription.isTeam) {
-            window.location.href = `/workspace/${workspaceId}/settings/organization`
-          } else {
-            setTeamModalOpen(true)
-          }
-        }}
-        isCancelledAtPeriodEnd={isCancelledAtPeriodEnd}
-        isLegacyPlan={isLegacyPlan}
-        onCancel={async () => {
-          setManagePlanModalOpen(false)
-          if (!betterAuthSubscription.cancel) return
-          try {
-            const isOrgSub = subscription.isOrgScoped
-            const referenceId = isOrgSub
-              ? (() => {
-                  if (!billingOrganizationId) {
-                    throw new Error(
-                      'Organization billing context is unavailable. Please refresh and try again.'
-                    )
-                  }
-                  return billingOrganizationId
-                })()
-              : session?.user?.id || ''
-            const returnUrl = getBaseUrl() + window.location.pathname
-            await betterAuthSubscription.cancel({ returnUrl, referenceId })
-          } catch (e) {
-            logger.error('Failed to cancel subscription', { error: e })
-            alert(getErrorMessage(e, 'Failed to cancel subscription'))
-          }
-        }}
-        onRestore={async () => {
-          if (!betterAuthSubscription.restore) return
-          try {
-            const isOrgSub = subscription.isOrgScoped
-            const referenceId = isOrgSub
-              ? (() => {
-                  if (!billingOrganizationId) {
-                    throw new Error(
-                      'Organization billing context is unavailable. Please refresh and try again.'
-                    )
-                  }
-                  return billingOrganizationId
-                })()
-              : session?.user?.id || ''
-            await betterAuthSubscription.restore({ referenceId })
-            await refetchSubscription()
-            setManagePlanModalOpen(false)
-          } catch (e) {
-            logger.error('Failed to restore subscription', { error: e })
-            alert(getErrorMessage(e, 'Failed to restore subscription'))
-          }
-        }}
-      />
-
-      {/* Billing details section */}
-      {(subscription.isPaid || (!isLoading && isTeamAdmin)) && (
-        <div className='flex flex-col gap-4'>
-          {subscription.isPaid && permissions.canViewUsageInfo && (
-            <div>
-              <CreditBalance
-                balance={subscriptionData?.data?.creditBalance ?? 0}
-                canPurchase={hasUsablePaidAccess && permissions.canEditUsageLimit}
-                entityType={subscription.isOrgScoped ? 'organization' : 'user'}
-                isLoading={isLoading}
-                onPurchaseComplete={() => refetchSubscription()}
-              />
-            </div>
-          )}
-
-          {subscription.isPaid &&
-            subscriptionData?.data?.periodEnd &&
-            !permissions.showTeamMemberView &&
-            !permissions.isEnterpriseMember && (
-              <div className='flex items-center justify-between gap-4'>
-                <Label>{isCancelledAtPeriodEnd ? 'Access Until' : 'Next Billing Date'}</Label>
-                <span className='text-[var(--text-secondary)] text-small'>
-                  {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
-                </span>
-              </div>
-            )}
-
-          {subscription.isPaid && permissions.canViewUsageInfo && (
-            <div>
-              <BillingUsageNotificationsToggle />
-            </div>
-          )}
-
-          {subscription.isPaid &&
-            !permissions.showTeamMemberView &&
-            !permissions.isEnterpriseMember && (
-              <>
-                <div className='flex items-center justify-between gap-4'>
-                  <Label>Payment method</Label>
-                  <Button
-                    variant='active'
-                    disabled={openBillingPortal.isPending}
-                    onClick={() => {
-                      const portalWindow = window.open('', '_blank')
-                      const context = subscription.isOrgScoped ? 'organization' : 'user'
-                      if (context === 'organization' && !billingOrganizationId) {
-                        portalWindow?.close()
-                        alert(
-                          'Organization billing context is unavailable. Please refresh and try again.'
-                        )
-                        return
-                      }
-                      openBillingPortal.mutate(
-                        {
-                          context,
-                          organizationId: billingOrganizationId ?? undefined,
-                          returnUrl: window.location.href,
-                        },
-                        {
-                          onSuccess: (data) => {
-                            if (portalWindow) {
-                              portalWindow.location.href = data.url
-                            } else {
-                              window.location.href = data.url
-                            }
-                          },
-                          onError: (error) => {
+              {subscription.isPaid &&
+                !permissions.showTeamMemberView &&
+                !permissions.isEnterpriseMember && (
+                  <>
+                    <div className='flex items-center justify-between gap-4'>
+                      <Label>Payment method</Label>
+                      <Button
+                        variant='active'
+                        disabled={openBillingPortal.isPending}
+                        onClick={() => {
+                          const portalWindow = window.open('', '_blank')
+                          const context = subscription.isOrgScoped ? 'organization' : 'user'
+                          if (context === 'organization' && !billingOrganizationId) {
                             portalWindow?.close()
-                            logger.error('Failed to open billing portal', { error })
-                            alert(error.message)
-                          },
-                        }
-                      )
-                    }}
-                  >
-                    Manage in Stripe
-                  </Button>
-                </div>
-
-                <div className='flex items-center justify-between gap-4'>
-                  <Label>Invoices</Label>
-                  <Button
-                    variant='active'
-                    disabled={openBillingPortal.isPending}
-                    onClick={() => {
-                      const portalWindow = window.open('', '_blank')
-                      const context = subscription.isOrgScoped ? 'organization' : 'user'
-                      if (context === 'organization' && !billingOrganizationId) {
-                        portalWindow?.close()
-                        alert(
-                          'Organization billing context is unavailable. Please refresh and try again.'
-                        )
-                        return
-                      }
-                      openBillingPortal.mutate(
-                        {
-                          context,
-                          organizationId: billingOrganizationId ?? undefined,
-                          returnUrl: window.location.href,
-                        },
-                        {
-                          onSuccess: (data) => {
-                            if (portalWindow) {
-                              portalWindow.location.href = data.url
-                            } else {
-                              window.location.href = data.url
+                            alert(
+                              'Organization billing context is unavailable. Please refresh and try again.'
+                            )
+                            return
+                          }
+                          openBillingPortal.mutate(
+                            {
+                              context,
+                              organizationId: billingOrganizationId ?? undefined,
+                              returnUrl: window.location.href,
+                            },
+                            {
+                              onSuccess: (data) => {
+                                if (portalWindow) {
+                                  portalWindow.location.href = data.url
+                                } else {
+                                  window.location.href = data.url
+                                }
+                              },
+                              onError: (error) => {
+                                portalWindow?.close()
+                                logger.error('Failed to open billing portal', { error })
+                                alert(error.message)
+                              },
                             }
-                          },
-                          onError: (error) => {
-                            portalWindow?.close()
-                            logger.error('Failed to open billing portal', { error })
-                            alert(error.message)
-                          },
-                        }
-                      )
-                    }}
-                  >
-                    View Invoices
-                  </Button>
-                </div>
-              </>
-            )}
+                          )
+                        }}
+                      >
+                        Manage in Stripe
+                      </Button>
+                    </div>
 
-          {!isLoading && isTeamAdmin && isGrandfatheredSharedWorkspace && (
-            <div className='flex items-center justify-between gap-4'>
-              <div className='flex items-center gap-1.5'>
-                <Label htmlFor='billed-account'>Billed Account</Label>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Info className='size-[12px] text-[var(--text-secondary)]' />
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>
-                    <span>Usage from this workspace will be billed to this account</span>
-                  </Tooltip.Content>
-                </Tooltip.Root>
-              </div>
-              {workspaceAdmins.length === 0 ? (
-                <div className='rounded-md border border-[var(--border)] border-dashed px-3 py-1.5 text-[var(--text-muted)] text-small'>
-                  No admins available
-                </div>
-              ) : (
-                <div className='w-[200px]'>
-                  <Combobox
-                    size='sm'
-                    align='end'
-                    dropdownWidth={200}
-                    value={billedAccountUserId || ''}
-                    onChange={async (value: string) => {
-                      if (value && value !== billedAccountUserId) {
-                        try {
-                          await updateWorkspaceSettings({ billedAccountUserId: value })
-                        } catch {
-                          /* logged above */
-                        }
-                      }
-                    }}
-                    disabled={!canManageWorkspaceKeys || updateWorkspaceMutation.isPending}
-                    placeholder='Select admin'
-                    options={workspaceAdmins.map((admin) => ({
-                      label: admin.email,
-                      value: admin.userId,
-                    }))}
-                  />
+                    <div className='flex items-center justify-between gap-4'>
+                      <Label>Invoices</Label>
+                      <Button
+                        variant='active'
+                        disabled={openBillingPortal.isPending}
+                        onClick={() => {
+                          const portalWindow = window.open('', '_blank')
+                          const context = subscription.isOrgScoped ? 'organization' : 'user'
+                          if (context === 'organization' && !billingOrganizationId) {
+                            portalWindow?.close()
+                            alert(
+                              'Organization billing context is unavailable. Please refresh and try again.'
+                            )
+                            return
+                          }
+                          openBillingPortal.mutate(
+                            {
+                              context,
+                              organizationId: billingOrganizationId ?? undefined,
+                              returnUrl: window.location.href,
+                            },
+                            {
+                              onSuccess: (data) => {
+                                if (portalWindow) {
+                                  portalWindow.location.href = data.url
+                                } else {
+                                  window.location.href = data.url
+                                }
+                              },
+                              onError: (error) => {
+                                portalWindow?.close()
+                                logger.error('Failed to open billing portal', { error })
+                                alert(error.message)
+                              },
+                            }
+                          )
+                        }}
+                      >
+                        View Invoices
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+              {!isLoading && isTeamAdmin && isGrandfatheredSharedWorkspace && (
+                <div className='flex items-center justify-between gap-4'>
+                  <div className='flex items-center gap-1.5'>
+                    <Label htmlFor='billed-account'>Billed Account</Label>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Info className='size-[12px] text-[var(--text-secondary)]' />
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <span>Usage from this workspace will be billed to this account</span>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  </div>
+                  {workspaceAdmins.length === 0 ? (
+                    <div className='rounded-md border border-[var(--border)] border-dashed px-3 py-1.5 text-[var(--text-muted)] text-small'>
+                      No admins available
+                    </div>
+                  ) : (
+                    <div className='w-[200px]'>
+                      <Combobox
+                        size='sm'
+                        align='end'
+                        dropdownWidth={200}
+                        value={billedAccountUserId || ''}
+                        onChange={async (value: string) => {
+                          if (value && value !== billedAccountUserId) {
+                            try {
+                              await updateWorkspaceSettings({ billedAccountUserId: value })
+                            } catch {
+                              /* logged above */
+                            }
+                          }
+                        }}
+                        disabled={!canManageWorkspaceKeys || updateWorkspaceMutation.isPending}
+                        placeholder='Select admin'
+                        options={workspaceAdmins.map((admin) => ({
+                          label: admin.email,
+                          value: admin.userId,
+                        }))}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -1114,33 +1063,25 @@ interface TeamPlanModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   isAnnual: boolean
-  onConfirm: (creditTier: number, seats: number) => void
+  onConfirm: (creditTier: number) => void
 }
 
 function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModalProps) {
   const [selectedTier, setSelectedTier] = useState<number>(PRO_TIER.credits)
-  const [selectedSeats, setSelectedSeats] = useState(1)
 
-  // Reset selections each time the modal opens.
+  // Reset selection each time the modal opens.
   const prevOpenRef = useRef(open)
   if (prevOpenRef.current !== open) {
     prevOpenRef.current = open
     if (open) {
       setSelectedTier(PRO_TIER.credits)
-      setSelectedSeats(1)
     }
   }
 
   const tier = CREDIT_TIERS.find((t) => t.credits === selectedTier) ?? PRO_TIER
   const monthlyCostPerSeat = tier.dollars
-  const totalMonthly = monthlyCostPerSeat * selectedSeats
-  const annualTotal = Math.round(totalMonthly * 12 * (1 - ANNUAL_DISCOUNT_RATE))
-  const discountedMonthlyTotal = Math.round(annualTotal / 12)
-
-  const seatOptions: ComboboxOption[] = [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50].map((num) => ({
-    value: num.toString(),
-    label: `${num} ${num === 1 ? 'seat' : 'seats'}`,
-  }))
+  const annualPerSeat = Math.round(monthlyCostPerSeat * 12 * (1 - ANNUAL_DISCOUNT_RATE))
+  const discountedMonthlyPerSeat = Math.round(annualPerSeat / 12)
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
@@ -1148,7 +1089,8 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
         <ModalHeader>Get For Team</ModalHeader>
         <ModalBody>
           <ModalDescription className='text-[var(--text-secondary)]'>
-            Choose a plan and number of seats for your team. Credits are pooled across all members.
+            Choose a plan for your team. Your team starts with one seat — more are added
+            automatically as you invite members. Credits are pooled across all members.
           </ModalDescription>
 
           {/* Plan toggle */}
@@ -1190,39 +1132,23 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
             </div>
           </div>
 
-          {/* Seat selector */}
-          <div className='mt-4 flex flex-col gap-1'>
-            <Label className='text-small'>Seats</Label>
-            <Combobox
-              options={seatOptions}
-              value={selectedSeats > 0 ? selectedSeats.toString() : ''}
-              onChange={(value) => {
-                const num = Number.parseInt(value, 10)
-                if (!Number.isNaN(num) && num > 0) setSelectedSeats(num)
-              }}
-              placeholder='Select seats'
-              editable
-            />
-          </div>
-
           {/* Cost summary */}
           <div className='mt-4 rounded-md border border-[var(--border-1)] bg-[var(--surface-4)] px-3 py-2.5'>
             <div className='flex justify-between text-small'>
               <span className='text-[var(--text-muted)]'>
-                {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} &times; $
-                {monthlyCostPerSeat}/mo
+                Per seat &middot; ${monthlyCostPerSeat}/mo
               </span>
               <span className='font-medium text-[var(--text-primary)]'>
-                {isAnnual ? `$${discountedMonthlyTotal}/mo` : `$${totalMonthly}/mo`}
+                {isAnnual ? `$${discountedMonthlyPerSeat}/mo` : `$${monthlyCostPerSeat}/mo`}
               </span>
             </div>
             {isAnnual && (
               <div className='mt-1 flex justify-between text-caption'>
-                <span className='text-[var(--text-muted)]'>Annual total</span>
+                <span className='text-[var(--text-muted)]'>Annual total per seat</span>
                 <span className='text-[var(--text-secondary)]'>
-                  ${annualTotal}/yr
+                  ${annualPerSeat}/yr
                   <span className='ml-1 text-[var(--text-muted)] line-through'>
-                    ${totalMonthly * 12}
+                    ${monthlyCostPerSeat * 12}
                   </span>
                 </span>
               </div>
@@ -1233,11 +1159,7 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
           <Button variant='default' onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button
-            variant='primary'
-            onClick={() => onConfirm(selectedTier, selectedSeats)}
-            disabled={selectedSeats < 1}
-          >
+          <Button variant='primary' onClick={() => onConfirm(selectedTier)}>
             Get started
           </Button>
         </ModalFooter>

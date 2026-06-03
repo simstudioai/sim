@@ -10,6 +10,7 @@ import {
   AvatarImage,
   Button,
   Checkbox,
+  Chip,
   Input,
   Label,
   Modal,
@@ -25,6 +26,7 @@ import {
   Skeleton,
   Switch,
 } from '@/components/emcn'
+import { ArrowLeft } from '@/components/emcn/icons'
 import { Input as BaseInput } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
@@ -154,12 +156,12 @@ function AddMembersModal({
             <div className='flex flex-col gap-3'>
               <div className='flex items-center gap-2'>
                 <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                  <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                  <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                   <BaseInput
                     placeholder='Search members...'
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                    className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
                   />
                 </div>
                 <Button variant='default' onClick={handleToggleAll}>
@@ -245,16 +247,18 @@ function AccessControlSkeleton() {
     <div className='flex h-full flex-col gap-4.5'>
       <div className='flex flex-col gap-2'>
         <Skeleton className='h-[14px] w-[100px]' />
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-3'>
-            <Skeleton className='size-9 rounded-md' />
-            <div className='flex flex-col gap-1'>
-              <Skeleton className='h-[14px] w-[120px]' />
-              <Skeleton className='h-[12px] w-[80px]' />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className='flex items-center justify-between'>
+            <div className='flex items-center gap-3'>
+              <Skeleton className='size-9 rounded-md' />
+              <div className='flex flex-col gap-1'>
+                <Skeleton className='h-[14px] w-[120px]' />
+                <Skeleton className='h-[12px] w-[80px]' />
+              </div>
             </div>
+            <Skeleton className='h-[32px] w-[60px] rounded-md' />
           </div>
-          <Skeleton className='h-[32px] w-[60px] rounded-md' />
-        </div>
+        ))}
       </div>
     </div>
   )
@@ -1003,7 +1007,7 @@ export function AccessControl() {
   }, [workspaceMembers, members])
 
   if (isLoading) {
-    return <AccessControlSkeleton />
+    return null
   }
 
   if (!canManage) {
@@ -1017,118 +1021,120 @@ export function AccessControl() {
   if (viewingGroup) {
     return (
       <>
-        <div className='flex h-full flex-col gap-4.5'>
-          <div className='flex flex-col gap-1'>
-            <div className='flex items-center justify-between'>
-              <h3 className='font-medium text-[var(--text-primary)] text-base'>
-                {viewingGroup.name}
-              </h3>
-              <Button variant='default' onClick={handleOpenConfigModal}>
-                Configure
-              </Button>
+        <div className='flex h-full flex-col bg-[var(--bg)]'>
+          <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+            <Chip leftIcon={ArrowLeft} onClick={handleBackToList}>
+              Access Control
+            </Chip>
+            <div className='flex items-center'>
+              <Chip onClick={handleOpenConfigModal}>Configure</Chip>
             </div>
-            {viewingGroup.description && (
-              <p className='text-[var(--text-muted)] text-sm'>{viewingGroup.description}</p>
-            )}
           </div>
 
-          <div className='flex items-center justify-between'>
-            <div className='flex flex-col gap-0.5'>
-              <span className='font-medium text-[var(--text-primary)] text-sm'>
-                Auto-add new members
-              </span>
-              <span className='text-[var(--text-muted)] text-small'>
-                Automatically add new workspace members to this group
-              </span>
-            </div>
-            <Switch
-              checked={viewingGroup.autoAddNewMembers}
-              onCheckedChange={(checked) => handleToggleAutoAdd(checked)}
-              disabled={updatePermissionGroup.isPending}
-            />
-          </div>
-
-          <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='flex flex-col gap-2'>
-              <div className='flex items-center justify-between'>
-                <span className='font-medium text-[var(--text-secondary)] text-sm'>Members</span>
-                <Button variant='primary' onClick={handleOpenAddMembersModal}>
-                  <Plus className='mr-1.5 size-[13px]' />
-                  Add
-                </Button>
+          <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+            <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
+              <div className='flex flex-col gap-1'>
+                <h3 className='font-medium text-[var(--text-primary)] text-base'>
+                  {viewingGroup.name}
+                </h3>
+                {viewingGroup.description && (
+                  <p className='text-[var(--text-muted)] text-sm'>{viewingGroup.description}</p>
+                )}
               </div>
 
-              {membersLoading ? (
-                <div className='flex flex-col gap-4.5'>
-                  {[1, 2].map((i) => (
-                    <div key={i} className='flex items-center justify-between'>
-                      <div className='flex items-center gap-3'>
-                        <Skeleton className='size-8 rounded-full' />
-                        <div className='flex flex-col gap-1'>
-                          <Skeleton className='h-[14px] w-[100px]' />
-                          <Skeleton className='h-[12px] w-[150px]' />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+              <div className='flex items-center justify-between'>
+                <div className='flex flex-col gap-0.5'>
+                  <span className='font-medium text-[var(--text-primary)] text-sm'>
+                    Auto-add new members
+                  </span>
+                  <span className='text-[var(--text-muted)] text-small'>
+                    Automatically add new workspace members to this group
+                  </span>
                 </div>
-              ) : members.length === 0 ? (
-                <p className='text-[var(--text-muted)] text-sm'>
-                  No members yet. Click "Add" to get started.
-                </p>
-              ) : (
-                <div className='flex flex-col gap-4.5'>
-                  {members.map((member) => {
-                    const name = member.userName || 'Unknown'
-                    const avatarInitial = name.charAt(0).toUpperCase()
+                <Switch
+                  checked={viewingGroup.autoAddNewMembers}
+                  onCheckedChange={(checked) => handleToggleAutoAdd(checked)}
+                  disabled={updatePermissionGroup.isPending}
+                />
+              </div>
 
-                    return (
-                      <div key={member.id} className='flex items-center justify-between'>
-                        <div className='flex flex-1 items-center gap-3'>
-                          <Avatar size='md'>
-                            {member.userImage && <AvatarImage src={member.userImage} alt={name} />}
-                            <AvatarFallback
-                              style={{
-                                background: getUserColor(member.userId || member.userEmail || ''),
-                              }}
-                              className='border-0 text-white'
-                            >
-                              {avatarInitial}
-                            </AvatarFallback>
-                          </Avatar>
+              <div className='flex flex-col gap-2'>
+                <div className='flex items-center justify-between'>
+                  <span className='font-medium text-[var(--text-secondary)] text-sm'>Members</span>
+                  <Button variant='primary' onClick={handleOpenAddMembersModal}>
+                    <Plus className='mr-1.5 h-[13px] w-[13px]' />
+                    Add
+                  </Button>
+                </div>
 
-                          <div className='min-w-0'>
-                            <div className='flex items-center gap-2'>
-                              <span className='truncate font-medium text-[var(--text-primary)] text-base'>
-                                {name}
-                              </span>
-                            </div>
-                            <div className='truncate text-[var(--text-muted)] text-small'>
-                              {member.userEmail}
-                            </div>
+                {membersLoading ? (
+                  <div className='flex flex-col gap-4.5'>
+                    {[1, 2].map((i) => (
+                      <div key={i} className='flex items-center justify-between'>
+                        <div className='flex items-center gap-3'>
+                          <Skeleton className='size-8 rounded-full' />
+                          <div className='flex flex-col gap-1'>
+                            <Skeleton className='h-[14px] w-[100px]' />
+                            <Skeleton className='h-[12px] w-[150px]' />
                           </div>
                         </div>
-
-                        <Button
-                          variant='ghost'
-                          onClick={() => handleRemoveMember(member.id)}
-                          disabled={removeMember.isPending}
-                          className='flex-shrink-0'
-                        >
-                          Remove
-                        </Button>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+                    ))}
+                  </div>
+                ) : members.length === 0 ? (
+                  <p className='text-[var(--text-muted)] text-sm'>
+                    No members yet. Click "Add" to get started.
+                  </p>
+                ) : (
+                  <div className='flex flex-col gap-4.5'>
+                    {members.map((member) => {
+                      const name = member.userName || 'Unknown'
+                      const avatarInitial = name.charAt(0).toUpperCase()
 
-          <div className='mt-auto flex items-center justify-start'>
-            <Button onClick={handleBackToList} variant='default'>
-              Back
-            </Button>
+                      return (
+                        <div key={member.id} className='flex items-center justify-between'>
+                          <div className='flex flex-1 items-center gap-3'>
+                            <Avatar size='md'>
+                              {member.userImage && (
+                                <AvatarImage src={member.userImage} alt={name} />
+                              )}
+                              <AvatarFallback
+                                style={{
+                                  background: getUserColor(member.userId || member.userEmail || ''),
+                                }}
+                                className='border-0 text-white'
+                              >
+                                {avatarInitial}
+                              </AvatarFallback>
+                            </Avatar>
+
+                            <div className='min-w-0'>
+                              <div className='flex items-center gap-2'>
+                                <span className='truncate font-medium text-[var(--text-primary)] text-base'>
+                                  {name}
+                                </span>
+                              </div>
+                              <div className='truncate text-[var(--text-muted)] text-small'>
+                                {member.userEmail}
+                              </div>
+                            </div>
+                          </div>
+
+                          <Button
+                            variant='ghost'
+                            onClick={() => handleRemoveMember(member.id)}
+                            disabled={removeMember.isPending}
+                            className='flex-shrink-0'
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1164,12 +1170,12 @@ export function AccessControl() {
                 <ModalTabsContent value='providers'>
                   <div className='flex items-center gap-2 pb-3'>
                     <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                       <BaseInput
                         placeholder='Search providers...'
                         value={providerSearchTerm}
                         onChange={(e) => setProviderSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                        className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
                       />
                     </div>
                     <Button
@@ -1214,12 +1220,12 @@ export function AccessControl() {
                 <ModalTabsContent value='blocks'>
                   <div className='flex items-center gap-2 pb-3'>
                     <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                       <BaseInput
                         placeholder='Search blocks...'
                         value={integrationSearchTerm}
                         onChange={(e) => setIntegrationSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                        className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
                       />
                     </div>
                     <Button
@@ -1269,7 +1275,7 @@ export function AccessControl() {
                                   onCheckedChange={() => toggleIntegration(block.type)}
                                 />
                                 <div
-                                  className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                                  className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
                                   style={{ background: block.bgColor }}
                                 >
                                   {BlockIcon && (
@@ -1304,7 +1310,7 @@ export function AccessControl() {
                                   onCheckedChange={() => toggleIntegration(block.type)}
                                 />
                                 <div
-                                  className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                                  className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
                                   style={{ background: block.bgColor }}
                                 >
                                   {BlockIcon && (
@@ -1324,12 +1330,12 @@ export function AccessControl() {
                 <ModalTabsContent value='platform'>
                   <div className='flex items-center gap-2 pb-3'>
                     <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                       <BaseInput
                         placeholder='Search features...'
                         value={platformSearchTerm}
                         onChange={(e) => setPlatformSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                        className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
                       />
                     </div>
                     <Button
@@ -1476,68 +1482,73 @@ export function AccessControl() {
 
   return (
     <>
-      <div className='flex h-full flex-col gap-4.5'>
-        <div className='flex items-center gap-2'>
-          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
-            <Search
-              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-              strokeWidth={2}
-            />
-            <BaseInput
-              placeholder='Search permission groups...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-            />
+      <div className='flex h-full flex-col bg-[var(--bg)]'>
+        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+          <div />
+          <div className='flex items-center'>
+            <Chip leftIcon={Plus} variant='primary' onClick={() => setShowCreateModal(true)}>
+              Create Group
+            </Chip>
           </div>
-          <Button variant='primary' onClick={() => setShowCreateModal(true)}>
-            <Plus className='mr-1.5 size-[13px]' />
-            Create
-          </Button>
         </div>
 
-        <div className='relative min-h-0 flex-1 overflow-y-auto'>
-          {filteredGroups.length === 0 && searchTerm.trim() ? (
-            <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-              No results found matching "{searchTerm}"
+        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
+            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
+              <Search
+                className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+                strokeWidth={2}
+              />
+              <BaseInput
+                placeholder='Search permission groups...'
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              />
             </div>
-          ) : permissionGroups.length === 0 ? (
-            <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-              Click "Create" above to get started
-            </div>
-          ) : (
-            <div className='flex flex-col gap-2'>
-              {filteredGroups.map((group) => (
-                <div key={group.id} className='flex items-center justify-between'>
-                  <div className='flex flex-col'>
-                    <div className='flex items-center gap-2'>
-                      <span className='font-medium text-base'>{group.name}</span>
-                      {group.autoAddNewMembers && (
-                        <span className='rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
-                          Auto-enrolls
-                        </span>
-                      )}
+
+            {filteredGroups.length === 0 && searchTerm.trim() ? (
+              <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                No results found matching "{searchTerm}"
+              </div>
+            ) : permissionGroups.length === 0 ? (
+              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+                Click "Create Group" above to get started
+              </div>
+            ) : (
+              <div className='flex flex-col gap-2'>
+                {filteredGroups.map((group) => (
+                  <div key={group.id} className='flex items-center justify-between'>
+                    <div className='flex flex-col'>
+                      <div className='flex items-center gap-2'>
+                        <span className='font-medium text-base'>{group.name}</span>
+                        {group.autoAddNewMembers && (
+                          <span className='rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
+                            Auto-enrolls
+                          </span>
+                        )}
+                      </div>
+                      <span className='text-[var(--text-muted)] text-sm'>
+                        {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
+                      </span>
                     </div>
-                    <span className='text-[var(--text-muted)] text-sm'>
-                      {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
-                    </span>
+                    <div className='flex flex-shrink-0 items-center gap-2'>
+                      <Button variant='default' onClick={() => setViewingGroup(group)}>
+                        Details
+                      </Button>
+                      <Button
+                        variant='ghost'
+                        onClick={() => handleDeleteClick(group)}
+                        disabled={deletingGroupIds.has(group.id)}
+                      >
+                        {deletingGroupIds.has(group.id) ? 'Deleting...' : 'Delete'}
+                      </Button>
+                    </div>
                   </div>
-                  <div className='flex flex-shrink-0 items-center gap-2'>
-                    <Button variant='default' onClick={() => setViewingGroup(group)}>
-                      Details
-                    </Button>
-                    <Button
-                      variant='ghost'
-                      onClick={() => handleDeleteClick(group)}
-                      disabled={deletingGroupIds.has(group.id)}
-                    >
-                      {deletingGroupIds.has(group.id) ? 'Deleting...' : 'Delete'}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

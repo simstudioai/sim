@@ -4,12 +4,13 @@ import { type ElementType, type ReactNode, useMemo } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import {
-  Blimp,
+  Connections,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
   Library,
   Table as TableIcon,
+  Task,
   TerminalWindow,
 } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
@@ -20,6 +21,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { logKeys } from '@/hooks/queries/logs'
 import { tableKeys } from '@/hooks/queries/tables'
@@ -96,6 +98,26 @@ function IconDropdownItem({ item, icon: Icon }: DropdownItemRenderProps & { icon
   return (
     <>
       <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <span className='truncate'>{item.name}</span>
+    </>
+  )
+}
+
+/**
+ * Renders an integration mention candidate using the block's own brand icon at
+ * the standard 14px dropdown size. Single-fill icons drawn with
+ * `fill='currentColor'` (e.g. HubSpot) are tinted with the block's brand
+ * {@link BlockConfig.iconColor}; multi-color brand icons keep their own SVG fills.
+ */
+function IntegrationDropdownItem({ item }: DropdownItemRenderProps) {
+  const Icon = item.iconComponent as StyleableIcon | undefined
+  if (!Icon) return <span className='truncate'>{item.name}</span>
+  return (
+    <>
+      <Icon
+        className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
+        style={getBareIconStyle(Icon)}
+      />
       <span className='truncate'>{item.name}</span>
     </>
   )
@@ -193,11 +215,11 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
   task: {
     type: 'task',
     label: 'Tasks',
-    icon: Blimp,
+    icon: Task,
     renderTabIcon: (_resource, className) => (
-      <Blimp className={cn(className, 'text-[var(--text-icon)]')} />
+      <Task className={cn(className, 'text-[var(--text-icon)]')} />
     ),
-    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Blimp} />,
+    renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
   },
   log: {
     type: 'log',
@@ -207,6 +229,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
       <Library className={cn(className, 'text-[var(--text-icon)]')} />
     ),
     renderDropdownItem: (props) => <LogDropdownItem {...props} />,
+  },
+  integration: {
+    type: 'integration',
+    label: 'Integrations',
+    icon: Connections,
+    renderTabIcon: (_resource, className) => (
+      <Connections className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IntegrationDropdownItem {...props} />,
   },
 } as const
 
@@ -252,6 +283,12 @@ const RESOURCE_INVALIDATORS: Record<
     qc.invalidateQueries({ queryKey: logKeys.details() })
     qc.invalidateQueries({ queryKey: logKeys.detail(id) })
   },
+  /**
+   * Integrations are sourced from the static integration catalog
+   * (`listIntegrations()`), not a server-backed query, so there is nothing to
+   * invalidate when one is added.
+   */
+  integration: () => {},
 }
 
 /**

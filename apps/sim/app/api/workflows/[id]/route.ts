@@ -184,7 +184,7 @@ export const DELETE = withRouteHandler(
       const authorization = await authorizeWorkflowByWorkspacePermission({
         workflowId,
         userId,
-        action: 'admin',
+        action: 'write',
       })
       const workflowData = authorization.workflow || (await getWorkflowById(workflowId))
 
@@ -207,40 +207,10 @@ export const DELETE = withRouteHandler(
 
       await assertWorkflowMutable(workflowId)
 
-      const { searchParams } = new URL(request.url)
-      const checkTemplates = searchParams.get('check-templates') === 'true'
-      const deleteTemplatesParam = searchParams.get('deleteTemplates')
-
-      if (checkTemplates) {
-        const { templates } = await import('@sim/db/schema')
-        const publishedTemplates = await db
-          .select({
-            id: templates.id,
-            name: templates.name,
-            views: templates.views,
-            stars: templates.stars,
-            status: templates.status,
-          })
-          .from(templates)
-          .where(eq(templates.workflowId, workflowId))
-
-        return NextResponse.json({
-          hasPublishedTemplates: publishedTemplates.length > 0,
-          count: publishedTemplates.length,
-          publishedTemplates: publishedTemplates.map((t) => ({
-            id: t.id,
-            name: t.name,
-            views: t.views,
-            stars: t.stars,
-          })),
-        })
-      }
-
       const result = await performDeleteWorkflow({
         workflowId,
         userId,
         requestId,
-        templateAction: deleteTemplatesParam === 'delete' ? 'delete' : 'orphan',
       })
 
       if (!result.success) {

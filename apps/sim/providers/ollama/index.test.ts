@@ -29,7 +29,11 @@ const { mockCreate, mockExecuteTool, streamOnComplete, MockAPIError } = vi.hoist
 })
 
 vi.mock('openai', () => {
-  const OpenAI = vi.fn(() => ({ chat: { completions: { create: mockCreate } } }))
+  const OpenAI = vi.fn().mockImplementation(
+    class {
+      chat = { completions: { create: mockCreate } }
+    }
+  )
   ;(OpenAI as unknown as { APIError: typeof MockAPIError }).APIError = MockAPIError
   return { default: OpenAI }
 })
@@ -53,6 +57,7 @@ vi.mock('@/providers/ollama/utils', () => ({
 }))
 vi.mock('@/providers/utils', () => ({
   calculateCost: () => ({ input: 0, output: 0, total: 0, pricing: null }),
+  generateSchemaInstructions: () => 'SCHEMA_INSTRUCTIONS',
   prepareToolExecution: (_tool: unknown, args: Record<string, unknown>) => ({
     toolParams: args,
     executionParams: args,
@@ -141,17 +146,45 @@ describe('ollamaProvider.executeRequest', () => {
     expect(result.content).toBe(fenced)
   })
 
-  it('strips ```json fences and sends a json_schema response_format when requested', async () => {
+  it('strips ```json fences and requests JSON mode with schema instructions when responseFormat is set', async () => {
     mockCreate.mockResolvedValue(completion({ content: '```json\n{"a":1}\n```' }))
     const result = (await ollamaProvider.executeRequest({
       ...baseRequest,
       responseFormat: { name: 'r', schema: { type: 'object' }, strict: true },
     })) as ProviderResponse
     expect(result.content).toBe('{"a":1}')
-    expect(mockCreate.mock.calls[0][0].response_format).toMatchObject({
-      type: 'json_schema',
-      json_schema: { name: 'r', schema: { type: 'object' }, strict: true },
-    })
+    const payload = mockCreate.mock.calls[0][0]
+    expect(payload.response_format).toEqual({ type: 'json_object' })
+    expect(payload.messages.at(-1)).toEqual({ role: 'user', content: 'SCHEMA_INSTRUCTIONS' })
+  })
+
+  it('defers structured output while tools run, then makes a final JSON-mode call', async () => {
+    mockCreate
+      .mockResolvedValueOnce(
+        completion({
+          toolCalls: [
+            { id: 'call_1', type: 'function', function: { name: 'mytool', arguments: '{}' } },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(completion({ content: 'intermediate' }))
+      .mockResolvedValueOnce(completion({ content: '{"a":1}' }))
+
+    const result = (await ollamaProvider.executeRequest({
+      ...baseRequest,
+      tools: [makeTool('mytool')],
+      responseFormat: { name: 'r', schema: { type: 'object' } },
+    })) as ProviderResponse
+
+    expect(mockCreate).toHaveBeenCalledTimes(3)
+    expect(mockCreate.mock.calls[0][0].response_format).toBeUndefined()
+    expect(mockCreate.mock.calls[0][0].tools).toBeDefined()
+
+    const finalCall = mockCreate.mock.calls[2][0]
+    expect(finalCall.response_format).toEqual({ type: 'json_object' })
+    expect(finalCall.tools).toBeUndefined()
+    expect(finalCall.messages.at(-1)).toEqual({ role: 'user', content: 'SCHEMA_INSTRUCTIONS' })
+    expect(result.content).toBe('{"a":1}')
   })
 
   it('runs the tool loop: parses string args, feeds results back, then terminates', async () => {

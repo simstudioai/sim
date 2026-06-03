@@ -65,31 +65,33 @@ vi.mock('@/lib/copilot/request/session', () => ({
   startAbortPoller: vi.fn().mockReturnValue(setInterval(() => {}, 999999)),
   isExplicitStopReason: vi.fn().mockReturnValue(false),
   SSE_RESPONSE_HEADERS: {},
-  StreamWriter: vi.fn().mockImplementation(() => ({
-    attach: vi.fn().mockImplementation((ctrl: ReadableStreamDefaultController) => {
-      mockPublisherController = ctrl
-    }),
-    startKeepalive: vi.fn(),
-    stopKeepalive: vi.fn(),
-    flush: vi.fn(),
-    close: vi.fn().mockImplementation(() => {
-      try {
-        mockPublisherController?.close()
-      } catch {
-        // already closed
+  StreamWriter: vi.fn().mockImplementation(
+    class {
+      attach = vi.fn().mockImplementation((ctrl: ReadableStreamDefaultController) => {
+        mockPublisherController = ctrl
+      })
+      startKeepalive = vi.fn()
+      stopKeepalive = vi.fn()
+      flush = vi.fn()
+      close = vi.fn().mockImplementation(() => {
+        try {
+          mockPublisherController?.close()
+        } catch {
+          // already closed
+        }
+      })
+      markDisconnected = vi.fn()
+      publish = vi.fn().mockImplementation(async (event: Record<string, unknown>) => {
+        appendEvent(event)
+      })
+      get clientDisconnected() {
+        return false
       }
-    }),
-    markDisconnected: vi.fn(),
-    publish: vi.fn().mockImplementation(async (event: Record<string, unknown>) => {
-      appendEvent(event)
-    }),
-    get clientDisconnected() {
-      return false
-    },
-    get sawComplete() {
-      return false
-    },
-  })),
+      get sawComplete() {
+        return false
+      }
+    }
+  ),
 }))
 vi.mock('@/lib/copilot/request/session/sse', () => ({
   SSE_RESPONSE_HEADERS: {},

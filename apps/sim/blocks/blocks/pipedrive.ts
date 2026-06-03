@@ -1,6 +1,6 @@
 import { PipedriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { PipedriveResponse } from '@/tools/pipedrive/types'
 
@@ -13,9 +13,9 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
     'Integrate Pipedrive into your workflow. Manage deals, contacts, sales pipeline, projects, activities, files, and communications with powerful CRM capabilities.',
   docsLink: 'https://docs.sim.ai/tools/pipedrive',
   category: 'tools',
-  integrationType: IntegrationType.CRM,
-  tags: ['sales-engagement', 'project-management'],
+  integrationType: IntegrationType.Sales,
   bgColor: '#2E6936',
+  iconColor: '#26A65B',
   icon: PipedriveIcon,
   subBlocks: [
     {
@@ -838,3 +838,78 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }
+
+export const PipedriveBlockMeta = {
+  tags: ['sales-engagement', 'project-management'],
+  templates: [
+    {
+      icon: PipedriveIcon,
+      title: 'Pipedrive deal pipeline tracker',
+      prompt:
+        'Create a scheduled workflow that mirrors Pipedrive deals into a Sim table, calculates pipeline velocity per stage, and posts a daily Slack summary of deals at risk.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: PipedriveIcon,
+      title: 'Pipedrive enrichment pipeline',
+      prompt:
+        'Build a workflow that watches new Pipedrive contacts, enriches each via Apollo, and writes role, seniority, and tech stack back to the contact.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'research'],
+      alsoIntegrations: ['apollo'],
+    },
+    {
+      icon: PipedriveIcon,
+      title: 'Pipedrive activity-from-email logger',
+      prompt:
+        'Create a workflow that watches Gmail for emails to or from Pipedrive contacts, logs each as an activity, and creates a follow-up task if next steps are mentioned.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: PipedriveIcon,
+      title: 'Pipedrive call-summary updater',
+      prompt:
+        'Build a workflow that runs after a Fireflies sales call, summarizes the transcript, and updates the matching Pipedrive deal with the call summary and next steps.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['fireflies'],
+    },
+    {
+      icon: PipedriveIcon,
+      title: 'Pipedrive win/loss analyzer',
+      prompt:
+        'Create a scheduled monthly workflow that pulls closed Pipedrive deals, analyzes patterns in wins vs losses, and writes an insights report file for the sales team.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'analysis'],
+    },
+    {
+      icon: PipedriveIcon,
+      title: 'Pipedrive renewal forecast',
+      prompt:
+        'Build a workflow that pulls Pipedrive customer renewals due in the next 90 days, generates a personalized renewal-prep brief, and emails the account owner.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: PipedriveIcon,
+      title: 'Pipedrive Slack channel-per-deal',
+      prompt:
+        'Create a workflow that for Pipedrive deals above a threshold creates a Slack channel, invites the account team, and pins the deal record link.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

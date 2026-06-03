@@ -6,26 +6,25 @@ import { toError } from '@sim/utils/errors'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Button,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   Columns2,
   Combobox,
   type ComboboxOption,
-  Download,
   Eye,
   File as FilesIcon,
   Folder,
   FolderPlus,
   Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Pencil,
-  Trash2,
+  Trash,
   toast,
   Upload,
 } from '@/components/emcn'
+import { Download } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -1071,7 +1070,7 @@ export function Files() {
           ...(canEdit
             ? [
                 { label: 'Rename', icon: Pencil, onClick: handleStartHeaderRename },
-                { label: 'Delete', icon: Trash2, onClick: handleDeleteSelected },
+                { label: 'Delete', icon: Trash, onClick: handleDeleteSelected },
               ]
             : []),
         ],
@@ -1457,7 +1456,7 @@ export function Files() {
         ? [
             {
               label: 'Delete',
-              icon: Trash2,
+              icon: Trash,
               onClick: handleDeleteSelected,
             },
           ]
@@ -1857,24 +1856,26 @@ export function Files() {
             saveRef={saveRef}
           />
 
-          <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
-            <ModalContent size='sm'>
-              <ModalHeader>Unsaved Changes</ModalHeader>
-              <ModalBody>
-                <ModalDescription className='text-[var(--text-secondary)]'>
-                  You have unsaved changes. Are you sure you want to discard them?
-                </ModalDescription>
-              </ModalBody>
-              <ModalFooter>
-                <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>
-                  Keep Editing
-                </Button>
-                <Button variant='destructive' onClick={handleDiscardChanges}>
-                  Discard Changes
-                </Button>
-              </ModalFooter>
-            </ModalContent>
-          </Modal>
+          <ChipModal
+            open={showUnsavedChangesAlert}
+            onOpenChange={setShowUnsavedChangesAlert}
+            srTitle='Unsaved Changes'
+          >
+            <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+            <ChipModalBody>
+              <p className='px-2 text-[var(--text-secondary)] text-sm'>
+                You have unsaved changes. Are you sure you want to discard them?
+              </p>
+            </ChipModalBody>
+            <ChipModalFooter>
+              <Chip variant='filled' flush onClick={() => setShowUnsavedChangesAlert(false)}>
+                Keep Editing
+              </Chip>
+              <Chip variant='destructive' flush onClick={handleDiscardChanges}>
+                Discard Changes
+              </Chip>
+            </ChipModalFooter>
+          </ChipModal>
         </div>
 
         <DeleteConfirmModal

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { ArrowLeft, ArrowLeftRight, Info, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
+  ArrowRight,
   Button,
   ButtonGroup,
   ButtonGroupItem,
@@ -22,16 +23,22 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
+import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
-import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
-import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
+import {
+  getCanonicalScopesForProvider,
+  getProviderIdFromServiceId,
+  type OAuthProvider,
+} from '@/lib/oauth'
+import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import type { ConfigFieldValue } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { getBlock } from '@/blocks'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfig, ConnectorConfigField } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
@@ -246,16 +253,13 @@ export function AddConnectorModal({
           <ModalBody className={step === 'select-type' ? 'pt-2 pb-3' : 'pb-3'}>
             {step === 'select-type' ? (
               <div className='flex min-h-0 flex-col gap-2.5'>
-                <div className='flex h-8 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-2 transition-colors duration-100 hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-4)]'>
-                  <Search
-                    className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
-                    strokeWidth={2}
-                  />
+                <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
+                  <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
                   <Input
                     placeholder='Search sources...'
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className='h-auto flex-1 border-0 bg-transparent p-0 font-medium text-small leading-none placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                    className='h-full w-full border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
                   />
                 </div>
                 <div className='max-h-[390px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>
@@ -263,6 +267,7 @@ export function AddConnectorModal({
                     {filteredEntries.map(([type, config]) => (
                       <ConnectorTypeCard
                         key={type}
+                        type={type}
                         config={config}
                         onClick={() => handleSelectType(type)}
                       />
@@ -515,18 +520,22 @@ export function AddConnectorModal({
         connectorConfig &&
         connectorConfig.auth.mode === 'oauth' &&
         connectorProviderId && (
-          <OAuthModal
+          <ConnectOAuthModal
             mode='connect'
-            isOpen={showOAuthModal}
-            onClose={() => {
-              consumeOAuthReturnContext()
-              setShowOAuthModal(false)
+            origin='kb-connectors'
+            open={showOAuthModal}
+            onOpenChange={(open) => {
+              if (!open) {
+                consumeOAuthReturnContext()
+                setShowOAuthModal(false)
+              }
             }}
             provider={connectorProviderId}
             serviceId={connectorConfig.auth.provider}
+            providerId={connectorProviderId}
+            requiredScopes={getCanonicalScopesForProvider(connectorProviderId)}
             workspaceId={workspaceId}
             knowledgeBaseId={knowledgeBaseId}
-            credentialCount={credentials.length}
             connectorType={selectedType ?? undefined}
           />
         )}
@@ -535,27 +544,39 @@ export function AddConnectorModal({
 }
 
 interface ConnectorTypeCardProps {
+  type: string
   config: ConnectorConfig
   onClick: () => void
 }
 
-function ConnectorTypeCard({ config, onClick }: ConnectorTypeCardProps) {
+function ConnectorTypeCard({ type, config, onClick }: ConnectorTypeCardProps) {
   const Icon = config.icon
+  const brandBg = getBlock(type)?.bgColor ?? null
 
   return (
-    <Button
+    <button
       type='button'
-      variant='ghost'
-      className='group flex min-h-10 w-full justify-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
+      className='flex w-full items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
       onClick={onClick}
     >
-      <Icon className='size-[18px] flex-shrink-0 text-[var(--text-icon)]' />
-      <div className='flex min-w-0 flex-1 flex-col gap-[1px]'>
-        <span className='truncate font-medium text-[var(--text-body)] text-small'>
-          {config.name}
-        </span>
-        <span className='truncate text-[var(--text-muted)] text-caption'>{config.description}</span>
+      <div className='size-9 flex-shrink-0'>
+        <div
+          className={cn(
+            'flex size-full items-center justify-center rounded-xl border',
+            brandBg
+              ? 'border-[var(--border-1)]'
+              : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
+          )}
+          style={brandBg ? { background: brandBg } : undefined}
+        >
+          <Icon className={cn('size-5', brandBg ? 'text-white' : 'text-[var(--text-icon)]')} />
+        </div>
       </div>
-    </Button>
+      <div className='flex min-w-0 flex-1 flex-col'>
+        <span className='truncate text-[14px] text-[var(--text-body)]'>{config.name}</span>
+        <span className='truncate text-[12px] text-[var(--text-muted)]'>{config.description}</span>
+      </div>
+      <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
+    </button>
   )
 }

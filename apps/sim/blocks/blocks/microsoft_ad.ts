@@ -1,6 +1,6 @@
-import { AzureIcon } from '@/components/icons'
+import { AzureIcon, GoogleIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { MicrosoftAdResponse } from '@/tools/microsoft_ad/types'
 
@@ -13,7 +13,6 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
   docsLink: 'https://docs.sim.ai/tools/microsoft_ad',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['identity', 'microsoft-365'],
   bgColor: '#0078D4',
   icon: AzureIcon,
   authMode: AuthMode.OAuth,
@@ -395,3 +394,76 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
     },
   },
 }
+
+export const MicrosoftAdBlockMeta = {
+  tags: ['identity', 'microsoft-365'],
+  templates: [
+    {
+      icon: GoogleIcon,
+      title: 'Microsoft AD provisioning',
+      prompt:
+        'Build a workflow that on a Workday new-hire event provisions Microsoft Active Directory accounts, group memberships, and home directories, and writes the audit record.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: GoogleIcon,
+      title: 'Microsoft AD offboarding sweep',
+      prompt:
+        'Create a workflow that on a Workday termination disables the Microsoft AD account, removes group memberships, and writes the security audit log.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: GoogleIcon,
+      title: 'Microsoft AD access review',
+      prompt:
+        'Build a scheduled quarterly workflow that surfaces Microsoft AD group memberships, requires owner attestation in Teams, and writes the audit log to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+    {
+      icon: GoogleIcon,
+      title: 'Microsoft AD password-rotation watcher',
+      prompt:
+        'Create a scheduled workflow that finds Microsoft AD accounts with expired or never-changed passwords, sends targeted reset reminders, and writes the compliance audit.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation'],
+    },
+    {
+      icon: GoogleIcon,
+      title: 'Microsoft AD stale-account sweeper',
+      prompt:
+        'Build a scheduled workflow that lists Microsoft AD accounts inactive for 90+ days, requires owner re-attestation, and disables accounts that fail attestation.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+    },
+    {
+      icon: GoogleIcon,
+      title: 'Microsoft AD service-account auditor',
+      prompt:
+        'Create a scheduled monthly workflow that lists Microsoft AD service accounts with elevated privileges, requires owner attestation, and writes the audit.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: GoogleIcon,
+      title: 'Microsoft AD privileged-access monitor',
+      prompt:
+        'Build a workflow that watches Microsoft AD privileged-group changes in real time and pings the security Teams channel on adds/removes for breakage detection.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+  ],
+} as const satisfies BlockMeta

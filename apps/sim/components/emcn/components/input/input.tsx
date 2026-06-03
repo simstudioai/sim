@@ -31,6 +31,12 @@ const inputVariants = cva(
     variants: {
       variant: {
         default: '',
+        /**
+         * Aligns the input with the chip family — a 30px `rounded-lg` filled
+         * surface that sits flush next to {@link ChipDropdown} / {@link ChipDatePicker}
+         * in form rows (e.g. tag-filter values).
+         */
+        chip: 'h-[30px] rounded-lg text-[var(--text-body)] focus-visible:border-[var(--border-focus)] dark:bg-[var(--surface-4)]',
       },
     },
     defaultVariants: {

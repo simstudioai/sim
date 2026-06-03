@@ -128,28 +128,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   // Fallback handled by CSS defaults
                 }
 
-                // Toolbar triggers height
-                try {
-                  var toolbarStored = localStorage.getItem('toolbar-state');
-                  if (toolbarStored) {
-                    var toolbarParsed = JSON.parse(toolbarStored);
-                    var toolbarState = toolbarParsed && toolbarParsed.state;
-                    var toolbarTriggersHeight = toolbarState && toolbarState.toolbarTriggersHeight;
-                    if (
-                      toolbarTriggersHeight !== undefined &&
-                      toolbarTriggersHeight >= 30 &&
-                      toolbarTriggersHeight <= 800
-                    ) {
-                      document.documentElement.style.setProperty(
-                        '--toolbar-triggers-height',
-                        toolbarTriggersHeight + 'px'
-                      );
-                    }
-                  }
-                } catch (e) {
-                  // Fallback handled by CSS defaults
-                }
-
                 // Editor connections height
                 try {
                   var editorStored = localStorage.getItem('panel-editor-state');

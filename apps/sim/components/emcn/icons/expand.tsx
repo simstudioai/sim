@@ -14,28 +14,28 @@ export function Expand(props: SVGProps<SVGSVGElement>) {
       <path
         d='M15 3H21V9'
         stroke='currentColor'
-        strokeWidth='2'
+        strokeWidth='1.55'
         strokeLinecap='round'
         strokeLinejoin='round'
       />
       <path
         d='M9 21H3V15'
         stroke='currentColor'
-        strokeWidth='2'
+        strokeWidth='1.55'
         strokeLinecap='round'
         strokeLinejoin='round'
       />
       <path
         d='M21 3L14 10'
         stroke='currentColor'
-        strokeWidth='2'
+        strokeWidth='1.55'
         strokeLinecap='round'
         strokeLinejoin='round'
       />
       <path
         d='M3 21L10 14'
         stroke='currentColor'
-        strokeWidth='2'
+        strokeWidth='1.55'
         strokeLinecap='round'
         strokeLinejoin='round'
       />

@@ -5,8 +5,10 @@ import clsx from 'clsx'
 import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { chipVariants } from '@/components/emcn'
 import { Lock } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { cn } from '@/lib/core/utils/cn'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -45,7 +47,6 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
   active: boolean
-  level: number
   dragDisabled?: boolean
   onWorkflowClick: (workflowId: string, shiftKey: boolean) => void
   onDragStart?: () => void
@@ -62,7 +63,6 @@ interface WorkflowItemProps {
 export function WorkflowItem({
   workflow,
   active,
-  level,
   dragDisabled = false,
   onWorkflowClick,
   onDragStart: onDragStartProp,
@@ -414,15 +414,11 @@ export function WorkflowItem({
       <Link
         href={`/workspace/${workspaceId}/w/${workflow.id}`}
         data-item-id={workflow.id}
-        className={clsx(
-          'group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm',
-          (active || isContextMenuOpen || (isSelected && selectedWorkflows.size > 1)) &&
-            'bg-[var(--surface-active)]',
-          !active &&
-            !isContextMenuOpen &&
-            !(isSelected && selectedWorkflows.size > 1) &&
-            !isAnyDragActive &&
-            'hover-hover:bg-[var(--surface-hover)]',
+        className={cn(
+          chipVariants({
+            active: active || isContextMenuOpen || (isSelected && selectedWorkflows.size > 1),
+            fullWidth: true,
+          }),
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         draggable={!isEditing && !dragDisabled && !effectiveLocked}
@@ -448,7 +444,7 @@ export function WorkflowItem({
                 onChange={(e) => setEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleInputBlur}
-                className='w-full min-w-0 border-0 bg-transparent p-0 font-base text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
                 maxLength={100}
                 disabled={isRenaming}
                 onClick={(e) => {
@@ -462,7 +458,7 @@ export function WorkflowItem({
               />
             ) : (
               <div
-                className='min-w-0 truncate font-base text-[var(--text-body)]'
+                className='min-w-0 truncate text-[var(--text-body)]'
                 onDoubleClick={handleDoubleClick}
               >
                 {workflow.name}
@@ -524,7 +520,7 @@ export function WorkflowItem({
         disableDuplicate={!userPermissions.canEdit || isDuplicatingSelection}
         disableExport={!userPermissions.canEdit}
         disableColorChange={!userPermissions.canEdit || effectiveLocked}
-        showDelete={userPermissions.canAdmin}
+        showDelete={userPermissions.canEdit}
         disableDelete={!canDeleteSelection || effectiveLocked}
         onToggleLock={handleToggleLock}
         showLock={!isMixedSelection && selectedWorkflows.size <= 1}

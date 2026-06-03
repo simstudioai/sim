@@ -1,5 +1,5 @@
 import { WorkdayIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 
 export const WorkdayBlock: BlockConfig = {
@@ -11,7 +11,6 @@ export const WorkdayBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/workday',
   category: 'tools',
   integrationType: IntegrationType.HR,
-  tags: ['hiring', 'project-management'],
   bgColor: '#F5F0EB',
   icon: WorkdayIcon,
   subBlocks: [
@@ -462,3 +461,76 @@ Output: {"Marital_Status_Reference":{"ID":{"attributes":{"wd:type":"Marital_Stat
     terminationDate: { type: 'string', description: 'Termination date' },
   },
 }
+
+export const WorkdayBlockMeta = {
+  tags: ['hiring', 'project-management'],
+  templates: [
+    {
+      icon: WorkdayIcon,
+      title: 'Workday new-hire kickoff',
+      prompt:
+        'Build a workflow that fires when a Workday pre-hire is converted into a hired employee, gathers their position and start date, kicks off provisioning in downstream tools, assigns an onboarding plan, schedules introductions on Google Calendar, and notifies the team in Slack.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation', 'enterprise'],
+      alsoIntegrations: ['slack', 'google_calendar'],
+    },
+    {
+      icon: WorkdayIcon,
+      title: 'Pre-hire creation pipeline',
+      prompt:
+        'Create a workflow exposed as a form that captures candidate details from recruiters, validates required fields, creates a pre-hire record in Workday, returns the pre-hire identifier, and logs the submission in a recruiting tracking table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'recruiting', 'automation'],
+    },
+    {
+      icon: WorkdayIcon,
+      title: 'Job change orchestrator',
+      prompt:
+        'Build a workflow that watches a Sim table of approved promotions, transfers, and demotions, performs the Workday change-job action for each row, updates downstream tools and Slack channel membership, and writes the outcome back to the table for audit.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: WorkdayIcon,
+      title: 'Compensation review prep',
+      prompt:
+        'Create a scheduled workflow that pulls Workday workers and their current compensation, joins with a performance ratings table, drafts manager-by-manager compensation review packets as files, and emails each manager their packet ahead of the cycle.',
+      modules: ['scheduled', 'tables', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: WorkdayIcon,
+      title: 'Termination workflow',
+      prompt:
+        'Build a workflow triggered by an approved offboarding request that initiates the Workday Terminate Employee business process, deactivates downstream accounts, schedules an exit interview on Google Calendar, and writes a compliance record to an audit table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise', 'compliance'],
+      alsoIntegrations: ['google_calendar'],
+    },
+    {
+      icon: WorkdayIcon,
+      title: 'Org structure snapshot',
+      prompt:
+        'Create a scheduled weekly workflow that pulls Workday workers and organizations, builds an org chart file with departments and cost centers, diffs against last week to highlight structural changes, and emails the result to people leadership.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise', 'reporting'],
+    },
+    {
+      icon: WorkdayIcon,
+      title: 'Personal info update self-service',
+      prompt:
+        'Build a workflow exposed as a chat or form endpoint that takes employee-submitted personal info changes, validates the request, calls the Workday Update Personal Information action, confirms back to the employee, and logs the change in a people-operations audit table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation', 'team'],
+    },
+  ],
+} as const satisfies BlockMeta

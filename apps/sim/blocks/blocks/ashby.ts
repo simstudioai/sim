@@ -1,5 +1,5 @@
 import { AshbyIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
 export const AshbyBlock: BlockConfig = {
@@ -11,7 +11,6 @@ export const AshbyBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/ashby',
   category: 'tools',
   integrationType: IntegrationType.HR,
-  tags: ['hiring'],
   bgColor: '#5D4ED6',
   icon: AshbyIcon,
   authMode: AuthMode.ApiKey,
@@ -967,3 +966,77 @@ Output only the ISO 8601 timestamp string, nothing else.`,
     syncToken: { type: 'string', description: 'Sync token for incremental updates' },
   },
 }
+
+export const AshbyBlockMeta = {
+  tags: ['hiring'],
+  templates: [
+    {
+      icon: AshbyIcon,
+      title: 'Ashby pipeline digest',
+      prompt:
+        'Build a scheduled daily workflow that lists open Ashby jobs, summarizes candidate counts per stage, flags applications stalled for more than five days, logs metrics to a tracking table, and Slacks hiring managers a personalized pipeline digest.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'recruiting', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AshbyIcon,
+      title: 'Resume to Ashby candidate',
+      prompt:
+        'Create a workflow that watches a folder of inbound resumes, extracts contact info and work history, deduplicates against existing Ashby candidates, creates new candidate records when needed, and tags them with the source job they applied through.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'recruiting', 'automation'],
+    },
+    {
+      icon: AshbyIcon,
+      title: 'Interview note logger',
+      prompt:
+        'Build a workflow that runs after every interview is logged in your meeting tool, summarizes the transcript, scores the candidate against the job requirements, creates a structured note on the matching Ashby candidate, and notifies the hiring manager in Slack.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'recruiting', 'team'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AshbyIcon,
+      title: 'Stage-change responder',
+      prompt:
+        'Create a workflow that detects when an Ashby application moves into a new stage, sends the candidate a stage-appropriate email, prepares the interviewer brief in a file, and updates a recruiting tracking table so coordinators always know who is next.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'recruiting', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: AshbyIcon,
+      title: 'Ashby DEI snapshot',
+      prompt:
+        'Build a scheduled monthly workflow that pulls Ashby candidates, applications, and openings, computes funnel diversity metrics by stage, role, and source, and writes a confidential report file shared with people leadership and compliance.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise', 'reporting'],
+    },
+    {
+      icon: AshbyIcon,
+      title: 'Candidate research enricher',
+      prompt:
+        'Create a workflow that takes new Ashby candidates, researches each across LinkedIn and the web for relevant background, writes a structured profile summary onto the candidate as an Ashby note, and updates a recruiting table with research links.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'recruiting', 'research'],
+      alsoIntegrations: ['linkedin'],
+    },
+    {
+      icon: AshbyIcon,
+      title: 'Offer ready brief',
+      prompt:
+        'Build a workflow that runs when an Ashby application reaches the offer stage, gathers compensation benchmarks, interview feedback, and candidate priorities, drafts an offer brief file for the hiring manager, and Slacks the people team to start the offer process.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'recruiting', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

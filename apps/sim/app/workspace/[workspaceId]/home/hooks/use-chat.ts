@@ -370,8 +370,6 @@ function isChatContext(value: unknown): value is ChatContext {
       return typeof value.fileId === 'string'
     case 'folder':
       return typeof value.folderId === 'string'
-    case 'templates':
-      return value.templateId === undefined || typeof value.templateId === 'string'
     case 'docs':
       return true
     case 'slash_command':
@@ -4721,6 +4719,8 @@ export function useChat(
         ...('tableId' in c && c.tableId ? { tableId: c.tableId } : {}),
         ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
         ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
+        ...(c.kind === 'skill' && 'skillId' in c ? { skillId: c.skillId } : {}),
+        ...(c.kind === 'integration' && 'blockType' in c ? { blockType: c.blockType } : {}),
       }))
       const cachedUserMsg: PersistedMessage = {
         id: userMessageId,

@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useMemo } from 'react'
+import { stripVersionSuffix } from '@sim/utils/string'
 import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
@@ -80,8 +81,7 @@ function isHiddenToolCall(toolName: string | undefined): boolean {
 }
 
 function formatToolName(name: string): string {
-  return name
-    .replace(/_v\d+$/, '')
+  return stripVersionSuffix(name)
     .split('_')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ')
@@ -562,7 +562,7 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
     if (block.type === 'tool_call') {
       if (!block.toolCall) continue
       const tc = block.toolCall
-      if (isHiddenToolCall(tc.name)) continue
+      if (isToolHiddenInUi(tc.name)) continue
       if (tc.name === ReadTool.id && isToolResultRead(tc.params)) continue
       const isDispatch = SUBAGENT_KEYS.has(tc.name) && !tc.calledBy
 
@@ -781,9 +781,7 @@ function MessageContentInner({
             return (
               <div key={`stopped-${i}`} className='flex items-center gap-[8px]'>
                 <CircleStop className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                <span className='font-base text-[14px] text-[var(--text-body)]'>
-                  Stopped by user
-                </span>
+                <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
               </div>
             )
         }

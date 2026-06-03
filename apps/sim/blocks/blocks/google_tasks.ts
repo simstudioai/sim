@@ -1,6 +1,6 @@
 import { GoogleTasksIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleTasksResponse } from '@/tools/google_tasks/types'
@@ -14,8 +14,7 @@ export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_tasks',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['google-workspace', 'project-management', 'scheduling'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleTasksIcon,
   authMode: AuthMode.OAuth,
 
@@ -281,3 +280,78 @@ Return ONLY the timestamp - no explanations, no extra text.`,
     nextPageToken: { type: 'string', description: 'Token for next page of results' },
   },
 }
+
+export const GoogleTasksBlockMeta = {
+  tags: ['google-workspace', 'project-management', 'scheduling'],
+  templates: [
+    {
+      icon: GoogleTasksIcon,
+      title: 'Google Tasks digest',
+      prompt:
+        'Build a scheduled daily workflow that summarizes Google Tasks due today and tomorrow, and emails the user a prioritized digest each morning.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: GoogleTasksIcon,
+      title: 'Google Tasks from Gmail',
+      prompt:
+        'Create a workflow that watches Gmail for emails marked with a task label, extracts the action and due date, and creates a Google Tasks entry with a link back to the email.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: GoogleTasksIcon,
+      title: 'Google Tasks from meetings',
+      prompt:
+        'Build a workflow that runs after Google Meet meetings, extracts action items from the transcript, and creates Google Tasks entries for the owner with due dates.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'automation'],
+      alsoIntegrations: ['google_meet'],
+    },
+    {
+      icon: GoogleTasksIcon,
+      title: 'Google Tasks completion digest',
+      prompt:
+        'Create a scheduled weekly workflow that summarizes Google Tasks completed by the user, captures the throughput, and emails a personal productivity report.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: GoogleTasksIcon,
+      title: 'Google Tasks rolling cleanup',
+      prompt:
+        'Build a scheduled workflow that runs daily, archives Google Tasks completed more than 30 days ago, and surfaces tasks past their due date for re-prioritization.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation'],
+    },
+    {
+      icon: GoogleTasksIcon,
+      title: 'Google Tasks Slack sync',
+      prompt:
+        'Create a workflow that watches Slack for messages tagged with the saved-task emoji, captures the message and creates a Google Tasks entry with a link to the Slack thread.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'sync'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleTasksIcon,
+      title: 'Google Tasks calendar block builder',
+      prompt:
+        'Build a workflow that on a Google Tasks creation also inserts a Google Calendar focus block with the task title, so the time is actually reserved.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation'],
+      alsoIntegrations: ['google_calendar'],
+    },
+  ],
+} as const satisfies BlockMeta

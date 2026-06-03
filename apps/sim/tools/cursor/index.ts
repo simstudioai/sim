@@ -2,10 +2,13 @@ import { addFollowupTool, addFollowupV2Tool } from '@/tools/cursor/add_followup'
 import { deleteAgentTool, deleteAgentV2Tool } from '@/tools/cursor/delete_agent'
 import { downloadArtifactTool, downloadArtifactV2Tool } from '@/tools/cursor/download_artifact'
 import { getAgentTool, getAgentV2Tool } from '@/tools/cursor/get_agent'
+import { getApiKeyInfoTool, getApiKeyInfoV2Tool } from '@/tools/cursor/get_api_key_info'
 import { getConversationTool, getConversationV2Tool } from '@/tools/cursor/get_conversation'
 import { launchAgentTool, launchAgentV2Tool } from '@/tools/cursor/launch_agent'
 import { listAgentsTool, listAgentsV2Tool } from '@/tools/cursor/list_agents'
 import { listArtifactsTool, listArtifactsV2Tool } from '@/tools/cursor/list_artifacts'
+import { listModelsTool, listModelsV2Tool } from '@/tools/cursor/list_models'
+import { listRepositoriesTool, listRepositoriesV2Tool } from '@/tools/cursor/list_repositories'
 import { stopAgentTool, stopAgentV2Tool } from '@/tools/cursor/stop_agent'
 
 export const cursorListAgentsTool = listAgentsTool
@@ -17,6 +20,9 @@ export const cursorStopAgentTool = stopAgentTool
 export const cursorDeleteAgentTool = deleteAgentTool
 export const cursorDownloadArtifactTool = downloadArtifactTool
 export const cursorListArtifactsTool = listArtifactsTool
+export const cursorListModelsTool = listModelsTool
+export const cursorListRepositoriesTool = listRepositoriesTool
+export const cursorGetApiKeyInfoTool = getApiKeyInfoTool
 
 export const cursorListAgentsV2Tool = listAgentsV2Tool
 export const cursorGetAgentV2Tool = getAgentV2Tool
@@ -27,3 +33,6 @@ export const cursorStopAgentV2Tool = stopAgentV2Tool
 export const cursorDeleteAgentV2Tool = deleteAgentV2Tool
 export const cursorDownloadArtifactV2Tool = downloadArtifactV2Tool
 export const cursorListArtifactsV2Tool = listArtifactsV2Tool
+export const cursorListModelsV2Tool = listModelsV2Tool
+export const cursorListRepositoriesV2Tool = listRepositoriesV2Tool
+export const cursorGetApiKeyInfoV2Tool = getApiKeyInfoV2Tool

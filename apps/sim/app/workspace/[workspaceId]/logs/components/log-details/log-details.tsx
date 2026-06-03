@@ -2,17 +2,18 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
-import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Eye, Search, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   Button,
   Code,
-  Copy as CopyIcon,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Duplicate,
+  Eye,
   Input,
   Redo,
   Search as SearchIcon,
@@ -247,7 +248,7 @@ export const WorkflowOutputSection = memo(
                 onCloseAutoFocus={(e) => e.preventDefault()}
               >
                 <DropdownMenuItem onSelect={handleCopy}>
-                  <CopyIcon />
+                  <Duplicate />
                   Copy
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

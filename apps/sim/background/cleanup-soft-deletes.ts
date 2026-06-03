@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import {
   a2aAgent,
   copilotChats,
+  document,
   knowledgeBase,
   mcpServers,
   memory,
@@ -14,18 +15,30 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
-import { and, inArray, isNotNull, lt } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
 import {
   batchDeleteByWorkspaceAndTimestamp,
+  chunkArray,
   deleteRowsById,
   selectRowsByIdChunks,
 } from '@/lib/cleanup/batch-delete'
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
+import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 
 const logger = createLogger('CleanupSoftDeletes')
+
+const KB_ORPHAN_BINDING_BATCH_SIZE = 500
+const KB_ORPHAN_BINDING_TOTAL_LIMIT = 5_000
+/**
+ * Grace window before an unreferenced KB binding is swept. Comfortably longer
+ * than any presign → upload → document-insert flow, so an in-flight upload is
+ * never mistaken for an abandoned one.
+ */
+const KB_ORPHAN_BINDING_GRACE_HOURS = 7 * 24
+const KB_ORPHAN_BINDING_WORKSPACE_CHUNK = 50
 
 interface WorkspaceFileScope {
   /** Rows from `workspace_file` (singular, legacy workspace-context only). */
@@ -162,6 +175,87 @@ const CLEANUP_TARGETS = [
   },
 ] as const
 
+/**
+ * Sweep abandoned knowledge-base ownership bindings. The presigned upload flow
+ * writes a `workspace_files` binding when it hands out an upload URL, before the
+ * object is stored and before any document is created. If the upload is never
+ * completed, that binding is orphaned — no `document.storageKey` ever references
+ * its key. Such bindings are inert (read access requires a live document, and
+ * the move re-point only follows referenced keys), but they accumulate, so we
+ * drop the best-effort object and soft-delete the binding once they are older
+ * than the grace window.
+ */
+async function cleanupOrphanedKnowledgeBaseBindings(
+  workspaceIds: string[],
+  label: string
+): Promise<{ total: number; deleted: number; failed: number }> {
+  const stats = { total: 0, deleted: 0, failed: 0 }
+  if (workspaceIds.length === 0) return stats
+
+  const orphanCutoff = new Date(Date.now() - KB_ORPHAN_BINDING_GRACE_HOURS * 60 * 60 * 1000)
+
+  for (const chunkIds of chunkArray(workspaceIds, KB_ORPHAN_BINDING_WORKSPACE_CHUNK)) {
+    let attempted = 0
+    while (attempted < KB_ORPHAN_BINDING_TOTAL_LIMIT) {
+      const limit = Math.min(
+        KB_ORPHAN_BINDING_BATCH_SIZE,
+        KB_ORPHAN_BINDING_TOTAL_LIMIT - attempted
+      )
+      const rows = await db
+        .select({ key: workspaceFiles.key })
+        .from(workspaceFiles)
+        .where(
+          and(
+            inArray(workspaceFiles.workspaceId, chunkIds),
+            eq(workspaceFiles.context, 'knowledge-base'),
+            isNull(workspaceFiles.deletedAt),
+            lt(workspaceFiles.uploadedAt, orphanCutoff),
+            sql`NOT EXISTS (
+              SELECT 1 FROM ${document} AS doc
+              WHERE doc.storage_key = ${workspaceFiles.key}
+            )`
+          )
+        )
+        .orderBy(asc(workspaceFiles.uploadedAt), asc(workspaceFiles.key))
+        .limit(limit)
+
+      if (rows.length === 0) break
+
+      const keys = rows.map((row) => row.key)
+      stats.total += keys.length
+      attempted += keys.length
+
+      if (isUsingCloudStorage()) {
+        const result = await StorageService.deleteFiles(keys, 'knowledge-base')
+        stats.failed += result.failed.length
+        for (const { key, error } of result.failed) {
+          logger.error(`[${label}] Failed to delete orphan KB object ${key}:`, { error })
+        }
+      }
+
+      let deletedThisBatch = 0
+      for (const key of keys) {
+        try {
+          await deleteFileMetadata(key)
+          deletedThisBatch++
+        } catch (error) {
+          stats.failed++
+          logger.error(`[${label}] Failed to delete orphan KB binding ${key}:`, { error })
+        }
+      }
+      stats.deleted += deletedThisBatch
+
+      // No progress (every delete failed) — stop rather than reselect the same rows.
+      if (deletedThisBatch === 0) break
+    }
+  }
+
+  logger.info(
+    `[${label}/kb_orphan_bindings] Complete: ${stats.deleted}/${stats.total} bindings cleaned, ${stats.failed} failed`
+  )
+  return stats
+}
+
 export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise<void> {
   const startTime = Date.now()
   const { workspaceIds, retentionHours, label } = payload
@@ -256,8 +350,10 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
     totalDeleted += result.deleted
   }
 
+  const orphanBindingStats = await cleanupOrphanedKnowledgeBaseBindings(workspaceIds, label)
+
   logger.info(
-    `[${label}] Complete: ${totalDeleted} rows deleted, ${fileStats.filesDeleted} files cleaned`
+    `[${label}] Complete: ${totalDeleted} rows deleted, ${fileStats.filesDeleted} files cleaned, ${orphanBindingStats.deleted} orphan KB bindings cleaned`
   )
 
   // Clean up copilot backend + chat storage files after DB rows are gone

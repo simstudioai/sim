@@ -465,22 +465,27 @@ describe('Individual Folder API Route', () => {
       expect(response.status).toBe(403)
 
       const data = await response.json()
-      expect(data).toHaveProperty('error', 'Admin access required to delete folders')
+      expect(data).toHaveProperty('error', 'Write or Admin access required to delete folders')
     })
 
-    it('should return 403 when user has only write permissions for delete', async () => {
+    it('should allow folder deletion for write permissions', async () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue('write')
+
+      mockDbRef.current = createFolderDbMock({
+        folderLookupResult: mockFolder,
+      })
 
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
 
       const response = await DELETE(req, { params })
 
-      expect(response.status).toBe(403)
+      expect(response.status).toBe(200)
 
       const data = await response.json()
-      expect(data).toHaveProperty('error', 'Admin access required to delete folders')
+      expect(data).toHaveProperty('success', true)
+      expect(mockPerformDeleteFolder).toHaveBeenCalled()
     })
 
     it('should allow folder deletion for admin permissions', async () => {

@@ -3,7 +3,6 @@ import {
   a2aAgent,
   apiKey,
   chat,
-  form,
   webhook,
   workflow,
   workflowDeploymentVersion,
@@ -14,13 +13,13 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { cleanupWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
-import { cleanupWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowLifecycle')
@@ -163,15 +162,6 @@ export async function archiveWorkflow(
         isActive: false,
       })
       .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
-
-    await tx
-      .update(form)
-      .set({
-        archivedAt: now,
-        updatedAt: now,
-        isActive: false,
-      })
-      .where(and(eq(form.workflowId, workflowId), isNull(form.archivedAt)))
 
     await tx
       .update(workflowMcpTool)
@@ -319,11 +309,6 @@ export async function restoreWorkflow(
       .where(eq(chat.workflowId, workflowId))
 
     await tx
-      .update(form)
-      .set({ archivedAt: null, updatedAt: now })
-      .where(eq(form.workflowId, workflowId))
-
-    await tx
       .update(workflowMcpTool)
       .set({ archivedAt: null, updatedAt: now })
       .where(eq(workflowMcpTool.workflowId, workflowId))
@@ -402,7 +387,7 @@ export async function archiveWorkflowsByIdsInWorkspace(
 
 /**
  * Disables all resources owned by a banned user by archiving every workspace
- * they own (cascading to workflows, chats, forms, KBs, tables, files, etc.)
+ * they own (cascading to workflows, chats, KBs, tables, files, etc.)
  * and deleting their personal API keys.
  */
 export async function disableUserResources(userId: string): Promise<void> {

@@ -25,6 +25,37 @@ export function isExecInFlight(exec: RowExecutionMetadata | undefined): boolean 
 }
 
 /**
+ * A cell run the user/stop killed. The single source of truth for "do not run /
+ * do not write this cell" — used by the in-memory write guard, the worker's
+ * pre-execution check, and the resume worker. The SQL guard in
+ * `writeExecutionsPatch` mirrors this status test in its `WHERE`.
+ */
+export function isExecCancelled(exec: RowExecutionMetadata | undefined): boolean {
+  return exec?.status === 'cancelled'
+}
+
+/**
+ * Cancelled AND killed after `since`. The dispatcher's tombstone test: a cell
+ * cancelled after a dispatch was requested must be skipped by that dispatch's
+ * later windows, even though the dispatcher pre-stamped it before the stop.
+ */
+export function isExecCancelledAfter(exec: RowExecutionMetadata | undefined, since: Date): boolean {
+  if (!isExecCancelled(exec) || !exec?.cancelledAt) return false
+  const at = Date.parse(exec.cancelledAt)
+  return Number.isFinite(at) && at > since.getTime()
+}
+
+/**
+ * A dependency column counts as unmet when its value is empty OR explicitly
+ * `false`. An unchecked checkbox is treated as "dependency not satisfied", so
+ * only checking a box (false→true) makes dependents eligible — unchecking
+ * (true→false) never triggers a rerun.
+ */
+function isDepValueUnmet(value: unknown): boolean {
+  return value === null || value === undefined || value === '' || value === false
+}
+
+/**
  * True when every output column the group writes still has a non-empty value
  * on this row. The "completed" exec status is metadata, but the cells are the
  * source of truth — if the user cleared an output cell, the row is effectively
@@ -47,8 +78,7 @@ export function areOutputsFilled(group: WorkflowGroup, row: TableRow): boolean {
 export function areGroupDepsSatisfied(group: WorkflowGroup, row: TableRow): boolean {
   const cols = group.dependencies?.columns ?? []
   for (const colName of cols) {
-    const value = row.data[colName]
-    if (value === null || value === undefined || value === '') return false
+    if (isDepValueUnmet(row.data[colName])) return false
   }
   return true
 }
@@ -66,8 +96,7 @@ export function getUnmetGroupDeps(group: WorkflowGroup, row: TableRow): UnmetDep
   const cols = group.dependencies?.columns ?? []
   const columns: string[] = []
   for (const colName of cols) {
-    const value = row.data[colName]
-    if (value === null || value === undefined || value === '') columns.push(colName)
+    if (isDepValueUnmet(row.data[colName])) columns.push(colName)
   }
   return { columns }
 }

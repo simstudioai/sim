@@ -153,7 +153,7 @@ async function buildIntegrationToolSchemasUncached(
     let toolIdToBlockType: Map<string, string> | null = null
     if (workspaceId) {
       try {
-        const [{ getUserPermissionConfig }, { registry: blockRegistry }] = await Promise.all([
+        const [{ getUserPermissionConfig }, { getAllBlocks }] = await Promise.all([
           import('@/ee/access-control/utils/permission-check'),
           import('@/blocks/registry'),
         ])
@@ -163,11 +163,11 @@ async function buildIntegrationToolSchemasUncached(
             permissionConfig.allowedIntegrations.map((i) => i.toLowerCase())
           )
           toolIdToBlockType = new Map()
-          for (const [blockType, blockConfig] of Object.entries(blockRegistry)) {
-            const access = (blockConfig as { tools?: { access?: string[] } }).tools?.access
+          for (const blockConfig of getAllBlocks()) {
+            const access = blockConfig.tools?.access
             if (!access) continue
             for (const toolId of access) {
-              toolIdToBlockType.set(stripVersionSuffix(toolId), blockType.toLowerCase())
+              toolIdToBlockType.set(stripVersionSuffix(toolId), blockConfig.type.toLowerCase())
             }
           }
         }

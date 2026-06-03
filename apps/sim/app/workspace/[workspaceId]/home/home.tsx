@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { Button } from '@/components/emcn'
 import { PanelLeft } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
-import { useSession } from '@/lib/auth/auth-client'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import {
   buildWorkflowAliasWorkflowEntries,
@@ -20,14 +19,25 @@ import {
   type LandingWorkflowSeed,
   LandingWorkflowSeedStorage,
 } from '@/lib/core/utils/browser-storage'
+import {
+  MOTHERSHIP_SEND_MESSAGE_EVENT,
+  type MothershipSendMessageDetail,
+} from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { useFolders } from '@/hooks/queries/folders'
 import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
-import { MothershipChat, MothershipView, TemplatePrompts, UserInput } from './components'
+import {
+  CreditsChip,
+  MothershipChat,
+  MothershipView,
+  SuggestedActions,
+  UserInput,
+} from './components'
 import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
@@ -35,14 +45,16 @@ const logger = createLogger('Home')
 
 interface HomeProps {
   chatId?: string
+  userName?: string
+  userId?: string
+  initialResourceId?: string | null
 }
 
-export function Home({ chatId }: HomeProps = {}) {
+export function Home({ chatId, userName, userId, initialResourceId = null }: HomeProps) {
+  useOAuthReturnRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const initialResourceId = searchParams.get('resource')
-  const { data: session } = useSession()
+  const firstName = userName?.split(' ')[0] ?? ''
   const { data: workspaceFiles = [] } = useWorkspaceFiles(workspaceId)
   const { data: workflows = [] } = useWorkflows(workspaceId)
   const { data: folders = [] } = useFolders(workspaceId)
@@ -52,8 +64,6 @@ export function Home({ chatId }: HomeProps = {}) {
   const [initialPrompt, setInitialPrompt] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
-  const templateRef = useRef<HTMLDivElement>(null)
-  const baseInputHeightRef = useRef<number | null>(null)
 
   const [isInputEntering, setIsInputEntering] = useState(false)
 
@@ -251,11 +261,11 @@ export function Home({ chatId }: HomeProps = {}) {
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const message = (e as CustomEvent<{ message: string }>).detail?.message
+      const message = (e as CustomEvent<MothershipSendMessageDetail>).detail?.message
       if (message) sendMessage(message)
     }
-    window.addEventListener('mothership-send-message', handler)
-    return () => window.removeEventListener('mothership-send-message', handler)
+    window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
+    return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
   }, [sendMessage])
 
   function resolveResourceFromContext(
@@ -353,52 +363,29 @@ export function Home({ chatId }: HomeProps = {}) {
   const showChatSkeleton = Boolean(chatId) && !hasMessages && isChatHistoryPending
   const draftScopeKey = `${workspaceId}:${chatId ?? 'new'}`
 
-  useEffect(() => {
-    if (hasMessages) return
-    const input = initialViewInputRef.current
-    const templates = templateRef.current
-    if (!input || !templates) return
-
-    const ro = new ResizeObserver((entries) => {
-      const height = entries[0].contentRect.height
-      if (baseInputHeightRef.current === null) baseInputHeightRef.current = height
-      const delta = Math.max(0, (height - baseInputHeightRef.current) / 2)
-      templates.style.marginTop = delta > 0 ? `calc(-30vh + ${delta}px)` : ''
-    })
-    ro.observe(input)
-    return () => ro.disconnect()
-  }, [hasMessages])
-
   if (!hasMessages && !showChatSkeleton) {
     return (
-      <div className='h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable_both-edges]'>
+      <div className='relative h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable_both-edges]'>
+        <div className='absolute top-[8.5px] right-[16px] z-10'>
+          <CreditsChip />
+        </div>
         <div className='flex min-h-full flex-col items-center justify-center px-6 pb-[2vh]'>
-          <h1
-            data-tour='home-greeting'
-            className='mb-6 max-w-[42rem] text-balance font-[430] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'
-          >
-            What should we get done
-            {session?.user?.name ? `, ${session.user.name.split(' ')[0]}` : ''}?
+          <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
+            What should we get done{firstName ? `, ${firstName}` : ''}?
           </h1>
-          <div ref={initialViewInputRef} className='w-full' data-tour='home-chat-input'>
+          <div ref={initialViewInputRef} className='w-full'>
             <UserInput
               defaultValue={initialPrompt}
               draftScopeKey={draftScopeKey}
               onSubmit={handleSubmit}
               isSending={isSending}
               onStopGeneration={handleStopGeneration}
-              userId={session?.user?.id}
+              userId={userId}
               onContextAdd={handleContextAdd}
               onContextRemove={handleInitialContextRemove}
             />
+            <SuggestedActions onSelectPrompt={(prompt) => handleSubmit(prompt)} />
           </div>
-        </div>
-        <div
-          ref={templateRef}
-          data-tour='home-templates'
-          className='-mt-[30vh] mx-auto w-full max-w-[68rem] px-4 pb-8 sm:px-6 lg:px-10'
-        >
-          <TemplatePrompts onSelect={handleSubmit} />
         </div>
       </div>
     )
@@ -421,7 +408,7 @@ export function Home({ chatId }: HomeProps = {}) {
           onSendQueuedMessage={sendNow}
           onEditQueuedMessage={editQueuedMessage}
           onCancelQueueEdit={cancelQueueEdit}
-          userId={session?.user?.id}
+          userId={userId}
           chatId={resolvedChatId}
           onContextAdd={handleContextAdd}
           onWorkspaceResourceSelect={handleWorkspaceResourceSelect}

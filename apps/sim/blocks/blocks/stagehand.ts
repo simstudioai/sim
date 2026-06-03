@@ -1,5 +1,5 @@
 import { StagehandIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { StagehandAgentResponse, StagehandExtractResponse } from '@/tools/stagehand/types'
 
 export type StagehandResponse = StagehandExtractResponse | StagehandAgentResponse
@@ -14,7 +14,6 @@ export const StagehandBlock: BlockConfig<StagehandResponse> = {
   docsLink: 'https://docs.sim.ai/tools/stagehand',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['web-scraping', 'automation', 'agentic'],
   bgColor: '#FFC83C',
   icon: StagehandIcon,
   subBlocks: [
@@ -422,3 +421,73 @@ Example 3 (Data Collection):
     sessionId: { type: 'string', description: 'Browserbase session identifier (agent operation)' },
   },
 }
+
+export const StagehandBlockMeta = {
+  tags: ['web-scraping', 'automation', 'agentic'],
+  templates: [
+    {
+      icon: StagehandIcon,
+      title: 'Stagehand QA navigator',
+      prompt:
+        'Build a workflow that uses Stagehand to run scripted browser flows against staging, captures screenshots and assertion outcomes per step, and writes a regression report file.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+    },
+    {
+      icon: StagehandIcon,
+      title: 'Stagehand booking automator',
+      prompt:
+        'Create a workflow that uses Stagehand to log into supplier portals, place recurring orders from a tables-defined catalog, and write confirmation numbers back to the orders table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'ecommerce'],
+    },
+    {
+      icon: StagehandIcon,
+      title: 'Stagehand price-monitor sweep',
+      prompt:
+        'Build a scheduled workflow that uses Stagehand to navigate a catalog of supplier sites, capture current prices and stock for items in a tracking table, and alert Slack on threshold breaches.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ecommerce', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: StagehandIcon,
+      title: 'Stagehand competitor product trial',
+      prompt:
+        'Build a workflow that uses Stagehand to walk through competitor product trials weekly, captures screenshots of every step, and writes a UX-comparison file.',
+      modules: ['scheduled', 'files', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: StagehandIcon,
+      title: 'Stagehand onboarding-flow auditor',
+      prompt:
+        'Create a workflow that uses Stagehand to test the production onboarding flow daily, captures friction points, and writes a UX regression table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+    },
+    {
+      icon: StagehandIcon,
+      title: 'Stagehand structured lead extractor',
+      prompt:
+        'Build a workflow that uses Stagehand to visit a list of company sites from a table, extracts structured fields — company name, contact email, pricing tier, and key features — into a defined schema, and writes the clean records back into a research table for the sales team.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'automation'],
+    },
+    {
+      icon: StagehandIcon,
+      title: 'Stagehand autonomous task runner',
+      prompt:
+        'Create a workflow that hands Stagehand a natural-language goal like "find the latest pricing on this vendor site and download the PDF", lets the Stagehand agent navigate and act on the page autonomously, and saves the captured result and screenshots to files.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'research', 'agentic'],
+    },
+  ],
+} as const satisfies BlockMeta

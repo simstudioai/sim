@@ -1,5 +1,5 @@
 import { ZepIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { ZepResponse } from '@/tools/zep/types'
 
 export const ZepBlock: BlockConfig<ZepResponse> = {
@@ -13,7 +13,6 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
   icon: ZepIcon,
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['llm', 'knowledge-base', 'agentic'],
   docsLink: 'https://docs.sim.ai/tools/zep',
   subBlocks: [
     {
@@ -301,3 +300,75 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
     totalCount: { type: 'number', description: 'Total number of items returned' },
   },
 }
+
+export const ZepBlockMeta = {
+  tags: ['llm', 'knowledge-base', 'agentic'],
+  templates: [
+    {
+      icon: ZepIcon,
+      title: 'Zep session memory for chat',
+      prompt:
+        'Create a chat agent that stores every turn in Zep with user metadata, retrieves the most relevant prior context on each new question, and answers with continuity instead of forgetting.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication'],
+    },
+    {
+      icon: ZepIcon,
+      title: 'Zep + knowledge base support bot',
+      prompt:
+        'Build a support agent that combines Zep session memory with a knowledge base, so it remembers what the customer has already tried while still grounding answers in product docs.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation'],
+    },
+    {
+      icon: ZepIcon,
+      title: 'Zep + Salesforce account memory',
+      prompt:
+        'Build a workflow that for each Salesforce account writes meeting and email context into Zep keyed by account, so any future agent interaction has full history.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: ZepIcon,
+      title: 'Zep + Intercom support continuity',
+      prompt:
+        'Create a Zep-backed support agent that remembers what each customer has tried before, prefers, or escalated, so support conversations never restart from scratch.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication'],
+      alsoIntegrations: ['intercom'],
+    },
+    {
+      icon: ZepIcon,
+      title: 'Zep evaluation harness',
+      prompt:
+        'Build a scheduled workflow that evaluates Zep memory recall accuracy weekly against a labeled eval set, captures regressions, and writes a quality report.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+    },
+    {
+      icon: ZepIcon,
+      title: 'Zep personal-assistant memory',
+      prompt:
+        'Create a personal assistant agent that records preferences, recurring tasks, and prior decisions in Zep, then retrieves the relevant facts on each request so it stays consistent across days instead of asking the same questions again.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation'],
+    },
+    {
+      icon: ZepIcon,
+      title: 'Zep + Slack team-context bot',
+      prompt:
+        'Build a Slack bot that stores each conversation in Zep keyed by channel and user, retrieves the relevant prior context when someone asks a follow-up, and answers in thread with continuity across the whole team’s history.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'communication', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

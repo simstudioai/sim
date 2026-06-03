@@ -1,6 +1,6 @@
 import { SalesforceIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { SalesforceResponse } from '@/tools/salesforce/types'
 import { getTrigger } from '@/triggers'
@@ -14,9 +14,8 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
     'Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks with powerful automation capabilities.',
   docsLink: 'https://docs.sim.ai/tools/salesforce',
   category: 'tools',
-  integrationType: IntegrationType.CRM,
-  tags: ['sales-engagement', 'customer-support'],
-  bgColor: '#E0E0E0',
+  integrationType: IntegrationType.Sales,
+  bgColor: '#FFFFFF',
   icon: SalesforceIcon,
   triggers: {
     enabled: true,
@@ -666,3 +665,78 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     output: { type: 'json', description: 'Operation result data' },
   },
 }
+
+export const SalesforceBlockMeta = {
+  tags: ['sales-engagement', 'customer-support'],
+  templates: [
+    {
+      icon: SalesforceIcon,
+      title: 'CRM knowledge search',
+      prompt:
+        'Create a knowledge base connected to my Salesforce account so all deals, contacts, notes, and activities are automatically synced and searchable. Then build an agent I can ask things like "what\'s the history with Acme Corp?" or "who was involved in the last enterprise deal?" and get instant answers with CRM record citations.',
+      modules: ['knowledge-base', 'agent'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'research'],
+    },
+    {
+      icon: SalesforceIcon,
+      title: 'Deal pipeline tracker',
+      prompt:
+        'Create a table with columns for deal name, stage, amount, close date, and next steps. Build a workflow that syncs open deals from Salesforce into this table daily, and sends me a Slack summary each morning of deals that need attention or are at risk of slipping.',
+      modules: ['tables', 'scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'monitoring', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+
+    {
+      icon: SalesforceIcon,
+      title: 'Push Salesforce pipeline updates to Slack',
+      prompt:
+        'Alert your sales team in Slack when Salesforce opportunities advance, close, or need immediate attention.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['automation', 'communication'],
+      featured: true,
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SalesforceIcon,
+      title: 'Inbound lead router',
+      prompt:
+        'Build a workflow that triggers on new inbound form submissions, creates a Salesforce lead with the captured fields, runs a SOQL query to check for an existing account match, assigns the lead to the right owner, and posts the new lead with its score to Slack.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SalesforceIcon,
+      title: 'Salesforce case escalation',
+      prompt:
+        'Create a scheduled workflow that queries open Salesforce cases past their SLA, escalates each by updating its priority and owner, creates a follow-up task on the account, and Slacks the support lead a summary of everything that breached.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'crm', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SalesforceIcon,
+      title: 'Salesforce report digest',
+      prompt:
+        'Build a scheduled workflow that runs a saved Salesforce report each morning, refreshes the linked dashboard, summarizes the key metrics and biggest movers with an agent, and emails the leadership team a written narrative of what changed.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'reporting', 'analysis'],
+    },
+    {
+      icon: SalesforceIcon,
+      title: 'Closed-won onboarding kickoff',
+      prompt:
+        'Create a workflow that watches Salesforce opportunities for stage changes to closed-won, pulls the related account and contacts, creates onboarding tasks for the CS owner, and writes a kickoff record into a tables-based project tracker.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['sales', 'crm', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

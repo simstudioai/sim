@@ -15,9 +15,11 @@ import {
 } from '@/components/emcn'
 import {
   Check,
+  Download,
   Duplicate,
   Eye,
   FolderPlus,
+  ImageUp,
   Lock,
   LogOut,
   Mail,
@@ -27,13 +29,11 @@ import {
   SquareArrowUpRight,
   Trash,
   Unlock,
-  Upload,
-  X,
 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { WORKFLOW_COLORS } from '@/lib/workflows/colors'
 
-const GRID_COLUMNS = 6
+const GRID_ROWS = 6
 
 /**
  * Color grid with keyboard navigation support.
@@ -70,21 +70,25 @@ function ColorGrid({
       let newIndex = index
 
       switch (e.key) {
-        case 'ArrowRight':
-          e.preventDefault()
-          newIndex = index + 1 < totalItems ? index + 1 : index
-          break
-        case 'ArrowLeft':
-          e.preventDefault()
-          newIndex = index - 1 >= 0 ? index - 1 : index
-          break
         case 'ArrowDown':
           e.preventDefault()
-          newIndex = index + GRID_COLUMNS < totalItems ? index + GRID_COLUMNS : index
+          if ((index + 1) % GRID_ROWS !== 0 && index + 1 < totalItems) {
+            newIndex = index + 1
+          }
           break
         case 'ArrowUp':
           e.preventDefault()
-          newIndex = index - GRID_COLUMNS >= 0 ? index - GRID_COLUMNS : index
+          if (index % GRID_ROWS !== 0) {
+            newIndex = index - 1
+          }
+          break
+        case 'ArrowRight':
+          e.preventDefault()
+          newIndex = index + GRID_ROWS < totalItems ? index + GRID_ROWS : index
+          break
+        case 'ArrowLeft':
+          e.preventDefault()
+          newIndex = index - GRID_ROWS >= 0 ? index - GRID_ROWS : index
           break
         case 'Enter':
         case ' ':
@@ -106,7 +110,7 @@ function ColorGrid({
   )
 
   return (
-    <div className='grid grid-cols-6 gap-1' role='grid'>
+    <div className='grid grid-flow-col grid-rows-6 gap-1' role='grid'>
       {WORKFLOW_COLORS.map(({ color, name }, index) => (
         <button
           key={color}
@@ -124,7 +128,7 @@ function ColorGrid({
           onKeyDown={(e) => handleKeyDown(e, index)}
           onFocus={() => setFocusedIndex(index)}
           className={cn(
-            'h-[16px] w-[16px] rounded-sm border border-black/10 outline-none transition-shadow duration-150',
+            'size-[16px] rounded-sm border border-black/10 outline-none transition-shadow duration-150',
             (focusedIndex === index ||
               (focusedIndex === -1 && hexInput.toLowerCase() === color.toLowerCase())) &&
               'shadow-[0_0_0_1.5px_var(--bg),0_0_0_3px_var(--text-icon)]'
@@ -273,11 +277,8 @@ interface ContextMenuProps {
   isLocked?: boolean
   showDelete?: boolean
   onUploadLogo?: () => void
-  onRemoveLogo?: () => void
   showUploadLogo?: boolean
-  showRemoveLogo?: boolean
   disableUploadLogo?: boolean
-  disableRemoveLogo?: boolean
 }
 
 /**
@@ -330,11 +331,8 @@ export function ContextMenu({
   isLocked = false,
   showDelete = true,
   onUploadLogo,
-  onRemoveLogo,
   showUploadLogo = false,
-  showRemoveLogo = false,
   disableUploadLogo = false,
-  disableRemoveLogo = false,
 }: ContextMenuProps) {
   const [hexInput, setHexInput] = useState(currentColor || '#ffffff')
 
@@ -392,8 +390,7 @@ export function ContextMenu({
     (showCreateFolder && onCreateFolder) ||
     (showColorChange && onColorChange) ||
     (showLock && onToggleLock) ||
-    (showUploadLogo && onUploadLogo) ||
-    (showRemoveLogo && onRemoveLogo)
+    (showUploadLogo && onUploadLogo)
   const hasCopySection = (showDuplicate && onDuplicate) || (showExport && onExport)
 
   return (
@@ -528,23 +525,10 @@ export function ContextMenu({
               onClose()
             }}
           >
-            <Upload />
+            <ImageUp />
             Upload logo
           </DropdownMenuItem>
         )}
-        {showRemoveLogo && onRemoveLogo && (
-          <DropdownMenuItem
-            disabled={disableRemoveLogo}
-            onSelect={() => {
-              onRemoveLogo()
-              onClose()
-            }}
-          >
-            <X />
-            Remove logo
-          </DropdownMenuItem>
-        )}
-
         {showLock && onToggleLock && (
           <DropdownMenuItem
             disabled={disableLock}
@@ -579,7 +563,7 @@ export function ContextMenu({
               onClose()
             }}
           >
-            <Upload />
+            <Download />
             Export
           </DropdownMenuItem>
         )}

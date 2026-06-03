@@ -1,5 +1,5 @@
 import { JinaAIIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { ReadUrlResponse, SearchResponse } from '@/tools/jina/types'
 
 export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
@@ -12,7 +12,6 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
   docsLink: 'https://docs.sim.ai/tools/jina',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['web-scraping', 'knowledge-base'],
   bgColor: '#333333',
   icon: JinaAIIcon,
   subBlocks: [
@@ -195,3 +194,76 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
     },
   },
 }
+
+export const JinaBlockMeta = {
+  tags: ['web-scraping', 'knowledge-base'],
+  templates: [
+    {
+      icon: JinaAIIcon,
+      title: 'Jina embeddings ingester',
+      prompt:
+        'Build a workflow that watches a folder for new docs, generates Jina embeddings, and upserts the vectors into a Pinecone index with metadata.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'sync'],
+      alsoIntegrations: ['pinecone'],
+    },
+    {
+      icon: JinaAIIcon,
+      title: 'Jina reranker pipeline',
+      prompt:
+        'Create a retrieval pipeline that fetches top-50 candidates from a knowledge base, reranks with Jina, and returns the top-5 to the answering agent.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+    },
+    {
+      icon: JinaAIIcon,
+      title: 'Jina web-content reader',
+      prompt:
+        'Build a workflow that uses Jina Reader to convert any URL into clean text, summarizes with an agent, and stores the result in a research knowledge base.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'sync'],
+    },
+    {
+      icon: JinaAIIcon,
+      title: 'Jina + Qdrant search stack',
+      prompt:
+        'Create a workflow that uses Jina embeddings with a Qdrant vector store, supports hybrid keyword + semantic search, and exposes a retrieval API for downstream agents.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'research'],
+      alsoIntegrations: ['qdrant'],
+    },
+    {
+      icon: JinaAIIcon,
+      title: 'Jina multilingual embedder',
+      prompt:
+        'Build a workflow that uses Jina multilingual embeddings to index content from non-English sources, enabling unified retrieval across languages.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['enterprise', 'research'],
+    },
+    {
+      icon: JinaAIIcon,
+      title: 'Jina + Slack semantic search',
+      prompt:
+        'Create a Slack bot that uses Jina embeddings to perform semantic search over team docs and answers questions with sourced citations.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'community'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: JinaAIIcon,
+      title: 'Jina enterprise search',
+      prompt:
+        'Build a workflow that indexes Confluence and Notion content with Jina, exposes a unified search endpoint, and writes search analytics to a dashboard table.',
+      modules: ['knowledge-base', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['enterprise', 'research'],
+      alsoIntegrations: ['confluence', 'notion'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -1,5 +1,5 @@
 import { KetchIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { KetchResponse } from '@/tools/ketch/types'
 
@@ -12,7 +12,6 @@ export const KetchBlock: BlockConfig<KetchResponse> = {
   docsLink: 'https://docs.sim.ai/tools/ketch',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['identity'],
   bgColor: '#9B5CFF',
   icon: KetchIcon,
   subBlocks: [
@@ -234,3 +233,73 @@ export const KetchBlock: BlockConfig<KetchResponse> = {
     message: { type: 'string', description: 'Response message from Ketch' },
   },
 }
+
+export const KetchBlockMeta = {
+  tags: ['identity'],
+  templates: [
+    {
+      icon: KetchIcon,
+      title: 'Ketch consent intake',
+      prompt:
+        'Build a workflow that watches Ketch for new consent events and propagates the consent state to downstream systems — HubSpot, Loops, Stripe — keeping privacy preferences in sync.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'sync'],
+      alsoIntegrations: ['hubspot', 'loops'],
+    },
+    {
+      icon: KetchIcon,
+      title: 'Ketch DSR fulfillment',
+      prompt:
+        'Create a workflow that on a Ketch data subject request collects matching personal data from connected systems, generates the export, and writes the fulfillment audit.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: KetchIcon,
+      title: 'Ketch deletion-request handler',
+      prompt:
+        'Build a workflow that on a Ketch deletion request propagates the deletion to all connected systems, captures confirmations, and writes the chain of custody.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: KetchIcon,
+      title: 'Ketch consent-drift detector',
+      prompt:
+        'Create a scheduled workflow that compares Ketch consent state with downstream systems, flags drift, and writes a remediation queue for the privacy team.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'monitoring'],
+    },
+    {
+      icon: KetchIcon,
+      title: 'Ketch jurisdiction matrix builder',
+      prompt:
+        'Build a workflow that aggregates Ketch jurisdiction configurations, captures the consent requirements per region, and writes a matrix file for legal review.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: KetchIcon,
+      title: 'Ketch cookie-banner audit',
+      prompt:
+        'Create a scheduled workflow that audits Ketch cookie banner deployments across properties, flags missing or misconfigured banners, and writes a compliance file.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: KetchIcon,
+      title: 'Ketch privacy-report digest',
+      prompt:
+        'Build a scheduled monthly workflow that produces a Ketch privacy compliance report — consent rates, DSR fulfillment SLA, deletion stats — for executive review.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'reporting'],
+    },
+  ],
+} as const satisfies BlockMeta

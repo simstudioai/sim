@@ -1,5 +1,5 @@
 import { FathomIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { FathomResponse } from '@/tools/fathom/types'
 import { getTrigger } from '@/triggers'
 import { fathomTriggerOptions } from '@/triggers/fathom/utils'
@@ -15,7 +15,6 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
   docsLink: 'https://docs.sim.ai/tools/fathom',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['meeting', 'note-taking'],
   bgColor: '#181C1E',
   icon: FathomIcon,
   subBlocks: [
@@ -211,3 +210,78 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
     available: ['fathom_new_meeting', 'fathom_webhook'],
   },
 }
+
+export const FathomBlockMeta = {
+  tags: ['meeting', 'note-taking'],
+  templates: [
+    {
+      icon: FathomIcon,
+      title: 'Fathom Analytics weekly digest',
+      prompt:
+        'Build a scheduled weekly workflow that pulls Fathom Analytics page views, top pages, and referrers for my sites, generates a privacy-friendly digest, and emails it to the marketing list.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: FathomIcon,
+      title: 'Fathom site-uptime sentinel',
+      prompt:
+        'Create a scheduled workflow that compares Fathom page-view trends every fifteen minutes, detects sudden drop-offs that may indicate outages, and pages the on-call channel in Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['monitoring', 'devops'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: FathomIcon,
+      title: 'Fathom event-conversion reporter',
+      prompt:
+        'Build a scheduled workflow that pulls Fathom event-conversion data, calculates per-page conversion against goals, and writes a weekly summary file the team can share without leaking visitor data.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'reporting'],
+    },
+    {
+      icon: FathomIcon,
+      title: 'Fathom + PostHog cross-tool dashboard',
+      prompt:
+        'Build a workflow that aggregates Fathom web analytics and PostHog product analytics into a single dashboard table, surfaces drifts, and emails marketing leadership.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'product'],
+      alsoIntegrations: ['posthog', 'gmail'],
+    },
+    {
+      icon: FathomIcon,
+      title: 'Fathom + Slack daily digest',
+      prompt:
+        'Create a scheduled daily workflow that pulls Fathom Analytics metrics for the brand sites and posts a privacy-friendly digest to marketing Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: FathomIcon,
+      title: 'Fathom + Webflow page health',
+      prompt:
+        'Build a scheduled workflow that joins Fathom traffic data with Webflow CMS pages, flags low-traffic high-cost pages, and writes a tables-based maintenance backlog.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['webflow'],
+    },
+    {
+      icon: FathomIcon,
+      title: 'Fathom sales-call action items',
+      prompt:
+        'Create a workflow that after a Fathom meeting pulls the summary and transcript, extracts the customer commitments and next steps with an agent, creates follow-up tasks in the CRM, and emails a recap to the attendees.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'meeting', 'automation'],
+      alsoIntegrations: ['gmail'],
+    },
+  ],
+} as const satisfies BlockMeta

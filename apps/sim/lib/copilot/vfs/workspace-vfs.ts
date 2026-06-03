@@ -4,7 +4,6 @@ import {
   chat as chatTable,
   copilotChats,
   document,
-  form,
   jobExecutionLogs,
   knowledgeConnector,
   mcpServers as mcpServersTable,
@@ -95,13 +94,11 @@ import {
   listWorkspaceFiles,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import {
   loadWorkflowDeploymentSnapshot,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { listSkills } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
@@ -110,8 +107,10 @@ import {
   getUsersWithPermissions,
   getWorkspaceWithOwner,
 } from '@/lib/workspaces/permissions/utils'
+import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
 import { getAllBlocks } from '@/blocks/registry'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkspaceVFS')
@@ -1428,7 +1427,7 @@ export class WorkspaceVFS {
     isDeployed: boolean,
     deployedAt: Date | null
   ): Promise<DeploymentData | null> {
-    const [chatRows, formRows, mcpRows, a2aRows, versionRows, allVersionRows] = await Promise.all([
+    const [chatRows, mcpRows, a2aRows, versionRows, allVersionRows] = await Promise.all([
       db
         .select({
           id: chatTable.id,
@@ -1441,19 +1440,6 @@ export class WorkspaceVFS {
         })
         .from(chatTable)
         .where(and(eq(chatTable.workflowId, workflowId), isNull(chatTable.archivedAt))),
-      db
-        .select({
-          id: form.id,
-          identifier: form.identifier,
-          title: form.title,
-          description: form.description,
-          authType: form.authType,
-          showBranding: form.showBranding,
-          customizations: form.customizations,
-          isActive: form.isActive,
-        })
-        .from(form)
-        .where(and(eq(form.workflowId, workflowId), isNull(form.archivedAt))),
       db
         .select({
           serverId: workflowMcpTool.serverId,
@@ -1519,11 +1505,7 @@ export class WorkspaceVFS {
     ])
 
     const hasAnyDeployment =
-      isDeployed ||
-      chatRows.length > 0 ||
-      formRows.length > 0 ||
-      mcpRows.length > 0 ||
-      a2aRows.length > 0
+      isDeployed || chatRows.length > 0 || mcpRows.length > 0 || a2aRows.length > 0
     if (!hasAnyDeployment && allVersionRows.length === 0) return null
 
     let needsRedeployment: boolean | undefined
@@ -1556,7 +1538,6 @@ export class WorkspaceVFS {
         ? { version: deployedVersion.version, createdAt: deployedVersion.createdAt }
         : null,
       chat: chatRows[0] ?? null,
-      form: formRows[0] ?? null,
       mcp: mcpRows,
       a2a: a2aRows[0] ?? null,
       versions: allVersionRows,
@@ -1678,27 +1659,32 @@ export class WorkspaceVFS {
         .select({
           id: copilotChats.id,
           title: copilotChats.title,
-          messageCount: sql<number>`COALESCE(jsonb_array_length(${copilotChats.messages}), 0)`,
+          messageCount: sql<number>`COALESCE((
+            SELECT COUNT(*) FROM copilot_messages cm
+            WHERE cm.chat_id = ${copilotChats.id} AND cm.deleted_at IS NULL
+          ), 0)`,
           messages: sql<unknown[]>`COALESCE((
             SELECT jsonb_agg(
               jsonb_build_object(
-                'role', m.value->>'role',
-                'content', m.value->'content',
+                'role', cm.content->>'role',
+                'content', cm.content->'content',
                 'contentBlocks', COALESCE((
                   SELECT jsonb_agg(jsonb_build_object('type', 'text', 'content', b.value->'content') ORDER BY b.ord)
                   FROM jsonb_array_elements(
-                    CASE WHEN jsonb_typeof(m.value->'contentBlocks') = 'array'
-                         THEN m.value->'contentBlocks'
+                    CASE WHEN jsonb_typeof(cm.content->'contentBlocks') = 'array'
+                         THEN cm.content->'contentBlocks'
                          ELSE '[]'::jsonb
                     END
                   ) WITH ORDINALITY AS b(value, ord)
                   WHERE b.value->>'type' = 'text'
                 ), '[]'::jsonb)
               )
-              ORDER BY m.ord
+              ORDER BY cm.seq ASC NULLS LAST, cm.created_at ASC, cm.id ASC
             )
-            FROM jsonb_array_elements(${copilotChats.messages}) WITH ORDINALITY AS m(value, ord)
-            WHERE m.value->>'role' IN ('user', 'assistant')
+            FROM copilot_messages cm
+            WHERE cm.chat_id = ${copilotChats.id}
+              AND cm.deleted_at IS NULL
+              AND cm.content->>'role' IN ('user', 'assistant')
           ), '[]'::jsonb)`,
           createdAt: copilotChats.createdAt,
           updatedAt: copilotChats.updatedAt,

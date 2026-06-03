@@ -4,15 +4,14 @@ import { useEffect, useRef, useState } from 'react'
 import { generateId } from '@sim/utils/id'
 import {
   Button,
-  Input,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
   Label,
-  Modal,
-  ModalBody,
-  ModalClose,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   ModalTrigger,
 } from '@/components/emcn'
 import { dollarsToCredits, formatCredits } from '@/lib/billing/credits/conversion'
@@ -137,76 +136,72 @@ export function CreditBalance({
       </div>
 
       {canPurchase && (
-        <Modal open={isOpen} onOpenChange={handleOpenChange}>
+        <ChipModal open={isOpen} onOpenChange={handleOpenChange} srTitle='Add Credits'>
           <ModalTrigger asChild>
             <Button variant='active'>Add Credits</Button>
           </ModalTrigger>
-          <ModalContent size='sm'>
-            <ModalHeader>Add Credits</ModalHeader>
-            <ModalBody>
-              <ModalDescription className='sr-only'>
-                Purchase additional credits by entering a dollar amount.
-              </ModalDescription>
-              {purchaseCredits.isSuccess ? (
+          <ChipModalHeader onClose={() => handleOpenChange(false)}>Add Credits</ChipModalHeader>
+          <ChipModalBody>
+            {purchaseCredits.isSuccess ? (
+              <ChipModalField type='custom' title=''>
                 <p className='text-center text-[var(--text-primary)] text-small'>
                   Credits added successfully!
                 </p>
-              ) : (
-                <div className='space-y-3'>
-                  <div className='flex flex-col gap-2'>
-                    <Label htmlFor='credit-amount'>Amount (USD)</Label>
-                    <div className='relative'>
-                      <span className='-translate-y-1/2 absolute top-1/2 left-[12px] text-[var(--text-muted)] text-small'>
-                        $
-                      </span>
-                      <Input
-                        id='credit-amount'
-                        type='text'
-                        inputMode='numeric'
-                        value={amount}
-                        onChange={(e) => handleAmountChange(e.target.value)}
-                        placeholder='50'
-                        className='pl-7'
-                        disabled={purchaseCredits.isPending}
-                      />
-                    </div>
-                    {dollarAmount > 0 && !displayError && (
-                      <span className='text-[var(--text-secondary)] text-caption tabular-nums'>
-                        You'll receive {creditPreview.toLocaleString()} credits
-                      </span>
-                    )}
-                    {displayError && (
-                      <span className='text-[var(--text-error)] text-small'>{displayError}</span>
-                    )}
+              </ChipModalField>
+            ) : (
+              <>
+                <ChipModalField type='custom' title='Amount (USD)'>
+                  <div className='relative'>
+                    <span className='-translate-y-1/2 absolute top-1/2 left-[12px] text-[var(--text-muted)] text-small'>
+                      $
+                    </span>
+                    <input
+                      id='credit-amount'
+                      type='text'
+                      inputMode='numeric'
+                      value={amount}
+                      onChange={(e) => handleAmountChange(e.target.value)}
+                      placeholder='50'
+                      disabled={purchaseCredits.isPending}
+                      className='h-[30px] w-full rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] pr-2 pl-7 font-medium font-sans text-[var(--text-primary)] text-sm outline-none transition-colors placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]'
+                    />
                   </div>
+                  {dollarAmount > 0 && !displayError && (
+                    <span className='mt-1 text-[var(--text-secondary)] text-caption tabular-nums'>
+                      You'll receive {creditPreview.toLocaleString()} credits
+                    </span>
+                  )}
+                </ChipModalField>
 
+                <ChipModalField type='custom' title=''>
                   <div className='rounded-md bg-[var(--surface-4)] p-3'>
                     <p className='text-[var(--text-secondary)]'>
                       Credits are non-refundable and don't expire. They'll be applied automatically
                       to your {entityType === 'organization' ? 'team' : ''} usage.
                     </p>
                   </div>
-                </div>
-              )}
-            </ModalBody>
-            {!purchaseCredits.isSuccess && (
-              <ModalFooter>
-                <ModalClose asChild>
-                  <Button variant='default' disabled={purchaseCredits.isPending}>
-                    Cancel
-                  </Button>
-                </ModalClose>
-                <Button
-                  variant='primary'
-                  onClick={handlePurchase}
-                  disabled={purchaseCredits.isPending || !amount}
-                >
-                  {purchaseCredits.isPending ? 'Processing...' : 'Purchase'}
-                </Button>
-              </ModalFooter>
+                </ChipModalField>
+
+                <ChipModalError>{displayError}</ChipModalError>
+              </>
             )}
-          </ModalContent>
-        </Modal>
+          </ChipModalBody>
+          {!purchaseCredits.isSuccess && (
+            <ChipModalFooter>
+              <Chip variant='filled' flush onClick={() => handleOpenChange(false)}>
+                Cancel
+              </Chip>
+              <Chip
+                variant='primary'
+                flush
+                onClick={handlePurchase}
+                disabled={purchaseCredits.isPending || !amount}
+              >
+                {purchaseCredits.isPending ? 'Processing...' : 'Purchase'}
+              </Chip>
+            </ChipModalFooter>
+          )}
+        </ChipModal>
       )}
     </div>
   )

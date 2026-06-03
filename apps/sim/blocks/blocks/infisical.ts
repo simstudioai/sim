@@ -1,5 +1,5 @@
 import { InfisicalIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { InfisicalResponse } from '@/tools/infisical/types'
 
@@ -12,7 +12,6 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
   docsLink: 'https://docs.sim.ai/tools/infisical',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['secrets-management'],
   bgColor: '#F7FE62',
   icon: InfisicalIcon,
   authMode: AuthMode.ApiKey,
@@ -231,3 +230,78 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
     secret: { type: 'json', description: 'Secret object (get/create/update/delete operations)' },
   },
 }
+
+export const InfisicalBlockMeta = {
+  tags: ['secrets-management'],
+  templates: [
+    {
+      icon: InfisicalIcon,
+      title: 'Infisical secret rotation orchestrator',
+      prompt:
+        'Build a scheduled workflow that lists Infisical secrets due for rotation, triggers rotation across environments, and writes status to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise'],
+    },
+    {
+      icon: InfisicalIcon,
+      title: 'Infisical environment drift detector',
+      prompt:
+        'Create a scheduled workflow that diffs Infisical environments against expected schemas, alerts on missing or extra secrets, and writes a remediation queue.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: InfisicalIcon,
+      title: 'Infisical onboarding kit',
+      prompt:
+        'Build a workflow that on a new engineer being provisioned grants Infisical access to the right projects based on team, and writes the access record.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: InfisicalIcon,
+      title: 'Infisical offboarding sweep',
+      prompt:
+        'Create a workflow that on a Workday termination revokes Infisical access for the departing engineer, rotates secrets they touched, and writes the audit log.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: InfisicalIcon,
+      title: 'Infisical CI sync',
+      prompt:
+        'Build a workflow that mirrors Infisical secrets into GitHub Actions environments for CI deploys, keeping the secret store as the single source of truth.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'sync'],
+      alsoIntegrations: ['github'],
+    },
+    {
+      icon: InfisicalIcon,
+      title: 'Infisical access-review automator',
+      prompt:
+        'Create a scheduled quarterly workflow that surfaces Infisical project membership, requires owner attestation, and writes the audit log to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: InfisicalIcon,
+      title: 'Infisical audit-log shipper',
+      prompt:
+        'Build a scheduled workflow that exports Infisical audit logs to S3 for long-term retention and indexes them in Athena for compliance queries.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['s3'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -1,6 +1,6 @@
 import { DropboxIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { DropboxResponse } from '@/tools/dropbox/types'
@@ -14,8 +14,7 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
     'Integrate Dropbox into your workflow for file management, sharing, and collaboration. Upload files, download content, create folders, manage shared links, and more.',
   docsLink: 'https://docs.sim.ai/tools/dropbox',
   category: 'tools',
-  integrationType: IntegrationType.FileStorage,
-  tags: ['cloud', 'document-processing'],
+  integrationType: IntegrationType.Documents,
   icon: DropboxIcon,
   bgColor: '#0061FF',
   subBlocks: [
@@ -401,3 +400,75 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     matches: { type: 'json', description: 'Search results' },
   },
 }
+
+export const DropboxBlockMeta = {
+  tags: ['cloud', 'document-processing'],
+  templates: [
+    {
+      icon: DropboxIcon,
+      title: 'Dropbox to knowledge base',
+      prompt:
+        'Build a workflow that watches a Dropbox folder, extracts text from new docs, chunks and embeds them, and upserts the chunks into a knowledge base for agent retrieval.',
+      modules: ['knowledge-base', 'files', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'sync'],
+    },
+    {
+      icon: DropboxIcon,
+      title: 'Dropbox shared-link auditor',
+      prompt:
+        'Create a scheduled workflow that lists Dropbox shared links, identifies links shared with external users or marked public, and writes a security review report to a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: DropboxIcon,
+      title: 'Dropbox vendor-invoice intake',
+      prompt:
+        'Build a workflow that watches a Dropbox vendor folder for new invoice PDFs, extracts vendor and amount with an agent, writes the row to a payables table, and pings finance on Slack.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DropboxIcon,
+      title: 'Dropbox creative asset organizer',
+      prompt:
+        'Create a workflow that watches a Dropbox creative-assets folder, classifies new files by campaign and type, moves them into the right subfolder, and updates a tables-based asset index.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+    {
+      icon: DropboxIcon,
+      title: 'Dropbox retention sweeper',
+      prompt:
+        'Build a scheduled workflow that finds Dropbox files older than the retention policy, archives them to long-term storage, and writes the cleanup record to an audit table.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: DropboxIcon,
+      title: 'Dropbox to Notion publisher',
+      prompt:
+        'Create a workflow that processes new Dropbox markdown files, converts them to Notion pages in the right database, and writes a link back to the source file metadata.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['content', 'sync'],
+      alsoIntegrations: ['notion'],
+    },
+    {
+      icon: DropboxIcon,
+      title: 'Dropbox + DocuSign signed-doc archiver',
+      prompt:
+        'Build a workflow that watches DocuSign for completed envelopes, downloads the signed PDF, saves it to a Dropbox compliance folder, and writes the audit record to a contracts table.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'sync'],
+      alsoIntegrations: ['docusign'],
+    },
+  ],
+} as const satisfies BlockMeta

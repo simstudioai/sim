@@ -12,6 +12,9 @@ const {
   mockBatchInsertRows,
   mockReplaceTableRows,
   mockAddWorkflowGroup,
+  mockCreateTable,
+  mockDeleteTable,
+  mockGetWorkspaceTableLimits,
   fakeEnrichment,
 } = vi.hoisted(() => ({
   mockResolveWorkspaceFileReference: vi.fn(),
@@ -20,6 +23,9 @@ const {
   mockBatchInsertRows: vi.fn(),
   mockReplaceTableRows: vi.fn(),
   mockAddWorkflowGroup: vi.fn(),
+  mockCreateTable: vi.fn(),
+  mockDeleteTable: vi.fn(),
+  mockGetWorkspaceTableLimits: vi.fn(),
   fakeEnrichment: {
     id: 'work-email',
     name: 'Work Email',
@@ -54,13 +60,13 @@ vi.mock('@/lib/table/service', () => ({
   addWorkflowGroup: mockAddWorkflowGroup,
   batchInsertRows: mockBatchInsertRows,
   batchUpdateRows: vi.fn(),
-  createTable: vi.fn(),
+  createTable: mockCreateTable,
   deleteColumn: vi.fn(),
   deleteColumns: vi.fn(),
   deleteRow: vi.fn(),
   deleteRowsByFilter: vi.fn(),
   deleteRowsByIds: vi.fn(),
-  deleteTable: vi.fn(),
+  deleteTable: mockDeleteTable,
   getRowById: vi.fn(),
   getTableById: mockGetTableById,
   insertRow: vi.fn(),
@@ -72,6 +78,10 @@ vi.mock('@/lib/table/service', () => ({
   updateColumnType: vi.fn(),
   updateRow: vi.fn(),
   updateRowsByFilter: vi.fn(),
+}))
+
+vi.mock('@/lib/table/billing', () => ({
+  getWorkspaceTableLimits: mockGetWorkspaceTableLimits,
 }))
 
 import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
@@ -229,6 +239,93 @@ describe('userTableServerTool.import_file', () => {
     expect(result.success).toBe(false)
     expect(result.message).toMatch(/missing required columns/i)
     expect(mockBatchInsertRows).not.toHaveBeenCalled()
+  })
+})
+
+describe('userTableServerTool.create_from_file', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolveWorkspaceFileReference.mockResolvedValue({ name: 'people.csv', type: 'text/csv' })
+    mockDownloadWorkspaceFile.mockResolvedValue(Buffer.from('name,age\nAlice,30\nBob,40'))
+    mockGetWorkspaceTableLimits.mockResolvedValue({ maxRowsPerTable: 1000, maxTables: 3 })
+    mockCreateTable.mockResolvedValue(buildTable({ id: 'tbl_new', name: 'people' }))
+    mockDeleteTable.mockResolvedValue(undefined)
+    mockBatchInsertRows.mockImplementation(async (data: { rows: unknown[] }) =>
+      data.rows.map((_, i) => ({ id: `row_${i}` }))
+    )
+  })
+
+  it('stamps the workspace plan limits on the created table', async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'create_from_file', args: { fileId: 'file-1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockGetWorkspaceTableLimits).toHaveBeenCalledWith('workspace-1')
+    expect(mockCreateTable).toHaveBeenCalledTimes(1)
+    const createArgs = mockCreateTable.mock.calls[0][0] as { maxRows: number; maxTables: number }
+    expect(createArgs.maxRows).toBe(1000)
+    expect(createArgs.maxTables).toBe(3)
+  })
+
+  it('truncates to the plan row limit and reports dropped rows', async () => {
+    // File has 2 data rows (Alice, Bob); plan cap is 1.
+    mockGetWorkspaceTableLimits.mockResolvedValueOnce({ maxRowsPerTable: 1, maxTables: 3 })
+
+    const result = await userTableServerTool.execute(
+      { operation: 'create_from_file', args: { fileId: 'file-1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockCreateTable).toHaveBeenCalledTimes(1)
+    const insertCall = mockBatchInsertRows.mock.calls[0][0] as { rows: unknown[] }
+    expect(insertCall.rows).toHaveLength(1)
+    expect(result.data?.rowCount).toBe(1)
+    expect(result.message).toMatch(/dropped 1 row/i)
+    expect(mockDeleteTable).not.toHaveBeenCalled()
+  })
+
+  it('rolls back the created table and reports the reason when row insertion fails', async () => {
+    mockBatchInsertRows.mockRejectedValueOnce(new Error('Row 2: Column "email" must be unique'))
+
+    const result = await userTableServerTool.execute(
+      { operation: 'create_from_file', args: { fileId: 'file-1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(mockDeleteTable).toHaveBeenCalledWith('tbl_new', expect.any(String))
+    expect(result.message).toMatch(/rolled back/i)
+    expect(result.message).toMatch(/must be unique/i)
+  })
+})
+
+describe('userTableServerTool.create', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetWorkspaceTableLimits.mockResolvedValue({ maxRowsPerTable: 1000, maxTables: 3 })
+    mockCreateTable.mockResolvedValue(buildTable({ id: 'tbl_new', name: 'People' }))
+  })
+
+  it('stamps the workspace plan limits on the created table', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'create',
+        args: {
+          name: 'People',
+          schema: { columns: [{ name: 'name', type: 'string', required: true }] },
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockGetWorkspaceTableLimits).toHaveBeenCalledWith('workspace-1')
+    const createArgs = mockCreateTable.mock.calls[0][0] as { maxRows: number; maxTables: number }
+    expect(createArgs.maxRows).toBe(1000)
+    expect(createArgs.maxTables).toBe(3)
   })
 })
 

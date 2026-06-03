@@ -8,6 +8,7 @@ import {
   Badge,
   Button,
   Callout,
+  Chip,
   Combobox,
   DropdownMenu,
   DropdownMenuContent,
@@ -45,7 +46,6 @@ import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
-import { DataDrainsSkeleton } from '@/ee/data-drains/components/data-drains-skeleton'
 import { DESTINATION_FORM_REGISTRY } from '@/ee/data-drains/destinations/registry'
 import {
   useCreateDataDrain,
@@ -139,7 +139,7 @@ export function DataDrainsSettings() {
       )
 
   if (sessionPending || orgsLoading || drainsLoading) {
-    return <DataDrainsSkeleton />
+    return null
   }
 
   if (!orgId) {
@@ -159,74 +159,83 @@ export function DataDrainsSettings() {
   }
 
   return (
-    <div className='flex h-full flex-col gap-4.5'>
-      <Callout>
-        Drains continuously export Sim data to your own storage on a schedule. Combine with Data
-        Retention to satisfy long-term compliance archives.
-      </Callout>
-
-      <div className='flex items-center gap-2'>
-        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-          <Search
-            className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-            strokeWidth={2}
-          />
-          <BaseInput
-            placeholder='Search data drains...'
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-          />
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+        <div />
+        <div className='flex items-center'>
+          <Chip leftIcon={Plus} variant='primary' onClick={() => setCreateOpen(true)}>
+            New Drain
+          </Chip>
         </div>
-        <Button variant='primary' onClick={() => setCreateOpen(true)}>
-          <Plus className='mr-1.5 size-[13px]' />
-          New drain
-        </Button>
       </div>
 
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        {drainsError ? (
-          <Callout variant='destructive'>
-            Failed to load data drains: {toError(drainsError).message}
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
+          <Callout>
+            Drains continuously export Sim data to your own storage on a schedule. Combine with Data
+            Retention to satisfy long-term compliance archives.
           </Callout>
-        ) : drains && drains.length > 0 ? (
-          filteredDrains.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Destination</TableHead>
-                  <TableHead>Cadence</TableHead>
-                  <TableHead>Last run</TableHead>
-                  <TableHead>Enabled</TableHead>
-                  <TableHead className='w-[40px]' />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredDrains.map((drain) => (
-                  <DrainRow
-                    key={drain.id}
-                    drain={drain}
-                    organizationId={orgId}
-                    expanded={expandedDrainId === drain.id}
-                    onToggleExpand={() =>
-                      setExpandedDrainId(expandedDrainId === drain.id ? null : drain.id)
-                    }
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className='flex h-full items-center justify-center py-12 text-[var(--text-muted)] text-sm'>
-              No results for "{searchTerm.trim()}"
+
+          <div className='flex items-center gap-2'>
+            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+              <Search
+                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+                strokeWidth={2}
+              />
+              <BaseInput
+                placeholder='Search data drains...'
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              />
             </div>
-          )
-        ) : (
-          <div className='flex h-full items-center justify-center py-12 text-[var(--text-muted)] text-sm'>
-            Click "New drain" above to get started
           </div>
-        )}
+
+          <div>
+            {drainsError ? (
+              <Callout variant='destructive'>
+                Failed to load data drains: {toError(drainsError).message}
+              </Callout>
+            ) : drains && drains.length > 0 ? (
+              filteredDrains.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Source</TableHead>
+                      <TableHead>Destination</TableHead>
+                      <TableHead>Cadence</TableHead>
+                      <TableHead>Last run</TableHead>
+                      <TableHead>Enabled</TableHead>
+                      <TableHead className='w-[40px]' />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredDrains.map((drain) => (
+                      <DrainRow
+                        key={drain.id}
+                        drain={drain}
+                        organizationId={orgId}
+                        expanded={expandedDrainId === drain.id}
+                        onToggleExpand={() =>
+                          setExpandedDrainId(expandedDrainId === drain.id ? null : drain.id)
+                        }
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className='flex h-full items-center justify-center py-12 text-[var(--text-muted)] text-sm'>
+                  No results for "{searchTerm.trim()}"
+                </div>
+              )
+            ) : (
+              <div className='flex h-full items-center justify-center py-12 text-[var(--text-muted)] text-sm'>
+                Click "New drain" above to get started
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {createOpen && (

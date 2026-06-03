@@ -1,5 +1,5 @@
 import { STSIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { STSBaseResponse } from '@/tools/sts/types'
 
@@ -12,7 +12,6 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
   docsLink: 'https://docs.sim.ai/tools/sts',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['cloud'],
   authMode: AuthMode.ApiKey,
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
   icon: STSIcon,
@@ -248,3 +247,76 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
     },
   },
 }
+
+export const STSBlockMeta = {
+  tags: ['cloud'],
+  templates: [
+    {
+      icon: STSIcon,
+      title: 'AWS STS session monitor',
+      prompt:
+        'Build a workflow that watches AWS STS AssumeRole calls in CloudTrail, classifies anomalous role assumption patterns, and pings the security Slack channel.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: STSIcon,
+      title: 'STS short-lived credential provisioner',
+      prompt:
+        'Create a workflow that on a request grants short-lived AWS STS credentials with the minimum required scope, captures the audit record, and revokes on completion.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+    },
+    {
+      icon: STSIcon,
+      title: 'STS federation audit',
+      prompt:
+        'Build a scheduled workflow that audits AWS STS federation patterns — SAML, OIDC, web identity — flags external trust relationships, and writes a security report.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: STSIcon,
+      title: 'STS GetSessionToken audit',
+      prompt:
+        'Create a scheduled daily workflow that lists AWS STS GetSessionToken calls per principal, identifies unusual patterns, and writes the audit to a security log.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring'],
+    },
+    {
+      icon: STSIcon,
+      title: 'STS just-in-time access grant',
+      prompt:
+        'Build a workflow that handles JIT-access requests, captures Slack-based approval, mints short-lived AWS STS credentials, and writes the access record.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: STSIcon,
+      title: 'STS cross-account access reviewer',
+      prompt:
+        'Create a scheduled monthly workflow that lists AWS STS cross-account trusts, requires owner attestation, and writes the audit log to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: STSIcon,
+      title: 'STS Identity-Center session correlator',
+      prompt:
+        'Build a workflow that correlates AWS STS sessions with Identity Center principals, writes the unified session log, and alerts on unauthorized role escalation.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['identity_center', 'slack'],
+    },
+  ],
+} as const satisfies BlockMeta

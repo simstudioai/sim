@@ -1,5 +1,5 @@
 import { ApifyIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { RunActorResult } from '@/tools/apify/types'
 
@@ -12,8 +12,7 @@ export const ApifyBlock: BlockConfig<RunActorResult> = {
   docsLink: 'https://docs.sim.ai/tools/apify',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['web-scraping', 'automation', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: ApifyIcon,
 
   subBlocks: [
@@ -181,3 +180,76 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
     items: { type: 'json', description: 'Dataset items (if completed)' },
   },
 }
+
+export const ApifyBlockMeta = {
+  tags: ['web-scraping', 'automation', 'data-analytics'],
+  templates: [
+    {
+      icon: ApifyIcon,
+      title: 'Apify scraper orchestrator',
+      prompt:
+        'Build a workflow that triggers Apify scrapers on a schedule, captures the output, transforms into structured rows, and writes them to a downstream Sim table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['research', 'sync'],
+    },
+    {
+      icon: ApifyIcon,
+      title: 'Apify lead-list builder',
+      prompt:
+        'Create a workflow that runs an Apify scraper on a target site, enriches each row with Clay, and writes the enriched lead list into HubSpot.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['clay', 'hubspot'],
+    },
+    {
+      icon: ApifyIcon,
+      title: 'Apify monitor digest',
+      prompt:
+        'Build a scheduled workflow that watches an Apify actor’s runs for failures, captures error patterns, and posts a digest to engineering Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ApifyIcon,
+      title: 'Apify ecommerce price tracker',
+      prompt:
+        'Create a workflow that uses Apify scrapers to capture competitor pricing daily, writes the price history to a table, and posts price-drop alerts to Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ecommerce', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ApifyIcon,
+      title: 'Apify event-data collector',
+      prompt:
+        'Build a workflow that uses Apify to scrape event sites — speakers, agendas, sponsors — and writes the data into a target-events research table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: ApifyIcon,
+      title: 'Apify directory scraper',
+      prompt:
+        'Create a workflow that runs an Apify directory scraper, captures business listings, enriches via Hunter or Apollo, and writes the prospect list to a CRM-ready table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['apollo'],
+    },
+    {
+      icon: ApifyIcon,
+      title: 'Apify job-listing monitor',
+      prompt:
+        'Build a scheduled workflow that uses Apify to scrape job sites for tracked companies, flags new role types, and writes intel into a sales-research table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'monitoring'],
+    },
+  ],
+} as const satisfies BlockMeta

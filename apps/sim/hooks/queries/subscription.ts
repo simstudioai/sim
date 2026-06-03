@@ -77,6 +77,30 @@ export function prefetchSubscriptionData(queryClient: QueryClient) {
 }
 
 /**
+ * Prefetch the billing queries the Upgrade page gates on: the
+ * organization-scoped subscription variant (`includeOrg: true`, a different
+ * cache key than the credits chip's `false` variant) and the usage-limit
+ * metadata. Use on hover to warm both before navigating to `/upgrade`.
+ *
+ * Org-scoped subscribers additionally gate on the organization-billing query,
+ * which is intentionally not prewarmed here: its key depends on the resolved
+ * billing organization id, which is only derivable after the subscription and
+ * workspace queries land, so it cannot be warmed at hover time.
+ */
+export function prefetchUpgradeBillingData(queryClient: QueryClient) {
+  queryClient.prefetchQuery({
+    queryKey: subscriptionKeys.user(true),
+    queryFn: ({ signal }) => fetchSubscriptionData(true, signal),
+    staleTime: 5 * 60 * 1000,
+  })
+  queryClient.prefetchQuery({
+    queryKey: subscriptionKeys.usage(),
+    queryFn: ({ signal }) => fetchUsageLimitData(signal),
+    staleTime: 30 * 1000,
+  })
+}
+
+/**
  * Fetch user usage limit metadata
  * Note: This endpoint returns limit information (currentLimit, minimumLimit, canEdit, etc.)
  * For actual usage data (current, limit, percentUsed), use useSubscriptionData() instead

@@ -1,5 +1,5 @@
 import { TwilioIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 import { getTrigger } from '@/triggers'
@@ -13,7 +13,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     'Integrate Twilio Voice into the workflow. Make outbound calls and retrieve call recordings.',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['messaging', 'text-to-speech'],
   docsLink: 'https://docs.sim.ai/tools/twilio_voice',
   bgColor: '#F22F46', // Twilio brand color
   icon: TwilioIcon,
@@ -413,3 +412,75 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     available: ['twilio_voice_webhook'],
   },
 }
+
+export const TwilioVoiceBlockMeta = {
+  tags: ['messaging', 'text-to-speech'],
+  templates: [
+    {
+      icon: TwilioIcon,
+      title: 'Twilio Voice IVR router',
+      prompt:
+        'Create a workflow that handles inbound Twilio Voice calls with an IVR menu, captures caller intent, routes to the right queue, and writes the call summary to a support table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation'],
+    },
+    {
+      icon: TwilioIcon,
+      title: 'Twilio Voice outbound dialer',
+      prompt:
+        'Build a workflow that reads a callbacks table, places Twilio Voice calls in batches, plays a recorded message or connects to an agent, and logs the call outcome back to the row.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+    },
+    {
+      icon: TwilioIcon,
+      title: 'Twilio Voice incident dialer',
+      prompt:
+        'Create a workflow that on a PagerDuty severity-1 incident places a Twilio Voice call to the on-call engineer with an automated message, escalates to backup if no answer, and logs the cascade.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: TwilioIcon,
+      title: 'Twilio Voice transcript-to-CRM',
+      prompt:
+        'Build a workflow that runs after a Twilio Voice call ends, transcribes the recording, summarizes the conversation, and writes the summary plus action items to the linked Salesforce account.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: TwilioIcon,
+      title: 'Twilio Voice survey collector',
+      prompt:
+        'Create a workflow that places Twilio Voice survey calls to recent customers, captures their NPS rating via key press, and writes results to a feedback table for analysis.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'analysis'],
+    },
+    {
+      icon: TwilioIcon,
+      title: 'Twilio Voice spam-call filter',
+      prompt:
+        'Build a workflow that screens inbound Twilio Voice calls, classifies likely spam using number reputation and CAPTCHA, and routes only verified callers to the support queue.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation'],
+    },
+    {
+      icon: TwilioIcon,
+      title: 'Twilio Voice call QA reviewer',
+      prompt:
+        "Create a scheduled workflow that lists yesterday's Twilio Voice calls, pulls each recording, transcribes and scores it for tone, compliance phrases, and resolution, and writes a QA scorecard to a table while flagging low-scoring calls to the team lead in Slack.",
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'analysis', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -9,7 +9,6 @@ import { SettingsPage } from './settings'
 
 const SECTION_TITLES: Record<string, string> = {
   general: 'General',
-  integrations: 'Integrations',
   secrets: 'Secrets',
   'template-profile': 'Template Profile',
   'access-control': 'Access Control',
@@ -23,7 +22,6 @@ const SECTION_TITLES: Record<string, string> = {
   copilot: 'Copilot Keys',
   mcp: 'MCP Tools',
   'custom-tools': 'Custom Tools',
-  skills: 'Skills',
   'workflow-mcp-servers': 'MCP Servers',
   'credential-sets': 'Email Polling',
   'data-retention': 'Data Retention',

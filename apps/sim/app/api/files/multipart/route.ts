@@ -18,11 +18,13 @@ import {
   isUsingCloudStorage,
   type StorageContext,
 } from '@/lib/uploads'
+import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
   signUploadToken,
   type UploadTokenPayload,
   verifyUploadToken,
 } from '@/lib/uploads/core/upload-token'
+import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
 import { QUOTA_EXEMPT_STORAGE_CONTEXTS, type StorageConfig } from '@/lib/uploads/shared/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -80,6 +82,28 @@ const verifyTokenForUser = (token: string | undefined, userId: string) => {
     return null
   }
   return result.payload
+}
+
+/**
+ * Record a trusted storage-key -> workspace ownership binding for completed
+ * knowledge-base uploads. KB file authorization resolves the owning workspace
+ * from this binding, so every KB object must have one. No-op for other contexts.
+ */
+const recordKnowledgeBaseOwnership = async (
+  payload: UploadTokenPayload,
+  key: string
+): Promise<void> => {
+  if (payload.context !== 'knowledge-base' || !payload.workspaceId) {
+    return
+  }
+  await recordKnowledgeBaseFileOwnership({
+    key,
+    userId: payload.userId,
+    workspaceId: payload.workspaceId,
+    originalName: payload.fileName ?? key.split('/').pop() ?? key,
+    contentType: payload.contentType ?? 'application/octet-stream',
+    size: typeof payload.fileSize === 'number' ? payload.fileSize : 0,
+  })
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
@@ -220,6 +244,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           userId,
           workspaceId,
           context: storageContext,
+          fileName,
+          contentType,
+          ...(typeof fileSize === 'number' ? { fileSize } : {}),
         })
 
         logger.info(
@@ -301,6 +328,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           const { uploadId, key, context } = payload
           const config = getStorageConfig(context)
 
+          let completed: { location: string; path: string; key: string }
           if (storageProvider === 's3' && s3Module) {
             const { completeS3MultipartUpload } = s3Module
             const s3Parts = parts.map((p) => {
@@ -309,40 +337,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               }
               return { ETag: p.etag, PartNumber: p.partNumber }
             })
-            const result = await completeS3MultipartUpload(
+            completed = await completeS3MultipartUpload(
               key,
               uploadId,
               s3Parts,
               buildS3CustomConfig(config)
             )
-            return {
-              success: true as const,
-              location: result.location,
-              path: result.path,
-              key: result.key,
-            }
-          }
-
-          if (storageProvider === 'blob' && blobModule) {
+          } else if (storageProvider === 'blob' && blobModule) {
             const { completeMultipartUpload, deriveBlobBlockId } = blobModule
             const blobParts = parts.map((p) => ({
               partNumber: p.partNumber,
               blockId: deriveBlobBlockId(p.partNumber),
             }))
-            const result = await completeMultipartUpload(
-              key,
-              blobParts,
-              buildBlobCustomConfig(config)
-            )
-            return {
-              success: true as const,
-              location: result.location,
-              path: result.path,
-              key: result.key,
-            }
+            completed = await completeMultipartUpload(key, blobParts, buildBlobCustomConfig(config))
+          } else {
+            throw new Error(`Unsupported storage provider: ${storageProvider}`)
           }
 
-          throw new Error(`Unsupported storage provider: ${storageProvider}`)
+          try {
+            await recordKnowledgeBaseOwnership(payload, completed.key)
+          } catch (error) {
+            // The object is committed, but without an ownership binding a KB file
+            // is unreadable and undeletable via the KB paths. Remove the orphan
+            // best-effort and surface a retryable error so the client re-uploads.
+            if (payload.context === 'knowledge-base') {
+              await deleteFile({ key: completed.key, context: 'knowledge-base' }).catch(() => {})
+            }
+            throw error
+          }
+
+          return {
+            success: true as const,
+            location: completed.location,
+            path: completed.path,
+            key: completed.key,
+          }
         }
 
         if ('uploads' in data && Array.isArray(data.uploads)) {

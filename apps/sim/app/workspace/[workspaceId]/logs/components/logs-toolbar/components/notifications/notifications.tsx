@@ -8,6 +8,11 @@ import { Plus, X } from 'lucide-react'
 import {
   Badge,
   Button,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   Combobox,
   Input as EmcnInput,
   Label,
@@ -1301,35 +1306,39 @@ export const NotificationSettings = memo(function NotificationSettings({
         </ModalContent>
       </Modal>
 
-      <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Notification</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              <span className='text-[var(--text-error)]'>
-                This will permanently remove the notification and stop all deliveries.
-              </span>{' '}
-              This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              disabled={deleteNotification.isPending}
-              onClick={() => setShowDeleteDialog(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleDelete}
-              disabled={deleteNotification.isPending}
-            >
-              {deleteNotification.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        srTitle='Delete Notification'
+      >
+        <ChipModalHeader showDivider={false}>Delete Notification</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            <span className='text-[var(--text-error)]'>
+              This will permanently remove the notification and stop all deliveries.
+            </span>{' '}
+            This action cannot be undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            disabled={deleteNotification.isPending}
+            onClick={() => setShowDeleteDialog(false)}
+          >
+            Cancel
+          </Chip>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={handleDelete}
+            disabled={deleteNotification.isPending}
+          >
+            Delete
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </>
   )
 })

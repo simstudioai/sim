@@ -19,11 +19,11 @@ import {
   Combobox,
   type ComboboxOption,
   DatePicker,
-  Download,
   Library,
   RefreshCw,
   toast,
 } from '@/components/emcn'
+import { Download } from '@/components/emcn/icons'
 import type {
   WorkflowLogDetail,
   WorkflowLogRow,
