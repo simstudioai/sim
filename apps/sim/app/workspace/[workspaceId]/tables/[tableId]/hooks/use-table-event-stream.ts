@@ -225,23 +225,32 @@ export function useTableEventStream({
     }
 
     const applyImport = (event: Extract<TableEvent, { kind: 'import' }>): void => {
-      const { status, progress, error } = event
-      queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), (prev) =>
-        prev
+      const { status, progress, error, importId } = event
+      const isTerminal = status === 'ready' || status === 'failed' || status === 'canceled'
+
+      // The SSE buffer replays on (re)connect and can hold a *prior* import's events for this
+      // table. Ignore anything from a superseded run, and don't trust a replayed terminal before
+      // we know the active run's id.
+      const prev = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      const lockedId = prev?.importId
+      if (lockedId && importId && importId !== lockedId) return
+      if (!lockedId && isTerminal) return
+
+      queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), (p) =>
+        p
           ? {
-              ...prev,
+              ...p,
               importStatus: status,
-              importRowsProcessed: progress ?? prev.importRowsProcessed,
+              importId: importId ?? p.importId,
+              importRowsProcessed: progress ?? p.importRowsProcessed,
               importError: error ?? null,
             }
-          : prev
+          : p
       )
-      // The header tray + completion toast are owned by `useImportTrayPoll` (mounted on every
-      // page). Here we only keep the detail cache + grid in sync.
-      // Live-fill: rows are real as each batch commits. Coalesce the per-tick row
-      // refetches via a debounce; on the terminal event refetch rows + the
-      // definition immediately (the worker may have rewritten the schema).
-      if (status === 'ready' || status === 'failed' || status === 'canceled') {
+      // The header tray + completion toast are owned by `useImportTrayPoll`. Here we only keep the
+      // detail cache + grid in sync: live-fill rows per batch (debounced), and on the terminal
+      // event refetch rows + the definition (the worker may have rewritten the schema).
+      if (isTerminal) {
         if (importInvalidateTimer !== null) clearTimeout(importInvalidateTimer)
         void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
         void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
