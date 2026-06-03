@@ -533,6 +533,10 @@ async function resolveRef(
     }
     return branch
   }
+  logger.warn('Failed to fetch GitLab project for default branch; falling back to "main"', {
+    project: encodedProject,
+    status: response.status,
+  })
   return 'main'
 }
 
@@ -724,10 +728,12 @@ export const gitlabConnector: ConnectorConfig = {
     }
 
     if (state.phase === 'repo') {
+      const userRef = typeof sourceConfig.ref === 'string' ? sourceConfig.ref.trim() : ''
       const ref = await resolveRef(sourceConfig, syncContext, apiBase, encodedProject, accessToken)
       const extSet = parseExtensions(sourceConfig.fileExtensions)
-      const pathPrefix =
+      const rawPrefix =
         typeof sourceConfig.pathPrefix === 'string' ? sourceConfig.pathPrefix.trim() : ''
+      const pathPrefix = rawPrefix && !rawPrefix.endsWith('/') ? `${rawPrefix}/` : rawPrefix
 
       const treeParams = new URLSearchParams({
         ref,
@@ -752,14 +758,16 @@ export const gitlabConnector: ConnectorConfig = {
 
       if (!response.ok) {
         if (response.status === 404) {
-          logger.warn(
-            'GitLab repository tree not found; skipping files (empty repo or bad branch)',
-            {
-              host,
-              project: encodedProject,
-              ref,
-            }
-          )
+          if (userRef) {
+            throw new Error(
+              `GitLab branch "${userRef}" not found for project ${sourceConfig.project}. Check the Branch setting.`
+            )
+          }
+          logger.warn('GitLab repository tree empty; skipping files', {
+            host,
+            project: encodedProject,
+            ref,
+          })
           const adv = advance('repo')
           return { documents: [], nextCursor: adv.nextCursor, hasMore: adv.hasMore }
         }
