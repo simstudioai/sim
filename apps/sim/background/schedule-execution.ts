@@ -7,7 +7,7 @@ import {
   workflowSchedule,
 } from '@sim/db'
 import { createLogger, runWithRequestContext } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { task } from '@trigger.dev/sdk'
@@ -16,7 +16,6 @@ import { and, eq, isNull, type SQL, sql } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import {
-  describeError,
   describeRetryableInfrastructureError,
   isRetryableInfrastructureError,
 } from '@/lib/core/errors/retryable-infrastructure'
