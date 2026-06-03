@@ -18,10 +18,9 @@ export interface ImportTrayEntry {
   importId?: string
   phase: ImportPhase
   rowsProcessed: number
-  /** Estimated total rows for a determinate bar; absent until the first progress tick. */
-  total?: number
-  /** Byte-upload percent (0–100) during the storage-upload phase, before processing starts. */
-  uploadPercent?: number
+  /** Byte-based completion percent (0–100): upload bytes while uploading, processed bytes while
+   *  importing. Exact and monotonic — drives the determinate bar. Absent until the first tick. */
+  percent?: number
   error?: string
 }
 
@@ -36,6 +35,8 @@ export type ImportTrayUpsert = Pick<ImportTrayEntry, 'tableId' | 'workspaceId' |
 interface ImportTrayState {
   /** Active + recently-terminal imports, keyed by tableId. */
   entries: Record<string, ImportTrayEntry>
+  /** Whether the header import dropdown is open (controlled so the start toast can open it). */
+  menuOpen: boolean
   /**
    * Creates or merges an import entry. Called on mutation kickoff (seeds an
    * `importing` entry so the indicator appears instantly) and on every SSE tick.
@@ -45,10 +46,11 @@ interface ImportTrayState {
   dismiss: (tableId: string) => void
   /** Drops all terminal (`ready` / `failed`) entries for a workspace. */
   clearTerminalFor: (workspaceId: string) => void
+  setMenuOpen: (open: boolean) => void
   reset: () => void
 }
 
-const initialState = { entries: {} as Record<string, ImportTrayEntry> }
+const initialState = { entries: {} as Record<string, ImportTrayEntry>, menuOpen: false }
 
 export const useImportTrayStore = create<ImportTrayState>()(
   devtools(
@@ -65,8 +67,7 @@ export const useImportTrayStore = create<ImportTrayState>()(
             importId: entry.importId ?? prev?.importId,
             phase: entry.phase ?? prev?.phase ?? 'importing',
             rowsProcessed: entry.rowsProcessed ?? prev?.rowsProcessed ?? 0,
-            total: entry.total ?? prev?.total,
-            uploadPercent: entry.uploadPercent ?? prev?.uploadPercent,
+            percent: entry.percent ?? prev?.percent,
             error: entry.error ?? prev?.error,
           }
           return { entries: { ...state.entries, [entry.tableId]: next } }
@@ -88,6 +89,8 @@ export const useImportTrayStore = create<ImportTrayState>()(
           }
           return { entries: rest }
         }),
+
+      setMenuOpen: (open) => set({ menuOpen: open }),
 
       reset: () => set(initialState),
     }),

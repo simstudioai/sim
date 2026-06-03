@@ -241,7 +241,7 @@ export function useTableEventStream({
       // Live-fill: rows are real as each batch commits. Coalesce the per-tick row
       // refetches via a debounce; on the terminal event refetch rows + the
       // definition immediately (the worker may have rewritten the schema).
-      if (status === 'ready' || status === 'failed') {
+      if (status === 'ready' || status === 'failed' || status === 'canceled') {
         if (importInvalidateTimer !== null) clearTimeout(importInvalidateTimer)
         void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
         void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })

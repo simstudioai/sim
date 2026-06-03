@@ -121,11 +121,11 @@ export type TableEvent =
       kind: 'import'
       tableId: string
       importId: string
-      status: 'importing' | 'ready' | 'failed'
+      status: 'importing' | 'ready' | 'failed' | 'canceled'
       /** Rows committed so far (importing) or in total (ready). */
       progress?: number
-      /** Estimated total rows (line-count of the source file), for a determinate bar. */
-      total?: number
+      /** Byte-based completion percent (0–100) — exact and monotonic, for the determinate bar. */
+      percent?: number
       error?: string
     }
   | {

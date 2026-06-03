@@ -48,11 +48,18 @@ export function useImportProgressTracker(): void {
           // before we know it (brief optimistic window), don't trust a replayed terminal event.
           const lockedId = existing?.importId
           if (lockedId && event.importId !== lockedId) return
-          if (!lockedId && (event.status === 'ready' || event.status === 'failed')) return
+          const isTerminal =
+            event.status === 'ready' || event.status === 'failed' || event.status === 'canceled'
+          if (!lockedId && isTerminal) return
 
           const importId = lockedId ?? event.importId
           const title = existing?.title ?? 'table'
           const rows = event.progress ?? existing?.rowsProcessed ?? 0
+          if (event.status === 'canceled') {
+            // The user stopped it — just clear the tray entry (no toast, they initiated it).
+            tray.dismiss(tableId)
+            return
+          }
           if (event.status === 'ready') {
             toast.success(`Imported ${rows.toLocaleString()} rows into "${title}"`)
             // Keep it briefly so the count reads `1/1`, then clear (if still ready).
@@ -80,7 +87,7 @@ export function useImportProgressTracker(): void {
             importId,
             phase: event.status,
             rowsProcessed: rows,
-            total: event.total,
+            percent: event.percent,
             error: event.error ?? undefined,
           })
         } catch (err) {

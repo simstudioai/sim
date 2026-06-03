@@ -951,6 +951,24 @@ export const cancelTableRunsContract = defineRouteContract({
   },
 })
 
+export const cancelTableImportBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  importId: z.string().min(1, 'Import ID is required'),
+})
+
+/** Cancel an in-flight async CSV import. The worker stops; committed rows are left in place. */
+export const cancelTableImportContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/import/cancel',
+  params: tableIdParamsSchema,
+  body: cancelTableImportBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ canceled: z.boolean() })),
+  },
+})
+export type CancelTableImportBody = z.input<typeof cancelTableImportBodySchema>
+
 /**
  * Run modes for `POST /api/table/[tableId]/columns/run`:
  *  - `all`        — every dep-satisfied row not already running/pending

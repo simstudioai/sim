@@ -328,6 +328,13 @@ export function ImportCsvDialog({
         rowsProcessed: 0,
       })
       onOpenChange(false)
+      toast({
+        message: `Importing "${parsed.file.name}" into "${table.name}"…`,
+        action: {
+          label: 'View',
+          onClick: () => useImportTrayStore.getState().setMenuOpen(true),
+        },
+      })
       importAsyncMutation.mutate(
         {
           workspaceId,
@@ -342,7 +349,7 @@ export function ImportCsvDialog({
               workspaceId,
               title: table.name,
               phase: 'importing',
-              uploadPercent: percent,
+              percent,
             }),
         },
         {

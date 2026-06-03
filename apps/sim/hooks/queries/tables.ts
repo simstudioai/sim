@@ -29,6 +29,7 @@ import {
   batchUpdateTableRowsContract,
   type CreateTableBodyInput,
   type CreateTableColumnBodyInput,
+  cancelTableImportContract,
   cancelTableRunsContract,
   createTableContract,
   createTableRowContract,
@@ -1296,6 +1297,21 @@ export function useImportCsvIntoTable() {
  * Downloads the full contents of a table to the user's device by streaming
  * `/api/table/[tableId]/export`. Defaults to CSV; pass `'json'` for JSON.
  */
+/**
+ * Cancels an in-flight async import. Plain function (not a hook) because the import dropdown lists
+ * multiple tables and cancels a chosen one by id rather than binding to a single table.
+ */
+export async function cancelTableImport(
+  workspaceId: string,
+  tableId: string,
+  importId: string
+): Promise<void> {
+  await requestJson(cancelTableImportContract, {
+    params: { tableId },
+    body: { workspaceId, importId },
+  })
+}
+
 export async function downloadTableExport(
   tableId: string,
   fileName: string,

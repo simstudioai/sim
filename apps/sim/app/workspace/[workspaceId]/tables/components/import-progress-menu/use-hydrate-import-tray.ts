@@ -44,8 +44,8 @@ export function useHydrateImportTray(workspaceId: string | undefined): void {
         })
       } else if (tray.entries[table.id]?.phase === 'importing') {
         // A tracked import finished while we weren't watching (missed SSE terminal event).
-        // `ready` → clear the spinner; `failed` → surface the failure instead of spinning forever.
-        if (table.importStatus === 'ready') {
+        // `ready`/`canceled` → clear the spinner; `failed` → surface the failure.
+        if (table.importStatus === 'ready' || table.importStatus === 'canceled') {
           tray.dismiss(table.id)
         } else if (table.importStatus === 'failed') {
           tray.upsert({

@@ -191,19 +191,16 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         // Heartbeat + ownership check: if a newer import has taken over this table, stop.
         const owns = await updateImportProgress(tableId, inserted, importId)
         if (!owns) throw new ImportSupersededError()
-        // Extrapolate the total from rows-per-byte observed so far; self-refines as it runs.
-        // `Math.max(inserted, …)` keeps it monotonic; omit when the byte size is unknown.
-        const estimatedTotal =
-          totalBytes > 0 && bytesRead > 0
-            ? Math.max(inserted, Math.round((inserted / bytesRead) * totalBytes))
-            : undefined
+        // Exact, monotonic completion from bytes consumed — no wobbly row estimate.
+        const percent =
+          totalBytes > 0 ? Math.min(99, Math.round((bytesRead / totalBytes) * 100)) : undefined
         void appendTableEvent({
           kind: 'import',
           tableId,
           importId,
           status: 'importing',
           progress: inserted,
-          total: estimatedTotal,
+          percent,
         })
       }
     }
@@ -256,7 +253,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       importId,
       status: 'ready',
       progress: inserted,
-      total: inserted,
+      percent: 100,
     })
     logger.info(`[${requestId}] Import complete`, { tableId, fileName, mode, rows: inserted })
   } catch (err) {

@@ -9,6 +9,7 @@ import {
   ProgressItem,
 } from '@/components/emcn'
 import { Upload } from '@/components/emcn/icons'
+import { cancelTableImport } from '@/hooks/queries/tables'
 import { selectWorkspaceImports, useImportTrayStore } from '@/stores/table/import-tray/store'
 import { getImportStage } from './import-stage'
 import { useHydrateImportTray } from './use-hydrate-import-tray'
@@ -38,6 +39,8 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
     useShallow((state) => selectWorkspaceImports(state, workspaceId))
   )
   const dismiss = useImportTrayStore((state) => state.dismiss)
+  const menuOpen = useImportTrayStore((state) => state.menuOpen)
+  const setMenuOpen = useImportTrayStore((state) => state.setMenuOpen)
 
   // Inside a table, scope the indicator to that table's import only; on the list view show
   // every active import in the workspace.
@@ -48,8 +51,16 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
   const total = imports.length
   const done = imports.filter((e) => e.phase === 'ready').length
 
+  const cancel = (entry: (typeof imports)[number]) => {
+    // Optimistically clear it; the server flips status → the SSE `canceled` event also dismisses.
+    dismiss(entry.tableId)
+    if (entry.importId) {
+      void cancelTableImport(entry.workspaceId, entry.tableId, entry.importId).catch(() => {})
+    }
+  }
+
   return (
-    <DropdownMenu>
+    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant='subtle' className='px-2 py-1 text-caption'>
           <Upload className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
@@ -68,6 +79,7 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
               title={stage.title}
               meta={stage.meta}
               detail={stage.detail}
+              onCancel={entry.phase === 'importing' ? () => cancel(entry) : undefined}
               onDismiss={stage.dismissible ? () => dismiss(entry.tableId) : undefined}
             />
           )

@@ -37,10 +37,12 @@ export interface ProgressItemProps
   meta?: React.ReactNode
   /** Secondary line under the title. */
   detail?: React.ReactNode
-  /** Renders a dismiss button when provided. */
+  /** Renders a dismiss button when provided (terminal rows). */
   onDismiss?: () => void
   /** Accessible label for the dismiss button. */
   dismissLabel?: string
+  /** Renders a cancel button when provided (active rows); takes precedence over `onDismiss`. */
+  onCancel?: () => void
 }
 
 /**
@@ -57,9 +59,11 @@ export interface ProgressItemProps
  * ```
  */
 const ProgressItem = forwardRef<HTMLDivElement, ProgressItemProps>(function ProgressItem(
-  { className, status, title, meta, detail, onDismiss, dismissLabel, ...props },
+  { className, status, title, meta, detail, onDismiss, dismissLabel, onCancel, ...props },
   ref
 ) {
+  const trailingAction = onCancel ?? onDismiss
+  const trailingLabel = onCancel ? 'Cancel' : (dismissLabel ?? 'Dismiss')
   return (
     <div ref={ref} className={cn(progressItemVariants({ status }), className)} {...props}>
       <StatusIcon status={status} />
@@ -83,11 +87,12 @@ const ProgressItem = forwardRef<HTMLDivElement, ProgressItemProps>(function Prog
           </span>
         )}
       </div>
-      {onDismiss && (
+      {trailingAction && (
         <button
           type='button'
-          onClick={onDismiss}
-          aria-label={dismissLabel ?? 'Dismiss'}
+          onClick={trailingAction}
+          aria-label={trailingLabel}
+          title={trailingLabel}
           className='-mr-1 shrink-0 rounded-[4px] p-1 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-primary)]'
         >
           <X className='size-[14px]' />

@@ -1361,9 +1361,10 @@ export async function markTableImporting(tableId: string, importId: string): Pro
  * stale-import janitor (`cleanup-stale-executions`) sees a live heartbeat and doesn't mark a
  * still-running import as failed.
  *
- * Scoped to `importId`: a stale/superseded worker (its run was marked failed and retried)
- * no longer matches and its write is a no-op. Returns whether this worker still owns the
- * import, so the caller can stop inserting when it's been superseded.
+ * Scoped to `importId` AND `import_status = 'importing'`: a stale/superseded worker no longer
+ * matches (its write is a no-op), and once the import is terminal (e.g. canceled) the match fails
+ * too — so this returning `false` is also the worker's signal to stop. Returns whether this worker
+ * still owns an in-flight import.
  */
 export async function updateImportProgress(
   tableId: string,
@@ -1373,22 +1374,37 @@ export async function updateImportProgress(
   const updated = await db
     .update(userTableDefinitions)
     .set({ importRowsProcessed: rowsProcessed, updatedAt: new Date() })
-    .where(and(eq(userTableDefinitions.id, tableId), eq(userTableDefinitions.importId, importId)))
+    .where(
+      and(
+        eq(userTableDefinitions.id, tableId),
+        eq(userTableDefinitions.importId, importId),
+        eq(userTableDefinitions.importStatus, 'importing')
+      )
+    )
     .returning({ id: userTableDefinitions.id })
   return updated.length > 0
 }
 
-/** Marks an import complete; rows become visible. No-op if a newer import has taken over. */
+/** Shared WHERE for terminal transitions: this import run, and still in-flight (write-once). */
+function ownsActiveImport(tableId: string, importId: string) {
+  return and(
+    eq(userTableDefinitions.id, tableId),
+    eq(userTableDefinitions.importId, importId),
+    eq(userTableDefinitions.importStatus, 'importing')
+  )
+}
+
+/** Marks an import complete; rows become visible. No-op unless it's still this in-flight run. */
 export async function markImportReady(tableId: string, importId: string): Promise<void> {
   await db
     .update(userTableDefinitions)
     .set({ importStatus: 'ready', importError: null, updatedAt: new Date() })
-    .where(and(eq(userTableDefinitions.id, tableId), eq(userTableDefinitions.importId, importId)))
+    .where(ownsActiveImport(tableId, importId))
 }
 
 /**
- * Marks an import failed, leaving any already-committed rows in place. No-op if a newer import
- * has taken over (so a stale worker can't clobber the current run's status).
+ * Marks an import failed, leaving any already-committed rows in place. No-op unless it's still
+ * this in-flight run (so a stale worker can't clobber a newer import or a cancel).
  */
 export async function markImportFailed(
   tableId: string,
@@ -1398,7 +1414,21 @@ export async function markImportFailed(
   await db
     .update(userTableDefinitions)
     .set({ importStatus: 'failed', importError: error.slice(0, 2000), updatedAt: new Date() })
-    .where(and(eq(userTableDefinitions.id, tableId), eq(userTableDefinitions.importId, importId)))
+    .where(ownsActiveImport(tableId, importId))
+}
+
+/**
+ * Marks an in-flight import canceled (user-initiated). No-op unless it's still importing. The
+ * worker's next ownership check then returns `false` and it stops; committed rows are left in
+ * place (no rollback). Returns whether a running import was actually canceled.
+ */
+export async function markImportCanceled(tableId: string, importId: string): Promise<boolean> {
+  const updated = await db
+    .update(userTableDefinitions)
+    .set({ importStatus: 'canceled', updatedAt: new Date() })
+    .where(ownsActiveImport(tableId, importId))
+    .returning({ id: userTableDefinitions.id })
+  return updated.length > 0
 }
 
 /**

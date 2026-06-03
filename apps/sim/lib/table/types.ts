@@ -153,7 +153,7 @@ export interface TableMetadata {
 }
 
 /** Async-import lifecycle state for a table. NULL/undefined = normal (no async import). */
-export type TableImportStatus = 'importing' | 'ready' | 'failed'
+export type TableImportStatus = 'importing' | 'ready' | 'failed' | 'canceled'
 
 export interface TableDefinition {
   id: string

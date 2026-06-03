@@ -420,6 +420,13 @@ export function Tables() {
                 phase: 'importing',
                 rowsProcessed: 0,
               })
+              toast({
+                message: `Importing "${file.name}"…`,
+                action: {
+                  label: 'View',
+                  onClick: () => useImportTrayStore.getState().setMenuOpen(true),
+                },
+              })
               try {
                 const result = await importCsvAsync.mutateAsync({
                   workspaceId,
@@ -430,7 +437,7 @@ export function Tables() {
                       workspaceId,
                       title: file.name,
                       phase: 'importing',
-                      uploadPercent: percent,
+                      percent,
                     }),
                 })
                 useImportTrayStore.getState().dismiss(pendingId)
