@@ -14,6 +14,7 @@ const {
   mockDeleteObjectCommand,
   mockGetSignedUrl,
   mockEnv,
+  mockS3Config,
 } = vi.hoisted(() => {
   const mockSend = vi.fn()
   const mockS3Client = { send: mockSend }
@@ -24,9 +25,21 @@ const {
     AWS_ACCESS_KEY_ID: 'test-access-key',
     AWS_SECRET_ACCESS_KEY: 'test-secret-key',
   }
+  const mockS3Config: {
+    bucket: string
+    region: string
+    endpoint: string | undefined
+    forcePathStyle: boolean
+  } = {
+    bucket: 'test-bucket',
+    region: 'test-region',
+    endpoint: undefined,
+    forcePathStyle: false,
+  }
   return {
     mockSend,
     mockS3Client,
+    mockS3Config,
     mockS3ClientConstructor: vi.fn().mockImplementation(
       class {
         constructor() {
@@ -71,10 +84,7 @@ vi.mock('@/lib/uploads/setup', () => ({
 }))
 
 vi.mock('@/lib/uploads/config', () => ({
-  S3_CONFIG: {
-    bucket: 'test-bucket',
-    region: 'test-region',
-  },
+  S3_CONFIG: mockS3Config,
   S3_KB_CONFIG: {
     bucket: 'test-kb-bucket',
     region: 'test-region',
@@ -97,6 +107,8 @@ describe('S3 Client', () => {
     vi.spyOn(Date.prototype, 'toISOString').mockReturnValue('2025-06-16T01:13:10.765Z')
     mockEnv.AWS_ACCESS_KEY_ID = 'test-access-key'
     mockEnv.AWS_SECRET_ACCESS_KEY = 'test-secret-key'
+    mockS3Config.endpoint = undefined
+    mockS3Config.forcePathStyle = false
     resetS3ClientForTesting()
   })
 
@@ -342,6 +354,8 @@ describe('S3 Client', () => {
       expect(client).toBeDefined()
       expect(mockS3ClientConstructor).toHaveBeenCalledWith({
         region: 'test-region',
+        endpoint: undefined,
+        forcePathStyle: false,
         credentials: {
           accessKeyId: 'test-access-key',
           secretAccessKey: 'test-secret-key',
@@ -359,7 +373,28 @@ describe('S3 Client', () => {
       expect(client).toBeDefined()
       expect(mockS3ClientConstructor).toHaveBeenCalledWith({
         region: 'test-region',
+        endpoint: undefined,
+        forcePathStyle: false,
         credentials: undefined,
+      })
+    })
+
+    it('should pass a custom endpoint and path-style flag for S3-compatible providers', () => {
+      mockS3Config.endpoint = 'https://account.r2.cloudflarestorage.com'
+      mockS3Config.forcePathStyle = true
+      resetS3ClientForTesting()
+
+      const client = getS3Client()
+
+      expect(client).toBeDefined()
+      expect(mockS3ClientConstructor).toHaveBeenCalledWith({
+        region: 'test-region',
+        endpoint: 'https://account.r2.cloudflarestorage.com',
+        forcePathStyle: true,
+        credentials: {
+          accessKeyId: 'test-access-key',
+          secretAccessKey: 'test-secret-key',
+        },
       })
     })
   })
