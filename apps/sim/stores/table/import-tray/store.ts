@@ -2,66 +2,50 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
 /**
- * Phase of a background CSV import as surfaced in the header tray. A completed (`ready`)
- * import is kept briefly so the count can read `1/1`, then auto-cleared by the tracker;
- * `failed` lingers until dismissed.
+ * An in-flight client upload, shown optimistically before its server import row exists or the
+ * table list has refreshed. Keyed by `uploadId`: a `pending_*` id (creating a new table, no row
+ * yet) or the target tableId (append/replace into an existing table).
  */
-export type ImportPhase = 'importing' | 'ready' | 'failed'
-
-export interface ImportTrayEntry {
-  tableId: string
+export interface ImportUpload {
+  uploadId: string
   workspaceId: string
-  /** Table name when known, otherwise the source file name. */
   title: string
-  /** Identifies this specific import run, so replayed SSE events from a prior import of the
-   *  same table can be ignored. Known from the kickoff result / the table's `importId`. */
-  importId?: string
-  phase: ImportPhase
-  rowsProcessed: number
-  /** Byte-based completion percent (0–100): upload bytes while uploading, processed bytes while
-   *  importing. Exact and monotonic — drives the determinate bar. Absent until the first tick. */
+  /** Byte-based upload percent from the client XHR. */
   percent?: number
-  error?: string
 }
 
 /**
- * Partial entry accepted by {@link ImportTrayState.upsert}. `tableId`,
- * `workspaceId`, and `title` identify/create the entry; everything else merges
- * onto whatever is already tracked so a progress tick never clobbers the title.
+ * Client-only state for the import tray. The importing/terminal rows themselves are derived from
+ * the table list (React Query) — this store holds only what the server doesn't: optimistic uploads,
+ * which terminal completions to surface this session, canceled ids, and the menu's open state.
  */
-export type ImportTrayUpsert = Pick<ImportTrayEntry, 'tableId' | 'workspaceId' | 'title'> &
-  Partial<Omit<ImportTrayEntry, 'tableId' | 'workspaceId'>>
-
 interface ImportTrayState {
-  /** Active + recently-terminal imports, keyed by tableId. */
-  entries: Record<string, ImportTrayEntry>
-  /** Tray ids canceled while still uploading (before an importId exists). The kickoff flow checks
-   *  this so its `onProgress`/`onSuccess` don't re-create a dismissed entry and cancels the worker
-   *  once the importId is known. */
+  uploads: Record<string, ImportUpload>
+  /** Terminal (`ready`/`failed`) table ids to surface as a card this session. */
+  notified: Record<string, true>
+  /** Ids (upload or table) canceled so callbacks/derivation don't resurrect them. */
   canceledIds: Record<string, true>
-  /** Whether the header import dropdown is open (controlled so the start toast can open it). */
   menuOpen: boolean
-  /**
-   * Creates or merges an import entry. Called on mutation kickoff (seeds an
-   * `importing` entry so the indicator appears instantly) and on every SSE tick.
-   */
-  upsert: (entry: ImportTrayUpsert) => void
-  /** Removes a single entry (the user dismissed a terminal card). */
+
+  startUpload: (upload: ImportUpload) => void
+  setUploadPercent: (uploadId: string, percent: number) => void
+  endUpload: (uploadId: string) => void
+  /** Surface a terminal completion as a tray card. */
+  notify: (tableId: string) => void
+  /** Remove a terminal card (manual dismiss or auto-clear). */
   dismiss: (tableId: string) => void
-  /** Dismiss + flag the id canceled so an in-flight upload's callbacks don't re-create it. */
-  cancel: (tableId: string) => void
-  /** Whether an id is flagged canceled (read without clearing). */
-  isCanceled: (tableId: string) => boolean
+  /** Flag an id canceled and drop any optimistic upload for it. */
+  cancel: (id: string) => void
+  isCanceled: (id: string) => boolean
   /** Returns whether the id was canceled and clears the flag (one-shot, for the kickoff handler). */
-  consumeCanceled: (tableId: string) => boolean
-  /** Drops all terminal (`ready` / `failed`) entries for a workspace. */
-  clearTerminalFor: (workspaceId: string) => void
+  consumeCanceled: (id: string) => boolean
   setMenuOpen: (open: boolean) => void
   reset: () => void
 }
 
 const initialState = {
-  entries: {} as Record<string, ImportTrayEntry>,
+  uploads: {} as Record<string, ImportUpload>,
+  notified: {} as Record<string, true>,
   canceledIds: {} as Record<string, true>,
   menuOpen: false,
 }
@@ -71,57 +55,50 @@ export const useImportTrayStore = create<ImportTrayState>()(
     (set, get) => ({
       ...initialState,
 
-      upsert: (entry) =>
+      startUpload: (upload) =>
+        set((state) => ({ uploads: { ...state.uploads, [upload.uploadId]: upload } })),
+
+      setUploadPercent: (uploadId, percent) =>
         set((state) => {
-          const prev = state.entries[entry.tableId]
-          const next: ImportTrayEntry = {
-            tableId: entry.tableId,
-            workspaceId: entry.workspaceId,
-            title: entry.title || prev?.title || 'table',
-            importId: entry.importId ?? prev?.importId,
-            phase: entry.phase ?? prev?.phase ?? 'importing',
-            rowsProcessed: entry.rowsProcessed ?? prev?.rowsProcessed ?? 0,
-            percent: entry.percent ?? prev?.percent,
-            error: entry.error ?? prev?.error,
-          }
-          return { entries: { ...state.entries, [entry.tableId]: next } }
+          const prev = state.uploads[uploadId]
+          if (!prev) return state
+          return { uploads: { ...state.uploads, [uploadId]: { ...prev, percent } } }
         }),
+
+      endUpload: (uploadId) =>
+        set((state) => {
+          if (!state.uploads[uploadId]) return state
+          const { [uploadId]: _removed, ...rest } = state.uploads
+          return { uploads: rest }
+        }),
+
+      notify: (tableId) => set((state) => ({ notified: { ...state.notified, [tableId]: true } })),
 
       dismiss: (tableId) =>
         set((state) => {
-          if (!state.entries[tableId]) return state
-          const { [tableId]: _removed, ...rest } = state.entries
-          return { entries: rest }
+          if (!state.notified[tableId]) return state
+          const { [tableId]: _removed, ...rest } = state.notified
+          return { notified: rest }
         }),
 
-      cancel: (tableId) =>
+      cancel: (id) =>
         set((state) => {
-          const { [tableId]: _removed, ...rest } = state.entries
-          return { entries: rest, canceledIds: { ...state.canceledIds, [tableId]: true } }
+          const { [id]: _removed, ...uploads } = state.uploads
+          return { uploads, canceledIds: { ...state.canceledIds, [id]: true } }
         }),
 
-      isCanceled: (tableId) => Boolean(get().canceledIds[tableId]),
+      isCanceled: (id) => Boolean(get().canceledIds[id]),
 
-      consumeCanceled: (tableId) => {
-        const was = Boolean(get().canceledIds[tableId])
+      consumeCanceled: (id) => {
+        const was = Boolean(get().canceledIds[id])
         if (was) {
           set((state) => {
-            const { [tableId]: _removed, ...rest } = state.canceledIds
+            const { [id]: _removed, ...rest } = state.canceledIds
             return { canceledIds: rest }
           })
         }
         return was
       },
-
-      clearTerminalFor: (workspaceId) =>
-        set((state) => {
-          const rest: Record<string, ImportTrayEntry> = {}
-          for (const [id, entry] of Object.entries(state.entries)) {
-            if (entry.workspaceId === workspaceId && entry.phase !== 'importing') continue
-            rest[id] = entry
-          }
-          return { entries: rest }
-        }),
 
       setMenuOpen: (open) => set({ menuOpen: open }),
 
@@ -130,20 +107,3 @@ export const useImportTrayStore = create<ImportTrayState>()(
     { name: 'import-tray-store' }
   )
 )
-
-/**
- * Entries belonging to a workspace, importing-first so the live ones sort to the
- * top of the dropdown.
- */
-export function selectWorkspaceImports(
-  state: ImportTrayState,
-  workspaceId: string | undefined
-): ImportTrayEntry[] {
-  if (!workspaceId) return []
-  return Object.values(state.entries)
-    .filter((e) => e.workspaceId === workspaceId)
-    .sort((a, b) => {
-      if (a.phase === b.phase) return 0
-      return a.phase === 'importing' ? -1 : 1
-    })
-}

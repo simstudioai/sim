@@ -182,7 +182,15 @@ function invalidateTableSchema(queryClient: ReturnType<typeof useQueryClient>, t
 /**
  * Fetch all tables for a workspace.
  */
-export function useTablesList(workspaceId?: string, scope: TableQueryScope = 'active') {
+export function useTablesList(
+  workspaceId?: string,
+  scope: TableQueryScope = 'active',
+  options?: {
+    /** Poll cadence, or a predicate over the current list that returns a cadence (or `false`). */
+    refetchInterval?: number | false | ((tables: TableDefinition[] | undefined) => number | false)
+  }
+) {
+  const refetchInterval = options?.refetchInterval
   return useQuery({
     queryKey: tableKeys.list(workspaceId, scope),
     queryFn: async ({ signal }) => {
@@ -197,6 +205,10 @@ export function useTablesList(workspaceId?: string, scope: TableQueryScope = 'ac
     enabled: Boolean(workspaceId),
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
+    refetchInterval:
+      typeof refetchInterval === 'function'
+        ? (query) => refetchInterval(query.state.data)
+        : (refetchInterval ?? false),
   })
 }
 

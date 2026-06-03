@@ -40,12 +40,8 @@ const logger = createLogger('ImportCsvDialog')
 
 const MAX_SAMPLE_ROWS = 5
 const MAX_EXAMPLES_IN_ERROR = 3
-/**
- * How many bytes of the file we read to build the preview + column mapping. We never parse the
- * whole file in the browser: a large CSV would freeze the tab and a file past ~512 MB blows V8's
- * max string length outright. The streaming importer reads the full file server-side and the DB
- * row-count trigger enforces the table limit, so the client only needs the header + a few rows.
- */
+/** Bytes read for the preview/mapping. We never parse the whole file client-side — the importer
+ *  streams it server-side and the DB trigger enforces the row limit. */
 const CSV_PREVIEW_BYTES = 512 * 1024
 /**
  * Sentinel value for the "Do not import" option in the mapping combobox. The
@@ -110,11 +106,7 @@ interface ParsedCsv {
   sampleRows: Record<string, unknown>[]
 }
 
-/**
- * Parses only the head of a CSV/TSV — enough for the column mapping and sample values, never the
- * whole file (see {@link CSV_PREVIEW_BYTES}). When the file is larger than the preview window we
- * drop the trailing partial line so the parser never sees a truncated final record.
- */
+/** Parses the head of a CSV/TSV for the mapping + sample, dropping any truncated final line. */
 async function parseCsvPreview(file: File, delimiter: ',' | '\t') {
   const sliced = file.size > CSV_PREVIEW_BYTES
   const blob = sliced ? file.slice(0, CSV_PREVIEW_BYTES) : file
@@ -329,12 +321,10 @@ export function ImportCsvDialog({
     // close the dialog immediately so the indicator is visible during the upload, then run
     // the upload + kickoff in the background (don't block the dialog on it).
     if (parsed.file.size >= CSV_ASYNC_IMPORT_THRESHOLD_BYTES) {
-      useImportTrayStore.getState().upsert({
-        tableId: table.id,
+      useImportTrayStore.getState().startUpload({
+        uploadId: table.id,
         workspaceId,
-        title: table.name,
-        phase: 'importing',
-        rowsProcessed: 0,
+        title: parsed.file.name,
       })
       onOpenChange(false)
       toast({
@@ -353,39 +343,21 @@ export function ImportCsvDialog({
           mapping,
           createColumns,
           onProgress: (percent) => {
-            if (useImportTrayStore.getState().isCanceled(table.id)) return
-            useImportTrayStore.getState().upsert({
-              tableId: table.id,
-              workspaceId,
-              title: table.name,
-              phase: 'importing',
-              percent,
-            })
+            useImportTrayStore.getState().setUploadPercent(table.id, percent)
           },
         },
         {
           onSuccess: (data) => {
-            // Canceled mid-upload — the worker just started; cancel it instead of re-seeding.
-            if (useImportTrayStore.getState().consumeCanceled(table.id)) {
-              if (data?.importId) {
-                // Re-flag so hydration won't re-seed the still-`importing` server row while the
-                // server cancel is in flight.
-                useImportTrayStore.getState().cancel(table.id)
-                void cancelTableImport(workspaceId, table.id, data.importId).catch(() => {})
-              }
-              return
+            useImportTrayStore.getState().endUpload(table.id)
+            // The server row drives the tray once the list refetches. If canceled mid-upload, flag
+            // the id so it's not shown and cancel the worker server-side.
+            if (useImportTrayStore.getState().consumeCanceled(table.id) && data?.importId) {
+              useImportTrayStore.getState().cancel(table.id)
+              void cancelTableImport(workspaceId, table.id, data.importId).catch(() => {})
             }
-            // Record the import id so the tracker can ignore replayed events from a prior import.
-            useImportTrayStore.getState().upsert({
-              tableId: table.id,
-              workspaceId,
-              title: table.name,
-              importId: data?.importId,
-              phase: 'importing',
-            })
           },
           onError: (err) => {
-            useImportTrayStore.getState().dismiss(table.id)
+            useImportTrayStore.getState().endUpload(table.id)
             toast.error(getErrorMessage(err, 'Failed to start import'))
             logger.error('Async CSV import failed to start', err)
           },

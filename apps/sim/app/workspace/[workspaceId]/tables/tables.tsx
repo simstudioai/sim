@@ -414,13 +414,9 @@ export function Tables() {
             // is still empty/importing, so stay on the list and let the indicator track it.
             if (file.size >= CSV_ASYNC_IMPORT_THRESHOLD_BYTES) {
               const pendingId = `pending_${generateId()}`
-              useImportTrayStore.getState().upsert({
-                tableId: pendingId,
-                workspaceId,
-                title: file.name,
-                phase: 'importing',
-                rowsProcessed: 0,
-              })
+              useImportTrayStore
+                .getState()
+                .startUpload({ uploadId: pendingId, workspaceId, title: file.name })
               toast({
                 message: `Importing "${file.name}"…`,
                 action: {
@@ -433,37 +429,20 @@ export function Tables() {
                   workspaceId,
                   file,
                   onProgress: (percent) => {
-                    if (useImportTrayStore.getState().isCanceled(pendingId)) return
-                    useImportTrayStore.getState().upsert({
-                      tableId: pendingId,
-                      workspaceId,
-                      title: file.name,
-                      phase: 'importing',
-                      percent,
-                    })
+                    useImportTrayStore.getState().setUploadPercent(pendingId, percent)
                   },
                 })
-                useImportTrayStore.getState().dismiss(pendingId)
+                useImportTrayStore.getState().endUpload(pendingId)
+                // The server row drives the tray once the list refetches (mutation invalidates it).
+                // If canceled mid-upload, flag the real id so it's not shown and cancel server-side.
                 if (result?.tableId && useImportTrayStore.getState().consumeCanceled(pendingId)) {
-                  // Canceled mid-upload — the worker just started. Flag the real table id so
-                  // hydration won't re-seed it from the still-`importing` server row while the
-                  // server cancel is in flight, then cancel it server-side.
                   useImportTrayStore.getState().cancel(result.tableId)
                   void cancelTableImport(workspaceId, result.tableId, result.importId).catch(
                     () => {}
                   )
-                } else if (result?.tableId) {
-                  useImportTrayStore.getState().upsert({
-                    tableId: result.tableId,
-                    workspaceId,
-                    title: file.name,
-                    importId: result.importId,
-                    phase: 'importing',
-                    rowsProcessed: 0,
-                  })
                 }
               } catch (err) {
-                useImportTrayStore.getState().dismiss(pendingId)
+                useImportTrayStore.getState().endUpload(pendingId)
                 throw err
               }
               continue

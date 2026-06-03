@@ -1,4 +1,4 @@
-import type { ImportTrayEntry } from '@/stores/table/import-tray/store'
+import type { ImportRow } from './use-workspace-imports'
 
 type ProgressStatus = 'pending' | 'success' | 'error'
 
@@ -17,11 +17,12 @@ export interface ImportStageView {
 /**
  * Maps a tray entry to the stage shown in the import dropdown. The single place the import
  * stages (Uploading → Processing → Imported / Failed) are defined; the row component just
- * renders the returned slots, so every stage looks consistent: `{status} {name}` with a
- * byte-based percent on the right and the row count underneath. The percent comes straight from
- * `entry.percent` (exact, monotonic) rather than an estimated row fraction.
+ * renders the returned slots, so every stage looks consistent: `{status} {name}`. While
+ * uploading, the right slot shows the byte-based upload percent (from the client XHR). Once the
+ * server is processing we only know the committed row count (polled from the table row), so the
+ * detail line reads `{rows} rows` with no percent.
  */
-export function getImportStage(entry: ImportTrayEntry): ImportStageView {
+export function getImportStage(entry: ImportRow): ImportStageView {
   const rows = entry.rowsProcessed.toLocaleString()
   const name = entry.title
   const meta = typeof entry.percent === 'number' ? `${entry.percent}%` : undefined
@@ -49,7 +50,6 @@ export function getImportStage(entry: ImportTrayEntry): ImportStageView {
     return {
       status: 'pending',
       title: `Processing ${name}`,
-      meta,
       detail: `${rows} rows`,
       dismissible: false,
     }

@@ -236,8 +236,8 @@ export function useTableEventStream({
             }
           : prev
       )
-      // The header tray + completion toast are owned by `useImportProgressTracker` (mounted on
-      // every page). Here we only keep the detail cache + grid in sync.
+      // The header tray + completion toast are owned by `useImportTrayPoll` (mounted on every
+      // page). Here we only keep the detail cache + grid in sync.
       // Live-fill: rows are real as each batch commits. Coalesce the per-tick row
       // refetches via a debounce; on the terminal event refetch rows + the
       // definition immediately (the worker may have rewritten the schema).

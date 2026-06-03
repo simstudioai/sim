@@ -176,11 +176,9 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
 
     const flush = async (rows: Record<string, unknown>[]) => {
       if (rows.length === 0 || !schema || !headerToColumn) return
-      // Ownership gate on *every* batch, before inserting: once this run loses the table (cancel,
-      // supersede, or the stale-import janitor), `updateImportProgress` returns false and we stop
-      // immediately — a superseded worker must never write another batch into a table a newer
-      // import now owns. (Throttling this to the progress cadence let up to PROGRESS_INTERVAL_ROWS
-      // extra rows land after cancel.) The write also keeps the persisted row count fresh.
+      // Ownership gate before every insert: once this run loses the table (cancel/supersede),
+      // updateImportProgress returns false and we stop before writing into a table a newer import
+      // may own. Runs per batch (not just at the emit cadence) so we stop within one batch.
       const owns = await updateImportProgress(tableId, inserted, importId)
       if (!owns) throw new ImportSupersededError()
       const coerced = coerceRowsForTable(rows, schema, headerToColumn)
@@ -189,8 +187,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         { ...table, schema },
         requestId
       )
-      // Emit after the first batch lands, then every interval, so the bar appears early without
-      // flooding the SSE stream (the ownership/progress write above is what runs every batch).
+      // Emit after the first batch, then every interval, so the bar appears early without flooding.
       if (
         inserted - lastReported >= PROGRESS_INTERVAL_ROWS ||
         (lastReported === 0 && inserted > 0)
