@@ -161,11 +161,12 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const { navigateToSettings } = useSettingsNavigation()
   const { data: workflowsById = {} } = useWorkflowMap(workspaceId)
   const { data: skills = [] } = useSkills(workspaceId)
-  // SSR-safe initial value. The server has no localStorage, so reading a
-  // persisted draft here would diverge from the client's synchronous
-  // zustand-persist rehydration and trigger a hydration mismatch (flash).
-  // Draft text is restored after mount in the effect below instead.
-  const [value, setValue] = useState(defaultValue)
+  const [value, setValue] = useState(() => {
+    if (defaultValue) return defaultValue
+    if (!draftScopeKey) return ''
+    const text = useMothershipDraftsStore.getState().drafts[draftScopeKey]?.text
+    return typeof text === 'string' ? text : ''
+  })
   const valueRef = useRef(value)
   valueRef.current = value
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -234,8 +235,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     if (restoredContexts) contextManagement.setSelectedContexts(restoredContexts)
     if (restoredFiles) files.restoreAttachedFiles(restoredFiles)
     if (caretText !== null) {
-      setValue(caretText)
-      valueRef.current = caretText
       const textarea = textareaRef.current
       if (textarea) {
         textarea.focus()
