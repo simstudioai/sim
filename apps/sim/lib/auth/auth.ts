@@ -844,6 +844,22 @@ export const auth = betterAuth({
         }
       }
 
+      if (ctx.path.startsWith('/sign-up/email') && ctx.body?.email) {
+        const signupEmail = ctx.body.email.toLowerCase()
+        const [existingUser] = await db
+          .select({ id: schema.user.id })
+          .from(schema.user)
+          .where(eq(schema.user.email, signupEmail))
+          .limit(1)
+
+        if (existingUser) {
+          throw new APIError('UNPROCESSABLE_ENTITY', {
+            message: 'User already exists',
+            code: 'USER_ALREADY_EXISTS',
+          })
+        }
+      }
+
       return
     }),
   },
