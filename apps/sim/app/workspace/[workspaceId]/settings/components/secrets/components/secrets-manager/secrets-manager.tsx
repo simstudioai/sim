@@ -2,32 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
-import { Check, Clipboard, Key, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import {
-  Avatar,
-  AvatarFallback,
-  Badge,
-  Button,
-  Chip,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-  Combobox,
-  Input as EmcnInput,
-  Label,
-  Textarea,
-  Tooltip,
-  Trash,
-  toast,
-} from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
+import { Button, Chip, Input as EmcnInput, Tooltip, Trash, toast } from '@/components/emcn'
 import { Input } from '@/components/ui'
-import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import {
   clearPendingCredentialCreateRequest,
@@ -36,17 +16,12 @@ import {
   readPendingCredentialCreateRequest,
 } from '@/lib/credentials/client-state'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
-import { getUserColor } from '@/lib/workspaces/colors'
+import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { isValidEnvVarName } from '@/executor/constants'
 import {
-  useCreateWorkspaceCredential,
-  useRemoveWorkspaceCredentialMember,
-  useUpdateWorkspaceCredential,
-  useUpsertWorkspaceCredentialMember,
-  useWorkspaceCredentialMembers,
   useWorkspaceCredentials,
   type WorkspaceCredential,
-  type WorkspaceCredentialRole,
   workspaceCredentialKeys,
 } from '@/hooks/queries/credentials'
 import {
@@ -63,11 +38,6 @@ const logger = createLogger('SecretsManager')
 
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto_auto] items-center'
 const COL_SPAN_ALL = 'col-span-5'
-
-const ROLE_OPTIONS = [
-  { value: 'member', label: 'Member' },
-  { value: 'admin', label: 'Admin' },
-] as const
 
 const generateRowId = (() => {
   let counter = 0
@@ -185,6 +155,8 @@ interface WorkspaceVariableRowProps {
   pendingKeyValue: string
   hasCredential: boolean
   canEdit: boolean
+  /** Renaming creates a new key + deletes the old, so it also needs create access. */
+  canRename: boolean
   onRenameStart: (key: string) => void
   onPendingKeyChange: (value: string) => void
   onRenameEnd: (key: string, value: string) => void
@@ -200,6 +172,7 @@ function WorkspaceVariableRow({
   pendingKeyValue,
   hasCredential,
   canEdit,
+  canRename,
   onRenameStart,
   onPendingKeyChange,
   onRenameEnd,
@@ -207,8 +180,6 @@ function WorkspaceVariableRow({
   onDelete,
   onViewDetails,
 }: WorkspaceVariableRowProps) {
-  const [valueFocused, setValueFocused] = useState(false)
-
   return (
     <div className='contents'>
       <EmcnInput
@@ -224,30 +195,16 @@ function WorkspaceVariableRow({
         spellCheck='false'
         readOnly
         onFocus={(e) => {
-          if (canEdit) e.target.removeAttribute('readOnly')
+          if (canRename) e.target.removeAttribute('readOnly')
         }}
-        className='h-9'
+        className={cn('h-9', !canRename && 'cursor-not-allowed opacity-50')}
       />
       <div />
-      <EmcnInput
-        value={canEdit ? value : value ? '\u2022'.repeat(value.length) : ''}
-        type={canEdit && !valueFocused ? 'password' : 'text'}
-        onChange={(e) => onValueChange(envKey, e.target.value)}
-        readOnly
-        onFocus={(e) => {
-          if (canEdit) {
-            setValueFocused(true)
-            e.target.removeAttribute('readOnly')
-          }
-        }}
-        onBlur={() => {
-          if (canEdit) setValueFocused(false)
-        }}
+      <SecretValueField
+        value={value}
+        onChange={(next) => onValueChange(envKey, next)}
+        canEdit={canEdit}
         name={`workspace_env_value_${envKey}_${generateShortId()}`}
-        autoComplete='off'
-        autoCorrect='off'
-        autoCapitalize='off'
-        spellCheck='false'
         className='h-9'
       />
       <Chip
@@ -286,7 +243,6 @@ function NewWorkspaceVariableRow({
   onUpdate,
   onPaste,
 }: NewWorkspaceVariableRowProps) {
-  const [valueFocused, setValueFocused] = useState(false)
   const keyError = validateEnvVarKey(envVar.key)
   const hasContent = Boolean(envVar.key || envVar.value)
 
@@ -307,23 +263,13 @@ function NewWorkspaceVariableRow({
         className={cn('h-9', keyError && 'border-[var(--text-error)]')}
       />
       <div />
-      <EmcnInput
+      <SecretValueField
         data-input-type='value'
         value={envVar.value}
-        onChange={(e) => onUpdate(index, 'value', e.target.value)}
+        onChange={(next) => onUpdate(index, 'value', next)}
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='Enter value'
-        type={valueFocused ? 'text' : 'password'}
         name={`new_workspace_value_${envVar.id || index}_${generateShortId()}`}
-        autoComplete='off'
-        autoCapitalize='off'
-        spellCheck='false'
-        readOnly
-        onFocus={(e) => {
-          setValueFocused(true)
-          e.target.removeAttribute('readOnly')
-        }}
-        onBlur={() => setValueFocused(false)}
         className='col-span-2 ml-0 h-9'
       />
       <Tooltip.Root>
@@ -360,7 +306,6 @@ export function SecretsManager() {
   const params = useParams()
   const router = useRouter()
   const workspaceId = (params?.workspaceId as string) || ''
-  const { data: session } = useSession()
 
   const { data: personalEnvData, isLoading: isPersonalLoading } = usePersonalEnvironment()
   const { data: workspaceEnvData, isLoading: isWorkspaceLoading } = useWorkspaceEnvironment(
@@ -386,21 +331,12 @@ export function SecretsManager() {
     enabled: Boolean(workspaceId),
   })
 
-  const { data: personalEnvCredentials = [] } = useWorkspaceCredentials({
-    workspaceId,
-    type: 'env_personal',
-    enabled: Boolean(workspaceId),
-  })
-
-  const envCredentials = useMemo(
-    () => [...workspaceEnvCredentials, ...personalEnvCredentials],
-    [workspaceEnvCredentials, personalEnvCredentials]
-  )
-
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId || null)
   const queryClient = useQueryClient()
 
   const isWorkspaceAdmin = workspacePermissions?.viewer?.isAdmin ?? false
+  const canCreateWorkspaceSecret =
+    isWorkspaceAdmin || workspacePermissions?.viewer?.permissionType === 'write'
 
   const isLoading = isPersonalLoading || isWorkspaceLoading
 
@@ -409,23 +345,10 @@ export function SecretsManager() {
     createEmptyEnvVar(),
   ])
   const [searchTerm, setSearchTerm] = useState('')
-  const [focusedValueIndex, setFocusedValueIndex] = useState<number | null>(null)
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
   const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
   const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
-  const [prevSelectedCredentialId, setPrevSelectedCredentialId] = useState<
-    string | null | undefined
-  >(undefined)
-  const [selectedDisplayNameDraft, setSelectedDisplayNameDraft] = useState('')
-  const [selectedDescriptionDraft, setSelectedDescriptionDraft] = useState('')
-  const [copyIdSuccess, setCopyIdSuccess] = useState(false)
-  const [detailsError, setDetailsError] = useState<string | null>(null)
-  const [showDetailUnsavedChanges, setShowDetailUnsavedChanges] = useState(false)
-  const [memberUserId, setMemberUserId] = useState('')
-  const [memberRole, setMemberRole] = useState<WorkspaceCredentialRole>('member')
-
   const initialWorkspaceVarsRef = useRef<Record<string, string>>({})
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const initialVarsRef = useRef<UIEnvironmentVariable[]>([])
@@ -435,67 +358,13 @@ export function SecretsManager() {
   const shouldBlockNavRef = useRef(false)
   const pendingNavigationUrlRef = useRef<string | null>(null)
 
-  const envKeyToCredential = useMemo(() => {
+  const workspaceEnvKeyToCredential = useMemo(() => {
     const map = new Map<string, WorkspaceCredential>()
-    for (const cred of envCredentials) {
+    for (const cred of workspaceEnvCredentials) {
       if (cred.envKey) map.set(cred.envKey, cred)
     }
     return map
-  }, [envCredentials])
-
-  const selectedCredential = useMemo(
-    () => envCredentials.find((c) => c.id === selectedCredentialId) || null,
-    [envCredentials, selectedCredentialId]
-  )
-
-  const currentCredentialId = selectedCredential?.id ?? null
-  if (currentCredentialId !== prevSelectedCredentialId) {
-    setPrevSelectedCredentialId(currentCredentialId)
-    if (!selectedCredential) {
-      setSelectedDescriptionDraft('')
-      setSelectedDisplayNameDraft('')
-      setDetailsError(null)
-    } else {
-      setDetailsError(null)
-      setSelectedDescriptionDraft(selectedCredential.description || '')
-      setSelectedDisplayNameDraft(selectedCredential.displayName)
-    }
-  }
-
-  const { data: members = [], isPending: membersLoading } = useWorkspaceCredentialMembers(
-    selectedCredential?.id
-  )
-  const createCredential = useCreateWorkspaceCredential()
-  const updateCredential = useUpdateWorkspaceCredential()
-  const upsertMember = useUpsertWorkspaceCredentialMember()
-  const removeMember = useRemoveWorkspaceCredentialMember()
-
-  const activeMembers = useMemo(
-    () => members.filter((member) => member.status === 'active'),
-    [members]
-  )
-
-  const adminMemberCount = activeMembers.filter((member) => member.role === 'admin').length
-
-  const isSelectedAdmin = selectedCredential?.role === 'admin'
-
-  const workspaceUserOptions = useMemo(() => {
-    const activeMemberUserIds = new Set(activeMembers.map((member) => member.userId))
-    return (workspacePermissions?.users || [])
-      .filter((user) => !activeMemberUserIds.has(user.userId))
-      .map((user) => ({
-        value: user.userId,
-        label: user.name || user.email,
-      }))
-  }, [workspacePermissions?.users, activeMembers])
-
-  const isDescriptionDirty = selectedCredential
-    ? selectedDescriptionDraft !== (selectedCredential.description || '')
-    : false
-  const isDisplayNameDirty = selectedCredential
-    ? selectedDisplayNameDraft !== selectedCredential.displayName
-    : false
-  const isDetailsDirty = isDescriptionDirty || isDisplayNameDirty
+  }, [workspaceEnvCredentials])
 
   const filteredEnvVars = useMemo(() => {
     const mapped = envVars.map((envVar, index) => ({ envVar, originalIndex: index }))
@@ -573,14 +442,14 @@ export function SecretsManager() {
     removeWorkspaceMutation.isPending
 
   hasChangesRef.current = hasChanges
-  shouldBlockNavRef.current = hasChanges || isDetailsDirty
+  shouldBlockNavRef.current = hasChanges
 
   const setNavGuardDirty = useSettingsDirtyStore((s) => s.setDirty)
   const resetNavGuard = useSettingsDirtyStore((s) => s.reset)
 
   useEffect(() => {
-    setNavGuardDirty(hasChanges || isDetailsDirty)
-  }, [hasChanges, isDetailsDirty, setNavGuardDirty])
+    setNavGuardDirty(hasChanges)
+  }, [hasChanges, setNavGuardDirty])
 
   useEffect(() => () => resetNavGuard(), [resetNavGuard])
 
@@ -625,11 +494,11 @@ export function SecretsManager() {
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault()
     }
-    if (hasChanges || isDetailsDirty) {
+    if (hasChanges) {
       window.addEventListener('beforeunload', handler)
     }
     return () => window.removeEventListener('beforeunload', handler)
-  }, [hasChanges, isDetailsDirty])
+  }, [hasChanges])
 
   /**
    * Navigation guard: intercept link clicks in the capture phase before
@@ -724,102 +593,16 @@ export function SecretsManager() {
     }
   }, [workspaceId, applyPendingCredentialCreateRequest])
 
-  const handleSelectCredential = (credentialId: string) => {
-    setSelectedCredentialId(credentialId)
-    setDetailsError(null)
-    setMemberUserId('')
-    setMemberRole('member')
-  }
-
-  const handleViewDetails = async (envKey: string, type: 'env_workspace' | 'env_personal') => {
-    const existing = envKeyToCredential.get(envKey)
-    if (existing) {
-      handleSelectCredential(existing.id)
+  const handleViewDetails = (envKey: string) => {
+    const existing = workspaceEnvKeyToCredential.get(envKey)
+    if (!existing) return
+    const url = `/workspace/${workspaceId}/settings/secrets/${existing.id}`
+    if (shouldBlockNavRef.current) {
+      pendingNavigationUrlRef.current = url
+      setShowUnsavedChanges(true)
       return
     }
-
-    try {
-      const result = await createCredential.mutateAsync({
-        workspaceId,
-        type,
-        displayName: envKey,
-        envKey,
-        ...(type === 'env_personal' ? { envOwnerUserId: session?.user?.id } : {}),
-      })
-      if (result.credential?.id) {
-        handleSelectCredential(result.credential.id)
-      }
-    } catch (error) {
-      logger.error('Failed to create credential record', error)
-    }
-  }
-
-  const handleBackAttempt = () => {
-    if (isDetailsDirty && !updateCredential.isPending) {
-      setShowDetailUnsavedChanges(true)
-    } else {
-      setSelectedCredentialId(null)
-    }
-  }
-
-  const handleDiscardDetailChanges = () => {
-    setShowDetailUnsavedChanges(false)
-    setSelectedDescriptionDraft(selectedCredential?.description || '')
-    setSelectedDisplayNameDraft(selectedCredential?.displayName || '')
-    setSelectedCredentialId(null)
-  }
-
-  const handleSaveDetails = async () => {
-    if (!selectedCredential || !isSelectedAdmin || !isDetailsDirty || updateCredential.isPending)
-      return
-    setDetailsError(null)
-
-    try {
-      if (isDisplayNameDirty || isDescriptionDirty) {
-        await updateCredential.mutateAsync({
-          credentialId: selectedCredential.id,
-          ...(isDisplayNameDirty ? { displayName: selectedDisplayNameDraft.trim() } : {}),
-          ...(isDescriptionDirty ? { description: selectedDescriptionDraft.trim() || null } : {}),
-        })
-      }
-    } catch (error: unknown) {
-      const message = getErrorMessage(error, 'Failed to save changes')
-      setDetailsError(message)
-      logger.error('Failed to save secret details', error)
-    }
-  }
-
-  const handleAddMember = async () => {
-    if (!memberUserId || !selectedCredential) return
-    try {
-      await upsertMember.mutateAsync({
-        credentialId: selectedCredential.id,
-        userId: memberUserId,
-        role: memberRole,
-      })
-      setMemberUserId('')
-      setMemberRole('member')
-    } catch (error) {
-      logger.error('Failed to add member', error)
-    }
-  }
-
-  const handleRemoveMember = async (userId: string) => {
-    if (!selectedCredential) return
-    try {
-      await removeMember.mutateAsync({ credentialId: selectedCredential.id, userId })
-    } catch (error) {
-      logger.error('Failed to remove member', error)
-    }
-  }
-
-  const handleChangeMemberRole = async (userId: string, role: WorkspaceCredentialRole) => {
-    if (!selectedCredential) return
-    try {
-      await upsertMember.mutateAsync({ credentialId: selectedCredential.id, userId, role })
-    } catch (error) {
-      logger.error('Failed to change member role', error)
-    }
+    router.push(url)
   }
 
   const handleWorkspaceKeyRename = (currentKey: string, currentValue: string) => {
@@ -865,16 +648,6 @@ export function SecretsManager() {
         !filtered[filtered.length - 1].value
       return hasTrailingEmpty ? filtered : [...filtered, createEmptyEnvVar()]
     })
-  }
-
-  const handleValueFocus = (index: number, e: React.FocusEvent<HTMLInputElement>) => {
-    setFocusedValueIndex(index)
-    e.target.scrollLeft = 0
-  }
-
-  const handleValueClick = (e: React.MouseEvent<HTMLInputElement>) => {
-    e.preventDefault()
-    e.currentTarget.scrollLeft = 0
   }
 
   const handleSingleValuePaste = (text: string, index: number, inputType: 'key' | 'value') => {
@@ -1059,7 +832,6 @@ export function SecretsManager() {
     shouldBlockNavRef.current = false
     resetNavGuard()
     resetToSaved()
-    setSelectedCredentialId(null)
 
     if (pendingNavigationUrlRef.current) {
       const url = pendingNavigationUrlRef.current
@@ -1069,15 +841,8 @@ export function SecretsManager() {
   }
 
   const renderEnvVarRow = (envVar: UIEnvironmentVariable, originalIndex: number) => {
-    const isConflict = !!envVar.key && allWorkspaceKeys.has(envVar.key)
+    const isConflicted = !!envVar.key && allWorkspaceKeys.has(envVar.key)
     const keyError = validateEnvVarKey(envVar.key)
-    const maskedValueStyle =
-      focusedValueIndex !== originalIndex && !isConflict
-        ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
-        : undefined
-
-    const isComplete = Boolean(envVar.key && envVar.value)
-    const hasCredential = isComplete && envKeyToCredential.has(envVar.key)
 
     const hasContent = Boolean(envVar.key || envVar.value)
 
@@ -1097,47 +862,22 @@ export function SecretsManager() {
           onFocus={(e) => e.target.removeAttribute('readOnly')}
           className={cn(
             'h-9',
-            isConflict && 'border-[var(--text-error)]',
+            isConflicted && 'border-[var(--text-error)]',
             keyError && 'border-[var(--text-error)]'
           )}
         />
         <div />
-        <EmcnInput
+        <SecretValueField
           data-input-type='value'
           value={envVar.value}
-          onChange={(e) => updateEnvVar(originalIndex, 'value', e.target.value)}
-          type='text'
-          onFocus={(e) => {
-            if (!isConflict) {
-              e.target.removeAttribute('readOnly')
-              handleValueFocus(originalIndex, e)
-            }
-          }}
-          onClick={handleValueClick}
-          onBlur={() => setFocusedValueIndex(null)}
+          onChange={(next) => updateEnvVar(originalIndex, 'value', next)}
           onPaste={(e) => handlePaste(e, originalIndex)}
-          placeholder={isConflict ? 'Workspace override active' : 'Enter value'}
+          unmasked={isConflicted}
+          readOnly={isConflicted}
+          placeholder={isConflicted ? 'Workspace override active' : 'Enter value'}
           name={`env_variable_value_${envVar.id || originalIndex}_${generateShortId()}`}
-          autoComplete='off'
-          autoCapitalize='off'
-          spellCheck='false'
-          readOnly={isConflict}
-          style={maskedValueStyle}
-          className={cn(
-            'h-9',
-            (!isComplete || isConflict) && 'col-span-2',
-            isConflict && 'cursor-not-allowed opacity-50'
-          )}
+          className={cn('col-span-2 h-9', isConflicted && 'cursor-not-allowed opacity-50')}
         />
-        {isComplete && !isConflict && (
-          <Chip
-            onClick={() => handleViewDetails(envVar.key, 'env_personal')}
-            disabled={!hasCredential}
-            className={cn('ml-2', !hasCredential && 'opacity-40')}
-          >
-            Details
-          </Chip>
-        )}
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
@@ -1161,7 +901,7 @@ export function SecretsManager() {
             {keyError}
           </div>
         )}
-        {isConflict && !keyError && (
+        {isConflicted && !keyError && (
           <div
             className={cn(
               COL_SPAN_ALL,
@@ -1177,288 +917,6 @@ export function SecretsManager() {
   }
 
   const isPendingNavigation = pendingNavigationUrlRef.current !== null
-
-  // Detail view
-  if (selectedCredential) {
-    return (
-      <>
-        <div className='flex h-full flex-col bg-[var(--bg)]'>
-          {/* Fixed header bar */}
-          <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-            <div className='flex items-center'>
-              <Chip leftIcon={ArrowLeft} onClick={handleBackAttempt}>
-                Secrets
-              </Chip>
-            </div>
-            <div className='flex items-center'>
-              {isSelectedAdmin && (
-                <Chip
-                  variant='primary'
-                  onClick={handleSaveDetails}
-                  disabled={!isDetailsDirty || updateCredential.isPending}
-                >
-                  {updateCredential.isPending ? 'Saving...' : 'Save'}
-                </Chip>
-              )}
-            </div>
-          </div>
-
-          {/* Scrollable content */}
-          <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-            <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-              <div className='flex items-center gap-2.5 border-[var(--border)] border-b pb-3'>
-                <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-5)]'>
-                  <Key className='size-[18px] text-[var(--text-tertiary)]' />
-                </div>
-                <div className='min-w-0 flex-1'>
-                  <div className='flex items-center gap-2'>
-                    <p className='truncate font-medium text-[var(--text-primary)] text-base'>
-                      {selectedCredential.envKey || selectedCredential.displayName}
-                    </p>
-                    <Badge variant='gray-secondary' size='sm'>
-                      {selectedCredential.type === 'env_personal' ? 'personal' : 'workspace'}
-                    </Badge>
-                    {selectedCredential.role && (
-                      <Badge variant='gray-secondary' size='sm'>
-                        {selectedCredential.role}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className='text-[var(--text-muted)] text-small'>
-                    {selectedCredential.type === 'env_personal'
-                      ? 'Personal secret'
-                      : 'Workspace secret'}
-                  </p>
-                </div>
-              </div>
-
-              <div className='flex flex-col gap-1.5'>
-                <Label className='flex items-center gap-1.5'>
-                  Display Name
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        variant='ghost'
-                        type='button'
-                        className='-my-1 size-5 p-0'
-                        onClick={() => {
-                          navigator.clipboard.writeText(selectedCredential.id)
-                          setCopyIdSuccess(true)
-                          setTimeout(() => setCopyIdSuccess(false), 2000)
-                        }}
-                        aria-label='Copy value'
-                      >
-                        {copyIdSuccess ? (
-                          <Check className='size-3 text-[var(--text-success)]' />
-                        ) : (
-                          <Clipboard className='size-3 text-[var(--text-icon)]' />
-                        )}
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content>
-                      {copyIdSuccess ? 'Copied!' : 'Copy credential ID'}
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                </Label>
-                <EmcnInput
-                  id='credential-display-name'
-                  value={selectedDisplayNameDraft}
-                  onChange={(event) => setSelectedDisplayNameDraft(event.target.value)}
-                  autoComplete='off'
-                  data-lpignore='true'
-                  disabled={!isSelectedAdmin}
-                />
-              </div>
-
-              <div className='flex flex-col gap-1.5'>
-                <Label>Description</Label>
-                <Textarea
-                  id='credential-description'
-                  value={selectedDescriptionDraft}
-                  onChange={(event) => setSelectedDescriptionDraft(event.target.value)}
-                  placeholder='Add a description...'
-                  maxLength={500}
-                  autoComplete='off'
-                  data-lpignore='true'
-                  disabled={!isSelectedAdmin}
-                  className='min-h-[60px] resize-none'
-                />
-              </div>
-
-              {detailsError && (
-                <div className='rounded-lg border border-[color-mix(in_srgb,var(--text-error)_40%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] px-2.5 py-2 text-[var(--text-error)] text-small'>
-                  {detailsError}
-                </div>
-              )}
-
-              <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
-                <Label>Members ({activeMembers.length})</Label>
-
-                {membersLoading ? null : (
-                  <div className='flex flex-col gap-2'>
-                    {activeMembers.map((member) => (
-                      <div
-                        key={member.id}
-                        className={cn(
-                          'grid items-center gap-2',
-                          isSelectedAdmin ? 'grid-cols-[1fr_120px_72px]' : 'grid-cols-[1fr_200px]'
-                        )}
-                      >
-                        <div className='flex min-w-0 items-center gap-2.5'>
-                          <Avatar className='size-8 flex-shrink-0'>
-                            <AvatarFallback
-                              style={{
-                                background: getUserColor(member.userId || member.userEmail || ''),
-                              }}
-                              className='border-0 text-small text-white'
-                            >
-                              {(member.userName || member.userEmail || '?').charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className='min-w-0'>
-                            <p className='truncate font-medium text-[var(--text-primary)] text-small'>
-                              {member.userName || member.userEmail || member.userId}
-                            </p>
-                            <p className='truncate text-[var(--text-tertiary)] text-caption'>
-                              {member.userEmail || member.userId}
-                            </p>
-                          </div>
-                        </div>
-
-                        {isSelectedAdmin ? (
-                          <>
-                            <Combobox
-                              options={ROLE_OPTIONS.map((option) => ({
-                                value: option.value,
-                                label: option.label,
-                              }))}
-                              value={
-                                ROLE_OPTIONS.find((option) => option.value === member.role)
-                                  ?.label || ''
-                              }
-                              selectedValue={member.role}
-                              onChange={(value) =>
-                                handleChangeMemberRole(
-                                  member.userId,
-                                  value as WorkspaceCredentialRole
-                                )
-                              }
-                              placeholder='Role'
-                              disabled={member.role === 'admin' && adminMemberCount <= 1}
-                              size='sm'
-                            />
-                            <Chip
-                              onClick={() => handleRemoveMember(member.userId)}
-                              disabled={member.role === 'admin' && adminMemberCount <= 1}
-                            >
-                              Remove
-                            </Chip>
-                          </>
-                        ) : (
-                          <Combobox
-                            options={ROLE_OPTIONS.map((option) => ({
-                              value: option.value,
-                              label: option.label,
-                            }))}
-                            value={
-                              ROLE_OPTIONS.find((option) => option.value === member.role)?.label ||
-                              ''
-                            }
-                            selectedValue={member.role}
-                            placeholder='Role'
-                            disabled
-                            size='sm'
-                          />
-                        )}
-                      </div>
-                    ))}
-                    {isSelectedAdmin && (
-                      <div className='grid grid-cols-[1fr_120px_72px] items-center gap-2 border-[var(--border)] border-t pt-2'>
-                        <Combobox
-                          options={workspaceUserOptions}
-                          value={
-                            workspaceUserOptions.find((option) => option.value === memberUserId)
-                              ?.label || ''
-                          }
-                          selectedValue={memberUserId}
-                          onChange={setMemberUserId}
-                          placeholder='Add member...'
-                          searchable
-                          searchPlaceholder='Search members...'
-                          size='sm'
-                        />
-                        <Combobox
-                          options={ROLE_OPTIONS.map((option) => ({
-                            value: option.value,
-                            label: option.label,
-                          }))}
-                          value={
-                            ROLE_OPTIONS.find((option) => option.value === memberRole)?.label || ''
-                          }
-                          selectedValue={memberRole}
-                          onChange={(value) => setMemberRole(value as WorkspaceCredentialRole)}
-                          placeholder='Role'
-                          size='sm'
-                        />
-                        <Chip
-                          onClick={handleAddMember}
-                          disabled={!memberUserId || upsertMember.isPending}
-                        >
-                          Add
-                        </Chip>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <ChipModal
-          open={showDetailUnsavedChanges}
-          onOpenChange={setShowDetailUnsavedChanges}
-          srTitle='Unsaved Changes'
-        >
-          <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
-          <ChipModalBody>
-            <p className='px-2 text-[var(--text-secondary)] text-sm'>
-              You have unsaved changes. Are you sure you want to discard them?
-            </p>
-          </ChipModalBody>
-          <ChipModalFooter>
-            <Chip variant='filled' flush onClick={() => setShowDetailUnsavedChanges(false)}>
-              Keep Editing
-            </Chip>
-            <Chip variant='destructive' flush onClick={handleDiscardDetailChanges}>
-              Discard Changes
-            </Chip>
-          </ChipModalFooter>
-        </ChipModal>
-
-        <ChipModal
-          open={showUnsavedChanges}
-          onOpenChange={setShowUnsavedChanges}
-          srTitle='Unsaved Changes'
-        >
-          <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
-          <ChipModalBody>
-            <p className='px-2 text-[var(--text-secondary)] text-sm'>
-              You have unsaved changes. Are you sure you want to discard them?
-            </p>
-          </ChipModalBody>
-          <ChipModalFooter>
-            <Chip variant='filled' flush onClick={() => setShowUnsavedChanges(false)}>
-              Keep Editing
-            </Chip>
-            <Chip variant='destructive' flush onClick={handleDiscardAndNavigate}>
-              Discard Changes
-            </Chip>
-          </ChipModalFooter>
-        </ChipModal>
-      </>
-    )
-  }
 
   return (
     <>
@@ -1563,24 +1021,29 @@ export function SecretsManager() {
                     {(searchTerm.trim()
                       ? filteredWorkspaceEntries
                       : Object.entries(workspaceVars)
-                    ).map(([key, value]) => (
-                      <WorkspaceVariableRow
-                        key={key}
-                        envKey={key}
-                        value={value}
-                        renamingKey={renamingKey}
-                        pendingKeyValue={pendingKeyValue}
-                        hasCredential={envKeyToCredential.has(key)}
-                        canEdit={isWorkspaceAdmin}
-                        onRenameStart={setRenamingKey}
-                        onPendingKeyChange={setPendingKeyValue}
-                        onRenameEnd={handleWorkspaceKeyRename}
-                        onValueChange={handleWorkspaceValueChange}
-                        onDelete={handleDeleteWorkspaceVar}
-                        onViewDetails={(envKey) => handleViewDetails(envKey, 'env_workspace')}
-                      />
-                    ))}
-                    {isWorkspaceAdmin &&
+                    ).map(([key, value]) => {
+                      const cred = workspaceEnvKeyToCredential.get(key)
+                      const canEditRow = cred?.role === 'admin'
+                      return (
+                        <WorkspaceVariableRow
+                          key={key}
+                          envKey={key}
+                          value={value}
+                          renamingKey={renamingKey}
+                          pendingKeyValue={pendingKeyValue}
+                          hasCredential={Boolean(cred)}
+                          canEdit={canEditRow}
+                          canRename={canCreateWorkspaceSecret && canEditRow}
+                          onRenameStart={setRenamingKey}
+                          onPendingKeyChange={setPendingKeyValue}
+                          onRenameEnd={handleWorkspaceKeyRename}
+                          onValueChange={handleWorkspaceValueChange}
+                          onDelete={handleDeleteWorkspaceVar}
+                          onViewDetails={handleViewDetails}
+                        />
+                      )
+                    })}
+                    {canCreateWorkspaceSecret &&
                       (searchTerm.trim()
                         ? filteredNewWorkspaceRows
                         : newWorkspaceRows.map((row, index) => ({ row, originalIndex: index }))
@@ -1636,30 +1099,11 @@ export function SecretsManager() {
         </div>
       </div>
 
-      <ChipModal
+      <UnsavedChangesModal
         open={showUnsavedChanges}
         onOpenChange={setShowUnsavedChanges}
-        srTitle='Unsaved Changes'
-      >
-        <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            You have unsaved changes. Are you sure you want to discard them?
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowUnsavedChanges(false)}>
-            Keep Editing
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={isPendingNavigation ? handleDiscardAndNavigate : handleCancel}
-          >
-            Discard Changes
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+        onDiscard={isPendingNavigation ? handleDiscardAndNavigate : handleCancel}
+      />
     </>
   )
 }
