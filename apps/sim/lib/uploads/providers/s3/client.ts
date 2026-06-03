@@ -394,18 +394,22 @@ export async function getS3MultipartPartUrls(
  * addressing mode — path-style for MinIO/Ceph (`forcePathStyle`), virtual-hosted
  * (bucket as a subdomain) for R2 and friends. Falls back to the AWS
  * virtual-hosted host when no custom endpoint is set.
+ *
+ * The key is percent-encoded per path segment (preserving `/` separators) so
+ * keys containing spaces or reserved characters still yield a valid URL.
  */
 function buildObjectFallbackUrl(bucket: string, region: string, key: string): string {
+  const encodedKey = key.split('/').map(encodeURIComponent).join('/')
   if (S3_CONFIG.endpoint) {
     const base = S3_CONFIG.endpoint.replace(/\/+$/, '')
     if (S3_CONFIG.forcePathStyle) {
-      return `${base}/${bucket}/${key}`
+      return `${base}/${bucket}/${encodedKey}`
     }
     const url = new URL(base)
     url.hostname = `${bucket}.${url.hostname}`
-    return `${url.origin}/${key}`
+    return `${url.origin}/${encodedKey}`
   }
-  return `https://${bucket}.s3.${region}.amazonaws.com/${key}`
+  return `https://${bucket}.s3.${region}.amazonaws.com/${encodedKey}`
 }
 
 /**
