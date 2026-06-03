@@ -104,6 +104,21 @@ function parseNextLink(linkHeader: string | null): string | undefined {
 }
 
 /**
+ * Returns true when `candidate` resolves to the same origin as `base`. Used to
+ * pin a persisted pagination cursor to the configured GitLab host before
+ * following it with an `Authorization` header, so a tampered or corrupted
+ * `fileNextUrl` cannot exfiltrate the access token to an attacker-controlled
+ * host. Returns false on any unparseable URL.
+ */
+function isSameOrigin(candidate: string, base: string): boolean {
+  try {
+    return new URL(candidate).origin === new URL(base).origin
+  } catch {
+    return false
+  }
+}
+
+/**
  * Returns the ordered list of active sync phases for a content-type choice.
  */
 function activePhases(choice: ContentTypeChoice): SyncPhase[] {
@@ -741,6 +756,9 @@ export const gitlabConnector: ConnectorConfig = {
         per_page: String(PAGE_SIZE),
         pagination: 'keyset',
       })
+      if (state.fileNextUrl && !isSameOrigin(state.fileNextUrl, apiBase)) {
+        throw new Error('GitLab pagination cursor points to an unexpected host')
+      }
       const url =
         state.fileNextUrl ??
         `${apiBase}/projects/${encodedProject}/repository/tree?${treeParams.toString()}`
