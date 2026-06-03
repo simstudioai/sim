@@ -1851,6 +1851,7 @@ export function Files() {
             workspaceId={workspaceId}
             canEdit={canEdit}
             previewMode={previewMode}
+            autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
             onDirtyChange={setIsDirty}
             onSaveStatusChange={setSaveStatus}
             saveRef={saveRef}

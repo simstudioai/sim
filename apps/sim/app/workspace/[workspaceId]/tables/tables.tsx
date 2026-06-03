@@ -398,6 +398,7 @@ export function Tables() {
         }
 
         setUploadProgress({ completed: 0, total: csvFiles.length })
+        const failed: string[] = []
 
         for (let i = 0; i < csvFiles.length; i++) {
           try {
@@ -410,13 +411,23 @@ export function Tables() {
               }
             }
           } catch (err) {
+            failed.push(csvFiles[i].name)
             logger.error('Error uploading CSV:', err)
           } finally {
             setUploadProgress({ completed: i + 1, total: csvFiles.length })
           }
         }
+
+        if (failed.length > 0) {
+          toast.error(
+            failed.length === 1
+              ? `Failed to import ${failed[0]}`
+              : `Failed to import ${failed.length} file${failed.length > 1 ? 's' : ''}: ${failed.join(', ')}`
+          )
+        }
       } catch (err) {
         logger.error('Error uploading CSV:', err)
+        toast.error('Failed to import CSV')
       } finally {
         setUploading(false)
         setUploadProgress({ completed: 0, total: 0 })
