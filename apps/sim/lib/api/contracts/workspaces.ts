@@ -83,6 +83,7 @@ export const workspaceUserSchema = z.object({
   image: z.string().nullable(),
   permissionType: workspacePermissionSchema,
   isExternal: z.boolean(),
+  joinedAt: z.string(),
 })
 
 export type WorkspaceUser = z.output<typeof workspaceUserSchema>

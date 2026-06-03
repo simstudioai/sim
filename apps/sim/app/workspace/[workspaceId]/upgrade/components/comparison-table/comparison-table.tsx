@@ -135,10 +135,10 @@ export function ComparisonTable({
       <div className='grid min-w-[640px] grid-cols-[1fr_repeat(4,minmax(0,1fr))]'>
         {/* ── Column headers ── */}
         {/* Top-left cell: title, subtitle, and billing toggle */}
-        <div className='flex h-full flex-col justify-between gap-3 border-[var(--border)] border-r bg-[var(--surface-1)] px-4 py-3'>
+        <div className='flex h-full flex-col justify-between gap-3 border-[var(--border)] border-r bg-[var(--surface-1)] px-4 py-4'>
           <div className='flex flex-col gap-0.5'>
-            <span className='font-medium text-[var(--text-primary)] text-small'>Compare plans</span>
-            <span className='text-[var(--text-muted)] text-base'>Find the right plan for you</span>
+            <span className='font-medium text-[var(--text-primary)] text-base'>Compare plans</span>
+            <span className='text-[var(--text-muted)] text-small'>Find the right plan for you</span>
           </div>
           <BillingPeriodToggle isAnnual={isAnnual} onChange={onIsAnnualChange} />
         </div>

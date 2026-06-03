@@ -15,6 +15,8 @@ const SECTION_TITLES: Record<string, string> = {
   apikeys: 'Sim API Keys',
   byok: 'BYOK',
   subscription: 'Subscription',
+  billing: 'Billing',
+  teammates: 'Teammates',
   team: 'Team',
   sso: 'Single Sign-On',
   whitelabeling: 'Whitelabeling',

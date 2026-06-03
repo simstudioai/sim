@@ -19,7 +19,7 @@ import {
   Send,
   Skeleton,
 } from '@/components/emcn'
-import { PanelLeft } from '@/components/emcn/icons'
+import { ManageWorkspace, PanelLeft } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -154,18 +154,6 @@ function WorkspaceHeaderImpl({
   const { isInvitationsDisabled: isInvitationsDisabledByConfig } = usePermissionConfig()
   const inviteDisabledReason = activeWorkspaceFull?.inviteDisabledReason ?? null
   const isInvitationsDisabled = isInvitationsDisabledByConfig || inviteDisabledReason !== null
-
-  useEffect(() => {
-    const handleOpenInvite = () => {
-      if (isInvitationsDisabled) {
-        if (isBillingEnabled) navigateToSettings({ section: 'subscription' })
-        return
-      }
-      setIsInviteModalOpen(true)
-    }
-    window.addEventListener('open-invite-modal', handleOpenInvite)
-    return () => window.removeEventListener('open-invite-modal', handleOpenInvite)
-  }, [isInvitationsDisabled, navigateToSettings])
 
   /**
    * Save and exit edit mode when popover closes
@@ -662,6 +650,23 @@ function WorkspaceHeaderImpl({
                   className='w-full select-none'
                 >
                   Invite teammates
+                </Chip>
+                <Chip
+                  leftIcon={ManageWorkspace}
+                  onClick={() => {
+                    setIsWorkspaceMenuOpen(false)
+                    if (isInvitationsDisabled) {
+                      if (isBillingEnabled) navigateToSettings({ section: 'subscription' })
+                      return
+                    }
+                    navigateToSettings({ section: 'teammates' })
+                  }}
+                  title={inviteDisabledReason ?? undefined}
+                  fullWidth
+                  flush
+                  className='w-full select-none'
+                >
+                  Manage workspace
                 </Chip>
               </>
             )}

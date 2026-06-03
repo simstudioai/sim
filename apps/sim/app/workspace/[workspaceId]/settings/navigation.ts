@@ -16,6 +16,7 @@ import {
   TerminalWindow,
   TrashOutline,
   Upload,
+  User,
   Users,
   Wrench,
 } from '@/components/emcn'
@@ -31,6 +32,8 @@ export type SettingsSection =
   | 'apikeys'
   | 'byok'
   | 'subscription'
+  | 'billing'
+  | 'teammates'
   | 'organization'
   | 'sso'
   | 'whitelabeling'
@@ -68,6 +71,8 @@ export interface NavigationItem {
   requiresAdminRole?: boolean
   /** Show in the sidebar even when the user lacks the required plan, with an upgrade badge. */
   showWhenLocked?: boolean
+  /** Hide for enterprise plans, which manage billing out-of-band. */
+  hideForEnterprise?: boolean
   externalUrl?: string
 }
 
@@ -118,6 +123,20 @@ export const allNavigationItems: NavigationItem[] = [
     icon: Card,
     section: 'subscription',
     hideWhenBillingDisabled: true,
+  },
+  {
+    id: 'billing',
+    label: 'Billing',
+    icon: ClipboardList,
+    section: 'subscription',
+    hideWhenBillingDisabled: true,
+    hideForEnterprise: true,
+  },
+  {
+    id: 'teammates',
+    label: 'Teammates',
+    icon: User,
+    section: 'subscription',
   },
   {
     id: 'organization',
