@@ -57,13 +57,6 @@ export const createWorkflowCopilotChatBodySchema = z.object({
 })
 export type CreateWorkflowCopilotChatBody = z.input<typeof createWorkflowCopilotChatBodySchema>
 
-export const copilotStatsBodySchema = z.object({
-  messageId: z.string(),
-  diffCreated: z.boolean(),
-  diffAccepted: z.boolean(),
-})
-export type CopilotStatsBody = z.input<typeof copilotStatsBodySchema>
-
 export const copilotTrainingExampleBodySchema = z.object({
   json: z.string().min(1, 'JSON string is required'),
   title: z.string().min(1, 'Title is required'),
@@ -92,16 +85,6 @@ export const renameCopilotChatBodySchema = z.object({
   title: z.string().min(1).max(200),
 })
 export type RenameCopilotChatBody = z.input<typeof renameCopilotChatBodySchema>
-
-export const copilotToolPreferenceBodySchema = z.object({
-  toolId: z.string().min(1),
-})
-export type CopilotToolPreferenceBody = z.input<typeof copilotToolPreferenceBodySchema>
-
-export const copilotToolPreferenceQuerySchema = z.object({
-  toolId: z.string().min(1),
-})
-export type CopilotToolPreferenceQuery = z.input<typeof copilotToolPreferenceQuerySchema>
 
 const copilotResourceTypeSchema = z.enum([
   'table',
@@ -473,13 +456,6 @@ export const copilotCredentialsContract = defineRouteContract({
   },
 })
 
-export const copilotStatsContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/stats',
-  body: copilotStatsBodySchema,
-  response: { mode: 'json', schema: successFlagSchema },
-})
-
 export const validateCopilotApiKeyContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/api-keys/validate',
@@ -628,32 +604,6 @@ export const renameCopilotChatContract = defineRouteContract({
   path: '/api/copilot/chat/rename',
   body: renameCopilotChatBodySchema,
   response: { mode: 'json', schema: successFlagSchema },
-})
-
-export const addCopilotAutoAllowedToolContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/auto-allowed-tools',
-  body: copilotToolPreferenceBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      autoAllowedTools: z.array(z.string()),
-    }),
-  },
-})
-
-export const removeCopilotAutoAllowedToolContract = defineRouteContract({
-  method: 'DELETE',
-  path: '/api/copilot/auto-allowed-tools',
-  query: copilotToolPreferenceQuerySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      autoAllowedTools: z.array(z.string()),
-    }),
-  },
 })
 
 export const revertCopilotCheckpointContract = defineRouteContract({

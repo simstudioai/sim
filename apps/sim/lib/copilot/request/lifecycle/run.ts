@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import {
@@ -219,6 +220,11 @@ async function runCheckpointLoop(
   let resumeAttempt = 0
   const callerOnEvent = options.onEvent
   const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
+
+  // Enterprise BYOK eligibility hint: set once on the initial mothership request
+  // so Go only attempts a BYOK lookup for entitled workspaces. This is only a
+  // gate — Go re-confirms entitlement authoritatively before using any key.
+  payload = await withByokEligibilityHint(payload, route, options.workspaceId)
 
   for (;;) {
     context.streamComplete = false
@@ -556,6 +562,35 @@ async function ensureHeadlessRunIdentity(input: {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Adds `enterpriseByokEligible: true` to the initial mothership payload when the
+ * workspace is on an enterprise plan. BYOK is mothership-only, so non-mothership
+ * routes (e.g. `/api/copilot`) are left untouched. Failures default to hosted.
+ */
+async function withByokEligibilityHint(
+  payload: Record<string, unknown>,
+  route: string,
+  workspaceId?: string
+): Promise<Record<string, unknown>> {
+  // The eligibility hint is server-authoritative: always overwrite any
+  // client-supplied value with a server-derived boolean so a client can never
+  // assert its own eligibility. (Copilot's ValidateBYOK is the final authority,
+  // but the hint must never originate from the client.) BYOK is mothership-only;
+  // everything else gets an explicit false.
+  let eligible = false
+  if (workspaceId && route.startsWith('/api/mothership')) {
+    try {
+      eligible = await isWorkspaceOnEnterprisePlan(workspaceId)
+    } catch (error) {
+      logger.warn('Failed to resolve BYOK eligibility; defaulting to hosted', {
+        workspaceId,
+        error: toError(error).message,
+      })
+    }
+  }
+  return { ...payload, enterpriseByokEligible: eligible }
+}
 
 function isAborted(options: CopilotLifecycleOptions, context: StreamingContext): boolean {
   return !!(options.abortSignal?.aborted || context.wasAborted)
