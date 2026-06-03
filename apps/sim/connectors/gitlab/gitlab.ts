@@ -729,7 +729,6 @@ export const gitlabConnector: ConnectorConfig = {
     }
 
     if (state.phase === 'repo') {
-      const userRef = typeof sourceConfig.ref === 'string' ? sourceConfig.ref.trim() : ''
       const ref = await resolveRef(sourceConfig, syncContext, apiBase, encodedProject, accessToken)
       const extSet = parseExtensions(sourceConfig.fileExtensions)
       const rawPrefix =
@@ -759,16 +758,14 @@ export const gitlabConnector: ConnectorConfig = {
 
       if (!response.ok) {
         if (response.status === 404) {
-          if (userRef) {
-            throw new Error(
-              `GitLab branch "${userRef}" not found for project ${sourceConfig.project}. Check the Branch setting.`
-            )
-          }
-          logger.warn('GitLab repository tree empty; skipping files', {
-            host,
-            project: encodedProject,
-            ref,
-          })
+          logger.warn(
+            'GitLab repository tree returned 404; skipping files (empty repo or no tree)',
+            {
+              host,
+              project: encodedProject,
+              ref,
+            }
+          )
           const adv = advance('repo')
           return { documents: [], nextCursor: adv.nextCursor, hasMore: adv.hasMore }
         }
@@ -1065,6 +1062,24 @@ export const gitlabConnector: ConnectorConfig = {
             return { valid: false, error: 'The wiki feature is disabled for this project' }
           }
           logger.warn('Wiki feature disabled; it will be skipped', { project })
+        }
+      }
+
+      const userRef = typeof sourceConfig.ref === 'string' ? sourceConfig.ref.trim() : ''
+      if (userRef && activePhases(choice).includes('repo')) {
+        const branchResponse = await fetchWithRetry(
+          `${apiBase}/projects/${encodedProject}/repository/branches/${encodeURIComponent(userRef)}`,
+          { method: 'GET', headers: authHeaders(accessToken) },
+          VALIDATE_RETRY_OPTIONS
+        )
+        if (branchResponse.status === 404) {
+          return { valid: false, error: `Branch "${userRef}" not found in project "${project}"` }
+        }
+        if (!branchResponse.ok) {
+          return {
+            valid: false,
+            error: `Cannot verify branch "${userRef}": ${branchResponse.status}`,
+          }
         }
       }
 
