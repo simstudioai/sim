@@ -286,6 +286,8 @@ export function serializeFileMeta(file: {
       contentType: file.contentType,
       size: file.size,
       uploadedAt: file.uploadedAt.toISOString(),
+      readContentWith: file.vfsPath ? `${file.vfsPath}/content` : undefined,
+      note: 'This is file metadata only. To read the file text/bytes, read the readContentWith path (i.e. append /content).',
     },
     null,
     2
