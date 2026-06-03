@@ -44,6 +44,13 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   if (table.archivedAt) {
     return NextResponse.json({ error: 'Cannot import into an archived table' }, { status: 400 })
   }
+  // Reject overlapping imports: a second worker would insert at colliding row positions.
+  if (table.importStatus === 'importing') {
+    return NextResponse.json(
+      { error: 'An import is already in progress for this table' },
+      { status: 409 }
+    )
+  }
 
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (ext !== 'csv' && ext !== 'tsv') {

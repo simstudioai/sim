@@ -1321,11 +1321,15 @@ export async function markTableImporting(tableId: string, importId: string): Pro
     .where(eq(userTableDefinitions.id, tableId))
 }
 
-/** Records import progress (rows processed so far). */
+/**
+ * Records import progress (rows processed so far). Also bumps `updatedAt` so the
+ * stale-import janitor (`cleanup-stale-executions`) sees a live heartbeat and doesn't mark a
+ * still-running import as failed.
+ */
 export async function updateImportProgress(tableId: string, rowsProcessed: number): Promise<void> {
   await db
     .update(userTableDefinitions)
-    .set({ importRowsProcessed: rowsProcessed })
+    .set({ importRowsProcessed: rowsProcessed, updatedAt: new Date() })
     .where(eq(userTableDefinitions.id, tableId))
 }
 

@@ -130,6 +130,10 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         payload.mapping ?? buildAutoMapping(headers, table.schema)
 
       if (payload.createColumns && payload.createColumns.length > 0) {
+        const unknown = payload.createColumns.filter((h) => !headers.includes(h))
+        if (unknown.length > 0) {
+          throw new Error(`Columns to create are not in the CSV: ${unknown.join(', ')}`)
+        }
         const usedNames = new Set(table.schema.columns.map((c) => c.name.toLowerCase()))
         const additions: { name: string; type: string }[] = []
         const updatedMapping: CsvHeaderMapping = { ...effectiveMapping }
@@ -201,10 +205,22 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
 
     if (!ready) {
       // Fewer than CSV_SCHEMA_SAMPLE_SIZE rows total (or zero).
-      if (sample.length > 0) {
-        await resolveSetup()
-        await flush(sample)
+      if (sample.length === 0) {
+        // No data rows — fail rather than report a successful empty import (matches the sync route).
+        const message = 'CSV file has no data rows'
+        await markImportFailed(tableId, message)
+        void appendTableEvent({
+          kind: 'import',
+          tableId,
+          importId,
+          status: 'failed',
+          error: message,
+        })
+        logger.warn(`[${requestId}] Import has no data rows`, { tableId, fileName })
+        return
       }
+      await resolveSetup()
+      await flush(sample)
     } else {
       await flush(batch)
     }
