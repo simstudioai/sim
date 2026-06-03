@@ -492,7 +492,7 @@ export const Sidebar = memo(function Sidebar() {
     },
   })
 
-  const { handleMouseDown } = useSidebarResize()
+  const { handlePointerDown } = useSidebarResize()
 
   const {
     regularWorkflows,
@@ -1772,7 +1772,7 @@ export const Sidebar = memo(function Sidebar() {
             'absolute top-0 right-0 bottom-0 z-20 w-[8px] translate-x-1/2',
             isCollapsed ? 'cursor-e-resize' : 'cursor-ew-resize'
           )}
-          onMouseDown={isCollapsed ? undefined : handleMouseDown}
+          onPointerDown={isCollapsed ? undefined : handlePointerDown}
           onClick={isCollapsed ? toggleCollapsed : undefined}
           onKeyDown={handleEdgeKeyDown}
           role={isCollapsed ? 'button' : 'separator'}

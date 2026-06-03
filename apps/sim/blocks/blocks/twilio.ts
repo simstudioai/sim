@@ -13,6 +13,7 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
   integrationType: IntegrationType.Communication,
   docsLink: 'https://docs.sim.ai/tools/twilio_sms',
   bgColor: '#F22F46', // Twilio brand color
+  iconColor: '#F22F46',
   icon: TwilioIcon,
   subBlocks: [
     {

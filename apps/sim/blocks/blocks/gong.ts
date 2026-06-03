@@ -14,6 +14,7 @@ export const GongBlock: BlockConfig<GongResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#8039DF',
+  iconColor: '#8039DF',
   icon: GongIcon,
   triggerAllowed: true,
   subBlocks: [

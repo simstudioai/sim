@@ -14,6 +14,7 @@ export const RDSBlock: BlockConfig<RdsResponse | RdsIntrospectResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',
+  iconColor: '#527FFF',
   icon: RDSIcon,
   subBlocks: [
     {

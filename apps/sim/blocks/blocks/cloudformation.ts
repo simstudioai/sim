@@ -29,6 +29,7 @@ export const CloudFormationBlock: BlockConfig<
   integrationType: IntegrationType.DevOps,
   docsLink: 'https://docs.sim.ai/tools/cloudformation',
   bgColor: 'linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)',
+  iconColor: '#FF4F8B',
   icon: CloudFormationIcon,
   subBlocks: [
     {

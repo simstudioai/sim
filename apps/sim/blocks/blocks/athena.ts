@@ -31,6 +31,7 @@ export const AthenaBlock: BlockConfig<
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   bgColor: 'linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)',
+  iconColor: '#A166FF',
   icon: AthenaIcon,
   subBlocks: [
     {

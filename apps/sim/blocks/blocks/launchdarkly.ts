@@ -12,6 +12,7 @@ export const LaunchDarklyBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Observability,
   bgColor: '#191919',
+  iconColor: '#405BFF',
   icon: LaunchDarklyIcon,
   authMode: AuthMode.ApiKey,
 

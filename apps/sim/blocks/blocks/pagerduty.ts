@@ -11,6 +11,7 @@ export const PagerDutyBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Observability,
   bgColor: '#06AC38',
+  iconColor: '#06AC38',
   icon: PagerDutyIcon,
   authMode: AuthMode.ApiKey,
 

@@ -35,6 +35,7 @@ export const CloudWatchBlock: BlockConfig<
   integrationType: IntegrationType.Observability,
   docsLink: 'https://docs.sim.ai/tools/cloudwatch',
   bgColor: 'linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)',
+  iconColor: '#FF4F8B',
   icon: CloudWatchIcon,
   subBlocks: [
     {

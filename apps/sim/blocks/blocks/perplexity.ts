@@ -15,6 +15,7 @@ export const PerplexityBlock: BlockConfig<PerplexityResponse> = {
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: '#20808D', // Perplexity turquoise color
+  iconColor: '#20808D',
   icon: PerplexityIcon,
   subBlocks: [
     {

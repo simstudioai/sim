@@ -15,6 +15,7 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
   integrationType: IntegrationType.Communication,
   docsLink: 'https://docs.sim.ai/tools/twilio_voice',
   bgColor: '#F22F46', // Twilio brand color
+  iconColor: '#F22F46',
   icon: TwilioIcon,
   triggerAllowed: true,
   subBlocks: [

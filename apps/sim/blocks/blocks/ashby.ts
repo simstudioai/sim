@@ -12,6 +12,7 @@ export const AshbyBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.HR,
   bgColor: '#5D4ED6',
+  iconColor: '#5D4ED6',
   icon: AshbyIcon,
   authMode: AuthMode.ApiKey,
 

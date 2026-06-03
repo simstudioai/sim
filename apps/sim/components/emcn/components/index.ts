@@ -189,8 +189,8 @@ export {
   type FloatingTooltipState,
   isFocusVisible,
   isTextClipped,
+  Tooltip,
   useFloatingTooltip,
   useIsOverflowing,
-} from './tooltip/floating-tooltip'
-export { Tooltip } from './tooltip/tooltip'
+} from './tooltip/tooltip'
 export { Wizard } from './wizard/wizard'

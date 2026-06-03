@@ -14,6 +14,7 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: '#E01F3D',
+  iconColor: '#E01F3D',
   icon: CrowdStrikeIcon,
   authMode: AuthMode.ApiKey,
 
