@@ -201,8 +201,7 @@ export const useFolderStore = create<FolderState>()(
         const [start, end] = fromIndex < toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex]
         const rangeIds = folderIds.slice(start, end + 1)
 
-        // Keep the anchor as the "from" folder, update to "to" as the new last selected
-        set({ selectedFolders: new Set(rangeIds), lastSelectedFolderId: toId })
+        set({ selectedFolders: new Set(rangeIds), lastSelectedFolderId: fromId })
       },
 
       isFolderSelected: (folderId) => get().selectedFolders.has(folderId),
@@ -256,7 +255,7 @@ export const useFolderStore = create<FolderState>()(
         const state = get()
         set({
           selectedTasks: new Set(rangeIds),
-          lastSelectedTaskId: toId,
+          lastSelectedTaskId: fromId,
           ...(state.selectedWorkflows.size > 0 && { selectedWorkflows: new Set<string>() }),
           ...(state.selectedFolders.size > 0 && {
             selectedFolders: new Set<string>(),
