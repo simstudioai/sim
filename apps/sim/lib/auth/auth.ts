@@ -167,16 +167,16 @@ const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
 /**
  * SSO provider IDs to trust for automatic account linking when an SSO sign-in
  * matches an existing account's email. Includes `SSO_PROVIDER_ID` when it is set
- * in the app environment, plus any IDs from `SSO_TRUSTED_PROVIDER_IDS`. Resolved
- * once at startup; `trustEmailVerified` on the SSO plugin handles IdPs that assert
- * `email_verified` live, so this is only needed for IdPs that omit that claim.
+ * in the app environment, plus any IDs from `SSO_TRUSTED_PROVIDER_IDS`. Empty when
+ * SSO is disabled, so `trustedProviders` is unchanged for non-SSO deployments.
+ * Resolved once at startup; `trustEmailVerified` on the SSO plugin handles IdPs
+ * that assert `email_verified` live, so this is only needed for IdPs that omit it.
  */
-const additionalTrustedSsoProviders = [
-  env.SSO_PROVIDER_ID,
-  ...(env.SSO_TRUSTED_PROVIDER_IDS?.split(',') ?? []),
-]
-  .map((id) => id?.trim())
-  .filter((id): id is string => Boolean(id))
+const additionalTrustedSsoProviders = env.SSO_ENABLED
+  ? [env.SSO_PROVIDER_ID, ...(env.SSO_TRUSTED_PROVIDER_IDS?.split(',') ?? [])]
+      .map((id) => id?.trim())
+      .filter((id): id is string => Boolean(id))
+  : []
 
 if (env.NODE_ENV === 'production') {
   const baseUrl = getBaseUrl()
