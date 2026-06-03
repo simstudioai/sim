@@ -77,7 +77,7 @@ describe('POST /api/table/[tableId]/import-async', () => {
       authType: 'session',
     })
     mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
-    mockMarkTableImporting.mockResolvedValue(undefined)
+    mockMarkTableImporting.mockResolvedValue(true)
     mockRunTableImport.mockResolvedValue(undefined)
   })
 
@@ -102,6 +102,13 @@ describe('POST /api/table/[tableId]/import-async', () => {
         createColumns: ['Extra'],
       })
     )
+  })
+
+  it('returns 409 when the table is already importing (claim lost)', async () => {
+    mockMarkTableImporting.mockResolvedValue(false)
+    const response = await makeRequest(validBody)
+    expect(response.status).toBe(409)
+    expect(mockRunTableImport).not.toHaveBeenCalled()
   })
 
   it('returns 401 when unauthenticated', async () => {

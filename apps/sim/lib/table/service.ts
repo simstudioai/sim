@@ -17,7 +17,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, count, eq, gt, gte, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, count, eq, gt, gte, inArray, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
@@ -1341,9 +1341,14 @@ export async function setTableSchemaForImport(tableId: string, schema: TableSche
     .where(eq(userTableDefinitions.id, tableId))
 }
 
-/** Marks an existing table as undergoing an async import (rows hidden until ready). */
-export async function markTableImporting(tableId: string, importId: string): Promise<void> {
-  await db
+/**
+ * Atomically claims a table for an async import. The `import_status != 'importing'` guard makes
+ * this the single concurrency gate: of two racing kickoffs only one row-update matches, so only
+ * one wins (no TOCTOU between a separate status check and this write). Returns whether it claimed
+ * the table — the caller returns 409 when it didn't.
+ */
+export async function markTableImporting(tableId: string, importId: string): Promise<boolean> {
+  const updated = await db
     .update(userTableDefinitions)
     .set({
       importStatus: 'importing',
@@ -1353,7 +1358,17 @@ export async function markTableImporting(tableId: string, importId: string): Pro
       importStartedAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(eq(userTableDefinitions.id, tableId))
+    .where(
+      and(
+        eq(userTableDefinitions.id, tableId),
+        or(
+          isNull(userTableDefinitions.importStatus),
+          ne(userTableDefinitions.importStatus, 'importing')
+        )
+      )
+    )
+    .returning({ id: userTableDefinitions.id })
+  return updated.length > 0
 }
 
 /**

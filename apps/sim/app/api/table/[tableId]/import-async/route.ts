@@ -49,13 +49,6 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   if (table.archivedAt) {
     return NextResponse.json({ error: 'Cannot import into an archived table' }, { status: 400 })
   }
-  // Reject overlapping imports: a second worker would insert at colliding row positions.
-  if (table.importStatus === 'importing') {
-    return NextResponse.json(
-      { error: 'An import is already in progress for this table' },
-      { status: 409 }
-    )
-  }
 
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (ext !== 'csv' && ext !== 'tsv') {
@@ -63,8 +56,16 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   }
   const delimiter = ext === 'tsv' ? '\t' : ','
 
+  // Atomically claim the table — the single concurrency gate. If another import already holds it,
+  // this returns false (no overlapping workers writing colliding row positions).
   const importId = generateId()
-  await markTableImporting(tableId, importId)
+  const claimed = await markTableImporting(tableId, importId)
+  if (!claimed) {
+    return NextResponse.json(
+      { error: 'An import is already in progress for this table' },
+      { status: 409 }
+    )
+  }
 
   runDetached('table-import', () =>
     runTableImport({
