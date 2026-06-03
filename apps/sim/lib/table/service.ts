@@ -1360,28 +1360,45 @@ export async function markTableImporting(tableId: string, importId: string): Pro
  * Records import progress (rows processed so far). Also bumps `updatedAt` so the
  * stale-import janitor (`cleanup-stale-executions`) sees a live heartbeat and doesn't mark a
  * still-running import as failed.
+ *
+ * Scoped to `importId`: a stale/superseded worker (its run was marked failed and retried)
+ * no longer matches and its write is a no-op. Returns whether this worker still owns the
+ * import, so the caller can stop inserting when it's been superseded.
  */
-export async function updateImportProgress(tableId: string, rowsProcessed: number): Promise<void> {
-  await db
+export async function updateImportProgress(
+  tableId: string,
+  rowsProcessed: number,
+  importId: string
+): Promise<boolean> {
+  const updated = await db
     .update(userTableDefinitions)
     .set({ importRowsProcessed: rowsProcessed, updatedAt: new Date() })
-    .where(eq(userTableDefinitions.id, tableId))
+    .where(and(eq(userTableDefinitions.id, tableId), eq(userTableDefinitions.importId, importId)))
+    .returning({ id: userTableDefinitions.id })
+  return updated.length > 0
 }
 
-/** Marks an import complete; rows become visible. */
-export async function markImportReady(tableId: string): Promise<void> {
+/** Marks an import complete; rows become visible. No-op if a newer import has taken over. */
+export async function markImportReady(tableId: string, importId: string): Promise<void> {
   await db
     .update(userTableDefinitions)
     .set({ importStatus: 'ready', importError: null, updatedAt: new Date() })
-    .where(eq(userTableDefinitions.id, tableId))
+    .where(and(eq(userTableDefinitions.id, tableId), eq(userTableDefinitions.importId, importId)))
 }
 
-/** Marks an import failed, leaving any already-committed rows in place. */
-export async function markImportFailed(tableId: string, error: string): Promise<void> {
+/**
+ * Marks an import failed, leaving any already-committed rows in place. No-op if a newer import
+ * has taken over (so a stale worker can't clobber the current run's status).
+ */
+export async function markImportFailed(
+  tableId: string,
+  importId: string,
+  error: string
+): Promise<void> {
   await db
     .update(userTableDefinitions)
     .set({ importStatus: 'failed', importError: error.slice(0, 2000), updatedAt: new Date() })
-    .where(eq(userTableDefinitions.id, tableId))
+    .where(and(eq(userTableDefinitions.id, tableId), eq(userTableDefinitions.importId, importId)))
 }
 
 /**

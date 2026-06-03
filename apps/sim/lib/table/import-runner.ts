@@ -1,4 +1,4 @@
-import { Transform } from 'node:stream'
+import { type Readable, Transform } from 'node:stream'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -35,6 +35,13 @@ const logger = createLogger('TableImportRunner')
 /** Emit a progress event / DB update at most every this many rows. */
 const PROGRESS_INTERVAL_ROWS = 5000
 
+/**
+ * Thrown when this worker discovers it no longer owns the table's import (the stale-job janitor
+ * marked its run failed and a newer import took over). The worker stops inserting rather than
+ * writing into a table a second worker now owns.
+ */
+class ImportSupersededError extends Error {}
+
 /** `create` infers a schema for a new table; `append`/`replace` map onto an existing one. */
 export type TableImportMode = 'create' | 'append' | 'replace'
 
@@ -65,6 +72,9 @@ export interface TableImportPayload {
 export async function runTableImport(payload: TableImportPayload): Promise<void> {
   const { importId, tableId, workspaceId, userId, fileKey, fileName, delimiter, mode } = payload
   const requestId = generateId().slice(0, 8)
+  // Hoisted so `finally` can destroy it on any failure — otherwise the storage HTTP body leaks
+  // open until it times out.
+  let source: Readable | undefined
 
   try {
     const loaded = await getTableById(tableId, { includeArchived: true })
@@ -76,7 +86,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     const totalBytes = (await headObject(fileKey, 'workspace'))?.size ?? 0
 
     // Stream the file rather than buffering it — a ~1M-row import must never be held in memory.
-    const source = await downloadFileStream({ key: fileKey, context: 'workspace' })
+    source = await downloadFileStream({ key: fileKey, context: 'workspace' })
 
     // Append must continue after the existing rows; create/replace start empty. Read once up
     // front (the import is the table's sole writer) and assign contiguous positions from it.
@@ -178,7 +188,9 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         (lastReported === 0 && inserted > 0)
       ) {
         lastReported = inserted
-        await updateImportProgress(tableId, inserted)
+        // Heartbeat + ownership check: if a newer import has taken over this table, stop.
+        const owns = await updateImportProgress(tableId, inserted, importId)
+        if (!owns) throw new ImportSupersededError()
         // Extrapolate the total from rows-per-byte observed so far; self-refines as it runs.
         // `Math.max(inserted, …)` keeps it monotonic; omit when the byte size is unknown.
         const estimatedTotal =
@@ -219,7 +231,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       if (sample.length === 0) {
         // No data rows — fail rather than report a successful empty import (matches the sync route).
         const message = 'CSV file has no data rows'
-        await markImportFailed(tableId, message)
+        await markImportFailed(tableId, importId, message)
         void appendTableEvent({
           kind: 'import',
           tableId,
@@ -236,8 +248,8 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       await flush(batch)
     }
 
-    await updateImportProgress(tableId, inserted)
-    await markImportReady(tableId)
+    await updateImportProgress(tableId, inserted, importId)
+    await markImportReady(tableId, importId)
     void appendTableEvent({
       kind: 'import',
       tableId,
@@ -248,11 +260,22 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     })
     logger.info(`[${requestId}] Import complete`, { tableId, fileName, mode, rows: inserted })
   } catch (err) {
-    const message = getErrorMessage(err, 'Import failed')
-    logger.error(`[${requestId}] Import failed for table ${tableId}:`, err)
-    await markImportFailed(tableId, message).catch(() => {})
-    void appendTableEvent({ kind: 'import', tableId, importId, status: 'failed', error: message })
+    if (err instanceof ImportSupersededError) {
+      // A newer import owns the table now — leave its status alone and just stop.
+      logger.info(`[${requestId}] Import superseded by a newer run; stopping`, {
+        tableId,
+        importId,
+      })
+    } else {
+      const message = getErrorMessage(err, 'Import failed')
+      logger.error(`[${requestId}] Import failed for table ${tableId}:`, err)
+      // Scoped to importId — a no-op if a newer import has taken over.
+      await markImportFailed(tableId, importId, message).catch(() => {})
+      void appendTableEvent({ kind: 'import', tableId, importId, status: 'failed', error: message })
+    }
   } finally {
+    // Release the storage stream so its HTTP connection doesn't leak on failure.
+    source?.destroy()
     // The uploaded source file is single-use (a fresh upload per import) — delete it once the
     // import is terminal so the workspace bucket doesn't accumulate. Best-effort.
     await deleteFile({ key: fileKey, context: 'workspace' }).catch((err) => {
