@@ -216,6 +216,10 @@ app:
     # Set to "true" AFTER running the SSO registration script
     SSO_ENABLED: ""                                       # Enable SSO authentication ("true" to enable)
     NEXT_PUBLIC_SSO_ENABLED: ""                           # Show SSO login button in UI ("true" to enable)
+    # SSO_TRUSTED_PROVIDER_IDS: comma-separated SSO provider IDs to trust for automatic account linking when a
+    # user signs in via SSO and an account with the same email already exists. Only needed for IdPs that do NOT
+    # assert email_verified (trustEmailVerified already handles those that do). Resolved at startup — restart after editing.
+    SSO_TRUSTED_PROVIDER_IDS: ""
 
     # Enterprise Feature Overrides (self-hosted)
     CREDENTIAL_SETS_ENABLED: ""                           # Enable credential sets (email polling) on self-hosted ("true" to enable)

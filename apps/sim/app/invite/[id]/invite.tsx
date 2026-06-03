@@ -255,11 +255,13 @@ export default function Invite() {
     }
   }
 
-  const getCallbackUrl = () => {
-    const effectiveToken =
-      token || sessionStorage.getItem(inviteTokenStorageKey) || searchParams.get('token')
-    return `/invite/${inviteId}${effectiveToken ? `?token=${effectiveToken}` : ''}`
-  }
+  /**
+   * Post-authentication return URL. Omits the token query string: Better Auth
+   * appends `?error=<message>` onto callbackURL unescaped, producing a malformed
+   * URL that fails its callbackURL validation. The token is persisted to
+   * sessionStorage on mount and rehydrated on return, so it need not ride in the URL.
+   */
+  const getCallbackUrl = () => `/invite/${inviteId}`
 
   if (!session?.user && !isPending) {
     const callbackUrl = encodeURIComponent(getCallbackUrl())
