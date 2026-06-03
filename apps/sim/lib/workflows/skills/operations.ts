@@ -5,8 +5,8 @@ import { generateShortId } from '@sim/utils/id'
 import { and, desc, eq, ne } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
-  type BuiltinSkill,
   BUILTIN_SKILLS,
+  type BuiltinSkill,
   getBuiltinSkillById,
   isBuiltinSkillId,
 } from '@/lib/workflows/skills/builtin-skills'
@@ -31,16 +31,24 @@ function builtinSkillRow(workspaceId: string, builtin: BuiltinSkill): typeof ski
 }
 
 /**
- * List all skills for a workspace, ordered by createdAt desc. Built-in template
+ * List skills for a workspace, ordered by createdAt desc. Built-in template
  * skills are prepended (they live in code, not the DB) so they appear wherever
  * real skills do. A workspace skill that shares a built-in's name overrides it.
+ *
+ * Pass `includeBuiltins: false` to return only user-created skills. The
+ * mothership uses this for the skill registry it sees, since it loads workspace
+ * skills via load_user_skill and never the code-only templates.
  */
-export async function listSkills(params: { workspaceId: string }) {
+export async function listSkills(params: { workspaceId: string; includeBuiltins?: boolean }) {
   const dbRows = await db
     .select()
     .from(skill)
     .where(eq(skill.workspaceId, params.workspaceId))
     .orderBy(desc(skill.createdAt))
+
+  if (params.includeBuiltins === false) {
+    return dbRows
+  }
 
   const dbNames = new Set(dbRows.map((r) => r.name.toLowerCase()))
   const builtins = BUILTIN_SKILLS.filter((b) => !dbNames.has(b.name.toLowerCase())).map((b) =>

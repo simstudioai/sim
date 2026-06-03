@@ -90,7 +90,6 @@ import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/executi
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
-import { buildMothershipToolsForRequest } from '@/lib/mothership/settings/runtime'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -398,7 +397,6 @@ export class WorkspaceVFS {
       jobsSummary,
       wsRow,
       members,
-      mothershipToolRuntime,
     ] = await Promise.all([
       this.materializeWorkflows(workspaceId, userId),
       this.materializeKnowledgeBases(workspaceId, userId),
@@ -412,13 +410,6 @@ export class WorkspaceVFS {
       this.materializeJobs(workspaceId),
       getWorkspaceWithOwner(workspaceId),
       getUsersWithPermissions(workspaceId),
-      buildMothershipToolsForRequest({ workspaceId, userId }).catch((error) => {
-        logger.warn('Failed to materialize Mothership tool catalog in VFS', {
-          workspaceId,
-          error: toError(error).message,
-        })
-        return { tools: [], catalogContext: '' }
-      }),
     ])
 
     const workspaceMdData = {
@@ -438,10 +429,7 @@ export class WorkspaceVFS {
     }
 
     this.files.set('WORKSPACE.md', buildWorkspaceMd(workspaceMdData))
-    this.files.set(
-      'WORKSPACE_CONTEXT.md',
-      buildWorkspaceContextMd(workspaceMdData, mothershipToolRuntime.catalogContext)
-    )
+    this.files.set('WORKSPACE_CONTEXT.md', buildWorkspaceContextMd(workspaceMdData))
 
     await this.materializeRecentlyDeleted(workspaceId, userId)
 
@@ -1601,7 +1589,7 @@ export class WorkspaceVFS {
     workspaceId: string
   ): Promise<NonNullable<WorkspaceMdData['skills']>> {
     try {
-      const skillRows = await listSkills({ workspaceId })
+      const skillRows = await listSkills({ workspaceId, includeBuiltins: false })
 
       for (const s of skillRows) {
         const safeName = sanitizeName(s.name)

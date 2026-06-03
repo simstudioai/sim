@@ -7,7 +7,7 @@ import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isE2BDocEnabled, isHosted } from '@/lib/core/config/feature-flags'
-import { buildMothershipToolsForRequest } from '@/lib/mothership/settings/runtime'
+import { buildUserSkillTool } from '@/lib/mothership/skills'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { stripVersionSuffix } from '@/tools/utils'
 
@@ -308,7 +308,7 @@ export async function buildCopilotRequestPayload(
   const allContexts = [...(contexts ?? []), ...uploadContexts]
 
   let integrationTools: ToolSchema[] = []
-  let mothershipTools: ToolSchema[] = []
+  const mothershipTools: ToolSchema[] = []
   const payloadLogger = logger.withMetadata({ messageId: userMessageId })
 
   if (effectiveMode === 'build') {
@@ -320,21 +320,16 @@ export async function buildCopilotRequestPayload(
     )
 
     if (params.includeMothershipTools && params.workspaceId) {
+      // Expose all workspace user-created skills via the single load_user_skill
+      // tool. Available to every user; content is fetched sim-side when the
+      // model calls it.
       try {
-        const runtimeTools = await buildMothershipToolsForRequest({
-          workspaceId: params.workspaceId,
-          userId,
-        })
-        mothershipTools = runtimeTools.tools
+        const userSkillTool = await buildUserSkillTool(params.workspaceId)
+        if (userSkillTool) mothershipTools.push(userSkillTool)
       } catch (error) {
-        logger.warn(
-          userMessageId
-            ? `Failed to build Mothership tools [messageId:${userMessageId}]`
-            : 'Failed to build Mothership tools',
-          {
-            error: toError(error).message,
-          }
-        )
+        logger.warn('Failed to build load_user_skill tool', {
+          error: toError(error).message,
+        })
       }
     }
   }

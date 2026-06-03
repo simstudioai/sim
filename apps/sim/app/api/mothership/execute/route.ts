@@ -16,7 +16,7 @@ import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explic
 import type { StreamEvent } from '@/lib/copilot/request/types'
 import { isE2BDocEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildMothershipToolsForRequest } from '@/lib/mothership/settings/runtime'
+import { buildUserSkillTool } from '@/lib/mothership/skills'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
@@ -118,13 +118,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workflowId,
       executionId,
     })
-    const [workspaceContext, integrationTools, mothershipToolRuntime, userPermission] =
-      await Promise.all([
-        generateWorkspaceContext(workspaceId, userId),
-        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-        buildMothershipToolsForRequest({ workspaceId, userId }),
-        getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
-      ])
+    const [workspaceContext, integrationTools, userSkillTool, userPermission] = await Promise.all([
+      generateWorkspaceContext(workspaceId, userId),
+      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+      buildUserSkillTool(workspaceId),
+      getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
+    ])
     const requestPayload: Record<string, unknown> = {
       messages,
       responseFormat,
@@ -138,9 +137,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       ...(userMetadata ? { userMetadata } : {}),
       ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
-      ...(mothershipToolRuntime.tools.length > 0
-        ? { mothershipTools: mothershipToolRuntime.tools }
-        : {}),
+      ...(userSkillTool ? { mothershipTools: [userSkillTool] } : {}),
       ...(userPermission ? { userPermission } : {}),
     }
 

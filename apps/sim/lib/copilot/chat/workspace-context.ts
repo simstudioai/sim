@@ -254,7 +254,11 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
 
   if (data.skills && data.skills.length > 0) {
     const lines = data.skills.map((s) => `- **${s.name}** (${s.id}) — ${s.description}`)
-    sections.push(`## Skills (${data.skills.length})\n${lines.join('\n')}`)
+    sections.push(
+      `## Skills (${data.skills.length})\n` +
+        'To use a skill, call the load_user_skill tool with its name to load the full instructions, then follow them. The descriptions below only say when each skill applies — they are not the instructions.\n' +
+        lines.join('\n')
+    )
   }
 
   if (data.jobs && data.jobs.length > 0) {
@@ -274,13 +278,8 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   return sections.join('\n\n')
 }
 
-export function buildWorkspaceContextMd(
-  data: WorkspaceMdData,
-  mothershipToolCatalog?: string
-): string {
-  return ['# Workspace Context', '', buildWorkspaceMd(data), mothershipToolCatalog]
-    .filter(Boolean)
-    .join('\n\n')
+export function buildWorkspaceContextMd(data: WorkspaceMdData): string {
+  return ['# Workspace Context', '', buildWorkspaceMd(data)].join('\n\n')
 }
 
 /**
@@ -375,7 +374,7 @@ export async function generateWorkspaceContext(
         .from(mcpServers)
         .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt))),
 
-      listSkills({ workspaceId }),
+      listSkills({ workspaceId, includeBuiltins: false }),
 
       db
         .select({
