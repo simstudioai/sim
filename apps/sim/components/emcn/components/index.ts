@@ -33,6 +33,7 @@ export {
   ChipModal,
   ChipModalBody,
   type ChipModalDropdownOption,
+  type ChipModalEmailsFieldProps,
   ChipModalError,
   type ChipModalErrorProps,
   ChipModalField,
@@ -173,15 +174,23 @@ export {
 } from './table/table'
 export {
   type FileInputOptions,
-  Tag,
   TagInput,
   type TagItem,
   tagInputVariants,
-  tagVariants,
 } from './tag-input/tag-input'
 export { Textarea } from './textarea/textarea'
 export { TimePicker, timePickerVariants } from './time-picker/time-picker'
 export { CountdownRing } from './toast/countdown-ring'
 export { ToastProvider, toast, useToast } from './toast/toast'
+export {
+  clamp,
+  FloatingTooltip,
+  type FloatingTooltipHandlers,
+  type FloatingTooltipState,
+  isFocusVisible,
+  isTextClipped,
+  useFloatingTooltip,
+  useIsOverflowing,
+} from './tooltip/floating-tooltip'
 export { Tooltip } from './tooltip/tooltip'
 export { Wizard } from './wizard/wizard'

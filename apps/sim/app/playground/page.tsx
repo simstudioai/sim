@@ -402,7 +402,6 @@ export default function PlaygroundPage() {
                   onRemove={() => {}}
                   placeholder='Add tags'
                   placeholderWithTags='Add another'
-                  tagVariant='secondary'
                   triggerKeys={['Enter', ',']}
                 />
               </div>

@@ -9,6 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  FloatingTooltip,
   Plus,
   POPOVER_ANIMATION_CLASSES,
   Popover,
@@ -16,15 +17,12 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverSection,
+  useFloatingTooltip,
+  useIsOverflowing,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
-import {
-  FloatingTooltip,
-  useFloatingTooltip,
-  useIsOverflowing,
-} from '@/app/workspace/[workspaceId]/components/resource/components/floating-tooltip'
 
 const HEADER_PLUS_ICON = <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
 
@@ -413,7 +411,7 @@ function BreadcrumbLocationPopover({
             onPointerMove={openPopover}
             className={cn(
               chipVariants({ variant: 'ghost', flush: true }),
-              'max-w-none px-2 transition-colors',
+              'max-w-none gap-1.5 px-2 font-medium transition-colors',
               open && 'relative z-[var(--z-popover)]',
               className
             )}
@@ -425,6 +423,11 @@ function BreadcrumbLocationPopover({
                 className='col-start-1 row-start-1 size-[14px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none'
               />
             </span>
+            {rootBreadcrumb?.label && (
+              <span className='shrink-0 truncate text-[var(--text-body)] text-sm'>
+                {rootBreadcrumb.label}
+              </span>
+            )}
           </button>
         </PopoverAnchor>
         <PopoverContent

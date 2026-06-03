@@ -25,17 +25,17 @@ export const ENTERPRISE_PLAN_CREDITS: PlanCredits = {
 }
 
 export const PRO_PLAN_FEATURES: readonly string[] = [
+  'Invite teammates',
   'Higher rate limits',
   'Extended run timeouts',
   'More storage & tables',
-  'Unlimited log retention',
 ]
 
 export const MAX_PLAN_FEATURES: readonly string[] = [
-  'Sim Mailer & Live Sync',
-  'Highest individual rate limits',
+  'Invite teammates',
+  'Sim Mailer & KB Live Sync',
+  'Highest rate limits',
   'Expanded storage & tables',
-  'Unlimited log retention',
 ]
 
 export const ENTERPRISE_PLAN_FEATURES: readonly string[] = [

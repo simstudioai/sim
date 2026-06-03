@@ -35,8 +35,10 @@ import type {
 } from '@/stores/modals/search/types'
 import {
   BlocksGroup,
+  ConnectedAccountsGroup,
   DocsGroup,
   FilesGroup,
+  IntegrationsGroup,
   KnowledgeBasesGroup,
   PagesGroup,
   TablesGroup,
@@ -49,6 +51,7 @@ import {
 } from './components/search-groups'
 import type {
   FileItem,
+  IntegrationSearchItem,
   PageItem,
   SearchModalProps,
   TaskItem,
@@ -68,7 +71,10 @@ export function SearchModal({
   tables = [],
   files = [],
   knowledgeBases = [],
+  integrations = [],
+  connectedAccounts = [],
   isOnWorkflowPage = false,
+  isOnIntegrationsPage = false,
 }: SearchModalProps) {
   const params = useParams()
   const router = useRouter()
@@ -378,6 +384,32 @@ export function SearchModal({
     [workspaceId]
   )
 
+  const handleConnectedAccountSelect = useCallback(
+    (item: IntegrationSearchItem) => {
+      routerRef.current.push(item.href)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'connected_account',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
+  const handleIntegrationSelect = useCallback(
+    (item: IntegrationSearchItem) => {
+      routerRef.current.push(item.href)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'integration',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
   const handleBlockSelectAsBlock = useCallback(
     (block: SearchBlockItem) => handleBlockSelect(block, 'block'),
     [handleBlockSelect]
@@ -462,6 +494,22 @@ export function SearchModal({
     [pages, deferredSearch]
   )
 
+  /** Connected accounts: visible on the integrations page even with empty input. */
+  const filteredConnectedAccounts = useMemo(() => {
+    if (!isOnIntegrationsPage) return []
+    return filterAndSort(
+      connectedAccounts,
+      (a) => `${a.name} connected-account-${a.id}`,
+      deferredSearch
+    )
+  }, [isOnIntegrationsPage, connectedAccounts, deferredSearch])
+
+  /** Catalog integrations: only shown once the user has typed something. */
+  const filteredIntegrations = useMemo(() => {
+    if (!isOnIntegrationsPage || !deferredSearch) return []
+    return filterAndSort(integrations, (i) => `${i.name} integration-${i.id}`, deferredSearch)
+  }, [isOnIntegrationsPage, deferredSearch, integrations])
+
   if (!mounted) return null
 
   return createPortal(
@@ -513,6 +561,11 @@ export function SearchModal({
                 No results found.
               </Command.Empty>
 
+              <ConnectedAccountsGroup
+                items={filteredConnectedAccounts}
+                onSelect={handleConnectedAccountSelect}
+              />
+              <IntegrationsGroup items={filteredIntegrations} onSelect={handleIntegrationSelect} />
               <BlocksGroup items={filteredBlocks} onSelect={handleBlockSelectAsBlock} />
               <ToolsGroup items={filteredTools} onSelect={handleBlockSelectAsTool} />
               <TriggersGroup items={filteredTriggers} onSelect={handleBlockSelectAsTrigger} />

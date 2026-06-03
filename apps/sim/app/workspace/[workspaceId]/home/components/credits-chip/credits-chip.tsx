@@ -8,6 +8,7 @@ import { Credit } from '@/components/emcn/icons'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { formatCredits } from '@/lib/billing/credits/conversion'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { usePlanView } from '@/hooks/queries/plan-view'
 import { prefetchUpgradeBillingData, useSubscriptionData } from '@/hooks/queries/subscription'
 import { prefetchWorkspaceSettings } from '@/hooks/queries/workspace'
 
@@ -18,28 +19,40 @@ export function CreditsChip() {
 }
 
 function CreditsChipInner() {
-  const { data, isLoading } = useSubscriptionData()
+  const { planView, isLoading, hasData } = usePlanView()
+  /**
+   * `usePlanView` is built on top of `useSubscriptionData`, so the second call
+   * dedups against the same React Query cache entry. We read the raw usage
+   * fields here because `planView` intentionally only exposes plan-derived
+   * decisions, not display math.
+   */
+  const { data } = useSubscriptionData()
   const router = useRouter()
   const queryClient = useQueryClient()
   const { workspaceId } = useParams<{ workspaceId: string }>()
 
   const upgradeHref = `/workspace/${workspaceId}/upgrade`
 
-  // Warm the route bundle and the exact queries the Upgrade page gates on, so
-  // the click navigates into already-cached data instead of a blank, loading page.
+  /**
+   * Warm the route bundle and the exact queries the Upgrade page gates on, so
+   * the click navigates into already-cached data instead of a blank, loading page.
+   */
   const prefetchUpgrade = useCallback(() => {
     router.prefetch(upgradeHref)
     prefetchUpgradeBillingData(queryClient)
     prefetchWorkspaceSettings(queryClient, workspaceId)
   }, [router, queryClient, upgradeHref, workspaceId])
 
-  if (isLoading || !data?.data) return null
+  if (isLoading || !hasData || !data?.data) return null
+  if (!planView.showCredits) return null
 
   const { usageLimit, currentUsage, creditBalance } = data.data
 
-  // Credits remaining = unused plan allowance plus any purchased credit balance.
-  // Uncapped plans (limit at/above the on-demand threshold) render as ∞ via
-  // `formatCredits`, so short-circuit instead of subtracting usage from it.
+  /**
+   * Credits remaining = unused plan allowance plus any purchased credit balance.
+   * Uncapped plans (limit at/above the on-demand threshold) render as ∞ via
+   * `formatCredits`, so short-circuit instead of subtracting usage from it.
+   */
   const remainingCredits =
     usageLimit >= ON_DEMAND_UNLIMITED
       ? ON_DEMAND_UNLIMITED

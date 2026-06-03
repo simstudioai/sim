@@ -1,5 +1,14 @@
+/** A brand icon rendered in a cell instead of a check/em-dash/text. */
+export interface CellIcon {
+  /** Icon identifier resolved to a component by the table renderer. */
+  icon: 'slack'
+}
+
 /** Cell value for the comparison table. */
-export type CellValue = string | boolean
+export type CellValue = string | boolean | CellIcon
+
+/** Shared Slack-availability cell. */
+const SLACK: CellIcon = { icon: 'slack' }
 
 /** Names of the four plan columns — used as a discriminated union for type-safe plan selection. */
 export type PlanName = 'Free' | 'Pro' | 'Max' | 'Enterprise'
@@ -49,7 +58,7 @@ export const PLAN_COLUMNS: PlanColumn[] = [
 /** Full comparison dataset. */
 export const COMPARISON_SECTIONS: ComparisonSection[] = [
   {
-    title: 'Credits & Pricing',
+    title: 'Credits & pricing',
     rows: [
       {
         label: 'Monthly credits',
@@ -58,6 +67,19 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
       {
         label: 'Daily refresh',
         values: [false, '+50/day', '+200/day', 'Custom'],
+      },
+    ],
+  },
+  {
+    title: 'Workspaces & teams',
+    rows: [
+      {
+        label: 'Workspaces',
+        values: ['1', '3', 'Unlimited', 'Unlimited'],
+      },
+      {
+        label: 'Invite teammates',
+        values: [false, true, true, true],
       },
     ],
   },
@@ -108,7 +130,7 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
       },
       {
         label: 'Log retention',
-        values: ['30 days', 'Unlimited', 'Unlimited', 'Custom'],
+        values: ['30 days', 'Unlimited', 'Unlimited', 'Unlimited'],
       },
     ],
   },
@@ -117,43 +139,39 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
     rows: [
       {
         label: 'Sim Mailer (Inbox)',
-        values: [false, false, true, 'Custom'],
+        values: [false, false, true, true],
       },
       {
-        label: 'Live Sync',
-        values: [false, false, true, 'Custom'],
+        label: 'KB Live Sync',
+        values: [false, false, true, true],
+      },
+      {
+        label: 'Slack Connect',
+        values: [false, false, SLACK, SLACK],
       },
       {
         label: 'Credential Sets',
-        values: [false, false, false, 'Custom'],
-      },
-      {
-        label: 'Organizations / Teams',
-        values: [false, false, false, 'Custom'],
+        values: [false, false, false, true],
       },
       {
         label: 'Access Control',
-        values: [false, false, false, 'Custom'],
+        values: [false, false, false, true],
       },
       {
         label: 'SSO',
-        values: [false, false, false, 'Custom'],
+        values: [false, false, false, true],
       },
       {
         label: 'SOC2 Compliance',
-        values: [false, false, false, 'Custom'],
+        values: [false, false, false, true],
       },
       {
         label: 'Self Hosting',
-        values: [false, false, false, 'Custom'],
+        values: [false, false, false, true],
       },
       {
         label: 'Dedicated Support',
-        values: [false, false, false, 'Custom'],
-      },
-      {
-        label: 'Seat Management',
-        values: [false, false, false, 'Custom'],
+        values: [false, false, false, true],
       },
     ],
   },

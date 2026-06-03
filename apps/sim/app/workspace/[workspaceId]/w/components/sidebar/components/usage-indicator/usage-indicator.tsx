@@ -305,7 +305,6 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const isPro = planType === 'pro'
   const isTeam = planType === 'team'
   const isEnterprise = planType === 'enterprise'
-  const isEnterpriseMember = isEnterprise && !userCanManageBilling
 
   const handleUpgradeToPro = useCallback(async () => {
     try {
@@ -470,7 +469,9 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     }
   }
 
-  if (isEnterpriseMember) {
+  // Enterprise has custom limits — credit usage is meaningless, so show the
+  // plan name only (no credit counts) for owners and members alike.
+  if (isEnterprise) {
     return (
       <div className='flex flex-shrink-0 flex-col border-t px-[13.5px] pt-2 pb-2.5'>
         <div className='flex h-[18px] items-center'>

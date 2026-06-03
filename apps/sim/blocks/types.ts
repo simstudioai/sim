@@ -405,6 +405,15 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
   bestPractices?: string
   docsLink?: string
   bgColor: string
+  /**
+   * Theme-safe brand foreground color for rendering this block's icon WITHOUT
+   * its colored tile background (a "bare" icon). Unlike {@link bgColor}, which
+   * is the tile fill, this is applied as the icon's `color`/`currentColor` and
+   * must read clearly on both light and dark surfaces — so only set it to vivid
+   * brand colors (e.g. HubSpot `#FF7A59`), never near-black tile colors. When
+   * omitted, bare renders fall back to the theme-aware `var(--text-icon)`.
+   */
+  iconColor?: string
   icon: BlockIcon
   subBlocks: SubBlockConfig[]
   triggerAllowed?: boolean

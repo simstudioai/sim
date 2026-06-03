@@ -21,6 +21,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { logKeys } from '@/hooks/queries/logs'
 import { tableKeys } from '@/hooks/queries/tables'
@@ -103,16 +104,20 @@ function IconDropdownItem({ item, icon: Icon }: DropdownItemRenderProps & { icon
 }
 
 /**
- * Renders an integration mention candidate using the block's own brand icon
- * (the SVG carries its own brand colors and renders at the standard 14px
- * icon size used elsewhere in the dropdown).
+ * Renders an integration mention candidate using the block's own brand icon at
+ * the standard 14px dropdown size. Single-fill icons drawn with
+ * `fill='currentColor'` (e.g. HubSpot) are tinted with the block's brand
+ * {@link BlockConfig.iconColor}; multi-color brand icons keep their own SVG fills.
  */
 function IntegrationDropdownItem({ item }: DropdownItemRenderProps) {
-  const Icon = item.iconComponent as ElementType | undefined
+  const Icon = item.iconComponent as StyleableIcon | undefined
   if (!Icon) return <span className='truncate'>{item.name}</span>
   return (
     <>
-      <Icon className='size-[14px] flex-shrink-0' />
+      <Icon
+        className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
+        style={getBareIconStyle(Icon)}
+      />
       <span className='truncate'>{item.name}</span>
     </>
   )

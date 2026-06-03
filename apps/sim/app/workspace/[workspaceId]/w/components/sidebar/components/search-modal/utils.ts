@@ -1,5 +1,13 @@
 import type { ComponentType, ReactNode } from 'react'
 
+export interface IntegrationSearchItem {
+  id: string
+  name: string
+  href: string
+  icon: ComponentType<{ className?: string }>
+  bgColor: string
+}
+
 export interface TaskItem {
   id: string
   name: string
@@ -48,7 +56,10 @@ export interface SearchModalProps {
   tables?: TaskItem[]
   files?: FileItem[]
   knowledgeBases?: TaskItem[]
+  integrations?: IntegrationSearchItem[]
+  connectedAccounts?: IntegrationSearchItem[]
   isOnWorkflowPage?: boolean
+  isOnIntegrationsPage?: boolean
 }
 
 export interface CommandItemProps {

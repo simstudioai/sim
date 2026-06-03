@@ -43,7 +43,7 @@ export function TeamSeatsOverview({
               No active Team subscription
             </p>
             <p className='text-[var(--text-muted)] text-small'>
-              Purchase a Team plan to invite members to this organization.
+              Purchase a Team plan to invite teammates to this organization.
             </p>
           </div>
           <Button
@@ -117,7 +117,8 @@ export function TeamSeatsOverview({
         {isOverLimit && !isEnterprise && (
           <div className='pt-1'>
             <p className='text-[var(--text-muted)] text-small'>
-              You have more members than seats. Seats adjust automatically as members join or leave.
+              You have more teammates than seats. Seats adjust automatically as teammates join or
+              leave.
             </p>
           </div>
         )}
@@ -126,7 +127,7 @@ export function TeamSeatsOverview({
           <div className='pt-1 text-center'>
             <p className='text-[var(--text-muted)] text-small'>
               {isOverLimit
-                ? 'You have more members than seats. Contact support to adjust your enterprise seat count.'
+                ? 'You have more teammates than seats. Contact support to adjust your enterprise seat count.'
                 : 'Contact support for enterprise usage limit changes'}
             </p>
           </div>

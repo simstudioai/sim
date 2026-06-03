@@ -16,6 +16,7 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#FF7A59',
+  iconColor: '#FF7A59',
   icon: HubspotIcon,
   subBlocks: [
     {

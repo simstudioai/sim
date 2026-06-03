@@ -4479,7 +4479,7 @@ export function PipedriveIcon(props: SVGProps<SVGSVGElement>) {
         fillRule='evenodd'
       >
         <g transform='translate(67, 44)'>
-          <use fill='#FFFFFF' xlinkHref={`#${pathId}`} />
+          <use fill='currentColor' xlinkHref={`#${pathId}`} />
         </g>
       </g>
     </svg>

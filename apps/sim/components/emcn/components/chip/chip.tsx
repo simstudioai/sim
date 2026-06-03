@@ -28,7 +28,7 @@ import { cn } from '@/lib/core/utils/cn'
  * inside its own layout slot (grid cell, table cell) where the cluster spacing is unwanted.
  */
 const chipVariants = cva(
-  'group h-[30px] cursor-pointer items-center gap-2 rounded-lg px-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+  'group h-[30px] cursor-pointer items-center gap-1.5 rounded-lg px-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60',
   {
     variants: {
       variant: {

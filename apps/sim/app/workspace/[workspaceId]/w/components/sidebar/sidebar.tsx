@@ -58,6 +58,10 @@ import {
   WorkflowList,
   WorkspaceHeader,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
+import {
+  buildConnectedAccountSearchItems,
+  buildIntegrationSearchItems,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/integration-search-items'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
@@ -81,10 +85,12 @@ import {
   groupWorkflowsByFolder,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import {
+  useCreateTask,
   useDeleteTask,
   useDeleteTasks,
   useMarkTaskRead,
@@ -588,6 +594,7 @@ export const Sidebar = memo(function Sidebar() {
     }
   }, [activeNavItemHref])
 
+  const createTaskMutation = useCreateTask(workspaceId)
   const deleteTaskMutation = useDeleteTask(workspaceId)
   const deleteTasksMutation = useDeleteTasks(workspaceId)
   const markTaskReadMutation = useMarkTaskRead(workspaceId)
@@ -606,6 +613,7 @@ export const Sidebar = memo(function Sidebar() {
     preventDismiss: preventTaskDismiss,
   } = useContextMenu()
 
+  const isCreatingTaskRef = useRef(false)
   const contextMenuSelectionRef = useRef<{ taskIds: string[]; names: string[] }>({
     taskIds: [],
     names: [],
@@ -1010,6 +1018,26 @@ export const Sidebar = memo(function Sidebar() {
   }, [])
 
   const isOnSettingsPage = pathname?.startsWith(`/workspace/${workspaceId}/settings`) ?? false
+  const isOnIntegrationsPage =
+    pathname?.startsWith(`/workspace/${workspaceId}/integrations`) ?? false
+
+  const { data: fetchedCredentials = [] } = useWorkspaceCredentials({
+    workspaceId,
+    enabled: isOnIntegrationsPage && !permissionConfig.hideIntegrationsTab,
+  })
+
+  const searchModalIntegrations = useMemo(
+    () => (permissionConfig.hideIntegrationsTab ? [] : buildIntegrationSearchItems(workspaceId)),
+    [workspaceId, permissionConfig.hideIntegrationsTab]
+  )
+
+  const searchModalConnectedAccounts = useMemo(
+    () =>
+      permissionConfig.hideIntegrationsTab
+        ? []
+        : buildConnectedAccountSearchItems(fetchedCredentials, workspaceId),
+    [fetchedCredentials, workspaceId, permissionConfig.hideIntegrationsTab]
+  )
 
   const isLoading = workflowsLoading || sessionLoading
   const initialScrollDoneRef = useRef(false)
@@ -1115,10 +1143,19 @@ export const Sidebar = memo(function Sidebar() {
     onSelect: handleCreateWorkflow,
   }
 
-  const handleNewTask = useCallback(() => {
-    useMothershipDraftsStore.getState().clearDraft(`${workspaceId}:new`)
-    navigateToPage(`/workspace/${workspaceId}/home`)
-  }, [navigateToPage, workspaceId])
+  const handleNewTask = useCallback(async () => {
+    if (!workspaceId || isCreatingTaskRef.current) return
+    isCreatingTaskRef.current = true
+    try {
+      const { id } = await createTaskMutation.mutateAsync()
+      useMothershipDraftsStore.getState().clearDraft(`${workspaceId}:new`)
+      navigateToPage(`/workspace/${workspaceId}/task/${id}`)
+    } catch {
+      navigateToPage(`/workspace/${workspaceId}/home`)
+    } finally {
+      isCreatingTaskRef.current = false
+    }
+  }, [workspaceId, navigateToPage])
 
   const tasksPrimaryAction = {
     label: 'New task',
@@ -1343,6 +1380,7 @@ export const Sidebar = memo(function Sidebar() {
                                   variant='quiet'
                                   className='h-[18px] w-[18px] rounded-sm p-0'
                                   onClick={handleNewTask}
+                                  disabled={createTaskMutation.isPending}
                                 >
                                   <Plus className='h-[16px] w-[16px]' />
                                 </Button>
@@ -1369,6 +1407,8 @@ export const Sidebar = memo(function Sidebar() {
                               <Loader className='h-[14px] w-[14px]' animate />
                               Loading...
                             </DropdownMenuItem>
+                          ) : tasks.length === 0 ? (
+                            <DropdownMenuItem disabled>No tasks yet</DropdownMenuItem>
                           ) : (
                             tasks.map((task) => (
                               <CollapsedTaskFlyoutItem
@@ -1396,6 +1436,11 @@ export const Sidebar = memo(function Sidebar() {
                             <SidebarItemSkeleton />
                           ) : (
                             <>
+                              {tasks.length === 0 ? (
+                                <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>
+                                  No tasks yet
+                                </div>
+                              ) : null}
                               {/* `selectTaskOnly` populates `selectedTasks` on every click, so
                                   a single entry just means "last clicked" — already conveyed by
                                   `isCurrentRoute`. Highlight from selection only for explicit
@@ -1746,7 +1791,10 @@ export const Sidebar = memo(function Sidebar() {
         tables={searchModalTables}
         files={searchModalFiles}
         knowledgeBases={searchModalKnowledgeBases}
+        integrations={searchModalIntegrations}
+        connectedAccounts={searchModalConnectedAccounts}
         isOnWorkflowPage={!!workflowId}
+        isOnIntegrationsPage={isOnIntegrationsPage}
       />
 
       <HelpModal

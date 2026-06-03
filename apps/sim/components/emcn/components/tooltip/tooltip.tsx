@@ -1,31 +1,56 @@
 'use client'
 
 import * as React from 'react'
-import * as TooltipPrimitive from '@radix-ui/react-tooltip'
+import { Slot } from '@radix-ui/react-slot'
+import {
+  FloatingTooltip,
+  type FloatingTooltipHandlers,
+  type FloatingTooltipState,
+  useFloatingTooltip,
+} from '@/components/emcn/components/tooltip/floating-tooltip'
 import { cn } from '@/lib/core/utils/cn'
 
 /**
- * Tooltip provider component that must wrap your app or tooltip usage area.
+ * Kept for API compatibility with the previous tooltip. The floating tooltip has no shared hover
+ * delay, so this is a passthrough — props are accepted but unused.
  */
 const Provider = ({
-  delayDuration = 400,
-  ...props
-}: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Provider>) => (
-  <TooltipPrimitive.Provider delayDuration={delayDuration} {...props} />
-)
+  children,
+}: {
+  children: React.ReactNode
+  delayDuration?: number
+  skipDelayDuration?: number
+  disableHoverableContent?: boolean
+}) => <>{children}</>
+Provider.displayName = 'Tooltip.Provider'
+
+const ALWAYS_SHOW = () => true
+
+interface TooltipContextValue {
+  state: FloatingTooltipState
+  handlers: FloatingTooltipHandlers
+  contentId: string
+}
+
+const TooltipContext = React.createContext<TooltipContextValue | null>(null)
+
+function useTooltipContext(component: string): TooltipContextValue {
+  const context = React.useContext(TooltipContext)
+  if (!context) {
+    throw new Error(`Tooltip.${component} must be rendered within a Tooltip.Root`)
+  }
+  return context
+}
+
+interface RootProps {
+  children: React.ReactNode
+  /** Accepted for API compatibility; the floating tooltip has no hover delay. */
+  delayDuration?: number
+}
 
 /**
- * Root tooltip component that wraps trigger and content.
- */
-const Root = TooltipPrimitive.Root
-
-/**
- * Trigger element that activates the tooltip on hover.
- */
-const Trigger = TooltipPrimitive.Trigger
-
-/**
- * Tooltip content component with consistent styling.
+ * Root of a single tooltip. Coordinates a cursor-following floating bubble between its `Trigger`
+ * and `Content`.
  *
  * @example
  * ```tsx
@@ -33,34 +58,103 @@ const Trigger = TooltipPrimitive.Trigger
  *   <Tooltip.Trigger asChild>
  *     <Button>Hover me</Button>
  *   </Tooltip.Trigger>
- *   <Tooltip.Content>
- *     <p>Tooltip text</p>
- *   </Tooltip.Content>
+ *   <Tooltip.Content>Tooltip text</Tooltip.Content>
  * </Tooltip.Root>
  * ```
  */
-const Content = React.forwardRef<
-  React.ElementRef<typeof TooltipPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 6, children, ...props }, ref) => (
-  <TooltipPrimitive.Portal>
-    <TooltipPrimitive.Content
-      ref={ref}
-      sideOffset={sideOffset}
-      collisionPadding={8}
-      avoidCollisions
-      className={cn(
-        'z-[var(--z-tooltip)] max-w-[260px] rounded-[4px] bg-[var(--tooltip-bg)] px-2 py-[3.5px] text-white text-xs shadow-sm dark:text-black',
-        className
-      )}
-      {...props}
-    >
+function Root({ children }: RootProps) {
+  const contentId = React.useId()
+  const { state, handlers } = useFloatingTooltip(ALWAYS_SHOW)
+  const value = React.useMemo<TooltipContextValue>(
+    () => ({ state, handlers, contentId }),
+    [state, handlers, contentId]
+  )
+  return <TooltipContext.Provider value={value}>{children}</TooltipContext.Provider>
+}
+Root.displayName = 'Tooltip.Root'
+
+function composeHandlers<E extends React.SyntheticEvent>(
+  theirHandler: ((event: E) => void) | undefined,
+  ourHandler: (event: E) => void
+) {
+  return (event: E) => {
+    theirHandler?.(event)
+    if (!event.defaultPrevented) ourHandler(event)
+  }
+}
+
+interface TriggerProps extends React.ComponentPropsWithoutRef<'button'> {
+  /** Merge tooltip behavior onto the single child element instead of rendering a button. */
+  asChild?: boolean
+}
+
+/**
+ * Element that activates the tooltip on hover/focus. Use `asChild` to project onto your own element.
+ */
+const Trigger = React.forwardRef<HTMLButtonElement, TriggerProps>(
+  ({ asChild = false, ...props }, ref) => {
+    const ctx = useTooltipContext('Trigger')
+    const Comp = asChild ? Slot : 'button'
+
+    return (
+      <Comp
+        ref={ref as React.Ref<HTMLButtonElement>}
+        aria-describedby={ctx.state.visible ? ctx.contentId : undefined}
+        {...props}
+        onPointerEnter={composeHandlers(props.onPointerEnter, (event) =>
+          ctx.handlers.onPointerEnter(event)
+        )}
+        onPointerMove={composeHandlers(props.onPointerMove, (event) =>
+          ctx.handlers.onPointerMove(event)
+        )}
+        onPointerLeave={composeHandlers(props.onPointerLeave, () => ctx.handlers.onPointerLeave())}
+        onPointerDown={composeHandlers(props.onPointerDown, () => ctx.handlers.onPointerDown())}
+        onFocus={composeHandlers(props.onFocus, (event) => ctx.handlers.onFocus(event))}
+        onBlur={composeHandlers(props.onBlur, () => ctx.handlers.onBlur())}
+      />
+    )
+  }
+)
+Trigger.displayName = 'Tooltip.Trigger'
+
+interface ContentProps extends React.HTMLAttributes<HTMLDivElement> {
+  /**
+   * Legacy positioning props from the previous Radix tooltip. Accepted for drop-in compatibility
+   * but ignored — the tooltip now follows the cursor.
+   */
+  side?: 'top' | 'right' | 'bottom' | 'left'
+  sideOffset?: number
+  align?: 'start' | 'center' | 'end'
+  alignOffset?: number
+  avoidCollisions?: boolean
+  collisionPadding?: number | Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>
+  collisionBoundary?: unknown
+  arrowPadding?: number
+  sticky?: 'partial' | 'always'
+  hideWhenDetached?: boolean
+  asChild?: boolean
+  forceMount?: boolean
+}
+
+/**
+ * Tooltip content, rendered in a cursor-following floating bubble.
+ *
+ * @example
+ * ```tsx
+ * <Tooltip.Content>
+ *   <p>Tooltip text</p>
+ * </Tooltip.Content>
+ * ```
+ */
+function Content({ className, children }: ContentProps) {
+  const ctx = useTooltipContext('Content')
+  return (
+    <FloatingTooltip state={ctx.state} role='tooltip' id={ctx.contentId} className={className}>
       {children}
-      <TooltipPrimitive.Arrow className='fill-[var(--tooltip-bg)]' />
-    </TooltipPrimitive.Content>
-  </TooltipPrimitive.Portal>
-))
-Content.displayName = TooltipPrimitive.Content.displayName
+    </FloatingTooltip>
+  )
+}
+Content.displayName = 'Tooltip.Content'
 
 interface ShortcutProps {
   /** The keyboard shortcut keys to display (e.g., "⌘D", "⌘K") */

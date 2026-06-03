@@ -1,7 +1,9 @@
 export {
   BlocksGroup,
+  ConnectedAccountsGroup,
   DocsGroup,
   FilesGroup,
+  IntegrationsGroup,
   KnowledgeBasesGroup,
   PagesGroup,
   TablesGroup,

@@ -55,7 +55,7 @@ export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboa
 |--------|-----|
 | Create workspace | Click workspace dropdown → New Workspace |
 | Switch workspaces | Click workspace dropdown → Select workspace |
-| Invite team members | Sidebar → Invite |
+| Invite teammates | Sidebar → Invite |
 | Rename/Duplicate/Export/Delete workspace | Right-click workspace → action |
 
 ## Quick Reference — Workflows

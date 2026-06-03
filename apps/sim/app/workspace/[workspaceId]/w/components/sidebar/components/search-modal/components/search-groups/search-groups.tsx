@@ -15,6 +15,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/command-items'
 import type {
   FileItem,
+  IntegrationSearchItem,
   PageItem,
   TaskItem,
   WorkflowItem,
@@ -254,6 +255,9 @@ export const PagesGroup = memo(function PagesGroup({
 export const TablesGroup = createIconGroup('Tables', 'table', Table)
 export const KnowledgeBasesGroup = createIconGroup('Knowledge Bases', 'knowledge-base', Database)
 
+export const ConnectedAccountsGroup = createColoredIconGroup('Connected', 'connected-account')
+export const IntegrationsGroup = createColoredIconGroup('Integrations', 'integration')
+
 export const FilesGroup = memo(function FilesGroup({
   items,
   onSelect,
@@ -276,6 +280,40 @@ export const FilesGroup = memo(function FilesGroup({
     </Command.Group>
   )
 })
+
+/**
+ * Factory for groups that render each item with its own brand icon on a
+ * brand-colored tile (the same `showColoredIcon` pattern used by
+ * `BlocksGroup` / `ToolsGroup`). Used for integrations and connected accounts
+ * where every row has a distinct per-item icon and brand color.
+ */
+function createColoredIconGroup(heading: string, prefix: string) {
+  return memo(function ColoredIconGroup({
+    items,
+    onSelect,
+  }: {
+    items: IntegrationSearchItem[]
+    onSelect: (item: IntegrationSearchItem) => void
+  }) {
+    if (items.length === 0) return null
+    return (
+      <Command.Group heading={heading} className={GROUP_HEADING_CLASSNAME}>
+        {items.map((item) => (
+          <MemoizedCommandItem
+            key={item.id}
+            value={`${item.name} ${prefix}-${item.id}`}
+            onSelect={() => onSelect(item)}
+            icon={item.icon}
+            bgColor={item.bgColor}
+            showColoredIcon
+          >
+            {item.name}
+          </MemoizedCommandItem>
+        ))}
+      </Command.Group>
+    )
+  })
+}
 
 function createIconGroup(
   heading: string,

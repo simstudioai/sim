@@ -1,7 +1,5 @@
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
-
-const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 /**
  * Simplified hook that uses React Query for usage limits.
