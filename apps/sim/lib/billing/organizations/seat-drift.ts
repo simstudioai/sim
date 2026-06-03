@@ -1,9 +1,8 @@
 import { db } from '@sim/db'
 import { member, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, like, or, sql } from 'drizzle-orm'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
-import { isTeam } from '@/lib/billing/plan-helpers'
 import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
@@ -41,26 +40,27 @@ export async function reconcileTeamSeatDrift(): Promise<SeatDriftSweepResult> {
     return { drifted: 0, reconciled: 0 }
   }
 
-  const rows = await db
-    .select({
-      organizationId: subscription.referenceId,
-      plan: subscription.plan,
-      seats: subscription.seats,
-      memberCount: count(member.id),
-    })
+  /**
+   * The filter runs entirely in SQL: only Team plans (`team` or `team_*`), with
+   * a usable status and a Stripe id, whose stored `seats` differs from their
+   * live member count (`HAVING`). Non-Team orgs are never materialized.
+   */
+  const driftedRows = await db
+    .select({ organizationId: subscription.referenceId })
     .from(subscription)
     .innerJoin(member, eq(member.organizationId, subscription.referenceId))
     .where(
       and(
         inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES),
-        isNotNull(subscription.stripeSubscriptionId)
+        isNotNull(subscription.stripeSubscriptionId),
+        or(eq(subscription.plan, 'team'), like(subscription.plan, 'team\\_%'))
       )
     )
     .groupBy(subscription.referenceId, subscription.plan, subscription.seats)
+    .having(sql`coalesce(${subscription.seats}, 1) <> count(${member.id})`)
     .orderBy(sql`random()`)
 
-  const drifted = rows.filter((row) => isTeam(row.plan) && (row.seats ?? 1) !== row.memberCount)
-  const batch = drifted.slice(0, MAX_RECONCILES_PER_RUN)
+  const batch = driftedRows.slice(0, MAX_RECONCILES_PER_RUN)
 
   let reconciled = 0
   for (const row of batch) {
@@ -78,17 +78,17 @@ export async function reconcileTeamSeatDrift(): Promise<SeatDriftSweepResult> {
     }
   }
 
-  if (drifted.length > batch.length) {
+  if (driftedRows.length > batch.length) {
     logger.warn('Seat drift sweep hit its per-run cap; remaining orgs reconcile next run', {
-      drifted: drifted.length,
+      drifted: driftedRows.length,
       cap: MAX_RECONCILES_PER_RUN,
     })
-  } else if (drifted.length > 0) {
+  } else if (driftedRows.length > 0) {
     logger.info('Seat drift sweep reconciled organizations', {
-      drifted: drifted.length,
+      drifted: driftedRows.length,
       reconciled,
     })
   }
 
-  return { drifted: drifted.length, reconciled }
+  return { drifted: driftedRows.length, reconciled }
 }

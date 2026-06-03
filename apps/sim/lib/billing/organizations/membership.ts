@@ -34,6 +34,33 @@ import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('OrganizationMembership')
 
+const ORG_MEMBERSHIP_LOCK_TIMEOUT_MS = 5_000
+
+/**
+ * Serialize concurrent membership changes for a `(user, org)` pair via a
+ * transaction-scoped Postgres advisory lock. Callers acquire it at the top of
+ * the transaction that both decides and mutates membership — removal does
+ * check-then-delete; acceptance re-checks the member then grants — so an invite
+ * acceptance can't interleave with a removal and leave the user with workspace
+ * access but no org membership (or vice versa).
+ *
+ * `pg_advisory_xact_lock` auto-releases at transaction end, so there's no
+ * session lock to leak onto a pooled connection, and the `lock_timeout` bounds
+ * the wait (it raises SQLSTATE 55P03 instead of hanging) if a holder is stuck.
+ */
+export async function acquireOrgMembershipLock(
+  tx: DbOrTx,
+  userId: string,
+  organizationId: string
+): Promise<void> {
+  await tx.execute(
+    sql`select set_config('lock_timeout', ${`${ORG_MEMBERSHIP_LOCK_TIMEOUT_MS}ms`}, true)`
+  )
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${`${userId}:${organizationId}`}, 0))`
+  )
+}
+
 export type BillingBlockReason = 'payment_failed' | 'dispute'
 
 /**
@@ -261,11 +288,25 @@ export interface RemoveMemberParams {
   memberId: string
   /** Skip departed usage capture and Pro restoration (default: false) */
   skipBillingLogic?: boolean
+  /**
+   * Only remove the member when they hold no remaining permission on any of the
+   * org's workspaces, evaluated atomically under the membership lock. Used by
+   * the workspace-removal path so a concurrent invite acceptance can't be raced
+   * into a "workspace access but no membership" state. When access remains, the
+   * member is kept and the result has `removed: false`.
+   */
+  requireNoOrgWorkspaceAccess?: boolean
 }
 
 export interface RemoveMemberResult {
   success: boolean
   error?: string
+  /**
+   * Whether the member row was actually deleted. `false` (with `success: true`)
+   * when `requireNoOrgWorkspaceAccess` was set and the user still had workspace
+   * access, so the membership was intentionally left in place.
+   */
+  removed?: boolean
   billingActions: {
     usageCaptured: number
     proRestored: boolean
@@ -881,7 +922,13 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
 export async function removeUserFromOrganization(
   params: RemoveMemberParams
 ): Promise<RemoveMemberResult> {
-  const { userId, organizationId, memberId, skipBillingLogic = false } = params
+  const {
+    userId,
+    organizationId,
+    memberId,
+    skipBillingLogic = false,
+    requireNoOrgWorkspaceAccess = false,
+  } = params
 
   const billingActions = {
     usageCaptured: 0,
@@ -910,12 +957,39 @@ export async function removeUserFromOrganization(
       return { success: false, error: 'Cannot remove organization owner', billingActions }
     }
 
-    const {
-      workspaceIdsToRevoke,
-      usageCaptured,
-      credentialMembershipsRevoked,
-      pendingInvitationsCancelled,
-    } = await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
+      /**
+       * Serialize against a concurrent invite acceptance for this user+org so
+       * the remaining-access check below and the deletions are atomic with the
+       * accept's membership re-check + workspace grant — preventing a
+       * "workspace access but no membership" (or the inverse) interleaving.
+       */
+      await acquireOrgMembershipLock(tx, userId, organizationId)
+
+      const orgWorkspaces = await tx
+        .select({ id: workspace.id })
+        .from(workspace)
+        .where(eq(workspace.organizationId, organizationId))
+      const workspaceIds = orgWorkspaces.map((w) => w.id)
+
+      if (requireNoOrgWorkspaceAccess && workspaceIds.length > 0) {
+        const [remainingAccess] = await tx
+          .select({ id: permissions.id })
+          .from(permissions)
+          .where(
+            and(
+              eq(permissions.userId, userId),
+              eq(permissions.entityType, 'workspace'),
+              inArray(permissions.entityId, workspaceIds)
+            )
+          )
+          .limit(1)
+
+        if (remainingAccess) {
+          return { skipped: true as const }
+        }
+      }
+
       const deletedMember = await tx
         .delete(member)
         .where(and(eq(member.id, memberId), ne(member.role, 'owner')))
@@ -946,11 +1020,6 @@ export async function removeUserFromOrganization(
             )
             .returning({ id: invitation.id })
         : []
-
-      const orgWorkspaces = await tx
-        .select({ id: workspace.id })
-        .from(workspace)
-        .where(eq(workspace.organizationId, organizationId))
 
       const captureDepartedUsage = async () => {
         if (skipBillingLogic) return 0
@@ -987,18 +1056,17 @@ export async function removeUserFromOrganization(
         return usage
       }
 
-      if (orgWorkspaces.length === 0) {
+      if (workspaceIds.length === 0) {
         const capturedUsage = await captureDepartedUsage()
 
         return {
+          skipped: false as const,
           workspaceIdsToRevoke: [] as string[],
           usageCaptured: capturedUsage,
           credentialMembershipsRevoked: 0,
           pendingInvitationsCancelled: cancelledInvitations.length,
         }
       }
-
-      const workspaceIds = orgWorkspaces.map((w) => w.id)
 
       await reassignOwnedOrganizationWorkspacesTx({
         tx,
@@ -1035,6 +1103,7 @@ export async function removeUserFromOrganization(
       const capturedUsage = await captureDepartedUsage()
 
       return {
+        skipped: false as const,
         workspaceIdsToRevoke: deletedPerms.map((row) => row.entityId),
         usageCaptured: capturedUsage,
         credentialMembershipsRevoked,
@@ -1042,15 +1111,24 @@ export async function removeUserFromOrganization(
       }
     })
 
-    billingActions.usageCaptured = usageCaptured
-    billingActions.workspaceAccessRevoked = workspaceIdsToRevoke.length
-    billingActions.pendingInvitationsCancelled = pendingInvitationsCancelled
+    if (result.skipped) {
+      logger.info('Skipped org removal: member still has workspace access', {
+        organizationId,
+        userId,
+        memberId,
+      })
+      return { success: true, removed: false, billingActions }
+    }
 
-    if (usageCaptured > 0) {
+    billingActions.usageCaptured = result.usageCaptured
+    billingActions.workspaceAccessRevoked = result.workspaceIdsToRevoke.length
+    billingActions.pendingInvitationsCancelled = result.pendingInvitationsCancelled
+
+    if (result.usageCaptured > 0) {
       logger.info('Captured departed member usage', {
         organizationId,
         userId,
-        usage: usageCaptured,
+        usage: result.usageCaptured,
       })
     }
 
@@ -1058,9 +1136,9 @@ export async function removeUserFromOrganization(
       organizationId,
       userId,
       memberId,
-      workspaceAccessRevoked: workspaceIdsToRevoke.length,
-      credentialMembershipsRevoked,
-      pendingInvitationsCancelled,
+      workspaceAccessRevoked: result.workspaceIdsToRevoke.length,
+      credentialMembershipsRevoked: result.credentialMembershipsRevoked,
+      pendingInvitationsCancelled: result.pendingInvitationsCancelled,
     })
 
     if (!skipBillingLogic) {
@@ -1102,7 +1180,7 @@ export async function removeUserFromOrganization(
       }
     }
 
-    return { success: true, billingActions }
+    return { success: true, removed: true, billingActions }
   } catch (error) {
     logger.error('Failed to remove user from organization', {
       userId,

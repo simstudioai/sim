@@ -5,6 +5,7 @@ import {
   type InvitationStatus,
   invitation,
   invitationWorkspaceGrant,
+  member,
   organization,
   permissions,
   user,
@@ -17,6 +18,7 @@ import { and, eq, inArray, lte } from 'drizzle-orm'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
+  acquireOrgMembershipLock,
   ensureUserInOrganization,
   getUserOrganization,
 } from '@/lib/billing/organizations/membership'
@@ -236,6 +238,19 @@ export interface AcceptInvitationInput {
 }
 
 /**
+ * Thrown inside the grant transaction when the invitee's org membership was
+ * removed concurrently (between the join and the grant) — detected under the
+ * membership lock. Aborts the grant so we never write workspace access for a
+ * user who is no longer an org member (the "zombie" state).
+ */
+class MembershipRevokedDuringAcceptError extends Error {
+  constructor() {
+    super('Org membership was revoked during invite acceptance')
+    this.name = 'MembershipRevokedDuringAcceptError'
+  }
+}
+
+/**
  * An invitee who already belongs to a different organization cannot join a
  * second one. A workspace invite (with grants) falls back to external access;
  * anything else is rejected. Returns `true` when the caller should downgrade to
@@ -391,58 +406,91 @@ export async function acceptInvitation(
 
   const acceptedWorkspaceIds: string[] = []
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(invitation)
-      .set({
-        status: 'accepted',
-        membershipIntent: acceptedMembershipIntent,
-        updatedAt: new Date(),
-      })
-      .where(eq(invitation.id, inv.id))
-
-    for (const grant of inv.grants) {
-      const [existingPermission] = await tx
-        .select({ id: permissions.id, permissionType: permissions.permissionType })
-        .from(permissions)
-        .where(
-          and(
-            eq(permissions.entityId, grant.workspaceId),
-            eq(permissions.entityType, 'workspace'),
-            eq(permissions.userId, input.userId)
+  try {
+    await db.transaction(async (tx) => {
+      /**
+       * When this acceptance joins an organization, serialize against a
+       * concurrent member-removal for the same user+org and confirm the member
+       * still exists before granting workspace access. Without this, a removal
+       * landing between the join and the grant would leave the user with
+       * workspace access but no org membership/seat.
+       */
+      if (shouldJoinOrganization && targetOrganizationId) {
+        await acquireOrgMembershipLock(tx, input.userId, targetOrganizationId)
+        const [stillMember] = await tx
+          .select({ id: member.id })
+          .from(member)
+          .where(
+            and(eq(member.organizationId, targetOrganizationId), eq(member.userId, input.userId))
           )
-        )
-        .limit(1)
-
-      const newPermission = grant.permission as PermissionLevel
-      const newRank = PERMISSION_RANK[newPermission] ?? 0
-
-      if (existingPermission) {
-        const existingRank =
-          PERMISSION_RANK[existingPermission.permissionType as PermissionLevel] ?? 0
-        if (newRank > existingRank) {
-          await tx
-            .update(permissions)
-            .set({ permissionType: newPermission, updatedAt: new Date() })
-            .where(eq(permissions.id, existingPermission.id))
+          .limit(1)
+        if (!stillMember) {
+          throw new MembershipRevokedDuringAcceptError()
         }
-      } else {
-        await tx.insert(permissions).values({
-          id: generateId(),
-          entityType: 'workspace',
-          entityId: grant.workspaceId,
-          userId: input.userId,
-          permissionType: newPermission,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
       }
 
-      await applyWorkspaceAutoAddGroup(tx, grant.workspaceId, input.userId)
+      await tx
+        .update(invitation)
+        .set({
+          status: 'accepted',
+          membershipIntent: acceptedMembershipIntent,
+          updatedAt: new Date(),
+        })
+        .where(eq(invitation.id, inv.id))
 
-      acceptedWorkspaceIds.push(grant.workspaceId)
+      for (const grant of inv.grants) {
+        const [existingPermission] = await tx
+          .select({ id: permissions.id, permissionType: permissions.permissionType })
+          .from(permissions)
+          .where(
+            and(
+              eq(permissions.entityId, grant.workspaceId),
+              eq(permissions.entityType, 'workspace'),
+              eq(permissions.userId, input.userId)
+            )
+          )
+          .limit(1)
+
+        const newPermission = grant.permission as PermissionLevel
+        const newRank = PERMISSION_RANK[newPermission] ?? 0
+
+        if (existingPermission) {
+          const existingRank =
+            PERMISSION_RANK[existingPermission.permissionType as PermissionLevel] ?? 0
+          if (newRank > existingRank) {
+            await tx
+              .update(permissions)
+              .set({ permissionType: newPermission, updatedAt: new Date() })
+              .where(eq(permissions.id, existingPermission.id))
+          }
+        } else {
+          await tx.insert(permissions).values({
+            id: generateId(),
+            entityType: 'workspace',
+            entityId: grant.workspaceId,
+            userId: input.userId,
+            permissionType: newPermission,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+        }
+
+        await applyWorkspaceAutoAddGroup(tx, grant.workspaceId, input.userId)
+
+        acceptedWorkspaceIds.push(grant.workspaceId)
+      }
+    })
+  } catch (grantError) {
+    if (grantError instanceof MembershipRevokedDuringAcceptError) {
+      logger.warn('Aborted invite acceptance: org membership revoked concurrently', {
+        userId: input.userId,
+        organizationId: targetOrganizationId,
+        invitationId: inv.id,
+      })
+      return { success: false, kind: 'already-processed' }
     }
-  })
+    throw grantError
+  }
 
   if (shouldJoinOrganization && targetOrganizationId) {
     try {

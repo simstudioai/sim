@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockEnsureUserInOrganization,
   mockGetUserOrganization,
+  mockAcquireOrgMembershipLock,
   mockEnsureTeamOrganizationForAcceptance,
   mockReconcileOrganizationSeats,
   mockGetWorkspaceWithOwner,
@@ -18,6 +19,7 @@ const {
 } = vi.hoisted(() => ({
   mockEnsureUserInOrganization: vi.fn(),
   mockGetUserOrganization: vi.fn(),
+  mockAcquireOrgMembershipLock: vi.fn(),
   mockEnsureTeamOrganizationForAcceptance: vi.fn(),
   mockReconcileOrganizationSeats: vi.fn(),
   mockGetWorkspaceWithOwner: vi.fn(),
@@ -33,6 +35,7 @@ vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/billing/organizations/membership', () => ({
   ensureUserInOrganization: mockEnsureUserInOrganization,
   getUserOrganization: mockGetUserOrganization,
+  acquireOrgMembershipLock: mockAcquireOrgMembershipLock,
 }))
 
 vi.mock('@/lib/billing/organizations/provision-seat', () => ({
@@ -285,6 +288,8 @@ describe('acceptInvitation', () => {
         },
       ],
       [{ name: 'Owner', email: 'owner@example.com' }],
+      // Grant-txn membership re-check under the lock: member still present.
+      [{ id: 'member-1' }],
     ])
 
     const result = await acceptInvitation({
@@ -358,6 +363,8 @@ describe('acceptInvitation', () => {
       ],
       [{ name: 'Acme' }],
       [{ name: 'Owner', email: 'owner@example.com' }],
+      // Grant-txn membership re-check under the lock: member still present.
+      [{ id: 'member-1' }],
     ])
 
     const result = await acceptInvitation({
@@ -430,5 +437,67 @@ describe('acceptInvitation', () => {
     }
     expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
     expect(mockReconcileOrganizationSeats).not.toHaveBeenCalled()
+  })
+
+  it('aborts when the org membership is revoked concurrently during the grant', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValueOnce({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner-1',
+    })
+    mockEnsureTeamOrganizationForAcceptance.mockResolvedValueOnce({
+      success: true,
+      organizationId: 'org-1',
+      fixedSeats: false,
+    })
+
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'invitee@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      // Grant-txn membership re-check finds no member row (removed concurrently).
+      [],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.kind).toBe('already-processed')
+    }
+    // Aborted before granting workspace access — no zombie permission write.
+    expect(mockApplyWorkspaceAutoAddGroup).not.toHaveBeenCalled()
+    expect(mockSetActiveOrganizationForCurrentSession).not.toHaveBeenCalled()
   })
 })

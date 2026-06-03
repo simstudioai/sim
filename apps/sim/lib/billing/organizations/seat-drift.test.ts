@@ -16,6 +16,7 @@ vi.mock('@sim/db', () => {
     chain.innerJoin = () => chain
     chain.where = () => chain
     chain.groupBy = () => chain
+    chain.having = () => chain
     chain.orderBy = () => Promise.resolve(selectRows.value)
     return chain
   }
@@ -42,44 +43,27 @@ describe('reconcileTeamSeatDrift', () => {
     mockReconcileOrganizationSeats.mockResolvedValue({ changed: true, previousSeats: 1, seats: 2 })
   })
 
-  it('reconciles only Team orgs whose seat count drifted from their member count', async () => {
-    selectRows.value = [
-      { organizationId: 'org-drift', plan: 'team_6000', seats: 1, memberCount: 2 },
-      { organizationId: 'org-aligned', plan: 'team_6000', seats: 3, memberCount: 3 },
-      { organizationId: 'org-enterprise', plan: 'enterprise', seats: 5, memberCount: 7 },
-      { organizationId: 'org-pro', plan: 'pro_6000', seats: 1, memberCount: 4 },
-    ]
+  it('reconciles each drifted Team org returned by the query', async () => {
+    // The SQL WHERE (Team-only) + HAVING (seats != member count) already
+    // restrict the result to drifted Team orgs; the function reconciles each.
+    selectRows.value = [{ organizationId: 'org-1' }, { organizationId: 'org-2' }]
 
     const result = await reconcileTeamSeatDrift()
 
-    expect(result).toEqual({ drifted: 1, reconciled: 1 })
-    expect(mockReconcileOrganizationSeats).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ drifted: 2, reconciled: 2 })
+    expect(mockReconcileOrganizationSeats).toHaveBeenCalledTimes(2)
     expect(mockReconcileOrganizationSeats).toHaveBeenCalledWith({
-      organizationId: 'org-drift',
+      organizationId: 'org-1',
       reason: 'seat-drift-sweep',
     })
-  })
-
-  it('treats a null seat count as one seat', async () => {
-    selectRows.value = [
-      { organizationId: 'org-null', plan: 'team_6000', seats: null, memberCount: 1 },
-      { organizationId: 'org-null-drift', plan: 'team_6000', seats: null, memberCount: 2 },
-    ]
-
-    const result = await reconcileTeamSeatDrift()
-
-    expect(result.drifted).toBe(1)
     expect(mockReconcileOrganizationSeats).toHaveBeenCalledWith({
-      organizationId: 'org-null-drift',
+      organizationId: 'org-2',
       reason: 'seat-drift-sweep',
     })
   })
 
   it('counts only reconciles that changed the seat count', async () => {
-    selectRows.value = [
-      { organizationId: 'org-a', plan: 'team_6000', seats: 1, memberCount: 2 },
-      { organizationId: 'org-b', plan: 'team_6000', seats: 1, memberCount: 3 },
-    ]
+    selectRows.value = [{ organizationId: 'org-a' }, { organizationId: 'org-b' }]
     mockReconcileOrganizationSeats
       .mockResolvedValueOnce({ changed: true, seats: 2 })
       .mockResolvedValueOnce({ changed: false })
@@ -90,10 +74,7 @@ describe('reconcileTeamSeatDrift', () => {
   })
 
   it('continues past a reconcile failure', async () => {
-    selectRows.value = [
-      { organizationId: 'org-a', plan: 'team_6000', seats: 1, memberCount: 2 },
-      { organizationId: 'org-b', plan: 'team_6000', seats: 1, memberCount: 3 },
-    ]
+    selectRows.value = [{ organizationId: 'org-a' }, { organizationId: 'org-b' }]
     mockReconcileOrganizationSeats
       .mockRejectedValueOnce(new Error('db error'))
       .mockResolvedValueOnce({ changed: true, seats: 3 })
@@ -116,9 +97,6 @@ describe('reconcileTeamSeatDrift', () => {
   it('caps reconciles per run while still reporting the full drift count', async () => {
     selectRows.value = Array.from({ length: 150 }, (_, i) => ({
       organizationId: `org-${i}`,
-      plan: 'team_6000',
-      seats: 1,
-      memberCount: 2,
     }))
 
     const result = await reconcileTeamSeatDrift()

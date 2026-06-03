@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { member, permissionGroupMember, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { removeWorkspaceMemberContract } from '@/lib/api/contracts/invitations'
 import { parseRequest } from '@/lib/api/server'
@@ -207,57 +207,43 @@ export const DELETE = withRouteHandler(
           .limit(1)
 
         if (orgMembership) {
-          const orgWorkspaceIds = (
-            await db
-              .select({ id: workspace.id })
-              .from(workspace)
-              .where(eq(workspace.organizationId, organizationId))
-          ).map((row) => row.id)
+          /**
+           * Remove the org membership + seat only when this is the member's last
+           * access to any org workspace. The remaining-access check and the
+           * deletion happen atomically under a `(user, org)` advisory lock inside
+           * `removeUserFromOrganization` (`requireNoOrgWorkspaceAccess`), so a
+           * concurrent invite acceptance can't be raced into a "workspace access
+           * but no org membership" state.
+           */
+          const removal = await removeUserFromOrganization({
+            userId,
+            organizationId,
+            memberId: orgMembership.id,
+            requireNoOrgWorkspaceAccess: true,
+          })
 
-          const remainingAccess = orgWorkspaceIds.length
-            ? await db
-                .select({ id: permissions.id })
-                .from(permissions)
-                .where(
-                  and(
-                    eq(permissions.userId, userId),
-                    eq(permissions.entityType, 'workspace'),
-                    inArray(permissions.entityId, orgWorkspaceIds)
-                  )
-                )
-                .limit(1)
-            : []
-
-          if (remainingAccess.length === 0) {
-            const removal = await removeUserFromOrganization({
-              userId,
-              organizationId,
-              memberId: orgMembership.id,
-            })
-
-            if (removal.success) {
-              organizationRemoval = true
-              try {
-                seatReduction = await reconcileOrganizationSeats({
-                  organizationId,
-                  reason: 'member-removed',
-                })
-              } catch (seatError) {
-                logger.error('Failed to reduce seats after workspace member removal', {
-                  organizationId,
-                  workspaceId,
-                  removedUserId: userId,
-                  error: seatError,
-                })
-              }
-            } else {
-              logger.error('Failed to remove org membership after last workspace removal', {
+          if (removal.success && removal.removed) {
+            organizationRemoval = true
+            try {
+              seatReduction = await reconcileOrganizationSeats({
+                organizationId,
+                reason: 'member-removed',
+              })
+            } catch (seatError) {
+              logger.error('Failed to reduce seats after workspace member removal', {
                 organizationId,
                 workspaceId,
                 removedUserId: userId,
-                error: removal.error,
+                error: seatError,
               })
             }
+          } else if (!removal.success) {
+            logger.error('Failed to remove org membership after last workspace removal', {
+              organizationId,
+              workspaceId,
+              removedUserId: userId,
+              error: removal.error,
+            })
           }
         }
       }
