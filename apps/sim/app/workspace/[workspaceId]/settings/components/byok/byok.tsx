@@ -29,7 +29,9 @@ import {
   ImageIcon,
   JinaAIIcon,
   LinkupIcon,
+  MillionVerifierIcon,
   MistralIcon,
+  NeverBounceIcon,
   OllamaIcon,
   OpenAIIcon,
   ParallelIcon,
@@ -39,6 +41,7 @@ import {
   SerperIcon,
   TogetherIcon,
   WizaIcon,
+  ZeroBounceIcon,
 } from '@/components/icons'
 import { Input } from '@/components/ui'
 import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
@@ -219,6 +222,27 @@ const PROVIDERS: {
     icon: WizaIcon,
     description: 'Prospect search, individual reveal, and company enrichment',
     placeholder: 'Enter your Wiza API key',
+  },
+  {
+    id: 'zerobounce',
+    name: 'ZeroBounce',
+    icon: ZeroBounceIcon,
+    description: 'Real-time email validation and deliverability checks',
+    placeholder: 'Enter your ZeroBounce API key',
+  },
+  {
+    id: 'neverbounce',
+    name: 'NeverBounce',
+    icon: NeverBounceIcon,
+    description: 'Real-time email verification and list cleaning',
+    placeholder: 'Enter your NeverBounce API key',
+  },
+  {
+    id: 'millionverifier',
+    name: 'MillionVerifier',
+    icon: MillionVerifierIcon,
+    description: 'Real-time email verification and deliverability checks',
+    placeholder: 'Enter your MillionVerifier API key',
   },
 ]
 

@@ -27,6 +27,9 @@ export type BYOKProviderId =
   | 'findymail'
   | 'prospeo'
   | 'wiza'
+  | 'zerobounce'
+  | 'neverbounce'
+  | 'millionverifier'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 

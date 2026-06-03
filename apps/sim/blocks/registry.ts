@@ -133,6 +133,7 @@ import { MicrosoftDataverseBlock } from '@/blocks/blocks/microsoft_dataverse'
 import { MicrosoftExcelBlock, MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftPlannerBlock } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
+import { MillionVerifierBlock } from '@/blocks/blocks/millionverifier'
 import {
   MistralParseBlock,
   MistralParseV2Block,
@@ -143,6 +144,7 @@ import { MongoDBBlock } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
 import { Neo4jBlock } from '@/blocks/blocks/neo4j'
+import { NeverBounceBlock } from '@/blocks/blocks/neverbounce'
 import { NewRelicBlock } from '@/blocks/blocks/new_relic'
 import { NoteBlock } from '@/blocks/blocks/note'
 import { NotionBlock, NotionV2Block } from '@/blocks/blocks/notion'
@@ -245,6 +247,7 @@ import { XBlock } from '@/blocks/blocks/x'
 import { YouTubeBlock } from '@/blocks/blocks/youtube'
 import { ZendeskBlock } from '@/blocks/blocks/zendesk'
 import { ZepBlock } from '@/blocks/blocks/zep'
+import { ZeroBounceBlock } from '@/blocks/blocks/zerobounce'
 import { ZoomBlock } from '@/blocks/blocks/zoom'
 import { ZoomInfoBlock } from '@/blocks/blocks/zoominfo'
 import type { BlockConfig } from '@/blocks/types'
@@ -318,6 +321,9 @@ export const registry: Record<string, BlockConfig> = {
   file_v3: FileV3Block,
   file_v4: FileV4Block,
   findymail: FindymailBlock,
+  zerobounce: ZeroBounceBlock,
+  neverbounce: NeverBounceBlock,
+  millionverifier: MillionVerifierBlock,
   firecrawl: FirecrawlBlock,
   fireflies: FirefliesBlock,
   fireflies_v2: FirefliesV2Block,
