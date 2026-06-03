@@ -105,7 +105,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           {
             success: false,
             error:
-              'Missing required permissions. Please reconnect your Slack account with the necessary scopes (channels:history, groups:history, im:history).',
+              'Missing required permissions. Reconnect your Slack account to grant channel history access (channels:history, groups:history). Reading direct message history is not supported with the Sim bot.',
           },
           { status: 400 }
         )
