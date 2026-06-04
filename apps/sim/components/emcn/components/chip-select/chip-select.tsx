@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { ChevronDown } from 'lucide-react'
 import { chipVariants } from '@/components/emcn/components/chip/chip'
 import {
   DropdownMenu,
@@ -12,6 +11,7 @@ import {
   DropdownMenuSearchInput,
   DropdownMenuTrigger,
 } from '@/components/emcn/components/dropdown-menu/dropdown-menu'
+import { ChevronDown } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 /** A selectable option in a {@link ChipSelect}. */
