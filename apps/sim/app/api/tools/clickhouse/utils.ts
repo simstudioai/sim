@@ -135,51 +135,76 @@ function parseRowsResult(result: ClickHouseHttpResult): ClickHouseRowsResult {
 const READ_ONLY_STATEMENT = /^(select|with|show|describe|desc|explain|exists)\b/i
 
 /**
- * Appends `FORMAT JSON` to read statements that do not already specify an output
- * format, so the HTTP interface returns a structured result set.
+ * Normalizes the output format of a read statement to JSON so the HTTP response
+ * can always be parsed into rows: strips any trailing `FORMAT <x>` (e.g. CSV or
+ * TabSeparated, which `parseRowsResult` cannot read) and appends `FORMAT JSON`.
+ * Non-read statements are returned untouched (their own FORMAT, e.g. JSONEachRow
+ * for inserts, is preserved).
  */
 function ensureJsonFormat(query: string): string {
   const trimmed = query.trim().replace(/;+\s*$/, '')
-  if (/\bformat\s+[a-z0-9_]+$/i.test(trimmed)) {
-    return trimmed
-  }
   if (READ_ONLY_STATEMENT.test(trimmed)) {
-    return `${trimmed}\nFORMAT JSON`
+    const withoutFormat = trimmed.replace(/\s+format\s+[a-z0-9_]+\s*$/i, '')
+    return `${withoutFormat}\nFORMAT JSON`
   }
   return trimmed
 }
 
 /**
- * Detects whether a statement chains a second statement after a `;` that is not
- * inside a string ('...'), quoted identifier ("..." / `...`) span. A trailing
- * semicolon with nothing after it is allowed.
+ * Replaces string literals ('...'), quoted identifiers ("..." / `...`), and SQL
+ * comments (`-- …` and `/* … *​/`) with spaces so that structural scans (e.g. for
+ * statement-chaining semicolons) only see actual SQL code, not data or comments.
+ */
+function maskSqlNoise(sql: string): string {
+  let out = ''
+  let i = 0
+  while (i < sql.length) {
+    const ch = sql[i]
+    if (ch === "'" || ch === '"' || ch === '`') {
+      out += ' '
+      i++
+      while (i < sql.length && sql[i] !== ch) {
+        if (ch !== '`' && sql[i] === '\\') {
+          out += '  '
+          i += 2
+          continue
+        }
+        out += ' '
+        i++
+      }
+      if (i < sql.length) {
+        out += ' '
+        i++
+      }
+      continue
+    }
+    if (ch === '-' && sql[i + 1] === '-') {
+      const newline = sql.indexOf('\n', i + 2)
+      const end = newline === -1 ? sql.length : newline
+      out += ' '.repeat(end - i)
+      i = end
+      continue
+    }
+    if (ch === '/' && sql[i + 1] === '*') {
+      const close = sql.indexOf('*/', i + 2)
+      const end = close === -1 ? sql.length : close + 2
+      out += ' '.repeat(end - i)
+      i = end
+      continue
+    }
+    out += ch
+    i++
+  }
+  return out
+}
+
+/**
+ * Detects whether a statement chains a second statement after a `;`, ignoring
+ * semicolons inside string literals, quoted identifiers, and comments. A trailing
+ * semicolon (with only whitespace/comments after it) is allowed.
  */
 function hasChainedStatement(sql: string): boolean {
-  let inSingle = false
-  let inDouble = false
-  let inBacktick = false
-  for (let i = 0; i < sql.length; i++) {
-    const ch = sql[i]
-    if (inSingle) {
-      if (ch === '\\') i++
-      else if (ch === "'") inSingle = false
-      continue
-    }
-    if (inDouble) {
-      if (ch === '\\') i++
-      else if (ch === '"') inDouble = false
-      continue
-    }
-    if (inBacktick) {
-      if (ch === '`') inBacktick = false
-      continue
-    }
-    if (ch === "'") inSingle = true
-    else if (ch === '"') inDouble = true
-    else if (ch === '`') inBacktick = true
-    else if (ch === ';' && sql.slice(i + 1).trim().length > 0) return true
-  }
-  return false
+  return /;\s*\S/.test(maskSqlNoise(sql))
 }
 
 export async function executeClickHouseQuery(
