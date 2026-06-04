@@ -1,3 +1,4 @@
+export { ChatHistory } from './chat-history'
 export { ChatMessageAttachments } from './chat-message-attachments'
 export { ContextMentionIcon } from './context-mention-icon'
 export { CreditsChip } from './credits-chip'

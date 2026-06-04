@@ -162,6 +162,10 @@ export interface UseChatReturn {
   isReconnecting: boolean
   error: string | null
   resolvedChatId: string | undefined
+  adoptResolvedChatId: (
+    chatId: string,
+    options?: { replaceHomeHistory?: boolean; invalidateList?: boolean }
+  ) => void
   sendMessage: (
     message: string,
     fileAttachments?: FileAttachmentForApi[],
@@ -5773,6 +5777,7 @@ export function useChat(
     isReconnecting,
     error,
     resolvedChatId,
+    adoptResolvedChatId,
     sendMessage,
     stopGeneration,
     resources,

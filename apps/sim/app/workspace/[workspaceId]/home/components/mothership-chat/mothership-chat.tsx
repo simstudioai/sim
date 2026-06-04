@@ -25,8 +25,10 @@ import type {
   QueuedMessage,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
+import { useAutoHideScrollbar } from '@/hooks/use-autohide-scrollbar'
 import { useProgressiveList } from '@/hooks/use-progressive-list'
 import type { ChatContext } from '@/stores/panel'
+import { ChatTitleBar } from './components/chat-title-bar'
 import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
 
 interface MothershipChatProps {
@@ -85,6 +87,17 @@ const LAYOUT_STYLES = {
 } as const
 
 const EMPTY_BLOCKS: ContentBlock[] = []
+
+/**
+ * Hides the scroll thumb by default and reveals it (color fade) only while the
+ * container carries `data-scrolling="true"` — toggled by {@link useAutoHideScrollbar}.
+ * Local override of the always-visible global scrollbar; covers WebKit + Firefox.
+ */
+const SCROLLBAR_AUTOHIDE = cn(
+  '[&::-webkit-scrollbar-thumb]:bg-transparent [&::-webkit-scrollbar-thumb]:transition-colors [&::-webkit-scrollbar-thumb]:duration-300',
+  'data-[scrolling=true]:[&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb-color)]',
+  '[scrollbar-color:transparent_transparent] data-[scrolling=true]:[scrollbar-color:var(--scrollbar-thumb-color)_transparent]'
+)
 
 interface UserMessageRowProps {
   content: string
@@ -209,6 +222,14 @@ export function MothershipChat({
   const { ref: scrollContainerRef, scrollToBottom } = useAutoScroll(isStreamActive, {
     scrollOnMount: true,
   })
+  const attachAutoHideScrollbar = useAutoHideScrollbar()
+  const setScrollContainer = useCallback(
+    (el: HTMLDivElement | null) => {
+      scrollContainerRef(el)
+      attachAutoHideScrollbar(el)
+    },
+    [scrollContainerRef, attachAutoHideScrollbar]
+  )
   const hasMessages = messages.length > 0
   const stagingKey = chatId ?? 'pending-chat'
   const { staged: stagedMessages, isStaging } = useProgressiveList(messages, stagingKey)
@@ -273,7 +294,8 @@ export function MothershipChat({
 
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
-      <div ref={scrollContainerRef} className={styles.scrollContainer}>
+      {layout === 'mothership-view' && <ChatTitleBar chatId={chatId} />}
+      <div ref={setScrollContainer} className={cn(styles.scrollContainer, SCROLLBAR_AUTOHIDE)}>
         {isLoading && !hasMessages ? (
           <MothershipChatSkeleton layout={layout} />
         ) : (

@@ -538,6 +538,12 @@ export interface PostHogEventMap {
     is_new_task: boolean
   }
 
+  /** A prior chat resumed inline from the home "All Chats" list (no navigation). */
+  task_opened_from_history: {
+    workspace_id: string
+    chat_id: string
+  }
+
   /** Pairs with `task_message_sent` via `request_id` for correlation with server-side logs. */
   task_request_started: {
     workspace_id: string

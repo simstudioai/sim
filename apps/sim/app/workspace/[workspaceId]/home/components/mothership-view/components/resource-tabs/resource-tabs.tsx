@@ -11,13 +11,14 @@ import {
   useState,
 } from 'react'
 import { Button, Tooltip } from '@/components/emcn'
-import { Columns3, Eye, PanelLeft, Pencil } from '@/components/emcn/icons'
+import { Columns3, Eye, Pencil } from '@/components/emcn/icons'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import { ResourcePanelToggle } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-panel-toggle'
 import {
   RESOURCE_TAB_GAP_CLASS,
   RESOURCE_TAB_ICON_BUTTON_CLASS,
@@ -245,7 +246,6 @@ interface ResourceTabsProps {
   onAddResource: (resource: MothershipResource) => void
   onRemoveResource: (resourceType: MothershipResourceType, resourceId: string) => void
   onReorderResources: (resources: MothershipResource[]) => void
-  onCollapse: () => void
   previewMode?: PreviewMode
   onCyclePreviewMode?: () => void
   actions?: ReactNode
@@ -260,7 +260,6 @@ export function ResourceTabs({
   onAddResource,
   onRemoveResource,
   onReorderResources,
-  onCollapse,
   previewMode,
   onCyclePreviewMode,
   actions,
@@ -549,21 +548,6 @@ export function ResourceTabs({
         RESOURCE_TAB_GAP_CLASS
       )}
     >
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={onCollapse}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Collapse resource view'
-          >
-            <PanelLeft className={cn(RESOURCE_TAB_ICON_CLASS, '-scale-x-100')} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Collapse</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
       <div className={cn('flex min-w-0 flex-1 items-center', RESOURCE_TAB_GAP_CLASS)}>
         <div
           ref={scrollNodeRef}
@@ -628,28 +612,30 @@ export function ResourceTabs({
           />
         )}
       </div>
-      {(actions || (previewMode && onCyclePreviewMode)) && (
-        <div className={cn('ml-auto flex shrink-0 items-center', RESOURCE_TAB_GAP_CLASS)}>
-          {actions}
-          {previewMode && onCyclePreviewMode && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='subtle'
-                  onClick={onCyclePreviewMode}
-                  className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-                  aria-label='Cycle preview mode'
-                >
-                  <PreviewModeIcon mode={previewMode} className={RESOURCE_TAB_ICON_CLASS} />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='bottom'>
-                <p>{PREVIEW_MODE_LABELS[previewMode]}</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )}
-        </div>
-      )}
+      <div className={cn('ml-auto flex shrink-0 items-center', RESOURCE_TAB_GAP_CLASS)}>
+        {actions}
+        {previewMode && onCyclePreviewMode && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='subtle'
+                onClick={onCyclePreviewMode}
+                className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+                aria-label='Cycle preview mode'
+              >
+                <PreviewModeIcon mode={previewMode} className={RESOURCE_TAB_ICON_CLASS} />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='bottom'>
+              <p>{PREVIEW_MODE_LABELS[previewMode]}</p>
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
+        {/* Inert spacer reserving the toggle's exact footprint at the far right.
+            The real, interactive toggle is rendered absolutely in home.tsx and
+            overlays this spot, so it never moves when the panel collapses. */}
+        <ResourcePanelToggle placeholder />
+      </div>
     </div>
   )
 }
