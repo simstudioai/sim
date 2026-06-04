@@ -25,8 +25,10 @@ const WIKI_ETAG_CONCURRENCY = 5
 const FILE_BATCH_SIZE = 100
 /**
  * Max repository file size to index. The Items list API does not return file
- * size, so this cap is enforced at content-fetch time in getDocument via the
- * decoded byte length. Larger files are skipped.
+ * size, so this cap is enforced at content-fetch time in getDocument: the raw
+ * octet-stream body is read through `readBodyWithLimit`, which streams the bytes
+ * and aborts (returning null) the moment the cap is exceeded. Larger files are
+ * skipped without being fully buffered.
  */
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 /** Bytes sniffed for a NUL byte when detecting binary files (matches git's heuristic). */
@@ -197,10 +199,21 @@ function parseFileExternalId(externalId: string): { repoId: string; path: string
 
 /**
  * Builds the change-detection hash for a repository file. The git blob objectId
- * is content-addressable, so it changes exactly when the file content changes —
- * and it is available both on the tree listing (`objectId`) and the file fetch
- * (`objectId`), so the stub and hydrated document hash identically without a
- * content fetch during listing.
+ * is content-addressable, so it changes exactly when the file content changes,
+ * and it is reported both by the tree listing (`objectId`) and the per-file
+ * metadata fetch (`objectId`) — so the listing stub and the hydrated document
+ * normally hash identically without a content fetch during listing.
+ *
+ * Hydration in getFileDocument is a two-step fetch against the same branch ref:
+ * a JSON metadata call yields the objectId used for this hash, then a raw
+ * octet-stream call yields the content. Both pin to the branch *name*, not a
+ * commit SHA, so if the branch advances between the two calls the stored hash
+ * (metadata call's objectId) and the stored content (content call's bytes) can
+ * be one commit apart. This window is bounded and self-heals: the next listing
+ * reports the branch's current objectId, which differs from the stored
+ * one-commit-old hash, queuing an update that re-fetches and re-converges
+ * content and hash. (A revert to identical bytes yields the identical objectId
+ * by content-addressing, so the stored content is already correct in that case.)
  */
 function buildFileContentHash(repoId: string, objectId: string): string {
   return `ado:file:${repoId}:${objectId}`

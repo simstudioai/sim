@@ -646,9 +646,7 @@ export const s3Connector: ConnectorConfig = {
         etag,
         lastModified,
         size:
-          Number.isNaN(declaredLength) || declaredLength <= 0
-            ? Buffer.byteLength(content)
-            : declaredLength,
+          Number.isNaN(declaredLength) || declaredLength <= 0 ? body.byteLength : declaredLength,
       }
       const stub = objectToStub(ctx, entry)
       return { ...stub, content, contentDeferred: false }
