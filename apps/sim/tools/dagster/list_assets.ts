@@ -81,9 +81,9 @@ export const listAssetsTool: ToolConfig<DagsterListAssetsParams, DagsterListAsse
     method: 'POST',
     headers: (params) => dagsterRequestHeaders(params),
     body: (params) => {
-      const variables: Record<string, unknown> = {
-        limit: params.limit ?? DEFAULT_LIST_ASSETS_LIMIT,
-      }
+      const pageSize = params.limit ?? DEFAULT_LIST_ASSETS_LIMIT
+      // Request one extra row so `hasMore` is exact even when the final page is exactly `pageSize` long.
+      const variables: Record<string, unknown> = { limit: pageSize + 1 }
       if (params.prefix) variables.prefix = parseAssetKeyPath(params.prefix)
       if (params.cursor) variables.cursor = params.cursor
       return { query: LIST_ASSETS_QUERY, variables }
@@ -102,18 +102,25 @@ export const listAssetsTool: ToolConfig<DagsterListAssetsParams, DagsterListAsse
       throw new Error(dagsterUnionErrorMessage(result, 'List assets failed'))
     }
 
-    const assets = result.nodes.map((node) => ({
+    const pageSize = params?.limit ?? DEFAULT_LIST_ASSETS_LIMIT
+    const hasMore = result.nodes.length > pageSize
+    const pageNodes = hasMore ? result.nodes.slice(0, pageSize) : result.nodes
+
+    const assets = pageNodes.map((node) => ({
       assetKey: node.key.path.join('/'),
       path: node.key.path,
     }))
 
-    const limit = params?.limit ?? DEFAULT_LIST_ASSETS_LIMIT
+    // Asset cursors are the JSON-serialized key path; Dagster normalizes JS/Python whitespace on the
+    // way back in, so we derive the cursor from the last RETURNED asset (not the extra probe row).
+    const lastPath = pageNodes.length > 0 ? pageNodes[pageNodes.length - 1].key.path : null
+
     return {
       success: true,
       output: {
         assets,
-        cursor: result.cursor ?? null,
-        hasMore: assets.length >= limit,
+        cursor: lastPath ? JSON.stringify(lastPath) : null,
+        hasMore,
       },
     }
   },
