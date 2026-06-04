@@ -196,22 +196,26 @@ export const DataRow = React.memo(function DataRow({
   const isRowSelected = isRowChecked
   /**
    * Whether the selection's left edge sits at column 0 for this row. The blue
-   * edge is drawn as the checkbox cell's own right border (not the overlay's
-   * `border-l`) so the sticky checkbox cell can never paint over it and the
-   * gray/blue lines never double up at the column boundary.
+   * edge is drawn inside the sticky checkbox cell — over its gray right
+   * border — rather than as the col-0 overlay's `border-l`, so the sticky
+   * cell can never paint over it and the gray/blue lines never double up at
+   * the column boundary. The strip overlaps the row gridlines (`-top-px` /
+   * `-bottom-px`) so consecutive selected rows form one continuous line.
    */
   const rowInRange = sel !== null && rowIndex >= sel.startRow && rowIndex <= sel.endRow
   const isLeftEdgeSelected = isRowChecked || (isMultiCell && rowInRange && sel!.startCol === 0)
 
   return (
     <tr onContextMenu={(e) => onContextMenu(e, row)}>
-      <td
-        className={cn(
-          CELL_CHECKBOX,
-          'cursor-pointer',
-          isLeftEdgeSelected && 'border-r-[var(--selection)]'
+      <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
+        {isLeftEdgeSelected && (
+          <div
+            className={cn(
+              '-right-px -bottom-px pointer-events-none absolute w-px bg-[var(--selection)]',
+              isFirstRow ? 'top-0' : '-top-px'
+            )}
+          />
         )}
-      >
         <div
           className={cn(
             'flex items-center',
