@@ -33,8 +33,12 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('McpToolDeploy')
 
-/** MCP tool names allow lowercase letters, numbers, and underscores only */
-const TOOL_NAME_PATTERN = /^[a-z0-9_]+$/
+/**
+ * Mirrors the server's `sanitizeToolName` output: lowercase alphanumerics with single
+ * underscores between segments. Disallows leading/trailing and consecutive underscores so
+ * the validated name matches exactly what the server persists (no silent rewrite).
+ */
+const TOOL_NAME_PATTERN = /^[a-z0-9]+(_[a-z0-9]+)*$/
 const MAX_TOOL_NAME_LENGTH = 64
 
 /** InputFormatField with guaranteed name (after normalization) */
@@ -178,7 +182,7 @@ export function McpDeploy({
       return `Tool name must be ${MAX_TOOL_NAME_LENGTH} characters or fewer`
     }
     if (!TOOL_NAME_PATTERN.test(trimmed)) {
-      return 'Tool name can only contain lowercase letters, numbers, and underscores'
+      return 'Use lowercase letters and numbers, separated by single underscores'
     }
     return null
   }, [toolName])
@@ -593,11 +597,15 @@ export function McpDeploy({
             <span className='truncate text-[var(--text-primary)]'>{selectedServersLabel}</span>
           }
         />
-        {!toolName.trim() && (
+        {!toolName.trim() ? (
           <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             Enter a tool name to select servers
           </p>
-        )}
+        ) : toolNameError ? (
+          <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
+            Fix the tool name to select servers
+          </p>
+        ) : null}
       </div>
 
       {saveErrors.length > 0 && (
