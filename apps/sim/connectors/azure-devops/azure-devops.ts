@@ -3,7 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { AzureDevOpsIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, joinTagArray, parseTagDate, readBodyWithLimit } from '@/connectors/utils'
 
 const logger = createLogger('AzureDevOpsConnector')
 
@@ -1032,13 +1032,13 @@ async function getFileDocument(
     throw new Error(`Failed to fetch repository file content: ${contentResponse.status}`)
   }
 
-  const buffer = Buffer.from(await contentResponse.arrayBuffer())
-  if (isBinaryBuffer(buffer)) {
-    logger.info('Skipping binary Azure DevOps file', { path })
+  const buffer = await readBodyWithLimit(contentResponse, MAX_FILE_SIZE)
+  if (buffer === null) {
+    logger.info('Skipping oversized Azure DevOps file', { path })
     return null
   }
-  if (buffer.byteLength > MAX_FILE_SIZE) {
-    logger.info('Skipping oversized Azure DevOps file', { path, size: buffer.byteLength })
+  if (isBinaryBuffer(buffer)) {
+    logger.info('Skipping binary Azure DevOps file', { path })
     return null
   }
 
