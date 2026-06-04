@@ -48,7 +48,6 @@ interface MothershipViewProps {
   onAddResource: (resource: MothershipResource) => void
   onRemoveResource: (resourceType: MothershipResourceType, resourceId: string) => void
   onReorderResources: (resources: MothershipResource[]) => void
-  onCollapse: () => void
   isCollapsed: boolean
   className?: string
   previewSession?: FilePreviewSession | null
@@ -66,7 +65,6 @@ export const MothershipView = memo(
       onAddResource,
       onRemoveResource,
       onReorderResources,
-      onCollapse,
       isCollapsed,
       className,
       previewSession,
@@ -115,7 +113,6 @@ export const MothershipView = memo(
             onAddResource={onAddResource}
             onRemoveResource={onRemoveResource}
             onReorderResources={onReorderResources}
-            onCollapse={onCollapse}
             actions={
               active ? <ResourceActions workspaceId={workspaceId} resource={active} /> : null
             }
