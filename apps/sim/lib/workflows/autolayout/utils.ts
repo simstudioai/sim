@@ -357,7 +357,6 @@ export function hasFinitePosition(block: BlockState): boolean {
 function noteOverlappedBlockBefore(
   previousBlocks: Record<string, BlockState>,
   noteId: string,
-  noteDimensions: { width: number; height: number },
   blockId: string
 ): boolean {
   const previousNote = previousBlocks[noteId]
@@ -368,7 +367,9 @@ function noteOverlappedBlockBefore(
   // so it could not have overlapped anything before this pass.
   if (!hasFinitePosition(previousNote) || !hasFinitePosition(previousBlock)) return false
 
-  const noteBox = createBoundingBox(previousNote.position, noteDimensions)
+  // Derive dimensions from the prior blocks so a resize between passes does not
+  // pair new dimensions with the old position.
+  const noteBox = createBoundingBox(previousNote.position, getNoteDimensions(previousNote))
   const blockBox = createBoundingBox(previousBlock.position, getBlockMetrics(previousBlock))
   return boxesOverlap(blockBox, noteBox)
 }
@@ -415,7 +416,9 @@ export function resolveNoteOverlaps(
 
     for (const id of groupIds) {
       const block = blocks[id]
-      if (!block) continue
+      // Skip non-finite positions so corrupted coordinates never propagate into
+      // minX / maxBottom (and therefore into relocated note positions).
+      if (!block || !hasFinitePosition(block)) continue
 
       if (block.type === NOTE_BLOCK_TYPE) {
         noteIds.push(id)
@@ -450,7 +453,7 @@ export function resolveNoteOverlaps(
       const needsRelocation = obstacles.some(({ id: blockId, box }) => {
         if (!boxesOverlap(box, noteBox)) return false
         if (previousBlocks) {
-          return !noteOverlappedBlockBefore(previousBlocks, id, dimensions, blockId)
+          return !noteOverlappedBlockBefore(previousBlocks, id, blockId)
         }
         return true
       })

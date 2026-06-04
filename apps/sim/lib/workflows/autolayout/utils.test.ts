@@ -114,6 +114,31 @@ describe('resolveNoteOverlaps', () => {
     expect(blocks.b.position).toEqual({ x: 500, y: 150 })
   })
 
+  it('never produces non-finite coordinates when a block has a NaN position', () => {
+    const blocks: Record<string, BlockState> = {
+      bad: createBlock('bad', 'agent', { x: Number.NaN, y: Number.NaN }),
+      a: createBlock('a', 'agent', { x: 150, y: 150 }),
+      note: createBlock(
+        'note',
+        'note',
+        { x: 150, y: 150 },
+        {
+          height: 120,
+          layout: { measuredHeight: 120 },
+        }
+      ),
+    }
+
+    resolveNoteOverlaps(blocks, DEFAULT_VERTICAL_SPACING)
+
+    // The corrupted block is ignored; the note still relocates off block "a"
+    // using only finite coordinates.
+    expect(Number.isFinite(blocks.note.position.x)).toBe(true)
+    expect(Number.isFinite(blocks.note.position.y)).toBe(true)
+    expect(blocks.note.position.x).toBe(150)
+    expect(blocks.note.position.y).toBeGreaterThan(150)
+  })
+
   describe('targeted mode (previousBlocks)', () => {
     it('relocates a note when a block was moved onto it', () => {
       const previousBlocks: Record<string, BlockState> = {
