@@ -200,7 +200,7 @@ export function NoOrganizationView({
       </div>
 
       <div>
-        <Button variant='primary' onClick={() => navigateToSettings({ section: 'subscription' })}>
+        <Button variant='primary' onClick={() => navigateToSettings({ section: 'billing' })}>
           Upgrade to Team Plan
         </Button>
       </div>

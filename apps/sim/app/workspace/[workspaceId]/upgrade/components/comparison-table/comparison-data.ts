@@ -41,18 +41,14 @@ export interface PlanColumn {
    * (handled in the component for Pro and Max).
    */
   staticPrice: string | null
-  /** CTA chip label rendered beneath the price. */
-  ctaLabel: string
-  /** When true, the CTA chip uses the inverted `primary` (filled) variant to feature this plan. */
-  highlighted?: boolean
 }
 
 /** Ordered plan columns — indices match `ComparisonRow.values`. */
 export const PLAN_COLUMNS: PlanColumn[] = [
-  { name: 'Free', staticPrice: '$0', ctaLabel: 'Get started' },
-  { name: 'Pro', staticPrice: null, ctaLabel: 'Get started', highlighted: true },
-  { name: 'Max', staticPrice: null, ctaLabel: 'Get started' },
-  { name: 'Enterprise', staticPrice: 'Custom', ctaLabel: 'Talk to sales' },
+  { name: 'Free', staticPrice: '$0' },
+  { name: 'Pro', staticPrice: null },
+  { name: 'Max', staticPrice: null },
+  { name: 'Enterprise', staticPrice: 'Custom' },
 ]
 
 /** Full comparison dataset. */
@@ -148,10 +144,6 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
       {
         label: 'Slack Connect',
         values: [false, false, SLACK, SLACK],
-      },
-      {
-        label: 'Credential Sets',
-        values: [false, false, false, true],
       },
       {
         label: 'Access Control',

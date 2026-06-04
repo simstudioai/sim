@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
-import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { captureEvent } from '@/lib/posthog/client'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -13,7 +12,6 @@ import {
   isBillingEnabled,
   isCredentialSetsEnabled,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const Admin = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then((m) => m.Admin)
@@ -57,11 +55,6 @@ const RecentlyDeleted = dynamic(() =>
   import(
     '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'
   ).then((m) => m.RecentlyDeleted)
-)
-const Subscription = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/subscription/subscription').then(
-    (m) => m.Subscription
-  )
 )
 const Billing = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/billing/billing').then((m) => m.Billing)
@@ -114,26 +107,20 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const { data: session, isPending: sessionLoading } = useSession()
   const posthog = usePostHog()
 
-  const { data: subscriptionData } = useSubscriptionData({
-    enabled: isBillingEnabled,
-    staleTime: 5 * 60 * 1000,
-  })
-  const isEnterprisePlan = isEnterprise(subscriptionData?.data?.plan)
-
   const isAdminRole = session?.user?.role === 'admin'
+  // The Subscription tab was replaced by Billing; redirect legacy links there.
+  const normalizedSection: SettingsSection =
+    (section as string) === 'subscription' ? 'billing' : section
   const effectiveSection =
-    !isBillingEnabled &&
-    (section === 'subscription' || section === 'billing' || section === 'organization')
+    !isBillingEnabled && (normalizedSection === 'billing' || normalizedSection === 'organization')
       ? 'general'
-      : section === 'billing' && isEnterprisePlan
+      : normalizedSection === 'credential-sets' && !isCredentialSetsEnabled
         ? 'general'
-        : section === 'credential-sets' && !isCredentialSetsEnabled
+        : normalizedSection === 'admin' && !sessionLoading && !isAdminRole
           ? 'general'
-          : section === 'admin' && !sessionLoading && !isAdminRole
+          : normalizedSection === 'mothership' && !sessionLoading && !isAdminRole
             ? 'general'
-            : section === 'mothership' && !sessionLoading && !isAdminRole
-              ? 'general'
-              : section
+            : normalizedSection
 
   useEffect(() => {
     if (sessionLoading) return
@@ -148,7 +135,6 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'access-control' && <AccessControl />}
       {effectiveSection === 'audit-logs' && <AuditLogs />}
       {effectiveSection === 'apikeys' && <ApiKeys />}
-      {isBillingEnabled && effectiveSection === 'subscription' && <Subscription />}
       {isBillingEnabled && effectiveSection === 'billing' && <Billing />}
       {effectiveSection === 'teammates' && <Teammates />}
       {isBillingEnabled && effectiveSection === 'organization' && <TeamManagement />}

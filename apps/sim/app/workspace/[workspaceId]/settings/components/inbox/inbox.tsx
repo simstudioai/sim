@@ -47,7 +47,7 @@ export function Inbox() {
               <Chip
                 variant='primary'
                 rightIcon={ArrowRight}
-                onClick={() => router.push(`/workspace/${workspaceId}/settings/subscription`)}
+                onClick={() => router.push(`/workspace/${workspaceId}/settings/billing`)}
               >
                 Upgrade to Max
               </Chip>

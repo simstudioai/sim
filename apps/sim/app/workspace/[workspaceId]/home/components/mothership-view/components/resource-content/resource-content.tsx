@@ -276,7 +276,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
     }
 
     if (usageExceeded) {
-      navigateToSettings({ section: 'subscription' })
+      navigateToSettings({ section: 'billing' })
       return
     }
 

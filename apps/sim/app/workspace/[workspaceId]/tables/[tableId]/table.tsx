@@ -133,7 +133,7 @@ export function Table({
   // depend on the identity), so a stable reference buys nothing here.
   const onUsageLimitReached = ({ message }: { dispatchId?: string; message: string }) => {
     toast.error(message, {
-      action: { label: 'Upgrade', onClick: () => navigateToSettings({ section: 'subscription' }) },
+      action: { label: 'Upgrade', onClick: () => navigateToSettings({ section: 'billing' }) },
     })
   }
   useTableEventStream({ tableId, workspaceId, onUsageLimitReached })

@@ -637,7 +637,7 @@ function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
 
 function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const settingsPath = `/workspace/${workspaceId}/settings/subscription`
+  const settingsPath = `/workspace/${workspaceId}/settings/billing`
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
 
   return (

@@ -39,6 +39,13 @@ interface ChipMultiSelectProps
   options: ReadonlyArray<ChipMultiSelectOption>
   /** Label shown in the trigger and as the reset row when nothing is selected. */
   allLabel?: string
+  /**
+   * Whether to render the leading "all" reset row inside the menu. Defaults to
+   * `true` for filter-style use (empty selection reads as "all"). Set `false`
+   * for selection-style pickers where an empty list is a real "nothing
+   * selected" state rather than an "all" shortcut.
+   */
+  showAllOption?: boolean
   /** Renders a search field at the top of the menu that filters options by label. */
   searchable?: boolean
   /** Placeholder for the search field. */
@@ -83,6 +90,7 @@ const ChipMultiSelect = forwardRef<HTMLButtonElement, ChipMultiSelectProps>(
       onChange,
       options,
       allLabel = 'All',
+      showAllOption = true,
       searchable = false,
       searchPlaceholder = 'Search...',
       align = 'start',
@@ -150,6 +158,7 @@ const ChipMultiSelect = forwardRef<HTMLButtonElement, ChipMultiSelectProps>(
           align={align}
           onOpenAutoFocus={searchable ? (event) => event.preventDefault() : undefined}
           className={cn(
+            'z-[var(--z-popover)]',
             matchTriggerWidth && 'w-[var(--radix-dropdown-menu-trigger-width)] max-w-none',
             contentClassName
           )}
@@ -164,15 +173,17 @@ const ChipMultiSelect = forwardRef<HTMLButtonElement, ChipMultiSelectProps>(
               }}
             />
           )}
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
-              onChange([])
-            }}
-          >
-            <span>{allLabel}</span>
-            {values.length === 0 ? <Check className='!ml-auto !size-[16px]' /> : null}
-          </DropdownMenuItem>
+          {showAllOption && (
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault()
+                onChange([])
+              }}
+            >
+              <span>{allLabel}</span>
+              {values.length === 0 ? <Check className='!ml-auto !size-[16px]' /> : null}
+            </DropdownMenuItem>
+          )}
           {filteredOptions.map((option) => {
             const isSelected = values.includes(option.value)
             const OptionIcon = option.icon
