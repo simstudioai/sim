@@ -1,5 +1,10 @@
 import type { DagsterListRunsParams, DagsterListRunsResponse } from '@/tools/dagster/types'
-import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/utils'
+import {
+  dagsterGraphqlUrl,
+  dagsterRequestHeaders,
+  dagsterUnionErrorMessage,
+  parseDagsterGraphqlResponse,
+} from '@/tools/dagster/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /** Shape of each run in the `runsOrError` → `Runs.results` GraphQL selection set. */
@@ -14,8 +19,8 @@ interface DagsterListRunsGraphqlRow {
 
 function buildListRunsQuery(hasFilter: boolean) {
   return `
-    query ListRuns($limit: Int${hasFilter ? ', $filter: RunsFilter' : ''}) {
-      runsOrError(limit: $limit${hasFilter ? ', filter: $filter' : ''}) {
+    query ListRuns($limit: Int, $cursor: String${hasFilter ? ', $filter: RunsFilter' : ''}) {
+      runsOrError(limit: $limit, cursor: $cursor${hasFilter ? ', filter: $filter' : ''}) {
         ... on Runs {
           results {
             runId
@@ -45,7 +50,8 @@ function buildListRunsQuery(hasFilter: boolean) {
 export const listRunsTool: ToolConfig<DagsterListRunsParams, DagsterListRunsResponse> = {
   id: 'dagster_list_runs',
   name: 'Dagster List Runs',
-  description: 'List recent Dagster runs, optionally filtered by job name.',
+  description:
+    'List Dagster runs with optional filters by job name, status, and creation-time range, plus cursor pagination.',
   version: '1.0.0',
 
   params: {
@@ -74,6 +80,25 @@ export const listRunsTool: ToolConfig<DagsterListRunsParams, DagsterListRunsResp
       visibility: 'user-or-llm',
       description: 'Comma-separated run statuses to filter by, e.g. "SUCCESS,FAILURE" (optional)',
     },
+    createdAfter: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only return runs created at or after this Unix timestamp in seconds (optional)',
+    },
+    createdBefore: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only return runs created at or before this Unix timestamp in seconds (optional)',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Run ID to page after, from a previous response cursor (optional)',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -83,13 +108,9 @@ export const listRunsTool: ToolConfig<DagsterListRunsParams, DagsterListRunsResp
   },
 
   request: {
-    url: (params) => `${params.host.replace(/\/$/, '')}/graphql`,
+    url: (params) => dagsterGraphqlUrl(params.host),
     method: 'POST',
-    headers: (params) => {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (params.apiKey) headers['Dagster-Cloud-Api-Token'] = params.apiKey
-      return headers
-    },
+    headers: (params) => dagsterRequestHeaders(params),
     body: (params) => {
       const filter: Record<string, unknown> = {}
       if (params.jobName) filter.pipelineName = params.jobName
@@ -99,9 +120,12 @@ export const listRunsTool: ToolConfig<DagsterListRunsParams, DagsterListRunsResp
           .map((s: string) => s.trim())
           .filter(Boolean)
       }
+      if (params.createdAfter != null) filter.createdAfter = params.createdAfter
+      if (params.createdBefore != null) filter.createdBefore = params.createdBefore
 
       const hasFilter = Object.keys(filter).length > 0
       const variables: Record<string, unknown> = { limit: params.limit || 20 }
+      if (params.cursor) variables.cursor = params.cursor
       if (hasFilter) variables.filter = filter
 
       return {
@@ -111,7 +135,7 @@ export const listRunsTool: ToolConfig<DagsterListRunsParams, DagsterListRunsResp
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: DagsterListRunsParams) => {
     const data = await parseDagsterGraphqlResponse<{ runsOrError?: unknown }>(response)
 
     const result = data.data?.runsOrError as
@@ -132,9 +156,14 @@ export const listRunsTool: ToolConfig<DagsterListRunsParams, DagsterListRunsResp
       endTime: r.endTime ?? null,
     }))
 
+    const limit = params?.limit || 20
     return {
       success: true,
-      output: { runs },
+      output: {
+        runs,
+        cursor: runs.length > 0 ? runs[runs.length - 1].runId : null,
+        hasMore: runs.length >= limit,
+      },
     }
   },
 
@@ -150,6 +179,15 @@ export const listRunsTool: ToolConfig<DagsterListRunsParams, DagsterListRunsResp
         startTime: { type: 'number', description: 'Start time as Unix timestamp' },
         endTime: { type: 'number', description: 'End time as Unix timestamp' },
       },
+    },
+    cursor: {
+      type: 'string',
+      description: 'Run ID of the last returned run — pass as cursor to fetch the next page',
+      optional: true,
+    },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether more runs are likely available beyond this page',
     },
   },
 }
