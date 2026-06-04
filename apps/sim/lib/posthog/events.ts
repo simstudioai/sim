@@ -493,6 +493,8 @@ export interface PostHogEventMap {
       | 'tool'
       | 'trigger'
       | 'tool_operation'
+      | 'connected_account'
+      | 'integration'
       | 'workflow'
       | 'workspace'
       | 'task'

@@ -1,6 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { ClickHouseIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { ClickHouseResponse } from '@/tools/clickhouse/types'
 
@@ -69,7 +69,6 @@ export const ClickHouseBlock: BlockConfig<ClickHouseResponse> = {
   docsLink: 'https://docs.sim.ai/tools/clickhouse',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['data-warehouse', 'data-analytics'],
   bgColor: '#f9ff69',
   icon: ClickHouseIcon,
   subBlocks: [
@@ -464,3 +463,7 @@ export const ClickHouseBlock: BlockConfig<ClickHouseResponse> = {
     },
   },
 }
+
+export const ClickHouseBlockMeta = {
+  tags: ['data-warehouse', 'data-analytics'],
+} as const satisfies BlockMeta
