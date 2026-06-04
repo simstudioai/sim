@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { ChevronDown } from 'lucide-react'
 import { chipVariants } from '@/components/emcn/components/chip/chip'
 import {
   DropdownMenu,
@@ -11,7 +12,6 @@ import {
   DropdownMenuSearchInput,
   DropdownMenuTrigger,
 } from '@/components/emcn/components/dropdown-menu/dropdown-menu'
-import { ChevronDown } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 /** A selectable option in a {@link ChipSelect}. */
@@ -219,7 +219,7 @@ export function ChipSelect({
           <span className='min-w-0 truncate text-[var(--text-body)]'>
             {displayLabel ?? triggerLabel}
           </span>
-          <ChevronDown className='h-[7px] w-[9px] shrink-0 text-[var(--text-icon)]' />
+          <ChevronDown className='size-[14px] shrink-0 text-[var(--text-icon)]' />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
