@@ -520,11 +520,17 @@ function readWorkItemFilters(sourceConfig: Record<string, unknown>): WorkItemFil
 
 /**
  * Builds the WIQL query for the configured work-item filters. User-supplied
- * values are escaped against WIQL string-literal injection. When a custom WIQL
- * query is provided it is used verbatim and the structured filters are ignored.
- * `lastSyncAt` narrows results to items changed since the previous sync.
+ * values are escaped against WIQL string-literal injection. `lastSyncAt`
+ * narrows results to items changed since the previous sync, and `idAfter`
+ * restricts to items with a greater id (used to probe past the 20,000-item
+ * WIQL cap).
+ *
+ * A custom WIQL query is used verbatim: neither the incremental changed-date
+ * filter nor the probe condition can be injected into arbitrary user WIQL
+ * safely, so custom queries always run as full listings on every sync. Change
+ * detection still short-circuits unchanged items via the content hash.
  */
-function buildWiql(filters: WorkItemFilters, lastSyncAt?: Date): string {
+function buildWiql(filters: WorkItemFilters, lastSyncAt?: Date, idAfter?: number): string {
   if (filters.customWiql) return filters.customWiql
 
   const clauses: string[] = ['[System.TeamProject] = @project']
@@ -543,6 +549,9 @@ function buildWiql(filters: WorkItemFilters, lastSyncAt?: Date): string {
   if (lastSyncAt) {
     clauses.push(`[System.ChangedDate] >= '${lastSyncAt.toISOString()}'`)
   }
+  if (idAfter !== undefined) {
+    clauses.push(`[System.Id] > ${idAfter}`)
+  }
 
   return `SELECT [System.Id] FROM workitems WHERE ${clauses.join(' AND ')} ORDER BY [System.ChangedDate] DESC`
 }
@@ -556,9 +565,10 @@ async function queryWorkItemIds(
   accessToken: string,
   organization: string,
   project: string,
-  wiql: string
+  wiql: string,
+  top: number = WIQL_MAX_RESULTS
 ): Promise<number[]> {
-  const url = `${ADO_BASE_URL}/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/_apis/wit/wiql?$top=${WIQL_MAX_RESULTS}&api-version=${WIQL_API_VERSION}`
+  const url = `${ADO_BASE_URL}/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/_apis/wit/wiql?$top=${top}&api-version=${WIQL_API_VERSION}`
   const response = await fetchWithRetry(url, {
     method: 'POST',
     headers: {
@@ -1250,10 +1260,31 @@ async function listWorkItems(
     const wiql = buildWiql(filters, lastSyncAt)
     ids = await queryWorkItemIds(accessToken, organization, project, wiql)
     if (syncContext) syncContext.workItemIds = ids
-  }
 
-  if (ids.length >= WIQL_MAX_RESULTS && syncContext) {
-    syncContext.listingCapped = true
+    if (ids.length >= WIQL_MAX_RESULTS && syncContext) {
+      /**
+       * The WIQL result filled the 20,000-item cap. Distinguish an exact fit
+       * from genuine truncation: for structured filters, probe for any
+       * matching item with an id beyond the largest returned one and only
+       * flag the listing incomplete when one exists — otherwise deletion
+       * reconciliation would be disabled forever for a project with exactly
+       * 20,000 matching items. Custom WIQL cannot be probed (no safe clause
+       * injection), so it is flagged conservatively.
+       */
+      let truncated = true
+      if (!filters.customWiql) {
+        let maxId = 0
+        for (const id of ids) {
+          if (id > maxId) maxId = id
+        }
+        const probeWiql = buildWiql(filters, lastSyncAt, maxId)
+        const beyond = await queryWorkItemIds(accessToken, organization, project, probeWiql, 1)
+        truncated = beyond.length > 0
+      }
+      if (truncated) {
+        syncContext.listingCapped = true
+      }
+    }
   }
 
   if (ids.length === 0) {
@@ -1405,7 +1436,7 @@ export const azureDevopsConnector: ConnectorConfig = {
       mode: 'advanced',
       placeholder: 'SELECT [System.Id] FROM workitems WHERE ...',
       description:
-        'Advanced: a full WIQL query selecting [System.Id]. Overrides the type, state, area path, and tag filters when set.',
+        'Advanced: a full WIQL query selecting [System.Id]. Overrides the type, state, area path, and tag filters when set. Custom queries always run as full listings on every sync (the incremental changed-date filter is not applied).',
     },
     {
       id: 'repositoryName',
