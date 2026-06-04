@@ -120,7 +120,7 @@ function canManageBilling(
  * Priority order:
  * 1. Blocked/dispute states (all users including free with past due payments)
  * 2. Free users see upgrade badge
- * 3. Critical usage shows "Get Help" (enterprise) or "Set Limit" (others)
+ * 3. Critical usage shows "Get help" (enterprise) or "Set limit" (others)
  *
  * @param state - The current display state
  * @returns Badge configuration with visibility, variant, and label
@@ -129,10 +129,10 @@ function getBadgeConfig(state: DisplayState): BadgeConfig {
   const { isBlocked, isDispute, planType, isCritical, canManageBilling } = state
 
   if (isDispute && canManageBilling) {
-    return { show: true, variant: 'red', label: 'Get Help' }
+    return { show: true, variant: 'red', label: 'Get help' }
   }
   if (isBlocked && canManageBilling) {
-    return { show: true, variant: 'red', label: 'Fix Now' }
+    return { show: true, variant: 'red', label: 'Fix now' }
   }
 
   if (planType === 'free') {
@@ -140,7 +140,7 @@ function getBadgeConfig(state: DisplayState): BadgeConfig {
   }
 
   if (isCritical && canManageBilling) {
-    const label = planType === 'enterprise' ? 'Get Help' : 'Set Limit'
+    const label = planType === 'enterprise' ? 'Get help' : 'Set limit'
     return { show: true, variant: 'red', label }
   }
 

@@ -713,7 +713,7 @@ export const Sidebar = memo(function Sidebar() {
       [
         {
           id: 'home',
-          label: 'Home',
+          label: 'New chat',
           icon: Home,
           href: `/workspace/${workspaceId}/home`,
         },
@@ -754,14 +754,14 @@ export const Sidebar = memo(function Sidebar() {
         },
         {
           id: 'knowledge-base',
-          label: 'Knowledge Base',
+          label: 'Knowledge base',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
         {
           id: 'scheduled-tasks',
-          label: 'Scheduled Tasks',
+          label: 'Scheduled tasks',
           icon: Clock,
           href: `/workspace/${workspaceId}/scheduled-tasks`,
         },

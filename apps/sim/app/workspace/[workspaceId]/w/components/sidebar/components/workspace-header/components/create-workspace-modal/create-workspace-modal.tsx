@@ -49,8 +49,8 @@ export function CreateWorkspaceModal({
   }
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Create Workspace'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>Create Workspace</ChipModalHeader>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Create workspace'>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>Create workspace</ChipModalHeader>
       <ChipModalBody onKeyDown={handleKeyDown}>
         <ChipModalField
           type='input'
