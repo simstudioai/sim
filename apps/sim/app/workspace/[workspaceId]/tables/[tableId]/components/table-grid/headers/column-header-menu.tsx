@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Badge, Tooltip } from '@/components/emcn'
 import { ChevronDown } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowGroup } from '@/lib/table'
@@ -237,6 +238,21 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     setMenuOpen(true)
   }
 
+  const notFoundBadge = sourceInfo?.blockMissing ? (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <span className='ml-1.5 shrink-0'>
+          <Badge variant='gray' dot size='sm'>
+            Not found
+          </Badge>
+        </span>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='top'>
+        This column's source block no longer exists in the workflow.
+      </Tooltip.Content>
+    </Tooltip.Root>
+  ) : null
+
   return (
     <th
       className={cn(
@@ -292,6 +308,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
             {column.workflowGroupId ? column.headerLabel : column.name}
           </span>
+          {notFoundBadge}
         </div>
       ) : (
         <div className='flex h-full w-full min-w-0 items-center'>
@@ -309,6 +326,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
               {column.workflowGroupId ? column.headerLabel : column.name}
             </span>
+            {notFoundBadge}
           </button>
           <button
             type='button'

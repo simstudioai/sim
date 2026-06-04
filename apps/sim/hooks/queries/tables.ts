@@ -1563,6 +1563,7 @@ interface UpdateWorkflowGroupVariables {
   newOutputColumns?: UpdateWorkflowGroupBodyInput['newOutputColumns']
   mappingUpdates?: UpdateWorkflowGroupBodyInput['mappingUpdates']
   inputMappings?: UpdateWorkflowGroupBodyInput['inputMappings']
+  deploymentMode?: UpdateWorkflowGroupBodyInput['deploymentMode']
   type?: UpdateWorkflowGroupBodyInput['type']
   autoRun?: boolean
 }

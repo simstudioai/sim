@@ -202,7 +202,10 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
           ? { icon: blockConfig.icon, color: blockConfig.bgColor || '#2F55FF' }
           : undefined
         const blockName = block?.name?.trim() || undefined
-        map.set(out.columnName, { blockIconInfo, blockName })
+        // Flag a missing source block only once the workflow state has loaded
+        // (truthy `blocks`), so a still-loading workflow never flashes the badge.
+        const blockMissing = Boolean(blocks && out.blockId && !block)
+        map.set(out.columnName, { blockIconInfo, blockName, blockMissing })
       }
     }
     return map

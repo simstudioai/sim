@@ -22,6 +22,7 @@ import type {
   TableRow,
   TableSchema,
   WorkflowGroup,
+  WorkflowGroupDeploymentMode,
 } from '@/lib/table/types'
 
 const logger = createLogger('WorkflowGroupScheduler')
@@ -206,6 +207,7 @@ export function buildPendingRuns(
         groupId: group.id,
         workflowId: group.workflowId,
         ...(group.enrichmentId ? { enrichmentId: group.enrichmentId } : {}),
+        ...(group.deploymentMode ? { deploymentMode: group.deploymentMode } : {}),
         workspaceId: table.workspaceId,
         executionId: generateId(),
       })
@@ -329,6 +331,10 @@ export interface WorkflowGroupCellPayload {
   enrichmentId?: string
   workspaceId: string
   executionId: string
+  /** Which workflow state to execute: `'live'` (editable draft, default) or
+   *  `'deployed'` (latest active deployment). Copied from the group at enqueue
+   *  so a mid-run config change doesn't repoint in-flight cells. */
+  deploymentMode?: WorkflowGroupDeploymentMode
   /** Owning dispatch, set by `dispatcherStep`. Lets the cell halt its dispatch
    *  on a hard stop (e.g. usage limit). Absent for cascade/auto-fire payloads
    *  that aren't driven by a dispatch. */
