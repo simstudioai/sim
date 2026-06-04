@@ -1,5 +1,4 @@
 import type { Readable } from 'node:stream'
-import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -18,23 +17,20 @@ import { isMultipartError, readMultipart } from '@/lib/core/utils/multipart'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  addTableColumnsWithTx,
-  batchInsertRowsWithTx,
   buildAutoMapping,
-  CSV_MAX_BATCH_SIZE,
   CSV_MAX_FILE_SIZE_BYTES,
   type CsvHeaderMapping,
   CsvImportValidationError,
   coerceRowsForTable,
   createCsvParser,
   dispatchAfterBatchInsert,
+  importAppendRows,
+  importReplaceRows,
   inferColumnType,
   markTableImporting,
   releaseImportClaim,
-  replaceTableRowsWithTx,
   sanitizeName,
   type TableDefinition,
-  type TableRow,
   type TableSchema,
   validateMapping,
 } from '@/lib/table'
@@ -275,32 +271,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       }
 
       try {
-        const txResult = await db.transaction(async (trx) => {
-          let working = table
-          if (additions.length > 0) {
-            working = await addTableColumnsWithTx(trx, table, additions, requestId)
-          }
-
-          const allInserted: TableRow[] = []
-          for (let i = 0; i < coerced.length; i += CSV_MAX_BATCH_SIZE) {
-            const batch = coerced.slice(i, i + CSV_MAX_BATCH_SIZE)
-            const batchRequestId = generateId().slice(0, 8)
-            const result = await batchInsertRowsWithTx(
-              trx,
-              {
-                tableId: working.id,
-                rows: batch,
-                workspaceId,
-                userId: authResult.userId,
-              },
-              working,
-              batchRequestId
-            )
-            allInserted.push(...result)
-          }
-          return { inserted: allInserted, working }
-        })
-        const { inserted: insertedRows, working: finalTable } = txResult
+        const { inserted: insertedRows, table: finalTable } = await importAppendRows(
+          table,
+          additions,
+          coerced,
+          { workspaceId, userId: authResult.userId, requestId }
+        )
         const inserted = insertedRows.length
         // Fire trigger + scheduler AFTER the tx commits — both read through the
         // global db connection and would otherwise see no rows.
@@ -355,18 +331,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     }
 
     try {
-      const result = await db.transaction(async (trx) => {
-        let working = table
-        if (additions.length > 0) {
-          working = await addTableColumnsWithTx(trx, table, additions, requestId)
-        }
-        return replaceTableRowsWithTx(
-          trx,
-          { tableId: working.id, rows: coerced, workspaceId, userId: authResult.userId },
-          working,
-          requestId
-        )
-      })
+      const result = await importReplaceRows(
+        table,
+        additions,
+        { rows: coerced, workspaceId, userId: authResult.userId },
+        requestId
+      )
 
       logger.info(`[${requestId}] Replace CSV imported`, {
         tableId: table.id,
