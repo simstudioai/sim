@@ -87,7 +87,7 @@ export const queryPipeTool: ToolConfig<TinybirdQueryPipeParams, TinybirdQueryPip
   request: {
     url: (params) => {
       const baseUrl = params.base_url.trim().replace(/\/+$/, '')
-      const url = new URL(`${baseUrl}/v0/pipes/${params.pipe.trim()}.json`)
+      const url = new URL(`${baseUrl}/v0/pipes/${encodeURIComponent(params.pipe.trim())}.json`)
       if (params.q) {
         url.searchParams.set('q', params.q)
       }

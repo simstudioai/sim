@@ -47,7 +47,7 @@ export const truncateDatasourceTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = params.base_url.trim().replace(/\/+$/, '')
-      return `${baseUrl}/v0/datasources/${params.datasource.trim()}/truncate`
+      return `${baseUrl}/v0/datasources/${encodeURIComponent(params.datasource.trim())}/truncate`
     },
     method: 'POST',
     headers: (params) => ({

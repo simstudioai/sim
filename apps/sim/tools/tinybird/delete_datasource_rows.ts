@@ -62,7 +62,7 @@ export const deleteDatasourceRowsTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = params.base_url.trim().replace(/\/+$/, '')
-      return `${baseUrl}/v0/datasources/${params.datasource.trim()}/delete`
+      return `${baseUrl}/v0/datasources/${encodeURIComponent(params.datasource.trim())}/delete`
     },
     method: 'POST',
     headers: (params) => ({
