@@ -1,5 +1,10 @@
 import type { DagsterTerminateRunParams, DagsterTerminateRunResponse } from '@/tools/dagster/types'
-import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/utils'
+import {
+  dagsterGraphqlUrl,
+  dagsterRequestHeaders,
+  dagsterUnionErrorMessage,
+  parseDagsterGraphqlResponse,
+} from '@/tools/dagster/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /** Fields returned from `terminateRun` for all union members. */
@@ -67,13 +72,9 @@ export const terminateRunTool: ToolConfig<DagsterTerminateRunParams, DagsterTerm
     },
 
     request: {
-      url: (params) => `${params.host.replace(/\/$/, '')}/graphql`,
+      url: (params) => dagsterGraphqlUrl(params.host),
       method: 'POST',
-      headers: (params) => {
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-        if (params.apiKey) headers['Dagster-Cloud-Api-Token'] = params.apiKey
-        return headers
-      },
+      headers: (params) => dagsterRequestHeaders(params),
       body: (params) => ({
         query: TERMINATE_RUN_MUTATION,
         variables: { runId: params.runId },

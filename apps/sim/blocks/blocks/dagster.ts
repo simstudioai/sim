@@ -3,6 +3,13 @@ import type { BlockConfig } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { DagsterResponse } from '@/tools/dagster/types'
 
+/** Coerces a subBlock value to a finite number, returning undefined for empty or non-numeric input. */
+function toFiniteNumber(value: unknown): number | undefined {
+  if (value == null || value === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 export const DagsterBlock: BlockConfig<DagsterResponse> = {
   type: 'dagster',
   name: 'Dagster',
@@ -37,6 +44,11 @@ export const DagsterBlock: BlockConfig<DagsterResponse> = {
         { label: 'List Sensors', id: 'list_sensors' },
         { label: 'Start Sensor', id: 'start_sensor' },
         { label: 'Stop Sensor', id: 'stop_sensor' },
+        { label: 'List Assets', id: 'list_assets' },
+        { label: 'Get Asset', id: 'get_asset' },
+        { label: 'Materialize Assets', id: 'materialize_assets' },
+        { label: 'Report Asset Materialization', id: 'report_asset_materialization' },
+        { label: 'Wipe Asset', id: 'wipe_asset' },
       ],
       value: () => 'launch_run',
     },
@@ -49,11 +61,25 @@ export const DagsterBlock: BlockConfig<DagsterResponse> = {
       placeholder: 'e.g., my_code_location',
       condition: {
         field: 'operation',
-        value: ['launch_run', 'list_schedules', 'start_schedule', 'list_sensors', 'start_sensor'],
+        value: [
+          'launch_run',
+          'list_schedules',
+          'start_schedule',
+          'list_sensors',
+          'start_sensor',
+          'materialize_assets',
+        ],
       },
       required: {
         field: 'operation',
-        value: ['launch_run', 'list_schedules', 'start_schedule', 'list_sensors', 'start_sensor'],
+        value: [
+          'launch_run',
+          'list_schedules',
+          'start_schedule',
+          'list_sensors',
+          'start_sensor',
+          'materialize_assets',
+        ],
       },
     },
     {
@@ -63,11 +89,25 @@ export const DagsterBlock: BlockConfig<DagsterResponse> = {
       placeholder: 'e.g., __repository__',
       condition: {
         field: 'operation',
-        value: ['launch_run', 'list_schedules', 'start_schedule', 'list_sensors', 'start_sensor'],
+        value: [
+          'launch_run',
+          'list_schedules',
+          'start_schedule',
+          'list_sensors',
+          'start_sensor',
+          'materialize_assets',
+        ],
       },
       required: {
         field: 'operation',
-        value: ['launch_run', 'list_schedules', 'start_schedule', 'list_sensors', 'start_sensor'],
+        value: [
+          'launch_run',
+          'list_schedules',
+          'start_schedule',
+          'list_sensors',
+          'start_sensor',
+          'materialize_assets',
+        ],
       },
     },
 
@@ -105,7 +145,7 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
       title: 'Tags',
       type: 'code',
       placeholder: '[{"key": "env", "value": "prod"}]',
-      condition: { field: 'operation', value: 'launch_run' },
+      condition: { field: 'operation', value: ['launch_run', 'materialize_assets'] },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -210,6 +250,46 @@ Return ONLY the comma-separated status values - no explanations, no extra text.`
       condition: { field: 'operation', value: 'list_runs' },
       mode: 'advanced',
     },
+    {
+      id: 'createdAfter',
+      title: 'Created After',
+      type: 'short-input',
+      placeholder: 'Unix timestamp in seconds (optional)',
+      condition: { field: 'operation', value: 'list_runs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a start time into a Unix timestamp in seconds.
+
+Return ONLY the integer Unix timestamp in seconds - no explanations, no extra text.`,
+        placeholder: 'Describe the earliest creation time...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'createdBefore',
+      title: 'Created Before',
+      type: 'short-input',
+      placeholder: 'Unix timestamp in seconds (optional)',
+      condition: { field: 'operation', value: 'list_runs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of an end time into a Unix timestamp in seconds.
+
+Return ONLY the integer Unix timestamp in seconds - no explanations, no extra text.`,
+        placeholder: 'Describe the latest creation time...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'runsCursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'Run ID from a previous response cursor (for pagination)',
+      condition: { field: 'operation', value: 'list_runs' },
+      mode: 'advanced',
+    },
 
     // ── Schedule operations ────────────────────────────────────────────────────
     {
@@ -267,6 +347,95 @@ Return ONLY the comma-separated status values - no explanations, no extra text.`
       required: { field: 'operation', value: ['stop_schedule', 'stop_sensor'] },
     },
 
+    // ── Asset operations ───────────────────────────────────────────────────────
+    {
+      id: 'assetKey',
+      title: 'Asset Key',
+      type: 'short-input',
+      placeholder: 'e.g., my_asset or raw/events',
+      condition: {
+        field: 'operation',
+        value: ['get_asset', 'report_asset_materialization', 'wipe_asset'],
+      },
+      required: {
+        field: 'operation',
+        value: ['get_asset', 'report_asset_materialization', 'wipe_asset'],
+      },
+    },
+    {
+      id: 'assetJobName',
+      title: 'Asset Job',
+      type: 'short-input',
+      placeholder: 'e.g., __ASSET_JOB or a named asset job',
+      condition: { field: 'operation', value: 'materialize_assets' },
+      required: { field: 'operation', value: 'materialize_assets' },
+    },
+    {
+      id: 'assetSelection',
+      title: 'Asset Selection',
+      type: 'long-input',
+      placeholder: 'Comma- or newline-separated asset keys, e.g. raw/events, summary',
+      condition: { field: 'operation', value: 'materialize_assets' },
+      required: { field: 'operation', value: 'materialize_assets' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of Dagster asset keys to materialize based on the user's description. Multi-part keys use slashes (e.g. raw/events).
+
+Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
+        placeholder: 'Describe which assets to materialize...',
+      },
+    },
+    {
+      id: 'assetPrefix',
+      title: 'Key Prefix',
+      type: 'short-input',
+      placeholder: 'Filter by asset key prefix, e.g. raw (optional)',
+      condition: { field: 'operation', value: 'list_assets' },
+    },
+    {
+      id: 'assetsLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '100',
+      condition: { field: 'operation', value: 'list_assets' },
+      mode: 'advanced',
+    },
+    {
+      id: 'assetsCursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor from a previous list_assets response (for pagination)',
+      condition: { field: 'operation', value: 'list_assets' },
+      mode: 'advanced',
+    },
+    {
+      id: 'reportEventType',
+      title: 'Event Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Materialization', id: 'ASSET_MATERIALIZATION' },
+        { label: 'Observation', id: 'ASSET_OBSERVATION' },
+      ],
+      value: () => 'ASSET_MATERIALIZATION',
+      condition: { field: 'operation', value: 'report_asset_materialization' },
+    },
+    {
+      id: 'reportPartitionKeys',
+      title: 'Partition Keys',
+      type: 'short-input',
+      placeholder: 'Comma-separated partition keys (optional)',
+      condition: { field: 'operation', value: 'report_asset_materialization' },
+      mode: 'advanced',
+    },
+    {
+      id: 'reportDescription',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Description for the reported event (optional)',
+      condition: { field: 'operation', value: 'report_asset_materialization' },
+      mode: 'advanced',
+    },
+
     // ── Connection (common to all operations) ──────────────────────────────────
     {
       id: 'host',
@@ -300,22 +469,29 @@ Return ONLY the comma-separated status values - no explanations, no extra text.`
       'dagster_list_sensors',
       'dagster_start_sensor',
       'dagster_stop_sensor',
+      'dagster_list_assets',
+      'dagster_get_asset',
+      'dagster_materialize_assets',
+      'dagster_report_asset_materialization',
+      'dagster_wipe_asset',
     ],
     config: {
       tool: (params) => `dagster_${params.operation}`,
       params: (params) => {
         const result: Record<string, unknown> = {}
 
-        // list_runs: type-coerce limit and remap job name filter
+        // list_runs: type-coerce limit + time filters, remap job name filter and cursor
         if (params.operation === 'list_runs') {
-          if (params.limit != null && params.limit !== '') result.limit = Number(params.limit)
+          result.limit = toFiniteNumber(params.limit)
           result.jobName = params.listRunsJobName || undefined
+          result.createdAfter = toFiniteNumber(params.createdAfter)
+          result.createdBefore = toFiniteNumber(params.createdBefore)
+          result.cursor = params.runsCursor || undefined
         }
 
         // get_run_logs: remap logsLimit → limit
         if (params.operation === 'get_run_logs') {
-          if (params.logsLimit != null && params.logsLimit !== '')
-            result.limit = Number(params.logsLimit)
+          result.limit = toFiniteNumber(params.logsLimit)
         }
 
         // reexecute_run: remap runId → parentRunId
@@ -329,6 +505,25 @@ Return ONLY the comma-separated status values - no explanations, no extra text.`
         }
         if (params.operation === 'list_sensors' && !params.sensorStatus) {
           result.sensorStatus = undefined
+        }
+
+        // list_assets: type-coerce limit and remap prefix/cursor
+        if (params.operation === 'list_assets') {
+          result.prefix = params.assetPrefix || undefined
+          result.limit = toFiniteNumber(params.assetsLimit)
+          result.cursor = params.assetsCursor || undefined
+        }
+
+        // materialize_assets: remap asset job name → jobName
+        if (params.operation === 'materialize_assets') {
+          result.jobName = params.assetJobName
+        }
+
+        // report_asset_materialization: remap report-prefixed fields to tool params
+        if (params.operation === 'report_asset_materialization') {
+          result.eventType = params.reportEventType || 'ASSET_MATERIALIZATION'
+          result.partitionKeys = params.reportPartitionKeys || undefined
+          result.description = params.reportDescription || undefined
         }
 
         return result
@@ -362,6 +557,15 @@ Return ONLY the comma-separated status values - no explanations, no extra text.`
     // List Runs
     listRunsJobName: { type: 'string', description: 'Filter list_runs by job name' },
     statuses: { type: 'string', description: 'Comma-separated run statuses to filter by' },
+    createdAfter: {
+      type: 'number',
+      description: 'Only return runs created at/after this Unix time',
+    },
+    createdBefore: {
+      type: 'number',
+      description: 'Only return runs created at/before this Unix time',
+    },
+    runsCursor: { type: 'string', description: 'Run ID cursor for list_runs pagination' },
     limit: { type: 'number', description: 'Maximum results to return' },
     // Schedules
     scheduleName: { type: 'string', description: 'Schedule name' },
@@ -374,6 +578,25 @@ Return ONLY the comma-separated status values - no explanations, no extra text.`
     sensorStatus: { type: 'string', description: 'Filter sensors by status (RUNNING or STOPPED)' },
     // Stop schedule / sensor
     instigationStateId: { type: 'string', description: 'InstigationState ID for stop operations' },
+    // Assets
+    assetKey: { type: 'string', description: 'Slash-delimited asset key' },
+    assetJobName: { type: 'string', description: 'Asset job to launch for materialization' },
+    assetSelection: {
+      type: 'string',
+      description: 'Comma/newline-separated asset keys to materialize',
+    },
+    assetPrefix: { type: 'string', description: 'Filter list_assets by key prefix' },
+    assetsLimit: { type: 'number', description: 'Maximum assets to return' },
+    assetsCursor: { type: 'string', description: 'Cursor for list_assets pagination' },
+    reportEventType: {
+      type: 'string',
+      description: 'Runless event type (ASSET_MATERIALIZATION or ASSET_OBSERVATION)',
+    },
+    reportPartitionKeys: {
+      type: 'string',
+      description: 'Comma-separated partition keys for the reported event',
+    },
+    reportDescription: { type: 'string', description: 'Description for the reported event' },
   },
 
   outputs: {
@@ -382,8 +605,14 @@ Return ONLY the comma-separated status values - no explanations, no extra text.`
     // Get Run
     jobName: { type: 'string', description: 'Job name the run belongs to' },
     status: { type: 'string', description: 'Run or schedule/sensor status' },
+    mode: { type: 'string', description: 'Execution mode of the run' },
     startTime: { type: 'number', description: 'Run start time (Unix timestamp)' },
     endTime: { type: 'number', description: 'Run end time (Unix timestamp)' },
+    creationTime: { type: 'number', description: 'Run creation time (Unix timestamp)' },
+    updateTime: { type: 'number', description: 'Run last-update time (Unix timestamp)' },
+    parentRunId: { type: 'string', description: 'Immediate parent run ID (re-executions)' },
+    rootRunId: { type: 'string', description: 'Root run ID of the re-execution group' },
+    canTerminate: { type: 'boolean', description: 'Whether the run can be terminated' },
     runConfigYaml: { type: 'string', description: 'Run configuration as YAML' },
     tags: { type: 'json', description: 'Run tags as array of {key, value} objects' },
     // List Runs
@@ -401,10 +630,13 @@ Return ONLY the comma-separated status values - no explanations, no extra text.`
       type: 'json',
       description: 'Log events (type, message, timestamp, level, stepKey, eventType)',
     },
-    cursor: { type: 'string', description: 'Pagination cursor for the next page of logs' },
+    cursor: {
+      type: 'string',
+      description: 'Pagination cursor for the next page (logs, runs, or assets)',
+    },
     hasMore: {
       type: 'boolean',
-      description: 'Whether more log events are available beyond this page',
+      description: 'Whether more items are available beyond this page',
     },
     // List Schedules
     schedules: {
@@ -419,5 +651,21 @@ Return ONLY the comma-separated status values - no explanations, no extra text.`
     },
     // Start/Stop schedule or sensor
     id: { type: 'string', description: 'Instigator state ID of the schedule or sensor' },
+    // Get Run / Get Asset (asset key selection)
+    assetSelection: { type: 'json', description: 'Asset keys targeted by the run' },
+    // List Assets
+    assets: { type: 'json', description: 'List of assets (assetKey, path)' },
+    // Get Asset
+    assetKey: { type: 'string', description: 'Slash-joined asset key' },
+    path: { type: 'json', description: 'Asset key path segments' },
+    groupName: { type: 'string', description: 'Asset group name' },
+    description: { type: 'string', description: 'Asset description' },
+    jobNames: { type: 'json', description: 'Jobs that can materialize the asset' },
+    computeKind: { type: 'string', description: 'Asset compute kind tag' },
+    isPartitioned: { type: 'boolean', description: 'Whether the asset is partitioned' },
+    latestMaterialization: {
+      type: 'json',
+      description: 'Latest materialization (runId, timestamp, partition, stepKey)',
+    },
   },
 }

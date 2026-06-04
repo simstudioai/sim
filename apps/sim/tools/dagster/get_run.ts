@@ -1,5 +1,10 @@
 import type { DagsterGetRunParams, DagsterGetRunResponse } from '@/tools/dagster/types'
-import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/utils'
+import {
+  dagsterGraphqlUrl,
+  dagsterRequestHeaders,
+  dagsterUnionErrorMessage,
+  parseDagsterGraphqlResponse,
+} from '@/tools/dagster/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /** Fields selected on `runOrError` when the union resolves to `Run`. */
@@ -7,8 +12,15 @@ interface DagsterGetRunGraphqlRun {
   runId: string
   jobName: string | null
   status: string
+  mode: string | null
   startTime: number | null
   endTime: number | null
+  creationTime: number | null
+  updateTime: number | null
+  parentRunId: string | null
+  rootRunId: string | null
+  canTerminate: boolean
+  assetSelection: Array<{ path: string[] }> | null
   runConfigYaml: string | null
   tags: Array<{ key: string; value: string }> | null
 }
@@ -20,8 +32,17 @@ const GET_RUN_QUERY = `
         runId
         jobName
         status
+        mode
         startTime
         endTime
+        creationTime
+        updateTime
+        parentRunId
+        rootRunId
+        canTerminate
+        assetSelection {
+          path
+        }
         runConfigYaml
         tags {
           key
@@ -69,13 +90,9 @@ export const getRunTool: ToolConfig<DagsterGetRunParams, DagsterGetRunResponse> 
   },
 
   request: {
-    url: (params) => `${params.host.replace(/\/$/, '')}/graphql`,
+    url: (params) => dagsterGraphqlUrl(params.host),
     method: 'POST',
-    headers: (params) => {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (params.apiKey) headers['Dagster-Cloud-Api-Token'] = params.apiKey
-      return headers
-    },
+    headers: (params) => dagsterRequestHeaders(params),
     body: (params) => ({
       query: GET_RUN_QUERY,
       variables: { runId: params.runId },
@@ -102,8 +119,17 @@ export const getRunTool: ToolConfig<DagsterGetRunParams, DagsterGetRunResponse> 
         runId: run.runId,
         jobName: run.jobName ?? null,
         status: run.status,
+        mode: run.mode ?? null,
         startTime: run.startTime ?? null,
         endTime: run.endTime ?? null,
+        creationTime: run.creationTime ?? null,
+        updateTime: run.updateTime ?? null,
+        parentRunId: run.parentRunId ?? null,
+        rootRunId: run.rootRunId ?? null,
+        canTerminate: run.canTerminate ?? false,
+        assetSelection: run.assetSelection
+          ? run.assetSelection.map((key) => key.path.join('/'))
+          : null,
         runConfigYaml: run.runConfigYaml ?? null,
         tags: run.tags ?? null,
       },
@@ -125,6 +151,11 @@ export const getRunTool: ToolConfig<DagsterGetRunParams, DagsterGetRunResponse> 
       description:
         'Run status (QUEUED, NOT_STARTED, STARTING, MANAGED, STARTED, SUCCESS, FAILURE, CANCELING, CANCELED)',
     },
+    mode: {
+      type: 'string',
+      description: 'Execution mode of the run',
+      optional: true,
+    },
     startTime: {
       type: 'number',
       description: 'Run start time as Unix timestamp',
@@ -133,6 +164,35 @@ export const getRunTool: ToolConfig<DagsterGetRunParams, DagsterGetRunResponse> 
     endTime: {
       type: 'number',
       description: 'Run end time as Unix timestamp',
+      optional: true,
+    },
+    creationTime: {
+      type: 'number',
+      description: 'Time the run was created as Unix timestamp',
+      optional: true,
+    },
+    updateTime: {
+      type: 'number',
+      description: 'Time the run was last updated as Unix timestamp',
+      optional: true,
+    },
+    parentRunId: {
+      type: 'string',
+      description: 'ID of the immediate parent run (for re-executions)',
+      optional: true,
+    },
+    rootRunId: {
+      type: 'string',
+      description: 'ID of the root run in the re-execution group',
+      optional: true,
+    },
+    canTerminate: {
+      type: 'boolean',
+      description: 'Whether the run can currently be terminated',
+    },
+    assetSelection: {
+      type: 'json',
+      description: 'Asset keys targeted by the run, as slash-joined strings',
       optional: true,
     },
     runConfigYaml: {
