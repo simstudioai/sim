@@ -794,6 +794,23 @@ async function listRepositoryBlobs(
     })
     throw new Error(`Failed to list repository items: ${response.status}`)
   }
+  /**
+   * The Items list API documents no pagination, but very large trees may emit
+   * an `x-ms-continuationtoken` response header. No request parameter exists
+   * to follow it, so when it appears the tree is treated as incomplete: the
+   * listing is flagged so deletion reconciliation cannot remove files that
+   * were never returned.
+   */
+  if (response.headers.get('x-ms-continuationtoken')) {
+    if (syncContext) syncContext.listingCapped = true
+    logger.warn(
+      'Azure DevOps repository tree listing returned a continuation token; partial tree',
+      {
+        repoId,
+        branch,
+      }
+    )
+  }
   const data = await response.json()
   const items = (data.value as GitItem[] | undefined) ?? []
   return items.filter((item) => item.gitObjectType === 'blob' && !item.isFolder && item.path)
