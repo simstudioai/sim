@@ -1,0 +1,1 @@
+ALTER TABLE "copilot_chats" DROP COLUMN "messages";
