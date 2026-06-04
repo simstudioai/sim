@@ -218,11 +218,11 @@ async function fetchFormStructure(
 /**
  * Result of fetching a form's responses: the collected responses (capped at
  * `MAX_RESPONSES_PER_FORM` for rendering) plus the greatest submission timestamp
- * across the first response page.
+ * across ALL response pages.
  *
  * `latestSubmittedTime` is tracked separately from the capped `responses` so the
  * content hash computed in getDocument stays identical to the one computed during
- * listing, which scans the same first page via `fetchLatestResponseTime`. If it
+ * listing, which scans the same full set via `fetchLatestResponseTime`. If it
  * were derived from the capped slice alone, a form with more than
  * `MAX_RESPONSES_PER_FORM` responses could hash differently between the two paths
  * and re-sync on every run.
@@ -234,18 +234,16 @@ interface FetchedResponses {
 
 /**
  * Fetches form responses, retaining up to `MAX_RESPONSES_PER_FORM` for rendering.
- * The latest submission timestamp is derived from the full first page (up to
- * `RESPONSES_PAGE_SIZE`) so it matches the change indicator computed during
- * listing by `fetchLatestResponseTime`, which reads the same first page. This
- * keeps the content hash identical across the listing and getDocument paths even
- * when a form has more responses than the render cap. Responses are returned in
- * the order provided by the API.
+ * Every page is scanned for the latest submission timestamp even after the
+ * render cap is reached — the Forms API does not guarantee response order, so
+ * the newest submission may sit on any page. `fetchLatestResponseTime` scans
+ * the same full set during listing, keeping the content hash identical across
+ * the listing and getDocument paths regardless of form size.
  */
 async function fetchFormResponses(accessToken: string, formId: string): Promise<FetchedResponses> {
   const collected: FormResponse[] = []
-  let latestSubmittedTime: string | undefined
+  let latest = ''
   let pageToken: string | undefined
-  let firstPage = true
 
   do {
     const url = new URL(`${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}/responses`)
@@ -267,61 +265,64 @@ async function fetchFormResponses(accessToken: string, formId: string): Promise<
     const data = (await response.json()) as FormResponseList
     const responses = data.responses ?? []
 
-    if (firstPage) {
-      latestSubmittedTime = latestResponseTime(responses)
-      firstPage = false
-    }
+    const pageLatest = latestResponseTime(responses)
+    if (pageLatest && pageLatest > latest) latest = pageLatest
 
     for (const r of responses) {
       if (collected.length >= MAX_RESPONSES_PER_FORM) break
       collected.push(r)
     }
 
-    pageToken = collected.length >= MAX_RESPONSES_PER_FORM ? undefined : data.nextPageToken
+    pageToken = data.nextPageToken
   } while (pageToken)
 
-  return { responses: collected, latestSubmittedTime }
+  return { responses: collected, latestSubmittedTime: latest || undefined }
 }
 
 /**
  * Reads the latest response submission time for change detection without
- * retaining every response. Returns the greatest `lastSubmittedTime` (falling
- * back to `createTime`) across all responses, or undefined when there are none.
- * Throws on a failed read so the caller skips the form for this run instead of
- * computing a hash from incomplete data.
+ * retaining responses. Scans every page — the Forms API does not guarantee
+ * response order, so the newest submission may sit on any page. Returns the
+ * greatest `lastSubmittedTime` (falling back to `createTime`), or undefined
+ * when there are none. Throws on a failed read so the caller skips the form
+ * for this run instead of computing a hash from incomplete data — a swallowed
+ * error would poison the stub's content hash and re-process the form on every
+ * sync, while throwing routes into the per-form catch that sets
+ * `skippedOnError` → `listingCapped`.
  */
 async function fetchLatestResponseTime(
   accessToken: string,
   formId: string
 ): Promise<string | undefined> {
-  const url = new URL(`${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}/responses`)
-  url.searchParams.set('pageSize', String(RESPONSES_PAGE_SIZE))
+  let latest = ''
+  let pageToken: string | undefined
 
-  const response = await fetchWithRetry(url.toString(), {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/json',
-    },
-  })
+  do {
+    const url = new URL(`${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}/responses`)
+    url.searchParams.set('pageSize', String(RESPONSES_PAGE_SIZE))
+    if (pageToken) url.searchParams.set('pageToken', pageToken)
 
-  if (!response.ok) {
-    /**
-     * Propagate the failure rather than hashing with an empty response segment.
-     * A swallowed error here would poison the stub's content hash (listing
-     * would hash "no responses" while getDocument hashes the real latest
-     * submission time), making the form re-process on every sync. Throwing lets
-     * the per-form catch in listDocuments skip the form for this run and set
-     * `skippedOnError` → `listingCapped`, so the form is neither deleted nor
-     * hashed incorrectly.
-     */
-    throw new Error(
-      `Failed to read responses for change detection on form ${formId}: ${response.status}`
-    )
-  }
+    const response = await fetchWithRetry(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    })
 
-  const data = (await response.json()) as FormResponseList
-  return latestResponseTime(data.responses ?? [])
+    if (!response.ok) {
+      throw new Error(
+        `Failed to read responses for change detection on form ${formId}: ${response.status}`
+      )
+    }
+
+    const data = (await response.json()) as FormResponseList
+    const pageLatest = latestResponseTime(data.responses ?? [])
+    if (pageLatest && pageLatest > latest) latest = pageLatest
+    pageToken = data.nextPageToken
+  } while (pageToken)
+
+  return latest || undefined
 }
 
 /**

@@ -1536,7 +1536,15 @@ export const azureDevopsConnector: ConnectorConfig = {
       : cursor?.startsWith('file|')
         ? 'file'
         : 'wiki'
-    const phase = phases.includes(cursorPhase) ? cursorPhase : phases[0]
+
+    /**
+     * A cursor from a phase that is no longer active (e.g. the content-type
+     * config changed) is discarded along with its offsets — otherwise another
+     * phase would misparse its tokens as numeric offsets and skip documents.
+     */
+    const cursorIsActive = phases.includes(cursorPhase)
+    const phase = cursorIsActive ? cursorPhase : phases[0]
+    const initialCursor = cursorIsActive ? cursor : undefined
 
     /** Lists a single batch for the given phase. The cursor is passed only when it belongs to that phase. */
     const runPhase = (target: SyncPhase, phaseCursor: string | undefined) => {
@@ -1586,7 +1594,7 @@ export const azureDevopsConnector: ConnectorConfig = {
      * across phases.
      */
     let current: SyncPhase | undefined = phase
-    let phaseCursor = cursor
+    let phaseCursor = initialCursor
     const documents: ExternalDocument[] = []
 
     while (current) {
