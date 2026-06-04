@@ -63,14 +63,20 @@ function normalizeOtlpTracesUrl(url: string): string {
   }
 }
 
-// Metrics counterpart to `normalizeOtlpTracesUrl`. The endpoint may already
-// carry a signal-specific suffix (traces); swap it for `/v1/metrics`.
+// Metrics counterpart to `normalizeOtlpTracesUrl`. Operates on the parsed
+// pathname (not a raw string suffix) so query strings and trailing slashes
+// don't corrupt the result: swap a `/v1/traces` suffix for `/v1/metrics`,
+// otherwise append `/v1/metrics`.
 function normalizeOtlpMetricsUrl(url: string): string {
   if (!url) return url
   try {
-    if (url.endsWith('/v1/metrics')) return url
-    const base = url.replace(/\/v1\/traces$/, '').replace(/\/$/, '')
-    return `${base}/v1/metrics`
+    const u = new URL(url)
+    const path = u.pathname.replace(/\/$/, '')
+    if (path.endsWith('/v1/metrics')) return url
+    u.pathname = path.endsWith('/v1/traces')
+      ? path.replace(/\/v1\/traces$/, '/v1/metrics')
+      : `${path}/v1/metrics`
+    return u.toString()
   } catch {
     return url
   }
