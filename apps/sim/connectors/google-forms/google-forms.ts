@@ -600,14 +600,20 @@ export const googleFormsConnector: ConnectorConfig = {
 
     /**
      * Mark the listing as incomplete so the sync engine skips deletion
-     * reconciliation. This applies when the `maxForms` cap truncates results
-     * while more forms exist (forms beyond the cap are not absent from the
-     * source) or when a transient error caused a still-present form to be
-     * dropped from this page — deleting those would wipe valid documents from
-     * the knowledge base. When the cap merely coincides with source exhaustion
-     * (no next page), reconciliation stays enabled so deleted forms are cleaned up.
+     * reconciliation. Three cases drop still-existing forms from the listing:
+     * - `slicedSome`: this page held more forms than the `maxForms` cap allowed,
+     *   so forms beyond the slice were truncated. This is independent of
+     *   `hitLimit`, which counts successfully fetched stubs and can fall below
+     *   the cap when 404s or errors null out items even though real forms were
+     *   sliced off.
+     * - `hitLimit` with a next page: the cap was reached while more pages of
+     *   forms remain in the source.
+     * - `skippedOnError`: a transient error dropped a still-present form.
+     * Deleting any of those would wipe valid documents from the knowledge base.
+     * When the cap merely coincides with source exhaustion (no slice, no next
+     * page), reconciliation stays enabled so deleted forms are cleaned up.
      */
-    if (syncContext && ((hitLimit && (slicedSome || Boolean(nextPageToken))) || skippedOnError)) {
+    if (syncContext && (slicedSome || (hitLimit && Boolean(nextPageToken)) || skippedOnError)) {
       syncContext.listingCapped = true
     }
 
