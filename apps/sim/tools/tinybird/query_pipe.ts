@@ -6,23 +6,31 @@ const logger = createLogger('tinybird-query-pipe')
 
 /**
  * Parses the dynamic-parameters input, which may arrive as a JSON object or a
- * JSON string from a code/json subBlock. Returns an empty object on any failure.
+ * JSON string from a code/json subBlock. An omitted or empty value means "no
+ * parameters"; a non-empty value that is not a valid JSON object throws, so a
+ * mistyped input fails loudly instead of silently dropping the filters.
  */
 function parsePipeParameters(
   input: TinybirdQueryPipeParams['parameters']
 ): Record<string, unknown> {
-  if (!input) return {}
-  if (typeof input === 'string') {
-    const trimmed = input.trim()
-    if (!trimmed) return {}
-    try {
-      const parsed = JSON.parse(trimmed)
-      return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {}
-    } catch {
-      return {}
-    }
+  if (input === undefined || input === null) return {}
+  if (typeof input === 'object') return input as Record<string, unknown>
+
+  const trimmed = input.trim()
+  if (!trimmed) return {}
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(trimmed)
+  } catch {
+    throw new Error(
+      'Invalid Pipe parameters: expected a JSON object of key/value pairs (e.g. {"limit": 10})'
+    )
   }
-  return typeof input === 'object' ? input : {}
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error('Invalid Pipe parameters: expected a JSON object, not a primitive or array')
+  }
+  return parsed as Record<string, unknown>
 }
 
 /**
