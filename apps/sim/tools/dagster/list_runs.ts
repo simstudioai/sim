@@ -7,6 +7,9 @@ import {
 } from '@/tools/dagster/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** Default page size applied when the caller omits `limit`, so paging stays bounded and `hasMore` is meaningful. */
+const DEFAULT_LIST_RUNS_LIMIT = 20
+
 /** Shape of each run in the `runsOrError` → `Runs.results` GraphQL selection set. */
 interface DagsterListRunsGraphqlRow {
   runId: string
@@ -124,7 +127,9 @@ export const listRunsTool: ToolConfig<DagsterListRunsParams, DagsterListRunsResp
       if (params.createdBefore != null) filter.createdBefore = params.createdBefore
 
       const hasFilter = Object.keys(filter).length > 0
-      const variables: Record<string, unknown> = { limit: params.limit || 20 }
+      const pageSize = params.limit || DEFAULT_LIST_RUNS_LIMIT
+      // Request one extra row so `hasMore` is exact even when the final page is exactly `pageSize` long.
+      const variables: Record<string, unknown> = { limit: pageSize + 1 }
       if (params.cursor) variables.cursor = params.cursor
       if (hasFilter) variables.filter = filter
 
@@ -147,7 +152,11 @@ export const listRunsTool: ToolConfig<DagsterListRunsParams, DagsterListRunsResp
       throw new Error(dagsterUnionErrorMessage(result, 'Dagster returned an error listing runs'))
     }
 
-    const runs = result.results.map((r: DagsterListRunsGraphqlRow) => ({
+    const pageSize = params?.limit || DEFAULT_LIST_RUNS_LIMIT
+    const hasMore = result.results.length > pageSize
+    const pageRows = hasMore ? result.results.slice(0, pageSize) : result.results
+
+    const runs = pageRows.map((r: DagsterListRunsGraphqlRow) => ({
       runId: r.runId,
       jobName: r.jobName ?? null,
       status: r.status,
@@ -156,13 +165,12 @@ export const listRunsTool: ToolConfig<DagsterListRunsParams, DagsterListRunsResp
       endTime: r.endTime ?? null,
     }))
 
-    const limit = params?.limit || 20
     return {
       success: true,
       output: {
         runs,
         cursor: runs.length > 0 ? runs[runs.length - 1].runId : null,
-        hasMore: runs.length >= limit,
+        hasMore,
       },
     }
   },
