@@ -722,8 +722,11 @@ function resolveToolDisplayTitle(name: string, args?: Record<string, unknown>): 
   }
 
   if (name === QueryLogs.id) {
-    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
-    return workflowName ? `Querying logs for ${workflowName}` : 'Querying logs'
+    const workflowName =
+      resolveWorkflowNameForDisplay(args.workflowId) ?? stringParam(args.workflowName)
+    // Fall back to the server-provided title (which is workflow-scoped when the
+    // request is attached to a workflow) instead of a generic label.
+    return workflowName ? `Querying logs for ${workflowName}` : undefined
   }
 
   return undefined

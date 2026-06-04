@@ -213,6 +213,14 @@ export async function executeMaterializeFile(
   }
 
   const operation = (params.operation as string | undefined) || 'save'
+  // Only save/import are implemented. Reject anything else with guidance instead of
+  // silently falling back to save (table/knowledge_base are handled by their subagents).
+  if (operation !== 'save' && operation !== 'import') {
+    return {
+      success: false,
+      error: `Unsupported materialize_file operation "${operation}". Use "save" or "import". For CSV/TSV/JSON → use the table subagent; for documents → use the knowledge subagent.`,
+    }
+  }
   const succeeded: string[] = []
   const failed: Array<{ fileName: string; error: string }> = []
 

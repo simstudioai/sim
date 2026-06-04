@@ -1,4 +1,10 @@
+import { getBlock } from '@/blocks'
 import { isTriggerBlockType } from '@/executor/constants'
+import {
+  collectBlockFieldIssues,
+  extractBlockParams,
+  type InactiveModeValue,
+} from '@/serializer/index'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { validateConditionHandle, validateRouterHandle } from './validation'
 
@@ -40,10 +46,40 @@ export interface WorkflowLintInvalidConnectionTarget {
 }
 
 export interface WorkflowLintResult {
+  /** Every non-note block with no incoming edge (trigger blocks are naturally sources). */
+  sources: WorkflowLintBlockRef[]
+  /** Every non-note block with no outgoing edge. */
+  sinks: WorkflowLintBlockRef[]
   orphanBlocks: WorkflowLintBlockRef[]
   emptyOutgoingPorts: WorkflowLintEmptyOutgoingPort[]
   invalidBranchPorts: WorkflowLintInvalidBranchPort[]
   invalidConnectionTargets: WorkflowLintInvalidConnectionTarget[]
+}
+
+/** Tier-1 (sync, config) field issues for a single block. */
+export interface WorkflowLintFieldIssue extends WorkflowLintBlockRef {
+  /** Required fields that resolve empty in the active mode. */
+  missingRequiredFields: string[]
+  /** Canonical pairs whose value is stranded on the inactive member (silently dropped). */
+  inactiveModeValues: InactiveModeValue[]
+}
+
+/** Tier-2 (async, DB) credential/resource reference that does not resolve to an accessible entity. */
+export interface WorkflowLintUnresolvedReference extends WorkflowLintBlockRef {
+  field: string
+  value: string | string[]
+  kind: 'credential' | 'resource'
+  reason: string
+}
+
+/**
+ * Aggregate lint report: the graph lint plus the config (Tier 1) and resolution
+ * (Tier 2) checks. Returned in the edit_workflow result and written to lint.json.
+ */
+export interface WorkflowLintReport extends WorkflowLintResult {
+  fieldIssues: WorkflowLintFieldIssue[]
+  unresolvedReferences: WorkflowLintUnresolvedReference[]
+  notes: string[]
 }
 
 function blockRef(blockId: string, block: BlockState): WorkflowLintBlockRef {
@@ -118,6 +154,7 @@ export function lintEditedWorkflowState(workflowState: Pick<WorkflowState, 'bloc
     : ([] as EdgeState[])
 
   const incomingEdgesByTarget = new Map<string, number>()
+  const outgoingEdgesBySource = new Set<string>()
   const connectedDynamicHandles = new Map<string, Set<string>>()
   const invalidBranchPorts: WorkflowLintInvalidBranchPort[] = []
   const invalidConnectionTargets: WorkflowLintInvalidConnectionTarget[] = []
@@ -142,6 +179,7 @@ export function lintEditedWorkflowState(workflowState: Pick<WorkflowState, 'bloc
     }
 
     incomingEdgesByTarget.set(targetBlockId, (incomingEdgesByTarget.get(targetBlockId) || 0) + 1)
+    outgoingEdgesBySource.add(sourceBlockId)
 
     if (!shouldLintDynamicPorts(sourceBlock)) continue
 
@@ -181,6 +219,18 @@ export function lintEditedWorkflowState(workflowState: Pick<WorkflowState, 'bloc
     .filter(([blockId]) => !incomingEdgesByTarget.has(blockId))
     .map(([blockId, block]) => blockRef(blockId, block))
 
+  // Structural descriptors (advisory, not "issues"): sources have no incoming
+  // edge (trigger blocks are naturally sources), sinks have no outgoing edge.
+  const sources = Object.entries(blocks)
+    .filter(([, block]) => block.type !== 'note')
+    .filter(([blockId]) => !incomingEdgesByTarget.has(blockId))
+    .map(([blockId, block]) => blockRef(blockId, block))
+
+  const sinks = Object.entries(blocks)
+    .filter(([, block]) => block.type !== 'note')
+    .filter(([blockId]) => !outgoingEdgesBySource.has(blockId))
+    .map(([blockId, block]) => blockRef(blockId, block))
+
   const emptyOutgoingPorts = Object.entries(blocks).flatMap(([blockId, block]) => {
     const handles = connectedDynamicHandles.get(blockId) || new Set<string>()
     const ports =
@@ -200,6 +250,8 @@ export function lintEditedWorkflowState(workflowState: Pick<WorkflowState, 'bloc
   })
 
   return {
+    sources,
+    sinks,
     orphanBlocks,
     emptyOutgoingPorts,
     invalidBranchPorts,
@@ -207,16 +259,62 @@ export function lintEditedWorkflowState(workflowState: Pick<WorkflowState, 'bloc
   } satisfies WorkflowLintResult
 }
 
-export function hasWorkflowLintIssues(lint: WorkflowLintResult) {
+/**
+ * Tier-1 config lint: per-block required-field and canonical-mode (inactive
+ * member) issues. Pure/sync. Uses the shared collector so results match the
+ * runtime serializer's required-field semantics. Skips notes and subflow
+ * containers, and blocks with no registry config.
+ */
+export function collectWorkflowFieldIssues(
+  blocks: WorkflowState['blocks'] | Record<string, unknown> | undefined
+): WorkflowLintFieldIssue[] {
+  const results: WorkflowLintFieldIssue[] = []
+  for (const [blockId, block] of Object.entries(blocks || {})) {
+    const type = (block as { type?: string })?.type
+    if (!type || type === 'note' || type === 'loop' || type === 'parallel') continue
+    const blockConfig = getBlock(type)
+    if (!blockConfig) continue
+
+    let params: Record<string, any>
+    try {
+      params = extractBlockParams(block as any)
+    } catch {
+      continue
+    }
+
+    const { missingRequiredFields, inactiveModeValues } = collectBlockFieldIssues(
+      block as any,
+      blockConfig,
+      params
+    )
+    if (missingRequiredFields.length > 0 || inactiveModeValues.length > 0) {
+      results.push({
+        ...blockRef(blockId, block as BlockState),
+        missingRequiredFields,
+        inactiveModeValues,
+      })
+    }
+  }
+  return results
+}
+
+type WorkflowLintIssueView = WorkflowLintResult & {
+  fieldIssues?: WorkflowLintFieldIssue[]
+  unresolvedReferences?: WorkflowLintUnresolvedReference[]
+}
+
+export function hasWorkflowLintIssues(lint: WorkflowLintIssueView) {
   return (
     lint.orphanBlocks.length > 0 ||
     lint.emptyOutgoingPorts.length > 0 ||
     lint.invalidBranchPorts.length > 0 ||
-    lint.invalidConnectionTargets.length > 0
+    lint.invalidConnectionTargets.length > 0 ||
+    (lint.fieldIssues?.length ?? 0) > 0 ||
+    (lint.unresolvedReferences?.length ?? 0) > 0
   )
 }
 
-export function formatWorkflowLintMessage(lint: WorkflowLintResult) {
+export function formatWorkflowLintMessage(lint: WorkflowLintIssueView) {
   const parts: string[] = []
 
   if (lint.orphanBlocks.length > 0) {
@@ -251,5 +349,41 @@ export function formatWorkflowLintMessage(lint: WorkflowLintResult) {
     )
   }
 
-  return `Workflow graph lint found issues. Fix these before continuing: ${parts.join('; ')}`
+  const fieldIssues = lint.fieldIssues ?? []
+  const missing = fieldIssues.filter((issue) => issue.missingRequiredFields.length > 0)
+  if (missing.length > 0) {
+    parts.push(
+      `Blocks missing required fields: ${missing
+        .map(
+          (issue) =>
+            `"${issue.blockName || issue.blockId}" (${issue.missingRequiredFields.join(', ')})`
+        )
+        .join(', ')}`
+    )
+  }
+
+  const inactive = fieldIssues.filter((issue) => issue.inactiveModeValues.length > 0)
+  if (inactive.length > 0) {
+    parts.push(
+      `Values set on the inactive field mode (they will not resolve): ${inactive
+        .map(
+          (issue) =>
+            `"${issue.blockName || issue.blockId}" (${issue.inactiveModeValues
+              .map((v) => `${v.inactiveMemberId}: move the value to "${v.activeMemberId ?? v.canonicalId}"`)
+              .join('; ')})`
+        )
+        .join(', ')}`
+    )
+  }
+
+  const unresolved = lint.unresolvedReferences ?? []
+  if (unresolved.length > 0) {
+    parts.push(
+      `Credential/resource references that do not resolve: ${unresolved
+        .map((ref) => `"${ref.blockName || ref.blockId}".${ref.field} (${ref.reason})`)
+        .join(', ')}`
+    )
+  }
+
+  return `Workflow lint found issues. Fix these before continuing: ${parts.join('; ')}`
 }

@@ -28,10 +28,19 @@ import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/do
 import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
 import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
 import { isRenderableDocExt, renderDocToGrid } from '@/lib/copilot/tools/server/files/doc-render'
+import { computeWorkflowDag } from '@/lib/copilot/tools/server/workflow/edit-workflow/dag'
+import {
+  collectWorkflowFieldIssues,
+  lintEditedWorkflowState,
+} from '@/lib/copilot/tools/server/workflow/edit-workflow/lint'
+import {
+  collectUnresolvedReferences,
+  UNRESOLVABLE_AT_LINT_NOTE,
+} from '@/lib/copilot/tools/server/workflow/edit-workflow/validation'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
-import type { DirEntry, GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
+import type { GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
 import * as ops from '@/lib/copilot/vfs/operations'
 import {
   buildVfsFolderPathMap,
@@ -339,6 +348,8 @@ function getStaticComponentFiles(): Map<string, string> {
  *   WORKSPACE.md                         — workspace inventory summary (auto-generated)
  *   workflows/{name}/meta.json            (root-level workflows)
  *   workflows/{name}/state.json          (sanitized blocks with embedded connections)
+ *   workflows/{name}/dag.json            (block name -> downstream block names adjacency)
+ *   workflows/{name}/lint.json           (sources/sinks, required-field, credential/resource issues)
  *   workflows/{name}/executions.json
  *   workflows/{name}/deployment.json
  *   workflows/{folder}/{name}/...        (workflows inside folders, nested folders supported)
@@ -524,10 +535,6 @@ export class WorkspaceVFS {
 
   read(path: string, offset?: number, limit?: number): ReadResult | null {
     return ops.read(this.files, path, offset, limit)
-  }
-
-  list(path: string): DirEntry[] {
-    return ops.list(this.filesForPath(path), path)
   }
 
   suggestSimilar(missingPath: string, max?: number): string[] {
@@ -1086,6 +1093,54 @@ export class WorkspaceVFS {
               parallels: normalized.parallels,
             } as any)
             this.files.set(`${prefix}state.json`, JSON.stringify(sanitized, null, 2))
+
+            // Dynamically-computed workflow shape (dag.json) and validation
+            // state (lint.json), derived from the raw normalized state so
+            // subBlock values, advancedMode, canonicalModes, and subflow edges
+            // are all available.
+            try {
+              this.files.set(
+                `${prefix}dag.json`,
+                JSON.stringify(computeWorkflowDag(normalized as any), null, 2)
+              )
+
+              const graphLint = lintEditedWorkflowState(normalized as any)
+              const fieldIssues = collectWorkflowFieldIssues(normalized.blocks as any)
+              let unresolvedReferences: Awaited<
+                ReturnType<typeof collectUnresolvedReferences>
+              > = []
+              try {
+                unresolvedReferences = await collectUnresolvedReferences(normalized as any, {
+                  userId,
+                  workspaceId,
+                })
+              } catch (resolveErr) {
+                // Tier-2 resolution is best-effort; degrade to graph + config lint.
+                logger.warn('Failed to resolve workflow references for lint.json', {
+                  workflowId: wf.id,
+                  error: toError(resolveErr).message,
+                })
+              }
+
+              this.files.set(
+                `${prefix}lint.json`,
+                JSON.stringify(
+                  {
+                    ...graphLint,
+                    fieldIssues,
+                    unresolvedReferences,
+                    notes: [UNRESOLVABLE_AT_LINT_NOTE],
+                  },
+                  null,
+                  2
+                )
+              )
+            } catch (lintErr) {
+              logger.warn('Failed to compute lint.json/dag.json', {
+                workflowId: wf.id,
+                error: toError(lintErr).message,
+              })
+            }
           }
         } catch (err) {
           logger.warn('Failed to load workflow state', {

@@ -104,7 +104,9 @@ export async function executeVfsGrep(
       if (!context.chatId) {
         return { success: false, error: 'No chat context available for uploads/' }
       }
-      const filename = rawPath.replace(/^\/+/, '').replace(/^uploads\/?/, '')
+      // The upload is the first segment after uploads/; any trailing segment
+      // (e.g. a /content suffix) is ignored, mirroring the uploads read path.
+      const filename = rawPath.replace(/^\/+/, '').replace(/^uploads\/?/, '').split('/')[0]
       if (!filename) {
         return {
           success: false,
@@ -230,12 +232,15 @@ export async function executeVfsRead(
       }
     }
 
-    // Handle chat-scoped uploads via the uploads/ virtual prefix
+    // Handle chat-scoped uploads via the uploads/ virtual prefix.
+    // Uploads are flat and have no metadata/content split like files/ — the upload
+    // IS the first path segment after uploads/. Any trailing segment (e.g. a
+    // /content suffix added out of habit) is ignored so the read resolves either way.
     if (path.startsWith('uploads/')) {
       if (!context.chatId) {
         return { success: false, error: 'No chat context available for uploads/' }
       }
-      const filename = path.slice('uploads/'.length)
+      const filename = path.slice('uploads/'.length).split('/')[0]
       const uploadResult = await readChatUpload(filename, context.chatId)
       if (uploadResult) {
         const isAttachment = hasModelAttachment(uploadResult)
@@ -348,33 +353,5 @@ export async function executeVfsRead(
       error: toError(err).message,
     })
     return { success: false, error: getErrorMessage(err, 'vfs_read failed') }
-  }
-}
-
-async function executeVfsList(
-  params: Record<string, unknown>,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  const path = params.path as string | undefined
-  if (!path) {
-    return { success: false, error: "Missing required parameter 'path'" }
-  }
-
-  const workspaceId = context.workspaceId
-  if (!workspaceId) {
-    return { success: false, error: 'No workspace context available' }
-  }
-
-  try {
-    const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
-    const entries = vfs.list(path)
-    logger.debug('vfs_list result', { path, entryCount: entries.length })
-    return { success: true, output: { entries } }
-  } catch (err) {
-    logger.error('vfs_list failed', {
-      path,
-      error: toError(err).message,
-    })
-    return { success: false, error: getErrorMessage(err, 'vfs_list failed') }
   }
 }

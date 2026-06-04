@@ -163,11 +163,42 @@ describe('lintEditedWorkflowState', () => {
     const lint = lintEditedWorkflowState(workflowState as any)
 
     expect(lint).toEqual({
+      sources: [{ blockId: 'start', blockName: 'Start', blockType: 'starter' }],
+      sinks: [{ blockId: 'agent', blockName: 'Agent', blockType: 'agent' }],
       orphanBlocks: [],
       emptyOutgoingPorts: [],
       invalidBranchPorts: [],
       invalidConnectionTargets: [],
     })
     expect(hasWorkflowLintIssues(lint)).toBe(false)
+  })
+
+  it('reports sources and sinks (triggers are sources, terminals are sinks, notes excluded)', () => {
+    const workflowState = {
+      blocks: {
+        start: baseBlock('start', 'starter', 'Start'),
+        agent: baseBlock('agent', 'agent', 'Agent'),
+        end: baseBlock('end', 'function', 'End'),
+        note: baseBlock('note', 'note', 'Note'),
+      },
+      edges: [
+        { id: 'e1', source: 'start', sourceHandle: 'source', target: 'agent', targetHandle: 'target' },
+        { id: 'e2', source: 'agent', sourceHandle: 'source', target: 'end', targetHandle: 'target' },
+      ],
+    }
+
+    const lint = lintEditedWorkflowState(workflowState as any)
+
+    // 'start' has no incoming edge -> a source, even though it is NOT an orphan (trigger).
+    expect(lint.sources).toEqual([{ blockId: 'start', blockName: 'Start', blockType: 'starter' }])
+    expect(lint.orphanBlocks).toEqual([])
+    // 'end' has no outgoing edge -> a sink.
+    expect(lint.sinks).toEqual([{ blockId: 'end', blockName: 'End', blockType: 'function' }])
+    // 'agent' has both in and out edges -> neither source nor sink.
+    expect(lint.sources.map((b) => b.blockId)).not.toContain('agent')
+    expect(lint.sinks.map((b) => b.blockId)).not.toContain('agent')
+    // 'note' is excluded from both even though it has no edges.
+    expect(lint.sources.map((b) => b.blockId)).not.toContain('note')
+    expect(lint.sinks.map((b) => b.blockId)).not.toContain('note')
   })
 })

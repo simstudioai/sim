@@ -31,9 +31,20 @@ import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-ch
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 import { applyOperationsToWorkflowState } from './engine'
-import { formatWorkflowLintMessage, hasWorkflowLintIssues, lintEditedWorkflowState } from './lint'
+import {
+  collectWorkflowFieldIssues,
+  formatWorkflowLintMessage,
+  hasWorkflowLintIssues,
+  lintEditedWorkflowState,
+  type WorkflowLintReport,
+  type WorkflowLintUnresolvedReference,
+} from './lint'
 import { type EditWorkflowParams, isDeferredSkippedItem, type ValidationError } from './types'
-import { preValidateCredentialInputs, validateWorkflowSelectorIds } from './validation'
+import {
+  collectUnresolvedReferences,
+  preValidateCredentialInputs,
+  UNRESOLVABLE_AT_LINT_NOTE,
+} from './validation'
 
 async function getCurrentWorkflowStateFromDb(
   workflowId: string
@@ -149,14 +160,26 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Add credential validation errors
     validationErrors.push(...credentialErrors)
 
-    // Validate selector IDs exist in the database
+    // Resolve credential/resource references against the workspace (Tier 2).
+    // Includes oauth-input credentials and only the active canonical member, so a
+    // credential "set in basic mode but unresolved in the dropdown" is caught.
+    let unresolvedReferences: WorkflowLintUnresolvedReference[] = []
     if (context?.userId) {
       try {
-        const selectorErrors = await validateWorkflowSelectorIds(modifiedWorkflowState, {
+        unresolvedReferences = await collectUnresolvedReferences(modifiedWorkflowState, {
           userId: context.userId,
           workspaceId,
         })
-        validationErrors.push(...selectorErrors)
+        // Back-compat: also surface unresolved references through the input-validation channel.
+        validationErrors.push(
+          ...unresolvedReferences.map((ref) => ({
+            blockId: ref.blockId,
+            blockType: ref.blockType ?? 'unknown',
+            field: ref.field,
+            value: ref.value,
+            error: ref.reason,
+          }))
+        )
       } catch (error) {
         logger.warn('Selector ID validation failed', {
           error: toError(error).message,
@@ -286,7 +309,16 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       isDeployed: false,
     }
 
-    const workflowLint = lintEditedWorkflowState(workflowStateForDb as any)
+    // Aggregate lint report: graph (sources/sinks/orphans/ports) + Tier-1 config
+    // (required + canonical-mode) + Tier-2 resolution (credential/resource IDs).
+    const graphLint = lintEditedWorkflowState(workflowStateForDb as any)
+    const fieldIssues = collectWorkflowFieldIssues(workflowStateForDb.blocks as any)
+    const workflowLint: WorkflowLintReport = {
+      ...graphLint,
+      fieldIssues,
+      unresolvedReferences,
+      notes: unresolvedReferences.length > 0 ? [UNRESOLVABLE_AT_LINT_NOTE] : [],
+    }
     const workflowLintMessage = hasWorkflowLintIssues(workflowLint)
       ? formatWorkflowLintMessage(workflowLint)
       : undefined
@@ -331,10 +363,8 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       workflowId,
       workflowName: workflowName ?? 'Workflow',
       workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
-      ...(workflowLintMessage && {
-        workflowLint,
-        workflowLintMessage,
-      }),
+      workflowLint,
+      ...(workflowLintMessage && { workflowLintMessage }),
       ...(inputErrors && {
         inputValidationErrors: inputErrors,
         inputValidationMessage: `${inputErrors.length} input(s) were rejected due to validation errors. The workflow was still updated with valid inputs only. Errors: ${inputErrors.join('; ')}`,

@@ -80,11 +80,6 @@ export interface ReadResult {
   totalLines: number
 }
 
-export interface DirEntry {
-  name: string
-  type: 'file' | 'dir'
-}
-
 /**
  * Micromatch options tuned to match the prior in-house glob: `bash: false` so a single `*`
  * never crosses path slashes (required for `files` + star + `meta.json` style paths). `nobrace`
@@ -296,43 +291,6 @@ export function read(
   }
 
   return { content, totalLines }
-}
-
-/**
- * List entries in a VFS directory path.
- * Returns files and subdirectories at the given path level.
- */
-export function list(files: Map<string, string>, path: string): DirEntry[] {
-  const normalizedPath = path.endsWith('/') ? path : `${path}/`
-  const seen = new Set<string>()
-  const entries: DirEntry[] = []
-
-  for (const filePath of files.keys()) {
-    if (filePath.endsWith('/.folder')) continue
-    if (!filePath.startsWith(normalizedPath)) continue
-
-    const remainder = filePath.slice(normalizedPath.length)
-    if (!remainder) continue
-
-    const slashIndex = remainder.indexOf('/')
-    if (slashIndex === -1) {
-      if (!seen.has(remainder)) {
-        seen.add(remainder)
-        entries.push({ name: remainder, type: 'file' })
-      }
-    } else {
-      const dirName = remainder.slice(0, slashIndex)
-      if (!seen.has(dirName)) {
-        seen.add(dirName)
-        entries.push({ name: dirName, type: 'dir' })
-      }
-    }
-  }
-
-  return entries.sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1
-    return a.name.localeCompare(b.name)
-  })
 }
 
 /**

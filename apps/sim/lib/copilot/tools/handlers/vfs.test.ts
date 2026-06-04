@@ -382,4 +382,32 @@ describe('vfs uploads are opt-in (like recently-deleted/)', () => {
     expect(listChatUploads).not.toHaveBeenCalled()
     expect((broad.output as { files: string[] }).files).not.toContain('uploads/My%20Report.json')
   })
+
+  it('reads an upload directly, tolerating a spurious /content suffix', async () => {
+    const vfs = makeVfs()
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+    readChatUpload.mockResolvedValue({ content: 'hello upload', totalLines: 1 })
+
+    const bare = await executeVfsRead({ path: 'uploads/report.csv' }, GREP_CTX_CHAT)
+    expect(bare.success).toBe(true)
+    expect(readChatUpload).toHaveBeenLastCalledWith('report.csv', 'chat-1')
+
+    // The model adds /content out of habit (from files/) — it must still resolve.
+    const withContent = await executeVfsRead({ path: 'uploads/report.csv/content' }, GREP_CTX_CHAT)
+    expect(withContent.success).toBe(true)
+    expect(readChatUpload).toHaveBeenLastCalledWith('report.csv', 'chat-1')
+  })
+
+  it('tolerates a trailing /content on an uploads grep path', async () => {
+    grepChatUpload.mockResolvedValue([])
+
+    await executeVfsGrep({ pattern: 'x', path: 'uploads/report.json/content' }, GREP_CTX_CHAT)
+
+    expect(grepChatUpload).toHaveBeenCalledWith(
+      'report.json',
+      'chat-1',
+      'x',
+      expect.any(Object)
+    )
+  })
 })
