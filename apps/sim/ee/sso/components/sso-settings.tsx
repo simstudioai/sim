@@ -7,6 +7,7 @@ import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import {
   Button,
   ChipCombobox,
+  ChipSelect,
   Expandable,
   ExpandableContent,
   FormField,
@@ -540,7 +541,8 @@ export function SSO() {
         <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
           {/* Provider Type */}
           <FormField label='Provider Type'>
-            <ChipCombobox
+            <ChipSelect
+              align='start'
               value={formData.providerType}
               onChange={(value: string) =>
                 handleInputChange('providerType', value as 'oidc' | 'saml')
@@ -550,7 +552,6 @@ export function SSO() {
                 { label: 'SAML', value: 'saml' },
               ]}
               placeholder='Select provider type'
-              editable={false}
             />
             <p className='text-[var(--text-muted)] text-small'>
               {formData.providerType === 'oidc'
@@ -566,6 +567,8 @@ export function SSO() {
               showErrors && errors.providerId.length > 0 ? errors.providerId.join(' ') : undefined
             }
           >
+            {/* Editable combobox (not ChipSelect): provider IDs accept any
+                validated slug, with SSO_TRUSTED_PROVIDERS as autocomplete. */}
             <ChipCombobox
               value={formData.providerId}
               onChange={(value: string) => handleInputChange('providerId', value)}
@@ -574,7 +577,7 @@ export function SSO() {
                 value: id,
               }))}
               placeholder='Select or enter a provider ID'
-              editable={true}
+              editable
               className={cn(
                 showErrors && errors.providerId.length > 0 && 'border-[var(--text-error)]'
               )}

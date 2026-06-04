@@ -11,13 +11,13 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Chip,
-  ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipSelect,
   Code,
   type ComboboxOption,
   Input as EmcnInput,
@@ -821,7 +821,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             a tool.
           </p>
           <ChipModalField type='custom' title='Select Workflow'>
-            <ChipCombobox
+            <ChipSelect
               options={workflowOptions}
               value={selectedWorkflowId || undefined}
               onChange={(value: string) => setSelectedWorkflowId(value)}
@@ -829,13 +829,8 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               searchable
               searchPlaceholder='Search workflows...'
               disabled={addToolMutation.isPending}
-              overlayContent={
-                selectedWorkflow ? (
-                  <span className='truncate text-[var(--text-primary)]'>
-                    {selectedWorkflow.name}
-                  </span>
-                ) : undefined
-              }
+              align='start'
+              displayLabel={selectedWorkflow?.name}
             />
           </ChipModalField>
           <ChipModalError>

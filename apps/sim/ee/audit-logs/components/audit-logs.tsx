@@ -7,7 +7,7 @@ import { ChevronDown } from 'lucide-react'
 import {
   Badge,
   Button,
-  ChipCombobox,
+  ChipSelect,
   type ComboboxOption,
   DatePicker,
   RefreshCw,
@@ -370,34 +370,28 @@ export function AuditLogs() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <div className='w-[160px]'>
-              <ChipCombobox
-                options={RESOURCE_TYPE_OPTIONS}
-                multiSelect
-                multiSelectValues={selectedTypes}
-                onMultiSelectChange={setSelectedTypes}
-                placeholder='All types'
-                overlayContent={
-                  <span className='truncate text-[var(--text-primary)]'>{typeDisplayLabel}</span>
-                }
-                searchable
-                searchPlaceholder='Search types...'
-                showAllOption
-                allOptionLabel='All types'
-                className='w-full'
-              />
-            </div>
-            <div className='relative w-[160px]'>
-              <ChipCombobox
+            <ChipSelect
+              options={RESOURCE_TYPE_OPTIONS}
+              multiSelect
+              multiSelectValues={selectedTypes}
+              onMultiSelectChange={setSelectedTypes}
+              placeholder='All types'
+              displayLabel={typeDisplayLabel}
+              searchable
+              searchPlaceholder='Search types...'
+              showAllOption
+              allOptionLabel='All types'
+              align='start'
+            />
+            <div className='relative'>
+              <ChipSelect
                 options={TIME_RANGE_OPTIONS}
                 value={timeRange}
                 onChange={handleTimeRangeChange}
                 placeholder='All time'
-                overlayContent={
-                  <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
-                }
-                className='w-full'
+                displayLabel={timeDisplayLabel}
                 maxHeight={320}
+                align='start'
               />
               <DatePicker
                 mode='range'

@@ -6,13 +6,13 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Chip,
-  ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipSelect,
   type ComboboxOption,
 } from '@/components/emcn'
 import { useCreateWorkflowMcpServer } from '@/hooks/queries/workflow-mcp-servers'
@@ -94,7 +94,7 @@ export function CreateWorkflowMcpServerModal({
         />
         {showWorkflows && (
           <ChipModalField type='custom' title='Workflows'>
-            <ChipCombobox
+            <ChipSelect
               options={workflowOptions ?? []}
               multiSelect
               multiSelectValues={selectedWorkflowIds}
@@ -102,16 +102,12 @@ export function CreateWorkflowMcpServerModal({
               placeholder='Select workflows...'
               searchable
               searchPlaceholder='Search workflows...'
-              isLoading={isLoadingWorkflows}
               disabled={createServerMutation.isPending}
-              emptyMessage='No deployed workflows available'
-              overlayContent={
-                selectedWorkflowIds.length > 0 ? (
-                  <span className='text-[var(--text-primary)]'>
-                    {selectedWorkflowIds.length} workflow
-                    {selectedWorkflowIds.length !== 1 ? 's' : ''} selected
-                  </span>
-                ) : undefined
+              align='start'
+              displayLabel={
+                selectedWorkflowIds.length > 0
+                  ? `${selectedWorkflowIds.length} workflow${selectedWorkflowIds.length !== 1 ? 's' : ''} selected`
+                  : undefined
               }
             />
           </ChipModalField>

@@ -1,7 +1,7 @@
 'use client'
 
 import type { ComponentType } from 'react'
-import { ChipCombobox, FormField, Input, SecretInput, Switch, Textarea } from '@/components/emcn'
+import { ChipSelect, FormField, Input, SecretInput, Switch, Textarea } from '@/components/emcn'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
 import type { DestinationType } from '@/lib/data-drains/types'
 
@@ -253,11 +253,11 @@ const datadogFormSpec: DestinationFormSpec<DatadogState> = {
   FormFields: ({ state, setState }) => (
     <>
       <FormField label='Site'>
-        <ChipCombobox
+        <ChipSelect
           value={state.site}
           onChange={(v) => setState({ ...state, site: v as DatadogState['site'] })}
           options={DATADOG_SITE_OPTIONS}
-          dropdownWidth='trigger'
+          align='start'
         />
       </FormField>
       <FormField label='Service (optional)'>

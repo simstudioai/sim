@@ -9,12 +9,12 @@ import {
   Button,
   Callout,
   Chip,
-  ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipSelect,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -30,14 +30,6 @@ import {
   TableRow,
   toast,
 } from '@/components/emcn'
-import {
-  AzureIcon,
-  BigQueryIcon,
-  DatadogIcon,
-  GoogleIcon,
-  S3Icon,
-  SnowflakeIcon,
-} from '@/components/icons'
 import type { CreateDataDrainBody, DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
@@ -82,29 +74,10 @@ const CADENCE_LABELS: Record<(typeof CADENCE_TYPES)[number], string> = {
 
 const SOURCE_OPTIONS = SOURCE_TYPES.map((t) => ({ value: t, label: SOURCE_LABELS[t] }))
 const CADENCE_OPTIONS = CADENCE_TYPES.map((t) => ({ value: t, label: CADENCE_LABELS[t] }))
-function getDestinationIcon(type: (typeof DESTINATION_TYPES)[number]) {
-  switch (type) {
-    case 's3':
-      return <S3Icon className='size-[14px] flex-shrink-0 text-[#1B660F]' />
-    case 'gcs':
-      return <GoogleIcon className='size-[14px] flex-shrink-0' />
-    case 'azure_blob':
-      return <AzureIcon className='size-[14px] flex-shrink-0' />
-    case 'datadog':
-      return <DatadogIcon className='size-[14px] flex-shrink-0' />
-    case 'bigquery':
-      return <BigQueryIcon className='size-[14px] flex-shrink-0' />
-    case 'snowflake':
-      return <SnowflakeIcon className='size-[14px] flex-shrink-0' />
-    default:
-      return null
-  }
-}
 
 const DESTINATION_OPTIONS = DESTINATION_TYPES.map((t) => ({
   value: t,
   label: DESTINATION_LABELS[t],
-  iconElement: getDestinationIcon(t),
 }))
 
 export function DataDrainsSettings() {
@@ -497,35 +470,28 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
           required
         />
         <ChipModalField type='custom' title='Source'>
-          <ChipCombobox
+          <ChipSelect
             value={source}
             onChange={(v) => setSource(v as (typeof SOURCE_TYPES)[number])}
             options={SOURCE_OPTIONS}
-            dropdownWidth='trigger'
+            align='start'
           />
         </ChipModalField>
         <ChipModalField type='custom' title='Cadence'>
-          <ChipCombobox
+          <ChipSelect
             value={cadence}
             onChange={(v) => setCadence(v as (typeof CADENCE_TYPES)[number])}
             options={CADENCE_OPTIONS}
-            dropdownWidth='trigger'
+            align='start'
           />
         </ChipModalField>
         <ChipModalField type='custom' title='Destination'>
-          <ChipCombobox
+          <ChipSelect
             value={destinationType}
             onChange={(v) => handleDestinationChange(v as (typeof DESTINATION_TYPES)[number])}
             options={DESTINATION_OPTIONS}
-            dropdownWidth='trigger'
-            overlayContent={
-              <div className='flex items-center gap-2'>
-                {getDestinationIcon(destinationType)}
-                <span className='truncate text-[var(--text-primary)]'>
-                  {DESTINATION_LABELS[destinationType]}
-                </span>
-              </div>
-            }
+            displayLabel={DESTINATION_LABELS[destinationType]}
+            align='start'
           />
         </ChipModalField>
 

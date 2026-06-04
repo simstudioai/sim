@@ -426,7 +426,7 @@ export function MCP({ initialServerId }: MCPProps) {
                 {server.connectionStatus === 'error' && (
                   <div className='flex flex-col gap-2'>
                     <span className='text-[12px] text-[var(--text-muted)]'>Status</span>
-                    <p className='text-[var(--text-error)] text-base'>
+                    <p className='text-[14px] text-[var(--text-error)]'>
                       {server.lastError || 'Unable to connect'}
                     </p>
                   </div>

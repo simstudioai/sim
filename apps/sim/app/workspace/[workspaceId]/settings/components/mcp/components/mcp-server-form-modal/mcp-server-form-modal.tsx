@@ -761,7 +761,7 @@ export function McpServerFormModal({
                       setOauthClientSecretTouched(value.length > 0)
                       setFormData((prev) => ({ ...prev, oauthClientSecret: value }))
                     }}
-                    className='h-9'
+                    variant='chip'
                   />
                 </FormField>
                 <p className='text-[var(--text-tertiary)] text-caption'>

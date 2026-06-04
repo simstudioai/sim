@@ -52,6 +52,7 @@ export {
   type ChipMultiSelectOption,
   type ChipMultiSelectProps,
 } from './chip-multi-select/chip-multi-select'
+export { ChipSelect, type ChipSelectOption, type ChipSelectProps } from './chip-select/chip-select'
 export {
   ChipSwitch,
   type ChipSwitchOption,

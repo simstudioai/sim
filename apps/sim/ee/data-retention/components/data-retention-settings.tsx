@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { Callout, Chip, ChipCombobox, toast } from '@/components/emcn'
+import { Callout, Chip, ChipSelect, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
@@ -55,11 +55,7 @@ function RetentionSelect({ value, onChange }: RetentionSelectProps) {
         { value, label: `${value} days (custom)` },
       ]
 
-  return (
-    <div className='w-[200px]'>
-      <ChipCombobox value={value} onChange={onChange} options={options} dropdownWidth='trigger' />
-    </div>
-  )
+  return <ChipSelect value={value} onChange={onChange} options={options} align='start' />
 }
 
 export function DataRetentionSettings() {

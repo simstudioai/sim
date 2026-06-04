@@ -7,7 +7,7 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
-  ChipCombobox,
+  ChipSelect,
   type ComboboxOptionGroup,
   Input as EmcnInput,
   Label,
@@ -341,19 +341,17 @@ export function Admin() {
                       Default uses the configured Sim agent URL.
                     </p>
                   </div>
-                  <div className='w-[160px]'>
-                    <ChipCombobox
-                      align='end'
-                      dropdownWidth={160}
-                      value={settings?.mothershipEnvironment ?? 'default'}
-                      onChange={(value) =>
-                        handleMothershipEnvironmentChange(value as MothershipEnvironment)
-                      }
-                      placeholder='Select environment'
-                      disabled={updateSetting.isPending}
-                      options={MOTHERSHIP_ENV_OPTIONS}
-                    />
-                  </div>
+                  <ChipSelect
+                    align='start'
+                    dropdownWidth={160}
+                    value={settings?.mothershipEnvironment ?? 'default'}
+                    onChange={(value) =>
+                      handleMothershipEnvironmentChange(value as MothershipEnvironment)
+                    }
+                    placeholder='Select environment'
+                    disabled={updateSetting.isPending}
+                    options={MOTHERSHIP_ENV_OPTIONS}
+                  />
                 </div>
 
                 <div className='flex items-center justify-between gap-3'>
@@ -363,36 +361,32 @@ export function Admin() {
                       Select workspace MCP tools, custom tools, and skills that Mothership can use.
                     </p>
                   </div>
-                  <div className='w-[160px]'>
-                    <ChipCombobox
-                      align='end'
-                      dropdownWidth={320}
-                      options={[]}
-                      groups={mothershipToolOptions.groups}
-                      multiSelect
-                      multiSelectValues={selectedMothershipToolValues}
-                      onMultiSelectChange={handleMothershipToolSelectionChange}
-                      overlayContent={
-                        selectedMothershipToolCount > 0
-                          ? `${selectedMothershipToolCount} selected`
-                          : undefined
-                      }
-                      placeholder={
-                        mcpToolsLoading || customToolsLoading || skillsLoading
-                          ? 'Loading...'
-                          : 'Select'
-                      }
-                      searchPlaceholder='Search tools and skills...'
-                      emptyMessage='No tools or skills available'
-                      disabled={
-                        updateMothershipSettings.isPending ||
-                        mcpToolsLoading ||
-                        customToolsLoading ||
-                        skillsLoading
-                      }
-                      searchable
-                    />
-                  </div>
+                  <ChipSelect
+                    align='start'
+                    dropdownWidth={320}
+                    groups={mothershipToolOptions.groups}
+                    multiSelect
+                    multiSelectValues={selectedMothershipToolValues}
+                    onMultiSelectChange={handleMothershipToolSelectionChange}
+                    displayLabel={
+                      selectedMothershipToolCount > 0
+                        ? `${selectedMothershipToolCount} selected`
+                        : undefined
+                    }
+                    placeholder={
+                      mcpToolsLoading || customToolsLoading || skillsLoading
+                        ? 'Loading...'
+                        : 'Select'
+                    }
+                    searchPlaceholder='Search tools and skills...'
+                    disabled={
+                      updateMothershipSettings.isPending ||
+                      mcpToolsLoading ||
+                      customToolsLoading ||
+                      skillsLoading
+                    }
+                    searchable
+                  />
                 </div>
               </>
             )}

@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { ArrowRight, Paperclip } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Badge, ChipCombobox, SearchInput } from '@/components/emcn'
+import { Badge, ChipSelect, SearchInput } from '@/components/emcn'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
 
@@ -73,18 +73,16 @@ export function InboxTaskList() {
           onChange={(e) => setSearchTerm(e.target.value)}
           className='min-w-0 flex-1'
         />
-        <div className='w-[160px] shrink-0'>
-          <ChipCombobox
-            align='end'
-            value={statusFilter}
-            onChange={(value) => {
-              if (STATUS_OPTIONS.some((option) => option.value === value)) {
-                setStatusFilter(value as StatusFilter)
-              }
-            }}
-            options={STATUS_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value }))}
-          />
-        </div>
+        <ChipSelect
+          align='start'
+          value={statusFilter}
+          onChange={(value) => {
+            if (STATUS_OPTIONS.some((option) => option.value === value)) {
+              setStatusFilter(value as StatusFilter)
+            }
+          }}
+          options={STATUS_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value }))}
+        />
       </div>
 
       <div className='min-h-0 flex-1 overflow-y-auto'>
