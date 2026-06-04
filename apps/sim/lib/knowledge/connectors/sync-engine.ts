@@ -129,6 +129,27 @@ async function completeSyncLog(
 }
 
 /**
+ * Decides whether deletion reconciliation may run for a sync.
+ *
+ * Reconciliation hard-deletes every stored document absent from the listing,
+ * so it must only run against a complete source set:
+ * - never on incremental syncs (they list only changed documents)
+ * - never when the engine truncated pagination (`listingTruncated`) — a forced
+ *   fullSync cannot fix truncation, so it cannot override it
+ * - not when a connector capped its listing (`listingCapped`), unless a forced
+ *   fullSync deliberately overrides the cap to reconcile the capped scope
+ */
+export function shouldReconcileDeletions(
+  isIncremental: boolean | undefined,
+  syncContext: Record<string, unknown> | undefined,
+  fullSync: boolean | undefined
+): boolean {
+  if (isIncremental) return false
+  if (syncContext?.listingTruncated) return false
+  return !syncContext?.listingCapped || Boolean(fullSync)
+}
+
+/**
  * Resolves tag values from connector metadata using the connector's mapTags function.
  * Translates semantic keys returned by mapTags to actual DB slots using the
  * tagSlotMapping stored in sourceConfig during connector creation.
@@ -417,17 +438,11 @@ export async function executeSync(
 
     if (hasMore) {
       /**
-       * Pagination stopped before the source was exhausted — either the
-       * MAX_PAGES guard tripped or the connector reported hasMore without a
-       * cursor. The listing is incomplete, so flag it to suppress deletion
-       * reconciliation; otherwise documents beyond the truncation point would
-       * be removed even though they still exist in the source.
-       *
-       * `listingTruncated` is distinct from connector-set `listingCapped`:
-       * a forced fullSync may legitimately override a connector's soft cap
-       * (the user opted to reconcile the capped scope), but engine-level
-       * truncation can never be resolved by forcing a fullSync — the next
-       * fullSync truncates identically — so it is an absolute deletion block.
+       * Pagination stopped before source exhaustion (MAX_PAGES or a missing
+       * cursor), so the listing is incomplete. `listingTruncated` blocks
+       * deletion reconciliation absolutely — unlike connector-set
+       * `listingCapped`, it cannot be overridden by a forced fullSync, since
+       * re-running one truncates identically.
        */
       syncContext.listingCapped = true
       syncContext.listingTruncated = true
@@ -657,15 +672,7 @@ export async function executeSync(
       }
     }
 
-    // Reconcile deletions for non-incremental syncs that returned ALL docs.
-    // Skip when listing was capped (maxFiles/maxThreads) — unseen docs may still exist in the source.
-    // A forced fullSync overrides connector-set caps, but never engine-level truncation
-    // (listingTruncated): a truncated listing is incomplete no matter how the sync was triggered.
-    if (
-      !isIncremental &&
-      !syncContext?.listingTruncated &&
-      (!syncContext?.listingCapped || options?.fullSync)
-    ) {
+    if (shouldReconcileDeletions(isIncremental, syncContext, options?.fullSync)) {
       const removedIds = existingDocs
         .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
         .map((d) => d.id)
