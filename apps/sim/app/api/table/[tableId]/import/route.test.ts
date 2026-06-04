@@ -12,12 +12,16 @@ const {
   mockReplaceTableRowsWithTx,
   mockAddTableColumnsWithTx,
   mockDispatchAfterBatchInsert,
+  mockMarkTableImporting,
+  mockReleaseImportClaim,
 } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockBatchInsertRowsWithTx: vi.fn(),
   mockReplaceTableRowsWithTx: vi.fn(),
   mockAddTableColumnsWithTx: vi.fn(),
   mockDispatchAfterBatchInsert: vi.fn(),
+  mockMarkTableImporting: vi.fn(),
+  mockReleaseImportClaim: vi.fn(),
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -33,6 +37,12 @@ vi.mock('@/app/api/table/utils', async () => {
       const message = result.status === 404 ? 'Table not found' : 'Access denied'
       return NextResponse.json({ error: message }, { status: result.status })
     },
+    csvProxyBodyCapResponse: () => null,
+    multipartErrorResponse: (error: { code: string; message: string }) =>
+      NextResponse.json(
+        { error: error.message },
+        { status: error.code === 'FILE_TOO_LARGE' ? 413 : 400 }
+      ),
   }
 })
 
@@ -47,6 +57,8 @@ vi.mock('@/lib/table/service', () => ({
   replaceTableRowsWithTx: mockReplaceTableRowsWithTx,
   addTableColumnsWithTx: mockAddTableColumnsWithTx,
   dispatchAfterBatchInsert: mockDispatchAfterBatchInsert,
+  markTableImporting: mockMarkTableImporting,
+  releaseImportClaim: mockReleaseImportClaim,
 }))
 
 import { POST } from '@/app/api/table/[tableId]/import/route'
@@ -64,8 +76,8 @@ function createFormData(
     createColumns?: unknown
   }
 ): FormData {
+  // Text fields must precede the file part for the streaming parser.
   const form = new FormData()
-  form.append('file', file)
   if (options?.workspaceId !== null) {
     form.append('workspaceId', options?.workspaceId ?? 'workspace-1')
   }
@@ -86,6 +98,7 @@ function createFormData(
         : JSON.stringify(options.createColumns)
     )
   }
+  form.append('file', file)
   return form
 }
 
@@ -113,9 +126,10 @@ function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
 }
 
 async function callPost(form: FormData, { tableId }: { tableId: string } = { tableId: 'tbl_1' }) {
+  // Building the request from a FormData body gives a real multipart stream and
+  // boundary, exercising the streaming `readMultipart` parser end-to-end.
   const req = new NextRequest(`http://localhost:3000/api/table/${tableId}/import`, {
     method: 'POST',
-    headers: { 'content-length': '1024' },
     body: form,
   })
   return POST(req, { params: Promise.resolve({ tableId }) })
@@ -134,6 +148,8 @@ describe('POST /api/table/[tableId]/import', () => {
       data.rows.map((_, i) => ({ id: `row_${i}` }))
     )
     mockReplaceTableRowsWithTx.mockResolvedValue({ deletedCount: 0, insertedCount: 0 })
+    mockMarkTableImporting.mockResolvedValue(true)
+    mockReleaseImportClaim.mockResolvedValue(undefined)
     mockAddTableColumnsWithTx.mockImplementation(
       async (
         _trx,
@@ -158,6 +174,22 @@ describe('POST /api/table/[tableId]/import', () => {
     })
     const response = await callPost(createFormData(createCsvFile('name,age\nAlice,30')))
     expect(response.status).toBe(401)
+  })
+
+  it('returns 409 when a background import already holds the table (claim lost)', async () => {
+    mockMarkTableImporting.mockResolvedValueOnce(false)
+    const response = await callPost(createFormData(createCsvFile('name,age\nAlice,30')))
+    expect(response.status).toBe(409)
+    expect(mockBatchInsertRowsWithTx).not.toHaveBeenCalled()
+    expect(mockReplaceTableRowsWithTx).not.toHaveBeenCalled()
+    expect(mockReleaseImportClaim).not.toHaveBeenCalled()
+  })
+
+  it('releases the import claim after a successful write', async () => {
+    const response = await callPost(createFormData(createCsvFile('name,age\nAlice,30')))
+    expect(response.status).toBe(200)
+    expect(mockMarkTableImporting).toHaveBeenCalledWith('tbl_1', 'deadbeefcafef00d')
+    expect(mockReleaseImportClaim).toHaveBeenCalledWith('tbl_1', 'deadbeefcafef00d')
   })
 
   it('returns 400 when the mode is invalid', async () => {
@@ -186,22 +218,30 @@ describe('POST /api/table/[tableId]/import', () => {
     expect(data.error).toMatch(/archived/i)
   })
 
-  it('returns 413 for oversized CSV files before reading their contents', async () => {
-    const file = createCsvFile('name,age\nAlice,30')
-    Object.defineProperty(file, 'size', {
-      value: 26 * 1024 * 1024,
-    })
-    const arrayBufferSpy = vi.spyOn(file, 'arrayBuffer')
-
+  it('returns 400 when the file part precedes the required fields', async () => {
+    // Build a raw multipart body with the file BEFORE workspaceId.
+    const boundary = '----orderboundary'
+    const body = Buffer.concat([
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="data.csv"\r\nContent-Type: text/csv\r\n\r\nname,age\nAlice,30\r\n`
+      ),
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="workspaceId"\r\n\r\n`),
+      Buffer.from('workspace-1\r\n'),
+      Buffer.from(`--${boundary}--\r\n`),
+    ])
     const req = {
-      formData: async () => createFormData(file),
+      headers: new Headers({ 'content-type': `multipart/form-data; boundary=${boundary}` }),
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(body))
+          controller.close()
+        },
+      }),
+      signal: undefined,
     } as unknown as NextRequest
 
     const response = await POST(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
-    expect(response.status).toBe(413)
-    const data = await response.json()
-    expect(data.error).toMatch(/CSV import file exceeds maximum size/)
-    expect(arrayBufferSpy).not.toHaveBeenCalled()
+    expect(response.status).toBe(400)
     expect(mockBatchInsertRowsWithTx).not.toHaveBeenCalled()
     expect(mockReplaceTableRowsWithTx).not.toHaveBeenCalled()
   })
