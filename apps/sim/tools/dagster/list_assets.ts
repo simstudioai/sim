@@ -8,6 +8,9 @@ import {
 } from '@/tools/dagster/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** Default page size applied when the caller omits `limit`, so paging stays bounded and `hasMore` is meaningful. */
+const DEFAULT_LIST_ASSETS_LIMIT = 100
+
 /** Shape of each asset node in the `assetsOrError` → `AssetConnection.nodes` selection set. */
 interface DagsterAssetGraphqlNode {
   key: { path: string[] }
@@ -69,7 +72,7 @@ export const listAssetsTool: ToolConfig<DagsterListAssetsParams, DagsterListAsse
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of assets to return (optional)',
+      description: 'Maximum number of assets to return per page (default 100)',
     },
   },
 
@@ -78,10 +81,11 @@ export const listAssetsTool: ToolConfig<DagsterListAssetsParams, DagsterListAsse
     method: 'POST',
     headers: (params) => dagsterRequestHeaders(params),
     body: (params) => {
-      const variables: Record<string, unknown> = {}
+      const variables: Record<string, unknown> = {
+        limit: params.limit ?? DEFAULT_LIST_ASSETS_LIMIT,
+      }
       if (params.prefix) variables.prefix = parseAssetKeyPath(params.prefix)
       if (params.cursor) variables.cursor = params.cursor
-      if (params.limit != null) variables.limit = params.limit
       return { query: LIST_ASSETS_QUERY, variables }
     },
   },
@@ -103,12 +107,13 @@ export const listAssetsTool: ToolConfig<DagsterListAssetsParams, DagsterListAsse
       path: node.key.path,
     }))
 
+    const limit = params?.limit ?? DEFAULT_LIST_ASSETS_LIMIT
     return {
       success: true,
       output: {
         assets,
         cursor: result.cursor ?? null,
-        hasMore: params?.limit != null && assets.length >= params.limit,
+        hasMore: assets.length >= limit,
       },
     }
   },

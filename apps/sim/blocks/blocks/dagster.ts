@@ -3,6 +3,13 @@ import type { BlockConfig } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { DagsterResponse } from '@/tools/dagster/types'
 
+/** Coerces a subBlock value to a finite number, returning undefined for empty or non-numeric input. */
+function toFiniteNumber(value: unknown): number | undefined {
+  if (value == null || value === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 export const DagsterBlock: BlockConfig<DagsterResponse> = {
   type: 'dagster',
   name: 'Dagster',
@@ -475,19 +482,16 @@ Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
 
         // list_runs: type-coerce limit + time filters, remap job name filter and cursor
         if (params.operation === 'list_runs') {
-          if (params.limit != null && params.limit !== '') result.limit = Number(params.limit)
+          result.limit = toFiniteNumber(params.limit)
           result.jobName = params.listRunsJobName || undefined
-          if (params.createdAfter != null && params.createdAfter !== '')
-            result.createdAfter = Number(params.createdAfter)
-          if (params.createdBefore != null && params.createdBefore !== '')
-            result.createdBefore = Number(params.createdBefore)
+          result.createdAfter = toFiniteNumber(params.createdAfter)
+          result.createdBefore = toFiniteNumber(params.createdBefore)
           result.cursor = params.runsCursor || undefined
         }
 
         // get_run_logs: remap logsLimit → limit
         if (params.operation === 'get_run_logs') {
-          if (params.logsLimit != null && params.logsLimit !== '')
-            result.limit = Number(params.logsLimit)
+          result.limit = toFiniteNumber(params.logsLimit)
         }
 
         // reexecute_run: remap runId → parentRunId
@@ -506,8 +510,7 @@ Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
         // list_assets: type-coerce limit and remap prefix/cursor
         if (params.operation === 'list_assets') {
           result.prefix = params.assetPrefix || undefined
-          if (params.assetsLimit != null && params.assetsLimit !== '')
-            result.limit = Number(params.assetsLimit)
+          result.limit = toFiniteNumber(params.assetsLimit)
           result.cursor = params.assetsCursor || undefined
         }
 
