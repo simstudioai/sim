@@ -79,7 +79,7 @@ export function DeleteModal({
   } else if (itemType === 'folder') {
     title = isMultiple ? 'Delete Folders' : 'Delete Folder'
   } else if (itemType === 'task') {
-    title = isMultiple ? 'Delete Tasks' : 'Delete Task'
+    title = isMultiple ? 'Delete Chats' : 'Delete Chat'
   } else if (itemType === 'mixed') {
     title = 'Delete Items'
   } else {
@@ -167,7 +167,7 @@ export function DeleteModal({
           <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>
-              {displayNames.length} tasks
+              {displayNames.length} chats
             </span>
             ?{' '}
             <span className='text-[var(--text-error)]'>
@@ -189,7 +189,7 @@ export function DeleteModal({
       }
       return (
         <>
-          Are you sure you want to delete this task?{' '}
+          Are you sure you want to delete this chat?{' '}
           <span className='text-[var(--text-error)]'>
             This will permanently remove all conversation history.
           </span>

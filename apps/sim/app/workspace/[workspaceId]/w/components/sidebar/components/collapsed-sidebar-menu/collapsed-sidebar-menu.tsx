@@ -248,7 +248,7 @@ export function CollapsedTaskFlyoutItem({
     return (
       <div className={EDIT_ROW_CLASS}>
         <input
-          aria-label={`Rename task ${task.name}`}
+          aria-label={`Rename chat ${task.name}`}
           ref={inputRef}
           value={editValue ?? task.name}
           onChange={(e) => onEditValueChange?.(e.target.value)}
@@ -277,7 +277,7 @@ export function CollapsedTaskFlyoutItem({
       action={
         showActions ? (
           <DropdownMenuItemAction
-            aria-label='Task options'
+            aria-label='Chat options'
             onPointerDown={onMorePointerDown}
             onClick={(e) => onMoreClick?.(e, task.id)}
             className={cn(isMenuOpen && 'opacity-100')}

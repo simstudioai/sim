@@ -189,7 +189,7 @@ function mapTask(chat: MothershipTask): TaskMetadata {
   const updatedAt = new Date(chat.updatedAt)
   return {
     id: chat.id,
-    name: chat.title ?? 'New task',
+    name: chat.title ?? 'New chat',
     updatedAt,
     isActive: chat.activeStreamId !== null,
     isUnread:
@@ -633,7 +633,7 @@ export function useCreateTask(workspaceId?: string) {
       const existing = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId)) ?? []
       const newTask: TaskMetadata = {
         id: data.id,
-        name: 'New task',
+        name: 'New chat',
         updatedAt: new Date(),
         isActive: false,
         isUnread: false,
@@ -675,7 +675,7 @@ export function useForkTask(workspaceId?: string) {
       const existing = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
       if (existing) {
         const sourceTask = existing.find((t) => t.id === variables.chatId)
-        const baseName = (sourceTask?.name ?? 'New task').replace(/^Fork \| /, '')
+        const baseName = (sourceTask?.name ?? 'New chat').replace(/^Fork \| /, '')
         const optimisticTask: TaskMetadata = {
           id: data.id,
           name: `Fork | ${baseName}`,

@@ -214,7 +214,7 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
   },
   task: {
     type: 'task',
-    label: 'Tasks',
+    label: 'Chats',
     icon: Task,
     renderTabIcon: (_resource, className) => (
       <Task className={cn(className, 'text-[var(--text-icon)]')} />
