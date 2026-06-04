@@ -1,3 +1,4 @@
+import { trace } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger, runWithRequestContext } from '@sim/logger'
@@ -616,8 +617,27 @@ async function executeWebhookJobInternal(
       provider: payload.provider,
     })
 
+    // The finalized flag is set inside a fire-and-forget post-execution promise; await it so the
+    // signal is reliable and the failure is fully persisted before we decide fault vs error.
+    await loggingSession.waitForPostExecution()
+
+    // A failure inside workflow execution (block error, provider 4xx, missing required field, etc.)
+    // is finalized by core and already recorded in the execution logs. That is a user/workflow error,
+    // not a trigger.dev job fault — complete the run normally so we don't fire a false alert. Errors
+    // that were not finalized came from the webhook pipeline itself, so we re-throw to fault below.
     if (wasExecutionFinalizedByCore(error, executionId)) {
-      throw error
+      // Record the exception on the run span so it stays visible in traces without
+      // marking the span as ERROR — that status is what faults the trigger.dev run.
+      trace.getActiveSpan()?.recordException(toError(error))
+
+      return {
+        success: false,
+        workflowId: payload.workflowId,
+        executionId,
+        output: hasExecutionResult(error) ? error.executionResult.output : {},
+        executedAt: new Date().toISOString(),
+        provider: payload.provider,
+      }
     }
 
     try {

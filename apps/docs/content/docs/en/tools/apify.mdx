@@ -30,7 +30,7 @@ These operations equip your agents to automate, scrape, and orchestrate data col
 
 ## Usage Instructions
 
-Integrate Apify into your workflow. Run any Apify actor with custom input and retrieve results. Supports both synchronous and asynchronous execution with automatic dataset fetching.
+Integrate Apify into your workflow. Run any Apify actor or saved task with custom input, fetch dataset items, and check run status. Supports both synchronous and asynchronous execution with automatic dataset fetching.
 
 
 
@@ -86,5 +86,76 @@ Run an APIFY actor asynchronously with polling for long-running tasks
 | `status` | string | Run status \(SUCCEEDED, FAILED, etc.\) |
 | `datasetId` | string | Dataset ID containing results |
 | `items` | array | Dataset items \(if completed\) |
+
+### `apify_run_task`
+
+Run a saved APIFY actor task synchronously and get dataset items (max 5 minutes)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
+| `taskId` | string | Yes | Task ID or username/task-name. Examples: "janedoe/my-task", "moJRLRc85AitArpNN" |
+| `input` | string | No | JSON string that overrides the task\'s saved input. Example: \{"startUrls": \[\{"url": "https://example.com"\}\]\} |
+| `itemLimit` | number | No | Max dataset items to return \(1-250000\). Example: 500 |
+| `memory` | number | No | Memory in megabytes allocated for the run \(128-32768\). Example: 1024 for 1GB |
+| `timeout` | number | No | Timeout in seconds for the run. Example: 300 for 5 minutes |
+| `build` | string | No | Actor build to run. Examples: "latest", "beta", "1.2.3" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the task run succeeded |
+| `status` | string | Run status \(SUCCEEDED, FAILED, etc.\) |
+| `items` | array | Dataset items produced by the run |
+
+### `apify_get_dataset_items`
+
+Retrieve items stored in an APIFY dataset
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
+| `datasetId` | string | Yes | Dataset ID to read items from. Example: "9RnD3Pql2vGZkc5H5" |
+| `itemLimit` | number | No | Max items to return \(1-250000\). Default: all items. Example: 500 |
+| `offset` | number | No | Number of items to skip at the start. Default: 0 |
+| `fields` | string | No | Comma-separated list of fields to include. Example: "title,url,price" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the items were retrieved |
+| `datasetId` | string | Dataset ID the items were read from |
+| `items` | array | Items stored in the dataset |
+| `count` | number | Number of items returned |
+
+### `apify_get_run`
+
+Get the status and details of an APIFY actor run
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
+| `runId` | string | Yes | Actor run ID to fetch. Example: "HG7ML7M8z78YcAPEB" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the run was found |
+| `runId` | string | APIFY run ID |
+| `status` | string | Run status \(READY, RUNNING, SUCCEEDED, FAILED, etc.\) |
+| `startedAt` | string | When the run started \(ISO timestamp\) |
+| `finishedAt` | string | When the run finished \(ISO timestamp\) |
+| `datasetId` | string | Default dataset ID for the run |
+| `keyValueStoreId` | string | Default key-value store ID for the run |
+| `stats` | json | Run statistics \(memory, CPU, duration\) |
 
 

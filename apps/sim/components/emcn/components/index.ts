@@ -143,6 +143,7 @@ export {
   usePopoverContext,
 } from './popover/popover'
 export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
+export { ProgressItem, progressItemVariants } from './progress-item/progress-item'
 export {
   SModal,
   SModalClose,

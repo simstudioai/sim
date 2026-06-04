@@ -5,9 +5,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 
-const { isKnownTool, isSimExecuted } = vi.hoisted(() => ({
+const { isKnownTool, isSimExecuted, isClientExecuted } = vi.hoisted(() => ({
   isKnownTool: vi.fn(),
   isSimExecuted: vi.fn(),
+  isClientExecuted: vi.fn(),
 }))
 
 const { executeAppTool } = vi.hoisted(() => ({
@@ -17,17 +18,19 @@ const { executeAppTool } = vi.hoisted(() => ({
 vi.mock('./router', () => ({
   isKnownTool,
   isSimExecuted,
+  isClientExecuted,
 }))
 
 vi.mock('@/tools', () => ({
   executeTool: executeAppTool,
 }))
 
-import { executeTool } from './executor'
+import { clearHandlers, executeTool, registerHandler } from './executor'
 
 describe('copilot tool executor fallback', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clearHandlers()
   })
 
   it('falls back to app tool executor for dynamic sim tools', async () => {
@@ -57,6 +60,36 @@ describe('copilot tool executor fallback', () => {
       })
     )
     expect(result).toEqual({ success: true, output: { emails: [] } })
+  })
+
+  it('uses the registered handler for client-routed tools when running headless (Mothership block)', async () => {
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(false)
+    isClientExecuted.mockReturnValue(true)
+
+    const runWorkflowHandler = vi.fn().mockResolvedValue({ success: true, output: { ran: true } })
+    registerHandler('run_workflow', runWorkflowHandler)
+
+    const context = { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'ws-1' }
+    const result = await executeTool('run_workflow', { workflow_input: {} }, context)
+
+    expect(runWorkflowHandler).toHaveBeenCalledWith({ workflow_input: {} }, context)
+    expect(executeAppTool).not.toHaveBeenCalled()
+    expect(result).toEqual({ success: true, output: { ran: true } })
+  })
+
+  it('falls back to app tool executor for client-routed tools with no registered handler', async () => {
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(false)
+    isClientExecuted.mockReturnValue(true)
+    executeAppTool.mockResolvedValue({
+      success: false,
+      error: 'Tool not found: unknown_client_tool',
+    })
+
+    await executeTool('unknown_client_tool', {}, { userId: 'user-1' })
+
+    expect(executeAppTool).toHaveBeenCalledWith('unknown_client_tool', expect.any(Object))
   })
 
   it('converts function_execute timeout from seconds to milliseconds for copilot calls', async () => {

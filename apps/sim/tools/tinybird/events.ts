@@ -64,9 +64,14 @@ export const eventsTool: ToolConfig<TinybirdEventsParams, TinybirdEventsResponse
 
   request: {
     url: (params) => {
-      const baseUrl = params.base_url.endsWith('/') ? params.base_url.slice(0, -1) : params.base_url
+      const baseUrl = params.base_url.trim().replace(/\/+$/, '')
       const url = new URL(`${baseUrl}/v0/events`)
-      url.searchParams.set('name', params.datasource)
+      url.searchParams.set('name', params.datasource.trim())
+      // Tinybird selects JSON parsing via the `format=json` query parameter, not the
+      // Content-Type header. Default (omitted) is NDJSON.
+      if (params.format === 'json') {
+        url.searchParams.set('format', 'json')
+      }
       if (params.wait) {
         url.searchParams.set('wait', 'true')
       }
@@ -75,7 +80,7 @@ export const eventsTool: ToolConfig<TinybirdEventsParams, TinybirdEventsResponse
     method: 'POST',
     headers: (params) => {
       const headers: Record<string, string> = {
-        Authorization: `Bearer ${params.token}`,
+        Authorization: `Bearer ${params.token.trim()}`,
       }
 
       if (params.compression === 'gzip') {

@@ -5,7 +5,7 @@ import { randomFloat } from '@sim/utils/random'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { DEFAULT_EXECUTION_TIMEOUT_MS, getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
 import {
   secureFetchWithPinnedIP,
@@ -19,6 +19,7 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { isUserFile } from '@/lib/core/utils/user-file'
+import { isSameOrigin } from '@/lib/core/utils/validation'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -1370,17 +1371,7 @@ function isErrorResponse(
  * the platform's own workflow execution endpoints via absolute URL.
  */
 function isSelfOriginUrl(url: string): boolean {
-  try {
-    const targetOrigin = new URL(url).origin
-    const publicOrigin = new URL(getBaseUrl()).origin
-    if (targetOrigin === publicOrigin) return true
-
-    const internalOrigin = new URL(getInternalApiBaseUrl()).origin
-    if (targetOrigin === internalOrigin) return true
-  } catch {
-    return false
-  }
-  return false
+  return isSameOrigin(url, getBaseUrl()) || isSameOrigin(url, getInternalApiBaseUrl())
 }
 
 /**
@@ -1591,7 +1582,11 @@ async function executeToolRequest(
       try {
         if (isInternalRoute) {
           const controller = new AbortController()
-          const timeout = requestParams.timeout || getMaxExecutionTimeout()
+          // With a caller/execution abort signal present, the plan-based timeout bounds the call and
+          // this only acts as a ceiling; without one, keep the tighter default as the hang safety net.
+          const timeout =
+            requestParams.timeout ||
+            (signal ? getMaxExecutionTimeout() : DEFAULT_EXECUTION_TIMEOUT_MS)
           const timeoutId = setTimeout(
             () => controller.abort(`timeout:internal_tool_fetch:${timeout}ms`),
             timeout

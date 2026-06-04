@@ -1,5 +1,10 @@
 import type { DagsterBaseParams, DagsterListJobsResponse } from '@/tools/dagster/types'
-import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/utils'
+import {
+  dagsterGraphqlUrl,
+  dagsterRequestHeaders,
+  dagsterUnionErrorMessage,
+  parseDagsterGraphqlResponse,
+} from '@/tools/dagster/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const LIST_JOBS_QUERY = `
@@ -48,13 +53,9 @@ export const listJobsTool: ToolConfig<DagsterBaseParams, DagsterListJobsResponse
   },
 
   request: {
-    url: (params) => `${params.host.replace(/\/$/, '')}/graphql`,
+    url: (params) => dagsterGraphqlUrl(params.host),
     method: 'POST',
-    headers: (params) => {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (params.apiKey) headers['Dagster-Cloud-Api-Token'] = params.apiKey
-      return headers
-    },
+    headers: (params) => dagsterRequestHeaders(params),
     body: () => ({
       query: LIST_JOBS_QUERY,
       variables: {},

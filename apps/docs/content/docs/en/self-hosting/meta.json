@@ -5,6 +5,7 @@
     "docker",
     "kubernetes",
     "platforms",
+    "object-storage",
     "environment-variables",
     "troubleshooting"
   ],

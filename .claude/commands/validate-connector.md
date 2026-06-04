@@ -135,6 +135,13 @@ For each API endpoint the connector calls:
 - [ ] No off-by-one errors in pagination tracking
 - [ ] The connector does NOT hit known API pagination limits silently (e.g., HubSpot search 10k cap)
 
+### Deletion-Reconciliation Safety (`listingCapped`) — CRITICAL
+The sync engine hard-deletes any stored document absent from a full listing. Audit every path where `listDocuments` can return less than the full source set:
+- [ ] `syncContext.listingCapped = true` is set when a `maxItems`-style cap truncates the listing while more documents exist
+- [ ] `listingCapped` is set when a transient per-item error drops a still-existing document from the listing
+- [ ] `listingCapped` is NOT set when the source is genuinely exhausted (deleted documents must reconcile) or for intentional scope filters (date cutoffs)
+This is the most common connector bug class — verify it explicitly against `sync-engine.ts`'s reconciliation gate.
+
 ### Pagination State Across Pages
 - [ ] `syncContext` is used to cache state across pages (user names, field maps, instance URLs, portal IDs, etc.)
 - [ ] Cached state in `syncContext` is correctly initialized on first page and reused on subsequent pages

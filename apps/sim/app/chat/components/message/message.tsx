@@ -38,6 +38,49 @@ export interface ChatMessage {
   files?: ChatFile[]
 }
 
+const HTML_ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+} as const
+
+/**
+ * Escapes HTML entities so untrusted strings are safe to interpolate into markup.
+ */
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c] || c)
+}
+
+/**
+ * Opens an image attachment preview in a new tab via a blob URL,
+ * escaping the user-controlled filename and data URL to prevent XSS.
+ */
+function openAttachmentPreview(name: string, dataUrl: string): void {
+  const safeName = escapeHtml(name)
+  const safeUrl = escapeHtml(dataUrl)
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${safeName}</title>
+        <style>
+          body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
+          img { max-width: 100%; max-height: 100vh; object-fit: contain; }
+        </style>
+      </head>
+      <body>
+        <img src="${safeUrl}" alt="${safeName}" />
+      </body>
+    </html>
+  `
+  const blob = new Blob([html], { type: 'text/html' })
+  const blobUrl = URL.createObjectURL(blob)
+  window.open(blobUrl, '_blank', 'noopener,noreferrer')
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
+}
+
 export const ClientChatMessage = memo(
   function ClientChatMessage({ message }: { message: ChatMessage }) {
     const [isCopied, setIsCopied] = useState(false)

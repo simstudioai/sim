@@ -19,16 +19,20 @@ export type ExecutionCancellationRecordResult =
       reason: 'redis_unavailable' | 'redis_write_failed'
     }
 
-let sharedChannel: PubSubChannel<ExecutionCancelEvent> | null = null
+type CancellationGlobal = typeof globalThis & {
+  _executionCancelChannel?: PubSubChannel<ExecutionCancelEvent>
+}
+
+const _g = globalThis as CancellationGlobal
 
 export function getCancellationChannel(): PubSubChannel<ExecutionCancelEvent> {
-  if (!sharedChannel) {
-    sharedChannel = createPubSubChannel<ExecutionCancelEvent>({
+  if (!_g._executionCancelChannel) {
+    _g._executionCancelChannel = createPubSubChannel<ExecutionCancelEvent>({
       channel: EXECUTION_CANCEL_CHANNEL,
       label: 'execution-cancel',
     })
   }
-  return sharedChannel
+  return _g._executionCancelChannel
 }
 
 export function isRedisCancellationEnabled(): boolean {

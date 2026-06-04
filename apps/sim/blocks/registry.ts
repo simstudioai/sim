@@ -29,6 +29,7 @@ import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { CirclebackBlock } from '@/blocks/blocks/circleback'
 import { ClayBlock, ClayBlockMeta } from '@/blocks/blocks/clay'
 import { ClerkBlock, ClerkBlockMeta } from '@/blocks/blocks/clerk'
+import { ClickHouseBlock } from '@/blocks/blocks/clickhouse'
 import { CloudflareBlock, CloudflareBlockMeta } from '@/blocks/blocks/cloudflare'
 import { CloudFormationBlock, CloudFormationBlockMeta } from '@/blocks/blocks/cloudformation'
 import { CloudWatchBlock, CloudWatchBlockMeta } from '@/blocks/blocks/cloudwatch'
@@ -334,6 +335,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   circleback: CirclebackBlock,
   clay: ClayBlock,
   clerk: ClerkBlock,
+  clickhouse: ClickHouseBlock,
   cloudflare: CloudflareBlock,
   cloudformation: CloudFormationBlock,
   cloudwatch: CloudWatchBlock,
