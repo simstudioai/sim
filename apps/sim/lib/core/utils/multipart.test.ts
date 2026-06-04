@@ -164,4 +164,40 @@ describe('readMultipart', () => {
       readMultipart(request, { maxFileBytes: 1024, signal: controller.signal })
     ).rejects.toBeTruthy()
   })
+
+  it('destroys the file stream when the signal aborts mid-upload (after resolve)', async () => {
+    const controller = new AbortController()
+    // A body that delivers the file-part header but never closes, so the file stream stays open
+    // after readMultipart resolves — mimicking a client still uploading.
+    let enqueue!: (b: Buffer) => void
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        enqueue = (b) => c.enqueue(new Uint8Array(b))
+      },
+    })
+    const head = Buffer.concat([
+      Buffer.from(
+        `--${BOUNDARY}\r\nContent-Disposition: form-data; name="workspaceId"\r\n\r\nws-1\r\n`
+      ),
+      Buffer.from(
+        `--${BOUNDARY}\r\nContent-Disposition: form-data; name="file"; filename="data.csv"\r\nContent-Type: text/csv\r\n\r\n`
+      ),
+      Buffer.from('name,age\n'),
+    ])
+    const request = {
+      headers: new Headers({ 'content-type': `multipart/form-data; boundary=${BOUNDARY}` }),
+      body,
+    }
+    enqueue(head)
+
+    const parsed = await readMultipart(request, {
+      maxFileBytes: 1024,
+      requiredFieldsBeforeFile: ['workspaceId'],
+      signal: controller.signal,
+    })
+    expect(parsed.file).toBeTruthy()
+
+    controller.abort()
+    await expect(readStream(parsed.file!.stream)).rejects.toBeTruthy()
+  })
 })

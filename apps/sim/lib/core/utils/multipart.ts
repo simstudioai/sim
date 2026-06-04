@@ -203,12 +203,28 @@ export function readMultipart(
         )
       })
 
-      settle(() =>
+      settle(() => {
+        // settle() detached the pre-file abort handler. Re-arm one scoped to the file stream so a
+        // client disconnect mid-upload tears it down — otherwise the caller's consume loop hangs
+        // until maxDuration. Detach when the stream closes so it can't fire afterward.
+        if (signal) {
+          const onStreamAbort = () => {
+            const reason = signal.reason instanceof Error ? signal.reason : new Error('Aborted')
+            stream.destroy(reason)
+            nodeStream.destroy(reason)
+            bb.destroy()
+          }
+          if (signal.aborted) onStreamAbort()
+          else {
+            signal.addEventListener('abort', onStreamAbort, { once: true })
+            stream.once('close', () => signal.removeEventListener('abort', onStreamAbort))
+          }
+        }
         resolve({
           fields,
           file: { fieldName: name, filename: info.filename, mimeType: info.mimeType, stream },
         })
-      )
+      })
     })
 
     bb.on('error', (err) => {
