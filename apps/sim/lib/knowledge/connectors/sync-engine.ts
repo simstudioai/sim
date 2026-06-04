@@ -415,6 +415,21 @@ export async function executeSync(
       hasMore = page.hasMore
     }
 
+    if (hasMore) {
+      /**
+       * Pagination stopped before the source was exhausted — either the
+       * MAX_PAGES guard tripped or the connector reported hasMore without a
+       * cursor. The listing is incomplete, so flag it to suppress deletion
+       * reconciliation; otherwise documents beyond the truncation point would
+       * be removed even though they still exist in the source.
+       */
+      syncContext.listingCapped = true
+      logger.warn('Pagination ended before source exhaustion; skipping deletion reconciliation', {
+        connectorId,
+        docsSoFar: externalDocs.length,
+      })
+    }
+
     logger.info(`Fetched ${externalDocs.length} documents from ${connectorConfig.name}`, {
       connectorId,
     })
