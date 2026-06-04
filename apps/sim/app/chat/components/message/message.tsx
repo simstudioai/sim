@@ -38,14 +38,19 @@ export interface ChatMessage {
   files?: ChatFile[]
 }
 
+const HTML_ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+} as const
+
 /**
  * Escapes HTML entities so untrusted strings are safe to interpolate into markup.
  */
 function escapeHtml(value: string): string {
-  return value.replace(
-    /[&<>"']/g,
-    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c
-  )
+  return value.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c] || c)
 }
 
 /**
