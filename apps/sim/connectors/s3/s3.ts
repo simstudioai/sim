@@ -581,9 +581,11 @@ export const s3Connector: ConnectorConfig = {
       .filter((entry) => entry.size > 0 && entry.size <= MAX_FILE_SIZE)
       .map((entry) => objectToStub(ctx, entry))
 
+    let slicedSome = false
     if (maxObjects > 0) {
       const remaining = maxObjects - previouslyFetched
       if (documents.length > remaining) {
+        slicedSome = true
         documents = documents.slice(0, remaining)
       }
     }
@@ -591,7 +593,8 @@ export const s3Connector: ConnectorConfig = {
     const totalFetched = previouslyFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxObjects > 0 && totalFetched >= maxObjects
-    if (hitLimit && syncContext) syncContext.listingCapped = true
+    const moreAvailable = slicedSome || (isTruncated && Boolean(nextContinuationToken))
+    if (hitLimit && moreAvailable && syncContext) syncContext.listingCapped = true
 
     return {
       documents,

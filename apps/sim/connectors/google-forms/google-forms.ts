@@ -550,9 +550,13 @@ export const googleFormsConnector: ConnectorConfig = {
     const data = await response.json()
     let files = (data.files || []) as DriveFormFile[]
 
+    let slicedSome = false
     if (maxForms > 0) {
       const remaining = maxForms - previouslyFetched
-      if (files.length > remaining) files = files.slice(0, remaining)
+      if (files.length > remaining) {
+        slicedSome = true
+        files = files.slice(0, remaining)
+      }
     }
 
     /**
@@ -597,11 +601,13 @@ export const googleFormsConnector: ConnectorConfig = {
     /**
      * Mark the listing as incomplete so the sync engine skips deletion
      * reconciliation. This applies when the `maxForms` cap truncates results
-     * (forms beyond the cap are not absent from the source) or when a transient
-     * error caused a still-present form to be dropped from this page — deleting
-     * those would wipe valid documents from the knowledge base.
+     * while more forms exist (forms beyond the cap are not absent from the
+     * source) or when a transient error caused a still-present form to be
+     * dropped from this page — deleting those would wipe valid documents from
+     * the knowledge base. When the cap merely coincides with source exhaustion
+     * (no next page), reconciliation stays enabled so deleted forms are cleaned up.
      */
-    if (syncContext && (hitLimit || skippedOnError)) {
+    if (syncContext && ((hitLimit && (slicedSome || Boolean(nextPageToken))) || skippedOnError)) {
       syncContext.listingCapped = true
     }
 

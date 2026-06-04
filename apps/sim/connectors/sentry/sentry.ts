@@ -525,9 +525,11 @@ export const sentryConnector: ConnectorConfig = {
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
     let documents = issues.map(issueToStub)
+    let slicedSome = false
     if (maxIssues > 0) {
       const remaining = Math.max(0, maxIssues - prevFetched)
       if (documents.length > remaining) {
+        slicedSome = true
         documents = documents.slice(0, remaining)
       }
     }
@@ -535,9 +537,11 @@ export const sentryConnector: ConnectorConfig = {
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxIssues > 0 && totalFetched >= maxIssues
-    if (hitLimit && syncContext) syncContext.listingCapped = true
 
     const nextCursor = parseNextCursor(response.headers.get('Link'))
+    if (hitLimit && (slicedSome || Boolean(nextCursor)) && syncContext) {
+      syncContext.listingCapped = true
+    }
     const hasMore = !hitLimit && Boolean(nextCursor)
 
     return {

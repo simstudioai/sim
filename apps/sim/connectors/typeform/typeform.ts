@@ -424,9 +424,13 @@ export const typeformConnector: ConnectorConfig = {
      * cap is hit because `hasMore` becomes false.
      */
     let cappedItems = items
+    let slicedSome = false
     if (maxResponses > 0) {
       const remaining = Math.max(0, maxResponses - prevTotal)
-      if (items.length > remaining) cappedItems = items.slice(0, remaining)
+      if (items.length > remaining) {
+        slicedSome = true
+        cappedItems = items.slice(0, remaining)
+      }
     }
 
     const documents: ExternalDocument[] = cappedItems.map((item) =>
@@ -438,13 +442,6 @@ export const typeformConnector: ConnectorConfig = {
     const hitLimit = maxResponses > 0 && totalFetched >= maxResponses
 
     /**
-     * Signal a truncated listing so the engine skips deletion reconciliation:
-     * a capped page does not represent the full set of responses, and deleting
-     * everything past the cap would wipe still-present docs from the KB.
-     */
-    if (hitLimit && syncContext) syncContext.listingCapped = true
-
-    /**
      * The `before` cursor is the response `token` (not `response_id`). Each full
      * page advances to the oldest token seen so the next request pages strictly
      * older responses. A short page or a missing token ends pagination, which also
@@ -452,7 +449,19 @@ export const typeformConnector: ConnectorConfig = {
      */
     const lastItem = items[items.length - 1]
     const nextCursor = lastItem?.token
-    const hasMore = !hitLimit && items.length === RESPONSES_PER_PAGE && Boolean(nextCursor)
+    const sourceHasMore = items.length === RESPONSES_PER_PAGE && Boolean(nextCursor)
+
+    /**
+     * Signal a truncated listing so the engine skips deletion reconciliation —
+     * but only when the cap actually dropped responses (this page was sliced, or
+     * the source had more pages). If the cap merely coincides with source
+     * exhaustion, reconciliation stays enabled so deleted responses are cleaned up.
+     */
+    if (hitLimit && (slicedSome || sourceHasMore) && syncContext) {
+      syncContext.listingCapped = true
+    }
+
+    const hasMore = !hitLimit && sourceHasMore
 
     return {
       documents,

@@ -871,9 +871,14 @@ async function listRepoFiles(
   const chunk = entries.slice(offset, offset + FILE_BATCH_SIZE)
   const documents = chunk.map((entry) => fileToStub(organization, project, entry))
 
-  const { documents: capped, capped: hitLimit } = applyMaxItemsCap(documents, maxItems, syncContext)
-
   const nextOffset = offset + FILE_BATCH_SIZE
+  const { documents: capped, capped: hitLimit } = applyMaxItemsCap(
+    documents,
+    maxItems,
+    syncContext,
+    nextOffset < entries.length
+  )
+
   const hasMore = !hitLimit && nextOffset < entries.length
 
   return {
@@ -1003,24 +1008,32 @@ async function getFileDocument(
 
 /**
  * Applies the optional maxItems cap to a batch, tracking the running total in
- * syncContext and flagging `listingCapped` when the cap is hit. The sync engine
- * reads `listingCapped` to suppress deletion reconciliation on a truncated
- * listing — without it, a capped full sync would wrongly delete every source
- * document beyond the cap.
+ * syncContext and flagging `listingCapped` when the cap actually truncated the
+ * listing. The sync engine reads `listingCapped` to suppress deletion
+ * reconciliation on a truncated listing — without it, a capped full sync would
+ * wrongly delete every source document beyond the cap.
+ *
+ * `moreAvailable` tells the helper whether the current phase has further items
+ * beyond this page. The flag is only set when documents were actually dropped
+ * (this page was sliced, or more pages exist) — when the cap merely coincides
+ * with source exhaustion, reconciliation stays enabled so deleted source
+ * documents are still cleaned up.
  */
 function applyMaxItemsCap(
   documents: ExternalDocument[],
   maxItems: number,
-  syncContext: Record<string, unknown> | undefined
+  syncContext: Record<string, unknown> | undefined,
+  moreAvailable: boolean
 ): { documents: ExternalDocument[]; capped: boolean } {
   if (maxItems <= 0) return { documents, capped: false }
   const prevTotal = (syncContext?.totalDocsFetched as number) ?? 0
   const remaining = Math.max(0, maxItems - prevTotal)
-  const sliced = documents.length > remaining ? documents.slice(0, remaining) : documents
+  const slicedSome = documents.length > remaining
+  const sliced = slicedSome ? documents.slice(0, remaining) : documents
   const newTotal = prevTotal + sliced.length
   if (syncContext) syncContext.totalDocsFetched = newTotal
   const capped = newTotal >= maxItems
-  if (capped && syncContext) syncContext.listingCapped = true
+  if (capped && (slicedSome || moreAvailable) && syncContext) syncContext.listingCapped = true
   return { documents: sliced, capped }
 }
 
@@ -1104,7 +1117,12 @@ async function listWikiPages(
     documents.push(...stubs)
   }
 
-  const { documents: capped, capped: hitLimit } = applyMaxItemsCap(documents, maxItems, syncContext)
+  const { documents: capped, capped: hitLimit } = applyMaxItemsCap(
+    documents,
+    maxItems,
+    syncContext,
+    Boolean(nextContinuation) || wikiIndex + 1 < wikis.length
+  )
   if (hitLimit) {
     return { documents: capped, hasMore: false }
   }
@@ -1145,6 +1163,10 @@ async function listWorkItems(
     if (syncContext) syncContext.workItemIds = ids
   }
 
+  if (ids.length >= WIQL_MAX_RESULTS && syncContext) {
+    syncContext.listingCapped = true
+  }
+
   if (ids.length === 0) {
     return { documents: [], hasMore: false }
   }
@@ -1157,11 +1179,23 @@ async function listWorkItems(
 
   const chunk = ids.slice(offset, offset + WORK_ITEM_BATCH_SIZE)
   const raw = await fetchWorkItemsBatch(accessToken, organization, project, chunk)
+  if (raw.length < chunk.length && syncContext) {
+    syncContext.listingCapped = true
+    logger.warn(
+      'workitemsbatch omitted ids that WIQL returned; flagging listing as incomplete so reconciliation skips deletion',
+      { requested: chunk.length, returned: raw.length, organization, project }
+    )
+  }
   const documents = raw.map((item) => workItemToDocument(organization, project, item))
 
-  const { documents: capped, capped: hitLimit } = applyMaxItemsCap(documents, maxItems, syncContext)
-
   const nextOffset = offset + WORK_ITEM_BATCH_SIZE
+  const { documents: capped, capped: hitLimit } = applyMaxItemsCap(
+    documents,
+    maxItems,
+    syncContext,
+    nextOffset < ids.length
+  )
+
   const hasMore = !hitLimit && nextOffset < ids.length
 
   return {
@@ -1426,6 +1460,10 @@ export const azureDevopsConnector: ConnectorConfig = {
         return { documents, nextCursor: result.nextCursor, hasMore: true }
       }
       if (capReached()) {
+        const remainingPhase = nextPhase(current, contentType)
+        if (remainingPhase && syncContext) {
+          syncContext.listingCapped = true
+        }
         return { documents, hasMore: false }
       }
       current = nextPhase(current, contentType)
