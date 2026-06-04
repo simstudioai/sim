@@ -1,6 +1,6 @@
 ---
-description: Validate a model entry (or every model in a provider) in apps/sim/providers/models.ts against the provider's live API docs (no hallucination — reports what cannot be verified)
-argument-hint: <provider> [model-id]
+name: validate-model
+description: Validate a model entry (or every model in a provider) in `apps/sim/providers/models.ts` against the provider's live API docs, reporting pricing and capability drift, dead capability flags, hosting/billing intent, and any field that cannot be verified. Use when auditing or repairing model entries under `apps/sim/providers/models.ts`.
 ---
 
 # Validate Model Skill

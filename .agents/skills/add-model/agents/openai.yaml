@@ -1,0 +1,5 @@
+interface:
+  display_name: "Add Model"
+  short_description: "Add an LLM model, specs verified"
+  brand_color: "#0EA5E9"
+  default_prompt: "Use $add-model to add a new LLM model to Sim with pricing and capabilities verified against the provider's live docs."
