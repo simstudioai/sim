@@ -48,7 +48,7 @@ export function OrganizationInviteModal({
 }: OrganizationInviteModalProps) {
   const [emails, setEmails] = useState<string[]>([])
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>([])
-  const [inviteRole, setInviteRole] = useState<PermissionType>('admin')
+  const [inviteRole, setInviteRole] = useState<PermissionType>('write')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const { data: session } = useSession()
@@ -111,7 +111,7 @@ export function OrganizationInviteModal({
   const resetState = useCallback(() => {
     setEmails([])
     setSelectedWorkspaceIds([])
-    setInviteRole('admin')
+    setInviteRole('write')
     setErrorMessage(null)
   }, [])
 

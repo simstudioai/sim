@@ -494,8 +494,7 @@ export function Billing() {
                 </span>
                 <Switch
                   checked={isOnDemandActive}
-                  disabled={isTogglingOnDemand}
-                  className={canManageBilling ? undefined : 'opacity-50'}
+                  disabled={isTogglingOnDemand || !canManageBilling}
                   onCheckedChange={() => handleToggleOnDemand()}
                 />
               </div>
